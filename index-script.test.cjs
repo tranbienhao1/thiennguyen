@@ -32,4 +32,12 @@ assert.ok(appCode.includes('setSidebarOpen(!sidebarIsOpen())'), 'Sidebar toggle 
 assert.ok(appCode.includes("$('sidebar-close').addEventListener('click'"), 'Sidebar close button should hide the drawer');
 assert.ok(appCode.includes("$('sidebar-backdrop').addEventListener('click'"), 'Sidebar backdrop should hide the drawer');
 assert.ok(appCode.includes('target.muted = false'), 'Promoted playback deck must be unmuted');
+assert.ok(html.includes('.seek-range') && html.includes('accent-color: #050505'), 'Seek slider should use a dedicated black styling treatment');
+assert.ok(html.includes('seek-range'), 'Seek controls should use the dedicated slider class');
+assert.ok(appCode.includes('paintSeek'), 'Seek controls should paint the slider progress');
+assert.ok(appCode.includes('--seek-progress'), 'Seek slider should expose a CSS progress variable');
+assert.ok(appCode.includes('object-contain'), 'Artwork should fit within its frame instead of cropping it');
+assert.ok(appCode.includes('mediaSession'), 'Playback should expose lock-screen/media controls');
+assert.ok(appCode.includes("action('nexttrack'"), 'Playback should support lock-screen next-track control');
+assert.ok(appCode.includes("action('seekto'"), 'Playback should support lock-screen seeking');
 console.log('Inline app script syntax and cloud persistence/sync wiring tests passed.');

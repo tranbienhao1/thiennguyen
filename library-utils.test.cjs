@@ -11,7 +11,13 @@ new vm.Script(fs.readFileSync(path.join(__dirname, 'library-utils.js'), 'utf8'),
 assert.deepStrictEqual(utils.parseFilenameMetadata('Adele - 25 - Hello.mp3'), {title:'Hello', artist:'Adele', album:'25'});
 assert.deepStrictEqual(utils.parseFilenameMetadata('03 - Hello.flac'), {title:'Hello', artist:utils.UNKNOWN_ARTIST, album:utils.UNKNOWN_ALBUM});
 assert.deepStrictEqual(utils.parseFilenameMetadata('Artist/Album/CD 1/03 - Hello.flac'), {title:'Hello', artist:'Artist', album:'Album'});
+assert.deepStrictEqual(utils.parseFilenameMetadata('01 52Hz, Rio - Song Name.flac'), {title:'Song Name', artist:'52Hz', album:utils.UNKNOWN_ALBUM});
+assert.deepStrictEqual(utils.parseFilenameMetadata('01 14 Casper, Bon Nghiêm, buitruonglinh - Track.flac'), {title:'Track', artist:'14 Casper', album:utils.UNKNOWN_ALBUM});
 assert.deepStrictEqual(utils.resolveTrackMetadata({title:' Track  1 ', artist:'unknown', album:'—'}, {title:'Song', artist:'Artist', album:'Album'}), {title:'Track 1', artist:'Artist', album:'Album'});
+assert.deepStrictEqual(utils.resolveTrackMetadata({title:'Song', artist:'24k.Right, KayC, RPT Orijinn', album:'Chưa rõ album'}, {title:'Fallback', artist:'Fallback Artist', album:'Fallback Album'}), {title:'Song', artist:'24k.Right', album:'Chưa rõ album'});
+assert.deepStrictEqual(utils.trackMetadata({title:'T', artist:'01 buitruonglinh, Vũ Phụng Tiên, Đậu Tất Đạt', album:'—'}), {title:'T', artist:'buitruonglinh', album:utils.UNKNOWN_ALBUM});
+assert.deepStrictEqual(utils.trackMetadata({title:'Thunder', artist:'AC/DC', album:'Back in Black'}), {title:'Thunder', artist:'AC/DC', album:'Back in Black'});
+assert.deepStrictEqual(utils.trackMetadata({title:'Die With A Smile', artist:'Lady Gaga (feat. Bruno Mars)', album:'Single'}), {title:'Die With A Smile', artist:'Lady Gaga', album:'Single'});
 assert.strictEqual(utils.parseFilenameMetadata('Hello.flac').artist, utils.UNKNOWN_ARTIST);
 assert.strictEqual(utils.parseFilenameMetadata('Hello.flac').title, 'Hello');
 
@@ -38,8 +44,8 @@ assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).l
 assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);
 const albumGroups = utils.groupTracks(tracks, 'album');
 assert.strictEqual(albumGroups.length, 3, 'same album title by different artists should not be merged');
-assert.ok(albumGroups.some(group => group.label === 'Adele — 25'));
-assert.ok(albumGroups.some(group => group.label === 'Other — 25' && group.tracks.length === 2));
+assert.ok(albumGroups.some(group => group.label === '25' && group.tracks.length === 1));
+assert.ok(albumGroups.some(group => group.label === '25' && group.tracks.length === 2), 'album labels should show only the album title even when grouped separately by artist');
 assert.strictEqual(utils.groupTracks(tracks, 'artist').length, 2);
 assert.strictEqual(utils.groupTracks(tracks, 'none')[0].tracks.length, 4);
 

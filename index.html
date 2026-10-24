@@ -15,6 +15,12 @@
     .surface { background: linear-gradient(145deg,rgba(39,39,42,.62),rgba(24,24,27,.55)); }
     .range { accent-color: rgb(var(--accent)); }
     .range[type=range] { cursor: pointer; }
+    .seek-range { height: 18px; appearance: none; background: transparent; touch-action: pan-y; accent-color: #050505; }
+    .seek-range::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: linear-gradient(to right,#050505 0%,#050505 var(--seek-progress,0%),#52525b var(--seek-progress,0%),#52525b 100%); }
+    .seek-range::-webkit-slider-thumb { width: 14px; height: 14px; margin-top: -5px; appearance: none; border: 2px solid #d4d4d8; border-radius: 50%; background: #050505; box-shadow: 0 0 0 2px rgba(0,0,0,.45); }
+    .seek-range::-moz-range-track { height: 4px; border-radius: 999px; background: #52525b; }
+    .seek-range::-moz-range-progress { height: 4px; border-radius: 999px; background: #050505; }
+    .seek-range::-moz-range-thumb { width: 10px; height: 10px; border: 2px solid #d4d4d8; border-radius: 50%; background: #050505; box-shadow: 0 0 0 2px rgba(0,0,0,.45); }
     .track-row.active { background: rgba(139,92,246,.12); border-color: rgba(167,139,250,.2); }
     .cover-glow { background: radial-gradient(ellipse at bottom,rgba(var(--accent),.18),transparent 66%); }
     .drop-overlay { background: rgba(9,9,11,.88); backdrop-filter: blur(12px); }
@@ -137,7 +143,7 @@
             <button id="next-button" class="text-lg text-zinc-300 hover:text-white" aria-label="Bài tiếp">›</button>
             <button id="repeat-button" class="text-xs text-zinc-500 hover:text-violet-300" title="Lặp lại">↻</button>
           </div>
-          <div class="hidden w-full max-w-[540px] items-center gap-2 sm:flex"><span id="current-time" class="w-9 text-right text-[10px] tabular-nums text-zinc-500">0:00</span><input id="seek" class="range h-1 flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="duration" class="w-9 text-[10px] tabular-nums text-zinc-500">0:00</span></div>
+          <div class="hidden w-full max-w-[540px] items-center gap-2 sm:flex"><span id="current-time" class="w-9 text-right text-[10px] tabular-nums text-zinc-500">0:00</span><input id="seek" class="seek-range flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="duration" class="w-9 text-[10px] tabular-nums text-zinc-500">0:00</span></div>
         </div>
         <div class="hidden w-[25%] items-center justify-end gap-3 lg:flex">
           <canvas id="visualizer" class="h-8 w-28 opacity-80"></canvas>
@@ -147,7 +153,7 @@
         </div>
         <div class="flex items-center gap-2 sm:hidden"><input id="volume-mobile" class="range w-14" type="range" min="0" max="100" value="72" aria-label="Âm lượng"><button id="seek-mobile-button" class="hidden text-xs text-violet-300" aria-label="Tua">0:00</button></div>
       </div>
-      <div class="flex items-center gap-2 pb-2 sm:hidden"><span id="current-time-mobile" class="text-[9px] tabular-nums text-zinc-500">0:00</span><input id="seek-mobile" class="range h-1 flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="duration-mobile" class="text-[9px] tabular-nums text-zinc-500">0:00</span><span id="mobile-quality" class="text-[9px] text-zinc-500">—</span></div>
+      <div class="flex items-center gap-2 pb-2 sm:hidden"><span id="current-time-mobile" class="text-[9px] tabular-nums text-zinc-500">0:00</span><input id="seek-mobile" class="seek-range flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="duration-mobile" class="text-[9px] tabular-nums text-zinc-500">0:00</span><span id="mobile-quality" class="text-[9px] text-zinc-500">—</span></div>
     </div>
   </footer>
 
@@ -559,9 +565,10 @@
         const heading = group.label ? `<h3 class="mb-2 mt-5 border-b border-white/[.07] px-3 pb-2 text-[10px] font-medium uppercase tracking-[.18em] text-zinc-500">${escapeHtml(group.label)} <span class="ml-1 text-zinc-700">${group.tracks.length}</span></h3>` : '';
         const rows = group.tracks.map(track => {
           const q = quality(track), active = track.id === state.currentId;
+          const metadata = library.trackMetadata(track);
           return `<button class="track-row ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_52px]" data-track-id="${escapeHtml(track.id)}">
-            <span class="flex min-w-0 items-center gap-3"><span class="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-cover" alt="">` : '♫'}${active ? '<span class="absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="block truncate text-xs font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${escapeHtml(track.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(track.artist)} <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
-            <span class="hidden truncate text-xs text-zinc-500 sm:block">${escapeHtml(track.album)}</span><span class="hidden sm:block"><span class="rounded border px-1.5 py-1 text-[9px] font-medium tracking-wide ${q.tone}">${q.label}</span></span><span class="text-right text-[10px] tabular-nums text-zinc-500">${track.duration ? formatTime(track.duration) : '—'}</span>
+            <span class="flex min-w-0 items-center gap-3"><span class="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="block truncate text-xs font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${escapeHtml(metadata.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(metadata.artist)} <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
+            <span class="hidden truncate text-xs text-zinc-500 sm:block">${escapeHtml(metadata.album)}</span><span class="hidden sm:block"><span class="rounded border px-1.5 py-1 text-[9px] font-medium tracking-wide ${q.tone}">${q.label}</span></span><span class="text-right text-[10px] tabular-nums text-zinc-500">${track.duration ? formatTime(track.duration) : '—'}</span>
           </button>`;
         }).join('');
         return heading + rows;
@@ -656,17 +663,43 @@
       audio.volume = volume; standbyAudio.volume = volume;
       $('volume').value = value; $('volume-mobile').value = value;
     }
+    function paintSeek(input, value) {
+      const percent = Math.max(0, Math.min(100, Number(value) / 10));
+      input.style.setProperty('--seek-progress', `${percent}%`);
+    }
+    function updateMediaSession(track) {
+      if (!('mediaSession' in navigator)) return;
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: track.title || 'Bài hát không tên',
+          artist: track.artist || library.UNKNOWN_ARTIST,
+          album: track.album && track.album !== library.UNKNOWN_ALBUM ? track.album : '',
+          artwork: track.cover ? [{src: track.cover, sizes: '512x512', type: 'image/jpeg'}] : []
+        });
+        navigator.mediaSession.playbackState = audio && !audio.paused ? 'playing' : 'paused';
+      } catch (error) { console.warn('Could not update media session:', error); }
+    }
+    function updatePositionState() {
+      if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
+      try {
+        if (Number.isFinite(audio.duration) && audio.duration > 0) {
+          navigator.mediaSession.setPositionState({duration: audio.duration, playbackRate: audio.playbackRate || 1, position: Math.min(audio.currentTime || 0, audio.duration)});
+        }
+      } catch (error) {}
+    }
     function displayTrack(track) {
       state.currentId = track.id;
-      $('now-title').textContent = track.title;
+      $('now-title').textContent = library.trackMetadata(track).title;
       const technical = [track.isDsd ? (track.dsdMultiplier ? `PCM 44.1 kHz · DSD${track.dsdMultiplier} nguồn` : track.sampleRate ? `DSD${track.sampleRate / 44100} nguồn` : '') : track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', track.isDsd ? '' : track.bitDepth ? `${track.bitDepth}-bit` : '', track.channels ? `${track.channels} ch` : ''].filter(Boolean).join(' · ');
-      $('now-artist').textContent = `${track.artist} · ${track.format || sourceLabel(track.source)}${technical ? ` · ${technical}` : ''}`;
-      const cover = $('player-cover'); cover.innerHTML = track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-cover" alt="">` : '♫';
+      const metadata = library.trackMetadata(track);
+      $('now-artist').textContent = `${metadata.artist} · ${track.format || sourceLabel(track.source)}${technical ? ` · ${technical}` : ''}`;
+      const cover = $('player-cover'); cover.innerHTML = track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫';
+      updateMediaSession({...track, ...metadata});
       const q = quality(track); $('quality-badge').textContent = q.label; $('quality-badge').className = `rounded-md border px-2 py-1 text-[9px] font-medium uppercase tracking-wider ${q.tone}`; $('mobile-quality').textContent = q.label;
       $('favorite-button').classList.remove('hidden'); $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡';
-      $('ambient').style.background = track.cover ? `radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.14),transparent 35%),url("${track.cover}") center/cover fixed` : 'radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.16),transparent 48%)';
+      $('ambient').style.background = track.cover ? `radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.14),transparent 35%),url("${track.cover}") center/contain no-repeat fixed` : 'radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.16),transparent 48%)';
       $('current-time').textContent = '0:00'; $('current-time-mobile').textContent = '0:00'; $('duration').textContent = formatTime(track.duration); $('duration-mobile').textContent = formatTime(track.duration);
-      $('seek').value = '0'; $('seek-mobile').value = '0';
+      $('seek').value = '0'; $('seek-mobile').value = '0'; paintSeek($('seek'), 0); paintSeek($('seek-mobile'), 0);
       renderTracks(); recordHistory(track);
     }
     function queueIndex() {
@@ -1195,10 +1228,10 @@
       renderTracks();
     }));
     $('sort-button').addEventListener('click', event => { state.sortAsc = !state.sortAsc; event.currentTarget.textContent = `Tên ${state.sortAsc ? '↑' : '↓'}`; renderTracks(); });
-    const syncSeek = value => { $('seek').value = value; $('seek-mobile').value = value; };
+    const syncSeek = value => { $('seek').value = value; $('seek-mobile').value = value; paintSeek($('seek'), value); paintSeek($('seek-mobile'), value); };
     [$('seek'), $('seek-mobile')].forEach(input => {
-      input.addEventListener('input', () => { state.isSeeking = true; const time = Number(input.value) / 1000 * (audio.duration || 0); $('current-time').textContent = formatTime(time); $('current-time-mobile').textContent = formatTime(time); });
-      input.addEventListener('change', () => { if (Number.isFinite(audio.duration)) audio.currentTime = Number(input.value) / 1000 * audio.duration; state.isSeeking = false; });
+      input.addEventListener('input', () => { state.isSeeking = true; paintSeek(input, input.value); const time = Number(input.value) / 1000 * (audio.duration || 0); $('current-time').textContent = formatTime(time); $('current-time-mobile').textContent = formatTime(time); });
+      input.addEventListener('change', () => { if (Number.isFinite(audio.duration)) audio.currentTime = Number(input.value) / 1000 * audio.duration; state.isSeeking = false; updatePositionState(); });
     });
     [$('volume'), $('volume-mobile')].forEach(input => input.addEventListener('input', () => setGain(input.value)));
     function attachDeckEvents(element) {
@@ -1206,6 +1239,7 @@
         if (element !== audio) return;
         if (!state.isSeeking && Number.isFinite(element.duration)) syncSeek(Math.round(element.currentTime / element.duration * 1000));
         $('current-time').textContent = formatTime(element.currentTime); $('current-time-mobile').textContent = formatTime(element.currentTime);
+        updatePositionState();
         if (Number.isFinite(element.duration) && element.duration - element.currentTime <= 12 && (!standbyAudio.src || standbyAudio.src !== state.preloadReadyUrl)) preloadNext();
       });
       element.addEventListener('loadedmetadata', () => {
@@ -1213,13 +1247,45 @@
         $('duration').textContent = formatTime(element.duration); $('duration-mobile').textContent = formatTime(element.duration);
         const track = state.tracks.find(item => item.id === state.currentId);
         if (track) { track.duration = element.duration; renderTracks(); }
+        updatePositionState();
       });
-      element.addEventListener('play', () => { if (element === audio) $('play-button').textContent = 'Ⅱ'; });
-      element.addEventListener('pause', () => { if (element === audio && !standbyAudio.paused) return; if (element === audio) $('play-button').textContent = '▶'; });
+      element.addEventListener('play', () => {
+        if (element !== audio) return;
+        $('play-button').textContent = 'Ⅱ';
+        if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'playing'; } catch (error) {} }
+        updatePositionState();
+      });
+      element.addEventListener('pause', () => {
+        if (element === audio && !standbyAudio.paused) return;
+        if (element !== audio) return;
+        $('play-button').textContent = '▶';
+        if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'paused'; } catch (error) {} }
+      });
       element.addEventListener('ended', () => { if (element === audio) playNext(1); });
       element.addEventListener('error', () => { if (element === standbyAudio) { state.preloadTrackId = null; console.warn('Next track preload failed.'); } });
     }
     attachDeckEvents(audio); attachDeckEvents(standbyAudio);
+    if ('mediaSession' in navigator) {
+      try {
+        const action = (name, handler) => { try { navigator.mediaSession.setActionHandler(name, handler); } catch (error) {} };
+        action('play', async () => {
+          if (audio.src) {
+            try { if (state.context && state.context.state === 'suspended') await state.context.resume(); await audio.play(); }
+            catch (error) { toast(mediaErrorMessage(error)); }
+          } else {
+            const current = state.tracks.find(track => track.id === state.currentId) || state.tracks[0];
+            if (current) playTrack(current.id);
+          }
+        });
+        action('pause', () => audio.pause());
+        action('previoustrack', () => playNext(-1));
+        action('nexttrack', () => playNext(1));
+        action('seekbackward', event => { audio.currentTime = Math.max(0, (audio.currentTime || 0) - (event.seekOffset || 10)); });
+        action('seekforward', event => { if (Number.isFinite(audio.duration)) audio.currentTime = Math.min(audio.duration, (audio.currentTime || 0) + (event.seekOffset || 10)); });
+        action('seekto', event => { if (event.seekTime != null && Number.isFinite(audio.duration)) audio.currentTime = Math.min(Math.max(0, event.seekTime), audio.duration || 0); });
+        action('stop', () => { audio.pause(); audio.currentTime = 0; });
+      } catch (error) { console.warn('Could not register media session actions:', error); }
+    }
     $('eq-button').addEventListener('click', () => $('eq-panel').classList.toggle('hidden'));
     $('eq-add-band').addEventListener('click', () => addEqBand());
     $('eq-enabled').addEventListener('change', event => {

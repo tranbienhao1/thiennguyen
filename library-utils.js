@@ -20,6 +20,30 @@
     return normalize(value).replace(/^(?:(?:cd|disc|disk)\s*\d+\s*[-_. ]+)?\d{1,3}\s*[-–—._]\s*/i, '').trim();
   }
 
+  function stripLeadingTrackNumber(value) {
+    const text = normalize(value).replace(/^0\d{1,2}(?:\s+|[-_.\s]\s*)/, '');
+    return stripTrackPrefix(text);
+  }
+
+  function primaryArtistName(value, fallback = UNKNOWN_ARTIST) {
+    let text = stripLeadingTrackNumber(value);
+    if (!text) return fallback;
+    text = text.replace(/\s*[[(]\s*(?:feat\.?|ft\.?|featuring)\b[^)\]]*[)\]]/i, '').trim();
+    const collaboration = text.search(/\s+(?:feat\.?|ft\.?|featuring|with|vs\.?)\s+/i);
+    if (collaboration > 0) text = text.slice(0, collaboration).trim();
+    const duet = text.search(/\s+[x×&+]\s+/);
+    if (duet > 0) text = text.slice(0, duet).trim();
+    const and = text.search(/\s+(?:and|và)\s+/i);
+    if (and > 0) text = text.slice(0, and).trim();
+    const first = String(text.split(/\s*[,;|]\s*/)[0] || '').trim();
+    const cleaned = cleanMetadataValue(stripLeadingTrackNumber(first), '');
+    return cleaned || fallback;
+  }
+
+  function primaryAlbumName(value, fallback = UNKNOWN_ALBUM) {
+    return cleanMetadataValue(stripLeadingTrackNumber(value), fallback);
+  }
+
   function parseFilenameMetadata(filename) {
     const pathParts = normalize(filename).replace(/\\/g, '/').split('/').filter(Boolean);
     const originalName = pathParts.pop() || '';
@@ -29,16 +53,16 @@
       const title = cleanMetadataValue(parts[parts.length - 1], 'Bài hát không tên');
       return {
         title,
-        artist:cleanMetadataValue(parts[0], UNKNOWN_ARTIST),
-        album:parts.length > 2 ? cleanMetadataValue(parts.slice(1, -1).join(' - '), UNKNOWN_ALBUM) : UNKNOWN_ALBUM
+        artist:primaryArtistName(parts[0]),
+        album:parts.length > 2 ? primaryAlbumName(parts.slice(1, -1).join(' - ')) : UNKNOWN_ALBUM
       };
     }
     const metadataFolders = pathParts.filter(part => !/^(?:cd|disc|disk)\s*\d+$/i.test(normalize(part)));
     if (metadataFolders.length >= 2) {
       return {
         title:cleanMetadataValue(baseName, 'Bài hát không tên'),
-        artist:cleanMetadataValue(metadataFolders[metadataFolders.length - 2], UNKNOWN_ARTIST),
-        album:cleanMetadataValue(metadataFolders[metadataFolders.length - 1], UNKNOWN_ALBUM)
+        artist:primaryArtistName(metadataFolders[metadataFolders.length - 2]),
+        album:primaryAlbumName(metadataFolders[metadataFolders.length - 1])
       };
     }
     return {title:cleanMetadataValue(baseName, 'Bài hát không tên'), artist:UNKNOWN_ARTIST, album:UNKNOWN_ALBUM};
@@ -47,13 +71,13 @@
   function resolveTrackMetadata(tags = {}, fallback = {}) {
     const fallbackMetadata = {
       title:cleanMetadataValue(fallback.title, 'Bài hát không tên'),
-      artist:cleanMetadataValue(fallback.artist, UNKNOWN_ARTIST),
-      album:cleanMetadataValue(fallback.album, UNKNOWN_ALBUM)
+      artist:primaryArtistName(fallback.artist),
+      album:primaryAlbumName(fallback.album)
     };
     return {
       title:cleanMetadataValue(tags.title, fallbackMetadata.title),
-      artist:cleanMetadataValue(tags.artist, fallbackMetadata.artist),
-      album:cleanMetadataValue(tags.album, fallbackMetadata.album)
+      artist:primaryArtistName(tags.artist, fallbackMetadata.artist),
+      album:primaryAlbumName(tags.album, fallbackMetadata.album)
     };
   }
 
@@ -96,8 +120,8 @@
   function trackMetadata(track) {
     return {
       title:cleanMetadataValue(track && track.title, 'Bài hát không tên'),
-      artist:cleanMetadataValue(track && track.artist, UNKNOWN_ARTIST),
-      album:cleanMetadataValue(track && track.album, UNKNOWN_ALBUM)
+      artist:primaryArtistName(track && track.artist),
+      album:primaryAlbumName(track && track.album)
     };
   }
 
@@ -109,13 +133,11 @@
         const albumKey = metadataKey(metadata.album || fallback);
         const artistKey = metadataKey(metadata.artist);
         const key = `${albumKey}\t${artistKey}`;
-        const label = metadata.album === UNKNOWN_ALBUM
-          ? metadata.artist === UNKNOWN_ARTIST ? 'Chưa rõ nghệ sĩ / album' : `${metadata.artist} — Chưa rõ album`
-          : metadata.artist === UNKNOWN_ARTIST ? metadata.album : `${metadata.artist} — ${metadata.album}`;
+        const label = metadata.album === UNKNOWN_ALBUM ? 'Chưa rõ album' : metadata.album;
         if (!options.has(key)) options.set(key, label);
         continue;
       }
-      const cleaned = cleanMetadataValue(track && track[field], fallback);
+      const cleaned = field === 'artist' ? metadata.artist : cleanMetadataValue(track && track[field], fallback);
       const key = metadataKey(cleaned);
       if (!options.has(key)) options.set(key, cleaned);
     }
@@ -155,9 +177,7 @@
         const artistKey = metadataKey(metadata.artist);
         const albumKey = metadataKey(metadata.album);
         const key = `${albumKey}\t${artistKey}`;
-        const label = metadata.album === UNKNOWN_ALBUM
-          ? metadata.artist === UNKNOWN_ARTIST ? 'Chưa rõ nghệ sĩ / album' : `${metadata.artist} — Chưa rõ album`
-          : metadata.artist === UNKNOWN_ARTIST ? metadata.album : `${metadata.artist} — ${metadata.album}`;
+        const label = metadata.album === UNKNOWN_ALBUM ? 'Chưa rõ album' : metadata.album;
         if (!groups.has(key)) groups.set(key, {label, tracks:[]});
         groups.get(key).tracks.push(track);
       }
