@@ -1,0 +1,974 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#09090b">
+  <title>NOCTURNE — Hi-Res Music Player</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
+  <style>
+    :root { color-scheme: dark; --accent: 139 92 246; }
+    * { scrollbar-width: thin; scrollbar-color: #3f3f46 transparent; }
+    body { background: #09090b; }
+    .glass { background: rgba(24,24,27,.72); backdrop-filter: blur(22px); }
+    .surface { background: linear-gradient(145deg,rgba(39,39,42,.62),rgba(24,24,27,.55)); }
+    .range { accent-color: rgb(var(--accent)); }
+    .range[type=range] { cursor: pointer; }
+    .track-row.active { background: rgba(139,92,246,.12); border-color: rgba(167,139,250,.2); }
+    .cover-glow { background: radial-gradient(ellipse at bottom,rgba(var(--accent),.18),transparent 66%); }
+    .drop-overlay { background: rgba(9,9,11,.88); backdrop-filter: blur(12px); }
+    canvas { width:100%; height:100%; }
+    input[type=range] { accent-color: rgb(var(--accent)); }
+  </style>
+</head>
+<body class="min-h-screen overflow-x-hidden text-zinc-100 selection:bg-violet-500/40">
+  <div id="ambient" class="pointer-events-none fixed inset-0 -z-10 opacity-60 transition-colors duration-700" style="background:radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.16),transparent 48%)"></div>
+  <main class="mx-auto flex min-h-screen max-w-[1600px] flex-col pb-32 lg:flex-row lg:gap-5 lg:px-5">
+    <aside class="w-full shrink-0 border-b border-white/5 px-5 py-5 lg:sticky lg:top-0 lg:h-screen lg:w-[260px] lg:border-b-0 lg:px-0 lg:py-7">
+      <a href="#" class="flex items-center gap-3" aria-label="Nocturne home">
+        <span class="grid h-10 w-10 place-items-center rounded-2xl bg-violet-500/15 text-violet-300 ring-1 ring-violet-300/20">♫</span>
+        <span><span class="block text-sm font-semibold tracking-[.24em]">NOCTURNE</span><span class="text-[10px] uppercase tracking-[.2em] text-zinc-500">Hi-Res Music</span></span>
+      </a>
+      <div class="mt-8 grid grid-cols-2 gap-2 lg:grid-cols-1">
+        <button data-source="all" class="source-btn flex items-center gap-3 rounded-xl bg-white/[.07] px-3 py-2.5 text-left text-sm text-white"><span>◈</span> Tất cả bài hát <span id="all-count" class="ml-auto text-xs text-zinc-500">0</span></button>
+        <button data-source="local" class="source-btn flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white"><span>▣</span> Máy của tôi</button>
+        <button data-source="google" class="source-btn flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white"><span>◉</span> Google Drive</button>
+        <button data-source="onedrive" class="source-btn flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white"><span>◉</span> OneDrive</button>
+      </div>
+      <div class="mt-8 hidden lg:block">
+        <div class="mb-3 flex items-center justify-between px-3"><span class="text-[10px] font-semibold uppercase tracking-[.2em] text-zinc-500">Thư viện</span><button id="history-button" class="text-xs text-zinc-500 hover:text-white">Lịch sử</button></div>
+        <button id="favorites-filter" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-zinc-400 hover:bg-white/5 hover:text-white"><span>♡</span> Yêu thích</button>
+      </div>
+      <div class="mt-8 hidden rounded-2xl border border-white/5 bg-white/[.025] p-4 lg:block">
+        <div class="flex items-center justify-between"><div><p class="text-xs font-medium">Cloud</p><p id="cloud-status" class="mt-1 text-[11px] text-zinc-500">Chưa kết nối</p></div><button id="open-settings" class="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-white/5">Cài đặt</button></div>
+        <div class="mt-3 grid gap-2"><button id="google-quick-connect" class="rounded-lg bg-white/5 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/10">G&nbsp; Đăng nhập Google</button><button id="microsoft-quick-connect" class="rounded-lg bg-white/5 px-3 py-2 text-left text-xs text-zinc-300 transition hover:bg-white/10">⊞&nbsp; Đăng nhập OneDrive</button></div>
+      </div>
+      <p class="mt-auto hidden px-3 pt-8 text-[10px] leading-5 text-zinc-600 lg:block">Âm thanh được phát trực tiếp trên thiết bị của bạn.<br>Không tải nhạc lên máy chủ.</p>
+    </aside>
+
+    <section class="min-w-0 flex-1 px-4 py-5 sm:px-7 lg:py-7">
+      <header class="flex flex-wrap items-center justify-between gap-4">
+        <div><p id="greeting" class="text-xs text-zinc-500">YOUR PRIVATE LISTENING ROOM</p><h1 id="page-title" class="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Thư viện của bạn</h1></div>
+        <div class="flex items-center gap-2">
+          <label class="relative hidden sm:block"><span class="absolute left-3 top-2.5 text-zinc-500">⌕</span><input id="search" type="search" placeholder="Tìm bài hát, nghệ sĩ..." class="w-56 rounded-xl border border-white/10 bg-white/[.04] py-2.5 pl-9 pr-3 text-sm outline-none placeholder:text-zinc-600 focus:border-violet-400/50"></label>
+          <button id="add-files" class="rounded-xl bg-violet-500 px-3.5 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-950/40 transition hover:bg-violet-400 sm:px-4">＋ <span class="hidden sm:inline">Thêm nhạc</span></button>
+          <button id="mobile-settings" class="rounded-xl border border-white/10 px-3 py-2.5 text-sm text-zinc-300 lg:hidden" aria-label="Cấu hình">⚙</button>
+        </div>
+      </header>
+      <label class="relative mt-4 block sm:hidden"><span class="absolute left-3 top-2.5 text-zinc-500">⌕</span><input id="search-mobile" type="search" placeholder="Tìm bài hát, nghệ sĩ..." class="w-full rounded-xl border border-white/10 bg-white/[.04] py-2.5 pl-9 pr-3 text-sm outline-none placeholder:text-zinc-600"></label>
+
+      <section id="hero" class="surface cover-glow relative mt-7 overflow-hidden rounded-3xl border border-white/[.07] p-5 sm:p-7">
+        <div class="absolute -right-12 -top-20 h-64 w-64 rounded-full bg-violet-500/10 blur-3xl"></div>
+        <div class="relative flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+          <div class="max-w-xl">
+            <span class="rounded-full border border-violet-300/20 bg-violet-400/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[.18em] text-violet-200">Lossless listening</span>
+            <h2 class="mt-4 text-2xl font-medium leading-tight sm:text-3xl">Âm nhạc của bạn.<br><span class="text-zinc-500">Không giới hạn.</span></h2>
+            <p class="mt-3 max-w-md text-sm leading-6 text-zinc-400">Phát thư viện nhạc local và cloud riêng tư. DSF/DFF DSD32–512 được chuyển đổi ngay trên thiết bị sang PCM 44.1–176.4 kHz, 16/24-bit; không phát DSD bit-perfect.</p>
+          </div>
+          <div class="flex gap-2">
+            <button id="choose-folder" class="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200">Chọn thư mục nhạc</button>
+            <button id="connect-cloud" class="rounded-xl border border-white/10 bg-white/[.06] px-4 py-2.5 text-sm font-medium hover:bg-white/10">Kết nối cloud</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="mt-8">
+        <div class="mb-4 flex items-end justify-between gap-3">
+          <div><p class="text-[10px] uppercase tracking-[.2em] text-zinc-500">Collection</p><h2 id="list-title" class="mt-1 text-lg font-medium">Tất cả bài hát <span id="visible-count" class="ml-1 text-sm font-normal text-zinc-500">0</span></h2></div>
+          <div class="flex items-center gap-2">
+            <select id="source-filter" class="rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-2 text-xs text-zinc-300 outline-none"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option></select>
+            <button id="sort-button" class="rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white">Tên ↑</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-white/[.07] px-3 pb-2 text-[10px] uppercase tracking-[.16em] text-zinc-600 sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_52px]">
+          <span>Bài hát</span><span class="hidden sm:block">Album</span><span class="hidden sm:block">Chất lượng</span><span class="text-right">Thời lượng</span>
+        </div>
+        <div id="track-list" class="mt-1 space-y-1"></div>
+        <div id="empty-state" class="mt-3 rounded-2xl border border-dashed border-white/10 px-5 py-12 text-center">
+          <div class="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-xl text-zinc-500">♫</div>
+          <h3 class="mt-4 text-sm font-medium text-zinc-300">Thư viện đang trống</h3>
+          <p class="mx-auto mt-2 max-w-sm text-xs leading-5 text-zinc-500">Chọn thư mục/file nhạc, kéo thả vào đây hoặc kết nối tài khoản cloud để bắt đầu nghe. DSD cần localhost/HTTPS; hỗ trợ DSF/DFF không nén, không gồm DST.</p>
+          <button id="empty-add" class="mt-4 text-xs font-medium text-violet-300 hover:text-violet-200">Thêm nhạc từ thiết bị →</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <input id="file-input" class="hidden" type="file" accept="audio/*,.flac,.wav,.alac,.m4a,.mp3,.ogg,.opus,.aac,.aiff,.wma,.aif,.dsf,.dff" multiple>
+  <input id="folder-input" class="hidden" type="file" accept="audio/*,.flac,.wav,.alac,.m4a,.mp3,.ogg,.opus,.aac,.aiff,.wma,.aif,.dsf,.dff" webkitdirectory directory multiple>
+  <div id="drop-target" class="drop-overlay pointer-events-none fixed inset-0 z-40 hidden items-center justify-center">
+    <div class="rounded-3xl border border-violet-300/30 bg-zinc-900/80 px-12 py-10 text-center shadow-2xl"><div class="text-4xl text-violet-300">♫</div><p class="mt-4 text-lg font-medium">Thả nhạc vào thư viện</p><p class="mt-1 text-sm text-zinc-500">File âm thanh hoặc thư mục</p></div>
+  </div>
+
+  <footer class="glass fixed inset-x-0 bottom-0 z-30 border-t border-white/[.08] shadow-[0_-20px_70px_rgba(0,0,0,.45)]">
+    <div class="mx-auto max-w-[1600px] px-3 sm:px-6">
+      <div class="flex h-[86px] items-center gap-3 sm:h-[96px] sm:gap-6">
+        <div class="flex min-w-0 flex-1 items-center gap-3 sm:w-[25%] sm:flex-none">
+          <div id="player-cover" class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-violet-500/30 to-zinc-800 text-xl text-violet-200">♫</div>
+          <div class="min-w-0"><p id="now-title" class="truncate text-xs font-medium sm:text-sm">Chưa phát nhạc</p><p id="now-artist" class="mt-1 truncate text-[11px] text-zinc-500">Chọn một bài hát để bắt đầu</p></div>
+          <button id="favorite-button" class="hidden text-lg text-zinc-500 hover:text-pink-300 sm:block" title="Yêu thích">♡</button>
+        </div>
+        <div class="flex flex-col items-center gap-1 sm:flex-1">
+          <div class="flex items-center gap-3 sm:gap-5">
+            <button id="shuffle-button" class="text-xs text-zinc-500 hover:text-violet-300" title="Trộn bài">⤨</button>
+            <button id="previous-button" class="text-lg text-zinc-300 hover:text-white" aria-label="Bài trước">‹</button>
+            <button id="play-button" class="grid h-9 w-9 place-items-center rounded-full bg-white text-zinc-950 transition hover:scale-105" aria-label="Phát">▶</button>
+            <button id="next-button" class="text-lg text-zinc-300 hover:text-white" aria-label="Bài tiếp">›</button>
+            <button id="repeat-button" class="text-xs text-zinc-500 hover:text-violet-300" title="Lặp lại">↻</button>
+          </div>
+          <div class="hidden w-full max-w-[540px] items-center gap-2 sm:flex"><span id="current-time" class="w-9 text-right text-[10px] tabular-nums text-zinc-500">0:00</span><input id="seek" class="range h-1 flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="duration" class="w-9 text-[10px] tabular-nums text-zinc-500">0:00</span></div>
+        </div>
+        <div class="hidden w-[25%] items-center justify-end gap-3 lg:flex">
+          <canvas id="visualizer" class="h-8 w-28 opacity-80"></canvas>
+          <span id="quality-badge" class="rounded-md border border-white/10 px-2 py-1 text-[9px] font-medium uppercase tracking-wider text-zinc-500">READY</span>
+          <button id="eq-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white">EQ</button>
+          <span class="text-xs text-zinc-500">◖</span><input id="volume" class="range w-20" type="range" min="0" max="100" value="72" aria-label="Âm lượng">
+        </div>
+        <div class="flex items-center gap-2 sm:hidden"><input id="volume-mobile" class="range w-14" type="range" min="0" max="100" value="72" aria-label="Âm lượng"><button id="seek-mobile-button" class="hidden text-xs text-violet-300" aria-label="Tua">0:00</button></div>
+      </div>
+      <div class="flex items-center gap-2 pb-2 sm:hidden"><span id="current-time-mobile" class="text-[9px] tabular-nums text-zinc-500">0:00</span><input id="seek-mobile" class="range h-1 flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="duration-mobile" class="text-[9px] tabular-nums text-zinc-500">0:00</span><span id="mobile-quality" class="text-[9px] text-zinc-500">—</span></div>
+    </div>
+  </footer>
+
+  <audio id="audio" crossorigin="anonymous" preload="auto"></audio>
+  <audio id="preload-audio" crossorigin="anonymous" preload="auto" muted class="hidden" aria-hidden="true"></audio>
+
+  <div id="settings-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl sm:p-7">
+      <div class="flex items-start justify-between gap-4"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300">Account & streaming</p><h2 id="settings-title" class="mt-1 text-xl font-semibold">Cấu hình Cloud API</h2></div><button id="close-settings" class="rounded-lg px-2 py-1 text-zinc-500 hover:bg-white/5 hover:text-white" aria-label="Đóng">✕</button></div>
+      <p class="mt-3 text-xs leading-5 text-zinc-400">Thông tin xác thực được lưu trong localStorage của trình duyệt này. Chỉ cấp quyền đọc file; không nhập secret key phía server hoặc mật khẩu tài khoản.</p>
+      <div class="mt-4 grid gap-4 md:grid-cols-2">
+        <section class="rounded-2xl border border-white/10 bg-white/[.025] p-4">
+          <div class="flex items-center justify-between"><h3 class="text-sm font-medium">Google Drive</h3><span id="google-state" class="text-[10px] text-zinc-500">Chưa kết nối</span></div>
+          <label class="mt-3 block text-[10px] text-zinc-400">Client ID <input id="google-client-id" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="...apps.googleusercontent.com"></label>
+          <button id="google-connect" class="mt-3 w-full rounded-lg bg-violet-500 px-3 py-2.5 text-xs font-medium hover:bg-violet-400">Tiếp tục với Google</button>
+          <details class="mt-3"><summary class="cursor-pointer text-[10px] text-zinc-500">Thiết lập lần đầu (chỉ cần làm một lần)</summary><p class="mt-2 text-[10px] leading-4 text-zinc-500">Tạo OAuth Client ID kiểu Web application trong Google Cloud Console, bật Google Drive API và thêm địa chỉ website này vào Authorized JavaScript origins. Dán Client ID vào ô trên. API key không cần.</p></details>
+        </section>
+        <section class="rounded-2xl border border-white/10 bg-white/[.025] p-4">
+          <div class="flex items-center justify-between"><h3 class="text-sm font-medium">OneDrive</h3><span id="microsoft-state" class="text-[10px] text-zinc-500">Chưa kết nối</span></div>
+          <label class="mt-3 block text-[10px] text-zinc-400">Client ID <input id="microsoft-client-id" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></label>
+          <button id="microsoft-connect" class="mt-3 w-full rounded-lg bg-sky-600 px-3 py-2.5 text-xs font-medium hover:bg-sky-500">Tiếp tục với Microsoft</button>
+          <details class="mt-3"><summary class="cursor-pointer text-[10px] text-zinc-500">Thiết lập lần đầu (chỉ cần làm một lần)</summary><p class="mt-2 text-[10px] leading-4 text-zinc-500">Đăng ký app trong Microsoft Entra, thêm nền tảng SPA và địa chỉ website này làm redirect URI, rồi cấp quyền User.Read và Files.Read. Dán Application (client) ID vào ô trên.</p></details>
+        </section>
+      </div>
+      <section class="mt-4 rounded-2xl border border-fuchsia-300/15 bg-fuchsia-300/[.03] p-4">
+        <div><h3 class="text-sm font-medium text-fuchsia-100">Chất lượng chuyển đổi DSD</h3><p class="mt-1 text-[10px] leading-4 text-zinc-500">Chọn PCM đầu ra cho DSF/DFF. Tần số cao giữ nhiều băng thông hơn nhưng tạo file tạm lớn hơn. DSD được giải mã trên thiết bị, không bit-perfect.</p></div>
+        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+          <label class="text-[10px] text-zinc-400">Tần số PCM<select id="dsd-output-rate" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"><option value="44100">44.1 kHz — tương thích rộng</option><option value="88200">88.2 kHz — chất lượng cao</option><option value="176400">176.4 kHz — tối đa</option></select></label>
+          <label class="text-[10px] text-zinc-400">Độ sâu bit<select id="dsd-output-depth" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"><option value="16">16-bit — file nhỏ</option><option value="24">24-bit — dải động rộng</option></select></label>
+        </div>
+      </section>
+      <div class="mt-5 rounded-2xl border border-white/10 p-4">
+        <h3 class="text-sm font-medium">Phát URL trực tiếp / WebDAV</h3><p class="mt-1 text-[10px] leading-4 text-zinc-500">Dùng URL truy cập trực tiếp tới file âm thanh. Máy chủ cần cho phép CORS để trình duyệt đọc metadata và phân tích âm thanh; hỗ trợ Range tùy cấu hình máy chủ.</p>
+        <div class="mt-3 flex gap-2"><input id="direct-url" type="url" class="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="https://example.com/music.flac"><button id="play-url" class="rounded-lg bg-white px-4 py-2 text-xs font-semibold text-zinc-950">Phát URL</button></div>
+      </div>
+      <p id="settings-error" class="mt-3 hidden text-xs text-rose-300" role="alert"></p>
+    </div>
+  </div>
+  <div id="eq-panel" class="fixed bottom-28 right-4 z-40 hidden max-h-[75vh] w-[min(25rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-white/10 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-xl">
+    <div class="flex items-center justify-between"><h3 class="text-sm font-medium">Parametric Equalizer</h3><label class="flex items-center gap-2 text-[10px] text-zinc-400"><input id="eq-enabled" type="checkbox" class="accent-violet-500"> Bật EQ</label></div>
+    <p class="mt-1 text-[10px] text-zinc-500">Tự động hạ preamp theo mức boost cao nhất để giữ headroom. Tắt EQ để bypass DSP.</p>
+    <div id="eq-bands" class="mt-3 space-y-2"></div>
+    <div class="mt-3 flex items-center justify-between gap-3"><button id="eq-add-band" class="rounded-lg border border-white/10 px-3 py-2 text-[10px] text-violet-200 hover:bg-white/5">＋ Thêm band</button><span id="eq-headroom" class="text-[10px] tabular-nums text-emerald-300">Preamp 0 dB</span></div>
+    <label class="mt-3 flex items-center justify-between text-xs text-zinc-400">Preamp trim <input id="eq-preamp" class="range w-32" type="range" min="-12" max="0" step="0.5" value="0"></label>
+  </div>
+  <div id="toast" class="pointer-events-none fixed bottom-32 left-1/2 z-[60] hidden -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-800 px-4 py-2.5 text-xs text-zinc-100 shadow-xl"></div>
+
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" data-gis="true" async defer></script>
+  <script>
+  (() => {
+    'use strict';
+    const AUDIO_TYPES = /\.(flac|wav|alac|m4a|mp3|ogg|opus|aac|aiff|aif|wma|dsf|dff)$/i;
+    const STREAM_AUDIO_TYPES = /\.(flac|wav|alac|m4a|mp3|ogg|opus|aac|aiff|aif|wma)$/i;
+    const dsdWorkerScript = [...document.scripts].find(script => script.textContent.includes('const AUDIO_TYPES'));
+    const dsdWorkerBaseUrl = dsdWorkerScript && dsdWorkerScript.src ? dsdWorkerScript.src : location.href;
+    const $ = id => document.getElementById(id);
+    let audio = $('audio');
+    let standbyAudio = $('preload-audio');
+    const state = { tracks: [], currentId: null, filter: 'all', query: '', sortAsc: true, shuffle: false, repeat: 0, favorites: new Set(), objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, favoritesOnly: false };
+    const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
+    const formatTime = seconds => Number.isFinite(seconds) && seconds >= 0 ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}` : '0:00';
+    const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    const id = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const sourceLabel = source => ({local:'LOCAL',google:'DRIVE',onedrive:'ONEDRIVE',url:'URL'}[source] || source.toUpperCase());
+
+    function openDatabase() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open('nocturne-player', 1);
+        request.onupgradeneeded = () => { const db = request.result; if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id', autoIncrement: true }); };
+        request.onsuccess = () => { state.db = request.result; resolve(state.db); };
+        request.onerror = () => reject(request.error);
+      });
+    }
+    function recordHistory(track) {
+      if (!state.db) return;
+      const tx = state.db.transaction('history', 'readwrite');
+      tx.objectStore('history').add({ title: track.title, artist: track.artist, source: track.source, playedAt: Date.now() });
+      tx.onerror = () => console.error('Could not save listening history:', tx.error);
+    }
+    function readHistory() {
+      if (!state.db) return;
+      const request = state.db.transaction('history').objectStore('history').getAll();
+      request.onsuccess = () => {
+        const items = request.result.slice(-8).reverse();
+        if (items.length) toast(`Nghe gần đây: ${items.slice(0, 3).map(item => item.title).join(', ')}`);
+        else toast('Chưa có lịch sử nghe.');
+      };
+      request.onerror = () => toast('Không thể đọc lịch sử nghe.');
+    }
+
+    function readAudioMetadata(file) {
+      return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onerror = () => resolve({});
+        reader.onload = () => {
+          try {
+            const buffer = reader.result, view = new DataView(buffer);
+            const text = (offset, length) => String.fromCharCode(...new Uint8Array(buffer, offset, length));
+            if (view.byteLength >= 92 && text(0, 4) === 'DSD ') {
+              let offset = 28, sampleRate = 0, channels = 0, sampleCount = 0;
+              while (offset + 12 <= view.byteLength) {
+                const chunk = text(offset, 4), size = Number(view.getBigUint64(offset + 4, true));
+                if (size < 12 || !Number.isSafeInteger(size)) break;
+                if (chunk === 'fmt ' && size >= 52 && offset + 52 <= view.byteLength) {
+                  channels = view.getUint32(offset + 24, true);
+                  sampleRate = view.getUint32(offset + 28, true);
+                  sampleCount = Number(view.getBigUint64(offset + 36, true));
+                  const bitOrder = view.getUint32(offset + 32, true);
+                  if (bitOrder !== 1 && bitOrder !== 8) return resolve({sampleRate, channels, duration: 0});
+                }
+                if (chunk === 'data') return resolve({sampleRate, channels, duration: sampleRate && sampleCount ? sampleCount / sampleRate : 0});
+                if (offset + size > view.byteLength) break;
+                offset += size;
+              }
+              return resolve({sampleRate, channels, duration: sampleRate && sampleCount ? sampleCount / sampleRate : 0});
+            }
+            if (view.byteLength >= 16 && text(0, 4) === 'FRM8' && text(12, 4) === 'DSD ') {
+              let sampleRate = 0, channels = 0, compression = '';
+              for (let offset = 16; offset + 12 <= view.byteLength;) {
+                const chunk = text(offset, 4), size = Number(view.getBigUint64(offset + 4, false)), dataOffset = offset + 12;
+                if (!Number.isSafeInteger(size) || size < 0) break;
+                if (chunk === 'DSD ') {
+                  const duration = sampleRate && channels ? size * 8 / (sampleRate * channels) : 0;
+                  return resolve({sampleRate, channels, duration, compression});
+                }
+                if (dataOffset + size > view.byteLength) break;
+                if (chunk === 'PROP' && dataOffset + size <= view.byteLength) {
+                  for (let child = dataOffset + 4; child + 12 <= dataOffset + size;) {
+                    const sub = text(child, 4), subSize = Number(view.getBigUint64(child + 4, false)), subData = child + 12;
+                    if (!Number.isSafeInteger(subSize) || subSize < 0 || subData + subSize > dataOffset + size) break;
+                    if (sub === 'FS  ' && subSize >= 4) sampleRate = view.getUint32(subData, false);
+                    if (sub === 'CHNL' && subSize >= 2) channels = view.getUint16(subData, false);
+                    if (sub === 'CMPR' && subSize >= 4) compression = text(subData, 4);
+                    child += 12 + subSize + (subSize & 1);
+                  }
+                }
+                if (dataOffset + size > view.byteLength) break;
+                offset += 12 + size + (size & 1);
+              }
+              return resolve({sampleRate, channels, duration: 0, compression});
+            }
+            if (view.byteLength >= 12 && (text(0, 4) === 'RIFF' || text(0, 4) === 'RF64') && text(8, 4) === 'WAVE') {
+              let offset = 12, fmt = null;
+              while (offset + 8 <= view.byteLength) {
+                const chunk = text(offset, 4), size = view.getUint32(offset + 4, true), dataOffset = offset + 8;
+                if (chunk === 'fmt ' && size >= 16 && dataOffset + 16 <= view.byteLength) {
+                  const format = view.getUint16(dataOffset, true);
+                  const channels = view.getUint16(dataOffset + 2, true);
+                  const sampleRate = view.getUint32(dataOffset + 4, true);
+                  const blockAlign = view.getUint16(dataOffset + 12, true);
+                  let bitDepth = view.getUint16(dataOffset + 14, true);
+                  if (format === 0xfffe && size >= 40 && dataOffset + 40 <= view.byteLength) bitDepth = view.getUint16(dataOffset + 18, true) || bitDepth;
+                  if (bitDepth === 0 && channels && blockAlign) bitDepth = blockAlign * 8 / channels;
+                  fmt = {sampleRate, bitDepth, channels, encoding: format};
+                  if (sampleRate && bitDepth && channels) return resolve(fmt);
+                }
+                if (size === 0xffffffff || dataOffset + size > view.byteLength) break;
+                offset = dataOffset + size + (size & 1);
+              }
+              return resolve(fmt || {});
+            }
+            let flacOffset = 0;
+            if (view.byteLength >= 10 && text(0, 3) === 'ID3') {
+              const flags = view.getUint8(5);
+              const tagSize = ((view.getUint8(6) & 0x7f) << 21) | ((view.getUint8(7) & 0x7f) << 14) | ((view.getUint8(8) & 0x7f) << 7) | (view.getUint8(9) & 0x7f);
+              flacOffset = 10 + tagSize + ((flags & 0x10) ? 10 : 0);
+            }
+            if (view.byteLength >= flacOffset + 42 && text(flacOffset, 4) === 'fLaC') {
+              let offset = flacOffset + 4;
+              while (offset + 4 <= view.byteLength) {
+                const header = view.getUint8(offset), type = header & 0x7f;
+                const length = (view.getUint8(offset + 1) << 16) | (view.getUint8(offset + 2) << 8) | view.getUint8(offset + 3);
+                const dataOffset = offset + 4;
+                if (dataOffset + length > view.byteLength) break;
+                if (type === 0 && length >= 34) {
+                  const packed = view.getBigUint64(dataOffset + 10, false);
+                  const sampleRate = Number((packed >> 44n) & 0xfffffn);
+                  const channels = Number((packed >> 41n) & 0x7n) + 1;
+                  const bitDepth = Number((packed >> 36n) & 0x1fn) + 1;
+                  return resolve({sampleRate, bitDepth, channels});
+                }
+                offset = dataOffset + length;
+                if (header & 0x80) break;
+              }
+            }
+            resolve({});
+          } catch (error) { console.warn('Could not read audio header:', error); resolve({}); }
+        };
+        reader.readAsArrayBuffer(file.slice(0, 512 * 1024));
+      });
+    }
+    function getTags(file) {
+      return new Promise(resolve => {
+        if (!window.jsmediatags) return resolve({});
+        window.jsmediatags.read(file, { onSuccess: result => {
+          const tags = result.tags || {}, picture = tags.picture;
+          let cover;
+          if (picture && picture.data) {
+            const bytes = new Uint8Array(picture.data);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+            cover = `data:${picture.format || 'image/jpeg'};base64,${btoa(binary)}`;
+          }
+          resolve({ title: tags.title, artist: tags.artist, album: tags.album, cover });
+        }, onError: () => resolve({}) });
+      });
+    }
+    async function makeLocalTrack(file) {
+      const [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
+      const format = file.name.split('.').pop().toUpperCase();
+      const isDsd = format === 'DSF' || format === 'DFF';
+      const url = isDsd ? '' : URL.createObjectURL(file);
+      if (url) state.objectUrls.add(url);
+      return { id: id(), file, url, source: 'local', title: tags.title || file.name.replace(/\.[^.]+$/, ''), artist: tags.artist || 'Nghệ sĩ không xác định', album: tags.album || '—', cover: tags.cover, format, isDsd, sampleRate: technical.sampleRate, bitDepth: technical.bitDepth, channels: technical.channels, duration: technical.duration, size: file.size };
+    }
+    async function addLocalFiles(files) {
+      const candidates = [...files].filter(file => file && (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name)));
+      if (!candidates.length) { toast('Không tìm thấy file âm thanh được hỗ trợ.'); return; }
+      const existing = new Set(state.tracks.filter(track => track.source === 'local').map(track => `${track.name || track.title}-${track.size}`));
+      const additions = [];
+      for (const file of candidates) {
+        const key = `${file.name}-${file.size}`;
+        if (existing.has(key)) { const current = state.tracks.find(track => track.source === 'local' && `${track.name || track.title}-${track.size}` === key); if (current && (file.name.toLowerCase().endsWith('.dsf') || file.name.toLowerCase().endsWith('.dff'))) current.file = file; continue; }
+        const track = await makeLocalTrack(file); track.name = file.name; additions.push(track); existing.add(key);
+      }
+      state.tracks.push(...additions);
+      renderTracks();
+      toast(`Đã thêm ${additions.length} bài hát${additions.length ? '' : ' mới'}.`);
+    }
+
+    function quality(track) {
+      const format = (track.format || '').toUpperCase();
+      const isDsd = ['DSF','DFF'].includes(format);
+      const lossless = ['FLAC','WAV','ALAC','AIFF','AIF'].includes(format);
+      const hires = lossless && ((track.sampleRate || 0) > 48000 || (track.bitDepth || 0) > 16);
+      const dsdRate = isDsd ? (track.dsdMultiplier || (track.sampleRate ? track.sampleRate / 44100 : 0)) : 0;
+      const label = isDsd ? `DSD${dsdRate || ''}` : hires ? 'HI-RES' : lossless ? 'LOSSLESS' : format || 'AUDIO';
+      return { label, tone: isDsd ? 'text-fuchsia-300 border-fuchsia-300/20 bg-fuchsia-300/5' : hires ? 'text-amber-300 border-amber-300/20 bg-amber-300/5' : lossless ? 'text-emerald-300 border-emerald-300/20 bg-emerald-300/5' : 'text-zinc-500 border-white/10' };
+    }
+    function isFavorite(track) { return state.favorites.has(track.id) || state.favorites.has(`${track.source}:${track.remoteId || track.id}`); }
+    function renderTracks() {
+      const list = $('track-list');
+      const shown = state.tracks.filter(track => (state.filter === 'all' || track.source === state.filter) && (!state.query || `${track.title} ${track.artist} ${track.album}`.toLowerCase().includes(state.query)) && (!state.favoritesOnly || isFavorite(track)));
+      shown.sort((a,b) => state.sortAsc ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title));
+      $('all-count').textContent = state.tracks.length;
+      $('visible-count').textContent = shown.length;
+      $('empty-state').classList.toggle('hidden', shown.length > 0);
+      list.innerHTML = shown.map(track => {
+        const q = quality(track), active = track.id === state.currentId;
+        return `<button class="track-row ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_52px]" data-track-id="${escapeHtml(track.id)}">
+          <span class="flex min-w-0 items-center gap-3"><span class="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-cover" alt="">` : '♫'}${active ? '<span class="absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="block truncate text-xs font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${escapeHtml(track.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(track.artist)} <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
+          <span class="hidden truncate text-xs text-zinc-500 sm:block">${escapeHtml(track.album)}</span><span class="hidden sm:block"><span class="rounded border px-1.5 py-1 text-[9px] font-medium tracking-wide ${q.tone}">${q.label}</span></span><span class="text-right text-[10px] tabular-nums text-zinc-500">${track.duration ? formatTime(track.duration) : '—'}</span>
+        </button>`;
+      }).join('');
+      list.querySelectorAll('[data-track-id]').forEach(button => button.addEventListener('click', () => playTrack(button.dataset.trackId)));
+    }
+
+    function renderEqBands() {
+      $('eq-bands').innerHTML = state.bands.map(band => `<div class="rounded-xl border border-white/[.07] bg-white/[.025] p-2.5" data-band-id="${band.id}"><div class="flex items-center gap-2"><select data-field="type" class="min-w-0 flex-1 rounded-md border border-white/10 bg-zinc-950 px-2 py-1.5 text-[10px] text-zinc-200"><option value="peaking" ${band.type === 'peaking' ? 'selected' : ''}>Peaking</option><option value="lowshelf" ${band.type === 'lowshelf' ? 'selected' : ''}>Low shelf</option><option value="highshelf" ${band.type === 'highshelf' ? 'selected' : ''}>High shelf</option></select><button type="button" data-action="remove" class="rounded-md px-2 py-1 text-xs text-zinc-500 hover:bg-rose-400/10 hover:text-rose-300" aria-label="Xóa band">✕</button></div><label class="mt-2 flex items-center justify-between text-[10px] text-zinc-400">Frequency <span><input data-field="frequency" type="number" min="20" max="20000" step="1" value="${band.frequency}" class="w-20 rounded border border-white/10 bg-zinc-950 px-2 py-1 text-right text-zinc-200"> Hz</span></label><label class="mt-2 flex items-center justify-between text-[10px] text-zinc-400">Gain <span><input data-field="gain" type="number" min="-24" max="24" step="0.1" value="${band.gain}" class="w-20 rounded border border-white/10 bg-zinc-950 px-2 py-1 text-right text-zinc-200"> dB</span></label><label class="mt-2 flex items-center justify-between text-[10px] text-zinc-400">Q-Factor <input data-field="q" type="number" min="0.1" max="18" step="0.1" value="${band.q}" class="w-20 rounded border border-white/10 bg-zinc-950 px-2 py-1 text-right text-zinc-200"></label></div>`).join('');
+      $('eq-bands').querySelectorAll('[data-band-id]').forEach(row => {
+        const band = state.bands.find(item => item.id === Number(row.dataset.bandId));
+        row.querySelectorAll('[data-field]').forEach(input => input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', () => {
+          const field = input.dataset.field, value = field === 'type' ? input.value : Number(input.value);
+          if (field === 'type') band.type = value; else if (Number.isFinite(value)) band[field] = value;
+          if (field === 'frequency') band.frequency = Math.max(20, Math.min(state.context ? state.context.sampleRate / 2 : 20000, band.frequency));
+          if (field === 'gain') band.gain = Math.max(-24, Math.min(24, band.gain));
+          if (field === 'q') band.q = Math.max(0.1, Math.min(18, band.q));
+          if (field !== 'type') input.value = band[field];
+          applyEq();
+        }));
+        row.querySelector('[data-action="remove"]').addEventListener('click', () => { state.bands = state.bands.filter(item => item.id !== band.id); renderEqBands(); applyEq(); });
+      });
+    }
+    function applyEq() {
+      const maxBoost = state.bands.reduce((max, band) => Math.max(max, band.gain), 0);
+      const effectivePreamp = Math.max(-60, Math.min(0, -maxBoost + (Number($('eq-preamp').value) || 0)));
+      $('eq-headroom').textContent = `Preamp ${effectivePreamp.toFixed(1)} dB (boost max ${maxBoost.toFixed(1)} dB)`;
+      $('eq-headroom').className = `text-[10px] tabular-nums ${effectivePreamp < 0 ? 'text-amber-300' : 'text-emerald-300'}`;
+      if (!state.context) return;
+      if (state.deckA && state.deckA.filters.length !== state.bands.length) rebuildAudioRoutes();
+      [state.deckA, state.deckB].filter(Boolean).forEach(deck => {
+        deck.filters.forEach((filter, index) => { const band = state.bands[index]; filter.type = band.type; filter.frequency.setTargetAtTime(band.frequency, state.context.currentTime, .015); filter.Q.setTargetAtTime(band.q, state.context.currentTime, .015); filter.gain.setTargetAtTime(band.gain, state.context.currentTime, .015); });
+        const enabled = $('eq-enabled').checked;
+        deck.preamp.gain.setTargetAtTime(enabled ? Math.pow(10, effectivePreamp / 20) : 0, state.context.currentTime, .015);
+        deck.direct.gain.setTargetAtTime(enabled ? 0 : 1, state.context.currentTime, .015);
+      });
+      state.activeAnalyser = $('eq-enabled').checked ? state.analyser : state.directAnalyser;
+    }
+    function addEqBand(values = {}) { state.bands.push({id:++state.bandSerial, type:values.type || 'peaking', frequency:Math.max(20, Math.min(values.frequency ?? 1000, state.context ? state.context.sampleRate / 2 : 20000)), gain:values.gain ?? 0, q:values.q ?? 1}); renderEqBands(); applyEq(); }
+    function attachAudioElement(element) {
+      const source = state.context.createMediaElementSource(element), router = state.context.createGain();
+      const preamp = state.context.createGain(), direct = state.context.createGain();
+      router.gain.value = element === audio ? 1 : 0;
+      source.connect(router);
+      return {element, source, router, preamp, direct, filters: []};
+    }
+    function rebuildDeckRoute(deck) {
+      deck.router.disconnect(); deck.preamp.disconnect(); deck.direct.disconnect();
+      deck.filters.forEach(filter => { try { filter.disconnect(); } catch (_) {} });
+      deck.filters = state.bands.map(() => state.context.createBiquadFilter());
+      deck.router.connect(deck.direct); deck.direct.connect(state.directAnalyser);
+      let node = deck.router;
+      deck.filters.forEach(filter => { node.connect(filter); node = filter; });
+      node.connect(deck.preamp); deck.preamp.connect(state.analyser);
+    }
+    function rebuildAudioRoutes() {
+      if (!state.context) return;
+      [state.deckA, state.deckB].filter(Boolean).forEach(rebuildDeckRoute);
+      state.filters = state.deckA.filters;
+      state.bands.forEach((band, index) => [state.deckA, state.deckB].forEach(deck => { const filter = deck.filters[index]; filter.type = band.type; filter.frequency.value = band.frequency; filter.Q.value = band.q; filter.gain.value = band.gain; }));
+      const maxBoost = state.bands.reduce((max, band) => Math.max(max, band.gain), 0), effectivePreamp = Math.max(-60, Math.min(0, -maxBoost + (Number($('eq-preamp').value) || 0)));
+      const enabled = $('eq-enabled').checked;
+      [state.deckA, state.deckB].forEach(deck => { deck.preamp.gain.value = enabled ? Math.pow(10, effectivePreamp / 20) : 0; deck.direct.gain.value = enabled ? 0 : 1; });
+    }
+    function setupAudio() {
+      if (state.context) return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) { toast('Trình duyệt không hỗ trợ Web Audio API.'); return; }
+      state.context = new AudioContextClass();
+      state.analyser = state.context.createAnalyser(); state.analyser.fftSize = 256; state.analyser.smoothingTimeConstant = .82;
+      state.directAnalyser = state.context.createAnalyser(); state.directAnalyser.fftSize = 256; state.directAnalyser.smoothingTimeConstant = .82;
+      state.deckA = attachAudioElement(audio); state.deckB = attachAudioElement(standbyAudio); state.activeDeck = state.deckA;
+      rebuildAudioRoutes();
+      const draw = () => {
+        requestAnimationFrame(draw);
+        const canvas = $('visualizer'), ctx = canvas.getContext('2d');
+        const ratio = window.devicePixelRatio || 1, width = canvas.clientWidth, height = canvas.clientHeight;
+        if (!width || !height) return;
+        if (canvas.width !== width * ratio || canvas.height !== height * ratio) { canvas.width = width * ratio; canvas.height = height * ratio; }
+        ctx.setTransform(ratio,0,0,ratio,0,0); ctx.clearRect(0,0,width,height);
+        const analyser = state.activeAnalyser || state.analyser;
+        const data = new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(data);
+        const bars = 32, gap = 2, barWidth = (width - gap * (bars - 1)) / bars;
+        for (let i = 0; i < bars; i++) { const value = data[Math.floor(i * data.length / bars)] / 255; const barHeight = Math.max(2, value * height); ctx.fillStyle = `rgba(167,139,250,${.35 + value * .65})`; ctx.beginPath(); ctx.roundRect(i * (barWidth + gap), (height - barHeight) / 2, barWidth, barHeight, 2); ctx.fill(); }
+      };
+      draw();
+    }
+    function setGain(value) {
+      const linear = Number(value) / 100, volume = linear === 0 ? 0 : Math.pow(10, (-60 + linear * 60) / 20);
+      audio.volume = volume; standbyAudio.volume = volume;
+      $('volume').value = value; $('volume-mobile').value = value;
+    }
+    function displayTrack(track) {
+      state.currentId = track.id;
+      $('now-title').textContent = track.title;
+      const technical = [track.isDsd ? (track.dsdMultiplier ? `PCM 44.1 kHz · DSD${track.dsdMultiplier} nguồn` : track.sampleRate ? `DSD${track.sampleRate / 44100} nguồn` : '') : track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', track.isDsd ? '' : track.bitDepth ? `${track.bitDepth}-bit` : '', track.channels ? `${track.channels} ch` : ''].filter(Boolean).join(' · ');
+      $('now-artist').textContent = `${track.artist} · ${track.format || sourceLabel(track.source)}${technical ? ` · ${technical}` : ''}`;
+      const cover = $('player-cover'); cover.innerHTML = track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-cover" alt="">` : '♫';
+      const q = quality(track); $('quality-badge').textContent = q.label; $('quality-badge').className = `rounded-md border px-2 py-1 text-[9px] font-medium uppercase tracking-wider ${q.tone}`; $('mobile-quality').textContent = q.label;
+      $('favorite-button').classList.remove('hidden'); $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡';
+      $('ambient').style.background = track.cover ? `radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.14),transparent 35%),url("${track.cover}") center/cover fixed` : 'radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.16),transparent 48%)';
+      $('current-time').textContent = '0:00'; $('current-time-mobile').textContent = '0:00'; $('duration').textContent = formatTime(track.duration); $('duration-mobile').textContent = formatTime(track.duration);
+      $('seek').value = '0'; $('seek-mobile').value = '0';
+      renderTracks(); recordHistory(track);
+    }
+    function queueIndex() {
+      const current = state.tracks.findIndex(track => track.id === state.currentId);
+      if (current < 0) return -1;
+      if (state.repeat === 2) return -1;
+      if (state.shuffle) {
+        const queuedIndex = state.tracks.findIndex(track => track.id === state.preloadTrackId && track.id !== state.currentId);
+        if (queuedIndex >= 0) return queuedIndex;
+        const choices = state.tracks.filter(track => track.id !== state.currentId);
+        return choices.length ? state.tracks.indexOf(choices[Math.floor(Math.random() * choices.length)]) : state.repeat === 1 ? current : -1;
+      }
+      if (current + 1 < state.tracks.length) return current + 1;
+      return state.repeat === 1 ? 0 : -1;
+    }
+    async function preloadNext(force = false) {
+      if (!state.context || !state.deckA || !state.deckB) return;
+      const index = queueIndex(), next = index >= 0 ? state.tracks[index] : null;
+      if (!next || next.id === state.currentId || next.isDsd) { ++state.preloadGeneration; state.preloadTrackId = null; state.preloadReadyUrl = null; state.preloadBusyId = null; standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load(); return; }
+      if (!force && state.preloadTrackId === next.id && state.preloadReadyUrl === next.url && (standbyAudio.src === next.url || state.preloadBusyId === next.id)) return;
+      const generation = ++state.preloadGeneration;
+      state.preloadTrackId = next.id; state.preloadBusyId = next.id; state.preloadReadyUrl = next.url || null;
+      standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load();
+      if (state.context && state.deckA && state.deckB) {
+        const standbyDeck = state.activeDeck === state.deckA ? state.deckB : state.deckA;
+        standbyDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .01);
+      }
+      try {
+        if (next.load) await next.load();
+        if (generation !== state.preloadGeneration || !next.url) return;
+        state.preloadReadyUrl = next.url;
+        if (standbyAudio.src !== next.url) { standbyAudio.src = next.url; standbyAudio.volume = audio.volume; standbyAudio.muted = true; standbyAudio.load(); }
+      } catch (error) { console.warn('Could not preload next track:', error); }
+      finally { if (generation === state.preloadGeneration) state.preloadBusyId = null; }
+    }
+    async function playTrack(trackId) {
+      const track = state.tracks.find(item => item.id === trackId);
+      if (!track) return;
+      const generation = ++state.playGeneration;
+      const wasPreloaded = state.preloadTrackId === track.id && standbyAudio.src && state.preloadReadyUrl === track.url;
+      if (!wasPreloaded) ++state.preloadGeneration;
+      if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; }
+      if (state.dsdUrl) stopDsdWorker(false);
+      if (track.isDsd) {
+        try { await playDsdTrack(track, generation); }
+        catch (error) { console.error('DSD playback setup failed:', error); $('play-button').textContent = '▶'; toast(`Không thể chuẩn bị phát DSD: ${error.message || error}`); }
+        return;
+      }
+      setupAudio();
+      if (!state.context) return;
+      if (state.context.state === 'suspended') await state.context.resume();
+      if (generation !== state.playGeneration) return;
+      let target = audio;
+      if (wasPreloaded) target = standbyAudio;
+      if (track.load) {
+        try { await track.load(); }
+        catch (error) { console.error('Track streaming failed:', error); toast(`Không thể phát bài hát: ${error.message || 'lỗi tải dữ liệu'}`); return; }
+      }
+      if (generation !== state.playGeneration) return;
+      if (!track.url && !wasPreloaded) { toast('Không có URL phát cho bài hát này.'); return; }
+      if (target === standbyAudio && (!target.src || !wasPreloaded && target.src !== track.url)) { if (!track.url) { toast('Không có URL phát cho bài hát này.'); return; } target.src = track.url; target.load(); }
+      if (target !== standbyAudio && (!target.src || target.src !== track.url)) target.src = track.url;
+      if (!target.src) { toast('Không có URL phát cho bài hát này.'); return; }
+      const previous = audio;
+      if (target !== audio) {
+        target.volume = previous.volume; target.muted = false;
+        const oldDeck = state.activeDeck, newDeck = oldDeck === state.deckA ? state.deckB : state.deckA;
+        audio = target; standbyAudio = previous; state.activeDeck = newDeck;
+        standbyAudio.pause(); standbyAudio.muted = true;
+        oldDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .008);
+        newDeck.router.gain.setTargetAtTime(1, state.context.currentTime, .008);
+      } else {
+        standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load();
+        if (state.activeDeck) state.activeDeck.router.gain.setTargetAtTime(1, state.context.currentTime, .008);
+      }
+      standbyAudio.muted = true;
+      displayTrack(track);
+      if (target === standbyAudio && state.preloadTrackId === track.id) state.preloadTrackId = null;
+      try {
+        await audio.play();
+        if (generation !== state.playGeneration) return;
+        $('play-button').textContent = 'Ⅱ';
+        if (target !== previous) { previous.removeAttribute('src'); previous.load(); }
+        if (!wasPreloaded && state.preloadTrackId === track.id && standbyAudio.src) { standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load(); state.preloadTrackId = null; }
+        renderTracks();
+        preloadNext(true);
+      } catch (error) { console.error('Playback failed:', error); toast('Không thể phát file này trong trình duyệt.'); }
+    }
+    function stopDsdWorker(invalidate = true) {
+      if (!state.dsdWorker && !state.dsdUrl) return;
+      if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; }
+      if (invalidate) { state.playGeneration++; $('play-button').textContent = '▶'; }
+      if (state.dsdUrl) {
+        const url = state.dsdUrl;
+        if (audio.src === url) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+        if (standbyAudio.src === url) { standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load(); }
+        URL.revokeObjectURL(url); state.objectUrls.delete(url); state.dsdUrl = null;
+      }
+      const decodedTrack = state.tracks.find(track => track.id === state.dsdTrackId);
+      if (decodedTrack) decodedTrack.url = '';
+      state.dsdTrackId = null; state.dsdBlob = null;
+    }
+    async function playDsdTrack(track, generation) {
+      stopDsdWorker(false);
+      if (generation !== state.playGeneration) return;
+      const multiplier = track.sampleRate ? track.sampleRate / 44100 : 0;
+      if (![32,64,128,256,512].includes(multiplier)) { $('play-button').textContent = '▶'; toast(`DSD${multiplier} chưa được hỗ trợ; chỉ hỗ trợ DSD32/64/128/256/512.`); return; }
+      audio.pause(); standbyAudio.pause();
+      audio.removeAttribute('src'); audio.load(); standbyAudio.removeAttribute('src'); standbyAudio.load();
+      if (!state.context) { setupAudio(); if (!state.context) throw new Error('Trình duyệt không hỗ trợ Web Audio API.'); }
+      if (state.context.state === 'suspended') await state.context.resume();
+      $('play-button').textContent = '…';
+      state.currentId = track.id; displayTrack(track); renderTracks();
+      toast(`Đang giải mã DSD → PCM ${(state.dsdOutputRate/1000).toFixed(1)} kHz / ${state.dsdOutputDepth}-bit…`);
+      try {
+        if (!location.protocol.startsWith('http')) throw new Error('Hãy mở NOCTURNE qua localhost hoặc HTTPS để dùng Web Worker.');
+        const worker = new Worker(new URL('dsd-worker.js', dsdWorkerBaseUrl));
+        state.dsdWorker = worker;
+        worker.onmessage = async event => {
+          const message = event.data || {};
+          if (generation !== state.playGeneration || state.dsdWorker !== worker) return;
+          if (message.type === 'progress') { $('play-button').textContent = `${Math.round(message.progress * 100)}%`; return; }
+          if (message.type === 'error') { stopDsdWorker(false); $('play-button').textContent = '▶'; toast(`Không thể giải mã DSD: ${message.message}`); return; }
+          if (message.type !== 'done') return;
+          worker.terminate(); state.dsdWorker = null;
+          const url = URL.createObjectURL(message.blob); state.dsdUrl = url; state.dsdBlob = message.blob; state.dsdTrackId = track.id; state.objectUrls.add(url);
+          track.url = url; track.duration = message.duration; track.sampleRate = message.rate; track.channels = message.channels; track.dsdMultiplier = message.multiplier; track.pcmRate = message.targetRate; track.pcmDecimation = message.decimation; track.pcmBitDepth = message.bitDepth;
+          setupAudio();
+          if (!state.context) return;
+          if (state.context.state === 'suspended') await state.context.resume();
+          if (generation !== state.playGeneration) return;
+          audio.src = url; standbyAudio.muted = true;
+          displayTrack(track);
+          try { await audio.play(); if (generation !== state.playGeneration) return; $('play-button').textContent = 'Ⅱ'; renderTracks(); }
+          catch (error) { console.error('DSD PCM playback failed:', error); toast('Không thể phát PCM đã giải mã trong trình duyệt.'); }
+        };
+        worker.onerror = event => {
+          if (generation !== state.playGeneration) return;
+          stopDsdWorker(false); $('play-button').textContent = '▶';
+          toast(`Lỗi bộ giải mã DSD: ${event.message || 'worker không chạy được'}`);
+        };
+        worker.postMessage({file:track.file, format:track.format.toLowerCase(), targetRate:state.dsdOutputRate, bitDepth:state.dsdOutputDepth});
+      } catch (error) { stopDsdWorker(false); $('play-button').textContent = '▶'; toast(`Không thể khởi chạy bộ giải mã DSD: ${error.message || error}`); }
+    }
+    function playNext(direction = 1) {
+      if (!state.tracks.length) return;
+      const currentIndex = state.tracks.findIndex(track => track.id === state.currentId);
+      if (currentIndex < 0) { playTrack(state.tracks[direction < 0 ? state.tracks.length - 1 : 0].id); return; }
+      if (direction > 0 && state.repeat === 2) { audio.currentTime = 0; audio.play(); return; }
+      if (direction > 0 && state.shuffle && state.preloadTrackId && state.preloadTrackId !== state.currentId) { playTrack(state.preloadTrackId); return; }
+      if (!state.shuffle && state.repeat !== 1 && direction > 0 && currentIndex >= state.tracks.length - 1) return;
+      if (!state.shuffle && state.repeat !== 1 && direction < 0 && currentIndex <= 0) return;
+      let index;
+      if (state.shuffle) {
+        const choices = state.tracks.filter(track => track.id !== state.currentId);
+        if (!choices.length) { if (direction > 0 && state.repeat === 1) playTrack(state.currentId); return; }
+        index = state.tracks.indexOf(choices[Math.floor(Math.random() * choices.length)]);
+      } else index = (currentIndex + direction + state.tracks.length) % state.tracks.length;
+      playTrack(state.tracks[index].id);
+    }
+
+    async function pickLocalFiles() {
+      if (window.showOpenFilePicker) {
+        try {
+          const handles = await window.showOpenFilePicker({ multiple: true, types: [{ description: 'Audio files', accept: {'audio/*':['.flac','.wav','.alac','.m4a','.mp3','.ogg','.opus','.aac','.aiff','.aif','.wma','.dsf','.dff']} }] });
+          await addLocalFiles(await Promise.all(handles.map(handle => handle.getFile()))); return;
+        } catch (error) { if (error.name === 'AbortError') return; console.warn('Open file picker unavailable:', error); }
+      }
+      $('file-input').click();
+    }
+    async function pickFolder() {
+      if (window.showDirectoryPicker) {
+        try {
+          const dir = await window.showDirectoryPicker({ mode: 'read' }), files = [];
+          async function walk(handle) { for await (const entry of handle.values()) { if (entry.kind === 'file') { const file = await entry.getFile(); if (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name)) files.push(file); } else if (entry.kind === 'directory') await walk(entry); } }
+          await walk(dir); await addLocalFiles(files); return;
+        } catch (error) { if (error.name === 'AbortError') return; console.warn('Directory picker failed; using input fallback:', error); }
+      }
+      $('folder-input').click();
+    }
+
+    async function loadGoogleScript() {
+      if (window.google && google.accounts && google.accounts.oauth2) return;
+      await new Promise((resolve, reject) => {
+        let existing = document.querySelector('script[data-gis]');
+        if (existing) {
+          if (existing.dataset.loaded === 'true') return resolve();
+          existing.addEventListener('load', resolve, {once:true}); existing.addEventListener('error', reject, {once:true}); return;
+        }
+        existing = document.createElement('script'); existing.src = 'https://accounts.google.com/gsi/client'; existing.dataset.gis = 'true';
+        existing.onload = () => { existing.dataset.loaded = 'true'; resolve(); };
+        existing.onerror = () => reject(new Error('Không tải được Google Identity Services.'));
+        document.head.appendChild(existing);
+      });
+    }
+    async function requestGoogleToken(prompt = '') {
+      const config = JSON.parse(localStorage.getItem('nocturne-google') || '{}');
+      if (!config.clientId) throw new Error('Vui lòng nhập OAuth 2.0 Client ID.');
+      await loadGoogleScript();
+      const response = await new Promise((resolve, reject) => {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: config.clientId,
+          scope: 'https://www.googleapis.com/auth/drive.readonly',
+          callback: result => result.error ? reject(new Error(result.error_description || result.error)) : resolve(result),
+          error_callback: error => reject(new Error(error.message || 'Đăng nhập Google thất bại.'))
+        });
+        client.requestAccessToken({prompt});
+      });
+      state.googleToken = response.access_token;
+      state.googleExpiresAt = Date.now() + (Number(response.expires_in) || 3600) * 1000;
+      return state.googleToken;
+    }
+    async function ensureGoogleToken() {
+      if (state.googleToken && Date.now() < state.googleExpiresAt - 60000) return state.googleToken;
+      try { return await requestGoogleToken(''); }
+      catch (error) { return requestGoogleToken('consent'); }
+    }
+    async function connectGoogle() {
+      const clientId = $('google-client-id').value.trim();
+      if (!clientId) throw new Error('Đăng nhập lần đầu: nhập Google Client ID ở ô phía trên trước nhé.');
+      localStorage.setItem('nocturne-google', JSON.stringify({clientId}));
+      await requestGoogleToken('');
+      $('google-state').textContent = 'Đã kết nối'; $('google-state').className = 'text-[10px] text-emerald-300'; $('cloud-status').textContent = 'Google Drive đã kết nối';
+      await loadGoogleFiles();
+    }
+    async function loadGoogleFiles() {
+      const token = await ensureGoogleToken();
+      let pageToken = '', added = 0;
+      do {
+        const params = new URLSearchParams({q:"trashed = false and mimeType != 'application/vnd.google-apps.folder'", fields:'nextPageToken,files(id,name,mimeType,size)', pageSize:'100', orderBy:'name'});
+        if (pageToken) params.set('pageToken', pageToken);
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {headers:{Authorization:`Bearer ${token}`}});
+        if (!response.ok) throw new Error(`Google Drive API ${response.status}: ${await response.text()}`);
+        const data = await response.json();
+        for (const file of data.files || []) {
+          if (!STREAM_AUDIO_TYPES.test(file.name) || state.tracks.some(track => track.source === 'google' && track.remoteId === file.id)) continue;
+          const track = {id:`google:${file.id}`, remoteId:file.id, title:file.name.replace(/\.[^.]+$/, ''), artist:'Google Drive', album:'—', format:file.name.split('.').pop().toUpperCase(), size:Number(file.size) || 0, source:'google', url:'', load:() => loadGoogleAudio(file)};
+          state.tracks.push(track); added++;
+        }
+        pageToken = data.nextPageToken || '';
+      } while (pageToken);
+      renderTracks(); toast(`Đã tải ${added} file âm thanh từ Google Drive.`);
+    }
+    async function loadGoogleAudio(file) {
+      const token = await ensureGoogleToken();
+      const track = state.tracks.find(item => item.remoteId === file.id && item.source === 'google');
+      if (!track) throw new Error('Không tìm thấy bài hát trong thư viện.');
+      // Native media requests include Range automatically, so seeking does not download the whole Drive file first.
+      track.url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media&access_token=${encodeURIComponent(token)}`;
+    }
+
+    async function connectMicrosoft() {
+      const clientId = $('microsoft-client-id').value.trim();
+      if (!clientId) throw new Error('Đăng nhập lần đầu: nhập Microsoft Client ID ở ô phía trên trước nhé.');
+      localStorage.setItem('nocturne-microsoft', JSON.stringify({clientId}));
+      if (!window.msal) throw new Error('Không tải được MSAL.js. Kiểm tra kết nối mạng và tải lại trang.');
+      state.msal = null; state.msAccount = null;
+      state.microsoftAccessToken = await getMicrosoftToken(true);
+      $('microsoft-state').textContent = 'Đã kết nối'; $('microsoft-state').className = 'text-[10px] text-emerald-300'; $('cloud-status').textContent = 'OneDrive đã kết nối';
+      await loadMicrosoftFiles(state.microsoftAccessToken);
+    }
+    async function connectMicrosoftAndHandleAuth() { await connectMicrosoft(); }
+    async function graphGet(url, token = state.microsoftAccessToken) {
+      const response = await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
+      if (!response.ok) throw new Error(`Microsoft Graph ${response.status}: ${await response.text()}`);
+      return response.json();
+    }
+    async function getMicrosoftToken(interactive = false) {
+      if (!state.msal) {
+        const config = JSON.parse(localStorage.getItem('nocturne-microsoft') || '{}');
+        if (!config.clientId) throw new Error('Vui lòng nhập Application (client) ID.');
+        state.msal = new msal.PublicClientApplication({auth:{clientId:config.clientId, authority:'https://login.microsoftonline.com/common', redirectUri:location.origin + location.pathname}, cache:{cacheLocation:'localStorage', storeAuthStateInCookie:false}});
+        await state.msal.initialize();
+        state.msAccount = state.msal.getAllAccounts()[0] || null;
+      }
+      if (!state.msAccount) {
+        if (!interactive) throw new Error('Phiên OneDrive đã hết hạn. Hãy kết nối lại trong Cấu hình Cloud API.');
+        const login = await state.msal.loginPopup({scopes:['User.Read','Files.Read']});
+        state.msAccount = login.account;
+      }
+      try {
+        const result = await state.msal.acquireTokenSilent({scopes:['Files.Read'], account:state.msAccount});
+        state.microsoftAccessToken = result.accessToken;
+      } catch (error) {
+        if (!(error instanceof msal.InteractionRequiredAuthError) || !interactive) throw error;
+        const result = await state.msal.acquireTokenPopup({scopes:['Files.Read'], account:state.msAccount});
+        state.microsoftAccessToken = result.accessToken;
+      }
+      return state.microsoftAccessToken;
+    }
+    async function loadMicrosoftFiles(token) {
+      let added = 0;
+      const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,size&$top=200', path:''}];
+      while (queue.length) {
+        const {url, path} = queue.shift();
+        let next = url;
+        while (next) {
+          const data = await graphGet(next, token);
+          for (const item of data.value || []) {
+            const itemPath = path ? `${path}/${item.name}` : item.name;
+            if (item.folder) {
+              queue.push({url:`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,size&$top=200`, path:itemPath});
+              continue;
+            }
+            if (!item.file || !STREAM_AUDIO_TYPES.test(item.name) || state.tracks.some(track => track.source === 'onedrive' && track.remoteId === item.id)) continue;
+            state.tracks.push({id:`onedrive:${item.id}`, remoteId:item.id, remotePath:itemPath, title:item.name.replace(/\.[^.]+$/, ''), artist:'OneDrive', album:'—', format:item.name.split('.').pop().toUpperCase(), size:Number(item.size) || 0, source:'onedrive', url:'', load:() => loadMicrosoftAudio(item.id)});
+            added++;
+          }
+          next = data['@odata.nextLink'] || '';
+        }
+      }
+      renderTracks(); toast(`Đã tải ${added} file âm thanh từ OneDrive.`);
+    }
+    async function loadMicrosoftAudio(itemId) {
+      const token = await getMicrosoftToken(false);
+      const data = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}`, token);
+      const downloadUrl = data['@microsoft.graph.downloadUrl'];
+      if (!downloadUrl) throw new Error('Microsoft Graph không trả về URL tải cho file này.');
+      const track = state.tracks.find(item => item.remoteId === itemId && item.source === 'onedrive');
+      if (!track) throw new Error('Không tìm thấy bài hát trong thư viện.');
+      if (!STREAM_AUDIO_TYPES.test(track.name || track.title)) throw new Error('DSD hiện chỉ hỗ trợ file local; cloud DSD chưa được hỗ trợ.');
+      track.url = downloadUrl;
+    }
+    function settingsError(error) { console.error(error); const target = $('settings-error'); target.textContent = error.message || String(error); target.classList.remove('hidden'); }
+    function showSettings() { $('settings-error').classList.add('hidden'); $('settings-modal').classList.remove('hidden'); $('settings-modal').classList.add('flex'); }
+    function hideSettings() { $('settings-modal').classList.add('hidden'); $('settings-modal').classList.remove('flex'); }
+
+    $('add-files').addEventListener('click', pickLocalFiles);
+    $('empty-add').addEventListener('click', pickLocalFiles);
+    $('choose-folder').addEventListener('click', pickFolder);
+    $('file-input').addEventListener('change', event => { addLocalFiles(event.target.files); event.target.value = ''; });
+    $('folder-input').addEventListener('change', event => { addLocalFiles(event.target.files); event.target.value = ''; });
+    $('open-settings').addEventListener('click', showSettings);
+    $('mobile-settings').addEventListener('click', showSettings);
+    $('connect-cloud').addEventListener('click', showSettings);
+    $('close-settings').addEventListener('click', hideSettings);
+    $('settings-modal').addEventListener('click', event => { if (event.target === $('settings-modal')) hideSettings(); });
+    async function runCloudLogin(connect) {
+      $('settings-error').classList.add('hidden');
+      try {
+        await connect();
+        hideSettings();
+      } catch (error) {
+        settingsError(error);
+        showSettings();
+      }
+    }
+    $('dsd-output-rate').addEventListener('change', event => {
+      state.dsdOutputRate = Number(event.target.value);
+      try { localStorage.setItem('nocturne-dsd-output-rate', String(state.dsdOutputRate)); } catch (error) { console.warn('Could not save DSD output rate:', error); }
+    });
+    $('dsd-output-depth').addEventListener('change', event => {
+      state.dsdOutputDepth = Number(event.target.value);
+      try { localStorage.setItem('nocturne-dsd-output-depth', String(state.dsdOutputDepth)); } catch (error) { console.warn('Could not save DSD output bit depth:', error); }
+    });
+    $('google-connect').addEventListener('click', () => runCloudLogin(connectGoogle));
+    $('microsoft-connect').addEventListener('click', () => runCloudLogin(connectMicrosoftAndHandleAuth));
+    ['google-client-id','microsoft-client-id'].forEach(id => $(id).addEventListener('input', () => { if ($('settings-error').classList.contains('hidden')) return; $('settings-error').classList.add('hidden'); }));
+    $('google-quick-connect').addEventListener('click', () => runCloudLogin('google', async () => {
+      const config = JSON.parse(localStorage.getItem('nocturne-google') || '{}');
+      if (!config.clientId) { showSettings(); $('google-client-id').focus(); throw new Error('Đăng nhập lần đầu? Dán Google Client ID vào phần Google Drive.'); }
+      $('google-client-id').value = config.clientId;
+      await connectGoogle();
+    }));
+    $('microsoft-quick-connect').addEventListener('click', () => runCloudLogin('microsoft', async () => {
+      const config = JSON.parse(localStorage.getItem('nocturne-microsoft') || '{}');
+      if (!config.clientId) { showSettings(); $('microsoft-client-id').focus(); throw new Error('Đăng nhập lần đầu? Dán Microsoft Client ID vào phần OneDrive.'); }
+      $('microsoft-client-id').value = config.clientId;
+      await connectMicrosoftAndHandleAuth();
+    }));
+    $('play-url').addEventListener('click', () => {
+      const url = $('direct-url').value.trim();
+      try {
+        const parsed = new URL(url); if (!['http:','https:'].includes(parsed.protocol)) throw new Error('URL phải sử dụng HTTP hoặc HTTPS.');
+        const fileName = parsed.pathname.split('/').pop() || '';
+        let title = 'Direct stream';
+        try { title = decodeURIComponent(fileName).replace(/\.[^.]+$/, '') || title; } catch (error) { title = fileName.replace(/\.[^.]+$/, '') || title; }
+        const format = (fileName.match(/\.([^.]+)$/) || [,'AUDIO'])[1].toUpperCase();
+        if (format === 'DSF' || format === 'DFF') throw new Error('Phát DSD hiện chỉ hỗ trợ file local; tải file xuống thiết bị trước.');
+        const track = {id:id(), title, artist:'Direct stream', album:'—', format, source:'url', url:parsed.href};
+        state.tracks.unshift(track); renderTracks(); playTrack(track.id); $('settings-error').classList.add('hidden'); hideSettings();
+      } catch (error) { settingsError(error); }
+    });
+    $('play-button').addEventListener('click', async () => { if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; state.playGeneration++; stopDsdWorker(false); $('play-button').textContent = '▶'; toast('Đã dừng giải mã DSD.'); return; } if (!audio.src) { const current = state.tracks.find(track => track.id === state.currentId); const next = current || state.tracks[0]; if (next) playTrack(next.id); return; } if (audio.paused) { try { if (state.context && state.context.state === 'suspended') await state.context.resume(); await audio.play(); } catch (error) { toast(error.message); } } else audio.pause(); });
+    $('previous-button').addEventListener('click', () => playNext(-1));
+    $('next-button').addEventListener('click', () => playNext(1));
+    $('shuffle-button').addEventListener('click', event => { state.shuffle = !state.shuffle; event.currentTarget.classList.toggle('text-violet-300', state.shuffle); toast(state.shuffle ? 'Đã bật trộn bài.' : 'Đã tắt trộn bài.'); if (state.currentId) preloadNext(true); });
+    $('repeat-button').addEventListener('click', event => { state.repeat = (state.repeat + 1) % 3; event.currentTarget.textContent = state.repeat === 2 ? '↻¹' : '↻'; event.currentTarget.classList.toggle('text-violet-300', state.repeat > 0); toast(['Không lặp','Lặp danh sách','Lặp bài hiện tại'][state.repeat]); if (state.currentId) preloadNext(true); });
+    $('favorite-button').addEventListener('click', () => {
+      const track = state.tracks.find(item => item.id === state.currentId);
+      if (!track) return;
+      const key = track.remoteId ? `${track.source}:${track.remoteId}` : track.id;
+      if (isFavorite(track)) { state.favorites.delete(key); state.favorites.delete(track.id); }
+      else state.favorites.add(key);
+      localStorage.setItem('nocturne-favorites', JSON.stringify([...state.favorites]));
+      $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; renderTracks();
+    });
+    $('history-button').addEventListener('click', readHistory);
+    $('favorites-filter').addEventListener('click', () => { state.favoritesOnly = !state.favoritesOnly; $('favorites-filter').classList.toggle('text-violet-300', state.favoritesOnly); renderTracks(); });
+    $('search').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search-mobile').value = event.target.value; renderTracks(); });
+    $('search-mobile').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search').value = event.target.value; renderTracks(); });
+    $('source-filter').addEventListener('change', event => { state.filter = event.target.value; renderTracks(); });
+    document.querySelectorAll('.source-btn').forEach(button => button.addEventListener('click', () => {
+      state.filter = button.dataset.source; $('source-filter').value = state.filter;
+      document.querySelectorAll('.source-btn').forEach(item => item.className = `source-btn flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${item === button ? 'bg-white/[.07] text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`);
+      $('page-title').textContent = ({all:'Thư viện của bạn',local:'Máy của tôi',google:'Google Drive',onedrive:'OneDrive'})[state.filter];
+      renderTracks();
+    }));
+    $('sort-button').addEventListener('click', event => { state.sortAsc = !state.sortAsc; event.currentTarget.textContent = `Tên ${state.sortAsc ? '↑' : '↓'}`; renderTracks(); });
+    const syncSeek = value => { $('seek').value = value; $('seek-mobile').value = value; };
+    [$('seek'), $('seek-mobile')].forEach(input => {
+      input.addEventListener('input', () => { state.isSeeking = true; const time = Number(input.value) / 1000 * (audio.duration || 0); $('current-time').textContent = formatTime(time); $('current-time-mobile').textContent = formatTime(time); });
+      input.addEventListener('change', () => { if (Number.isFinite(audio.duration)) audio.currentTime = Number(input.value) / 1000 * audio.duration; state.isSeeking = false; });
+    });
+    [$('volume'), $('volume-mobile')].forEach(input => input.addEventListener('input', () => setGain(input.value)));
+    function attachDeckEvents(element) {
+      element.addEventListener('timeupdate', () => {
+        if (element !== audio) return;
+        if (!state.isSeeking && Number.isFinite(element.duration)) syncSeek(Math.round(element.currentTime / element.duration * 1000));
+        $('current-time').textContent = formatTime(element.currentTime); $('current-time-mobile').textContent = formatTime(element.currentTime);
+        if (Number.isFinite(element.duration) && element.duration - element.currentTime <= 12 && (!standbyAudio.src || standbyAudio.src !== state.preloadReadyUrl)) preloadNext();
+      });
+      element.addEventListener('loadedmetadata', () => {
+        if (element !== audio) return;
+        $('duration').textContent = formatTime(element.duration); $('duration-mobile').textContent = formatTime(element.duration);
+        const track = state.tracks.find(item => item.id === state.currentId);
+        if (track) { track.duration = element.duration; renderTracks(); }
+      });
+      element.addEventListener('play', () => { if (element === audio) $('play-button').textContent = 'Ⅱ'; });
+      element.addEventListener('pause', () => { if (element === audio && !standbyAudio.paused) return; if (element === audio) $('play-button').textContent = '▶'; });
+      element.addEventListener('ended', () => { if (element === audio) playNext(1); });
+      element.addEventListener('error', () => { if (element === standbyAudio) { state.preloadTrackId = null; console.warn('Next track preload failed.'); } });
+    }
+    attachDeckEvents(audio); attachDeckEvents(standbyAudio);
+    $('eq-button').addEventListener('click', () => $('eq-panel').classList.toggle('hidden'));
+    $('eq-add-band').addEventListener('click', () => addEqBand());
+    $('eq-enabled').addEventListener('change', event => {
+      if (!state.context) setupAudio();
+      applyEq();
+      const enabled = event.target.checked;
+      $('eq-button').classList.toggle('text-violet-300', enabled);
+      $('eq-button').title = enabled ? 'EQ đang bật' : 'Direct / DSP bypass';
+    });
+    $('eq-preamp').addEventListener('input', applyEq);
+    addEqBand({type:'lowshelf', frequency:120, gain:0, q:0.707});
+    addEqBand({type:'peaking', frequency:1000, gain:0, q:1});
+    addEqBand({type:'highshelf', frequency:8000, gain:0, q:0.707});
+
+    let dragDepth = 0;
+    document.addEventListener('dragenter', event => { event.preventDefault(); dragDepth++; $('drop-target').classList.remove('hidden'); $('drop-target').classList.add('flex'); });
+    document.addEventListener('dragover', event => event.preventDefault());
+    document.addEventListener('dragleave', event => { event.preventDefault(); dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) { $('drop-target').classList.add('hidden'); $('drop-target').classList.remove('flex'); } });
+    document.addEventListener('drop', async event => {
+      event.preventDefault(); dragDepth = 0; $('drop-target').classList.add('hidden'); $('drop-target').classList.remove('flex');
+      const files = [];
+      async function readEntry(entry) {
+        if (entry.isFile) await new Promise(resolve => entry.file(file => { files.push(file); resolve(); }, error => { console.warn('Could not read dropped file:', error); resolve(); }));
+        else if (entry.isDirectory) { const reader = entry.createReader(); let entries = []; do { entries = await new Promise(resolve => reader.readEntries(resolve, error => { console.warn('Could not scan dropped folder:', error); resolve([]); })); for (const child of entries) await readEntry(child); } while (entries.length); }
+      }
+      const entries = [...(event.dataTransfer.items || [])].map(item => item.webkitGetAsEntry && item.webkitGetAsEntry()).filter(Boolean);
+      if (entries.length) for (const entry of entries) await readEntry(entry);
+      else files.push(...event.dataTransfer.files);
+      await addLocalFiles(files);
+    });
+
+    try {
+      const googleConfig = JSON.parse(localStorage.getItem('nocturne-google') || '{}');
+      $('google-client-id').value = googleConfig.clientId || '';
+      const microsoftConfig = JSON.parse(localStorage.getItem('nocturne-microsoft') || '{}');
+      $('microsoft-client-id').value = microsoftConfig.clientId || '';
+      if (googleConfig.clientId) { $('google-state').textContent = 'Sẵn sàng đăng nhập'; $('cloud-status').textContent = 'Google Drive · sẵn sàng'; }
+      if (microsoftConfig.clientId) { $('microsoft-state').textContent = 'Sẵn sàng đăng nhập'; $('cloud-status').textContent = googleConfig.clientId ? 'Google Drive / OneDrive · sẵn sàng' : 'OneDrive · sẵn sàng'; }
+    } catch (error) { console.warn('Could not load saved cloud configuration:', error); }
+    try {
+      const savedRate = Number(localStorage.getItem('nocturne-dsd-output-rate'));
+      const savedDepth = Number(localStorage.getItem('nocturne-dsd-output-depth'));
+      if ([44100,88200,176400].includes(savedRate)) state.dsdOutputRate = savedRate;
+      if ([16,24].includes(savedDepth)) state.dsdOutputDepth = savedDepth;
+      $('dsd-output-rate').value = String(state.dsdOutputRate);
+      $('dsd-output-depth').value = String(state.dsdOutputDepth);
+    } catch (error) { console.warn('Could not load saved DSD output settings:', error); }
+    try { state.favorites = new Set(JSON.parse(localStorage.getItem('nocturne-favorites') || '[]')); } catch (error) { state.favorites = new Set(); }
+    setGain(72);
+    openDatabase().catch(error => { console.error('IndexedDB is unavailable:', error); toast('Không thể bật lịch sử nghe: IndexedDB không khả dụng.'); });
+    if (!window.isSecureContext) console.info('Directory picker and cloud OAuth require HTTPS or localhost; use the file input fallback for local playback.');
+    renderTracks();
+  })();
+  </script>
+</body>
+</html>
