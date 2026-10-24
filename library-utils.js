@@ -16,6 +16,22 @@
     return {title:parts[parts.length - 1] || baseName, artist:parts[0] || UNKNOWN_ARTIST, album:parts.length > 2 ? parts.slice(1, -1).join(' - ') : UNKNOWN_ALBUM};
   }
 
+  const AUDIO_MIME_TYPES = {
+    flac:'audio/flac', wav:'audio/wav', mp3:'audio/mpeg', mp2:'audio/mpeg',
+    m4a:'audio/mp4', aac:'audio/aac', ogg:'audio/ogg', opus:'audio/ogg',
+    aiff:'audio/aiff', aif:'audio/aiff', alac:'audio/alac', wma:'audio/x-ms-wma'
+  };
+
+  function normalizeAudioBlob(blob, filename, fallbackType = '') {
+    if (!blob || typeof blob.slice !== 'function') throw new TypeError('Cần một Blob âm thanh hợp lệ.');
+    const currentType = normalize(blob.type).split(';')[0].toLowerCase();
+    if (currentType.startsWith('audio/')) return blob;
+    const fallback = normalize(fallbackType).split(';')[0].toLowerCase();
+    const extension = normalize(filename).split(/[\\/]/).pop().match(/\.([^.]+)$/);
+    const type = fallback.startsWith('audio/') ? fallback : extension && AUDIO_MIME_TYPES[extension[1].toLowerCase()];
+    return type ? new Blob([blob], {type}) : blob;
+  }
+
   async function fetchAudioBlob(url, options = {}, provider = 'Cloud') {
     let response;
     try { response = await fetch(url, options); }
@@ -58,5 +74,5 @@
     return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([label, items]) => ({label, tracks:items}));
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, parseFilenameMetadata, fetchAudioBlob, filterTracks, groupTracks};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, parseFilenameMetadata, normalizeAudioBlob, fetchAudioBlob, filterTracks, groupTracks};
 });

@@ -261,6 +261,7 @@
             blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
           } else throw error;
         }
+        blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
         if (!track.metadataLoaded) await loadCloudMetadata(track, blob);
         const objectUrl = URL.createObjectURL(blob);
         track.url = objectUrl;

@@ -12,6 +12,15 @@ assert.deepStrictEqual(utils.parseFilenameMetadata('Adele - 25 - Hello.mp3'), {t
 assert.strictEqual(utils.parseFilenameMetadata('Hello.flac').artist, utils.UNKNOWN_ARTIST);
 assert.strictEqual(utils.parseFilenameMetadata('Hello.flac').title, 'Hello');
 
+const flacWithoutMime = utils.normalizeAudioBlob(new Blob(['flac-data'], {type:'application/octet-stream'}), 'Adele - Hello.FLAC');
+assert.strictEqual(flacWithoutMime.type, 'audio/flac');
+const mp3WithoutMime = utils.normalizeAudioBlob(new Blob(['mp3-data']), 'folder/Hello.mp3');
+assert.strictEqual(mp3WithoutMime.type, 'audio/mpeg');
+const audioMimeIsPreserved = utils.normalizeAudioBlob(new Blob(['audio-data'], {type:'audio/mp4'}), 'Hello.m4a');
+assert.strictEqual(audioMimeIsPreserved.type, 'audio/mp4');
+const unknownMimeIsPreserved = utils.normalizeAudioBlob(new Blob(['data']), 'track.unknown');
+assert.strictEqual(unknownMimeIsPreserved.type, '');
+
 const tracks = [
   {title:'Hello', artist:'Adele', album:'25', source:'local'},
   {title:'Rolling', artist:'Adele', album:'21', source:'google'},
