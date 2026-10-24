@@ -74,10 +74,13 @@
       </section>
 
       <section class="mt-8">
-        <div class="mb-4 flex items-end justify-between gap-3">
+        <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div><p class="text-[10px] uppercase tracking-[.2em] text-zinc-500">Collection</p><h2 id="list-title" class="mt-1 text-lg font-medium">Tất cả bài hát <span id="visible-count" class="ml-1 text-sm font-normal text-zinc-500">0</span></h2></div>
-          <div class="flex items-center gap-2">
-            <select id="source-filter" class="rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-2 text-xs text-zinc-300 outline-none"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option></select>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <select id="source-filter" aria-label="Lọc theo nguồn" class="max-w-32 rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-2 text-xs text-zinc-300 outline-none"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option></select>
+            <select id="artist-filter" aria-label="Lọc theo nghệ sĩ" class="max-w-36 rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-2 text-xs text-zinc-300 outline-none"><option value="*">Mọi nghệ sĩ</option></select>
+            <select id="album-filter" aria-label="Lọc theo album" class="max-w-36 rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-2 text-xs text-zinc-300 outline-none"><option value="*">Mọi album</option></select>
+            <select id="group-by" aria-label="Nhóm bài hát" class="max-w-32 rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-2 text-xs text-zinc-300 outline-none"><option value="none">Không nhóm</option><option value="artist">Nhóm nghệ sĩ</option><option value="album">Nhóm album</option></select>
             <button id="sort-button" class="rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white">Tên ↑</button>
           </div>
         </div>
@@ -176,10 +179,13 @@
   <div id="toast" class="pointer-events-none fixed bottom-32 left-1/2 z-[60] hidden -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-800 px-4 py-2.5 text-xs text-zinc-100 shadow-xl"></div>
 
   <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" data-gis="true" async defer></script>
+  <script src="library-utils.js"></script>
   <script>
-  (() => {
+(() => {
     'use strict';
+    const library = window.NocturneLibrary;
     const AUDIO_TYPES = /\.(flac|wav|alac|m4a|mp3|ogg|opus|aac|aiff|aif|wma|dsf|dff)$/i;
     const STREAM_AUDIO_TYPES = /\.(flac|wav|alac|m4a|mp3|ogg|opus|aac|aiff|aif|wma)$/i;
     const dsdWorkerScript = [...document.scripts].find(script => script.textContent.includes('const AUDIO_TYPES'));
@@ -187,12 +193,92 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', query: '', sortAsc: true, shuffle: false, repeat: 0, favorites: new Set(), objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, favoritesOnly: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, shuffle: false, repeat: 0, favorites: new Set(), objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, favoritesOnly: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const formatTime = seconds => Number.isFinite(seconds) && seconds >= 0 ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}` : '0:00';
     const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
     const id = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
     const sourceLabel = source => ({local:'LOCAL',google:'DRIVE',onedrive:'ONEDRIVE',url:'URL'}[source] || source.toUpperCase());
+    const filenameMetadata = library.parseFilenameMetadata;
+    function updateMetadataFilters() {
+      for (const [elementId, field, selected, defaultLabel] of [['artist-filter','artist',state.artist,'Mọi nghệ sĩ'],['album-filter','album',state.album,'Mọi album']]) {
+        const select = $(elementId), values = [...new Set(state.tracks.map(track => String(track[field] || '—').trim() || '—'))].sort((a,b) => a.localeCompare(b));
+        select.replaceChildren(new Option(defaultLabel, '*'), ...values.map(value => new Option(value, value)));
+        select.value = values.includes(selected) ? selected : '*';
+        if (field === 'artist') state.artist = select.value; else state.album = select.value;
+      }
+    }
+    function releaseTrackUrl(url) {
+      if (!url || !state.objectUrls.has(url)) return;
+      URL.revokeObjectURL(url); state.objectUrls.delete(url);
+    }
+    function filteredTracks() {
+      return library.filterTracks(state.tracks, {source:state.filter, artist:state.artist, album:state.album, query:state.query, favoritesOnly:state.favoritesOnly, isFavorite});
+    }
+    function groupTracks(tracks, groupBy) { return library.groupTracks(tracks, groupBy); }
+    function releaseUnusedCloudUrl(track) {
+      if (!track || !['google','onedrive'].includes(track.source) || !track.url) return;
+      const absoluteUrl = new URL(track.url, location.href).href;
+      if ([audio, standbyAudio].some(element => element.src === absoluteUrl)) return;
+      releaseTrackUrl(track.url);
+      track.url = '';
+    }
+    window.addEventListener('beforeunload', () => { for (const url of state.objectUrls) URL.revokeObjectURL(url); state.objectUrls.clear(); });
+    async function loadCloudMetadata(track, blob) {
+      const fallback = filenameMetadata(track.name || `${track.title}.${track.format.toLowerCase()}`);
+      try {
+        const file = new File([blob], track.name || `${track.title}.${track.format.toLowerCase()}`, {type:blob.type || 'application/octet-stream'});
+        const [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
+        track.title = tags.title || fallback.title;
+        track.artist = tags.artist || fallback.artist;
+        track.album = tags.album || fallback.album;
+        track.cover = tags.cover;
+        track.sampleRate = technical.sampleRate;
+        track.bitDepth = technical.bitDepth;
+        track.channels = technical.channels;
+        track.duration = technical.duration;
+      } catch (error) {
+        console.warn('Could not extract cloud audio metadata; using filename:', error);
+        track.title = fallback.title; track.artist = fallback.artist; track.album = fallback.album;
+      }
+      track.metadataLoaded = true;
+      updateMetadataFilters();
+      renderTracks();
+    }
+    async function fetchCloudTrack(track, url, options, provider) {
+      if (track.url && state.objectUrls.has(track.url)) return track.url;
+      if (track.loadPromise) return track.loadPromise;
+      track.loadPromise = (async () => {
+        let blob;
+        try { blob = await library.fetchAudioBlob(url, options, provider); }
+        catch (error) {
+          if (error.status !== 401 && error.status !== 403) throw error;
+          if (track.source === 'google') {
+            const token = await requestGoogleToken('');
+            blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
+          } else if (track.source === 'onedrive') {
+            const token = await getMicrosoftToken(false);
+            blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
+          } else throw error;
+        }
+        if (!track.metadataLoaded) await loadCloudMetadata(track, blob);
+        const objectUrl = URL.createObjectURL(blob);
+        track.url = objectUrl;
+        state.objectUrls.add(objectUrl);
+        return objectUrl;
+      })();
+      try { return await track.loadPromise; }
+      finally { track.loadPromise = null; }
+    }
+    const mediaErrorMessage = error => {
+      if (error && error.name === 'NotAllowedError') return 'Trình duyệt đã chặn phát tự động. Nhấn Phát để thử lại.';
+      if (error && error.name === 'NotSupportedError') return 'Định dạng âm thanh này không được trình duyệt hỗ trợ.';
+      if (error && error.name === 'AbortError') return 'Tải âm thanh đã bị hủy.';
+      const media = error && Number.isInteger(error.code) ? error : null;
+      if (media) return ({1:'Tải âm thanh đã bị hủy.',2:'Lỗi mạng khi tải âm thanh. Kiểm tra kết nối rồi thử lại.',3:'Trình duyệt không giải mã được file âm thanh.',4:'Nguồn âm thanh không hợp lệ hoặc định dạng không được hỗ trợ.'})[media.code] || 'Đã xảy ra lỗi khi phát âm thanh.';
+      return error && error.message ? error.message : 'Đã xảy ra lỗi khi phát âm thanh.';
+    };
+
 
     function openDatabase() {
       return new Promise((resolve, reject) => {
@@ -221,6 +307,7 @@
 
     function readAudioMetadata(file) {
       return new Promise(resolve => {
+        if (!file || typeof file.slice !== 'function') return resolve({});
         const reader = new FileReader();
         reader.onerror = () => resolve({});
         reader.onload = () => {
@@ -338,11 +425,12 @@
     }
     async function makeLocalTrack(file) {
       const [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
+      const fallback = filenameMetadata(file.name);
       const format = file.name.split('.').pop().toUpperCase();
       const isDsd = format === 'DSF' || format === 'DFF';
       const url = isDsd ? '' : URL.createObjectURL(file);
       if (url) state.objectUrls.add(url);
-      return { id: id(), file, url, source: 'local', title: tags.title || file.name.replace(/\.[^.]+$/, ''), artist: tags.artist || 'Nghệ sĩ không xác định', album: tags.album || '—', cover: tags.cover, format, isDsd, sampleRate: technical.sampleRate, bitDepth: technical.bitDepth, channels: technical.channels, duration: technical.duration, size: file.size };
+      return { id: id(), file, url, source: 'local', title: tags.title || fallback.title, artist: tags.artist || fallback.artist, album: tags.album || fallback.album, cover: tags.cover, format, isDsd, sampleRate: technical.sampleRate, bitDepth: technical.bitDepth, channels: technical.channels, duration: technical.duration, size: file.size };
     }
     async function addLocalFiles(files) {
       const candidates = [...files].filter(file => file && (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name)));
@@ -371,17 +459,23 @@
     function isFavorite(track) { return state.favorites.has(track.id) || state.favorites.has(`${track.source}:${track.remoteId || track.id}`); }
     function renderTracks() {
       const list = $('track-list');
-      const shown = state.tracks.filter(track => (state.filter === 'all' || track.source === state.filter) && (!state.query || `${track.title} ${track.artist} ${track.album}`.toLowerCase().includes(state.query)) && (!state.favoritesOnly || isFavorite(track)));
+      updateMetadataFilters();
+      const shown = filteredTracks();
       shown.sort((a,b) => state.sortAsc ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title));
+      const groups = groupTracks(shown, state.groupBy);
       $('all-count').textContent = state.tracks.length;
       $('visible-count').textContent = shown.length;
       $('empty-state').classList.toggle('hidden', shown.length > 0);
-      list.innerHTML = shown.map(track => {
-        const q = quality(track), active = track.id === state.currentId;
-        return `<button class="track-row ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_52px]" data-track-id="${escapeHtml(track.id)}">
-          <span class="flex min-w-0 items-center gap-3"><span class="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-cover" alt="">` : '♫'}${active ? '<span class="absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="block truncate text-xs font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${escapeHtml(track.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(track.artist)} <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
-          <span class="hidden truncate text-xs text-zinc-500 sm:block">${escapeHtml(track.album)}</span><span class="hidden sm:block"><span class="rounded border px-1.5 py-1 text-[9px] font-medium tracking-wide ${q.tone}">${q.label}</span></span><span class="text-right text-[10px] tabular-nums text-zinc-500">${track.duration ? formatTime(track.duration) : '—'}</span>
-        </button>`;
+      list.innerHTML = groups.map(group => {
+        const heading = group.label ? `<h3 class="mb-2 mt-5 border-b border-white/[.07] px-3 pb-2 text-[10px] font-medium uppercase tracking-[.18em] text-zinc-500">${escapeHtml(group.label)} <span class="ml-1 text-zinc-700">${group.tracks.length}</span></h3>` : '';
+        const rows = group.tracks.map(track => {
+          const q = quality(track), active = track.id === state.currentId;
+          return `<button class="track-row ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_52px]" data-track-id="${escapeHtml(track.id)}">
+            <span class="flex min-w-0 items-center gap-3"><span class="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-cover" alt="">` : '♫'}${active ? '<span class="absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="block truncate text-xs font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${escapeHtml(track.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(track.artist)} <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
+            <span class="hidden truncate text-xs text-zinc-500 sm:block">${escapeHtml(track.album)}</span><span class="hidden sm:block"><span class="rounded border px-1.5 py-1 text-[9px] font-medium tracking-wide ${q.tone}">${q.label}</span></span><span class="text-right text-[10px] tabular-nums text-zinc-500">${track.duration ? formatTime(track.duration) : '—'}</span>
+          </button>`;
+        }).join('');
+        return heading + rows;
       }).join('');
       list.querySelectorAll('[data-track-id]').forEach(button => button.addEventListener('click', () => playTrack(button.dataset.trackId)));
     }
@@ -500,18 +594,25 @@
     async function preloadNext(force = false) {
       if (!state.context || !state.deckA || !state.deckB) return;
       const index = queueIndex(), next = index >= 0 ? state.tracks[index] : null;
-      if (!next || next.id === state.currentId || next.isDsd) { ++state.preloadGeneration; state.preloadTrackId = null; state.preloadReadyUrl = null; state.preloadBusyId = null; standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load(); return; }
+      if (!next || next.id === state.currentId || next.isDsd) {
+        const oldPreload = state.tracks.find(track => track.id === state.preloadTrackId);
+        ++state.preloadGeneration; state.preloadTrackId = null; state.preloadReadyUrl = null; state.preloadBusyId = null; standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load();
+        releaseUnusedCloudUrl(oldPreload);
+        return;
+      }
       if (!force && state.preloadTrackId === next.id && state.preloadReadyUrl === next.url && (standbyAudio.src === next.url || state.preloadBusyId === next.id)) return;
+      const oldPreload = state.tracks.find(track => track.id === state.preloadTrackId);
       const generation = ++state.preloadGeneration;
       state.preloadTrackId = next.id; state.preloadBusyId = next.id; state.preloadReadyUrl = next.url || null;
       standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load();
+      if (oldPreload && oldPreload.id !== next.id) releaseUnusedCloudUrl(oldPreload);
       if (state.context && state.deckA && state.deckB) {
         const standbyDeck = state.activeDeck === state.deckA ? state.deckB : state.deckA;
         standbyDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .01);
       }
       try {
         if (next.load) await next.load();
-        if (generation !== state.preloadGeneration || !next.url) return;
+        if (generation !== state.preloadGeneration || !next.url) { if (generation !== state.preloadGeneration) releaseUnusedCloudUrl(next); return; }
         state.preloadReadyUrl = next.url;
         if (standbyAudio.src !== next.url) { standbyAudio.src = next.url; standbyAudio.volume = audio.volume; standbyAudio.muted = true; standbyAudio.load(); }
       } catch (error) { console.warn('Could not preload next track:', error); }
@@ -520,6 +621,7 @@
     async function playTrack(trackId) {
       const track = state.tracks.find(item => item.id === trackId);
       if (!track) return;
+      const previousTrack = state.tracks.find(item => item.id === state.currentId);
       const generation = ++state.playGeneration;
       const wasPreloaded = state.preloadTrackId === track.id && standbyAudio.src && state.preloadReadyUrl === track.url;
       if (!wasPreloaded) ++state.preloadGeneration;
@@ -538,7 +640,7 @@
       if (wasPreloaded) target = standbyAudio;
       if (track.load) {
         try { await track.load(); }
-        catch (error) { console.error('Track streaming failed:', error); toast(`Không thể phát bài hát: ${error.message || 'lỗi tải dữ liệu'}`); return; }
+        catch (error) { console.error('Track streaming failed:', error); toast(`Không thể phát bài hát: ${mediaErrorMessage(error)}`); releaseUnusedCloudUrl(track); return; }
       }
       if (generation !== state.playGeneration) return;
       if (!track.url && !wasPreloaded) { toast('Không có URL phát cho bài hát này.'); return; }
@@ -568,7 +670,8 @@
         if (!wasPreloaded && state.preloadTrackId === track.id && standbyAudio.src) { standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load(); state.preloadTrackId = null; }
         renderTracks();
         preloadNext(true);
-      } catch (error) { console.error('Playback failed:', error); toast('Không thể phát file này trong trình duyệt.'); }
+        releaseUnusedCloudUrl(previousTrack);
+      } catch (error) { console.error('Playback failed:', error); toast(mediaErrorMessage(error.name === 'NotSupportedError' ? error : audio.error || error)); }
     }
     function stopDsdWorker(invalidate = true) {
       if (!state.dsdWorker && !state.dsdUrl) return;
@@ -718,7 +821,8 @@
         const data = await response.json();
         for (const file of data.files || []) {
           if (!STREAM_AUDIO_TYPES.test(file.name) || state.tracks.some(track => track.source === 'google' && track.remoteId === file.id)) continue;
-          const track = {id:`google:${file.id}`, remoteId:file.id, title:file.name.replace(/\.[^.]+$/, ''), artist:'Google Drive', album:'—', format:file.name.split('.').pop().toUpperCase(), size:Number(file.size) || 0, source:'google', url:'', load:() => loadGoogleAudio(file)};
+          const metadata = filenameMetadata(file.name);
+          const track = {id:`google:${file.id}`, remoteId:file.id, name:file.name, title:metadata.title, artist:metadata.artist, album:metadata.album, format:file.name.split('.').pop().toUpperCase(), size:Number(file.size) || 0, source:'google', url:'', load:() => loadGoogleAudio(file)};
           state.tracks.push(track); added++;
         }
         pageToken = data.nextPageToken || '';
@@ -729,8 +833,7 @@
       const token = await ensureGoogleToken();
       const track = state.tracks.find(item => item.remoteId === file.id && item.source === 'google');
       if (!track) throw new Error('Không tìm thấy bài hát trong thư viện.');
-      // Native media requests include Range automatically, so seeking does not download the whole Drive file first.
-      track.url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media&access_token=${encodeURIComponent(token)}`;
+      await fetchCloudTrack(track, `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media`, {headers:{Authorization:`Bearer ${token}`}}, 'Google Drive');
     }
 
     async function connectMicrosoft() {
@@ -787,7 +890,8 @@
               continue;
             }
             if (!item.file || !STREAM_AUDIO_TYPES.test(item.name) || state.tracks.some(track => track.source === 'onedrive' && track.remoteId === item.id)) continue;
-            state.tracks.push({id:`onedrive:${item.id}`, remoteId:item.id, remotePath:itemPath, title:item.name.replace(/\.[^.]+$/, ''), artist:'OneDrive', album:'—', format:item.name.split('.').pop().toUpperCase(), size:Number(item.size) || 0, source:'onedrive', url:'', load:() => loadMicrosoftAudio(item.id)});
+            const metadata = filenameMetadata(item.name);
+            state.tracks.push({id:`onedrive:${item.id}`, remoteId:item.id, remotePath:itemPath, name:item.name, title:metadata.title, artist:metadata.artist, album:metadata.album, format:item.name.split('.').pop().toUpperCase(), size:Number(item.size) || 0, source:'onedrive', url:'', load:() => loadMicrosoftAudio(item.id)});
             added++;
           }
           next = data['@odata.nextLink'] || '';
@@ -797,13 +901,10 @@
     }
     async function loadMicrosoftAudio(itemId) {
       const token = await getMicrosoftToken(false);
-      const data = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}`, token);
-      const downloadUrl = data['@microsoft.graph.downloadUrl'];
-      if (!downloadUrl) throw new Error('Microsoft Graph không trả về URL tải cho file này.');
       const track = state.tracks.find(item => item.remoteId === itemId && item.source === 'onedrive');
       if (!track) throw new Error('Không tìm thấy bài hát trong thư viện.');
       if (!STREAM_AUDIO_TYPES.test(track.name || track.title)) throw new Error('DSD hiện chỉ hỗ trợ file local; cloud DSD chưa được hỗ trợ.');
-      track.url = downloadUrl;
+      await fetchCloudTrack(track, `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}/content`, {headers:{Authorization:`Bearer ${token}`}}, 'OneDrive');
     }
     function settingsError(error) { console.error(error); const target = $('settings-error'); target.textContent = error.message || String(error); target.classList.remove('hidden'); }
     function showSettings() { $('settings-error').classList.add('hidden'); $('settings-modal').classList.remove('hidden'); $('settings-modal').classList.add('flex'); }
@@ -840,13 +941,13 @@
     $('google-connect').addEventListener('click', () => runCloudLogin(connectGoogle));
     $('microsoft-connect').addEventListener('click', () => runCloudLogin(connectMicrosoftAndHandleAuth));
     ['google-client-id','microsoft-client-id'].forEach(id => $(id).addEventListener('input', () => { if ($('settings-error').classList.contains('hidden')) return; $('settings-error').classList.add('hidden'); }));
-    $('google-quick-connect').addEventListener('click', () => runCloudLogin('google', async () => {
+    $('google-quick-connect').addEventListener('click', () => runCloudLogin(async () => {
       const config = JSON.parse(localStorage.getItem('nocturne-google') || '{}');
       if (!config.clientId) { showSettings(); $('google-client-id').focus(); throw new Error('Đăng nhập lần đầu? Dán Google Client ID vào phần Google Drive.'); }
       $('google-client-id').value = config.clientId;
       await connectGoogle();
     }));
-    $('microsoft-quick-connect').addEventListener('click', () => runCloudLogin('microsoft', async () => {
+    $('microsoft-quick-connect').addEventListener('click', () => runCloudLogin(async () => {
       const config = JSON.parse(localStorage.getItem('nocturne-microsoft') || '{}');
       if (!config.clientId) { showSettings(); $('microsoft-client-id').focus(); throw new Error('Đăng nhập lần đầu? Dán Microsoft Client ID vào phần OneDrive.'); }
       $('microsoft-client-id').value = config.clientId;
@@ -884,6 +985,9 @@
     $('search').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search-mobile').value = event.target.value; renderTracks(); });
     $('search-mobile').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search').value = event.target.value; renderTracks(); });
     $('source-filter').addEventListener('change', event => { state.filter = event.target.value; renderTracks(); });
+    $('artist-filter').addEventListener('change', event => { state.artist = event.target.value; renderTracks(); });
+    $('album-filter').addEventListener('change', event => { state.album = event.target.value; renderTracks(); });
+    $('group-by').addEventListener('change', event => { state.groupBy = event.target.value; renderTracks(); });
     document.querySelectorAll('.source-btn').forEach(button => button.addEventListener('click', () => {
       state.filter = button.dataset.source; $('source-filter').value = state.filter;
       document.querySelectorAll('.source-btn').forEach(item => item.className = `source-btn flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${item === button ? 'bg-white/[.07] text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`);
