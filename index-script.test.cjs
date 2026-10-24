@@ -17,4 +17,8 @@ for (const id of ['dsd-output-rate', 'dsd-output-depth']) {
 }
 assert.match(html, /nocturne-dsd-output-rate/, 'DSD output rate should persist');
 assert.match(html, /nocturne-dsd-output-depth/, 'DSD output depth should persist');
+assert.ok(appCode.includes('state.analyser.connect(state.context.destination)'), 'EQ analyser output should be routed to the speakers');
+assert.ok(appCode.includes('state.directAnalyser.connect(state.context.destination)'), 'Direct output should be routed to the speakers');
+assert.ok(appCode.includes('library.metadataOptions'), 'Artist/album dropdowns should use normalized metadata options');
+assert.ok(appCode.includes('library.resolveTrackMetadata'), 'Local and cloud metadata should share the same cleanup logic');
 console.log('Inline app script syntax and DSD settings wiring tests passed.');

@@ -9,6 +9,9 @@ const utils = require('./library-utils.js');
 new vm.Script(fs.readFileSync(path.join(__dirname, 'library-utils.js'), 'utf8'), {filename: 'library-utils.js'});
 
 assert.deepStrictEqual(utils.parseFilenameMetadata('Adele - 25 - Hello.mp3'), {title:'Hello', artist:'Adele', album:'25'});
+assert.deepStrictEqual(utils.parseFilenameMetadata('03 - Hello.flac'), {title:'Hello', artist:utils.UNKNOWN_ARTIST, album:utils.UNKNOWN_ALBUM});
+assert.deepStrictEqual(utils.parseFilenameMetadata('Artist/Album/CD 1/03 - Hello.flac'), {title:'Hello', artist:'Artist', album:'Album'});
+assert.deepStrictEqual(utils.resolveTrackMetadata({title:' Track  1 ', artist:'unknown', album:'—'}, {title:'Song', artist:'Artist', album:'Album'}), {title:'Track 1', artist:'Artist', album:'Album'});
 assert.strictEqual(utils.parseFilenameMetadata('Hello.flac').artist, utils.UNKNOWN_ARTIST);
 assert.strictEqual(utils.parseFilenameMetadata('Hello.flac').title, 'Hello');
 
@@ -23,13 +26,22 @@ assert.strictEqual(unknownMimeIsPreserved.type, '');
 
 const tracks = [
   {title:'Hello', artist:'Adele', album:'25', source:'local'},
-  {title:'Rolling', artist:'Adele', album:'21', source:'google'},
-  {title:'Song', artist:'Other', album:'25', source:'local'}
+  {title:'Rolling', artist:' adele ', album:'21', source:'google'},
+  {title:'Song', artist:'Other', album:'25', source:'local'},
+  {title:'Live', artist:'Other', album:'25', source:'local'}
 ];
 assert.strictEqual(utils.filterTracks(tracks, {source:'all', artist:'Adele', album:'*', query:'', isFavorite:() => true}).length, 2);
-assert.strictEqual(utils.filterTracks(tracks, {source:'local', artist:'*', album:'25', query:'', isFavorite:() => true}).length, 2);
-assert.strictEqual(utils.groupTracks(tracks, 'album').length, 2);
-assert.strictEqual(utils.groupTracks(tracks, 'none')[0].tracks.length, 3);
+assert.strictEqual(utils.filterTracks(tracks, {source:'local', artist:'*', album:'25', query:'', isFavorite:() => true}).length, 3);
+assert.strictEqual(utils.filterTracks(tracks, {artist:'ADELE', album:'*', query:'HELLO'}).length, 1);
+assert.deepStrictEqual(utils.filterTracks(tracks, {album:'25\tother'}).map(track => track.title).sort(), ['Live', 'Song']);
+assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).length, 3);
+assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);
+const albumGroups = utils.groupTracks(tracks, 'album');
+assert.strictEqual(albumGroups.length, 3, 'same album title by different artists should not be merged');
+assert.ok(albumGroups.some(group => group.label === 'Adele — 25'));
+assert.ok(albumGroups.some(group => group.label === 'Other — 25' && group.tracks.length === 2));
+assert.strictEqual(utils.groupTracks(tracks, 'artist').length, 2);
+assert.strictEqual(utils.groupTracks(tracks, 'none')[0].tracks.length, 4);
 
 async function expectFetchError(fetchImpl, headers, blobSize) {
   global.fetch = fetchImpl;

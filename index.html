@@ -201,10 +201,13 @@
     const sourceLabel = source => ({local:'LOCAL',google:'DRIVE',onedrive:'ONEDRIVE',url:'URL'}[source] || source.toUpperCase());
     const filenameMetadata = library.parseFilenameMetadata;
     function updateMetadataFilters() {
-      for (const [elementId, field, selected, defaultLabel] of [['artist-filter','artist',state.artist,'Mọi nghệ sĩ'],['album-filter','album',state.album,'Mọi album']]) {
-        const select = $(elementId), values = [...new Set(state.tracks.map(track => String(track[field] || '—').trim() || '—'))].sort((a,b) => a.localeCompare(b));
-        select.replaceChildren(new Option(defaultLabel, '*'), ...values.map(value => new Option(value, value)));
-        select.value = values.includes(selected) ? selected : '*';
+      for (const [elementId, field, selected, defaultLabel, fallback] of [['artist-filter','artist',state.artist,'Mọi nghệ sĩ',library.UNKNOWN_ARTIST],['album-filter','album',state.album,'Mọi album',library.UNKNOWN_ALBUM]]) {
+        const select = $(elementId), options = library.metadataOptions(state.tracks, field, fallback);
+        select.replaceChildren(new Option(defaultLabel, '*'), ...options.map(({key, label}) => new Option(label, key)));
+        const selectedKey = selected === '*' ? '*' : field === 'album' && String(selected || '').includes('\t')
+          ? selected
+          : String(selected || '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('vi');
+        select.value = options.some(option => option.key === selectedKey) ? selectedKey : '*';
         if (field === 'artist') state.artist = select.value; else state.album = select.value;
       }
     }
@@ -225,13 +228,11 @@
     }
     window.addEventListener('beforeunload', () => { for (const url of state.objectUrls) URL.revokeObjectURL(url); state.objectUrls.clear(); });
     async function loadCloudMetadata(track, blob) {
-      const fallback = filenameMetadata(track.name || `${track.title}.${track.format.toLowerCase()}`);
+      const fallback = filenameMetadata(track.name || `${track.title}.${String(track.format || '').toLowerCase()}`);
       try {
-        const file = new File([blob], track.name || `${track.title}.${track.format.toLowerCase()}`, {type:blob.type || 'application/octet-stream'});
+        const file = new File([blob], track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, {type:blob.type || 'application/octet-stream'});
         const [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
-        track.title = tags.title || fallback.title;
-        track.artist = tags.artist || fallback.artist;
-        track.album = tags.album || fallback.album;
+        Object.assign(track, library.resolveTrackMetadata(tags, fallback));
         track.cover = tags.cover;
         track.sampleRate = technical.sampleRate;
         track.bitDepth = technical.bitDepth;
@@ -239,7 +240,7 @@
         track.duration = technical.duration;
       } catch (error) {
         console.warn('Could not extract cloud audio metadata; using filename:', error);
-        track.title = fallback.title; track.artist = fallback.artist; track.album = fallback.album;
+        Object.assign(track, library.resolveTrackMetadata({}, fallback));
       }
       track.metadataLoaded = true;
       updateMetadataFilters();
@@ -426,12 +427,13 @@
     }
     async function makeLocalTrack(file) {
       const [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
-      const fallback = filenameMetadata(file.name);
+      const fallback = filenameMetadata(file.relativePath || file.webkitRelativePath || file.name);
+      const metadata = library.resolveTrackMetadata(tags, fallback);
       const format = file.name.split('.').pop().toUpperCase();
       const isDsd = format === 'DSF' || format === 'DFF';
       const url = isDsd ? '' : URL.createObjectURL(file);
       if (url) state.objectUrls.add(url);
-      return { id: id(), file, url, source: 'local', title: tags.title || fallback.title, artist: tags.artist || fallback.artist, album: tags.album || fallback.album, cover: tags.cover, format, isDsd, sampleRate: technical.sampleRate, bitDepth: technical.bitDepth, channels: technical.channels, duration: technical.duration, size: file.size };
+      return { id: id(), file, url, source: 'local', name: file.name, ...metadata, cover: tags.cover, format, isDsd, sampleRate: technical.sampleRate, bitDepth: technical.bitDepth, channels: technical.channels, duration: technical.duration, size: file.size };
     }
     async function addLocalFiles(files) {
       const candidates = [...files].filter(file => file && (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name)));
@@ -545,6 +547,8 @@
       state.context = new AudioContextClass();
       state.analyser = state.context.createAnalyser(); state.analyser.fftSize = 256; state.analyser.smoothingTimeConstant = .82;
       state.directAnalyser = state.context.createAnalyser(); state.directAnalyser.fftSize = 256; state.directAnalyser.smoothingTimeConstant = .82;
+      state.analyser.connect(state.context.destination);
+      state.directAnalyser.connect(state.context.destination);
       state.deckA = attachAudioElement(audio); state.deckB = attachAudioElement(standbyAudio); state.activeDeck = state.deckA;
       rebuildAudioRoutes();
       const draw = () => {
