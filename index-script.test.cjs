@@ -40,6 +40,10 @@ assert.ok(appCode.includes('object-contain'), 'Artwork should fit within its fra
 assert.ok(appCode.includes('mediaSession'), 'Playback should expose lock-screen/media controls');
 assert.ok(appCode.includes("action('nexttrack'"), 'Playback should support lock-screen next-track control');
 assert.ok(appCode.includes("action('seekto'"), 'Playback should support lock-screen seeking');
+assert.match(html, /body\s*\{\s*background:\s*#09090b;\s*\}/, 'Body should retain its dark base background');
+assert.match(html, /#app-shell\s*\{\s*position:\s*relative;\s*z-index:\s*1;/, 'App content should render above the ambient artwork');
+assert.match(html, /id=["']ambient["'][^>]*\bz-0\b/, 'Ambient artwork layer should render above the body background');
+assert.ok(appCode.includes("$('ambient').style.background = track.cover ?"), 'Current track artwork should drive the ambient background');
 assert.match(html, /id=["']update-banner["']/, 'Update banner should exist for new-version prompts');
 assert.match(html, /id=["']update-now["']/, 'Update banner should offer an apply control');
 assert.match(html, /id=["']update-later["']/, 'Update banner should offer a dismiss control');

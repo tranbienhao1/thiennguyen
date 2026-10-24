@@ -26,7 +26,7 @@
     .drop-overlay { background: rgba(9,9,11,.88); backdrop-filter: blur(12px); }
     canvas { width:100%; height:100%; }
     input[type=range] { accent-color: rgb(var(--accent)); }
-    #app-shell { transition: max-width .35s ease; }
+    #app-shell { position: relative; z-index: 1; transition: max-width .35s ease; }
     #sidebar { transition: transform .32s ease, opacity .25s ease, width .32s ease, margin .32s ease; }
     #content-col { transition: flex-basis .32s ease, max-width .32s ease, transform .32s ease; }
     #ambient { transition: transform .35s ease, opacity .35s ease; }
@@ -44,7 +44,7 @@
   </style>
 </head>
 <body class="min-h-screen overflow-x-hidden text-zinc-100 selection:bg-violet-500/40">
-  <div id="ambient" class="pointer-events-none fixed inset-0 -z-10 opacity-60 transition-colors duration-700" style="background:radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.16),transparent 48%)"></div>
+  <div id="ambient" class="pointer-events-none fixed inset-0 z-0 opacity-60 transition-colors duration-700" style="background:radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.16),transparent 48%)"></div>
   <button id="sidebar-backdrop" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm transition-opacity lg:hidden" type="button" aria-label="Đóng thanh bên"></button>
   <main id="app-shell" class="mx-auto flex min-h-screen max-w-[1600px] flex-col pb-32 lg:flex-row lg:gap-5 lg:px-5">
     <aside id="sidebar" class="w-full shrink-0 border-b border-white/5 bg-[#17130f]/95 px-5 py-5 backdrop-blur-2xl lg:sticky lg:top-0 lg:h-screen lg:w-[260px] lg:border-b-0 lg:bg-transparent lg:px-0 lg:py-7">
