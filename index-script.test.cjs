@@ -21,4 +21,15 @@ assert.ok(appCode.includes('state.analyser.connect(state.context.destination)'),
 assert.ok(appCode.includes('state.directAnalyser.connect(state.context.destination)'), 'Direct output should be routed to the speakers');
 assert.ok(appCode.includes('library.metadataOptions'), 'Artist/album dropdowns should use normalized metadata options');
 assert.ok(appCode.includes('library.resolveTrackMetadata'), 'Local and cloud metadata should share the same cleanup logic');
-console.log('Inline app script syntax and DSD settings wiring tests passed.');
+assert.ok(appCode.includes('restoreCloudCatalog'), 'Cloud catalog should be restored from IndexedDB');
+assert.ok(appCode.includes('CLOUD_CATALOG_STORE'), 'Cloud tracks should persist in IndexedDB instead of volatile memory');
+assert.ok(appCode.includes('includeItemsFromAllDrives'), 'Drive listing should include shared/team drives');
+assert.ok(appCode.includes("corpora:'allDrives'"), 'Drive listing should search all shared drive corpora');
+assert.ok(appCode.includes('@odata.nextLink'), 'OneDrive listing should follow every page');
+assert.ok(appCode.includes('restoreMicrosoftSession'), 'OneDrive should restore silently from the MSAL account cache');
+assert.ok(appCode.includes("requestGoogleToken('none')"), 'Google restore should use the silent token prompt first');
+assert.ok(appCode.includes('setSidebarOpen(!sidebarIsOpen())'), 'Sidebar toggle should switch the drawer');
+assert.ok(appCode.includes("$('sidebar-close').addEventListener('click'"), 'Sidebar close button should hide the drawer');
+assert.ok(appCode.includes("$('sidebar-backdrop').addEventListener('click'"), 'Sidebar backdrop should hide the drawer');
+assert.ok(appCode.includes('target.muted = false'), 'Promoted playback deck must be unmuted');
+console.log('Inline app script syntax and cloud persistence/sync wiring tests passed.');
