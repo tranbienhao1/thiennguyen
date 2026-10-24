@@ -40,4 +40,16 @@ assert.ok(appCode.includes('object-contain'), 'Artwork should fit within its fra
 assert.ok(appCode.includes('mediaSession'), 'Playback should expose lock-screen/media controls');
 assert.ok(appCode.includes("action('nexttrack'"), 'Playback should support lock-screen next-track control');
 assert.ok(appCode.includes("action('seekto'"), 'Playback should support lock-screen seeking');
+assert.match(html, /id=["']update-banner["']/, 'Update banner should exist for new-version prompts');
+assert.match(html, /id=["']update-now["']/, 'Update banner should offer an apply control');
+assert.match(html, /id=["']update-later["']/, 'Update banner should offer a dismiss control');
+assert.ok(appCode.includes('checkForAppUpdate'), 'App should poll for a newer deployed version');
+assert.ok(appCode.includes('applyAppUpdate'), 'App should apply a pending update explicitly');
+assert.ok(appCode.includes('isAppPlaying'), 'Update flow should know whether audio is playing');
+assert.ok(appCode.includes('UPDATE_CHECK_INTERVAL'), 'Update polling should use a shared interval');
+assert.ok(appCode.includes('visibilitychange'), 'Update check should rerun when the tab becomes visible');
+assert.ok(appCode.includes("location.reload()"), 'Applying an update should reload the new version');
+assert.ok(appCode.includes("if (isAppPlaying())"), 'Applying an update must be blocked while audio is playing');
+const updateCheckBody = appCode.slice(appCode.indexOf('async function checkForAppUpdate'));
+assert.ok(!updateCheckBody.slice(0, updateCheckBody.indexOf('function applyAppUpdate')).includes('location.reload()'), 'Background version checks must never reload automatically');
 console.log('Inline app script syntax and cloud persistence/sync wiring tests passed.');
