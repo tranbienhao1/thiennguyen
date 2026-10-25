@@ -61,6 +61,13 @@ for (const feature of ['function renderQueue()', 'function addToQueue(', 'functi
   assert.ok(appCode.includes(feature), `${feature} implementation should exist`);
 }
 assert.ok(appCode.includes('queueTracks()[0]'), 'Explicit play-next queue should take priority when advancing');
+assert.ok(appCode.includes('const target = standbyAudio;'), 'Track switches should prepare the standby deck while the active deck keeps playing');
+assert.ok(appCode.includes('target.volume = audio.volume; target.muted = false;'), 'The standby deck should inherit playback settings before the deck swap');
+assert.ok(appCode.includes('state.dsdUrl) stopDsdWorker(false);'), 'Track switches should clear stale DSD decoder state');
+assert.ok(appCode.includes('function scheduleTrackRender()'), 'Track-list redraws should be deferrable during switches');
+assert.ok(appCode.includes('setTimeout(() => loadCloudMetadata(track, blob)'), 'Cloud metadata follow-up should not block playable audio URLs');
+assert.ok(appCode.includes('releaseUnusedCloudUrl(next)'), 'Superseded preloads should be able to release unused cloud URLs');
+assert.ok(appCode.includes('releaseUnusedCloudUrl(previousTrack);'), 'Switching tracks should release the previous unused cloud URL');
 assert.ok(appCode.includes("if (!state.autoplay || state.repeat === 2) return -1"), 'Autoplay off should not preload library tracks');
 assert.ok(appCode.includes("action('seekto'"), 'Expanded listening room keeps lock-screen seek support');
 assert.ok(appCode.includes('không thể xác nhận bit-perfect'), 'Signal-path view should not claim unverified bit-perfect output');

@@ -432,7 +432,7 @@
       }
       track.metadataLoaded = true;
       updateMetadataFilters();
-      renderTracks();
+      scheduleTrackRender();
     }
     async function fetchCloudTrack(track, url, options, provider) {
       if (track.url && state.objectUrls.has(track.url)) return track.url;
@@ -451,13 +451,14 @@
           } else throw error;
         }
         blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
-        if (!track.metadataLoaded || track.cover === undefined) {
-          await loadCloudMetadata(track, blob);
-          persistCloudCatalog([track]).catch(error => console.warn('Could not save cloud catalog:', error));
-        }
         const objectUrl = URL.createObjectURL(blob);
         track.url = objectUrl;
         state.objectUrls.add(objectUrl);
+        if (!track.metadataLoaded || track.cover === undefined) {
+          setTimeout(() => loadCloudMetadata(track, blob)
+            .then(() => persistCloudCatalog([track]))
+            .catch(error => console.warn('Could not finish cloud metadata in the background:', error)), 0);
+        }
         return objectUrl;
       })();
       try { return await track.loadPromise; }
@@ -869,11 +870,17 @@
       const roomCover = $('room-cover'); roomCover.hidden = !track.cover; roomCover.src = track.cover || ''; $('room-cover-empty').classList.toggle('hidden', !!track.cover);
       $('favorite-button').classList.remove('hidden'); $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').classList.toggle('text-pink-300', isFavorite(track));
       renderQueueCurrent(track); syncAutoplayButton(); updateSleepStatus();
-      $('room-play').textContent = !audio.src || audio.paused ? '▶' : 'Ⅱ'; $('room-current-time').textContent = '0:00'; $('room-duration').textContent = formatTime(track.duration); $('room-seek').value = '0'; paintSeek($('room-seek'), 0);
+      $('room-play').textContent = !audio.src || audio.paused ? '▶' : 'Ⅱ';
+      $('room-current-time').textContent = '0:00'; $('room-duration').textContent = formatTime(track.duration); $('room-seek').value = '0'; paintSeek($('room-seek'), 0);
       $('ambient').style.background = track.cover ? `radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.14),transparent 35%),url("${track.cover}") center/contain no-repeat fixed` : 'radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.16),transparent 48%)';
       $('current-time').textContent = '0:00'; $('current-time-mobile').textContent = '0:00'; $('duration').textContent = formatTime(track.duration); $('duration-mobile').textContent = formatTime(track.duration);
       $('seek').value = '0'; $('seek-mobile').value = '0'; paintSeek($('seek'), 0); paintSeek($('seek-mobile'), 0);
-      renderTracks(); recordHistory(track);
+      scheduleTrackRender(); recordHistory(track);
+    }
+    let trackRenderTimer = null;
+    function scheduleTrackRender() {
+      clearTimeout(trackRenderTimer);
+      trackRenderTimer = setTimeout(() => { trackRenderTimer = null; renderTracks(); }, 180);
     }
     function renderQueueCurrent(track = trackById(state.currentId)) {
       const title = $('queue-current-title'), artist = $('queue-current-artist'), cover = $('queue-current-cover');
@@ -967,7 +974,10 @@
       }
       try {
         if (next.load) await next.load();
-        if (generation !== state.preloadGeneration || !next.url) { if (generation !== state.preloadGeneration) releaseUnusedCloudUrl(next); return; }
+        if (generation !== state.preloadGeneration || !next.url) {
+          if (generation !== state.preloadGeneration && next.id !== state.currentId && next.id !== state.preloadTrackId) releaseUnusedCloudUrl(next);
+          return;
+        }
         state.preloadReadyUrl = next.url;
         if (standbyAudio.src !== next.url) { standbyAudio.src = next.url; standbyAudio.volume = audio.volume; standbyAudio.muted = true; standbyAudio.load(); }
       } catch (error) { console.warn('Could not preload next track:', error); }
@@ -998,45 +1008,38 @@
       if (!state.context) return;
       if (state.context.state === 'suspended') await state.context.resume();
       if (generation !== state.playGeneration) return;
-      let target = audio;
-      if (wasPreloaded) target = standbyAudio;
+      const target = standbyAudio;
       if (track.load) {
         try { await track.load(); }
         catch (error) { console.error('Track streaming failed:', error); toast(`Không thể phát bài hát: ${mediaErrorMessage(error)}`); releaseUnusedCloudUrl(track); return; }
       }
       if (generation !== state.playGeneration) return;
-      if (state.context && state.context.state === 'suspended') await state.context.resume();
-      if (!track.url && !wasPreloaded) { toast('Không có URL phát cho bài hát này.'); return; }
-      if (target === standbyAudio && (!target.src || target.src !== track.url || !wasPreloaded)) { if (!track.url) { toast('Không có URL phát cho bài hát này.'); return; } target.src = track.url; target.load(); }
-      if (target !== standbyAudio && (!target.src || target.src !== track.url)) target.src = track.url;
-      if (!target.src) { toast('Không có URL phát cho bài hát này.'); return; }
-      const previous = audio;
-      const playbackVolume = previous.volume;
-      target.volume = playbackVolume;
-      target.muted = false;
-      if (target !== audio) {
-        const oldDeck = state.activeDeck, newDeck = oldDeck === state.deckA ? state.deckB : state.deckA;
-        audio = target; standbyAudio = previous; state.activeDeck = newDeck;
-        standbyAudio.pause(); standbyAudio.muted = true;
-        oldDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .008);
-        newDeck.router.gain.setTargetAtTime(1, state.context.currentTime, .008);
-      } else {
-        standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load();
-        if (state.activeDeck) state.activeDeck.router.gain.setTargetAtTime(1, state.context.currentTime, .008);
-      }
-      standbyAudio.muted = true;
+      if (state.context.state === 'suspended') await state.context.resume();
+      if (!track.url) { toast('Không có URL phát cho bài hát này.'); return; }
+      if (target.src !== track.url) { target.src = track.url; target.load(); }
       displayTrack(track);
-      if (target === standbyAudio && state.preloadTrackId === track.id) state.preloadTrackId = null;
+      target.volume = audio.volume; target.muted = false;
+      if (state.activeDeck) {
+        const nextDeck = state.activeDeck === state.deckA ? state.deckB : state.deckA;
+        nextDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .01);
+      }
       try {
-        await audio.play();
+        await target.play();
         if (generation !== state.playGeneration) return;
-        $('play-button').textContent = 'Ⅱ';
-        if (target !== previous) { previous.removeAttribute('src'); previous.load(); }
-        if (!wasPreloaded && state.preloadTrackId === track.id && standbyAudio.src) { standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load(); state.preloadTrackId = null; }
-        renderTracks();
+        const previous = audio, oldDeck = state.activeDeck;
+        const newDeck = oldDeck === state.deckA ? state.deckB : state.deckA;
+        audio = target; standbyAudio = previous; state.activeDeck = newDeck;
+        if (oldDeck) oldDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .018);
+        newDeck.router.gain.setTargetAtTime(1, state.context.currentTime, .018);
+        standbyAudio.muted = true; standbyAudio.pause();
+        if (state.preloadTrackId === track.id) { state.preloadTrackId = null; state.preloadReadyUrl = null; }
+        $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ';
+        previous.pause(); previous.muted = true;
+        previous.removeAttribute('src'); previous.load();
+        scheduleTrackRender();
         preloadNext(true);
         releaseUnusedCloudUrl(previousTrack);
-      } catch (error) { console.error('Playback failed:', error); toast(mediaErrorMessage(error.name === 'NotSupportedError' ? error : audio.error || error)); }
+      } catch (error) { console.error('Playback failed:', error); toast(mediaErrorMessage(error.name === 'NotSupportedError' ? error : target.error || error)); }
     }
     function stopDsdWorker(invalidate = true) {
       if (!state.dsdWorker && !state.dsdUrl) return;
@@ -1045,7 +1048,7 @@
       if (state.dsdUrl) {
         const url = state.dsdUrl;
         if (audio.src === url) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
-        if (standbyAudio.src === url) { standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load(); }
+        if (standbyAudio.src === url) { standbyAudio.pause(); standbyAudio.muted = true; standbyAudio.removeAttribute('src'); standbyAudio.load(); }
         URL.revokeObjectURL(url); state.objectUrls.delete(url); state.dsdUrl = null;
       }
       const decodedTrack = state.tracks.find(track => track.id === state.dsdTrackId);
@@ -1062,7 +1065,7 @@
       if (!state.context) { setupAudio(); if (!state.context) throw new Error('Trình duyệt không hỗ trợ Web Audio API.'); }
       if (state.context.state === 'suspended') await state.context.resume();
       $('play-button').textContent = '…';
-      state.currentId = track.id; displayTrack(track); renderTracks();
+      state.currentId = track.id; displayTrack(track); scheduleTrackRender();
       toast(`Đang giải mã DSD → PCM ${(state.dsdOutputRate/1000).toFixed(1)} kHz / ${state.dsdOutputDepth}-bit…`);
       try {
         if (!location.protocol.startsWith('http')) throw new Error('Hãy mở NOCTURNE qua localhost hoặc HTTPS để dùng Web Worker.');
@@ -1083,7 +1086,7 @@
           if (generation !== state.playGeneration) return;
           audio.src = url; standbyAudio.muted = true;
           displayTrack(track);
-          try { await audio.play(); if (generation !== state.playGeneration) return; $('play-button').textContent = 'Ⅱ'; renderTracks(); }
+          try { await audio.play(); if (generation !== state.playGeneration) return; $('play-button').textContent = 'Ⅱ'; scheduleTrackRender(); }
           catch (error) { console.error('DSD PCM playback failed:', error); toast('Không thể phát PCM đã giải mã trong trình duyệt.'); }
         };
         worker.onerror = event => {
@@ -1534,7 +1537,7 @@
         if (element !== audio) return;
         $('duration').textContent = formatTime(element.duration); $('duration-mobile').textContent = formatTime(element.duration); $('room-duration').textContent = formatTime(element.duration);
         const track = state.tracks.find(item => item.id === state.currentId);
-        if (track) { track.duration = element.duration; renderTracks(); }
+        if (track) { track.duration = element.duration; updateMetadataFilters(); scheduleTrackRender(); }
         updatePositionState();
       });
       element.addEventListener('play', () => {
