@@ -70,4 +70,9 @@ assert.ok(appCode.includes("event.code === 'Space'"), 'Listening room should sup
 assert.ok(appCode.includes("data-queue-action=\"add\""), 'Library tracks should expose a play-next control');
 const updateCheckBody = appCode.slice(appCode.indexOf('async function checkForAppUpdate'));
 assert.ok(!updateCheckBody.slice(0, updateCheckBody.indexOf('function applyAppUpdate')).includes('location.reload()'), 'Background version checks must never reload automatically');
+assert.ok(appCode.includes('cover:track.cover || null'), 'Cloud catalog should persist extracted cover art');
+assert.ok(appCode.includes('if (!track.metadataLoaded || track.cover === undefined)'), 'Legacy cloud entries without a cover should re-read metadata on playback');
+assert.ok(appCode.includes('function normalizeCoverImage('), 'Large cover art should be downscaled before persistence');
+assert.ok(appCode.includes('track.cover = await normalizeCoverImage(tags.cover)'), 'Extracted cloud covers should be normalized before display');
+assert.ok(appCode.includes('await loadCloudMetadata(track, track.file)'), 'DSD cloud entries should also recover missing cover art');
 console.log('Inline app script syntax and cloud persistence/sync wiring tests passed.');

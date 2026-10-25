@@ -274,7 +274,7 @@
       if (element) { element.textContent = message; element.className = `text-[10px] ${tone}`; }
       $('cloud-status').textContent = message;
     };
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', name:track.name, title:track.title, artist:track.artist, album:track.album, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, metadataLoaded:!!track.metadataLoaded});
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', name:track.name, title:track.title, artist:track.artist, album:track.album, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:track.cover || null, metadataLoaded:!!track.metadataLoaded});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
       return {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
@@ -395,13 +395,33 @@
       track.url = '';
     }
     window.addEventListener('beforeunload', () => { for (const url of state.objectUrls) URL.revokeObjectURL(url); state.objectUrls.clear(); });
+    function normalizeCoverImage(cover) {
+      return new Promise(resolve => {
+        if (typeof cover !== 'string' || !cover.startsWith('data:image')) return resolve(cover || null);
+        if (cover.length < 350000) return resolve(cover);
+        const image = new Image();
+        image.onload = () => {
+          try {
+            const maxEdge = 512, naturalWidth = image.naturalWidth || maxEdge, naturalHeight = image.naturalHeight || maxEdge;
+            const scale = Math.min(1, maxEdge / Math.max(naturalWidth, naturalHeight));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(naturalWidth * scale));
+            canvas.height = Math.max(1, Math.round(naturalHeight * scale));
+            canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', .82));
+          } catch (error) { console.warn('Could not downscale cover art; keeping original:', error); resolve(cover); }
+        };
+        image.onerror = () => resolve(cover);
+        image.src = cover;
+      });
+    }
     async function loadCloudMetadata(track, blob) {
       const fallback = filenameMetadata(track.name || `${track.title}.${String(track.format || '').toLowerCase()}`);
       try {
         const file = new File([blob], track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, {type:blob.type || 'application/octet-stream'});
         const [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
         Object.assign(track, library.resolveTrackMetadata(tags, fallback));
-        track.cover = tags.cover;
+        track.cover = await normalizeCoverImage(tags.cover);
         track.sampleRate = technical.sampleRate;
         track.bitDepth = technical.bitDepth;
         track.channels = technical.channels;
@@ -431,7 +451,7 @@
           } else throw error;
         }
         blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
-        if (!track.metadataLoaded) {
+        if (!track.metadataLoaded || track.cover === undefined) {
           await loadCloudMetadata(track, blob);
           persistCloudCatalog([track]).catch(error => console.warn('Could not save cloud catalog:', error));
         }
@@ -1213,7 +1233,10 @@
       blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
       track.file = new File([blob], track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, {type:blob.type || 'application/octet-stream'});
       track.size = blob.size || track.size;
-      if (isDsdFormat(track.format) && !track.sampleRate) {
+      if (!track.metadataLoaded || track.cover === undefined) {
+        await loadCloudMetadata(track, track.file);
+        persistCloudCatalog([track]).catch(error => console.warn('Could not save DSD metadata:', error));
+      } else if (isDsdFormat(track.format) && !track.sampleRate) {
         const technical = await readAudioMetadata(track.file);
         track.sampleRate = technical.sampleRate;
         track.channels = technical.channels;
