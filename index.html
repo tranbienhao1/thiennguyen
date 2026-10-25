@@ -6,7 +6,6 @@
   <meta name="theme-color" content="#09090b">
   <title>NOCTURNE — Hi-Res Music Player</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
   <style id="app-style">
     :root { color-scheme: dark; --accent: 139 92 246; }
     * { scrollbar-width: thin; scrollbar-color: #3f3f46 transparent; }
@@ -246,7 +245,7 @@
   </div>
 
   <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" data-gis="true" async defer></script>
   <script src="library-utils.js"></script>
   <script>
@@ -284,8 +283,7 @@
       return {id:`onedrive:${item.id}`, remoteId:item.id, remotePath, name:item.name || `Audio ${item.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(item.size) || 0, source:'onedrive', url:'', isDsd:isDsdFormat(format), load:() => loadMicrosoftAudio(item.id)};
     };
 
-    const dsdWorkerScript = [...document.scripts].find(script => script.textContent.includes('const AUDIO_TYPES'));
-    const dsdWorkerBaseUrl = dsdWorkerScript && dsdWorkerScript.src ? dsdWorkerScript.src : location.href;
+    const dsdWorkerBaseUrl = new URL('.', document.baseURI || location.href).href;
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
@@ -398,16 +396,18 @@
     function normalizeCoverImage(cover) {
       return new Promise(resolve => {
         if (typeof cover !== 'string' || !cover.startsWith('data:image')) return resolve(cover || null);
-        if (cover.length < 350000) return resolve(cover);
         const image = new Image();
         image.onload = () => {
           try {
             const maxEdge = 512, naturalWidth = image.naturalWidth || maxEdge, naturalHeight = image.naturalHeight || maxEdge;
-            const scale = Math.min(1, maxEdge / Math.max(naturalWidth, naturalHeight));
+            if (Math.max(naturalWidth, naturalHeight) <= maxEdge) return resolve(cover);
+            const scale = maxEdge / Math.max(naturalWidth, naturalHeight);
             const canvas = document.createElement('canvas');
             canvas.width = Math.max(1, Math.round(naturalWidth * scale));
             canvas.height = Math.max(1, Math.round(naturalHeight * scale));
-            canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+            const context = canvas.getContext('2d');
+            if (!context) return resolve(cover);
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
             resolve(canvas.toDataURL('image/jpeg', .82));
           } catch (error) { console.warn('Could not downscale cover art; keeping original:', error); resolve(cover); }
         };
@@ -661,17 +661,19 @@
       const isDsd = format === 'DSF' || format === 'DFF';
       const url = isDsd ? '' : URL.createObjectURL(file);
       if (url) state.objectUrls.add(url);
-      return { id: id(), file, url, source: 'local', name: file.name, ...metadata, cover: tags.cover, format, isDsd, sampleRate: technical.sampleRate, bitDepth: technical.bitDepth, channels: technical.channels, duration: technical.duration, size: file.size };
+      const cover = await normalizeCoverImage(tags.cover);
+      return { id: id(), file, url, source: 'local', name: file.name, ...metadata, cover, format, isDsd, sampleRate: technical.sampleRate, bitDepth: technical.bitDepth, channels: technical.channels, duration: technical.duration, size: file.size };
     }
+    const localFileKey = file => `${file.relativePath || file.webkitRelativePath || file.name}-${file.size}`;
     async function addLocalFiles(files) {
       const candidates = [...files].filter(file => file && (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name)));
       if (!candidates.length) { toast('Không tìm thấy file âm thanh được hỗ trợ.'); return; }
-      const existing = new Set(state.tracks.filter(track => track.source === 'local').map(track => `${track.name || track.title}-${track.size}`));
+      const existing = new Map(state.tracks.filter(track => track.source === 'local').map(track => [`${track.relativePath || track.name || track.title}-${track.size}`, track]));
       const additions = [];
       for (const file of candidates) {
-        const key = `${file.name}-${file.size}`;
-        if (existing.has(key)) { const current = state.tracks.find(track => track.source === 'local' && `${track.name || track.title}-${track.size}` === key); if (current && (file.name.toLowerCase().endsWith('.dsf') || file.name.toLowerCase().endsWith('.dff'))) current.file = file; continue; }
-        const track = await makeLocalTrack(file); track.name = file.name; additions.push(track); existing.add(key);
+        const key = localFileKey(file);
+        if (existing.has(key)) { const current = existing.get(key); if (current && (file.name.toLowerCase().endsWith('.dsf') || file.name.toLowerCase().endsWith('.dff'))) current.file = file; continue; }
+        const track = await makeLocalTrack(file); track.name = file.name; track.relativePath = file.relativePath || file.webkitRelativePath || file.name; additions.push(track); existing.set(key, track);
       }
       state.tracks.push(...additions);
       renderTracks();
@@ -727,7 +729,10 @@
           if (event.ctrlKey || event.metaKey) { addToQueue(row.dataset.trackId); return; }
           playTrack(row.dataset.trackId);
         });
-        row.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); playTrack(row.dataset.trackId); } });
+        row.addEventListener('keydown', event => {
+          if (event.target !== row || (event.key !== 'Enter' && event.key !== ' ')) return;
+          event.preventDefault(); playTrack(row.dataset.trackId);
+        });
         row.addEventListener('contextmenu', event => { event.preventDefault(); addToQueue(row.dataset.trackId); });
       });
       renderQueue();
@@ -789,6 +794,7 @@
       const maxBoost = state.bands.reduce((max, band) => Math.max(max, band.gain), 0), effectivePreamp = Math.max(-60, Math.min(0, -maxBoost + (Number($('eq-preamp').value) || 0)));
       const enabled = $('eq-enabled').checked;
       [state.deckA, state.deckB].forEach(deck => { deck.preamp.gain.value = enabled ? Math.pow(10, effectivePreamp / 20) : 0; deck.direct.gain.value = enabled ? 0 : 1; });
+      state.activeAnalyser = enabled ? state.analyser : state.directAnalyser;
     }
     function setupAudio() {
       if (state.context) return;
@@ -827,11 +833,12 @@
     function updateMediaSession(track) {
       if (!('mediaSession' in navigator)) return;
       try {
+        const artwork = track.cover ? [{src:track.cover, sizes:'512x512'}] : [];
         navigator.mediaSession.metadata = new MediaMetadata({
           title: track.title || 'Bài hát không tên',
           artist: track.artist || library.UNKNOWN_ARTIST,
           album: track.album && track.album !== library.UNKNOWN_ALBUM ? track.album : '',
-          artwork: track.cover ? [{src: track.cover, sizes: '512x512', type: 'image/jpeg'}] : []
+          artwork
         });
         navigator.mediaSession.playbackState = audio && !audio.paused ? 'playing' : 'paused';
       } catch (error) { console.warn('Could not update media session:', error); }
@@ -847,8 +854,10 @@
     function displayTrack(track) {
       state.currentId = track.id;
       $('now-title').textContent = library.trackMetadata(track).title;
-      const technical = [track.isDsd ? (track.dsdMultiplier ? `PCM 44.1 kHz · DSD${track.dsdMultiplier} nguồn` : track.sampleRate ? `DSD${track.sampleRate / 44100} nguồn` : '') : track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', track.isDsd ? '' : track.bitDepth ? `${track.bitDepth}-bit` : '', track.channels ? `${track.channels} ch` : ''].filter(Boolean).join(' · ');
       const metadata = library.trackMetadata(track);
+      const dsdMultiplierText = track.isDsd ? (track.dsdMultiplier || (track.sampleRate ? Math.round(track.sampleRate / 44100) : 0)) : 0;
+      const pcmRateText = track.isDsd ? (track.pcmRate || state.dsdOutputRate) : 0;
+      const technical = [!track.isDsd && track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', !track.isDsd && track.bitDepth ? `${track.bitDepth}-bit` : '', track.channels ? `${track.channels} ch` : '', track.isDsd && dsdMultiplierText ? `DSD${dsdMultiplierText} nguồn` : '', track.isDsd && pcmRateText ? `PCM ${(pcmRateText / 1000).toFixed(1)} kHz/${track.pcmBitDepth || state.dsdOutputDepth}-bit` : ''].filter(Boolean).join(' · ');
       $('now-artist').textContent = `${metadata.artist} · ${track.format || sourceLabel(track.source)}${technical ? ` · ${technical}` : ''}`;
       const cover = $('player-cover'); cover.innerHTML = track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫';
       updateMediaSession({...track, ...metadata});
@@ -1085,18 +1094,17 @@
         worker.postMessage({file:track.file, format:track.format.toLowerCase(), targetRate:state.dsdOutputRate, bitDepth:state.dsdOutputDepth});
       } catch (error) { stopDsdWorker(false); $('play-button').textContent = '▶'; toast(`Không thể khởi chạy bộ giải mã DSD: ${error.message || error}`); }
     }
-    function playNext(direction = 1) {
+    function playNext(direction = 1, auto = false) {
       if (!state.tracks.length) return;
       const currentIndex = state.tracks.findIndex(track => track.id === state.currentId);
       if (currentIndex < 0) { playTrack(state.tracks[direction < 0 ? state.tracks.length - 1 : 0].id); return; }
-      if (direction > 0 && state.sleepAtTrackEnd) { audio.pause(); if (state.dsdWorker || state.dsdUrl) stopDsdWorker(false); clearSleepTimer(); toast('Hẹn giờ ngủ: đã tạm dừng khi hết bài.'); return; }
-      if (direction > 0 && state.repeat === 2) { audio.currentTime = 0; audio.play(); return; }
+      if (direction > 0 && auto && state.sleepAtTrackEnd) { audio.pause(); if (state.dsdWorker || state.dsdUrl) stopDsdWorker(false); clearSleepTimer(); toast('Hẹn giờ ngủ: đã tạm dừng khi hết bài.'); return; }
       if (direction > 0) {
         const queued = queueTracks()[0];
         if (queued) { playTrack(queued.id); return; }
-        if (!state.autoplay) return;
-        if (!state.shuffle && state.repeat !== 1 && currentIndex >= state.tracks.length - 1) return;
       }
+      if (direction > 0 && auto && state.repeat === 2) { audio.currentTime = 0; try { const played = audio.play(); if (played && played.catch) played.catch(() => {}); } catch (error) {} return; }
+      if (direction > 0 && auto && !state.autoplay) return;
       if (direction > 0 && state.shuffle && state.preloadTrackId && state.preloadTrackId !== state.currentId) { playTrack(state.preloadTrackId); return; }
       if (!state.shuffle && state.repeat !== 1 && direction > 0 && currentIndex >= state.tracks.length - 1) return;
       if (!state.shuffle && state.repeat !== 1 && direction < 0 && currentIndex <= 0) return;
@@ -1469,7 +1477,7 @@
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
       const target = event.target, tag = target && target.tagName;
       if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); return; }
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target && target.isContentEditable) || !$('listening-room').classList.contains('hidden')) return;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target && target.isContentEditable) || (target && target.closest && target.closest('button, a, [role="button"]')) || !$('listening-room').classList.contains('hidden')) return;
       if (!$('queue-panel').classList.contains('hidden')) { if (event.key.toLowerCase() === 'q') closeQueue(); return; }
       if (event.code === 'Space') { event.preventDefault(); $('play-button').click(); }
       else if (event.key === 'ArrowLeft' && Number.isFinite(audio.duration)) { event.preventDefault(); audio.currentTime = Math.max(0, audio.currentTime - 10); }
@@ -1541,7 +1549,7 @@
         $('play-button').textContent = '▶'; $('room-play').textContent = '▶';
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'paused'; } catch (error) {} }
       });
-      element.addEventListener('ended', () => { if (element === audio) playNext(1); });
+      element.addEventListener('ended', () => { if (element === audio) playNext(1, true); });
       element.addEventListener('error', () => { if (element === standbyAudio) { state.preloadTrackId = null; console.warn('Next track preload failed.'); } });
     }
     attachDeckEvents(audio); attachDeckEvents(standbyAudio);

@@ -75,4 +75,45 @@ assert.ok(appCode.includes('if (!track.metadataLoaded || track.cover === undefin
 assert.ok(appCode.includes('function normalizeCoverImage('), 'Large cover art should be downscaled before persistence');
 assert.ok(appCode.includes('track.cover = await normalizeCoverImage(tags.cover)'), 'Extracted cloud covers should be normalized before display');
 assert.ok(appCode.includes('await loadCloudMetadata(track, track.file)'), 'DSD cloud entries should also recover missing cover art');
-console.log('Inline app script syntax and cloud persistence/sync wiring tests passed.');
+
+assert.equal((html.match(/<script\b[^>]*\bsrc=["'][^"']*jsmediatags[^"']*["']/gi) || []).length, 1, 'jsmediatags should be loaded once');
+assert.match(html, /jsdelivr\.net\/npm\/jsmediatags@3\.9\.7\//, 'jsmediatags should use the standardized CDN version');
+assert.ok(appCode.includes('Math.max(naturalWidth, naturalHeight) <= maxEdge'), 'Cover normalization should use image dimensions');
+assert.ok(appCode.includes("if (!context) return resolve(cover)"), 'Cover normalization should tolerate an unavailable 2D canvas context');
+assert.ok(appCode.includes('const localFileKey = file => `${file.relativePath || file.webkitRelativePath || file.name}-${file.size}`'), 'Local duplicate keys should include relative paths and file sizes');
+assert.ok(appCode.includes('existing.set(key, track)'), 'New local tracks should be registered using their path-based duplicate key');
+assert.ok(appCode.includes('track.relativePath = file.relativePath || file.webkitRelativePath || file.name'), 'Local tracks should retain relative paths for later duplicate checks');
+assert.ok(appCode.includes('state.activeAnalyser = enabled ? state.analyser : state.directAnalyser'), 'EQ toggle should switch the visualizer to the active output analyser');
+assert.ok(appCode.includes("new URL('.', document.baseURI || location.href).href"), 'DSD worker base URL should come from the document URL');
+assert.ok(appCode.includes("element.addEventListener('ended', () => { if (element === audio) playNext(1, true); })"), 'Natural track endings should be distinguishable from manual Next');
+assert.ok(appCode.includes('if (event.target !== row || (event.key !== \'Enter\' && event.key !== \' \')) return'), 'Track-row keyboard playback should only trigger when the row itself has focus');
+
+const playNextStart = appCode.indexOf('function playNext(direction = 1, auto = false) {');
+assert.ok(playNextStart >= 0, 'playNext implementation should exist for regression checks');
+const playNextEndMarker = 'async function pickLocalFiles';
+const playNextEnd = appCode.indexOf(playNextEndMarker, playNextStart);
+assert.ok(playNextEnd > playNextStart, 'playNext implementation should be extractable for regression checks');
+const playNextSource = appCode.slice(playNextStart, playNextEnd);
+assert.ok(playNextSource.includes('if (element === audio) playNext') === false, 'extracted playNext source should end before deck wiring');
+function exercisePlayNext({auto = false, autoplay = true, repeat = 0, sleepAtTrackEnd = false, queued = []} = {}) {
+  const calls = {played:[], pause:0, play:0, cleared:0, stopped:0, currentTime:37};
+  const state = {tracks:[{id:'current'}, {id:'next'}], currentId:'current', autoplay, repeat, sleepAtTrackEnd, shuffle:false, preloadTrackId:null, dsdWorker:null, dsdUrl:null};
+  const audio = {get currentTime() { return calls.currentTime; }, set currentTime(value) { calls.currentTime = value; }, pause() { calls.pause++; }, play() { calls.play++; return Promise.resolve(); }};
+  const playNextFactory = new Function('state', 'audio', 'queueTracks', 'stopDsdWorker', 'clearSleepTimer', 'toast', 'playTrack', playNextSource + '\nreturn playNext;');
+  const playNext = playNextFactory(state, audio, () => queued, () => calls.stopped++, () => calls.cleared++, () => {}, trackId => calls.played.push(trackId));
+  playNext(1, auto);
+  return calls;
+}
+assert.deepEqual(exercisePlayNext({autoplay:false}).played, ['next'], 'Manual Next should work with autoplay disabled');
+assert.deepEqual(exercisePlayNext({auto:true, autoplay:false}).played, [], 'Autoplay disabled should stop automatic advance at track end');
+assert.deepEqual(exercisePlayNext({auto:true, autoplay:false, queued:[{id:'queued'}]}).played, ['queued'], 'The explicit queue should still advance when autoplay is disabled');
+assert.deepEqual(exercisePlayNext({sleepAtTrackEnd:true}).played, ['next'], 'Manual Next should not trigger the track-end sleep timer');
+const sleepAtEnd = exercisePlayNext({auto:true, sleepAtTrackEnd:true});
+assert.equal(sleepAtEnd.pause, 1, 'Track-end sleep should pause on a natural track ending');
+assert.equal(sleepAtEnd.cleared, 1, 'Track-end sleep should clear after it pauses');
+assert.deepEqual(exercisePlayNext({repeat:2}).played, ['next'], 'Manual Next should skip the current track even in repeat-one mode');
+const repeatAtEnd = exercisePlayNext({auto:true, repeat:2});
+assert.equal(repeatAtEnd.currentTime, 0, 'Natural ending in repeat-one mode should restart the current track');
+assert.equal(repeatAtEnd.play, 1, 'Repeat-one should resume playback at the beginning');
+assert.deepEqual(exercisePlayNext({auto:true, autoplay:false, repeat:2, queued:[{id:'queued'}]}).played, ['queued'], 'Explicit queue should take precedence over repeat-one and autoplay settings');
+console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');
