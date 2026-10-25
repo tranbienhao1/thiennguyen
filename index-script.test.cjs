@@ -54,6 +54,20 @@ assert.ok(appCode.includes('UPDATE_CHECK_INTERVAL'), 'Update polling should use 
 assert.ok(appCode.includes('visibilitychange'), 'Update check should rerun when the tab becomes visible');
 assert.ok(appCode.includes("location.reload()"), 'Applying an update should reload the new version');
 assert.ok(appCode.includes("if (isAppPlaying())"), 'Applying an update must be blocked while audio is playing');
+for (const id of ['listening-room', 'room-cover', 'room-signal', 'room-seek', 'queue-panel', 'queue-list', 'sleep-panel', 'sleep-track-end', 'autoplay-button']) {
+  assert.match(html, new RegExp(`id=["']${id}["']`), `${id} UI should exist`);
+}
+for (const feature of ['function renderQueue()', 'function addToQueue(', 'function removeFromQueue(', 'function moveQueueTrack(', 'function setSleepTimer(', 'function clearSleepTimer(', 'function signalDescription(']) {
+  assert.ok(appCode.includes(feature), `${feature} implementation should exist`);
+}
+assert.ok(appCode.includes('queueTracks()[0]'), 'Explicit play-next queue should take priority when advancing');
+assert.ok(appCode.includes("if (!state.autoplay || state.repeat === 2) return -1"), 'Autoplay off should not preload library tracks');
+assert.ok(appCode.includes("action('seekto'"), 'Expanded listening room keeps lock-screen seek support');
+assert.ok(appCode.includes('không thể xác nhận bit-perfect'), 'Signal-path view should not claim unverified bit-perfect output');
+assert.ok(appCode.includes("event.key === 'Escape'"), 'Escape should close listening overlays');
+assert.ok(appCode.includes("$('room-current-time')"), 'Expanded listening room should mirror playback time');
+assert.ok(appCode.includes("event.code === 'Space'"), 'Listening room should support spacebar play/pause');
+assert.ok(appCode.includes("data-queue-action=\"add\""), 'Library tracks should expose a play-next control');
 const updateCheckBody = appCode.slice(appCode.indexOf('async function checkForAppUpdate'));
 assert.ok(!updateCheckBody.slice(0, updateCheckBody.indexOf('function applyAppUpdate')).includes('location.reload()'), 'Background version checks must never reload automatically');
 console.log('Inline app script syntax and cloud persistence/sync wiring tests passed.');
