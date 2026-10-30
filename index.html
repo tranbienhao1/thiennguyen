@@ -140,8 +140,12 @@
     #listening-room main>div:first-child>div:first-child { background:linear-gradient(145deg,#d4e8f022,transparent 50%,#0a0c0d88); }
     #room-cover-empty { color:#a8ccd9; } #room-title { letter-spacing:-.045em; } #room-signal,#room-output { overflow-wrap:anywhere; }
     body.settings-open { overflow:hidden!important; }
-    #settings-modal { z-index:100!important; overscroll-behavior:contain; }
+    #settings-modal { z-index:100!important;position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;overscroll-behavior:contain;border:0;padding:0;color:inherit; }
+    #settings-modal::backdrop { background:rgba(0,0,0,.75);backdrop-filter:blur(4px); }
     #settings-modal>div { border-color:#ffffff12;border-radius:16px;background:#191c1e;overscroll-behavior:contain; }
+    #settings-modal[open] { display:flex; }
+    #settings-modal:not([open]) { display:none; }
+
     #settings-modal>div>div:first-child { position:sticky;top:0;z-index:2;margin:-1.25rem -1.25rem 0;padding:1rem 1.25rem;background:#191c1e;border-bottom:1px solid #ffffff12; }
     #settings-modal #close-settings { display:inline-grid;min-width:44px;min-height:44px;place-items:center;flex:none;border:1px solid #ffffff18;background:#ffffff08;color:#e6e8e9;font-size:19px;line-height:1;cursor:pointer; }
     #settings-modal #close-settings:hover,#settings-modal #close-settings:focus-visible { background:#ffffff18;color:#fff; }
@@ -431,7 +435,7 @@
   <audio id="audio" crossorigin="anonymous" preload="auto"></audio>
   <audio id="preload-audio" crossorigin="anonymous" preload="auto" muted class="hidden" aria-hidden="true"></audio>
 
-  <div id="settings-modal" class="fixed inset-0 z-[80] hidden items-center justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-4" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-hidden="true" inert>
+  <dialog id="settings-modal" class="fixed inset-0 z-[80] items-center justify-center overflow-y-auto bg-transparent p-3 sm:p-4" aria-modal="true" aria-labelledby="settings-title">
     <div class="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl sm:max-h-[90vh] sm:p-7">
       <div class="flex items-start justify-between gap-4"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300">Account & streaming</p><h2 id="settings-title" class="mt-1 text-xl font-semibold">Cấu hình Cloud API</h2></div><button id="close-settings" type="button" class="rounded-lg px-2 py-1 text-zinc-500 hover:bg-white/5 hover:text-white" aria-label="Đóng cài đặt">×</button></div>
       <p class="mt-3 text-xs leading-5 text-zinc-400">Thông tin xác thực được lưu trong localStorage của trình duyệt này. Chỉ cấp quyền đọc file; không nhập secret key phía server hoặc mật khẩu tài khoản.</p>
@@ -512,7 +516,6 @@
 
   <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
-  <script src="https://accounts.google.com/gsi/client" data-gis="true" async defer></script>
   <script src="library-utils.js"></script>
   <script>
 (() => {
@@ -715,10 +718,8 @@
         try { blob = await library.fetchAudioBlob(url, options, provider); }
         catch (error) {
           if (error.status !== 401 && error.status !== 403) throw error;
-          if (track.source === 'google') {
-            const token = await requestGoogleToken('');
-            blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
-          } else if (track.source === 'onedrive') {
+          if (track.source === 'google') throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
+          else if (track.source === 'onedrive') {
             const token = await getMicrosoftToken(false);
             blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
           } else throw error;
@@ -1617,63 +1618,89 @@
       $('folder-input').click();
     }
 
+    let googleScriptPromise = null;
     async function loadGoogleScript() {
-      if (window.google && google.accounts && google.accounts.oauth2) return;
-      await new Promise((resolve, reject) => {
-        let existing = document.querySelector('script[data-gis]');
-        if (existing) {
-          if (existing.dataset.loaded === 'true') return resolve();
-          existing.addEventListener('load', resolve, {once:true}); existing.addEventListener('error', reject, {once:true}); return;
-        }
-        existing = document.createElement('script'); existing.src = 'https://accounts.google.com/gsi/client'; existing.dataset.gis = 'true';
-        existing.onload = () => { existing.dataset.loaded = 'true'; resolve(); };
-        existing.onerror = () => reject(new Error('Không tải được Google Identity Services.'));
-        document.head.appendChild(existing);
-      });
+      if (window.google?.accounts?.oauth2) return;
+      if (googleScriptPromise) return googleScriptPromise;
+      googleScriptPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        const finish = (callback, value) => { clearTimeout(timeout); callback(value); };
+        const timeout = setTimeout(() => { script.remove(); reject(new Error('Tải Google Identity Services quá thời gian chờ. Kiểm tra mạng hoặc tiện ích chặn quảng cáo rồi nhấn kết nối lại.')); }, 15000);
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.dataset.gis = 'true';
+        script.onload = () => window.google?.accounts?.oauth2
+          ? finish(resolve)
+          : finish(reject, new Error('Google Identity Services đã tải nhưng không khởi tạo được. Hãy thử tải lại trang.'));
+        script.onerror = () => finish(reject, new Error('Không tải được Google Identity Services. Kiểm tra mạng, tiện ích chặn quảng cáo hoặc VPN.'));
+        document.head.appendChild(script);
+      }).catch(error => { googleScriptPromise = null; throw error; });
+      return googleScriptPromise;
     }
-    async function requestGoogleToken(prompt = '') {
-      const config = JSON.parse(localStorage.getItem('nocturne-google') || '{}');
-      if (!config.clientId) throw new Error('Vui lòng nhập OAuth 2.0 Client ID.');
-      await loadGoogleScript();
-      const response = await new Promise((resolve, reject) => {
-        const client = google.accounts.oauth2.initTokenClient({
-          client_id: config.clientId,
-          scope: 'https://www.googleapis.com/auth/drive.readonly',
-          callback: result => result.error ? reject(new Error(result.error_description || result.error)) : resolve(result),
-          error_callback: error => reject(new Error(error.message || 'Đăng nhập Google thất bại.'))
-        });
-        client.requestAccessToken({prompt});
+    loadGoogleScript().catch(error => console.info('Google Identity Services unavailable until requested:', error.message || error));
+    function requestGoogleToken({clientId = '', prompt = ''} = {}) {
+      if (!window.isSecureContext) throw new Error('Google OAuth chỉ hoạt động trên HTTPS hoặc localhost. Hãy mở website bằng địa chỉ HTTPS; không dùng file:// hoặc địa chỉ IP không bảo mật.');
+      const savedConfig = JSON.parse(localStorage.getItem('nocturne-google') || '{}');
+      const effectiveClientId = clientId || savedConfig.clientId;
+      if (!effectiveClientId) throw new Error('Vui lòng nhập Google OAuth 2.0 Client ID.');
+      if (!window.google?.accounts?.oauth2) {
+        loadGoogleScript().catch(error => console.warn('Could not load Google Identity Services:', error));
+        throw new Error('Google Identity Services đang tải hoặc bị chặn. Chờ vài giây rồi nhấn “Tiếp tục với Google” lần nữa.');
+      }
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (callback, value) => { if (settled) return; settled = true; clearTimeout(timeout); callback(value); };
+        const timeout = setTimeout(() => finish(reject, new Error('Google đăng nhập quá thời gian chờ. Hãy thử lại và cho phép cửa sổ đăng nhập bật lên.')), 120000);
+        try {
+          const client = window.google.accounts.oauth2.initTokenClient({
+            client_id: effectiveClientId,
+            scope: 'https://www.googleapis.com/auth/drive.readonly',
+            callback: result => {
+              if (!result || result.error || !result.access_token) return finish(reject, new Error(result?.error_description || result?.error || 'Google không trả về access token.'));
+              state.googleToken = result.access_token;
+              state.googleExpiresAt = Date.now() + (Number(result.expires_in) || 3600) * 1000;
+              finish(resolve, state.googleToken);
+            },
+            error_callback: error => finish(reject, new Error(error?.message || `Không mở được cửa sổ OAuth của Google (${error?.type || 'lỗi popup'}). Cho phép popup cho website này rồi nhấn kết nối lại.`))
+          });
+          client.requestAccessToken({prompt});
+        } catch (error) { finish(reject, error); }
       });
-      state.googleToken = response.access_token;
-      state.googleExpiresAt = Date.now() + (Number(response.expires_in) || 3600) * 1000;
-      return state.googleToken;
     }
     async function ensureGoogleToken() {
       if (state.googleToken && Date.now() < state.googleExpiresAt - 60000) return state.googleToken;
-      try { return await requestGoogleToken(''); }
-      catch (error) { return requestGoogleToken('consent'); }
+      throw new Error('Phiên Google Drive đã hết hạn. Nhấn “Tiếp tục với Google” để kết nối lại.');
     }
     async function connectGoogle() {
       const clientId = $('google-client-id').value.trim();
-      if (!clientId) throw new Error('Đăng nhập lần đầu: nhập Google Client ID ở ô phía trên trước nhé.');
+      if (!clientId) throw new Error('Nhập Google OAuth 2.0 Client ID trước.');
+      if (!/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) { cloudStatus('google', 'Client ID không hợp lệ', 'text-rose-300'); throw new Error('Client ID không hợp lệ. Hãy dán ID kết thúc bằng .apps.googleusercontent.com (không phải API key).'); }
+      if (!window.isSecureContext) { cloudStatus('google', 'Cần HTTPS hoặc localhost', 'text-rose-300'); throw new Error('Google OAuth chỉ hoạt động trên HTTPS hoặc localhost. Hãy mở website bằng địa chỉ HTTPS.'); }
       localStorage.setItem('nocturne-google', JSON.stringify({clientId}));
-      await requestGoogleToken('');
-      await loadGoogleFiles();
-      cloudStatus('google', 'Đã đồng bộ Google Drive', 'text-emerald-300');
-    }
-    async function restoreGoogleSession() {
-      const config = JSON.parse(localStorage.getItem('nocturne-google') || '{}');
-      if (!config.clientId) return false;
+      cloudStatus('google', 'Đang mở đăng nhập Google…', 'text-sky-300');
       try {
-        await requestGoogleToken('none');
+        if (!window.google?.accounts?.oauth2) {
+          await loadGoogleScript();
+          throw new Error('Google Identity Services đã sẵn sàng. Nhấn “Tiếp tục với Google” thêm lần nữa để mở đăng nhập.');
+        }
+        await requestGoogleToken({clientId, prompt:''});
         await loadGoogleFiles();
-        cloudStatus('google', 'Google Drive đã kết nối', 'text-emerald-300');
-        return true;
+        cloudStatus('google', 'Đã đồng bộ Google Drive', 'text-emerald-300');
       } catch (error) {
-        console.info('Google Drive requires interactive sign-in:', error.message || error);
-        cloudStatus('google', 'Google Drive · cần đăng nhập lại', 'text-amber-300');
-        return false;
+        cloudStatus('google', 'Google Drive · cần thử lại', 'text-amber-300');
+        throw error;
       }
+    }
+    // GIS tokens are short-lived and intentionally never refreshed during page-load/background work.
+    function googleConfigurationHint(status, body) {
+      let details = '';
+      try { details = JSON.parse(body).error?.message || ''; } catch (error) {}
+      const text = `${status} ${details}`.toLowerCase();
+      if (/access_not_configured|has not been used|disabled/.test(text)) return 'Hãy bật Google Drive API trong đúng Google Cloud project của OAuth Client ID.';
+      if (/access_denied|insufficient|permission/.test(text)) return 'Tài khoản chưa cấp quyền đọc Drive. Hãy đăng nhập lại và chấp nhận quyền drive.readonly.';
+      if (/invalid|unauthorized|origin|client/.test(text)) return 'Kiểm tra OAuth Client ID và thêm đúng địa chỉ HTTPS của website vào Authorized JavaScript origins.';
+      if (/rate|quota/.test(text)) return 'Google Drive API đang giới hạn lượt gọi. Chờ một chút rồi thử lại.';
+      return details || 'Kiểm tra Google Drive API đã bật, OAuth Client ID và Authorized JavaScript origins.';
     }
     async function loadGoogleFiles() {
       await restoreCloudCatalog();
@@ -1682,15 +1709,19 @@
       const knownIds = new Set(state.tracks.filter(track => track.source === 'google').map(track => track.remoteId));
       try {
         do {
-          const params = new URLSearchParams({q:"trashed = false and mimeType != 'application/vnd.google-apps.folder'", fields:'nextPageToken,files(id,name,mimeType,size)', pageSize:'1000', orderBy:'name', corpora:'allDrives', supportsAllDrives:'true', includeItemsFromAllDrives:'true'});
+          const params = new URLSearchParams({q:"trashed = false and mimeType != 'application/vnd.google-apps.folder'", fields:'nextPageToken,incompleteSearch,files(id,name,mimeType,size)', pageSize:'1000', orderBy:'name', corpora:'allDrives', supportsAllDrives:'true', includeItemsFromAllDrives:'true'});
           if (pageToken) params.set('pageToken', pageToken);
           let response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {headers:{Authorization:`Bearer ${token}`}});
           if (response.status === 401) {
-            token = await requestGoogleToken('none');
-            response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {headers:{Authorization:`Bearer ${token}`}});
+            const body = await response.text();
+            throw new Error(`Google Drive từ chối phiên đăng nhập (401). ${googleConfigurationHint(401, body)} Nếu phiên hết hạn, hãy nhấn “Tiếp tục với Google” rồi thử lại.`);
           }
-          if (!response.ok) throw new Error(`Google Drive API ${response.status}: ${await response.text()}`);
+          if (!response.ok) {
+            const body = await response.text();
+            throw new Error(`Google Drive API ${response.status}: ${googleConfigurationHint(response.status, body)}`);
+          }
           const data = await response.json(), pageTracks = [];
+          if (data.incompleteSearch) console.warn('Google Drive reported an incomplete search; My Drive results were still returned.');
           for (const file of data.files || []) {
             scanned++;
             if (!file.id || !isCloudAudio(file) || knownIds.has(file.id)) continue;
@@ -1715,7 +1746,8 @@
       try { blob = await library.fetchAudioBlob(url, options, provider); }
       catch (error) {
         if (error.status !== 401 && error.status !== 403) throw error;
-        const token = track.source === 'google' ? await requestGoogleToken('') : await getMicrosoftToken(false);
+        if (track.source === 'google') throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
+        const token = await getMicrosoftToken(false);
         blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
       }
       blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
@@ -1846,18 +1878,32 @@
       await fetchCloudTrack(track, url, {headers:{Authorization:`Bearer ${token}`}}, 'OneDrive');
     }
     function settingsError(error) { console.error(error); const target = $('settings-error'); target.textContent = error.message || String(error); target.classList.remove('hidden'); }
-    function isSettingsOpen() { return !$('settings-modal').classList.contains('hidden'); }
+    function isSettingsOpen() { return $('settings-modal').open; }
     function showSettings({clearError = true} = {}) {
       const modal = $('settings-modal');
       if (clearError) $('settings-error').classList.add('hidden');
-      modal.classList.remove('hidden'); modal.classList.add('flex'); modal.removeAttribute('inert'); modal.setAttribute('aria-hidden', 'false');
+      if (!modal.open) modal.showModal();
       document.body.classList.add('settings-open');
     }
     function hideSettings() {
       const modal = $('settings-modal');
-      modal.classList.add('hidden'); modal.classList.remove('flex'); modal.setAttribute('inert', ''); modal.setAttribute('aria-hidden', 'true');
+      if (modal.open) modal.close();
       document.body.classList.remove('settings-open');
     }
+    $('settings-modal').addEventListener('close', () => document.body.classList.remove('settings-open'));
+    $('settings-modal').addEventListener('click', event => {
+      if (event.target === $('settings-modal')) hideSettings();
+    });
+    $('settings-modal').addEventListener('cancel', event => { event.preventDefault(); hideSettings(); });
+    $('settings-modal').addEventListener('pointerdown', event => {
+      if (event.target === $('settings-modal')) event.currentTarget.dataset.backdropPointer = 'true';
+      else delete event.currentTarget.dataset.backdropPointer;
+    });
+    $('settings-modal').addEventListener('pointerup', event => {
+      if (event.target === $('settings-modal') && event.currentTarget.dataset.backdropPointer === 'true') hideSettings();
+      delete event.currentTarget.dataset.backdropPointer;
+    });
+    $('settings-modal').addEventListener('pointercancel', event => { delete event.currentTarget.dataset.backdropPointer; });
 
     const sidebarIsOpen = () => !document.body.classList.contains('sidebar-collapsed');
     function setSidebarOpen(open) {
@@ -1885,8 +1931,6 @@
     $('mobile-settings').addEventListener('click', showSettings);
     $('connect-cloud').addEventListener('click', showSettings);
     $('close-settings').addEventListener('click', hideSettings);
-    $('settings-modal').addEventListener('click', event => { if (event.target === $('settings-modal')) hideSettings(); });
-    $('settings-modal').addEventListener('cancel', event => { event.preventDefault(); hideSettings(); });
     async function runCloudLogin(connect) {
       $('settings-error').classList.add('hidden');
       try {
@@ -2185,7 +2229,7 @@
         cloudSyncPromise = (async () => {
           let refreshed = 0;
           try { if (await restoreMicrosoftSession()) refreshed++; } catch (error) { console.warn('Silent OneDrive restore failed:', error); }
-          try { if (await restoreGoogleSession()) refreshed++; } catch (error) { console.warn('Silent Google restore failed:', error); }
+          // Google GIS tokens are scoped to the current page session and are never refreshed silently.
           if (refreshed) renderTracks();
           return refreshed;
         })().finally(() => { cloudSyncPromise = null; });
