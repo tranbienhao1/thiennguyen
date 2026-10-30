@@ -139,7 +139,12 @@
     #listening-room main>div:first-child { border-radius:12px;background:#23282b;box-shadow:0 28px 90px #0009; }
     #listening-room main>div:first-child>div:first-child { background:linear-gradient(145deg,#d4e8f022,transparent 50%,#0a0c0d88); }
     #room-cover-empty { color:#a8ccd9; } #room-title { letter-spacing:-.045em; } #room-signal,#room-output { overflow-wrap:anywhere; }
-    #settings-modal>div { border-color:#ffffff12;border-radius:16px;background:#191c1e; }
+    body.settings-open { overflow:hidden!important; }
+    #settings-modal { z-index:100!important; overscroll-behavior:contain; }
+    #settings-modal>div { border-color:#ffffff12;border-radius:16px;background:#191c1e;overscroll-behavior:contain; }
+    #settings-modal>div>div:first-child { position:sticky;top:0;z-index:2;margin:-1.25rem -1.25rem 0;padding:1rem 1.25rem;background:#191c1e;border-bottom:1px solid #ffffff12; }
+    #settings-modal #close-settings { display:inline-grid;min-width:44px;min-height:44px;place-items:center;flex:none;border:1px solid #ffffff18;background:#ffffff08;color:#e6e8e9;font-size:19px;line-height:1;cursor:pointer; }
+    #settings-modal #close-settings:hover,#settings-modal #close-settings:focus-visible { background:#ffffff18;color:#fff; }
     #settings-modal section,#settings-modal>div>div>section,#settings-modal>div>section { border-radius:11px;background:#ffffff04; }
     #settings-modal input,#settings-modal select,#direct-url,#eq-panel input[type=number] { border-color:#ffffff14;background:#111416; }
     #queue-panel aside,#eq-panel,#sleep-panel { border-color:#ffffff12;background:rgba(25,28,30,.97); }
@@ -426,9 +431,9 @@
   <audio id="audio" crossorigin="anonymous" preload="auto"></audio>
   <audio id="preload-audio" crossorigin="anonymous" preload="auto" muted class="hidden" aria-hidden="true"></audio>
 
-  <div id="settings-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-    <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl sm:p-7">
-      <div class="flex items-start justify-between gap-4"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300">Account & streaming</p><h2 id="settings-title" class="mt-1 text-xl font-semibold">Cấu hình Cloud API</h2></div><button id="close-settings" class="rounded-lg px-2 py-1 text-zinc-500 hover:bg-white/5 hover:text-white" aria-label="Đóng">✕</button></div>
+  <div id="settings-modal" class="fixed inset-0 z-[80] hidden items-center justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-4" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-hidden="true" inert>
+    <div class="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl sm:max-h-[90vh] sm:p-7">
+      <div class="flex items-start justify-between gap-4"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300">Account & streaming</p><h2 id="settings-title" class="mt-1 text-xl font-semibold">Cấu hình Cloud API</h2></div><button id="close-settings" type="button" class="rounded-lg px-2 py-1 text-zinc-500 hover:bg-white/5 hover:text-white" aria-label="Đóng cài đặt">×</button></div>
       <p class="mt-3 text-xs leading-5 text-zinc-400">Thông tin xác thực được lưu trong localStorage của trình duyệt này. Chỉ cấp quyền đọc file; không nhập secret key phía server hoặc mật khẩu tài khoản.</p>
       <div class="mt-4 grid gap-4 md:grid-cols-2">
         <section class="rounded-2xl border border-white/10 bg-white/[.025] p-4">
@@ -1841,8 +1846,18 @@
       await fetchCloudTrack(track, url, {headers:{Authorization:`Bearer ${token}`}}, 'OneDrive');
     }
     function settingsError(error) { console.error(error); const target = $('settings-error'); target.textContent = error.message || String(error); target.classList.remove('hidden'); }
-    function showSettings() { $('settings-error').classList.add('hidden'); $('settings-modal').classList.remove('hidden'); $('settings-modal').classList.add('flex'); }
-    function hideSettings() { $('settings-modal').classList.add('hidden'); $('settings-modal').classList.remove('flex'); }
+    function isSettingsOpen() { return !$('settings-modal').classList.contains('hidden'); }
+    function showSettings({clearError = true} = {}) {
+      const modal = $('settings-modal');
+      if (clearError) $('settings-error').classList.add('hidden');
+      modal.classList.remove('hidden'); modal.classList.add('flex'); modal.removeAttribute('inert'); modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('settings-open');
+    }
+    function hideSettings() {
+      const modal = $('settings-modal');
+      modal.classList.add('hidden'); modal.classList.remove('flex'); modal.setAttribute('inert', ''); modal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('settings-open');
+    }
 
     const sidebarIsOpen = () => !document.body.classList.contains('sidebar-collapsed');
     function setSidebarOpen(open) {
@@ -1871,14 +1886,15 @@
     $('connect-cloud').addEventListener('click', showSettings);
     $('close-settings').addEventListener('click', hideSettings);
     $('settings-modal').addEventListener('click', event => { if (event.target === $('settings-modal')) hideSettings(); });
+    $('settings-modal').addEventListener('cancel', event => { event.preventDefault(); hideSettings(); });
     async function runCloudLogin(connect) {
       $('settings-error').classList.add('hidden');
       try {
         await connect();
-        hideSettings();
+        if (isSettingsOpen()) hideSettings();
       } catch (error) {
+        if (!isSettingsOpen()) return;
         settingsError(error);
-        showSettings();
       }
     }
     $('dsd-output-rate').addEventListener('change', event => {
@@ -1952,6 +1968,7 @@
     document.addEventListener('keydown', event => {
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
       const target = event.target, tag = target && target.tagName;
+      if (event.key === 'Escape' && isSettingsOpen()) { event.preventDefault(); hideSettings(); return; }
       if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); return; }
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target && target.isContentEditable) || (target && target.closest && target.closest('button, a, [role="button"]')) || !$('listening-room').classList.contains('hidden')) return;
       if (!$('queue-panel').classList.contains('hidden')) { if (event.key.toLowerCase() === 'q') closeQueue(); return; }

@@ -123,6 +123,14 @@ assert.ok(appCode.includes('releaseUnusedCloudUrl(previousTrack);'), 'Switching 
 assert.ok(appCode.includes("if (!state.autoplay || state.repeat === 2) return -1"), 'Autoplay off should not preload library tracks');
 assert.ok(appCode.includes("action('seekto'"), 'Expanded listening room keeps lock-screen seek support');
 assert.ok(appCode.includes('không thể xác nhận bit-perfect'), 'Signal-path view should not claim unverified bit-perfect output');
+assert.ok(appCode.includes("event.key === 'Escape' && isSettingsOpen()"), 'Escape should close the settings modal before other overlays');
+assert.ok(appCode.includes("$('close-settings').addEventListener('click', hideSettings)"), 'The settings close control should always hide the settings modal');
+assert.ok(appCode.includes("modal.setAttribute('inert', '')") && appCode.includes("modal.removeAttribute('inert')"), 'A hidden settings modal must not intercept clicks or keyboard focus');
+assert.match(appCode, /catch \(error\) \{\s*if \(!isSettingsOpen\(\)\) return;\s*settingsError\(error\);/, 'A late OAuth failure must not reopen settings after the user closes the modal');
+assert.ok(appCode.includes("if (isSettingsOpen()) hideSettings();"), 'OAuth success should close settings only if the user has not already closed them');
+assert.match(html, /#settings-modal\s*\{\s*z-index:100!important/, 'Settings must layer above playback overlays so the close button remains clickable');
+assert.match(html, /#settings-modal #close-settings\s*\{[^}]*min-width:44px;min-height:44px/, 'Settings close control should have a reliably clickable target');
+assert.match(html, /id="settings-modal"[^>]*aria-hidden="true" inert/, 'Settings dialog should initially be hidden from interaction and assistive technology');
 assert.ok(appCode.includes("event.key === 'Escape'"), 'Escape should close listening overlays');
 assert.ok(appCode.includes("$('room-current-time')"), 'Expanded listening room should mirror playback time');
 assert.ok(appCode.includes("event.code === 'Space'"), 'Listening room should support spacebar play/pause');
