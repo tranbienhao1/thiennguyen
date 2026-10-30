@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+const libraryCode = fs.readFileSync(path.join(__dirname, 'library-utils.js'), 'utf8');
 const inlineScripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
   .map(match => match[1].trim()).filter(Boolean);
 assert.ok(inlineScripts.length > 0, 'index.html should contain the app script');
@@ -17,6 +18,10 @@ for (const id of ['dsd-output-rate', 'dsd-output-depth']) {
 }
 assert.match(html, /nocturne-dsd-output-rate/, 'DSD output rate should persist');
 assert.match(html, /nocturne-dsd-output-depth/, 'DSD output depth should persist');
+assert.ok([48000,96000,192000].every(rate => html.includes(`value="${rate}"`)), 'DSD settings should offer PCM outputs from the 48 kHz family');
+assert.ok(appCode.includes('const dsdSourceInfo = rate =>'), 'DSD source family should be resolved for 44.1 and 48 kHz masters');
+assert.ok(appCode.includes('state.dsdOutputRate = fallbackRate'), 'DSD playback should select a PCM rate compatible with the source rate family');
+assert.ok(appCode.includes('[44100,48000,88200,96000,176400,192000].includes(savedRate)'), 'All supported DSD output rates should restore from settings');
 assert.ok(appCode.includes('state.analyser.connect(state.context.destination)'), 'EQ analyser output should be routed to the speakers');
 assert.ok(appCode.includes('state.directAnalyser.connect(state.context.destination)'), 'Direct output should be routed to the speakers');
 assert.ok(appCode.includes('library.metadataOptions'), 'Artist/album dropdowns should use normalized metadata options');
@@ -32,6 +37,9 @@ assert.ok(appCode.includes('setSidebarOpen(!sidebarIsOpen())'), 'Sidebar toggle 
 assert.ok(appCode.includes("$('sidebar-close').addEventListener('click'"), 'Sidebar close button should hide the drawer');
 assert.ok(appCode.includes("$('sidebar-backdrop').addEventListener('click'"), 'Sidebar backdrop should hide the drawer');
 assert.ok(appCode.includes('target.muted = false'), 'Promoted playback deck must be unmuted');
+assert.ok(!appCode.includes('requestedTrackId'), 'Preload eligibility should not depend on the never-assigned requestedTrackId flag');
+assert.ok(appCode.includes('if (!wasPreloaded) ++state.preloadGeneration;'), 'Starting a track that was not preloaded should invalidate outstanding preload work');
+assert.ok(!/if \(!wasPreloaded \|\| preloadGeneration !== state\.preloadGeneration\) \{\s*displayTrack/.test(appCode), 'Track promotion should not be accidentally wrapped in an unclosed preload conditional');
 assert.ok(html.includes('.seek-range') && html.includes('accent-color: #050505'), 'Seek slider should use a dedicated black styling treatment');
 assert.ok(html.includes('seek-range'), 'Seek controls should use the dedicated slider class');
 assert.ok(appCode.includes('paintSeek'), 'Seek controls should paint the slider progress');
@@ -40,10 +48,16 @@ assert.ok(appCode.includes('object-contain'), 'Artwork should fit within its fra
 assert.ok(appCode.includes('mediaSession'), 'Playback should expose lock-screen/media controls');
 assert.ok(appCode.includes("action('nexttrack'"), 'Playback should support lock-screen next-track control');
 assert.ok(appCode.includes("action('seekto'"), 'Playback should support lock-screen seeking');
-assert.match(html, /body\s*\{\s*background:\s*#09090b;\s*\}/, 'Body should retain its dark base background');
-assert.match(html, /#app-shell\s*\{\s*position:\s*relative;\s*z-index:\s*1;/, 'App content should render above the ambient artwork');
-assert.match(html, /id=["']ambient["'][^>]*\bz-0\b/, 'Ambient artwork layer should render above the body background');
-assert.ok(appCode.includes("$('ambient').style.background = track.cover ?"), 'Current track artwork should drive the ambient background');
+assert.match(html, /body\s*\{\s*background:\s*#09090b;\s*\}/, 'Base body styling should retain a dark background');
+assert.match(html, /Quiet, TIDAL-inspired visual language/, 'The app should use its minimal TIDAL-inspired design layer');
+assert.match(html, /body\s*\{\s*background:\s*#000;\s*\}/, 'The final visual theme should use a pure black background');
+assert.match(html, /--accent:\s*143 245 210/, 'The interface should use a restrained mint accent');
+assert.match(html, /#content-col\s*>\s*header\s*\{[^}]*position:\s*sticky/, 'The page header should remain accessible while scrolling');
+assert.match(html, /footer\.glass\s*\{[^}]*border-color:/, 'The fixed player should use the minimal dark theme');
+assert.match(html, /supports two rate families|hai họ tần số 44,1 và 48 kHz/, 'The hero should describe both supported DSD rate families');
+assert.ok(!html.includes('id="ambient"') || /#app-shell\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*1;/.test(html), 'App content should render above the ambient artwork when that layer is enabled');
+assert.ok(!html.includes('id="ambient"') || /id=["']ambient["'][^>]*\bz-0\b/.test(html), 'Ambient artwork layer should render above the body background when present');
+assert.ok(!html.includes('id="ambient"') || appCode.includes("$('ambient').style.background = track.cover ?"), 'Current track artwork should drive the ambient background when that layer is enabled');
 assert.match(html, /id=["']update-banner["']/, 'Update banner should exist for new-version prompts');
 assert.match(html, /id=["']update-now["']/, 'Update banner should offer an apply control');
 assert.match(html, /id=["']update-later["']/, 'Update banner should offer a dismiss control');
@@ -54,7 +68,7 @@ assert.ok(appCode.includes('UPDATE_CHECK_INTERVAL'), 'Update polling should use 
 assert.ok(appCode.includes('visibilitychange'), 'Update check should rerun when the tab becomes visible');
 assert.ok(appCode.includes("location.reload()"), 'Applying an update should reload the new version');
 assert.ok(appCode.includes("if (isAppPlaying())"), 'Applying an update must be blocked while audio is playing');
-for (const id of ['listening-room', 'room-cover', 'room-signal', 'room-seek', 'queue-panel', 'queue-list', 'sleep-panel', 'sleep-track-end', 'autoplay-button']) {
+for (const id of ['listening-room', 'room-cover', 'room-signal', 'room-seek', 'queue-panel', 'queue-list', 'sleep-panel', 'sleep-track-end', 'autoplay-button', 'recent-section', 'recent-list', 'recent-clear']) {
   assert.match(html, new RegExp(`id=["']${id}["']`), `${id} UI should exist`);
 }
 for (const feature of ['function renderQueue()', 'function addToQueue(', 'function removeFromQueue(', 'function moveQueueTrack(', 'function setSleepTimer(', 'function clearSleepTimer(', 'function signalDescription(']) {
@@ -65,6 +79,26 @@ assert.ok(appCode.includes('const target = standbyAudio;'), 'Track switches shou
 assert.ok(appCode.includes('target.volume = audio.volume; target.muted = false;'), 'The standby deck should inherit playback settings before the deck swap');
 assert.ok(appCode.includes('state.dsdUrl) stopDsdWorker(false);'), 'Track switches should clear stale DSD decoder state');
 assert.ok(appCode.includes('function scheduleTrackRender()'), 'Track-list redraws should be deferrable during switches');
+assert.ok(appCode.includes('function renderRecentTracks()'), 'A recent-listening shelf should render quick resume cards');
+assert.match(appCode, /target\.play\(\)[\s\S]{0,950}recordHistory\(track\);/, 'A track should enter history only after playback starts successfully');
+assert.ok(appCode.includes("recordHistory(track); scheduleTrackRender()"), 'Successfully decoded DSD playback should also enter recent history');
+assert.ok(!/scheduleTrackRender\(\);\s*recordHistory\(track\);/.test(appCode), 'Failed playback attempts must not be recorded as listening history');
+assert.ok(appCode.includes('function restoreRecentTracks()'), 'Recent listening should restore after reload');
+assert.ok(appCode.includes('restoreRecentTracks();') && appCode.includes('resolve(restored);'), 'Recent listening cards should update after cloud catalog restoration');
+assert.ok(appCode.includes("openDatabase().then(restoreRecentTracks)"), 'Recent history should be restored after IndexedDB opens');
+assert.ok(appCode.includes('store.openCursor(null, \'prev\')'), 'Persistent history should be trimmed to the newest entries');
+assert.ok(appCode.includes('disabled title="Thêm lại thư mục/file vào thư viện để phát bài này"'), 'Unloaded local files should not show broken recent-play actions');
+assert.ok(appCode.includes('state.recentHistory = [{trackKey, title:metadata.title'), 'Recent track cards should not need persistent local file paths or session IDs');
+assert.ok(appCode.includes('function clearHistory()'), 'Listeners should be able to clear local history');
+assert.ok(appCode.includes('Math.max(Date.now(), state.historyClearedAt + 1)'), 'Playback after clearing history should use a monotonic cutoff');
+assert.ok(appCode.includes('state.historyClearedAt = 0;') && appCode.includes("localStorage.removeItem(`${RECENT_TRACKS_KEY}-cleared-at`)"), 'The clear cutoff should be released only after successful history persistence');
+assert.ok(appCode.includes('MAX_RECENT_TRACKS = 30'), 'Recent listening should remain bounded');
+assert.ok(appCode.includes("localStorage.setItem(`${RECENT_TRACKS_KEY}-cleared-at`"), 'Clearing history should survive concurrent IndexedDB restore');
+assert.ok(appCode.includes('historyRestoreGeneration'), 'Late IndexedDB restore must not overwrite a newer history clear');
+assert.ok(appCode.includes("$('recent-section').scrollIntoView"), 'The existing History control should navigate to the recent shelf');
+assert.ok(libraryCode.includes('function historyTrackKey(track)'), 'History should use a stable normalized track identity');
+assert.ok(libraryCode.includes("['local', hash.toString(16), path.length, Number(track.size) || 0]"), 'Local history keys should avoid persisting raw filesystem paths');
+assert.ok(libraryCode.includes("track.source === 'url') return null"), 'Temporary direct URLs should not persist in recent history');
 assert.ok(appCode.includes('setTimeout(() => loadCloudMetadata(track, blob)'), 'Cloud metadata follow-up should not block playable audio URLs');
 assert.ok(appCode.includes('releaseUnusedCloudUrl(next)'), 'Superseded preloads should be able to release unused cloud URLs');
 assert.ok(appCode.includes('releaseUnusedCloudUrl(previousTrack);'), 'Switching tracks should release the previous unused cloud URL');

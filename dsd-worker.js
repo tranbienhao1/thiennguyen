@@ -6,7 +6,16 @@
 'use strict';
 
 const DEFAULT_TARGET_RATE = 44100;
-const SUPPORTED_TARGET_RATES = [44100, 88200, 176400];
+const PCM_RATE_FAMILIES = [[44100, 88200, 176400], [48000, 96000, 192000]];
+const SUPPORTED_TARGET_RATES = PCM_RATE_FAMILIES.flat();
+const SUPPORTED_DSD_MULTIPLIERS = [32, 64, 128, 256, 512];
+function dsdSourceInfo(rate) {
+  for (const baseRate of [44100, 48000]) {
+    const multiplier = rate / baseRate;
+    if (Number.isInteger(multiplier) && SUPPORTED_DSD_MULTIPLIERS.includes(multiplier)) return {baseRate, multiplier};
+  }
+  return null;
+}
 const MAX_PCM_BYTES = 256 * 1024 * 1024;
 const HTAPS = [
   0.09950731974056658, 0.09562845727714668, 0.08819647126516944, 0.07782552527068175,
@@ -121,13 +130,16 @@ async function parseDff(file,view) {
 async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
   if(!file) throw Error('Không nhận được file DSD.');
   targetRate=Number(targetRate); bitDepth=Number(bitDepth);
-  if(!SUPPORTED_TARGET_RATES.includes(targetRate)) throw Error('PCM chỉ hỗ trợ 44.1, 88.2 hoặc 176.4 kHz.');
+  if(!SUPPORTED_TARGET_RATES.includes(targetRate)) throw Error('PCM chỉ hỗ trợ 44.1/88.2/176.4 hoặc 48/96/192 kHz.');
   if(![16,24].includes(bitDepth)) throw Error('PCM chỉ hỗ trợ 16-bit hoặc 24-bit.');
   const info=format==='dsf'?await parseDsf(file):await parseDff(file,new DataView(await file.slice(0,Math.min(file.size,64*1024)).arrayBuffer()));
-  const dsdMultiplier=info.rate/DEFAULT_TARGET_RATE;
-  if(!Number.isInteger(dsdMultiplier)||![32,64,128,256,512].includes(dsdMultiplier)) throw Error(`Định dạng nguồn DSD${dsdMultiplier} chưa được hỗ trợ.`);
+  const sourceInfo=dsdSourceInfo(info.rate);
+  if(!sourceInfo) throw Error(`Tốc độ DSD nguồn ${info.rate} Hz chưa được hỗ trợ; hỗ trợ DSD32–DSD512 trong họ 44.1/48 kHz.`);
+  const {baseRate:sourceBaseRate,multiplier:dsdMultiplier}=sourceInfo;
+  const targetFamily=PCM_RATE_FAMILIES.find(rates=>rates.includes(targetRate));
+  if(!targetFamily||targetFamily[0]!==sourceBaseRate) throw Error(`DSD${dsdMultiplier} thuộc họ ${sourceBaseRate/1000} kHz; hãy chọn PCM ${sourceBaseRate/1000}, ${(sourceBaseRate*2)/1000} hoặc ${(sourceBaseRate*4)/1000} kHz.`);
   const multiplier=info.rate/targetRate;
-  if(!Number.isInteger(multiplier)||![8,16,32,64,128,256,512].includes(multiplier)) throw Error(`DSD${dsdMultiplier} không thể chuyển sang PCM ${targetRate/1000} kHz; chọn tần số thấp hơn.`);
+  if(!Number.isInteger(multiplier)||![8,16,32,64,128,256,512].includes(multiplier)) throw Error(`DSD${dsdMultiplier} không thể chuyển sang PCM ${targetRate/1000} kHz.`);
   if(info.channels<1||info.channels>8) throw Error(`Số kênh DSD không hợp lệ: ${info.channels}.`);
   if(info.kind==='dff'&&info.dataSize%info.channels) throw Error('Kích thước DFF không chia hết cho số kênh.');
   const channelBytes=info.kind==='dsf'?Math.ceil(info.sampleCount/8):info.dataSize/info.channels;

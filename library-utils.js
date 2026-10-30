@@ -125,6 +125,22 @@
     };
   }
 
+  function historyTrackKey(track) {
+    if (!track || !track.source || track.source === 'url') return null;
+    if (['google','onedrive'].includes(track.source) && track.remoteId) return JSON.stringify([track.source, String(track.remoteId)]);
+    if (track.source === 'local') {
+      const path = normalize(track.relativePath || track.webkitRelativePath || track.name).normalize('NFKC').toLocaleLowerCase('vi');
+      if (!path) return null;
+      let hash = 0xcbf29ce484222325n;
+      for (const character of path) {
+        hash ^= BigInt(character.codePointAt(0));
+        hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+      }
+      return JSON.stringify(['local', hash.toString(16), path.length, Number(track.size) || 0]);
+    }
+    return null;
+  }
+
   function metadataOptions(tracks, field, fallback) {
     const options = new Map();
     for (const track of tracks) {
@@ -185,5 +201,5 @@
     return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'vi'));
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, metadataOptions, filterTracks, groupTracks};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks};
 });

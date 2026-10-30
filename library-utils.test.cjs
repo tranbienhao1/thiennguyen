@@ -21,6 +21,16 @@ assert.deepStrictEqual(utils.trackMetadata({title:'Die With A Smile', artist:'La
 assert.strictEqual(utils.parseFilenameMetadata('Hello.flac').artist, utils.UNKNOWN_ARTIST);
 assert.strictEqual(utils.parseFilenameMetadata('Hello.flac').title, 'Hello');
 
+const localHistoryTrack = {source:'local', relativePath:'Artist/Album/01 - Song.flac', size:1234};
+const sameLocalHistoryTrack = {source:'local', relativePath:'artist/album/01 - song.flac', size:1234};
+assert.strictEqual(utils.historyTrackKey(localHistoryTrack), utils.historyTrackKey(sameLocalHistoryTrack), 'Local history keys should normalize path case without retaining the path itself');
+assert.ok(!utils.historyTrackKey(localHistoryTrack).includes('Artist/Album'), 'Local history keys must not expose local paths');
+assert.notStrictEqual(utils.historyTrackKey(localHistoryTrack), utils.historyTrackKey({...localHistoryTrack, size:1235}), 'Different file sizes should not collide in local history');
+assert.strictEqual(utils.historyTrackKey({source:'google', remoteId:'file-1'}), utils.historyTrackKey({source:'google', remoteId:'file-1'}), 'Cloud tracks should have stable history keys');
+assert.notStrictEqual(utils.historyTrackKey({source:'google', remoteId:'file-1'}), utils.historyTrackKey({source:'onedrive', remoteId:'file-1'}), 'Cloud provider should be part of the history key');
+assert.strictEqual(utils.historyTrackKey({source:'url', url:'https://example.com/song.mp3'}), null, 'Ephemeral direct URLs must not be persisted in listening history');
+assert.strictEqual(utils.historyTrackKey({source:'local', name:''}), null, 'Local history keys require a usable file name or path');
+
 const flacWithoutMime = utils.normalizeAudioBlob(new Blob(['flac-data'], {type:'application/octet-stream'}), 'Adele - Hello.FLAC');
 assert.strictEqual(flacWithoutMime.type, 'audio/flac');
 const mp3WithoutMime = utils.normalizeAudioBlob(new Blob(['mp3-data']), 'folder/Hello.mp3');

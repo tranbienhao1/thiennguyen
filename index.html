@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#09090b">
+  <meta name="theme-color" content="#000000">
   <title>NOCTURNE — Hi-Res Music Player</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style id="app-style">
-    :root { color-scheme: dark; --accent: 139 92 246; }
+    :root { color-scheme: dark; --accent: 143 245 210; }
     * { scrollbar-width: thin; scrollbar-color: #3f3f46 transparent; }
     body { background: #09090b; }
     .glass { background: rgba(24,24,27,.72); backdrop-filter: blur(22px); }
@@ -25,11 +25,9 @@
     .drop-overlay { background: rgba(9,9,11,.88); backdrop-filter: blur(12px); }
     canvas { width:100%; height:100%; }
     input[type=range] { accent-color: rgb(var(--accent)); }
-    #app-shell { position: relative; z-index: 1; transition: max-width .35s ease; }
+    #app-shell { transition: max-width .35s ease; }
     #sidebar { transition: transform .32s ease, opacity .25s ease, width .32s ease, margin .32s ease; }
     #content-col { transition: flex-basis .32s ease, max-width .32s ease, transform .32s ease; }
-    #ambient { transition: transform .35s ease, opacity .35s ease; }
-    body.sidebar-collapsed #ambient { transform: scale(1.06); }
     @media (max-width: 1023.98px) {
       #sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 60; width: min(86vw, 320px); max-height: 100dvh; overflow-y: auto; border-right: 1px solid rgba(255,255,255,.08); box-shadow: 24px 0 60px rgba(0,0,0,.5); }
       body.sidebar-collapsed #sidebar { transform: translateX(-105%); opacity: 0; pointer-events: none; }
@@ -40,10 +38,88 @@
       #sidebar { width: 264px; }
       body.sidebar-collapsed #sidebar { width: 0; min-width: 0; opacity: 0; margin: 0; padding-left: 0; padding-right: 0; overflow: hidden; border: 0; pointer-events: none; }
     }
+
+    /* Quiet, TIDAL-inspired visual language: near-black surfaces, crisp type, one restrained accent. */
+    :root { --accent: 143 245 210; }
+    body { background: #000; }
+    .glass { background: rgba(8,8,8,.96); backdrop-filter: blur(18px); }
+    .surface { background: linear-gradient(135deg,#111 0%,#090909 72%); }
+    .track-row.active { background: rgba(143,245,210,.07); border-color: rgba(143,245,210,.18); }
+    .cover-glow { background: radial-gradient(ellipse at 88% 12%,rgba(143,245,210,.08),transparent 44%); }
+    .range, input[type=range] { accent-color: #8ff5d2; }
+    .text-violet-300, .text-violet-200, .text-violet-400 { color: #8ff5d2 !important; }
+    .bg-violet-500 { background-color: #fff !important; color: #080808 !important; }
+    [class~="hover:bg-violet-400"]:hover { background-color: #d4d4d8 !important; }
+    .seek-range::-webkit-slider-runnable-track { background: linear-gradient(to right,#f4f4f5 0%,#f4f4f5 var(--seek-progress,0%),#52525b var(--seek-progress,0%),#52525b 100%); }
+    .seek-range::-webkit-slider-thumb { border-color: #fff; background: #fff; }
+    .seek-range::-moz-range-progress { background: #f4f4f5; }
+    .seek-range::-moz-range-thumb { border-color: #fff; background: #fff; }
+    #app-shell { gap: 0 !important; }
+    #sidebar {
+      background: #050505 !important;
+      border-color: #222 !important;
+    }
+    #sidebar a > span:first-child {
+      width: 36px; height: 36px; border-radius: 4px;
+      background: #fff; color: #080808; box-shadow: none;
+    }
+    #sidebar .source-btn { border-radius: 4px; }
+    #sidebar [data-source="all"] { background: #171717; }
+    #sidebar #sidebar-close, #sidebar-toggle {
+      border-color: #333; background: #111; color: #eee; box-shadow: none;
+    }
+    #sidebar #sidebar-close:hover, #sidebar-toggle:hover { background: #222; }
+    #sidebar #open-settings { border-radius: 4px; }
+    #content-col { padding-top: 0; }
+    #content-col > header {
+      position: sticky; top: 0; z-index: 20; min-height: 76px;
+      margin: 0 -1.75rem; padding: 14px 1.75rem;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      background: rgba(0,0,0,.9); backdrop-filter: blur(16px);
+    }
+    #page-title { font-weight: 600; letter-spacing: -.04em; }
+    #search, #search-mobile {
+      border-color: #292929; border-radius: 999px; background: #111;
+    }
+    #add-files { border-radius: 4px; box-shadow: none; }
+    #hero {
+      min-height: 270px; display: flex; align-items: center;
+      border-color: #292929; border-radius: 6px; box-shadow: none;
+    }
+    #hero > div:first-child { display: none; }
+    #hero h2 { font-size: clamp(2rem,4vw,3.5rem); font-weight: 600; letter-spacing: -.055em; }
+    #hero > div > div:first-child > span {
+      border-radius: 3px; background: #171717; color: #8ff5d2;
+    }
+    #hero button { border-radius: 4px; box-shadow: none; }
+    #hero button:first-child { background: #fff; color: #080808; }
+    #hero button:last-child { border-color: #333; background: transparent; }
+    #recent-section [class*="tracking-"] { color: #8ff5d2; }
+    #track-list .track-row { border-radius: 4px; border-bottom-color: #1d1d1d; }
+    #track-list .track-row:hover { background: #111; }
+    #empty-state { border-radius: 6px; }
+    footer.glass { border-color: #262626; box-shadow: 0 -1px 20px rgba(0,0,0,.35); }
+    #player-cover { border-radius: 4px; background: #171717; color: #fff; }
+    #play-button { width: 40px; height: 40px; background: #fff; color: #050505; }
+    #quality-badge { border-radius: 3px; }
+    :focus-visible { outline: 2px solid #8ff5d2; outline-offset: 2px; }
+    @media (min-width: 1024px) {
+      #sidebar { width: 244px; border-right: 1px solid #222 !important; }
+      #content-col { padding: 0 2.5rem 2rem; }
+      #content-col > header { margin: 0 -2.5rem; padding-right: 2.5rem; padding-left: 2.5rem; }
+    }
+    @media (max-width: 1023.98px) {
+      #content-col { padding-top: 0; }
+      #content-col > header { margin: 0 -1rem; padding: 12px 1rem; }
+      #hero { min-height: 0; }
+      #hero > div.relative { gap: 1.5rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
   </style>
 </head>
 <body class="min-h-screen overflow-x-hidden text-zinc-100 selection:bg-violet-500/40">
-  <div id="ambient" class="pointer-events-none fixed inset-0 z-0 opacity-60 transition-colors duration-700" style="background:radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.16),transparent 48%)"></div>
   <button id="sidebar-backdrop" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm transition-opacity lg:hidden" type="button" aria-label="Đóng thanh bên"></button>
   <main id="app-shell" class="mx-auto flex min-h-screen max-w-[1600px] flex-col pb-32 lg:flex-row lg:gap-5 lg:px-5">
     <aside id="sidebar" class="w-full shrink-0 border-b border-white/5 bg-[#17130f]/95 px-5 py-5 backdrop-blur-2xl lg:sticky lg:top-0 lg:h-screen lg:w-[260px] lg:border-b-0 lg:bg-transparent lg:px-0 lg:py-7">
@@ -88,7 +164,7 @@
           <div class="max-w-xl">
             <span class="rounded-full border border-violet-300/20 bg-violet-400/10 px-2.5 py-1 text-[10px] font-medium uppercase tracking-[.18em] text-violet-200">Lossless listening</span>
             <h2 class="mt-4 text-2xl font-medium leading-tight sm:text-3xl">Âm nhạc của bạn.<br><span class="text-zinc-500">Không giới hạn.</span></h2>
-            <p class="mt-3 max-w-md text-sm leading-6 text-zinc-400">Phát thư viện nhạc local và cloud riêng tư. DSF/DFF DSD32–512 được chuyển đổi ngay trên thiết bị sang PCM 44.1–176.4 kHz, 16/24-bit; không phát DSD bit-perfect.</p>
+            <p class="mt-3 max-w-md text-sm leading-6 text-zinc-400">Thư viện nhạc riêng tư từ thiết bị hoặc cloud. Nghe DSF/DFF DSD32–512 với chuyển đổi PCM ngay trên thiết bị; hỗ trợ hai họ tần số 44,1 và 48 kHz, 16/24-bit. Không phát DSD bit-perfect.</p>
           </div>
           <div class="flex gap-2">
             <button id="choose-folder" class="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200">Chọn thư mục nhạc</button>
@@ -97,9 +173,13 @@
         </div>
       </section>
 
+      <section id="recent-section" class="mt-7 hidden" aria-labelledby="recent-title">
+        <div class="mb-3 flex items-end justify-between gap-3"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300/80">YOUR ROTATION</p><h2 id="recent-title" class="mt-1 text-base font-medium">Nghe gần đây</h2></div><button id="recent-clear" type="button" class="text-[10px] text-zinc-500 transition hover:text-rose-300">Xóa lịch sử</button></div>
+        <div id="recent-list" class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"></div>
+      </section>
       <section class="mt-8">
         <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div><p class="text-[10px] uppercase tracking-[.2em] text-zinc-500">Collection</p><h2 id="list-title" class="mt-1 text-lg font-medium">Tất cả bài hát <span id="visible-count" class="ml-1 text-sm font-normal text-zinc-500">0</span></h2></div>
+          <div><p class="text-[10px] uppercase tracking-[.2em] text-zinc-500">Collection</p><h2 id="list-title" class="mt-1 text-lg font-medium">Tất cả bài hát <span id="visible-count" class="ml-1 text-sm font-normal text-zinc-500">0</span></h2><p id="library-subtitle" class="mt-1 text-[11px] text-zinc-500">Thư viện riêng tư trên thiết bị của bạn</p></div>
           <div class="flex flex-wrap items-center justify-end gap-2">
             <select id="source-filter" aria-label="Lọc theo nguồn" class="max-w-32 rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-2 text-xs text-zinc-300 outline-none"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option></select>
             <select id="artist-filter" aria-label="Lọc theo nghệ sĩ" class="max-w-36 rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-2 text-xs text-zinc-300 outline-none"><option value="*">Mọi nghệ sĩ</option></select>
@@ -186,7 +266,7 @@
       <section class="mt-4 rounded-2xl border border-fuchsia-300/15 bg-fuchsia-300/[.03] p-4">
         <div><h3 class="text-sm font-medium text-fuchsia-100">Chất lượng chuyển đổi DSD</h3><p class="mt-1 text-[10px] leading-4 text-zinc-500">Chọn PCM đầu ra cho DSF/DFF. Tần số cao giữ nhiều băng thông hơn nhưng tạo file tạm lớn hơn. DSD được giải mã trên thiết bị, không bit-perfect.</p></div>
         <div class="mt-3 grid gap-3 sm:grid-cols-2">
-          <label class="text-[10px] text-zinc-400">Tần số PCM<select id="dsd-output-rate" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"><option value="44100">44.1 kHz — tương thích rộng</option><option value="88200">88.2 kHz — chất lượng cao</option><option value="176400">176.4 kHz — tối đa</option></select></label>
+          <label class="text-[10px] text-zinc-400">Tần số PCM<select id="dsd-output-rate" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"><option value="44100">44.1 kHz — họ 44.1</option><option value="48000">48 kHz — họ 48</option><option value="88200">88.2 kHz — họ 44.1</option><option value="96000">96 kHz — họ 48</option><option value="176400">176.4 kHz — họ 44.1</option><option value="192000">192 kHz — họ 48</option></select></label>
           <label class="text-[10px] text-zinc-400">Độ sâu bit<select id="dsd-output-depth" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"><option value="16">16-bit — file nhỏ</option><option value="24">24-bit — dải động rộng</option></select></label>
         </div>
       </section>
@@ -264,6 +344,13 @@
       return mimeFormat || (extension ? extension[1].toUpperCase() : 'AUDIO');
     };
     const isDsdFormat = format => ['DSF','DFF'].includes(String(format || '').toUpperCase());
+    const dsdSourceInfo = rate => {
+      for (const baseRate of [44100, 48000]) {
+        const multiplier = Number(rate) / baseRate;
+        if ([32,64,128,256,512].includes(multiplier)) return {baseRate, multiplier};
+      }
+      return null;
+    };
     const CLOUD_CATALOG_STORE = 'cloudCatalog';
     const CLOUD_CATALOG_VERSION = 2;
     let cloudRestorePromise = null;
@@ -287,7 +374,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, favoritesOnly: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, favoritesOnly: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -513,27 +600,120 @@
             restored++;
           }
           if (restored) renderTracks();
+          restoreRecentTracks();
           resolve(restored);
         };
         request.onerror = () => reject(request.error);
       })).catch(error => { console.warn('Could not restore cloud catalog:', error); return 0; });
       return cloudRestorePromise;
     }
+    const RECENT_TRACKS_KEY = 'nocturne-recent-tracks';
+    const MAX_RECENT_TRACKS = 30;
+    const MAX_RECENT_CARDS = 6;
+    function saveRecentTracks() {
+      try {
+        const minimal = state.recentHistory.slice(0, MAX_RECENT_TRACKS).map(({trackKey, title, artist, source, playedAt}) => ({trackKey, title, artist, source, playedAt}));
+        localStorage.setItem(RECENT_TRACKS_KEY, JSON.stringify(minimal));
+      } catch (error) { console.warn('Could not save recent listening history:', error); }
+    }
+    function renderRecentTracks() {
+      const section = $('recent-section'), list = $('recent-list');
+      if (!section || !list) return;
+      const recent = state.recentHistory.slice(0, MAX_RECENT_CARDS).map(entry => ({entry, track:state.tracks.find(candidate => library.historyTrackKey(candidate) === entry.trackKey)}));
+      section.classList.toggle('hidden', recent.length === 0);
+      list.innerHTML = recent.map(({entry, track}) => {
+        const metadata = track ? library.trackMetadata(track) : {title:entry.title || 'Bài hát gần đây', artist:entry.artist || 'Nghệ sĩ không xác định'};
+        const title = escapeHtml(metadata.title), artist = escapeHtml(metadata.artist);
+        const cover = track && track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '<span>♫</span>';
+        const active = track && track.id === state.currentId;
+        const unavailable = !track;
+        return `<button type="button" data-recent-track="${escapeHtml(entry.trackKey)}" ${unavailable ? 'disabled title="Thêm lại thư mục/file vào thư viện để phát bài này"' : ''} class="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] p-2 text-left transition hover:border-violet-300/20 hover:bg-white/[.055] focus:outline-none focus:ring-2 focus:ring-violet-400/50 disabled:cursor-not-allowed disabled:opacity-60"><span class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-zinc-800 text-lg text-violet-200">${cover}</span><span class="min-w-0 flex-1"><span class="block truncate text-xs font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${title}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${unavailable ? 'Thêm lại file/thư viện để phát' : artist}</span></span><span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/[.06] text-xs text-zinc-300 transition group-hover:bg-violet-400 group-hover:text-zinc-950" aria-hidden="true">${active && audio && !audio.paused ? 'Ⅱ' : '▶'}</span></button>`;
+      }).join('');
+      list.querySelectorAll('[data-recent-track]:not(:disabled)').forEach(button => button.addEventListener('click', () => {
+        const track = state.tracks.find(candidate => library.historyTrackKey(candidate) === button.dataset.recentTrack);
+        if (track) playTrack(track.id);
+      }));
+    }
     function recordHistory(track) {
+      const trackKey = library.historyTrackKey(track);
+      if (!trackKey) return;
+      const playedAt = Math.max(Date.now(), (state.historyClearedAt || 0) + 1), metadata = library.trackMetadata(track);
+      state.historyRestoreGeneration++;
+      state.recentHistory = [{trackKey, title:metadata.title, artist:metadata.artist, source:track.source, playedAt}, ...state.recentHistory.filter(item => item.trackKey !== trackKey)].slice(0, MAX_RECENT_TRACKS);
+      saveRecentTracks(); renderRecentTracks();
       if (!state.db) return;
-      const tx = state.db.transaction('history', 'readwrite');
-      tx.objectStore('history').add({ title: track.title, artist: track.artist, source: track.source, playedAt: Date.now() });
-      tx.onerror = () => console.error('Could not save listening history:', tx.error);
+      try {
+        const tx = state.db.transaction('history', 'readwrite');
+        const store = tx.objectStore('history');
+        store.add({trackKey, title:metadata.title, artist:metadata.artist, source:track.source, playedAt});
+        let count = 0;
+        const cursorRequest = store.openCursor(null, 'prev');
+        cursorRequest.onsuccess = () => {
+          const cursor = cursorRequest.result;
+          if (!cursor) return;
+          if (++count > MAX_RECENT_TRACKS) cursor.delete();
+          cursor.continue();
+        };
+        tx.onerror = () => console.error('Could not save listening history:', tx.error);
+        tx.oncomplete = () => {
+          state.historyClearedAt = 0;
+          try { localStorage.removeItem(`${RECENT_TRACKS_KEY}-cleared-at`); } catch (error) { console.warn('Could not reset listening history marker:', error); }
+          saveRecentTracks();
+        };
+      } catch (error) { console.warn('Could not add to IndexedDB history:', error); }
+    }
+    function restoreRecentTracks() {
+      const generation = ++state.historyRestoreGeneration;
+      let storedHistory = [], storedClearedAt = 0;
+      try {
+        const parsed = JSON.parse(localStorage.getItem(RECENT_TRACKS_KEY) || '[]');
+        storedClearedAt = Number(localStorage.getItem(`${RECENT_TRACKS_KEY}-cleared-at`)) || 0;
+        state.historyClearedAt = Math.max(state.historyClearedAt, storedClearedAt);
+        if (Array.isArray(parsed)) storedHistory = parsed.filter(item => item && typeof item.trackKey === 'string' && item.trackKey.length < 2048 && Number.isFinite(item.playedAt));
+      } catch (error) { console.warn('Could not restore recent listening history:', error); }
+      if (!state.db) {
+        state.recentHistory = storedHistory.filter(item => item.playedAt > storedClearedAt).sort((a,b) => b.playedAt - a.playedAt).slice(0, MAX_RECENT_TRACKS);
+        renderRecentTracks();
+        return;
+      }
+      try {
+        const request = state.db.transaction('history').objectStore('history').getAll();
+        request.onsuccess = () => {
+          if (generation !== state.historyRestoreGeneration) return;
+          const merged = [...storedHistory, ...(request.result || []).filter(item => item && typeof item.trackKey === 'string' && Number.isFinite(item.playedAt))];
+          const unique = new Map();
+          const clearedAt = Math.max(state.historyClearedAt || 0, Number(localStorage.getItem(`${RECENT_TRACKS_KEY}-cleared-at`)) || storedClearedAt);
+          merged.sort((a,b) => b.playedAt - a.playedAt).filter(item => item.playedAt > clearedAt).forEach(item => { if (!unique.has(item.trackKey)) unique.set(item.trackKey, item); });
+          state.recentHistory = [...unique.values()].slice(0, MAX_RECENT_TRACKS);
+          saveRecentTracks(); renderRecentTracks();
+        };
+        request.onerror = () => { if (generation === state.historyRestoreGeneration) { const clearedAt = Math.max(state.historyClearedAt || 0, Number(localStorage.getItem(`${RECENT_TRACKS_KEY}-cleared-at`)) || storedClearedAt); state.recentHistory = storedHistory.filter(item => item.playedAt > clearedAt).sort((a,b) => b.playedAt - a.playedAt).slice(0, MAX_RECENT_TRACKS); renderRecentTracks(); } };
+      } catch (error) {
+        console.warn('Could not restore IndexedDB listening history:', error);
+        const clearedAt = Math.max(state.historyClearedAt || 0, Number(localStorage.getItem(`${RECENT_TRACKS_KEY}-cleared-at`)) || storedClearedAt);
+        state.recentHistory = storedHistory.filter(item => item.playedAt > clearedAt).sort((a,b) => b.playedAt - a.playedAt).slice(0, MAX_RECENT_TRACKS);
+        renderRecentTracks();
+      }
+    }
+    function clearHistory() {
+      state.historyRestoreGeneration++;
+      state.historyClearedAt = Math.max(Date.now(), state.historyClearedAt + 1);
+      try { localStorage.setItem(`${RECENT_TRACKS_KEY}-cleared-at`, String(state.historyClearedAt)); } catch (error) { console.warn('Could not save listening history clear marker:', error); }
+      state.recentHistory = [];
+      saveRecentTracks(); renderRecentTracks();
+      if (state.db) {
+        try {
+          const transaction = state.db.transaction('history', 'readwrite');
+          transaction.objectStore('history').clear();
+          transaction.onerror = () => console.warn('Could not clear IndexedDB listening history:', transaction.error);
+        } catch (error) { console.warn('Could not clear IndexedDB listening history:', error); }
+      }
+      toast('Đã xóa lịch sử nghe gần đây.');
     }
     function readHistory() {
-      if (!state.db) return;
-      const request = state.db.transaction('history').objectStore('history').getAll();
-      request.onsuccess = () => {
-        const items = request.result.slice(-8).reverse();
-        if (items.length) toast(`Nghe gần đây: ${items.slice(0, 3).map(item => item.title).join(', ')}`);
-        else toast('Chưa có lịch sử nghe.');
-      };
-      request.onerror = () => toast('Không thể đọc lịch sử nghe.');
+      if (!state.recentHistory.length) { toast('Chưa có lịch sử nghe.'); return; }
+      $('recent-section').scrollIntoView({behavior:'smooth', block:'center'});
+      toast('Chọn một bài trong “Nghe gần đây” để phát tiếp.');
     }
 
     function readAudioMetadata(file) {
@@ -686,7 +866,7 @@
       const isDsd = ['DSF','DFF'].includes(format);
       const lossless = ['FLAC','WAV','ALAC','AIFF','AIF'].includes(format);
       const hires = lossless && ((track.sampleRate || 0) > 48000 || (track.bitDepth || 0) > 16);
-      const dsdRate = isDsd ? (track.dsdMultiplier || (track.sampleRate ? track.sampleRate / 44100 : 0)) : 0;
+      const dsdRate = isDsd ? (track.dsdMultiplier || (dsdSourceInfo(track.sampleRate) || {}).multiplier || 0) : 0;
       const label = isDsd ? `DSD${dsdRate || ''}` : hires ? 'HI-RES' : lossless ? 'LOSSLESS' : format || 'AUDIO';
       return { label, tone: isDsd ? 'text-fuchsia-300 border-fuchsia-300/20 bg-fuchsia-300/5' : hires ? 'text-amber-300 border-amber-300/20 bg-amber-300/5' : lossless ? 'text-emerald-300 border-emerald-300/20 bg-emerald-300/5' : 'text-zinc-500 border-white/10' };
     }
@@ -696,7 +876,7 @@
     function signalDescription(track) {
       const metadata = library.trackMetadata(track);
       const sourceName = ({local:'File local trên thiết bị',google:'Google Drive qua API riêng',onedrive:'OneDrive qua API riêng',url:'URL trực tiếp'})[track.source] || `Nguồn ${sourceLabel(track.source)}`;
-      const sourceTechnical = [track.format || '', track.isDsd && (track.dsdMultiplier ? `DSD${track.dsdMultiplier}` : track.sampleRate ? `DSD${track.sampleRate / 44100}` : ''), !track.isDsd && track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', !track.isDsd && track.bitDepth ? `${track.bitDepth}-bit` : '', track.isDsd && track.pcmRate ? `giải mã trên thiết bị sang PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth || state.dsdOutputDepth}-bit` : '', track.channels ? `${track.channels} kênh` : ''].filter(Boolean).join(' · ');
+      const sourceTechnical = [track.format || '', track.isDsd && (track.dsdMultiplier ? `DSD${track.dsdMultiplier}` : (dsdSourceInfo(track.sampleRate) || {}).multiplier ? `DSD${(dsdSourceInfo(track.sampleRate) || {}).multiplier}` : ''), !track.isDsd && track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', !track.isDsd && track.bitDepth ? `${track.bitDepth}-bit` : '', track.isDsd && track.pcmRate ? `giải mã trên thiết bị sang PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth || state.dsdOutputDepth}-bit` : '', track.channels ? `${track.channels} kênh` : ''].filter(Boolean).join(' · ');
       const decoded = track.isDsd ? 'DSD không phát trực tiếp; NOCTURNE giải mã sang PCM trước khi phát.' : `${track.format || 'Âm thanh'} được trình duyệt giải mã bằng Web Audio.`;
       const title = metadata.title || track.name || 'Bài hát không tên';
       return { title, artist: metadata.artist, album: metadata.album, sourceName, sourceTechnical: sourceTechnical || 'Chưa đọc được metadata kỹ thuật', decoded };
@@ -705,6 +885,7 @@
       const list = $('track-list');
       updateMetadataFilters();
       const shown = filteredTracks();
+      renderRecentTracks();
       shown.sort((a,b) => state.sortAsc ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title));
       const groups = groupTracks(shown, state.groupBy);
       $('all-count').textContent = state.tracks.length;
@@ -856,7 +1037,7 @@
       state.currentId = track.id;
       $('now-title').textContent = library.trackMetadata(track).title;
       const metadata = library.trackMetadata(track);
-      const dsdMultiplierText = track.isDsd ? (track.dsdMultiplier || (track.sampleRate ? Math.round(track.sampleRate / 44100) : 0)) : 0;
+      const dsdMultiplierText = track.isDsd ? (track.dsdMultiplier || (dsdSourceInfo(track.sampleRate) || {}).multiplier || 0) : 0;
       const pcmRateText = track.isDsd ? (track.pcmRate || state.dsdOutputRate) : 0;
       const technical = [!track.isDsd && track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', !track.isDsd && track.bitDepth ? `${track.bitDepth}-bit` : '', track.channels ? `${track.channels} ch` : '', track.isDsd && dsdMultiplierText ? `DSD${dsdMultiplierText} nguồn` : '', track.isDsd && pcmRateText ? `PCM ${(pcmRateText / 1000).toFixed(1)} kHz/${track.pcmBitDepth || state.dsdOutputDepth}-bit` : ''].filter(Boolean).join(' · ');
       $('now-artist').textContent = `${metadata.artist} · ${track.format || sourceLabel(track.source)}${technical ? ` · ${technical}` : ''}`;
@@ -872,10 +1053,9 @@
       renderQueueCurrent(track); syncAutoplayButton(); updateSleepStatus();
       $('room-play').textContent = !audio.src || audio.paused ? '▶' : 'Ⅱ';
       $('room-current-time').textContent = '0:00'; $('room-duration').textContent = formatTime(track.duration); $('room-seek').value = '0'; paintSeek($('room-seek'), 0);
-      $('ambient').style.background = track.cover ? `radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.14),transparent 35%),url("${track.cover}") center/contain no-repeat fixed` : 'radial-gradient(ellipse at 72% 8%,rgba(139,92,246,.16),transparent 48%)';
       $('current-time').textContent = '0:00'; $('current-time-mobile').textContent = '0:00'; $('duration').textContent = formatTime(track.duration); $('duration-mobile').textContent = formatTime(track.duration);
       $('seek').value = '0'; $('seek-mobile').value = '0'; paintSeek($('seek'), 0); paintSeek($('seek-mobile'), 0);
-      scheduleTrackRender(); recordHistory(track);
+      scheduleTrackRender(); renderRecentTracks();
     }
     let trackRenderTimer = null;
     function scheduleTrackRender() {
@@ -962,10 +1142,11 @@
         releaseUnusedCloudUrl(oldPreload);
         return;
       }
-      if (!force && state.preloadTrackId === next.id && state.preloadReadyUrl === next.url && (standbyAudio.src === next.url || state.preloadBusyId === next.id)) return;
+      const preloadUrl = next.url ? new URL(next.url, location.href).href : '';
+      if (!force && state.preloadTrackId === next.id && (state.preloadBusyId === next.id || (preloadUrl && standbyAudio.src === preloadUrl))) return;
       const oldPreload = state.tracks.find(track => track.id === state.preloadTrackId);
       const generation = ++state.preloadGeneration;
-      state.preloadTrackId = next.id; state.preloadBusyId = next.id; state.preloadReadyUrl = next.url || null;
+      state.preloadTrackId = next.id; state.preloadBusyId = next.id; state.preloadReadyUrl = null;
       standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load();
       if (oldPreload && oldPreload.id !== next.id) releaseUnusedCloudUrl(oldPreload);
       if (state.context && state.deckA && state.deckB) {
@@ -973,13 +1154,15 @@
         standbyDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .01);
       }
       try {
-        if (next.load) await next.load();
+        const cloudUrlCached = next.url && state.objectUrls.has(next.url);
+        if (next.load && !cloudUrlCached) await next.load();
         if (generation !== state.preloadGeneration || !next.url) {
           if (generation !== state.preloadGeneration && next.id !== state.currentId && next.id !== state.preloadTrackId) releaseUnusedCloudUrl(next);
           return;
         }
-        state.preloadReadyUrl = next.url;
-        if (standbyAudio.src !== next.url) { standbyAudio.src = next.url; standbyAudio.volume = audio.volume; standbyAudio.muted = true; standbyAudio.load(); }
+        const readyUrl = new URL(next.url, location.href).href;
+        if (standbyAudio.src !== readyUrl) { standbyAudio.src = readyUrl; standbyAudio.volume = audio.volume; standbyAudio.muted = true; standbyAudio.load(); }
+        if (standbyAudio.readyState >= 2) state.preloadReadyUrl = next.url;
       } catch (error) { console.warn('Could not preload next track:', error); }
       finally { if (generation === state.preloadGeneration) state.preloadBusyId = null; }
     }
@@ -988,7 +1171,8 @@
       if (!track) return;
       const previousTrack = state.tracks.find(item => item.id === state.currentId);
       const generation = ++state.playGeneration;
-      const wasPreloaded = state.preloadTrackId === track.id && standbyAudio.src && state.preloadReadyUrl === track.url;
+      const trackUrl = track.url ? new URL(track.url, location.href).href : '';
+      const wasPreloaded = state.preloadTrackId === track.id && !!trackUrl && standbyAudio.src === trackUrl;
       state.queueTrackIds = state.queueTrackIds.filter(item => item !== track.id);
       renderQueue();
       if (!wasPreloaded) ++state.preloadGeneration;
@@ -1009,14 +1193,18 @@
       if (state.context.state === 'suspended') await state.context.resume();
       if (generation !== state.playGeneration) return;
       const target = standbyAudio;
-      if (track.load) {
+      const cachedCloudUrl = wasPreloaded || (track.url && state.objectUrls.has(track.url));
+      if (track.load && !cachedCloudUrl) {
         try { await track.load(); }
         catch (error) { console.error('Track streaming failed:', error); toast(`Không thể phát bài hát: ${mediaErrorMessage(error)}`); releaseUnusedCloudUrl(track); return; }
       }
       if (generation !== state.playGeneration) return;
-      if (state.context.state === 'suspended') await state.context.resume();
       if (!track.url) { toast('Không có URL phát cho bài hát này.'); return; }
-      if (target.src !== track.url) { target.src = track.url; target.load(); }
+      const playUrl = new URL(track.url, location.href).href;
+      if (state.context.state === 'suspended') await state.context.resume();
+      if (generation !== state.playGeneration) return;
+      if (!track.url) { toast('Không có URL phát cho bài hát này.'); return; }
+      if (target.src !== playUrl || target.error) { target.src = playUrl; target.load(); }
       displayTrack(track);
       target.volume = audio.volume; target.muted = false;
       if (state.activeDeck) {
@@ -1034,6 +1222,7 @@
         standbyAudio.muted = true; standbyAudio.pause();
         if (state.preloadTrackId === track.id) { state.preloadTrackId = null; state.preloadReadyUrl = null; }
         $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ';
+        recordHistory(track);
         previous.pause(); previous.muted = true;
         previous.removeAttribute('src'); previous.load();
         scheduleTrackRender();
@@ -1058,8 +1247,17 @@
     async function playDsdTrack(track, generation) {
       stopDsdWorker(false);
       if (generation !== state.playGeneration) return;
-      const multiplier = track.sampleRate ? track.sampleRate / 44100 : 0;
-      if (![32,64,128,256,512].includes(multiplier)) { $('play-button').textContent = '▶'; toast(`DSD${multiplier} chưa được hỗ trợ; chỉ hỗ trợ DSD32/64/128/256/512.`); return; }
+      const sourceInfo = dsdSourceInfo(track.sampleRate);
+      const sourceBaseRate = sourceInfo && sourceInfo.baseRate;
+      const multiplier = sourceInfo && sourceInfo.multiplier;
+      if (!sourceInfo || ![32,64,128,256,512].includes(multiplier)) { $('play-button').textContent = '▶'; toast(`Tốc độ DSD${multiplier || track.sampleRate || 'không rõ'} chưa hỗ trợ ở phần metadata; bộ giải mã hiện hỗ trợ DSD32–DSD512 trong họ 44.1/48 kHz.`); return; }
+      if (Math.round(state.dsdOutputRate / sourceBaseRate) !== state.dsdOutputRate / sourceBaseRate || ![1,2,4].includes(state.dsdOutputRate / sourceBaseRate)) {
+        const fallbackRate = sourceBaseRate;
+        $('dsd-output-rate').value = String(fallbackRate);
+        state.dsdOutputRate = fallbackRate;
+        try { localStorage.setItem('nocturne-dsd-output-rate', String(fallbackRate)); } catch (error) { console.warn('Could not save compatible DSD output rate:', error); }
+        toast(`Đã đổi PCM sang ${(fallbackRate/1000).toFixed(1)} kHz để khớp họ tốc độ của file DSD.`);
+      }
       audio.pause(); standbyAudio.pause();
       audio.removeAttribute('src'); audio.load(); standbyAudio.removeAttribute('src'); standbyAudio.load();
       if (!state.context) { setupAudio(); if (!state.context) throw new Error('Trình duyệt không hỗ trợ Web Audio API.'); }
@@ -1086,7 +1284,7 @@
           if (generation !== state.playGeneration) return;
           audio.src = url; standbyAudio.muted = true;
           displayTrack(track);
-          try { await audio.play(); if (generation !== state.playGeneration) return; $('play-button').textContent = 'Ⅱ'; scheduleTrackRender(); }
+          try { await audio.play(); if (generation !== state.playGeneration) return; $('play-button').textContent = 'Ⅱ'; recordHistory(track); scheduleTrackRender(); }
           catch (error) { console.error('DSD PCM playback failed:', error); toast('Không thể phát PCM đã giải mã trong trình duyệt.'); }
         };
         worker.onerror = event => {
@@ -1502,6 +1700,7 @@
       $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').classList.toggle('text-pink-300', isFavorite(track)); renderTracks();
     });
     $('history-button').addEventListener('click', readHistory);
+    $('recent-clear').addEventListener('click', clearHistory);
     $('favorites-filter').addEventListener('click', () => { state.favoritesOnly = !state.favoritesOnly; $('favorites-filter').classList.toggle('text-violet-300', state.favoritesOnly); renderTracks(); });
     $('search').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search-mobile').value = event.target.value; renderTracks(); });
     $('search-mobile').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search').value = event.target.value; renderTracks(); });
@@ -1533,6 +1732,11 @@
         updatePositionState();
         if (Number.isFinite(element.duration) && element.duration - element.currentTime <= 12 && (!standbyAudio.src || standbyAudio.src !== state.preloadReadyUrl)) preloadNext();
       });
+      element.addEventListener('canplay', () => {
+        if (element !== standbyAudio) return;
+        const preloaded = state.tracks.find(item => item.id === state.preloadTrackId);
+        if (preloaded && preloaded.url && element.src === new URL(preloaded.url, location.href).href) state.preloadReadyUrl = preloaded.url;
+      });
       element.addEventListener('loadedmetadata', () => {
         if (element !== audio) return;
         $('duration').textContent = formatTime(element.duration); $('duration-mobile').textContent = formatTime(element.duration); $('room-duration').textContent = formatTime(element.duration);
@@ -1553,7 +1757,7 @@
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'paused'; } catch (error) {} }
       });
       element.addEventListener('ended', () => { if (element === audio) playNext(1, true); });
-      element.addEventListener('error', () => { if (element === standbyAudio) { state.preloadTrackId = null; console.warn('Next track preload failed.'); } });
+      element.addEventListener('error', () => { if (element === standbyAudio) { state.preloadTrackId = null; state.preloadReadyUrl = null; console.warn('Next track preload failed.'); } });
     }
     attachDeckEvents(audio); attachDeckEvents(standbyAudio);
     if ('mediaSession' in navigator) {
@@ -1619,7 +1823,7 @@
     try {
       const savedRate = Number(localStorage.getItem('nocturne-dsd-output-rate'));
       const savedDepth = Number(localStorage.getItem('nocturne-dsd-output-depth'));
-      if ([44100,88200,176400].includes(savedRate)) state.dsdOutputRate = savedRate;
+      if ([44100,48000,88200,96000,176400,192000].includes(savedRate)) state.dsdOutputRate = savedRate;
       if ([16,24].includes(savedDepth)) state.dsdOutputDepth = savedDepth;
       $('dsd-output-rate').value = String(state.dsdOutputRate);
       $('dsd-output-depth').value = String(state.dsdOutputDepth);
@@ -1627,7 +1831,7 @@
     try { state.favorites = new Set(JSON.parse(localStorage.getItem('nocturne-favorites') || '[]')); } catch (error) { state.favorites = new Set(); }
     setGain(72);
     syncAutoplayButton(); updateSleepStatus(); renderQueueCurrent();
-    openDatabase().catch(error => { console.error('IndexedDB is unavailable:', error); toast('Không thể bật lịch sử nghe: IndexedDB không khả dụng.'); });
+    openDatabase().then(restoreRecentTracks).catch(error => { console.error('IndexedDB is unavailable:', error); restoreRecentTracks(); toast('Không thể bật lịch sử IndexedDB; mục nghe gần đây vẫn lưu trong trình duyệt.'); });
     if (!window.isSecureContext) console.info('Directory picker and cloud OAuth require HTTPS or localhost; use the file input fallback for local playback.');
     renderTracks();
     // Persist cloud catalog metadata locally; MSAL independently manages its own token cache.
