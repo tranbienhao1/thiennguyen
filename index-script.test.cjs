@@ -12,6 +12,13 @@ const inlineScripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)
 assert.ok(inlineScripts.length > 0, 'index.html should contain the app script');
 for (const [index, script] of inlineScripts.entries()) new vm.Script(script, {filename: `index.inline.${index}.js`});
 const appCode = inlineScripts.join('\n');
+const ids = [...html.matchAll(/\bid=["']([^"']+)["']/gi)].map(match => match[1]).filter(id => !id.includes('${'));
+const idCounts = new Map();
+for (const id of ids) idCounts.set(id, (idCounts.get(id) || 0) + 1);
+assert.deepEqual([...idCounts].filter(([, count]) => count > 1), [], 'HTML should not define duplicate element IDs');
+const missingLiteralIds = [...new Set([...appCode.matchAll(/\$\(["']([^"']+)["']\)/g)].map(match => match[1]))]
+  .filter(id => !idCounts.has(id));
+assert.deepEqual(missingLiteralIds, [], 'App code should not query missing literal element IDs');
 for (const id of ['dsd-output-rate', 'dsd-output-depth']) {
   assert.match(html, new RegExp(`id=["']${id}["']`), `${id} control should exist`);
   assert.ok(appCode.includes(`$('${id}')`), `${id} should be initialized by app code`);
@@ -36,6 +43,10 @@ assert.ok(!appCode.includes('async function restoreGoogleSession()'), 'Google OA
 assert.ok(appCode.includes('GIS tokens are short-lived and intentionally never refreshed during page-load/background work.'), 'Google authorization must only start from a user action');
 assert.ok(appCode.includes("throw new Error('Phiên Google Drive đã hết hạn. Nhấn “Tiếp tục với Google” để kết nối lại.')"), 'Expired Google tokens should prompt an explicit user reconnect rather than an automatic OAuth popup');
 assert.ok(!appCode.includes('state.googleToken = null'), 'A Google access token should not be persisted across page reloads as an apparently live session');
+assert.ok(appCode.includes("const timeout = setTimeout(() => { script.remove(); reject(new Error('Tải Google Identity Services quá thời gian chờ."), 'Google Identity Services loading should time out and be retryable instead of leaving Connect stuck forever');
+assert.ok(appCode.includes("cloudStatus('google', 'Google Drive · cần thử lại'"), 'Failed Google sign-in or Drive listing should not leave a misleading connecting status');
+assert.ok(appCode.includes("cloudStatus('google', 'Client ID không hợp lệ'"), 'Invalid Google Client IDs should be visible in the connection status');
+assert.ok(appCode.includes("cloudStatus('google', 'Cần HTTPS hoặc localhost'"), 'Google OAuth secure-origin requirements should be visible in the connection status');
 assert.ok(appCode.includes('let googleScriptPromise = null;'), 'Google Identity Services loading should be shared and retryable');
 assert.ok(appCode.includes('if (window.google?.accounts?.oauth2) return;'), 'Google GIS loading must detect an already-loaded async script and avoid waiting for a missed load event');
 assert.ok(appCode.includes("client.requestAccessToken({prompt});"), 'Google OAuth must be invoked directly from the connect button gesture');

@@ -1929,7 +1929,6 @@
     $('folder-input').addEventListener('change', event => { addLocalFiles(event.target.files); event.target.value = ''; });
     $('settings-trigger').addEventListener('click', showSettings);
     $('mobile-settings').addEventListener('click', showSettings);
-    $('connect-cloud').addEventListener('click', showSettings);
     $('close-settings').addEventListener('click', hideSettings);
     async function runCloudLogin(connect) {
       $('settings-error').classList.add('hidden');
