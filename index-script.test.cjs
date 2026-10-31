@@ -27,6 +27,12 @@ for (const [index, script] of inlineScripts.entries()) new vm.Script(script, {fi
 const appCode = inlineScripts.join('\n');
 assert.ok(appCode.includes('cloudMetadata.readRemoteTags'), 'Cloud tags should be extracted by authenticated range reads');
 assert.ok(appCode.includes('CLOUD_METADATA_CONCURRENCY = 3'), 'Cloud metadata enrichment should be concurrency-limited');
+assert.match(html, /id="reset-cloud-catalog"[^>]*>Xóa danh mục Cloud đã lưu<\/button>/, 'Settings should provide a reset action for the cached cloud catalog');
+assert.ok(appCode.includes('store.clear();'), 'Cloud catalog reset should clear only its IndexedDB object store');
+assert.ok(appCode.includes('const transaction = store.transaction;'), 'Cloud reset should wait for the IndexedDB transaction to finish before reloading');
+assert.ok(appCode.includes('if (!confirmed || cloudCatalogResetting) return;'), 'Cloud reset should require confirmation and prevent concurrent reset attempts');
+assert.ok(appCode.includes('if (cloudCatalogResetting) return Promise.resolve();'), 'Cloud metadata should not repopulate the catalog while reset is running');
+assert.ok(appCode.includes('await clearCloudCatalog();\n        location.reload();'), 'Cloud reset should reload only after IndexedDB deletion completes');
 assert.ok(appCode.includes('files(id,name,mimeType,size,thumbnailLink)'), 'Google scans should request thumbnail metadata');
 assert.ok(appCode.includes('if (track.source === \'onedrive\' && track.downloadUrl)'), 'Temporary OneDrive download links must not be kept after metadata enrichment');
 assert.ok(cloudMetadataCode.includes('MAX_TOTAL = 16 * 1024 * 1024'), 'Cloud metadata range reads should enforce a strict byte budget');
