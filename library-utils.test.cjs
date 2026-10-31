@@ -50,6 +50,17 @@ assert.strictEqual(utils.filterTracks(tracks, {source:'all', artist:'Adele', alb
 assert.strictEqual(utils.filterTracks(tracks, {source:'local', artist:'*', album:'25', query:'', isFavorite:() => true}).length, 3);
 assert.strictEqual(utils.filterTracks(tracks, {artist:'ADELE', album:'*', query:'HELLO'}).length, 1);
 assert.deepStrictEqual(utils.filterTracks(tracks, {album:'25\tother'}).map(track => track.title).sort(), ['Live', 'Song']);
+const cachedTrack = {title:' Original ', artist:' Artist ', album:' Record '};
+const originalMetadata = utils.trackMetadata(cachedTrack);
+assert.strictEqual(utils.trackMetadata(cachedTrack), originalMetadata, 'Unchanged track metadata should reuse its normalized metadata object');
+assert.strictEqual(utils.filterTracks([cachedTrack], {query:'original artist'}).length, 1);
+cachedTrack.title = 'Updated';
+assert.strictEqual(utils.filterTracks([cachedTrack], {query:'original'}).length, 0, 'Metadata cache should invalidate when track tags change');
+assert.strictEqual(utils.filterTracks([cachedTrack], {query:'updated artist'}).length, 1, 'Search normalization should refresh after tag changes');
+const lazyTrack = {source:'local', get title() { throw new Error('metadata should not be normalized without search filters'); }};
+assert.deepStrictEqual(utils.filterTracks([lazyTrack], {source:'all', artist:'*', album:'*'}), [lazyTrack], 'Unfiltered browse should avoid expensive metadata parsing');
+
+
 assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).length, 3);
 assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);
 const albumGroups = utils.groupTracks(tracks, 'album');

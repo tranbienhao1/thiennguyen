@@ -154,6 +154,10 @@ assert.ok(appCode.includes('MAX_RECENT_TRACKS = 30'), 'Recent listening should r
 assert.ok(appCode.includes("localStorage.setItem(`${RECENT_TRACKS_KEY}-cleared-at`"), 'Clearing history should survive concurrent IndexedDB restore');
 assert.ok(appCode.includes('historyRestoreGeneration'), 'Late IndexedDB restore must not overwrite a newer history clear');
 assert.ok(appCode.includes("$('recent-section').scrollIntoView"), 'The existing History control should navigate to the recent shelf');
+assert.ok(appCode.includes('const localConcurrency = Math.min(4, pending.length)'), 'Local metadata extraction should use a bounded concurrency limit');
+assert.ok(appCode.includes('lastDisplayedPlaybackSecond') && appCode.includes('lastPositionStateSecond'), 'Playback UI and media session position should avoid redundant per-frame updates');
+assert.ok(appCode.includes('function updateCurrentTrackIndicator()') && !/if\s*\(state\.activeView === 'home'\)\s*renderTracks\(\)/.test(appCode), 'Track changes should update the active row without redrawing the home library');
+assert.ok(appCode.includes('function setVisualizerRunning(running)') && appCode.includes('setVisualizerRunning(false)'), 'The visualizer should stop its animation loop while playback is paused');
 assert.ok(libraryCode.includes('function historyTrackKey(track)'), 'History should use a stable normalized track identity');
 assert.ok(libraryCode.includes("['local', hash.toString(16), path.length, Number(track.size) || 0]"), 'Local history keys should avoid persisting raw filesystem paths');
 assert.ok(libraryCode.includes("track.source === 'url') return null"), 'Temporary direct URLs should not persist in recent history');

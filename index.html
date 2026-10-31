@@ -679,7 +679,11 @@
     const id = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
     const sourceLabel = source => ({local:'LOCAL',google:'DRIVE',onedrive:'ONEDRIVE',url:'URL'}[source] || source.toUpperCase());
     const filenameMetadata = library.parseFilenameMetadata;
+    let filterOptionsSignature = '', trackMetadataRevision = 0;
     function updateMetadataFilters() {
+      const signature = `${state.tracks.length}:${trackMetadataRevision}`;
+      if (signature === filterOptionsSignature) return;
+      filterOptionsSignature = signature;
       for (const [elementId, field, selected, defaultLabel, fallback] of [['artist-filter','artist',state.artist,'Mọi nghệ sĩ',library.UNKNOWN_ARTIST],['album-filter','album',state.album,'Mọi album',library.UNKNOWN_ALBUM]]) {
         const select = $(elementId), options = library.metadataOptions(state.tracks, field, fallback);
         select.replaceChildren(new Option(defaultLabel, '*'), ...options.map(({key, label}) => new Option(label, key)));
@@ -744,6 +748,8 @@
         Object.assign(track, library.resolveTrackMetadata({}, fallback));
       }
       track.metadataLoaded = true;
+      trackMetadataRevision++;
+      filterOptionsSignature = '';
       updateMetadataFilters();
       scheduleTrackRender();
     }
@@ -1081,12 +1087,23 @@
       const candidates = [...files].filter(file => file && (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name)));
       if (!candidates.length) { toast('Không tìm thấy file âm thanh được hỗ trợ.'); return; }
       const existing = new Map(state.tracks.filter(track => track.source === 'local').map(track => [`${track.relativePath || track.name || track.title}-${track.size}`, track]));
-      const additions = [];
+      const additions = [], pending = [];
       for (const file of candidates) {
         const key = localFileKey(file);
         if (existing.has(key)) { const current = existing.get(key); if (current && (file.name.toLowerCase().endsWith('.dsf') || file.name.toLowerCase().endsWith('.dff'))) current.file = file; continue; }
-        const track = await makeLocalTrack(file); track.name = file.name; track.relativePath = file.relativePath || file.webkitRelativePath || file.name; additions.push(track); existing.set(key, track);
+        existing.set(key, null); pending.push({file,key});
       }
+      let nextFile = 0;
+      const localConcurrency = Math.min(4, pending.length);
+      const workers = Array.from({length:localConcurrency}, async () => {
+        while (nextFile < pending.length) {
+          const {file,key} = pending[nextFile++];
+          const track = await makeLocalTrack(file);
+          track.name = file.name; track.relativePath = file.relativePath || file.webkitRelativePath || file.name;
+          additions.push(track); existing.set(key, track);
+        }
+      });
+      await Promise.all(workers);
       state.tracks.push(...additions);
       renderTracks();
       toast(`Đã thêm ${additions.length} bài hát${additions.length ? '' : ' mới'}.`);
@@ -1210,6 +1227,7 @@
       renderRecentTracks();
       $('all-count').textContent = state.tracks.length;
       const result = renderCollectionCards(shown);
+      updateCurrentTrackIndicator();
       if (state.activeView === 'history') result.showRows = true;
       if (result.showRows) {
         const scope = state.activeView === 'history' ? state.recentHistory.map(entry => state.tracks.find(track => library.historyTrackKey(track) === entry.trackKey)).filter(Boolean) : state.trackScope ? shown.filter(track => state.trackScope.includes(track.id)) : shown;
@@ -1305,19 +1323,25 @@
       state.directAnalyser.connect(state.context.destination);
       state.deckA = attachAudioElement(audio); state.deckB = attachAudioElement(standbyAudio); state.activeDeck = state.deckA;
       rebuildAudioRoutes();
+      document.addEventListener('visibilitychange', () => { if (document.hidden || audio.paused) setVisualizerRunning(false); else setVisualizerRunning(true); });
+    }
+    let visualizerFrame = 0, visualizerGeneration = 0;
+    function setVisualizerRunning(running) {
+      visualizerGeneration++;
+      if (!running) { if (visualizerFrame) cancelAnimationFrame(visualizerFrame); visualizerFrame = 0; return; }
+      const generation = visualizerGeneration, canvas = $('visualizer'), context = canvas.getContext('2d');
+      const ratio = window.devicePixelRatio || 1, width = canvas.clientWidth, height = canvas.clientHeight;
+      if (!width || !height) return;
+      if (canvas.width !== width * ratio || canvas.height !== height * ratio) { canvas.width = width * ratio; canvas.height = height * ratio; }
+      context.setTransform(ratio,0,0,ratio,0,0);
+      const analyser = state.activeAnalyser || state.analyser, data = new Uint8Array(analyser.frequencyBinCount), bars = 32, gap = 2;
+      const barWidth = (width - gap * (bars - 1)) / bars;
       const draw = () => {
-        requestAnimationFrame(draw);
-        const canvas = $('visualizer'), ctx = canvas.getContext('2d');
-        const ratio = window.devicePixelRatio || 1, width = canvas.clientWidth, height = canvas.clientHeight;
-        if (!width || !height) return;
-        if (canvas.width !== width * ratio || canvas.height !== height * ratio) { canvas.width = width * ratio; canvas.height = height * ratio; }
-        ctx.setTransform(ratio,0,0,ratio,0,0); ctx.clearRect(0,0,width,height);
-        const analyser = state.activeAnalyser || state.analyser;
-        const data = new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(data);
-        const bars = 32, gap = 2, barWidth = (width - gap * (bars - 1)) / bars;
-        for (let i = 0; i < bars; i++) { const value = data[Math.floor(i * data.length / bars)] / 255; const barHeight = Math.max(2, value * height); ctx.fillStyle = `rgba(167,139,250,${.35 + value * .65})`; ctx.beginPath(); ctx.roundRect(i * (barWidth + gap), (height - barHeight) / 2, barWidth, barHeight, 2); ctx.fill(); }
+        if (generation !== visualizerGeneration || document.hidden || audio.paused || !audio.src) { visualizerFrame = 0; return; }
+        visualizerFrame = requestAnimationFrame(draw); analyser.getByteFrequencyData(data); context.clearRect(0,0,width,height);
+        for (let i = 0; i < bars; i++) { const value = data[Math.floor(i * data.length / bars)] / 255, barHeight = Math.max(2, value * height); context.fillStyle = `rgba(167,139,250,${.35 + value * .65})`; context.beginPath(); context.roundRect(i * (barWidth + gap), (height - barHeight) / 2, barWidth, barHeight, 2); context.fill(); }
       };
-      draw();
+      if (!visualizerFrame) visualizerFrame = requestAnimationFrame(draw);
     }
     function setGain(value) {
       const linear = Number(value) / 100, volume = linear === 0 ? 0 : Math.pow(10, (-60 + linear * 60) / 20);
@@ -1341,8 +1365,12 @@
         navigator.mediaSession.playbackState = audio && !audio.paused ? 'playing' : 'paused';
       } catch (error) { console.warn('Could not update media session:', error); }
     }
-    function updatePositionState() {
+    let lastPositionStateSecond = -1;
+    function updatePositionState(force = false) {
       if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
+      const positionSecond = Math.floor(audio.currentTime || 0);
+      if (!force && positionSecond === lastPositionStateSecond) return;
+      lastPositionStateSecond = positionSecond;
       try {
         if (Number.isFinite(audio.duration) && audio.duration > 0) {
           navigator.mediaSession.setPositionState({duration: audio.duration, playbackRate: audio.playbackRate || 1, position: Math.min(audio.currentTime || 0, audio.duration)});
@@ -1353,6 +1381,13 @@
     function scheduleTrackRender() {
       clearTimeout(trackRenderTimer);
       trackRenderTimer = setTimeout(() => { trackRenderTimer = null; renderTracks(); }, 180);
+    }
+    let previousTrackRow = null;
+    function updateCurrentTrackIndicator() {
+      if (previousTrackRow) previousTrackRow.classList.remove('active');
+      const current = $('track-list').querySelector(`[data-track-id="${CSS.escape(String(state.currentId || ''))}"]`);
+      if (current) current.classList.add('active');
+      previousTrackRow = current;
     }
     function displayTrack(track) {
       state.currentId = track.id;
@@ -1378,7 +1413,7 @@
       $('current-time').textContent = '0:00'; $('current-time-mobile').textContent = '0:00'; $('duration').textContent = formatTime(track.duration); $('duration-mobile').textContent = formatTime(track.duration);
       $('seek').value = '0'; $('seek-mobile').value = '0'; paintSeek($('seek'), 0); paintSeek($('seek-mobile'), 0);
       scheduleTrackRender(); renderRecentTracks();
-      if (state.activeView === 'home') renderTracks();
+      updateCurrentTrackIndicator();
     }
     function renderQueueCurrent(track = trackById(state.currentId)) {
       const title = $('queue-current-title'), artist = $('queue-current-artist'), cover = $('queue-current-cover');
@@ -1399,17 +1434,42 @@
       list.querySelectorAll('[data-queue-move]').forEach(button => button.addEventListener('click', () => moveQueueTrack(button.closest('[data-queue-row]').dataset.queueRow, button.dataset.queueMove === 'up' ? -1 : 1)));
       renderQueueCurrent();
     }
+    function refreshQueueRows() {
+      renderQueue();
+      for (const row of $('track-list').querySelectorAll('[data-track-id]')) {
+        const isQueued = state.queueTrackIds.includes(row.dataset.trackId) && row.dataset.trackId !== state.currentId;
+        let control = row.querySelector('[data-queue-action]');
+        if (isQueued && control) {
+          const indicator = document.createElement('span'); indicator.className = 'w-4 text-center text-xs text-violet-300'; indicator.title = 'Đã có trong Phát tiếp theo'; indicator.textContent = '☷'; control.replaceWith(indicator);
+        } else if (!isQueued && !control) {
+          control = document.createElement('button'); control.type = 'button'; control.dataset.queueAction = 'add'; control.dataset.trackId = row.dataset.trackId; control.className = 'w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100'; control.title = 'Phát tiếp theo'; control.textContent = '＋'; row.lastElementChild.append(control);
+        }
+      }
+    }
+    function refreshQueueRows() {
+      renderQueue();
+      $('track-list').querySelectorAll('[data-track-id]').forEach(row => {
+        const queued = state.queueTrackIds.includes(row.dataset.trackId) && row.dataset.trackId !== state.currentId;
+        const addButton = row.querySelector('[data-queue-action="add"]');
+        const indicator = row.querySelector('[data-queue-indicator]');
+        if (queued && addButton) {
+          const status = document.createElement('span'); status.dataset.queueIndicator = 'true'; status.className = 'w-4 text-center text-xs text-violet-300'; status.title = 'Đã có trong Phát tiếp theo'; status.textContent = '☷'; addButton.replaceWith(status);
+        } else if (!queued && indicator) {
+          const button = document.createElement('button'); button.type = 'button'; button.dataset.queueAction = 'add'; button.dataset.trackId = row.dataset.trackId; button.className = 'w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100'; button.title = 'Phát tiếp theo'; button.textContent = '＋'; indicator.replaceWith(button);
+        }
+      });
+    }
     function addToQueue(trackId) {
       const track = trackById(trackId);
       if (!track || track.id === state.currentId) return;
       state.queueTrackIds = state.queueTrackIds.filter(item => item !== trackId);
       state.queueTrackIds.push(trackId);
-      renderQueue(); renderTracks(); toast(`Đã thêm “${library.trackMetadata(track).title}” vào Phát tiếp theo.`);
+      refreshQueueRows(); toast(`Đã thêm “${library.trackMetadata(track).title}” vào Phát tiếp theo.`);
       if (state.currentId && audio.src) preloadNext(true);
     }
     function removeFromQueue(trackId) {
       state.queueTrackIds = state.queueTrackIds.filter(item => item !== trackId);
-      renderQueue(); renderTracks();
+      refreshQueueRows();
       if (state.currentId && audio.src) preloadNext(true);
     }
     function moveQueueTrack(trackId, direction) {
@@ -2145,14 +2205,19 @@
       input.addEventListener('change', () => { if (Number.isFinite(audio.duration)) audio.currentTime = Number(input.value) / 1000 * audio.duration; state.isSeeking = false; updatePositionState(); });
     });
     [$('volume'), $('volume-mobile')].forEach(input => input.addEventListener('input', () => setGain(input.value)));
+    let lastDisplayedPlaybackSecond = -1;
     function attachDeckEvents(element) {
       element.addEventListener('timeupdate', () => {
         if (element !== audio) return;
+        const playbackSecond = Math.floor(element.currentTime || 0);
+        if (playbackSecond !== lastDisplayedPlaybackSecond) {
+          lastDisplayedPlaybackSecond = playbackSecond;
+          const time = formatTime(element.currentTime);
+          $('current-time').textContent = time; $('current-time-mobile').textContent = time; $('room-current-time').textContent = time;
+          if (Number.isFinite(element.duration)) $('room-duration').textContent = formatTime(element.duration);
+        }
         if (!state.isSeeking && Number.isFinite(element.duration)) syncSeek(Math.round(element.currentTime / element.duration * 1000));
-        $('current-time').textContent = formatTime(element.currentTime); $('current-time-mobile').textContent = formatTime(element.currentTime);
         if (!$('room-seek').matches(':active')) { const roomPosition = Number.isFinite(element.duration) && element.duration ? Math.round(element.currentTime / element.duration * 1000) : 0; $('room-seek').value = String(roomPosition); paintSeek($('room-seek'), roomPosition); }
-        $('room-current-time').textContent = formatTime(element.currentTime);
-        if (Number.isFinite(element.duration)) $('room-duration').textContent = formatTime(element.duration);
         updatePositionState();
         if (Number.isFinite(element.duration) && element.duration - element.currentTime <= 12 && (!standbyAudio.src || standbyAudio.src !== state.preloadReadyUrl)) preloadNext();
       });
@@ -2163,6 +2228,7 @@
       });
       element.addEventListener('loadedmetadata', () => {
         if (element !== audio) return;
+        lastDisplayedPlaybackSecond = -1; lastPositionStateSecond = -1;
         $('duration').textContent = formatTime(element.duration); $('duration-mobile').textContent = formatTime(element.duration); $('room-duration').textContent = formatTime(element.duration);
         const track = state.tracks.find(item => item.id === state.currentId);
         if (track) { track.duration = element.duration; updateMetadataFilters(); scheduleTrackRender(); }
@@ -2170,6 +2236,7 @@
       });
       element.addEventListener('play', () => {
         if (element !== audio) return;
+        setVisualizerRunning(true);
         $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ';
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'playing'; } catch (error) {} }
         updatePositionState();
@@ -2179,6 +2246,7 @@
         if (element !== audio) return;
         $('play-button').textContent = '▶'; $('room-play').textContent = '▶';
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'paused'; } catch (error) {} }
+        setVisualizerRunning(false);
       });
       element.addEventListener('ended', () => { if (element === audio) playNext(1, true); });
       element.addEventListener('error', () => { if (element === standbyAudio) { state.preloadTrackId = null; state.preloadReadyUrl = null; console.warn('Next track preload failed.'); } });

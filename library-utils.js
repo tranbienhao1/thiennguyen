@@ -117,12 +117,37 @@
     return blob;
   }
 
+  const TRACK_METADATA_CACHE = new WeakMap();
+  const NORMALIZED_METADATA_CACHE = new WeakMap();
+
   function trackMetadata(track) {
-    return {
-      title:cleanMetadataValue(track && track.title, 'Bài hát không tên'),
-      artist:primaryArtistName(track && track.artist),
-      album:primaryAlbumName(track && track.album)
+    if (!track || typeof track !== 'object') {
+      return {title:cleanMetadataValue(track && track.title, 'Bài hát không tên'), artist:primaryArtistName(track && track.artist), album:primaryAlbumName(track && track.album)};
+    }
+    const cached = TRACK_METADATA_CACHE.get(track);
+    if (cached && cached.titleSource === track.title && cached.artistSource === track.artist && cached.albumSource === track.album) return cached.value;
+    const value = {
+      title:cleanMetadataValue(track.title, 'Bài hát không tên'),
+      artist:primaryArtistName(track.artist),
+      album:primaryAlbumName(track.album)
     };
+    TRACK_METADATA_CACHE.set(track, {titleSource:track.title, artistSource:track.artist, albumSource:track.album, value});
+    NORMALIZED_METADATA_CACHE.delete(track);
+    return value;
+  }
+
+  function normalizedTrackMetadata(track) {
+    const metadata = trackMetadata(track);
+    const cached = NORMALIZED_METADATA_CACHE.get(track);
+    if (cached && cached.metadata === metadata) return cached.value;
+    const value = {
+      title:metadataKey(metadata.title),
+      artist:metadataKey(metadata.artist),
+      album:metadataKey(metadata.album),
+      search:metadataKey(`${metadata.title} ${metadata.artist} ${metadata.album}`)
+    };
+    NORMALIZED_METADATA_CACHE.set(track, {metadata, value});
+    return value;
   }
 
   function historyTrackKey(track) {
@@ -165,18 +190,18 @@
     const artistKey = metadataKey(filters.artist);
     const albumSelection = String(filters.album || '');
     const [selectedAlbumKey, selectedAlbumArtistKey] = albumSelection.includes('\t') ? albumSelection.split('\t', 2) : [metadataKey(albumSelection), ''];
+    const hasSource = !!filters.source && filters.source !== 'all';
+    const hasArtist = !!filters.artist && filters.artist !== '*';
+    const hasAlbum = !!filters.album && filters.album !== '*';
+    const hasFavorites = !!filters.favoritesOnly;
     return tracks.filter(track => {
-      const metadata = trackMetadata(track);
-      const trackAlbumKey = metadataKey(metadata.album);
-      const trackArtistKey = metadataKey(metadata.artist);
-      const albumMatches = !filters.album || filters.album === '*' || (selectedAlbumArtistKey
-        ? trackAlbumKey === selectedAlbumKey && trackArtistKey === selectedAlbumArtistKey
-        : trackAlbumKey === selectedAlbumKey);
-      return (!filters.source || filters.source === 'all' || track.source === filters.source) &&
-        (!filters.artist || filters.artist === '*' || trackArtistKey === artistKey) &&
-        albumMatches &&
-        (!filters.favoritesOnly || filters.isFavorite && filters.isFavorite(track)) &&
-        (!query || metadataKey(`${metadata.title} ${metadata.artist} ${metadata.album}`).includes(query));
+      if (hasSource && track.source !== filters.source) return false;
+      if (hasFavorites && (!filters.isFavorite || !filters.isFavorite(track))) return false;
+      if (!hasArtist && !hasAlbum && !query) return true;
+      const normalized = normalizedTrackMetadata(track);
+      if (hasArtist && normalized.artist !== artistKey) return false;
+      if (hasAlbum && (normalized.album !== selectedAlbumKey || (selectedAlbumArtistKey && normalized.artist !== selectedAlbumArtistKey))) return false;
+      return !query || normalized.search.includes(query);
     });
   }
 
