@@ -7,9 +7,19 @@ const path = require('node:path');
 
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const libraryCode = fs.readFileSync(path.join(__dirname, 'library-utils.js'), 'utf8');
+const metadataCode = fs.readFileSync(path.join(__dirname, 'metadata-utils.js'), 'utf8');
+const metadataUiCode = fs.readFileSync(path.join(__dirname, 'metadata-ui.js'), 'utf8');
+new vm.Script(metadataCode, {filename:'metadata-utils.js'});
+new vm.Script(metadataUiCode, {filename:'metadata-ui.js'});
 const inlineScripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
   .map(match => match[1].trim()).filter(Boolean);
 assert.ok(inlineScripts.length > 0, 'index.html should contain the app script');
+assert.match(html, /<script src="metadata-utils\.js"><\/script>/, 'Music metadata lookup module should load before the app');
+assert.match(html, /<script src="metadata-ui\.js"><\/script>/, 'Metadata detail UI module should load before the app');
+assert.match(html, /id="metadata-modal"[^>]*role="dialog"/, 'Metadata lookup should provide an accessible dialog');
+for (const id of ['metadata-title','metadata-subtitle','metadata-query','metadata-search-button','metadata-results','metadata-detail','metadata-status','metadata-close','metadata-back']) assert.match(html, new RegExp(`id="${id}"`), `Metadata dialog should include ${id}`);
+for (const kind of ['track','album','artist']) assert.match(html, new RegExp(`data-metadata-kind="${kind}"`), `${kind} lookup tab should exist`);
+assert.match(html, /data-metadata-action="open"/, 'Track rows should offer direct metadata lookup');
 for (const [index, script] of inlineScripts.entries()) new vm.Script(script, {filename: `index.inline.${index}.js`});
 const appCode = inlineScripts.join('\n');
 const ids = [...html.matchAll(/\bid=["']([^"']+)["']/gi)].map(match => match[1]).filter(id => !id.includes('${'));
@@ -213,4 +223,8 @@ const repeatAtEnd = exercisePlayNext({auto:true, repeat:2});
 assert.equal(repeatAtEnd.currentTime, 0, 'Natural ending in repeat-one mode should restart the current track');
 assert.equal(repeatAtEnd.play, 1, 'Repeat-one should resume playback at the beginning');
 assert.deepEqual(exercisePlayNext({auto:true, autoplay:false, repeat:2, queued:[{id:'queued'}]}).played, ['queued'], 'Explicit queue should take precedence over repeat-one and autoplay settings');
+assert.ok(appCode.includes('metadataUI.open(trackById(button.dataset.metadataTrackId))'), 'Track metadata button should open details without starting playback');
+assert.ok(metadataUiCode.includes('client.wikipediaSummary'), 'Artist details should load a verified Wikipedia biography when available');
+assert.ok(metadataUiCode.includes('client.coverArt'), 'Album details should retrieve Cover Art Archive artwork');
+assert.ok(metadataUiCode.includes('data-metadata-follow'), 'Artist credits should link to related artist details');
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');
