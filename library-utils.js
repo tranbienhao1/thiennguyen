@@ -20,13 +20,29 @@
     return normalize(value).replace(/^(?:(?:cd|disc|disk)\s*\d+\s*[-_. ]+)?\d{1,3}\s*[-–—._]\s*/i, '').trim();
   }
 
+  function firstMetadataValue(...values) {
+    for (const value of values) {
+      const candidate = Array.isArray(value) ? value[0] : value && typeof value === 'object' ? value.text || value.value || value.name || value.no || value.number : value;
+      const cleaned = cleanMetadataValue(candidate, '');
+      if (cleaned) return cleaned;
+    }
+    return '';
+  }
+
+  function stripMatchingTrackNumber(value, trackNumber) {
+    const candidate = Array.isArray(trackNumber) ? trackNumber[0] : trackNumber && typeof trackNumber === 'object' ? trackNumber.text || trackNumber.value || trackNumber.no || trackNumber.number : trackNumber;
+    const number = String(candidate ?? '').match(/\d+/)?.[0];
+    if (!number) return normalize(value);
+    return normalize(value).replace(/^(\d{1,3})(?=\s|[-–—._])(?:\s*[-–—._]\s*|\s+)/, (prefix, digits) => Number(digits) === Number(number) ? '' : prefix);
+  }
+
   function stripLeadingTrackNumber(value) {
     const text = normalize(value).replace(/^0\d{1,2}(?:\s+|[-_.\s]\s*)/, '');
     return stripTrackPrefix(text);
   }
 
-  function primaryArtistName(value, fallback = UNKNOWN_ARTIST) {
-    let text = stripLeadingTrackNumber(value);
+  function primaryArtistName(value, fallback = UNKNOWN_ARTIST, trackNumber = '') {
+    let text = stripLeadingTrackNumber(stripMatchingTrackNumber(value, trackNumber));
     if (!text) return fallback;
     text = text.replace(/\s*[[(]\s*(?:feat\.?|ft\.?|featuring)\b[^)\]]*[)\]]/i, '').trim();
     const collaboration = text.search(/\s+(?:feat\.?|ft\.?|featuring|with|vs\.?)\s+/i);
@@ -44,28 +60,29 @@
     return cleanMetadataValue(stripLeadingTrackNumber(value), fallback);
   }
 
-  function parseFilenameMetadata(filename) {
+  function parseFilenameMetadata(filename, trackNumber = '') {
     const pathParts = normalize(filename).replace(/\\/g, '/').split('/').filter(Boolean);
     const originalName = pathParts.pop() || '';
-    const baseName = stripTrackPrefix(originalName.replace(/\.[^.]+$/, ''));
+    const rawBaseName = originalName.replace(/\.[^.]+$/, '');
+    const numberedBaseName = stripMatchingTrackNumber(rawBaseName, trackNumber);
+    const baseName = numberedBaseName === rawBaseName ? stripTrackPrefix(rawBaseName) : numberedBaseName;
     const parts = baseName.split(/\s+[–—-]\s+/).map(stripTrackPrefix).filter(Boolean);
+    const metadataFolders = pathParts.filter(part => !/^(?:cd|disc|disk)\s*\d+$/i.test(normalize(part)));
+    const folderArtist = metadataFolders.length >= 2 ? primaryArtistName(metadataFolders[metadataFolders.length - 2], '') : '';
+    const folderAlbum = metadataFolders.length >= 2 ? primaryAlbumName(metadataFolders[metadataFolders.length - 1], '') : '';
     if (parts.length >= 2) {
       const title = cleanMetadataValue(parts[parts.length - 1], 'Bài hát không tên');
       return {
         title,
-        artist:primaryArtistName(parts[0]),
-        album:parts.length > 2 ? primaryAlbumName(parts.slice(1, -1).join(' - ')) : UNKNOWN_ALBUM
+        artist:primaryArtistName(parts[0], folderArtist || UNKNOWN_ARTIST),
+        album:parts.length > 2 ? primaryAlbumName(parts.slice(1, -1).join(' - '), folderAlbum || UNKNOWN_ALBUM) : (folderAlbum || UNKNOWN_ALBUM)
       };
     }
-    const metadataFolders = pathParts.filter(part => !/^(?:cd|disc|disk)\s*\d+$/i.test(normalize(part)));
-    if (metadataFolders.length >= 2) {
-      return {
-        title:cleanMetadataValue(baseName, 'Bài hát không tên'),
-        artist:primaryArtistName(metadataFolders[metadataFolders.length - 2]),
-        album:primaryAlbumName(metadataFolders[metadataFolders.length - 1])
-      };
-    }
-    return {title:cleanMetadataValue(baseName, 'Bài hát không tên'), artist:UNKNOWN_ARTIST, album:UNKNOWN_ALBUM};
+    return {
+      title:cleanMetadataValue(baseName, 'Bài hát không tên'),
+      artist:folderArtist || UNKNOWN_ARTIST,
+      album:folderAlbum || UNKNOWN_ALBUM
+    };
   }
 
   function resolveTrackMetadata(tags = {}, fallback = {}) {
@@ -74,10 +91,16 @@
       artist:primaryArtistName(fallback.artist),
       album:primaryAlbumName(fallback.album)
     };
+    const trackNumber = firstMetadataValue(tags.track, tags.tracknumber, tags.trackNumber, tags.TRACKNUMBER, tags.TRCK);
+    const title = firstMetadataValue(tags.title, tags.titles, tags.TITLE, tags.TIT2);
+    const artist = firstMetadataValue(tags.artist, tags.artists, tags.artistName, tags.artist_name, tags.ARTIST, tags.TPE1);
+    const albumArtist = firstMetadataValue(tags.albumartist, tags.albumArtist, tags.album_artist, tags.album_artist_name, tags.ALBUMARTIST, tags.TPE2);
+    const albumTag = tags.album ?? tags.albums ?? tags.ALBUM ?? tags.TALB;
+    const album = Array.isArray(albumTag) ? albumTag[0] : albumTag && typeof albumTag === 'object' ? albumTag.text || albumTag.value || albumTag.name : albumTag;
     return {
-      title:cleanMetadataValue(tags.title, fallbackMetadata.title),
-      artist:primaryArtistName(tags.artist, fallbackMetadata.artist),
-      album:primaryAlbumName(tags.album, fallbackMetadata.album)
+      title:cleanMetadataValue(stripMatchingTrackNumber(title, trackNumber), fallbackMetadata.title),
+      artist:primaryArtistName(artist, primaryArtistName(albumArtist, fallbackMetadata.artist, trackNumber), trackNumber),
+      album:primaryAlbumName(album, fallbackMetadata.album)
     };
   }
 

@@ -733,10 +733,12 @@
       });
     }
     async function loadCloudMetadata(track, blob) {
-      const fallback = filenameMetadata(track.name || `${track.title}.${String(track.format || '').toLowerCase()}`);
+      const filename = track.name || `${track.title}.${String(track.format || '').toLowerCase()}`;
+      let fallback = filenameMetadata(filename);
       try {
-        const file = new File([blob], track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, {type:blob.type || 'application/octet-stream'});
+        const file = new File([blob], filename, {type:blob.type || 'application/octet-stream'});
         const [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
+        fallback = filenameMetadata(filename, tags.track || tags.tracknumber || tags.trackNumber);
         Object.assign(track, library.resolveTrackMetadata(tags, fallback));
         track.cover = await normalizeCoverImage(tags.cover);
         track.sampleRate = technical.sampleRate;
@@ -1067,13 +1069,20 @@
             for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
             cover = `data:${picture.format || 'image/jpeg'};base64,${btoa(binary)}`;
           }
-          resolve({ title: tags.title, artist: tags.artist, album: tags.album, cover });
+          resolve({
+            title: tags.title,
+            artist: tags.artist,
+            album: tags.album,
+            albumArtist: tags.albumartist || tags.albumArtist || tags.album_artist,
+            track: tags.track || tags.tracknumber || tags.trackNumber,
+            cover
+          });
         }, onError: () => resolve({}) });
       });
     }
     async function makeLocalTrack(file) {
       const [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
-      const fallback = filenameMetadata(file.relativePath || file.webkitRelativePath || file.name);
+      const fallback = filenameMetadata(file.relativePath || file.webkitRelativePath || file.name, tags.track || tags.tracknumber || tags.trackNumber);
       const metadata = library.resolveTrackMetadata(tags, fallback);
       const format = file.name.split('.').pop().toUpperCase();
       const isDsd = format === 'DSF' || format === 'DFF';
