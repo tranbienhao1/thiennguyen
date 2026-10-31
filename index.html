@@ -552,7 +552,9 @@
   <script src="library-utils.js"></script>
   <script src="metadata-utils.js"></script>
   <script src="metadata-ui.js"></script>
+  <script src="cloud-metadata.js"></script>
   <script>
+    const cloudMetadata = window.NocturneCloudMetadata;
 (() => {
     'use strict';
     const library = window.NocturneLibrary;
@@ -577,7 +579,7 @@
       return null;
     };
     const CLOUD_CATALOG_STORE = 'cloudCatalog';
-    const CLOUD_CATALOG_VERSION = 2;
+    const CLOUD_CATALOG_VERSION = 3;
     let cloudRestorePromise = null;
     let cloudSyncPromise = null;
     const cloudStatus = (provider, message, tone = 'text-zinc-500') => {
@@ -588,12 +590,148 @@
     const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', name:track.name, title:track.title, artist:track.artist, album:track.album, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:track.cover || null, metadataLoaded:!!track.metadataLoaded});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
-      return {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
+      return {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', thumbnailUrl:file.thumbnailLink || '', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
     };
-    const microsoftTrack = (item, remotePath = '') => {
-      const format = audioFormat(item), metadata = filenameMetadata(item.name || '');
-      return {id:`onedrive:${item.id}`, remoteId:item.id, remotePath, name:item.name || `Audio ${item.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(item.size) || 0, source:'onedrive', url:'', isDsd:isDsdFormat(format), load:() => loadMicrosoftAudio(item.id)};
+    const microsoftTrack = (item, remotePath = '', existing = null) => {
+      const format = audioFormat(item), fallback = existing || filenameMetadata(item.name || '');
+      const thumbnailSets = item.thumbnails && (item.thumbnails.value || item.thumbnails);
+      const thumbnailSet = Array.isArray(thumbnailSets) ? thumbnailSets[0] : null;
+      const thumbnail = thumbnailSet && (thumbnailSet.large || thumbnailSet.medium || thumbnailSet.small);
+      const graphMetadataLoaded = !!item.audio && (!!item.audio.title || !!item.audio.artist || !!item.audio.album);
+      const graphMetadata = library.resolveTrackMetadata({
+        title:item.audio && item.audio.title,
+        artist:item.audio && item.audio.artist,
+        album:item.audio && item.audio.album,
+        albumArtist:item.audio && item.audio.albumArtist
+      }, fallback);
+      return {id:`onedrive:${item.id}`, remoteId:item.id, remotePath, name:item.name || `Audio ${item.id}`, ...graphMetadata, format, size:Number(item.size) || 0, source:'onedrive', url:'', thumbnailUrl:thumbnail && thumbnail.url || '', downloadUrl:item['@microsoft.graph.downloadUrl'] || '', duration:Number(item.audio && item.audio.duration) / 1000 || 0, isDsd:isDsdFormat(format), metadataLoaded:graphMetadataLoaded, load:() => loadMicrosoftAudio(item.id)};
     };
+    function mergeMicrosoftTrack(track, item, remotePath = '') {
+      const currentUrl = track.url, currentFile = track.file;
+      const enriched = microsoftTrack(item, remotePath || track.remotePath, {title:track.title, artist:track.artist, album:track.album});
+      Object.assign(track, enriched);
+      track.url = currentUrl || '';
+      if (currentFile) track.file = currentFile;
+      track.load = () => loadMicrosoftAudio(track.remoteId);
+      return track;
+    }
+    let cloudMetadataQueue = [], cloudMetadataActive = 0;
+    const CLOUD_METADATA_CONCURRENCY = 3;
+    const cloudMetadataQueued = new WeakSet();
+    function queueCloudMetadata(tracks) {
+      for (const track of tracks) {
+        if (!track || !['google','onedrive'].includes(track.source) || (track.metadataLoaded && track.cover) || cloudMetadataQueued.has(track)) continue;
+        if (track.source === 'google' && (!state.googleToken || Date.now() >= state.googleExpiresAt - 60000)) continue;
+        if (track.source === 'onedrive' && !state.microsoftAccessToken) continue;
+        cloudMetadataQueued.add(track);
+        cloudMetadataQueue.push(track);
+      }
+      runCloudMetadataQueue();
+    }
+    function runCloudMetadataQueue() {
+      while (cloudMetadataActive < CLOUD_METADATA_CONCURRENCY && cloudMetadataQueue.length) {
+        const track = cloudMetadataQueue.shift();
+        if (!track) continue;
+        if ((track.metadataLoaded && track.cover) || (track.metadataRetryAt && Date.now() < track.metadataRetryAt)) { cloudMetadataQueued.delete(track); continue; }
+        track.metadataRetryAt = Date.now() + 60 * 60 * 1000;
+        cloudMetadataActive++;
+        track.metadataRequest = enrichCloudTrack(track).catch(error => console.debug('Cloud metadata enrichment was skipped:', error.message || error)).finally(() => {
+          track.metadataRequest = null;
+          cloudMetadataQueued.delete(track);
+          cloudMetadataActive--;
+          runCloudMetadataQueue();
+        });
+      }
+    }
+    async function cloudTagRequest(track) {
+      if (track.source === 'google') {
+        const token = await ensureGoogleToken();
+        const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.remoteId)}?alt=media`;
+        return cloudMetadata.readRemoteTags(window.jsmediatags, {url, size:track.size}, {headers:{Authorization:`Bearer ${token}`}});
+      }
+      const token = state.microsoftAccessToken || await getMicrosoftToken(false);
+      const item = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}`, token);
+      const url = item['@microsoft.graph.downloadUrl'];
+      if (!url) throw new Error('OneDrive did not provide its temporary download URL for range-based tag reading.');
+      return cloudMetadata.readRemoteTags(window.jsmediatags, {url, size:track.size});
+    }
+    async function googleThumbnail(track) {
+      let thumbnailUrl = track.thumbnailUrl;
+      const token = await ensureGoogleToken();
+      if (thumbnailUrl && track.thumbnailRetryAt && Date.now() >= track.thumbnailRetryAt) thumbnailUrl = '';
+      if (!thumbnailUrl) {
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.remoteId)}?fields=thumbnailLink`, {headers:{Authorization:`Bearer ${token}`}});
+        if (!response.ok) throw new Error(`Google Drive thumbnail metadata HTTP ${response.status}`);
+        thumbnailUrl = (await response.json()).thumbnailLink || '';
+        track.thumbnailUrl = thumbnailUrl;
+      }
+      if (!thumbnailUrl) return null;
+      const response = await fetch(thumbnailUrl, {credentials:'omit', referrerPolicy:'no-referrer'});
+      if (!response.ok) throw new Error(`Google Drive thumbnail HTTP ${response.status}`);
+      return cloudImageDataUrl(await response.blob());
+    }
+    async function cloudImageDataUrl(blob) {
+      if (!blob || !blob.size || blob.size > 5 * 1024 * 1024 || !String(blob.type || '').toLowerCase().startsWith('image/')) return null;
+      return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    }
+    async function microsoftThumbnail(track) {
+      let thumbnailUrl = track.thumbnailUrl;
+      if (!thumbnailUrl) {
+        const response = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/thumbnails?$select=small,medium,large`);
+        const thumbnailSet = response.value && response.value[0];
+        const thumbnail = thumbnailSet && (thumbnailSet.large || thumbnailSet.medium || thumbnailSet.small);
+        thumbnailUrl = thumbnail && thumbnail.url;
+      }
+      if (!thumbnailUrl || (track.thumbnailRetryAt && Date.now() < track.thumbnailRetryAt)) return null;
+      const response = await fetch(thumbnailUrl, {credentials:'omit', referrerPolicy:'no-referrer'});
+      if (!response.ok) throw new Error(`OneDrive thumbnail HTTP ${response.status}`);
+      return cloudImageDataUrl(await response.blob());
+    }
+    async function enrichCloudTrack(track) {
+      const [tagResult, imageResult] = await Promise.allSettled([
+        cloudTagRequest(track),
+        track.source === 'onedrive' ? microsoftThumbnail(track) : googleThumbnail(track)
+      ]);
+      let changed = false;
+      if (tagResult.status === 'fulfilled') {
+        const tags = tagResult.value || {};
+        const picture = tags.picture;
+        let cover = null;
+        if (picture && picture.data) {
+          const bytes = new Uint8Array(picture.data);
+          let binary = '';
+          for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+          cover = `data:${picture.format || 'image/jpeg'};base64,${btoa(binary)}`;
+        }
+        const metadata = library.resolveTrackMetadata(tags, {title:track.title, artist:track.artist, album:track.album});
+        Object.assign(track, metadata);
+        if (cover) track.cover = await normalizeCoverImage(cover);
+        else if (track.cover === undefined) track.cover = null;
+        track.metadataLoaded = true;
+        changed = true;
+      }
+      if (!track.cover && imageResult.status === 'fulfilled' && imageResult.value) { track.cover = await normalizeCoverImage(imageResult.value); changed = true; }
+      if (changed) {
+        trackMetadataRevision++;
+        filterOptionsSignature = '';
+        updateMetadataFilters();
+        scheduleTrackRender();
+        await persistCloudCatalog([track]);
+      }
+      if (track.source === 'google' && !track.cover) track.thumbnailRetryAt = Date.now() + 60 * 60 * 1000;
+      if (track.source === 'onedrive' && !track.cover) track.thumbnailRetryAt = Date.now() + 60 * 60 * 1000;
+      if (tagResult.status === 'fulfilled') delete track.metadataRetryAt;
+      else if (track.source === 'onedrive' && track.metadataLoaded) track.metadataRetryAt = Date.now() + 60 * 60 * 1000;
+      if (track.source === 'onedrive' && track.downloadUrl) { track.downloadUrl = ''; }
+      if (tagResult.status === 'rejected') console.debug('Could not read cloud tags by byte range:', tagResult.reason && (tagResult.reason.message || tagResult.reason));
+      if (imageResult.status === 'rejected') console.debug('Could not fetch cloud thumbnail:', imageResult.reason && (imageResult.reason.message || imageResult.reason));
+    }
+
 
     const dsdWorkerBaseUrl = new URL('.', document.baseURI || location.href).href;
     const $ = id => document.getElementById(id);
@@ -759,6 +897,13 @@
       if (track.url && state.objectUrls.has(track.url)) return track.url;
       if (track.loadPromise) return track.loadPromise;
       track.loadPromise = (async () => {
+        if ((!track.metadataLoaded || !track.cover) && (!track.metadataRetryAt || Date.now() >= track.metadataRetryAt)) {
+          if (track.metadataRequest) await track.metadataRequest;
+          else if (track.source === 'google' ? !!state.googleToken : !!state.microsoftAccessToken) {
+            track.metadataRetryAt = Date.now() + 60 * 60 * 1000;
+            await enrichCloudTrack(track).catch(error => console.debug('Cloud tag metadata remains unavailable:', error.message || error));
+          }
+        }
         let blob;
         try { blob = await library.fetchAudioBlob(url, options, provider); }
         catch (error) {
@@ -826,12 +971,18 @@
         request.onsuccess = () => {
           const entries = request.result || [];
           let restored = 0;
+          const restoredTracks = [];
           for (const entry of entries) {
-            if (!entry || !entry.id || state.tracks.some(track => track.id === entry.id)) continue;
-            state.tracks.push({...entry, url:'', isDsd:isDsdFormat(entry.format), load:() => entry.source === 'google' ? loadGoogleAudio(entry.remoteId) : loadMicrosoftAudio(entry.remoteId)});
-            restored++;
+            if (!entry || !entry.id) continue;
+            const existing = state.tracks.find(track => track.id === entry.id);
+            if (existing) {
+              if (existing.source === 'onedrive' && !existing.metadataLoaded && !entry.metadataLoaded) { existing.title = entry.title; existing.artist = entry.artist; existing.album = entry.album; existing.duration = entry.duration; }
+              continue;
+            }
+            const track = {...entry, url:'', isDsd:isDsdFormat(entry.format), load:() => entry.source === 'google' ? loadGoogleAudio(entry.remoteId) : loadMicrosoftAudio(entry.remoteId)};
+            state.tracks.push(track); restoredTracks.push(track); restored++;
           }
-          if (restored) renderTracks();
+          if (restored) { renderTracks(); queueCloudMetadata(restoredTracks); }
           restoreRecentTracks();
           resolve(restored);
         };
@@ -1812,11 +1963,12 @@
     async function loadGoogleFiles() {
       await restoreCloudCatalog();
       let token = await ensureGoogleToken();
+      queueCloudMetadata(state.tracks.filter(track => track.source === 'google' && (!track.metadataLoaded || !track.cover)));
       let pageToken = '', added = 0, scanned = 0;
       const knownIds = new Set(state.tracks.filter(track => track.source === 'google').map(track => track.remoteId));
       try {
         do {
-          const params = new URLSearchParams({q:"trashed = false and mimeType != 'application/vnd.google-apps.folder'", fields:'nextPageToken,incompleteSearch,files(id,name,mimeType,size)', pageSize:'1000', orderBy:'name', corpora:'allDrives', supportsAllDrives:'true', includeItemsFromAllDrives:'true'});
+          const params = new URLSearchParams({q:"trashed = false and mimeType != 'application/vnd.google-apps.folder'", fields:'nextPageToken,incompleteSearch,files(id,name,mimeType,size,thumbnailLink)', pageSize:'1000', orderBy:'name', corpora:'allDrives', supportsAllDrives:'true', includeItemsFromAllDrives:'true'});
           if (pageToken) params.set('pageToken', pageToken);
           let response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {headers:{Authorization:`Bearer ${token}`}});
           if (response.status === 401) {
@@ -1836,6 +1988,7 @@
             state.tracks.push(track); pageTracks.push(track); knownIds.add(file.id); added++;
           }
           await persistCloudCatalog(pageTracks);
+          queueCloudMetadata(pageTracks);
           pageToken = data.nextPageToken || '';
           cloudStatus('google', `Đang quét Google Drive… ${scanned} mục · ${knownIds.size} bài`, 'text-sky-300');
         } while (pageToken);
@@ -1849,6 +2002,11 @@
       }
     }
     async function fetchCloudFile(track, url, options, provider) {
+      if (track.source === 'onedrive' && !track.metadataLoaded && track.metadataRequest) await track.metadataRequest;
+      if (track.source === 'onedrive' && (!track.metadataLoaded || !track.cover) && state.microsoftAccessToken && (!track.metadataRetryAt || Date.now() >= track.metadataRetryAt)) {
+        track.metadataRetryAt = Date.now() + 60 * 60 * 1000;
+        await enrichCloudTrack(track).catch(error => console.debug('Cloud metadata remains unavailable:', error.message || error));
+      }
       let blob;
       try { blob = await library.fetchAudioBlob(url, options, provider); }
       catch (error) {
@@ -1943,7 +2101,8 @@
       state.microsoftAccessToken = token;
       let added = 0, scannedFolders = 0;
       const knownIds = new Set(state.tracks.filter(track => track.source === 'onedrive').map(track => track.remoteId));
-      const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,size&$top=500', path:''}];
+      queueCloudMetadata(state.tracks.filter(track => track.source === 'onedrive' && (!track.metadataLoaded || !track.cover)));
+      const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,size,audio&$top=500', path:''}];
       try {
         while (queue.length) {
           const {url, path} = queue.shift();
@@ -1954,15 +2113,19 @@
             for (const item of data.value || []) {
               if (!item || !item.id) continue;
               const itemPath = path ? `${path}/${item.name}` : item.name;
+              if (!item.folder && knownIds.has(item.id) && item.audio) {
+                const existing = state.tracks.find(track => track.source === 'onedrive' && track.remoteId === item.id);
+                if (existing && (!existing.metadataLoaded || !existing.cover)) { mergeMicrosoftTrack(existing, item, itemPath); if (!existing.cover) queueCloudMetadata([existing]); }
+              }
               if (item.folder) {
-                queue.push({url:`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,size&$top=500`, path:itemPath});
+                queue.push({url:`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,size,audio&$top=500`, path:itemPath});
                 continue;
               }
               if (!isCloudAudio(item) || knownIds.has(item.id)) continue;
               const track = microsoftTrack(item, itemPath);
               state.tracks.push(track); pageTracks.push(track); knownIds.add(item.id); added++;
             }
-            if (pageTracks.length) { await persistCloudCatalog(pageTracks); pageTracks = []; }
+            if (pageTracks.length) { await persistCloudCatalog(pageTracks); queueCloudMetadata(pageTracks); pageTracks = []; }
             cloudStatus('microsoft', `Đang quét OneDrive… ${scannedFolders} thư mục · ${knownIds.size} bài`, 'text-sky-300');
             next = data['@odata.nextLink'] || '';
           }
@@ -1980,6 +2143,7 @@
       const token = await getMicrosoftToken(false);
       const track = state.tracks.find(item => item.remoteId === itemId && item.source === 'onedrive');
       if (!track) throw new Error('Không tìm thấy bài hát trong thư viện.');
+      track.downloadUrl = '';
       const url = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}/content`;
       if (isDsdFormat(track.format)) { await fetchCloudFile(track, url, {headers:{Authorization:`Bearer ${token}`}}, 'OneDrive'); return track.file; }
       await fetchCloudTrack(track, url, {headers:{Authorization:`Bearer ${token}`}}, 'OneDrive');
