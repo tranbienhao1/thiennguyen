@@ -2560,6 +2560,17 @@
     window.addEventListener('online', checkForAppUpdate);
   })();
   </script>
-  <!-- Bàn giao 2026-11-09 00:06 +07: Tìm kiếm không dấu — gõ "thien" tìm được "Thiên", "da lat" tìm được "Đà Lạt" — cho ô tìm kiếm, bộ lọc nghệ sĩ/album và lưới bộ sưu tập (chuẩn hoá chung qua library.normalizeSearchKey). Sửa thẻ đóng settings-modal (</div> thành </dialog>) để các panel metadata, hàng đợi, phòng nghe, hẹn giờ, EQ và thông báo không còn bị kẹt trong dialog đang đóng. Sửa lọc album ở lưới bộ sưu tập so khớp đúng khoá album-nghệ sĩ. Kiểm chứng: node --check đạt, thẻ HTML cân bằng (html5lib xác nhận các panel là con trực tiếp của body), node --test 6/6 file pass. Việc tiếp theo gợi ý: thêm service worker để dùng offline (cache app shell, network-first cho index.html). -->
+  <script>
+    // Đăng ký service worker để dùng offline: chỉ chạy trên HTTPS/localhost,
+    // lỗi đăng ký không bao giờ được làm hỏng app.
+    (function registerServiceWorker() {
+      if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(error => console.debug('Không đăng ký được service worker:', error));
+      });
+    })();
+  </script>
+  <!-- Bàn giao 2026-11-09 00:37 +07: Thêm service worker sw.js để dùng offline — precache app shell (index.html và 5 file JS), network-first với cache dự phòng khi mất mạng, không cache yêu cầu cross-origin / no-store / Range / audio để không phá bộ kiểm tra cập nhật và luồng nhạc. Đăng ký SW trong index.html chỉ trên HTTPS/localhost, lỗi đăng ký không làm hỏng app. Kiểm chứng: node --check đạt, thẻ HTML cân bằng (html5lib, các panel vẫn là con trực tiếp của body), node --test 7/7 file pass (bộ test mới sw.test.cjs chạy cục bộ: install precache 7 entry, activate xoá cache cũ, network-first, fallback offline, passthrough no-store/cross-origin/Range/POST/audio). Việc tiếp theo gợi ý: đưa sw.test.cjs vào repo rồi thêm manifest.json và icon để cài app lên màn hình chính. -->
 </body>
 </html>
