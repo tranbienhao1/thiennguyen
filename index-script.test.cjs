@@ -254,4 +254,55 @@ assert.ok(html.indexOf('</dialog>') > html.indexOf('<dialog id="settings-modal"'
 assert.ok(metadataUiCode.includes('client.wikipediaSummary'), 'Artist details should load a verified Wikipedia biography when available');
 assert.ok(metadataUiCode.includes('client.coverArt'), 'Album details should retrieve Cover Art Archive artwork');
 assert.ok(metadataUiCode.includes('data-metadata-follow'), 'Artist credits should link to related artist details');
+assert.equal((appCode.match(/function refreshQueueRows\(\)/g) || []).length, 1, 'refreshQueueRows should be defined exactly once so only one queue-indicator implementation runs');
+assert.ok(appCode.includes('data-queue-indicator="true"'), 'Queued track rows should mark their indicator so refreshQueueRows can swap it back to a play-next button');
+const refreshStart = appCode.indexOf('function refreshQueueRows() {');
+assert.ok(refreshStart >= 0, 'refreshQueueRows implementation should exist for regression checks');
+const refreshEnd = appCode.indexOf('function addToQueue(trackId) {', refreshStart);
+assert.ok(refreshEnd > refreshStart, 'refreshQueueRows implementation should be extractable for regression checks');
+const refreshSource = appCode.slice(refreshStart, refreshEnd);
+class FakeQueueElement {
+  constructor(tag) { this.tagName = String(tag).toUpperCase(); this.dataset = {}; this.children = []; this.parent = null; this.className = ''; this.title = ''; this.textContent = ''; this.type = ''; }
+  append(child) { child.parent = this; this.children.push(child); return child; }
+  replaceWith(element) { const index = this.parent ? this.parent.children.indexOf(this) : -1; if (index >= 0) { this.parent.children[index] = element; element.parent = this.parent; } }
+  querySelector(selector) {
+    const match = selector.match(/^\[data-([a-z-]+)(?:="([^"]*)")?\]$/);
+    if (!match) return null;
+    const key = match[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+    const visit = element => {
+      for (const child of element.children) {
+        if (child.dataset && Object.prototype.hasOwnProperty.call(child.dataset, key) && (match[2] === undefined || child.dataset[key] === match[2])) return child;
+        const found = visit(child); if (found) return found;
+      }
+      return null;
+    };
+    return visit(this);
+  }
+  querySelectorAll(selector) { return selector === '[data-track-id]' ? this.children.filter(child => child.dataset && child.dataset.trackId !== undefined) : []; }
+}
+function exerciseRefreshQueueRows({queuedIds, currentId, rows}) {
+  const trackList = new FakeQueueElement('div');
+  for (const row of rows) trackList.append(row);
+  const refreshQueueRows = new Function('state', '$', 'renderQueue', 'document', `${refreshSource}\nreturn refreshQueueRows;`)(
+    {queueTrackIds: queuedIds, currentId},
+    id => id === 'track-list' ? trackList : null,
+    () => {},
+    {createElement: tag => new FakeQueueElement(tag)},
+  );
+  refreshQueueRows();
+  return rows;
+}
+function queueRow(trackId, control) { const row = new FakeQueueElement('div'); row.dataset.trackId = trackId; if (control) row.append(control); return row; }
+function queueAddButton(trackId) { const button = new FakeQueueElement('button'); button.dataset.queueAction = 'add'; button.dataset.trackId = trackId; return button; }
+function queueIndicator() { const indicator = new FakeQueueElement('span'); indicator.dataset.queueIndicator = 'true'; indicator.textContent = '☷'; return indicator; }
+const removedFromQueue = exerciseRefreshQueueRows({queuedIds: [], currentId: 'playing', rows: [queueRow('t1', queueIndicator())]})[0];
+assert.equal(removedFromQueue.querySelector('[data-queue-indicator]'), null, 'Removing a track from the queue should clear its queued indicator');
+const restoredButton = removedFromQueue.querySelector('[data-queue-action="add"]');
+assert.ok(restoredButton, 'Removing a track from the queue should restore its play-next button');
+assert.equal(restoredButton.dataset.trackId, 't1', 'The restored play-next button should target the same track');
+const addedToQueue = exerciseRefreshQueueRows({queuedIds: ['t2'], currentId: 'playing', rows: [queueRow('t2', queueAddButton('t2'))]})[0];
+assert.equal(addedToQueue.querySelector('[data-queue-action="add"]'), null, 'Adding a track to the queue should replace its play-next button');
+assert.ok(addedToQueue.querySelector('[data-queue-indicator]'), 'Adding a track to the queue should show its queued indicator');
+const currentRow = exerciseRefreshQueueRows({queuedIds: ['playing'], currentId: 'playing', rows: [queueRow('playing', queueAddButton('playing'))]})[0];
+assert.ok(currentRow.querySelector('[data-queue-action="add"]'), 'The currently playing track should keep its play-next control instead of a queue indicator');
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');
