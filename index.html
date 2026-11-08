@@ -748,7 +748,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -2441,6 +2441,7 @@
       });
       element.addEventListener('play', () => {
         if (element !== audio) return;
+        state.errorSkipCount = 0;
         setVisualizerRunning(true);
         $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ';
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'playing'; } catch (error) {} }
@@ -2454,7 +2455,15 @@
         setVisualizerRunning(false);
       });
       element.addEventListener('ended', () => { if (element === audio) playNext(1, true); });
-      element.addEventListener('error', () => { if (element === standbyAudio) { state.preloadTrackId = null; state.preloadReadyUrl = null; console.warn('Next track preload failed.'); } });
+      element.addEventListener('error', () => {
+        if (element === standbyAudio) { state.preloadTrackId = null; state.preloadReadyUrl = null; console.warn('Next track preload failed.'); return; }
+        if (element !== audio) return;
+        state.errorSkipCount = (state.errorSkipCount || 0) + 1;
+        const track = state.tracks.find(item => item.id === state.currentId);
+        if (state.errorSkipCount > state.tracks.length) { state.errorSkipCount = 0; toast('Không thể phát các bài hát trong danh sách, đã dừng phát.'); return; }
+        toast(`Không thể phát bài hát${track && (track.title || track.name) ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
+        playNext(1, false);
+      });
     }
     attachDeckEvents(audio); attachDeckEvents(standbyAudio);
     if ('mediaSession' in navigator) {
@@ -2569,5 +2578,6 @@
   <!-- Bàn giao 2026-11-09 01:34 +07: Sửa chỉ báo hàng đợi bị kẹt và dọn hàm trùng refreshQueueRows: hàng bài hát render lúc đang trong hàng đợi giờ gắn data-queue-indicator nên khi xóa khỏi Phát tiếp theo, nút ＋ hiện lại thay vì ☷ kẹt; xóa bản định nghĩa refreshQueueRows trùng đầu tiên (bản chết, không bao giờ chạy). Kiểm chứng: node check đạt, thẻ HTML cân bằng, node test 8/8 file pass, gồm test hồi quy mới cho refreshQueueRows (đã thử fail trên code cũ). Việc tiếp theo gợi ý: thêm icon PNG 192/512 cho Chrome hiện nút cài đặt, vẫn cần đường đẩy hỗ trợ file nhị phân vì github push-files chỉ nhận UTF-8. -->
   <!-- Bàn giao 2026-11-09 02:03 +07: Dọn handler trùng self.onmessage trong dsd-worker.js: xóa bản gán đầu (dòng 63, code chết bị bản gán cuối ghi đè, không xử lý type cancel nên tin hủy giải mã sẽ bị hiểu nhầm thành yêu cầu giải mã và báo lỗi giả); chỉ giữ bản xử lý cancel đúng. Kiểm chứng: node --check đạt, thẻ HTML cân bằng, node --test 8/8 file pass, gồm test hồi quy mới (đếm đúng 1 handler, cancel không đăng lỗi giả, giải mã sau cancel vẫn xong; test mới đã thử fail trên code cũ). Việc tiếp theo gợi ý: thêm icon PNG 192/512 cho Chrome hiện nút cài đặt, vẫn cần đường đẩy hỗ trợ file nhị phân vì github push-files chỉ nhận UTF-8. -->
   <!-- Bàn giao 2026-11-09 02:35 +07: Nút Previous phát lại bài hiện tại từ đầu khi đã nghe hơn 3 giây (playNext trong index.html): trước đây bấm Previous lúc đang nghe dở là nhảy sang bài trước và mất vị trí đang nghe; giờ chỉ nhảy về bài trước khi bấm trong 3 giây đầu, đúng thói quen của trình phát nhạc chuẩn. Áp dụng cho cả nút Previous, phím P và lệnh previoustrack trên màn hình khóa. Kiểm chứng: node --check đạt, thẻ HTML cân bằng, node --test 8/8 file pass, gồm test hồi quy mới cho playNext (phát lại từ đầu khi nghe hơn 3 giây, nhảy bài trước khi nghe dưới 3 giây, đúng ngưỡng 3 giây, bài đầu danh sách phát lại thay vì đứng yên; test mới đã thử fail trên code cũ). Việc tiếp theo gợi ý: tự động bỏ qua bài lỗi khi phát tự động thay vì dừng hẳn, và thêm icon PNG 192/512 cho Chrome hiện nút cài đặt khi có đường đẩy hỗ trợ file nhị phân. -->
+  <!-- Bàn giao 2026-11-09 04:22 +07: Tự động bỏ qua bài lỗi khi phát tự động (attachDeckEvents trong index.html): trước đây deck đang phát gặp file hỏng / codec không hỗ trợ / lỗi mạng thì không toast, không chuyển bài, nhạc dừng hẳn im lặng; giờ toast tên bài lỗi và gọi playNext(1, false) để chuyển sang bài tiếp theo (dùng auto=false để không bị chặn bởi autoplay tắt, hẹn giờ ngủ hay repeat-one phát lại chính bài lỗi). Chặn vòng lặp bằng bộ đếm errorSkipCount: phát thành công reset về 0, quá số bài trong danh sách thì dừng và toast đã dừng phát; lỗi preload vẫn chỉ xóa preload, không chuyển bài. Kiểm chứng: node --check đạt, thẻ HTML cân bằng, node --test 8/8 file pass, gồm test hồi quy mới cho attachDeckEvents (deck phát lỗi thì chuyển bài + toast tên bài, lỗi preload chỉ xóa preload, lỗi liên tiếp dừng sau khi hết danh sách, sự kiện play reset bộ đếm; test mới đã thử fail trên code cũ). Việc tiếp theo gợi ý: tự động bỏ qua bài lỗi ở cả đường play() reject trong playTrack (codec không hỗ trợ) và lỗi chuẩn bị DSD, và thêm icon PNG 192/512 cho Chrome hiện nút cài đặt khi có đường đẩy hỗ trợ file nhị phân. -->
 </body>
 </html>

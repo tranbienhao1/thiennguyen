@@ -255,6 +255,50 @@ assert.deepEqual(previousAtBoundary.played, ['current'], 'Previous at exactly 3 
 const previousFirstTrack = exercisePlayNext({direction:-1, currentId:'current', currentTime:37});
 assert.equal(previousFirstTrack.currentTime, 0, 'Previous on the first track should restart it instead of doing nothing');
 assert.deepEqual(previousFirstTrack.played, [], 'Restarting the first track should not switch to another track');
+const deckEventsStart = appCode.indexOf('function attachDeckEvents(element) {');
+assert.ok(deckEventsStart >= 0, 'attachDeckEvents implementation should exist for regression checks');
+const deckEventsEndMarker = 'attachDeckEvents(audio); attachDeckEvents(standbyAudio);';
+const deckEventsEnd = appCode.indexOf(deckEventsEndMarker, deckEventsStart);
+assert.ok(deckEventsEnd > deckEventsStart, 'attachDeckEvents implementation should be extractable for regression checks');
+const deckEventsSource = appCode.slice(deckEventsStart, deckEventsEnd);
+class FakeDeckElement {
+  constructor() { this.handlers = {}; }
+  addEventListener(type, handler) { (this.handlers[type] ||= []).push(handler); }
+  fire(type) { for (const handler of this.handlers[type] || []) handler(); }
+}
+function exerciseDeckError({currentId = 'bad', tracks = [{id:'bad', title:'Bài lỗi'}, {id:'next', title:'Bài sau'}], element = 'audio', errorSkipCount = 0} = {}) {
+  const calls = {toasts: [], playedNext: []};
+  const state = {tracks, currentId, errorSkipCount, preloadTrackId: 'next', preloadReadyUrl: 'next-url'};
+  const audio = new FakeDeckElement();
+  const standbyAudio = new FakeDeckElement();
+  const attachDeckEvents = new Function('state', 'audio', 'standbyAudio', 'toast', 'playNext', 'setVisualizerRunning', '$', 'navigator', 'updatePositionState', `${deckEventsSource}\nreturn attachDeckEvents;`)(
+    state, audio, standbyAudio,
+    message => calls.toasts.push(message),
+    (direction, auto) => calls.playedNext.push([direction, auto]),
+    () => {}, id => ({textContent: ''}), {}, () => {},
+  );
+  attachDeckEvents(element === 'audio' ? audio : standbyAudio);
+  return {calls, state, audio, standbyAudio, target: element === 'audio' ? audio : standbyAudio};
+}
+const badDeck = exerciseDeckError();
+badDeck.target.fire('error');
+assert.equal(badDeck.calls.playedNext.length, 1, 'A playback error on the active deck should skip to the next track');
+assert.deepEqual(badDeck.calls.playedNext[0], [1, false], 'Error skip should advance without the autoplay, sleep-timer or repeat-one gates');
+assert.ok(badDeck.calls.toasts[0].includes('Bài lỗi') && badDeck.calls.toasts[0].includes('chuyển sang bài tiếp theo'), 'A playback error should toast the failed track name and the skip');
+assert.equal(badDeck.state.errorSkipCount, 1, 'A playback error should count toward the consecutive error-skip guard');
+const preloadDeck = exerciseDeckError({element: 'standby'});
+preloadDeck.target.fire('error');
+assert.equal(preloadDeck.state.preloadTrackId, null, 'A preload error should clear the preloaded track');
+assert.equal(preloadDeck.state.preloadReadyUrl, null, 'A preload error should clear the preloaded URL');
+assert.deepEqual(preloadDeck.calls.playedNext, [], 'A preload error should not skip the playing track');
+assert.deepEqual(preloadDeck.calls.toasts, [], 'A preload error should stay silent for the listener');
+const loopingDeck = exerciseDeckError();
+loopingDeck.target.fire('error'); loopingDeck.target.fire('error'); loopingDeck.target.fire('error');
+assert.equal(loopingDeck.calls.playedNext.length, 2, 'Consecutive playback errors should stop skipping once every track in the list has failed');
+assert.ok(loopingDeck.calls.toasts.at(-1).includes('đã dừng phát'), 'Skipping a fully broken list should toast that playback stopped');
+const resetDeck = exerciseDeckError({errorSkipCount: 2});
+resetDeck.audio.fire('play');
+assert.equal(resetDeck.state.errorSkipCount, 0, 'Successful playback should reset the consecutive error-skip count');
 assert.ok(appCode.includes('metadataUI.open(trackById(button.dataset.metadataTrackId))'), 'Track metadata button should open details without starting playback');
 assert.ok(appCode.includes('library.normalizeSearchKey(selected)'), 'Filter selection should use the shared accent-insensitive search key');
 assert.ok(appCode.includes('library.normalizeSearchKey(info.artist)'), 'Collection artist cards should group accent variants together');
