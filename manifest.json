@@ -1,0 +1,24 @@
+{
+  "background_color": "#111315",
+  "categories": [
+    "music"
+  ],
+  "description": "Thư viện nhạc hi-res riêng tư: phát nhạc lossless và giải mã DSD ngay trên thiết bị.",
+  "display": "standalone",
+  "icons": [
+    {
+      "purpose": "any maskable",
+      "sizes": "any",
+      "src": "icons/icon.svg",
+      "type": "image/svg+xml"
+    }
+  ],
+  "id": "./",
+  "lang": "vi",
+  "name": "NOCTURNE — Thư viện nhạc hi-res",
+  "orientation": "any",
+  "scope": "./",
+  "short_name": "NOCTURNE",
+  "start_url": "./",
+  "theme_color": "#111315"
+}

@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111315">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="NOCTURNE — thư viện nhạc hi-res riêng tư, phát nhạc lossless và giải mã DSD ngay trên thiết bị.">
   <title>Roon — Music Library</title>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -2571,6 +2576,6 @@
       });
     })();
   </script>
-  <!-- Bàn giao 2026-11-09 00:44 +07: Đưa bộ test service worker (sw.test.cjs) vào repo — phủ install/activate/fetch: precache 7 entry, xoá cache cũ, network-first, fallback offline, passthrough no-store/cross-origin/Range/POST/audio. Lượt này: thêm sw.js offline (commit ce61646) và test hồi quy cho nó. Kiểm chứng: node --check đạt, thẻ HTML cân bằng (html5lib), node --test 7/7 file pass. Việc tiếp theo gợi ý: thêm manifest.json và icon để cài app lên màn hình chính (PWA installable). -->
+  <!-- Bàn giao 2026-11-09 01:01 +07: Thêm manifest.json + icons/icon.svg để app cài được lên màn hình chính (PWA): name/short_name NOCTURNE, start_url ./, display standalone, theme/background #111315, icon SVG 512 viewBox purpose any maskable; index.html link manifest + icon + meta standalone iOS/Android; sw.js precache 9 entry, fallback offline cho manifest. Kiểm chứng: node --check đạt, thẻ HTML cân bằng (html5lib), SVG well-formed trong safe-zone maskable, node --test 8/8 file pass. Việc tiếp theo gợi ý: thêm icon PNG 192/512 (Chrome yêu cầu icon raster để hiện nút cài đặt) — cần đường đẩy hỗ trợ file nhị phân vì github push-files chỉ nhận UTF-8. -->
 </body>
 </html>

@@ -16,6 +16,8 @@ const APP_SHELL = [
   'metadata-ui.js',
   'cloud-metadata.js',
   'dsd-worker.js',
+  'manifest.json',
+  'icons/icon.svg',
 ];
 
 const normalizePath = pathname => (pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname);

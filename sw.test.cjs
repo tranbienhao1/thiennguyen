@@ -60,7 +60,7 @@ function fetchEvent(request) { const event = {request, respondWith(promise) { ev
   await dispatch('install');
   assert.equal(sandbox.self.skipWaitingCalled, true, 'Install should skip waiting so the new worker activates');
   const shellCache = cacheStore.get('nocturne-v1');
-  assert.ok(shellCache && shellCache.entries.size === 7 && shellCache.entries.has(shellUrl('index.html')), 'Install should precache all 7 app-shell entries');
+  assert.ok(shellCache && shellCache.entries.size === 9 && shellCache.entries.has(shellUrl('index.html')), 'Install should precache all 9 app-shell entries');
   // Activate: xoá cache cũ và chiếm quyền điều khiển ngay.
   cacheStore.set('nocturne-v0', new FakeCache());
   await dispatch('activate');
@@ -78,6 +78,8 @@ function fetchEvent(request) { const event = {request, respondWith(promise) { ev
   assert.equal((await offlineNav).body, `network:${shellUrl('./')}`, 'Offline navigation should fall back to the precached shell');
   const offlineWorker = await fetchEvent(makeRequest(shellUrl('dsd-worker.js')));
   assert.equal((await offlineWorker).body, `network:${shellUrl('dsd-worker.js')}`, 'Offline DSD worker should fall back to the precached script');
+  const offlineManifest = await fetchEvent(makeRequest(shellUrl('manifest.json')));
+  assert.equal((await offlineManifest).body, `network:${shellUrl('manifest.json')}`, 'Offline manifest should fall back to the precached file');
   // Offline nhưng chưa có cache: fetch phải reject thay vì trả trang trắng.
   cacheStore.delete('nocturne-v1');
   const uncached = fetchEvent(makeRequest(shellUrl('library-utils.js')));
