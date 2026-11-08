@@ -63,6 +63,24 @@ function decode(file, format, targetRate, bitDepth) {
 }
 
 (async () => {
+  assert.equal((source.match(/self\.onmessage\s*=/g) || []).length, 1, 'DSD worker should register exactly one message handler so a cancel message is never mistaken for a decode request');
+  {
+    const posted = [];
+    const self = {cancelled: false, onmessage: null, postMessage(message) { posted.push(message); }};
+    const context = vm.createContext({self, Blob});
+    vm.runInContext(source, context, {filename: 'dsd-worker.js'});
+    self.onmessage({data: {type: 'cancel'}});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(posted.length, 0, 'A cancel message should not start a decode or post a spurious error');
+    assert.equal(self.cancelled, true, 'A cancel message should flag the running decode as cancelled');
+    const done = new Promise((resolve, reject) => {
+      const originalPost = self.postMessage.bind(self);
+      self.postMessage = message => { originalPost(message); if (message.type === 'done') resolve(message); else if (message.type === 'error') reject(new Error(message.message)); };
+    });
+    self.onmessage({data: {file: makeDsf(), format: 'dsf', targetRate: 44100, bitDepth: 16}});
+    const result = await done;
+    assert.equal(result.type, 'done', 'A decode after cancel should still complete once the handler resets the cancel flag');
+  }
   for (const [sourceRate, targetRates] of [[RATE, [44100, 88200, 176400]], [3072000, [48000, 96000, 192000]]]) {
     const files = [['dsf', makeDsf(sourceRate)], ['dff', makeDff('DSD ', sourceRate)]];
     for (const rate of targetRates) for (const depth of [16, 24]) {

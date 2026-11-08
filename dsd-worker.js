@@ -60,7 +60,6 @@ function decimate(state,sample){
 }
 
 // DSD decoding runs off the UI thread; each file slice is read incrementally.
-self.onmessage = event => run(event.data).catch(error => self.postMessage({type:'error', message:error.message || String(error)}));
 function text(view, offset, length) { let out=''; for (let i=0;i<length;i++) out+=String.fromCharCode(view.getUint8(offset+i)); return out; }
 function u64(view, offset, little) { const n=view.getBigUint64(offset,little); if(n>BigInt(Number.MAX_SAFE_INTEGER)) throw Error('Chunk DSD vượt giới hạn kích thước.'); return Number(n); }
 async function parseDsf(file) {
