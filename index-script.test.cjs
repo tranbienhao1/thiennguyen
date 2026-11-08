@@ -223,13 +223,13 @@ const playNextEnd = appCode.indexOf(playNextEndMarker, playNextStart);
 assert.ok(playNextEnd > playNextStart, 'playNext implementation should be extractable for regression checks');
 const playNextSource = appCode.slice(playNextStart, playNextEnd);
 assert.ok(playNextSource.includes('if (element === audio) playNext') === false, 'extracted playNext source should end before deck wiring');
-function exercisePlayNext({auto = false, autoplay = true, repeat = 0, sleepAtTrackEnd = false, queued = []} = {}) {
-  const calls = {played:[], pause:0, play:0, cleared:0, stopped:0, currentTime:37};
-  const state = {tracks:[{id:'current'}, {id:'next'}], currentId:'current', autoplay, repeat, sleepAtTrackEnd, shuffle:false, preloadTrackId:null, dsdWorker:null, dsdUrl:null};
+function exercisePlayNext({auto = false, autoplay = true, repeat = 0, sleepAtTrackEnd = false, queued = [], currentId = 'current', currentTime = 37, direction = 1} = {}) {
+  const calls = {played:[], pause:0, play:0, cleared:0, stopped:0, currentTime};
+  const state = {tracks:[{id:'current'}, {id:'next'}], currentId, autoplay, repeat, sleepAtTrackEnd, shuffle:false, preloadTrackId:null, dsdWorker:null, dsdUrl:null};
   const audio = {get currentTime() { return calls.currentTime; }, set currentTime(value) { calls.currentTime = value; }, pause() { calls.pause++; }, play() { calls.play++; return Promise.resolve(); }};
   const playNextFactory = new Function('state', 'audio', 'queueTracks', 'stopDsdWorker', 'clearSleepTimer', 'toast', 'playTrack', playNextSource + '\nreturn playNext;');
   const playNext = playNextFactory(state, audio, () => queued, () => calls.stopped++, () => calls.cleared++, () => {}, trackId => calls.played.push(trackId));
-  playNext(1, auto);
+  playNext(direction, auto);
   return calls;
 }
 assert.deepEqual(exercisePlayNext({autoplay:false}).played, ['next'], 'Manual Next should work with autoplay disabled');
@@ -244,6 +244,17 @@ const repeatAtEnd = exercisePlayNext({auto:true, repeat:2});
 assert.equal(repeatAtEnd.currentTime, 0, 'Natural ending in repeat-one mode should restart the current track');
 assert.equal(repeatAtEnd.play, 1, 'Repeat-one should resume playback at the beginning');
 assert.deepEqual(exercisePlayNext({auto:true, autoplay:false, repeat:2, queued:[{id:'queued'}]}).played, ['queued'], 'Explicit queue should take precedence over repeat-one and autoplay settings');
+assert.ok(playNextSource.includes('audio.currentTime > 3'), 'Previous should restart the current track once it is more than 3 seconds in');
+const previousDeepIn = exercisePlayNext({direction:-1, currentId:'next', currentTime:37});
+assert.equal(previousDeepIn.currentTime, 0, 'Previous more than 3 seconds into a track should restart it from the beginning');
+assert.deepEqual(previousDeepIn.played, [], 'Restarting the current track should not switch to another track');
+const previousEarly = exercisePlayNext({direction:-1, currentId:'next', currentTime:2});
+assert.deepEqual(previousEarly.played, ['current'], 'Previous within the first 3 seconds should go to the previous track');
+const previousAtBoundary = exercisePlayNext({direction:-1, currentId:'next', currentTime:3});
+assert.deepEqual(previousAtBoundary.played, ['current'], 'Previous at exactly 3 seconds should still go to the previous track');
+const previousFirstTrack = exercisePlayNext({direction:-1, currentId:'current', currentTime:37});
+assert.equal(previousFirstTrack.currentTime, 0, 'Previous on the first track should restart it instead of doing nothing');
+assert.deepEqual(previousFirstTrack.played, [], 'Restarting the first track should not switch to another track');
 assert.ok(appCode.includes('metadataUI.open(trackById(button.dataset.metadataTrackId))'), 'Track metadata button should open details without starting playback');
 assert.ok(appCode.includes('library.normalizeSearchKey(selected)'), 'Filter selection should use the shared accent-insensitive search key');
 assert.ok(appCode.includes('library.normalizeSearchKey(info.artist)'), 'Collection artist cards should group accent variants together');
