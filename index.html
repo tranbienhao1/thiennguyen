@@ -2571,6 +2571,6 @@
       });
     })();
   </script>
-  <!-- Bàn giao 2026-11-09 00:37 +07: Thêm service worker sw.js để dùng offline — precache app shell (index.html và 5 file JS), network-first với cache dự phòng khi mất mạng, không cache yêu cầu cross-origin / no-store / Range / audio để không phá bộ kiểm tra cập nhật và luồng nhạc. Đăng ký SW trong index.html chỉ trên HTTPS/localhost, lỗi đăng ký không làm hỏng app. Kiểm chứng: node --check đạt, thẻ HTML cân bằng (html5lib, các panel vẫn là con trực tiếp của body), node --test 7/7 file pass (bộ test mới sw.test.cjs chạy cục bộ: install precache 7 entry, activate xoá cache cũ, network-first, fallback offline, passthrough no-store/cross-origin/Range/POST/audio). Việc tiếp theo gợi ý: đưa sw.test.cjs vào repo rồi thêm manifest.json và icon để cài app lên màn hình chính. -->
+  <!-- Bàn giao 2026-11-09 00:44 +07: Đưa bộ test service worker (sw.test.cjs) vào repo — phủ install/activate/fetch: precache 7 entry, xoá cache cũ, network-first, fallback offline, passthrough no-store/cross-origin/Range/POST/audio. Lượt này: thêm sw.js offline (commit ce61646) và test hồi quy cho nó. Kiểm chứng: node --check đạt, thẻ HTML cân bằng (html5lib), node --test 7/7 file pass. Việc tiếp theo gợi ý: thêm manifest.json và icon để cài app lên màn hình chính (PWA installable). -->
 </body>
 </html>
