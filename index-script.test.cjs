@@ -245,6 +245,12 @@ assert.equal(repeatAtEnd.currentTime, 0, 'Natural ending in repeat-one mode shou
 assert.equal(repeatAtEnd.play, 1, 'Repeat-one should resume playback at the beginning');
 assert.deepEqual(exercisePlayNext({auto:true, autoplay:false, repeat:2, queued:[{id:'queued'}]}).played, ['queued'], 'Explicit queue should take precedence over repeat-one and autoplay settings');
 assert.ok(appCode.includes('metadataUI.open(trackById(button.dataset.metadataTrackId))'), 'Track metadata button should open details without starting playback');
+assert.ok(appCode.includes('library.normalizeSearchKey(selected)'), 'Filter selection should use the shared accent-insensitive search key');
+assert.ok(appCode.includes('library.normalizeSearchKey(info.artist)'), 'Collection artist cards should group accent variants together');
+assert.ok(appCode.includes('library.normalizeSearchKey(metadata(track).artist) === state.artist'), 'Collection artist filter should compare accent-insensitive keys');
+assert.ok(appCode.includes('library.normalizeSearchKey(metadata(track).album)'), 'Collection album filter should compare accent-insensitive keys');
+assert.ok(appCode.includes('library.normalizeSearchKey(state.query)'), 'Collection search should match queries typed without diacritics');
+assert.ok(html.indexOf('</dialog>') > html.indexOf('<dialog id="settings-modal"') && html.indexOf('</dialog>') < html.indexOf('<div id="metadata-modal"'), 'Settings dialog should close with </dialog> before the metadata modal so later panels are not trapped inside it');
 assert.ok(metadataUiCode.includes('client.wikipediaSummary'), 'Artist details should load a verified Wikipedia biography when available');
 assert.ok(metadataUiCode.includes('client.coverArt'), 'Album details should retrieve Cover Art Archive artwork');
 assert.ok(metadataUiCode.includes('data-metadata-follow'), 'Artist credits should link to related artist details');

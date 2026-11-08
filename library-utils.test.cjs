@@ -72,6 +72,26 @@ assert.strictEqual(utils.filterTracks([cachedTrack], {query:'updated artist'}).l
 const lazyTrack = {source:'local', get title() { throw new Error('metadata should not be normalized without search filters'); }};
 assert.deepStrictEqual(utils.filterTracks([lazyTrack], {source:'all', artist:'*', album:'*'}), [lazyTrack], 'Unfiltered browse should avoid expensive metadata parsing');
 
+const vietnameseTracks = [
+  {title:'Thiên Đường', artist:'Nguyễn Hồng Nhung', album:'Đà Lạt Hoàng Hôn', source:'local'},
+  {title:'Hẹn Em Ở Lần Yêu Thứ 2', artist:'Low G', album:'—', source:'local'},
+  {title:'Song', artist:'Other', album:'25', source:'local'}
+];
+assert.strictEqual(utils.normalizeSearchKey('Đà Lạt Hoàng Hôn'), 'da lat hoang hon', 'Search keys should strip Vietnamese diacritics and map đ to d');
+assert.strictEqual(utils.normalizeSearchKey('  Thiên   Đường '), 'thien duong', 'Search keys should collapse whitespace');
+assert.strictEqual(utils.normalizeSearchKey(null), '', 'Search keys should accept null');
+assert.strictEqual(utils.filterTracks(vietnameseTracks, {query:'thien duong'}).length, 1, 'Search should match Vietnamese titles typed without diacritics');
+assert.strictEqual(utils.filterTracks(vietnameseTracks, {query:'NGUYEN'}).length, 1, 'Search should match Vietnamese artists typed without diacritics');
+assert.strictEqual(utils.filterTracks(vietnameseTracks, {query:'da lat'}).length, 1, 'Search should match đ when typed as d');
+assert.strictEqual(utils.filterTracks(vietnameseTracks, {query:'thiên đường'}).length, 1, 'Search typed with diacritics should still match');
+assert.strictEqual(utils.filterTracks(vietnameseTracks, {query:'hen em'}).length, 1, 'Search should match accented titles from plain queries');
+assert.strictEqual(utils.filterTracks(vietnameseTracks, {query:null}).length, 3, 'Null query should not filter tracks');
+assert.strictEqual(utils.filterTracks([], {query:'thien'}).length, 0, 'Empty library should return no matches');
+assert.strictEqual(utils.filterTracks(vietnameseTracks, {query:'khong co bai nay'}).length, 0, 'Unrelated query should return no matches');
+assert.strictEqual(utils.metadataOptions([{artist:'Thiên'}, {artist:'Thien'}, {artist:'THIÊN'}], 'artist', utils.UNKNOWN_ARTIST).length, 1, 'Artist filter should merge accent variants into one option');
+assert.strictEqual(utils.groupTracks([{artist:'Thiên', title:'A'}, {artist:'Thien', title:'B'}], 'artist').length, 1, 'Artist grouping should merge accent variants');
+assert.strictEqual(utils.groupTracks([{artist:'Nguyễn', album:'Đà Lạt', title:'A'}, {artist:'Nguyen', album:'Da Lat', title:'B'}], 'album').length, 1, 'Album grouping should merge accent variants');
+
 
 assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).length, 3);
 assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);

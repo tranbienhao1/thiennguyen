@@ -8,7 +8,7 @@
   const UNKNOWN_ARTIST = 'Nghệ sĩ không xác định';
   const UNKNOWN_ALBUM = '—';
   const normalize = value => String(value ?? '').replace(/\s+/gu, ' ').trim();
-  const metadataKey = value => normalize(value).normalize('NFKC').toLocaleLowerCase('vi');
+  const metadataKey = value => normalize(value).normalize('NFKC').toLocaleLowerCase('vi').normalize('NFD').replace(/[\u0300-\u036f]/gu, '').replace(/đ/gu, 'd');
   const PLACEHOLDERS = new Set(['', '-', '—', '?', 'unknown', 'unknown artist', 'unknown album', 'n/a', 'na', 'none', 'null', '(unknown)']);
 
   function cleanMetadataValue(value, fallback = '') {
@@ -256,5 +256,5 @@
     return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'vi'));
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks};
 });
