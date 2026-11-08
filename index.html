@@ -1716,6 +1716,14 @@
       } catch (error) { console.warn('Could not preload next track:', error); }
       finally { if (generation === state.preloadGeneration) state.preloadBusyId = null; }
     }
+    function skipFailedTrack(generation, message) {
+      if (generation !== state.playGeneration) return false;
+      state.errorSkipCount = (state.errorSkipCount || 0) + 1;
+      if (state.errorSkipCount > state.tracks.length) { state.errorSkipCount = 0; toast('Không thể phát các bài hát trong danh sách, đã dừng phát.'); return false; }
+      if (message) toast(message);
+      playNext(1, false);
+      return true;
+    }
     async function playTrack(trackId) {
       const track = state.tracks.find(item => item.id === trackId);
       if (!track) return;
@@ -1735,7 +1743,7 @@
           if (!track.file) throw new Error('Không tải được file DSD từ nguồn cloud.');
           await playDsdTrack(track, generation);
         }
-        catch (error) { console.error('DSD playback setup failed:', error); $('play-button').textContent = '▶'; toast(`Không thể chuẩn bị phát DSD: ${error.message || error}`); }
+        catch (error) { console.error('DSD playback setup failed:', error); if (generation === state.playGeneration) $('play-button').textContent = '▶'; skipFailedTrack(generation, `Không thể chuẩn bị phát DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`); }
         return;
       }
       setupAudio();
@@ -1746,7 +1754,7 @@
       const cachedCloudUrl = wasPreloaded || (track.url && state.objectUrls.has(track.url));
       if (track.load && !cachedCloudUrl) {
         try { await track.load(); }
-        catch (error) { console.error('Track streaming failed:', error); toast(`Không thể phát bài hát: ${mediaErrorMessage(error)}`); releaseUnusedCloudUrl(track); return; }
+        catch (error) { console.error('Track streaming failed:', error); releaseUnusedCloudUrl(track); skipFailedTrack(generation, `Không thể phát bài hát: ${mediaErrorMessage(error)}. Chuyển sang bài tiếp theo.`); return; }
       }
       if (generation !== state.playGeneration) return;
       if (!track.url) { toast('Không có URL phát cho bài hát này.'); return; }
@@ -1778,7 +1786,11 @@
         scheduleTrackRender();
         preloadNext(true);
         releaseUnusedCloudUrl(previousTrack);
-      } catch (error) { console.error('Playback failed:', error); toast(mediaErrorMessage(error.name === 'NotSupportedError' ? error : target.error || error)); }
+      } catch (error) {
+        console.error('Playback failed:', error);
+        if (error.name === 'NotSupportedError' || target.error) skipFailedTrack(generation, `Không thể phát bài hát${track && (track.title || track.name) ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
+        else toast(mediaErrorMessage(error));
+      }
     }
     function stopDsdWorker(invalidate = true) {
       if (!state.dsdWorker && !state.dsdUrl) return;
@@ -1800,7 +1812,7 @@
       const sourceInfo = dsdSourceInfo(track.sampleRate);
       const sourceBaseRate = sourceInfo && sourceInfo.baseRate;
       const multiplier = sourceInfo && sourceInfo.multiplier;
-      if (!sourceInfo || ![32,64,128,256,512].includes(multiplier)) { $('play-button').textContent = '▶'; toast(`Tốc độ DSD${multiplier || track.sampleRate || 'không rõ'} chưa hỗ trợ ở phần metadata; bộ giải mã hiện hỗ trợ DSD32–DSD512 trong họ 44.1/48 kHz.`); return; }
+      if (!sourceInfo || ![32,64,128,256,512].includes(multiplier)) { $('play-button').textContent = '▶'; skipFailedTrack(generation, `Tốc độ DSD${multiplier || track.sampleRate || 'không rõ'} chưa hỗ trợ ở phần metadata; bộ giải mã hiện hỗ trợ DSD32–DSD512 trong họ 44.1/48 kHz. Chuyển sang bài tiếp theo.`); return; }
       if (Math.round(state.dsdOutputRate / sourceBaseRate) !== state.dsdOutputRate / sourceBaseRate || ![1,2,4].includes(state.dsdOutputRate / sourceBaseRate)) {
         const fallbackRate = sourceBaseRate;
         $('dsd-output-rate').value = String(fallbackRate);
@@ -1823,7 +1835,7 @@
           const message = event.data || {};
           if (generation !== state.playGeneration || state.dsdWorker !== worker) return;
           if (message.type === 'progress') { $('play-button').textContent = `${Math.round(message.progress * 100)}%`; return; }
-          if (message.type === 'error') { stopDsdWorker(false); $('play-button').textContent = '▶'; toast(`Không thể giải mã DSD: ${message.message}`); return; }
+          if (message.type === 'error') { stopDsdWorker(false); $('play-button').textContent = '▶'; skipFailedTrack(generation, `Không thể giải mã DSD: ${message.message}. Chuyển sang bài tiếp theo.`); return; }
           if (message.type !== 'done') return;
           worker.terminate(); state.dsdWorker = null;
           const url = URL.createObjectURL(message.blob); state.dsdUrl = url; state.dsdBlob = message.blob; state.dsdTrackId = track.id; state.objectUrls.add(url);
@@ -1835,15 +1847,15 @@
           audio.src = url; standbyAudio.muted = true;
           displayTrack(track);
           try { await audio.play(); if (generation !== state.playGeneration) return; $('play-button').textContent = 'Ⅱ'; recordHistory(track); scheduleTrackRender(); }
-          catch (error) { console.error('DSD PCM playback failed:', error); toast('Không thể phát PCM đã giải mã trong trình duyệt.'); }
+          catch (error) { console.error('DSD PCM playback failed:', error); skipFailedTrack(generation, `Không thể phát PCM đã giải mã trong trình duyệt. Chuyển sang bài tiếp theo.`); }
         };
         worker.onerror = event => {
           if (generation !== state.playGeneration) return;
           stopDsdWorker(false); $('play-button').textContent = '▶';
-          toast(`Lỗi bộ giải mã DSD: ${event.message || 'worker không chạy được'}`);
+          skipFailedTrack(generation, `Lỗi bộ giải mã DSD: ${event.message || 'worker không chạy được'}. Chuyển sang bài tiếp theo.`);
         };
         worker.postMessage({file:track.file, format:track.format.toLowerCase(), targetRate:state.dsdOutputRate, bitDepth:state.dsdOutputDepth});
-      } catch (error) { stopDsdWorker(false); $('play-button').textContent = '▶'; toast(`Không thể khởi chạy bộ giải mã DSD: ${error.message || error}`); }
+      } catch (error) { stopDsdWorker(false); $('play-button').textContent = '▶'; skipFailedTrack(generation, `Không thể khởi chạy bộ giải mã DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`); }
     }
     function playNext(direction = 1, auto = false) {
       if (!state.tracks.length) return;
@@ -2579,5 +2591,6 @@
   <!-- Bàn giao 2026-11-09 02:03 +07: Dọn handler trùng self.onmessage trong dsd-worker.js: xóa bản gán đầu (dòng 63, code chết bị bản gán cuối ghi đè, không xử lý type cancel nên tin hủy giải mã sẽ bị hiểu nhầm thành yêu cầu giải mã và báo lỗi giả); chỉ giữ bản xử lý cancel đúng. Kiểm chứng: node --check đạt, thẻ HTML cân bằng, node --test 8/8 file pass, gồm test hồi quy mới (đếm đúng 1 handler, cancel không đăng lỗi giả, giải mã sau cancel vẫn xong; test mới đã thử fail trên code cũ). Việc tiếp theo gợi ý: thêm icon PNG 192/512 cho Chrome hiện nút cài đặt, vẫn cần đường đẩy hỗ trợ file nhị phân vì github push-files chỉ nhận UTF-8. -->
   <!-- Bàn giao 2026-11-09 02:35 +07: Nút Previous phát lại bài hiện tại từ đầu khi đã nghe hơn 3 giây (playNext trong index.html): trước đây bấm Previous lúc đang nghe dở là nhảy sang bài trước và mất vị trí đang nghe; giờ chỉ nhảy về bài trước khi bấm trong 3 giây đầu, đúng thói quen của trình phát nhạc chuẩn. Áp dụng cho cả nút Previous, phím P và lệnh previoustrack trên màn hình khóa. Kiểm chứng: node --check đạt, thẻ HTML cân bằng, node --test 8/8 file pass, gồm test hồi quy mới cho playNext (phát lại từ đầu khi nghe hơn 3 giây, nhảy bài trước khi nghe dưới 3 giây, đúng ngưỡng 3 giây, bài đầu danh sách phát lại thay vì đứng yên; test mới đã thử fail trên code cũ). Việc tiếp theo gợi ý: tự động bỏ qua bài lỗi khi phát tự động thay vì dừng hẳn, và thêm icon PNG 192/512 cho Chrome hiện nút cài đặt khi có đường đẩy hỗ trợ file nhị phân. -->
   <!-- Bàn giao 2026-11-09 04:22 +07: Tự động bỏ qua bài lỗi khi phát tự động (attachDeckEvents trong index.html): trước đây deck đang phát gặp file hỏng / codec không hỗ trợ / lỗi mạng thì không toast, không chuyển bài, nhạc dừng hẳn im lặng; giờ toast tên bài lỗi và gọi playNext(1, false) để chuyển sang bài tiếp theo (dùng auto=false để không bị chặn bởi autoplay tắt, hẹn giờ ngủ hay repeat-one phát lại chính bài lỗi). Chặn vòng lặp bằng bộ đếm errorSkipCount: phát thành công reset về 0, quá số bài trong danh sách thì dừng và toast đã dừng phát; lỗi preload vẫn chỉ xóa preload, không chuyển bài. Kiểm chứng: node --check đạt, thẻ HTML cân bằng, node --test 8/8 file pass, gồm test hồi quy mới cho attachDeckEvents (deck phát lỗi thì chuyển bài + toast tên bài, lỗi preload chỉ xóa preload, lỗi liên tiếp dừng sau khi hết danh sách, sự kiện play reset bộ đếm; test mới đã thử fail trên code cũ). Việc tiếp theo gợi ý: tự động bỏ qua bài lỗi ở cả đường play() reject trong playTrack (codec không hỗ trợ) và lỗi chuẩn bị DSD, và thêm icon PNG 192/512 cho Chrome hiện nút cài đặt khi có đường đẩy hỗ trợ file nhị phân. -->
+  <!-- Bàn giao 2026-11-09 05:35 +07: Tự động bỏ qua bài lỗi ở đường play() reject và lỗi chuẩn bị DSD (skipFailedTrack trong index.html): trước đây playTrack bắt lỗi play() reject (codec không hỗ trợ), track.load() lỗi, chuẩn bị DSD lỗi hay worker DSD lỗi thì chỉ toast rồi dừng hẳn; giờ 8 đường lỗi đều gọi skipFailedTrack để toast và chuyển sang bài tiếp theo bằng playNext(1, false), chặn vòng lặp bằng bộ đếm errorSkipCount đã có. Helper chặn generation cũ nên lỗi của bài đã chuyển đi không làm nhảy nhầm bài mới; chỉ skip khi lỗi tải/giải mã (NotSupportedError hoặc target.error), còn NotAllowedError (trình duyệt chặn phát tự động) vẫn chỉ toast để người nghe nhấn Phát. Kiểm chứng: node --check đạt, thẻ HTML cân bằng, node --test 8/8 file pass, gồm test hồi quy mới cho skipFailedTrack (generation cũ không skip, generation hiện tại skip và toast, lỗi liên tiếp dừng sau khi hết danh sách, đủ 8 đường lỗi đi qua helper; test mới đã thử fail trên code cũ). Việc tiếp theo gợi ý: thêm icon PNG 192/512 cho Chrome hiện nút cài đặt khi có đường đẩy hỗ trợ file nhị phân. -->
 </body>
 </html>

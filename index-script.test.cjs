@@ -299,6 +299,43 @@ assert.ok(loopingDeck.calls.toasts.at(-1).includes('đã dừng phát'), 'Skippi
 const resetDeck = exerciseDeckError({errorSkipCount: 2});
 resetDeck.audio.fire('play');
 assert.equal(resetDeck.state.errorSkipCount, 0, 'Successful playback should reset the consecutive error-skip count');
+const skipFailedStart = appCode.indexOf('function skipFailedTrack(generation, message) {');
+assert.ok(skipFailedStart >= 0, 'skipFailedTrack implementation should exist for regression checks');
+const skipFailedEnd = appCode.indexOf('async function playTrack(trackId) {', skipFailedStart);
+assert.ok(skipFailedEnd > skipFailedStart, 'skipFailedTrack implementation should be extractable for regression checks');
+const skipFailedSource = appCode.slice(skipFailedStart, skipFailedEnd);
+function exerciseSkipFailed({generation = 3, playGeneration = 3, errorSkipCount = 0, tracks = [{id:'bad'}, {id:'next'}], message = 'Bài lỗi, chuyển sang bài tiếp theo.'} = {}) {
+  const calls = {toasts: [], playedNext: []};
+  const state = {tracks, errorSkipCount, playGeneration};
+  const skipFailedTrack = new Function('state', 'toast', 'playNext', `${skipFailedSource}\nreturn skipFailedTrack;`)(
+    state, text => calls.toasts.push(text), (direction, auto) => calls.playedNext.push([direction, auto]),
+  );
+  const skipped = skipFailedTrack(generation, message);
+  return {calls, state, skipped};
+}
+const staleSkip = exerciseSkipFailed({generation: 2, playGeneration: 3});
+assert.equal(staleSkip.skipped, false, 'A stale playback failure must not skip the track that is already playing');
+assert.deepEqual(staleSkip.calls.playedNext, [], 'A stale playback failure must not advance to another track');
+assert.deepEqual(staleSkip.calls.toasts, [], 'A stale playback failure must stay silent');
+assert.equal(staleSkip.state.errorSkipCount, 0, 'A stale playback failure must not count toward the error-skip guard');
+const freshSkip = exerciseSkipFailed();
+assert.equal(freshSkip.skipped, true, 'A current-generation playback failure should skip to the next track');
+assert.deepEqual(freshSkip.calls.playedNext, [[1, false]], 'Error skip should advance without the autoplay, sleep-timer or repeat-one gates');
+assert.ok(freshSkip.calls.toasts[0].includes('chuyển sang bài tiếp theo'), 'Error skip should toast that playback moved to the next track');
+assert.equal(freshSkip.state.errorSkipCount, 1, 'A playback failure should count toward the consecutive error-skip guard');
+const loopingSkip = exerciseSkipFailed({errorSkipCount: 2, tracks: [{id:'only'}, {id:'last'}]});
+assert.equal(loopingSkip.skipped, false, 'Skipping a fully broken list should stop instead of looping');
+assert.deepEqual(loopingSkip.calls.playedNext, [], 'Skipping a fully broken list should not advance again');
+assert.ok(loopingSkip.calls.toasts[0].includes('đã dừng phát'), 'Skipping a fully broken list should toast that playback stopped');
+assert.equal(loopingSkip.state.errorSkipCount, 0, 'The error-skip guard should reset after stopping a fully broken list');
+const silentSkip = exerciseSkipFailed({message: ''});
+assert.equal(silentSkip.skipped, true, 'A failure without a message should still skip');
+assert.deepEqual(silentSkip.calls.playedNext, [[1, false]], 'A failure without a message should still advance');
+assert.deepEqual(silentSkip.calls.toasts, [], 'A failure without a message should not toast an empty message');
+assert.equal((appCode.match(/skipFailedTrack\(generation, `/g) || []).length, 8, 'Every playback-failure path should route through skipFailedTrack');
+assert.ok(appCode.includes("if (error.name === 'NotSupportedError' || target.error) skipFailedTrack(generation"), 'A play() rejection should only skip for load/decode failures, not autoplay blocks');
+assert.ok(appCode.includes('else toast(mediaErrorMessage(error));'), 'A blocked autoplay attempt should still toast instead of skipping');
+assert.ok(!appCode.includes('toast(`Không thể chuẩn bị phát DSD:'), 'A DSD setup failure should skip instead of only toasting');
 assert.ok(appCode.includes('metadataUI.open(trackById(button.dataset.metadataTrackId))'), 'Track metadata button should open details without starting playback');
 assert.ok(appCode.includes('library.normalizeSearchKey(selected)'), 'Filter selection should use the shared accent-insensitive search key');
 assert.ok(appCode.includes('library.normalizeSearchKey(info.artist)'), 'Collection artist cards should group accent variants together');
