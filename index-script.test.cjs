@@ -66,6 +66,10 @@ assert.ok(appCode.includes('includeItemsFromAllDrives'), 'Drive listing should i
 assert.ok(appCode.includes("corpora:'allDrives'"), 'Drive listing should search all shared drive corpora');
 assert.ok(appCode.includes('@odata.nextLink'), 'OneDrive listing should follow every page');
 assert.ok(appCode.includes('restoreMicrosoftSession'), 'OneDrive should restore silently from the MSAL account cache');
+assert.ok(appCode.includes("library.parseCloudConfig(localStorage.getItem('nocturne-google'))"), 'Google config reads should go through the safe cloud-config parser');
+assert.ok(appCode.includes("library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'))"), 'Microsoft config reads should go through the safe cloud-config parser');
+assert.ok(!appCode.includes("JSON.parse(localStorage.getItem('nocturne-google')"), 'Corrupt Google config must not throw at read time');
+assert.ok(!appCode.includes("JSON.parse(localStorage.getItem('nocturne-microsoft')"), 'Corrupt Microsoft config must not throw at read time');
 assert.ok(!appCode.includes('async function restoreGoogleSession()'), 'Google OAuth must not run during page-load/background refresh');
 assert.ok(appCode.includes('GIS tokens are short-lived and intentionally never refreshed during page-load/background work.'), 'Google authorization must only start from a user action');
 assert.ok(appCode.includes("throw new Error('Phiên Google Drive đã hết hạn. Nhấn “Tiếp tục với Google” để kết nối lại.')"), 'Expired Google tokens should prompt an explicit user reconnect rather than an automatic OAuth popup');
@@ -113,6 +117,10 @@ assert.match(html, /id="roon-layout-theme"/, 'Library, album and player componen
 assert.match(html, /\.hero-art/, 'The hero artwork style should remain in the older compatibility layer');
 assert.ok([...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].some(match => /#hero\s*\{\s*display:none!important\s*\}/.test(match[1])), 'The reference-inspired library should not show the previous landing-page hero');
 assert.match(html, /\.track-row\.active \{[^}]*inset 2px 0 #91cde5/, 'The current track should have a visible Roon-inspired selection marker');
+assert.match(html, /#track-list \.track-row \{[^}]*content-visibility:auto/, 'Off-screen library rows should skip rendering so large lists scroll at 60fps');
+assert.match(html, /#track-list \.track-row \{[^}]*contain-intrinsic-size:auto 64px/, 'Skipped library rows should reserve their 64px height so the scrollbar stays stable');
+assert.match(html, /#track-list \.track-row \{[^}]*min-height:64px/, 'Library rows should keep their 64px minimum height after the visibility optimization');
+assert.equal([...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].reduce((count, match) => count + [...match[1].matchAll(/content-visibility:auto/g)].length, 0), 1, 'The content-visibility optimization should apply exactly once, to library rows only');
 assert.ok(appCode.includes('function syncSourceNavigation()'), 'Sidebar navigation and source filter should share active state');
 assert.ok(appCode.includes("button.setAttribute('aria-current', 'page')"), 'The active sidebar destination should be announced accessibly');
 assert.ok(appCode.includes("'roon-responsive-theme','roon-reference-layout','roon-collection-responsive','roon-collection-mobile'].includes(element.id)"), 'Update detection should include every inline layout theme when comparing versions');

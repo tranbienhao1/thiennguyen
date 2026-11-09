@@ -118,6 +118,21 @@ assert.strictEqual(utils.lyricLineAt(parsedLines, NaN), -1, 'lyricLineAt should 
 assert.strictEqual(utils.lyricLineAt(null, 5), -1, 'lyricLineAt should accept null lines');
 assert.strictEqual(utils.lyricLineAt([], 5), -1, 'lyricLineAt should accept empty lines');
 
+// Pha C — parseCloudConfig (cấu hình cloud lưu trong localStorage có thể bẩn).
+assert.deepStrictEqual(utils.parseCloudConfig('{"clientId":"abc","other":1}'), {clientId:'abc', other:1}, 'parseCloudConfig should keep a valid config object');
+assert.deepStrictEqual(utils.parseCloudConfig('{}'), {}, 'parseCloudConfig should accept an empty object');
+assert.deepStrictEqual(utils.parseCloudConfig('{"clientId":'), {}, 'parseCloudConfig should return {} for truncated JSON');
+assert.deepStrictEqual(utils.parseCloudConfig('{not json'), {}, 'parseCloudConfig should return {} for invalid JSON');
+assert.deepStrictEqual(utils.parseCloudConfig(''), {}, 'parseCloudConfig should accept an empty string');
+assert.deepStrictEqual(utils.parseCloudConfig('   '), {}, 'parseCloudConfig should accept whitespace only');
+assert.deepStrictEqual(utils.parseCloudConfig(null), {}, 'parseCloudConfig should accept null');
+assert.deepStrictEqual(utils.parseCloudConfig(undefined), {}, 'parseCloudConfig should accept undefined');
+assert.deepStrictEqual(utils.parseCloudConfig(42), {}, 'parseCloudConfig should accept a non-string value');
+assert.deepStrictEqual(utils.parseCloudConfig('"abc"'), {}, 'parseCloudConfig should reject a JSON string');
+assert.deepStrictEqual(utils.parseCloudConfig('[1,2]'), {}, 'parseCloudConfig should reject a JSON array');
+assert.deepStrictEqual(utils.parseCloudConfig('null'), {}, 'parseCloudConfig should reject JSON null');
+assert.deepStrictEqual(utils.parseCloudConfig('42'), {}, 'parseCloudConfig should reject a JSON number');
+
 assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).length, 3);
 assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);
 const albumGroups = utils.groupTracks(tracks, 'album');

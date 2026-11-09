@@ -122,7 +122,7 @@
     #content-col select,#sort-button { min-height:36px;border:1px solid #ffffff12;border-radius:8px;background:#202326;color:#c4c9cb; }
     #content-col select:focus { border-color:#82c7e3; }
     #track-list { margin-top:8px; }
-    #track-list .track-row { min-height:64px;border:1px solid transparent;border-bottom-color:#ffffff09;border-radius:9px;padding:8px 12px; }
+    #track-list .track-row { min-height:64px;border:1px solid transparent;border-bottom-color:#ffffff09;border-radius:9px;padding:8px 12px;content-visibility:auto;contain-intrinsic-size:auto 64px; }
     #track-list .track-row:hover { border-color:#ffffff09;background:#ffffff08; }
     #track-list .track-row.active { border-color:#91cde526;background:#91cde50c;box-shadow:inset 2px 0 #91cde5; }
     #track-list .track-row .track-number { width:21px;color:#687378; }
@@ -1923,7 +1923,7 @@
     loadGoogleScript().catch(error => console.info('Google Identity Services unavailable until requested:', error.message || error));
     function requestGoogleToken({clientId = '', prompt = ''} = {}) {
       if (!window.isSecureContext) throw new Error('Google OAuth chỉ hoạt động trên HTTPS hoặc localhost. Hãy mở website bằng địa chỉ HTTPS; không dùng file:// hoặc địa chỉ IP không bảo mật.');
-      const savedConfig = JSON.parse(localStorage.getItem('nocturne-google') || '{}');
+      const savedConfig = library.parseCloudConfig(localStorage.getItem('nocturne-google'));
       const effectiveClientId = clientId || savedConfig.clientId;
       if (!effectiveClientId) throw new Error('Vui lòng nhập Google OAuth 2.0 Client ID.');
       if (!window.google?.accounts?.oauth2) {
@@ -2075,7 +2075,7 @@
       cloudStatus('microsoft', 'OneDrive đã đồng bộ', 'text-emerald-300');
     }
     async function restoreMicrosoftSession() {
-      const config = JSON.parse(localStorage.getItem('nocturne-microsoft') || '{}');
+      const config = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
       if (!config.clientId || !window.msal) return false;
       try {
         const token = await getMicrosoftToken(false);
@@ -2100,7 +2100,7 @@
     }
     async function getMicrosoftToken(interactive = false) {
       if (!state.msal) {
-        const config = JSON.parse(localStorage.getItem('nocturne-microsoft') || '{}');
+        const config = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
         if (!config.clientId) throw new Error('Vui lòng nhập Application (client) ID.');
         state.msal = new msal.PublicClientApplication({auth:{clientId:config.clientId, authority:'https://login.microsoftonline.com/common', redirectUri:location.origin + location.pathname}, cache:{cacheLocation:'localStorage', storeAuthStateInCookie:false}});
         await state.msal.initialize();
@@ -2267,13 +2267,13 @@
     $('microsoft-connect').addEventListener('click', () => runCloudLogin(connectMicrosoftAndHandleAuth));
     ['google-client-id','microsoft-client-id'].forEach(id => $(id).addEventListener('input', () => { if ($('settings-error').classList.contains('hidden')) return; $('settings-error').classList.add('hidden'); }));
     $('google-quick-connect').addEventListener('click', () => runCloudLogin(async () => {
-      const config = JSON.parse(localStorage.getItem('nocturne-google') || '{}');
+      const config = library.parseCloudConfig(localStorage.getItem('nocturne-google'));
       if (!config.clientId) { showSettings(); $('google-client-id').focus(); throw new Error('Đăng nhập lần đầu? Dán Google Client ID vào phần Google Drive.'); }
       $('google-client-id').value = config.clientId;
       await connectGoogle();
     }));
     $('microsoft-quick-connect').addEventListener('click', () => runCloudLogin(async () => {
-      const config = JSON.parse(localStorage.getItem('nocturne-microsoft') || '{}');
+      const config = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
       if (!config.clientId) { showSettings(); $('microsoft-client-id').focus(); throw new Error('Đăng nhập lần đầu? Dán Microsoft Client ID vào phần OneDrive.'); }
       $('microsoft-client-id').value = config.clientId;
       await connectMicrosoftAndHandleAuth();
@@ -2531,9 +2531,9 @@
     });
 
     try {
-      const googleConfig = JSON.parse(localStorage.getItem('nocturne-google') || '{}');
+      const googleConfig = library.parseCloudConfig(localStorage.getItem('nocturne-google'));
       $('google-client-id').value = googleConfig.clientId || '';
-      const microsoftConfig = JSON.parse(localStorage.getItem('nocturne-microsoft') || '{}');
+      const microsoftConfig = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
       $('microsoft-client-id').value = microsoftConfig.clientId || '';
       if (googleConfig.clientId) { $('google-state').textContent = 'Sẵn sàng đăng nhập'; $('cloud-status').textContent = 'Google Drive · sẵn sàng'; }
       if (microsoftConfig.clientId) { $('microsoft-state').textContent = 'Sẵn sàng đăng nhập'; $('cloud-status').textContent = googleConfig.clientId ? 'Google Drive / OneDrive · sẵn sàng' : 'OneDrive · sẵn sàng'; }
@@ -2593,5 +2593,7 @@
   <!-- Bàn giao 2026-11-09 04:22 +07: Tự động bỏ qua bài lỗi khi phát tự động (attachDeckEvents trong index.html): trước đây deck đang phát gặp file hỏng / codec không hỗ trợ / lỗi mạng thì không toast, không chuyển bài, nhạc dừng hẳn im lặng; giờ toast tên bài lỗi và gọi playNext(1, false) để chuyển sang bài tiếp theo (dùng auto=false để không bị chặn bởi autoplay tắt, hẹn giờ ngủ hay repeat-one phát lại chính bài lỗi). Chặn vòng lặp bằng bộ đếm errorSkipCount: phát thành công reset về 0, quá số bài trong danh sách thì dừng và toast đã dừng phát; lỗi preload vẫn chỉ xóa preload, không chuyển bài. Kiểm chứng: node --check đạt, thẻ HTML cân bằng, node --test 8/8 file pass, gồm test hồi quy mới cho attachDeckEvents (deck phát lỗi thì chuyển bài + toast tên bài, lỗi preload chỉ xóa preload, lỗi liên tiếp dừng sau khi hết danh sách, sự kiện play reset bộ đếm; test mới đã thử fail trên code cũ). Việc tiếp theo gợi ý: tự động bỏ qua bài lỗi ở cả đường play() reject trong playTrack (codec không hỗ trợ) và lỗi chuẩn bị DSD, và thêm icon PNG 192/512 cho Chrome hiện nút cài đặt khi có đường đẩy hỗ trợ file nhị phân. -->
   <!-- Bàn giao 2026-11-09 05:35 +07: Tự động bỏ qua bài lỗi ở đường play() reject và lỗi chuẩn bị DSD (skipFailedTrack trong index.html): trước đây playTrack bắt lỗi play() reject (codec không hỗ trợ), track.load() lỗi, chuẩn bị DSD lỗi hay worker DSD lỗi thì chỉ toast rồi dừng hẳn; giờ 8 đường lỗi đều gọi skipFailedTrack để toast và chuyển sang bài tiếp theo bằng playNext(1, false), chặn vòng lặp bằng bộ đếm errorSkipCount đã có. Helper chặn generation cũ nên lỗi của bài đã chuyển đi không làm nhảy nhầm bài mới; chỉ skip khi lỗi tải/giải mã (NotSupportedError hoặc target.error), còn NotAllowedError (trình duyệt chặn phát tự động) vẫn chỉ toast để người nghe nhấn Phát. Kiểm chứng: node --check đạt, thẻ HTML cân bằng, node --test 8/8 file pass, gồm test hồi quy mới cho skipFailedTrack (generation cũ không skip, generation hiện tại skip và toast, lỗi liên tiếp dừng sau khi hết danh sách, đủ 8 đường lỗi đi qua helper; test mới đã thử fail trên code cũ). Việc tiếp theo gợi ý: thêm icon PNG 192/512 cho Chrome hiện nút cài đặt khi có đường đẩy hỗ trợ file nhị phân. -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 05:53 +07 | Đã xong: Pha B - Thêm parseLyrics + lyricLineAt (.lrc đồng bộ) vào library-utils.js | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Giải phóng URL.revokeObjectURL cho bản preload DSD khi chuyển bài, chống tràn RAM -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 06:05 +07 | Đã xong: Pha C - Thêm parseCloudConfig đọc cấu hình cloud đã lưu, JSON bẩn trả về {} thay vì ném SyntaxError (7 điểm đọc) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Thêm content-visibility:auto cho hàng bài hát để cuộn danh sách lớn mượt 60fps -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 06:33 +07 | Đã xong: Pha D - Thêm content-visibility:auto + contain-intrinsic-size:auto 64px cho #track-list .track-row để cuộn danh sách lớn mượt 60fps | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Nạp trước (pre-decode) bài kế tiếp khi bài hiện tại còn 15 giây để phát gapless 0 ms -->
 </body>
 </html>
