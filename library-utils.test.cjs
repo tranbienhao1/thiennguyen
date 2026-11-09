@@ -93,6 +93,31 @@ assert.strictEqual(utils.groupTracks([{artist:'Thiên', title:'A'}, {artist:'Thi
 assert.strictEqual(utils.groupTracks([{artist:'Nguyễn', album:'Đà Lạt', title:'A'}, {artist:'Nguyen', album:'Da Lat', title:'B'}], 'album').length, 1, 'Album grouping should merge accent variants');
 
 
+// Pha B — parseLyrics / lyricLineAt (.lrc đồng bộ, chưa có trong repo).
+const lrc = '[ti:Test]\n[ar:Artist]\n[00:05.00]Second line\n[00:01.00][00:09.00]First and last\n[00:03.5]<00:03.50>Enhanced <00:04.00>words here\n[00:07.345]Three decimals\n[00:99.00]Bad seconds\n[00:08.00]   \nNo time tag here';
+assert.deepStrictEqual(utils.parseLyrics(lrc), [
+  {time:1, text:'First and last'},
+  {time:3.5, text:'Enhanced words here'},
+  {time:5, text:'Second line'},
+  {time:7.345, text:'Three decimals'},
+  {time:9, text:'First and last'}
+], 'LRC should sort lines, expand multi-tag lines, strip Enhanced tags and drop bad/empty lines');
+assert.deepStrictEqual(utils.parseLyrics('[offset:500]\n[00:01.00]Shifted'), [{time:1.5, text:'Shifted'}], 'LRC offset should shift every timestamp');
+assert.deepStrictEqual(utils.parseLyrics('\uFEFF[00:01.00]BOM\r\n[00:02]No fraction'), [{time:1, text:'BOM'}, {time:2, text:'No fraction'}], 'LRC should accept BOM, CRLF and timestamps without fractions');
+assert.deepStrictEqual(utils.parseLyrics(null), [], 'parseLyrics should accept null');
+assert.deepStrictEqual(utils.parseLyrics(42), [], 'parseLyrics should accept non-string input');
+assert.deepStrictEqual(utils.parseLyrics(''), [], 'parseLyrics should accept empty input');
+assert.deepStrictEqual(utils.parseLyrics('[ti:Only metadata]'), [], 'parseLyrics should return no lines for metadata-only files');
+const parsedLines = utils.parseLyrics('[00:01.00]One\n[00:03.00]Two\n[00:03.00]Two again\n[00:06.00]Three');
+assert.strictEqual(utils.lyricLineAt(parsedLines, 0.99), -1, 'lyricLineAt should return -1 before the first line');
+assert.strictEqual(utils.lyricLineAt(parsedLines, 1), 0, 'lyricLineAt should match an exact timestamp');
+assert.strictEqual(utils.lyricLineAt(parsedLines, 3), 2, 'lyricLineAt should return the last line at a duplicated timestamp');
+assert.strictEqual(utils.lyricLineAt(parsedLines, 5.99), 2, 'lyricLineAt should hold the current line until the next timestamp');
+assert.strictEqual(utils.lyricLineAt(parsedLines, 99), 3, 'lyricLineAt should hold the last line after the song ends');
+assert.strictEqual(utils.lyricLineAt(parsedLines, NaN), -1, 'lyricLineAt should accept NaN');
+assert.strictEqual(utils.lyricLineAt(null, 5), -1, 'lyricLineAt should accept null lines');
+assert.strictEqual(utils.lyricLineAt([], 5), -1, 'lyricLineAt should accept empty lines');
+
 assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).length, 3);
 assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);
 const albumGroups = utils.groupTracks(tracks, 'album');

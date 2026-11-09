@@ -256,5 +256,45 @@
     return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'vi'));
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks};
+  // Pha B — lời đồng bộ .lrc: [mm:ss.xx] (1-3 chữ số thập phân), nhiều mốc
+  // trên một dòng, thẻ Enhanced LRC <mm:ss.xx> từng từ, thẻ [offset:±ms]
+  // (cộng vào mọi mốc), thẻ metadata [ti:/ar:/al:] bị bỏ qua. Trả về mảng
+  // đã sắp xếp theo thời gian; đầu vào không phải chuỗi trả về [].
+  function parseLyrics(text) {
+    if (typeof text !== 'string') return [];
+    const offset = text.match(/\[offset:\s*([+-]?\d+)\s*\]/i);
+    const offsetMs = offset ? Number(offset[1]) : 0;
+    const entries = [];
+    for (const rawLine of text.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/)) {
+      const times = [...rawLine.matchAll(/\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g)];
+      if (!times.length) continue;
+      const lyric = rawLine.replace(/\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g, '').replace(/<\d{1,3}:\d{2}(?:[.:]\d{1,3})?>/g, '').trim();
+      if (!lyric) continue;
+      for (const match of times) {
+        const minutes = Number(match[1]);
+        const seconds = Number(match[2]);
+        if (seconds >= 60) continue;
+        const fraction = match[3] ? Number(match[3].padEnd(3, '0')) : 0;
+        const timeMs = Math.max(0, (minutes * 60 + seconds) * 1000 + fraction + offsetMs);
+        entries.push({time: timeMs / 1000, text: lyric});
+      }
+    }
+    return entries.sort((a, b) => a.time - b.time);
+  }
+
+  // Dòng lời đang hát tại `seconds`: chỉ số của mốc cuối cùng <= seconds,
+  // -1 khi chưa tới dòng đầu hoặc đầu vào không hợp lệ.
+  function lyricLineAt(lines, seconds) {
+    if (!Array.isArray(lines) || !lines.length) return -1;
+    const current = Number(seconds);
+    if (!Number.isFinite(current)) return -1;
+    let index = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const time = Number(lines[i] && lines[i].time);
+      if (Number.isFinite(time) && time <= current) index = i;
+    }
+    return index;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt};
 });
