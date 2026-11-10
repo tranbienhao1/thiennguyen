@@ -793,4 +793,29 @@ assert.ok(appCode.includes("localStorage.setItem('nocturne-crossfade-seconds'"),
 assert.ok(appCode.includes("localStorage.getItem('nocturne-crossfade-seconds')"), 'The crossfade setting should be restored on startup');
 assert.ok(appCode.includes('if ([0,1,2,3,5].includes(savedCrossfade)) state.crossfadeSeconds = savedCrossfade;'), 'Only crossfade values offered by the settings control should be restored');
 
+// Pha B — phím tắt X bật/tắt crossfade nhanh khi đang nghe.
+const toggleStart = appCode.indexOf('function toggleCrossfade() {');
+assert.ok(toggleStart >= 0, 'Crossfade toggle helper should exist for regression checks');
+const toggleEnd = appCode.indexOf("    $('google-connect').addEventListener('click'", toggleStart);
+assert.ok(toggleEnd > toggleStart, 'Crossfade toggle helper should be extractable for regression checks');
+function exerciseToggleCrossfade(initialSeconds, initialBeforeOff = 0) {
+  const state = {crossfadeSeconds: initialSeconds, crossfadeSecondsBeforeOff: initialBeforeOff};
+  const select = {value: String(initialSeconds)};
+  const saved = [], toasts = [];
+  const toggleCrossfade = new Function('state', '$', 'toast', 'localStorage', appCode.slice(toggleStart, toggleEnd) + '\nreturn toggleCrossfade;')(state, () => select, message => toasts.push(message), {setItem(key, value) { saved.push([key, value]); }});
+  return {state, select, saved, toasts, next: toggleCrossfade()};
+}
+const turnedOff = exerciseToggleCrossfade(3);
+assert.equal(turnedOff.next, 0, 'Toggling crossfade on should turn it off');
+assert.equal(turnedOff.state.crossfadeSecondsBeforeOff, 3, 'Turning crossfade off should remember the previous duration');
+assert.equal(turnedOff.select.value, '0', 'Toggling crossfade should sync the settings control');
+assert.deepEqual(turnedOff.saved, [['nocturne-crossfade-seconds', '0']], 'Toggling crossfade should persist the new setting');
+assert.deepEqual(turnedOff.toasts, ['Đã tắt crossfade.'], 'Toggling crossfade off should toast');
+const turnedOn = exerciseToggleCrossfade(0, 3);
+assert.equal(turnedOn.next, 3, 'Toggling crossfade off should restore the remembered duration');
+assert.deepEqual(turnedOn.toasts, ['Đã bật crossfade 3 giây.'], 'Toggling crossfade on should toast the restored duration');
+assert.equal(exerciseToggleCrossfade(0).next, 2, 'Toggling crossfade with no remembered duration should default to 2 seconds');
+assert.ok(appCode.includes("else if (event.key.toLowerCase() === 'x') toggleCrossfade();"), 'The X key should toggle crossfade');
+assert.ok(appCode.includes('crossfadeSecondsBeforeOff: 0'), 'App state should remember the crossfade duration before turning it off');
+
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');

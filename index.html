@@ -766,7 +766,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -2507,6 +2507,19 @@
       state.crossfadeSeconds = library.clampCrossfadeSeconds(event.target.value, 0);
       try { localStorage.setItem('nocturne-crossfade-seconds', String(state.crossfadeSeconds)); } catch (error) { console.warn('Could not save crossfade setting:', error); }
     });
+    // Pha B — phím tắt X bật/tắt crossfade nhanh khi đang nghe: tắt thì nhớ
+    // lại thời lượng cũ để bật lại đúng mức đó (chưa có thì mặc định 2
+    // giây); đồng bộ select Cài đặt + localStorage, toast xác nhận.
+    function toggleCrossfade() {
+      const turningOff = state.crossfadeSeconds > 0;
+      if (turningOff) state.crossfadeSecondsBeforeOff = state.crossfadeSeconds;
+      const next = turningOff ? 0 : (state.crossfadeSecondsBeforeOff || 2);
+      state.crossfadeSeconds = next;
+      $('crossfade-seconds').value = String(next);
+      try { localStorage.setItem('nocturne-crossfade-seconds', String(next)); } catch (error) { console.warn('Could not save crossfade setting:', error); }
+      toast(next > 0 ? `Đã bật crossfade ${next} giây.` : 'Đã tắt crossfade.');
+      return next;
+    }
     $('google-connect').addEventListener('click', () => runCloudLogin(connectGoogle));
     $('microsoft-connect').addEventListener('click', () => runCloudLogin(connectMicrosoftAndHandleAuth));
     ['google-client-id','microsoft-client-id'].forEach(id => $(id).addEventListener('input', () => { if ($('settings-error').classList.contains('hidden')) return; $('settings-error').classList.add('hidden'); }));
@@ -2590,6 +2603,7 @@
       else if (event.key.toLowerCase() === 'p') playNext(-1);
       else if (event.key.toLowerCase() === 'q') $('queue-panel').classList.contains('hidden') ? openQueue() : closeQueue();
       else if (event.key.toLowerCase() === 'e') cycleEqPreset();
+      else if (event.key.toLowerCase() === 'x') toggleCrossfade();
       else if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); }
     });
     $('shuffle-button').addEventListener('click', event => { state.shuffle = !state.shuffle; event.currentTarget.classList.toggle('text-violet-300', state.shuffle); toast(state.shuffle ? 'Đã bật trộn bài.' : 'Đã tắt trộn bài.'); if (state.currentId) preloadNext(true); });
@@ -2901,5 +2915,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 19:38 +07 | Đã xong: Pha D - Thêm content-visibility:auto + contain-intrinsic-size:auto 28px cho .lyric-line để lời .lrc dài hàng trăm dòng trong khung cuộn max-h-72 bỏ qua render ngoài màn hình như hàng bài hát/thẻ bộ sưu tập/hàng đợi, cuộn lời đồng bộ mượt 60fps; scrollIntoView của dòng đang hát vẫn ép render; bộ đếm content-visibility trong test tăng 3 lên 4 vị trí | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Kiểm toán engine DSD: đo throughput giải mã theo từng lát và cảnh báo khi lát vượt ngân sách 50 ms liên tục -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 20:09 +07 | Đã xong: Pha D - Đo thời gian giải mã DSD bằng performance.now() (độ phân giải dưới mili-giây) thay vì Date.now() làm tròn 1 ms, để throughput từng lát và ngưỡng 50 ms chính xác hơn (fallback Date.now() khi worker không có performance; test đồng hồ giả tăng 7 ms/lần cho maxChunkMs đúng 7 ms, decodeMs 63 ms); gộp cả [Pha A] worker theo dõi chuỗi lát vượt 50 ms dài nhất + throughput lát chậm nhất, formatDecodeAudit cảnh báo khi ≥3 lát liên tiếp vượt 50 ms, [Pha B] Phòng nghe hiện lời khuyên giảm tần số PCM đích khi thiết bị chậm liên tiếp, [Pha C] fetchAudioBlob thử lại tối đa 3 lần trễ 400/800 ms khi lỗi mạng hoặc HTTP 429/5xx, 401/403/404/sai content-type rớt ngay | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Thêm soft-limiter (DynamicsCompressor) sau preamp/EQ để chống clipping khi tăng gain, kèm đo peak trước/sau limiter -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 21:20 +07 | Đã xong: Pha A - Crossfade đẳng công suất khi chuyển bài: crossfadeGains cos/sin (tổng công suất = 1, giữa fade hai deck đều -3 dB) + clampCrossfadeSeconds 0–5 giây, applyCrossfade ramp 33 điểm bằng setValueCurveAtTime qua 2 deck, deck cũ phát hết fade mới dừng/xóa src (guard generation), preloadNext hoãn lại trong lúc fade để không cắt bài cũ, chọn 0/1/2/3/5 giây trong Cài đặt và lưu localStorage (mặc định 0 = tắt, giữ cách chuyển nhanh cũ); test chạy thật applyCrossfade với deck giả (đường cong 1→0 / 0→1, giữa fade -3 dB, tổng công suất = 1, deck fade dở giữ mức hiện tại) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Thêm phím tắt bật/tắt crossfade nhanh khi đang nghe (đồng bộ với select trong Cài đặt) và hiện thời lượng crossfade trong Phòng nghe -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 21:26 +07 | Đã xong: Pha B - Phím tắt X bật/tắt crossfade nhanh khi đang nghe: toggleCrossfade tắt thì nhớ thời lượng cũ vào crossfadeSecondsBeforeOff, bật lại đúng mức đó (chưa có thì mặc định 2 giây), đồng bộ select #crossfade-seconds + localStorage nocturne-crossfade-seconds và toast xác nhận; test chạy thật toggleCrossfade với state/$/toast/localStorage giả (tắt 3 giây nhớ 3 giây, bật lại 3 giây, chưa nhớ thì 2 giây, select + localStorage + toast đồng bộ) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Thu hồi blob URL của bài cũ sau khi crossfade xong: timeout dọn deck cũ gọi releaseUnusedLocalUrl/releaseUnusedCloudUrl để không giữ file nhạc trong RAM sau khi bài cũ đã fade hết -->
 </body>
 </html>
