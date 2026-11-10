@@ -226,7 +226,7 @@ assert.ok(appCode.includes('existing.set(key, track)'), 'New local tracks should
 assert.ok(appCode.includes('track.relativePath = file.relativePath || file.webkitRelativePath || file.name'), 'Local tracks should retain relative paths for later duplicate checks');
 assert.ok(appCode.includes('state.activeAnalyser = enabled ? state.analyser : state.directAnalyser'), 'EQ toggle should switch the visualizer to the active output analyser');
 assert.ok(appCode.includes("new URL('.', document.baseURI || location.href).href"), 'DSD worker base URL should come from the document URL');
-assert.ok(appCode.includes("element.addEventListener('ended', () => { if (element === audio) playNext(1, true); })"), 'Natural track endings should be distinguishable from manual Next');
+assert.ok(appCode.includes("if (track && track.firstSlicePlayback && track.fullAudioPromise) { track.sliceEndedEarly = true; return; }"), 'A first slice that runs out before the full file arrives must not advance to the next track');
 assert.ok(appCode.includes('if (event.target !== row || (event.key !== \'Enter\' && event.key !== \' \')) return'), 'Track-row keyboard playback should only trigger when the row itself has focus');
 
 const auditStart = appCode.indexOf('function formatDecodeAudit(decodeMs, maxChunkMs, chunksOverBudget, throughputMBps, initialChunkBytes, maxConsecutiveOverBudget, minSliceThroughputMBps) {');
@@ -454,6 +454,14 @@ assert.ok(loopingDeck.calls.toasts.at(-1).includes('đã dừng phát'), 'Skippi
 const resetDeck = exerciseDeckError({errorSkipCount: 2});
 resetDeck.audio.fire('play');
 assert.equal(resetDeck.state.errorSkipCount, 0, 'Successful playback should reset the consecutive error-skip count');
+// Pha C — lát đầu hết trước khi file đầy đủ tải xong thì bài chưa hết.
+const sliceDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài lát đầu', firstSlicePlayback:true, fullAudioPromise:Promise.resolve('blob:full')}, {id:'next', title:'Bài sau'}], currentId:'now'});
+sliceDeck.target.fire('ended');
+assert.deepEqual(sliceDeck.calls.playedNext, [], 'A first slice that runs out before the full file arrives must not advance to the next track');
+assert.equal(sliceDeck.state.tracks[0].sliceEndedEarly, true, 'An early slice ending should be remembered so the background upgrade can resume playback');
+const fullDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài đầy đủ', firstSlicePlayback:true, fullAudioPromise:null}, {id:'next', title:'Bài sau'}], currentId:'now'});
+fullDeck.target.fire('ended');
+assert.deepEqual(fullDeck.calls.playedNext, [[1, true]], 'A real ending after the full file arrived should advance to the next track');
 const skipFailedStart = appCode.indexOf('function skipFailedTrack(generation, message) {');
 assert.ok(skipFailedStart >= 0, 'skipFailedTrack implementation should exist for regression checks');
 const skipFailedEnd = appCode.indexOf('async function playTrack(trackId) {', skipFailedStart);
@@ -874,6 +882,11 @@ const pausedSlice = await exerciseUpgradeSlice({track:{id:'now', source:'google'
 pausedSlice.audio.listeners.loadedmetadata[0]();
 assert.equal(pausedSlice.audio.currentTime, 10, 'A paused slice should still seek back to its position after the swap');
 assert.equal(pausedSlice.audio.playCalls, 0, 'A paused slice must stay paused after the swap');
+const endedEarlySlice = await exerciseUpgradeSlice({track:{id:'now', source:'google', name:'a.flac', title:'A', format:'flac', url:'blob:https://example/slice', sliceEndedEarly:true}, audioSrc:'blob:https://example/slice', audioCurrentTime:2, audioPaused:true});
+endedEarlySlice.audio.listeners.loadedmetadata[0]();
+assert.equal(endedEarlySlice.audio.currentTime, 2, 'A slice that ended early should still seek back to its position after the swap');
+assert.equal(endedEarlySlice.audio.playCalls, 1, 'A slice that ended early must resume playback after the swap to the full file');
+assert.equal(endedEarlySlice.track.sliceEndedEarly, false, 'The early-ending flag should clear once the full file takes over');
 const failedUpgrade = await exerciseUpgradeSlice({track:{id:'now', source:'google', name:'a.flac', title:'A', format:'flac', url:'blob:https://example/slice'}, audioSrc:'blob:https://example/slice', fetchImpl:async () => { const error = new Error('net down'); error.status = 500; throw error; }});
 assert.ok(failedUpgrade.error, 'A failed background download should report its error');
 assert.equal(failedUpgrade.track.url, 'blob:https://example/slice', 'A failed upgrade must keep the slice URL so playback continues');

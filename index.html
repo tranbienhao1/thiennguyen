@@ -973,12 +973,13 @@
         state.objectUrls.add(fullUrl);
         const sliceAbsoluteUrl = new URL(sliceUrl, location.href).href;
         if (track.id === state.currentId && audio.src === sliceAbsoluteUrl) {
-          const position = audio.currentTime, wasPaused = audio.paused;
+          const position = audio.currentTime, wasPaused = audio.paused, endedEarly = !!track.sliceEndedEarly;
           audio.addEventListener('loadedmetadata', () => {
             try { audio.currentTime = Math.min(position, audio.duration || position); } catch (_) {}
-            if (!wasPaused) audio.play().catch(error => console.warn('Could not resume after upgrading to the full audio file:', error.message || error));
+            if (!wasPaused || endedEarly) audio.play().catch(error => console.warn('Could not resume after upgrading to the full audio file:', error.message || error));
           }, {once:true});
           audio.src = new URL(fullUrl, location.href).href;
+          track.sliceEndedEarly = false;
         }
         if (track.url === sliceUrl) track.url = fullUrl;
         if (![audio, standbyAudio].some(element => element.src === sliceAbsoluteUrl)) releaseTrackUrl(sliceUrl);
@@ -2840,7 +2841,15 @@
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'paused'; } catch (error) {} }
         setVisualizerRunning(false);
       });
-      element.addEventListener('ended', () => { if (element === audio) playNext(1, true); });
+      element.addEventListener('ended', () => {
+        if (element !== audio) return;
+        const track = state.tracks.find(item => item.id === state.currentId);
+        // Pha C — lát đầu hết trước khi file đầy đủ tải xong thì bài chưa
+        // hết: đừng chuyển bài, đợi tải nền đổi sang file đầy đủ rồi phát
+        // tiếp (upgradeSliceToFullAudio phát tiếp khi lát đầu đã hết sớm).
+        if (track && track.firstSlicePlayback && track.fullAudioPromise) { track.sliceEndedEarly = true; return; }
+        playNext(1, true);
+      });
       element.addEventListener('error', () => {
         if (element === standbyAudio) { state.preloadTrackId = null; state.preloadReadyUrl = null; console.warn('Next track preload failed.'); return; }
         if (element !== audio) return;
@@ -3010,6 +3019,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 20:09 +07 | Đã xong: Pha D - Đo thời gian giải mã DSD bằng performance.now() (độ phân giải dưới mili-giây) thay vì Date.now() làm tròn 1 ms, để throughput từng lát và ngưỡng 50 ms chính xác hơn (fallback Date.now() khi worker không có performance; test đồng hồ giả tăng 7 ms/lần cho maxChunkMs đúng 7 ms, decodeMs 63 ms); gộp cả [Pha A] worker theo dõi chuỗi lát vượt 50 ms dài nhất + throughput lát chậm nhất, formatDecodeAudit cảnh báo khi ≥3 lát liên tiếp vượt 50 ms, [Pha B] Phòng nghe hiện lời khuyên giảm tần số PCM đích khi thiết bị chậm liên tiếp, [Pha C] fetchAudioBlob thử lại tối đa 3 lần trễ 400/800 ms khi lỗi mạng hoặc HTTP 429/5xx, 401/403/404/sai content-type rớt ngay | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Thêm soft-limiter (DynamicsCompressor) sau preamp/EQ để chống clipping khi tăng gain, kèm đo peak trước/sau limiter -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 21:20 +07 | Đã xong: Pha A - Crossfade đẳng công suất khi chuyển bài: crossfadeGains cos/sin (tổng công suất = 1, giữa fade hai deck đều -3 dB) + clampCrossfadeSeconds 0–5 giây, applyCrossfade ramp 33 điểm bằng setValueCurveAtTime qua 2 deck, deck cũ phát hết fade mới dừng/xóa src (guard generation), preloadNext hoãn lại trong lúc fade để không cắt bài cũ, chọn 0/1/2/3/5 giây trong Cài đặt và lưu localStorage (mặc định 0 = tắt, giữ cách chuyển nhanh cũ); test chạy thật applyCrossfade với deck giả (đường cong 1→0 / 0→1, giữa fade -3 dB, tổng công suất = 1, deck fade dở giữ mức hiện tại) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Thêm phím tắt bật/tắt crossfade nhanh khi đang nghe (đồng bộ với select trong Cài đặt) và hiện thời lượng crossfade trong Phòng nghe -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 21:26 +07 | Đã xong: Pha B - Phím tắt X bật/tắt crossfade nhanh khi đang nghe: toggleCrossfade tắt thì nhớ thời lượng cũ vào crossfadeSecondsBeforeOff, bật lại đúng mức đó (chưa có thì mặc định 2 giây), đồng bộ select #crossfade-seconds + localStorage nocturne-crossfade-seconds và toast xác nhận; test chạy thật toggleCrossfade với state/$/toast/localStorage giả (tắt 3 giây nhớ 3 giây, bật lại 3 giây, chưa nhớ thì 2 giây, select + localStorage + toast đồng bộ) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Thu hồi blob URL của bài cũ sau khi crossfade xong: timeout dọn deck cũ gọi releaseUnusedLocalUrl/releaseUnusedCloudUrl để không giữ file nhạc trong RAM sau khi bài cũ đã fade hết -->
-  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 23:17 +07 | Đã xong: Pha C - Metadata song song + lát đầu 1 MB (theo lựa chọn của Melissa lúc 23:12, ưu tiên cao nhất sau khi báo 23:05 vẫn chậm): fetchCloudTrack không chờ enrichCloudTrack nữa mà đẩy tag/cover vào queueCloudMetadata nền rồi tải lát đầu ngay (kể cả khi một lần đọc metadata đang dở dang), FIRST_SLICE_BYTES 4 MB -> 1 MB (Range bytes=0-1048575; ~2 giây FLAC 24-bit/96 kHz, đủ giải mã khung đầu rồi tải nền đổi sang file đầy đủ), nhãn time-to-first-audio đổi theo thành "lát đầu 1 MB"; test chạy thật fetchCloudTrack với metadataRequest không bao giờ xong (trả lát đầu ngay, queue 1 lần, vẫn tải nền file đầy đủ) và URL đã cache (trả ngay không queue/tải lại) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Hiện chỉ số gain reduction của limiter theo thời gian thực (đọc limiter.reduction) trong Phòng nghe, kèm cảnh báo khi limiter làm việc liên tục; backlog: cache lát đầu (IndexedDB), OneDrive dùng thẳng downloadUrl, prefetch lát đầu bài kế -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 23:27 +07 | Đã xong: Pha C - Chặn 'ended' tự chuyển bài khi lát đầu hết sớm (lỗi Melissa báo 23:22, phát ~10 giây rồi tự đổi bài): 'ended' trên deck chính không chuyển bài khi track đang phát từ lát đầu và file đầy đủ còn đang tải nền (ghi track.sliceEndedEarly), upgradeSliceToFullAudio phát tiếp sau khi đổi sang file đầy đủ ở đúng vị trí khi lát đầu đã hết sớm (kể cả khi deck đang tạm dừng vì đã hết); test chạy thật attachDeckEvents với deck giả (lát đầu + đang tải nền thì không chuyển bài và nhớ cờ, file đầy đủ đã về thì chuyển bài bình thường) và upgradeSliceToFullAudio (lát đầu hết sớm thì phát tiếp + xóa cờ, tạm dừng thường vẫn giữ tạm dừng) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu (theo ưu tiên Melissa chọn 23:23): tải sẵn lát đầu bài kế/bài đang hiện trên màn hình + cache lát đầu vào IndexedDB để bấm lại phát ngay; backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade -->
 </body>
 </html>
