@@ -762,7 +762,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -1593,6 +1593,20 @@
       source.connect(router);
       return {element, source, router, preamp, direct, filters: []};
     }
+    // Pha A — soft limiter sau EQ: các band EQ cộng dồn có thể vượt quá
+    // headroom mà preamp bù (-maxBoost) chỉ tính cho band đơn lẻ, nên chèn
+    // DynamicsCompressor (threshold -3 dB, ratio 20:1) giữa preamp và
+    // analyser để chặn clipping; meter vẫn đọc sau limiter nên thấy đúng
+    // mức tín hiệu tới tai nghe.
+    function createSoftLimiter(context) {
+      const limiter = context.createDynamicsCompressor();
+      limiter.threshold.value = -3;
+      limiter.knee.value = 0;
+      limiter.ratio.value = 20;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.1;
+      return limiter;
+    }
     function rebuildDeckRoute(deck) {
       deck.router.disconnect(); deck.preamp.disconnect(); deck.direct.disconnect();
       deck.filters.forEach(filter => { try { filter.disconnect(); } catch (_) {} });
@@ -1600,7 +1614,7 @@
       deck.router.connect(deck.direct); deck.direct.connect(state.directAnalyser);
       let node = deck.router;
       deck.filters.forEach(filter => { node.connect(filter); node = filter; });
-      node.connect(deck.preamp); deck.preamp.connect(state.analyser);
+      node.connect(deck.preamp); deck.preamp.connect(state.limiter);
     }
     function rebuildAudioRoutes() {
       if (!state.context) return;
@@ -1619,6 +1633,8 @@
       state.context = new AudioContextClass();
       state.analyser = state.context.createAnalyser(); state.analyser.fftSize = 256; state.analyser.smoothingTimeConstant = .82;
       state.directAnalyser = state.context.createAnalyser(); state.directAnalyser.fftSize = 256; state.directAnalyser.smoothingTimeConstant = .82;
+      state.limiter = createSoftLimiter(state.context);
+      state.limiter.connect(state.analyser);
       state.analyser.connect(state.context.destination);
       state.directAnalyser.connect(state.context.destination);
       state.deckA = attachAudioElement(audio); state.deckB = attachAudioElement(standbyAudio); state.activeDeck = state.deckA;
@@ -2807,5 +2823,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 17:57 +07 | Đã xong: Pha B - Ghi nhớ vị trí cuộn của danh sách bài hát khi chuyển view: state.viewScroll lưu scrollTop của #content-col theo từng view, saveViewScroll ghi lại trước khi rời view cũ và restoreViewScroll khôi phục khi quay về (lần đầu vào view vẫn về đầu trang, vị trí âm kẹp về 0, thiếu #content-col không ném lỗi); test view-scroll.test.cjs mới chạy trực tiếp 3 hàm trích từ index.html qua vm (chuyển Songs 420 -> Albums -> Songs về đúng 420, view lạ rơi về Albums, chọn Folders không đổi view) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài (revokeObjectURL) + giới hạn cache ảnh bìa IndexedDB chống rò RAM offline -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 18:20 +07 | Đã xong: Pha C - Tổng ngân sách ảnh bìa catalog cloud trong IndexedDB tối đa 8 MiB ký tự: library.capCatalogCovers giữ ảnh của các mục mới nhất, đặt cover = null cho các mục cũ vượt ngân sách (ảnh https không tính vì chỉ là chuỗi ngắn), pruneCloudCatalog ghi lại mục đổi và không hồi sinh mục vừa xóa vì quá hạn; đã kiểm chứng ảnh bìa là data:image nên không có blob URL để thu hồi (blob URL file local/DSD/preload đã thu hồi ở Pha C trước); test cover-budget.test.cjs mới chạy pruneCloudCatalog thật với store giả (3 ảnh 3 MiB chỉ bỏ ảnh cũ nhất, 1001 mục vừa xóa mục cũ nhất vừa bỏ ảnh cũ, tổng ảnh giữ lại <= 8 MiB) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 18:32 +07 | Đã xong: Pha D - Kiểm toán bộ giải mã DSD: đếm số lát vượt ngân sách 50 ms: worker dùng newChunkAudit/recordChunkAudit ghi chunkCount, chunksOverBudget và finalChunkBytes (kích thước lát đã thích nghi cuối cùng) vào message done cho cả DSF lẫn DFF, formatDecodeAudit hiện thêm "· N lát vượt 50 ms" khi N >= 1 để phân biệt lát đầu chậm rồi thích nghi tốt với mọi lát đều chậm, track cũ không có số đo vẫn giữ dòng kiểm toán cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Thêm soft-limiter (DynamicsCompressor) sau preamp/EQ để chống clipping khi tăng gain, kèm đo peak trước/sau limiter -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 18:36 +07 | Đã xong: Pha A - Soft-limiter sau EQ chống clipping: createSoftLimiter tạo DynamicsCompressor dùng chung (threshold -3 dB, knee 0, ratio 20:1, attack 3 ms, release 100 ms), setupAudio nối limiter vào analyser, rebuildDeckRoute đổi preamp -> limiter thay vì nối thẳng analyser nên meter vẫn đọc mức sau limiter; đường direct không boost nên giữ nguyên; test chạy thật createSoftLimiter và rebuildDeckRoute với node giả (thông số limiter đúng, preamp nối limiter không nối analyser, filter cũ được disconnect) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Đo peak trước/sau limiter (analyser phụ trước limiter) để hiển thị mức giảm gain thực tế khi EQ boost mạnh -->
 </body>
 </html>

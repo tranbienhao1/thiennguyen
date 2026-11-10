@@ -283,6 +283,51 @@ assert.equal(rebuilt.deckA._filter.gain.calls[0][0], 3, 'Rebuilt filter gain sho
 assert.equal(rebuilt.deckA.direct.gain.calls[0][0], 0, 'Rebuilt direct gain should ramp to muted while EQ is enabled');
 assert.ok(Math.abs(rebuilt.deckA.preamp.gain.calls[0][0] - Math.pow(10, -3 / 20)) < 1e-9, 'Rebuilt preamp gain should ramp to the headroom-compensated level');
 
+// Pha A — soft limiter sau EQ: factory phải đặt đúng thông số limiter và
+// rebuildDeckRoute phải nối preamp -> limiter (không nối thẳng analyser).
+const limiterStart = appCode.indexOf('function createSoftLimiter(context) {');
+assert.ok(limiterStart >= 0, 'Soft limiter factory should exist for regression checks');
+const limiterEnd = appCode.indexOf('function rebuildDeckRoute(deck) {', limiterStart);
+assert.ok(limiterEnd > limiterStart, 'Soft limiter factory should be extractable for regression checks');
+const createSoftLimiter = new Function(appCode.slice(limiterStart, limiterEnd) + '\nreturn createSoftLimiter;')();
+const limiterNode = {threshold: {value: 0}, knee: {value: 0}, ratio: {value: 1}, attack: {value: 0}, release: {value: 0}};
+const limiterContext = {createDynamicsCompressor() { return limiterNode; }};
+assert.equal(createSoftLimiter(limiterContext), limiterNode, 'Soft limiter factory should return the compressor created by the context');
+assert.equal(limiterNode.threshold.value, -3, 'Soft limiter threshold should be -3 dB');
+assert.equal(limiterNode.knee.value, 0, 'Soft limiter knee should be hard (0 dB)');
+assert.equal(limiterNode.ratio.value, 20, 'Soft limiter ratio should be 20:1');
+assert.equal(limiterNode.attack.value, 0.003, 'Soft limiter attack should be 3 ms');
+assert.equal(limiterNode.release.value, 0.1, 'Soft limiter release should be 100 ms');
+assert.ok(appCode.includes('limiter: null'), 'App state should hold the shared soft limiter node');
+assert.ok(appCode.includes('state.limiter = createSoftLimiter(state.context)'), 'Audio setup should create the shared soft limiter');
+assert.ok(appCode.includes('state.limiter.connect(state.analyser)'), 'Audio setup should route the soft limiter into the EQ analyser');
+assert.ok(appCode.includes('deck.preamp.connect(state.limiter)'), 'Deck rebuild should route the EQ preamp through the soft limiter');
+assert.ok(!appCode.includes('deck.preamp.connect(state.analyser)'), 'Deck rebuild should no longer route the EQ preamp straight into the analyser');
+const deckRouteStart = appCode.indexOf('function rebuildDeckRoute(deck) {');
+assert.ok(deckRouteStart >= 0, 'Deck route builder should exist for regression checks');
+const deckRouteEnd = appCode.indexOf('function rebuildAudioRoutes() {', deckRouteStart);
+assert.ok(deckRouteEnd > deckRouteStart, 'Deck route builder should be extractable for regression checks');
+function exerciseRebuildDeckRoute() {
+  const makeNode = name => ({name, connectedTo: [], disconnected: 0, connect(target) { this.connectedTo.push(target); }, disconnect() { this.disconnected++; }});
+  const limiter = makeNode('limiter'), analyser = makeNode('analyser'), directAnalyser = makeNode('directAnalyser');
+  const state = {bands: [{type: 'peaking'}], context: {createBiquadFilter: () => makeNode('filter')}, limiter, analyser, directAnalyser};
+  const oldFilter = makeNode('old-filter');
+  const deck = {router: makeNode('router'), preamp: makeNode('preamp'), direct: makeNode('direct'), filters: [oldFilter]};
+  // The extracted builder closes over the factory's `state` parameter, so
+  // the factory must be invoked with the mock state for the closure to see it.
+  const rebuildDeckRoute = new Function('deck', 'state', appCode.slice(deckRouteStart, deckRouteEnd) + '\nreturn rebuildDeckRoute;')(null, state);
+  rebuildDeckRoute(deck, state);
+  return {deck, state, oldFilter};
+}
+const routed = exerciseRebuildDeckRoute();
+assert.equal(routed.oldFilter.disconnected, 1, 'Rebuilding a deck route should disconnect the old EQ filter');
+assert.equal(routed.deck.preamp.disconnected, 1, 'Rebuilding a deck route should disconnect the preamp before rewiring it');
+assert.ok(routed.deck.direct.connectedTo.includes(routed.state.directAnalyser), 'Direct path should still reach the direct analyser');
+assert.ok(routed.deck.preamp.connectedTo.includes(routed.state.limiter), 'EQ preamp should connect into the soft limiter');
+assert.ok(!routed.deck.preamp.connectedTo.includes(routed.state.analyser), 'EQ preamp should not bypass the soft limiter into the analyser');
+assert.ok(routed.deck.router.connectedTo.includes(routed.deck.direct), 'Deck router should feed the direct path');
+assert.equal(routed.deck.filters.length, 1, 'Rebuilding a deck route should recreate one filter per EQ band');
+
 const playNextStart = appCode.indexOf('function playNext(direction = 1, auto = false) {');
 assert.ok(playNextStart >= 0, 'playNext implementation should exist for regression checks');
 const playNextEndMarker = 'async function pickLocalFiles';
