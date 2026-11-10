@@ -227,7 +227,7 @@ assert.ok(appCode.includes("new URL('.', document.baseURI || location.href).href
 assert.ok(appCode.includes("element.addEventListener('ended', () => { if (element === audio) playNext(1, true); })"), 'Natural track endings should be distinguishable from manual Next');
 assert.ok(appCode.includes('if (event.target !== row || (event.key !== \'Enter\' && event.key !== \' \')) return'), 'Track-row keyboard playback should only trigger when the row itself has focus');
 
-const auditStart = appCode.indexOf('function formatDecodeAudit(decodeMs, maxChunkMs, chunksOverBudget) {');
+const auditStart = appCode.indexOf('function formatDecodeAudit(decodeMs, maxChunkMs, chunksOverBudget, throughputMBps) {');
 assert.ok(auditStart >= 0, 'DSD decode audit formatter should exist for regression checks');
 const auditEnd = appCode.indexOf('function signalDescription(track) {', auditStart);
 assert.ok(auditEnd > auditStart, 'DSD decode audit formatter should be extractable for regression checks');
@@ -236,6 +236,10 @@ assert.equal(formatDecodeAudit(1234, 34), 'giải mã 1.2 s · lát chậm nhấ
 assert.equal(formatDecodeAudit(850, 12), 'giải mã 850 ms · lát chậm nhất 12 ms', 'Fast DSD decode should show milliseconds');
 assert.equal(formatDecodeAudit(1000, 0), 'giải mã 1.0 s · lát chậm nhất 0 ms', 'Decode of exactly one second should use the seconds form');
 assert.equal(formatDecodeAudit(1234, 120, 3), 'giải mã 1.2 s · lát chậm nhất 120 ms · 3 lát vượt 50 ms', 'Over-budget chunks should be reported in the audit line');
+assert.equal(formatDecodeAudit(1234, 120, 3, 12.34), 'giải mã 1.2 s · lát chậm nhất 120 ms · 3 lát vượt 50 ms · 12.3 MB/s', 'Decode throughput should be reported in the audit line when measured');
+assert.equal(formatDecodeAudit(850, 12, 0, 0), 'giải mã 850 ms · lát chậm nhất 12 ms', 'Zero throughput should not add an audit segment');
+assert.equal(formatDecodeAudit(850, 12, 0, undefined), 'giải mã 850 ms · lát chậm nhất 12 ms', 'Tracks decoded before the throughput audit should keep the old audit line');
+assert.equal(formatDecodeAudit(850, 12, 0, NaN), 'giải mã 850 ms · lát chậm nhất 12 ms', 'An invalid throughput should not add an audit segment');
 assert.equal(formatDecodeAudit(850, 12, 0), 'giải mã 850 ms · lát chậm nhất 12 ms', 'Zero over-budget chunks should not add an audit segment');
 assert.equal(formatDecodeAudit(850, 12, undefined), 'giải mã 850 ms · lát chậm nhất 12 ms', 'Tracks decoded before the over-budget audit should keep the old audit line');
 assert.equal(formatDecodeAudit(850, 12, -1), 'giải mã 850 ms · lát chậm nhất 12 ms', 'A negative over-budget count should not add an audit segment');
@@ -248,7 +252,8 @@ assert.ok(appCode.includes('track.dsdMaxChunkMs = message.maxChunkMs'), 'DSD wor
 assert.ok(appCode.includes('track.dsdChunksOverBudget = message.chunksOverBudget'), 'DSD worker completion should store the over-budget chunk count on the track');
 assert.ok(appCode.includes('track.dsdChunkCount = message.chunkCount'), 'DSD worker completion should store the decoded chunk count on the track');
 assert.ok(appCode.includes('track.dsdFinalChunkBytes = message.finalChunkBytes'), 'DSD worker completion should store the final adapted chunk size on the track');
-assert.ok(appCode.includes('formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget)'), 'Track detail should show the DSD decode audit when available');
+assert.ok(appCode.includes('track.dsdThroughputMBps = message.decodeThroughputMBps'), 'DSD worker completion should store the measured decode throughput on the track');
+assert.ok(appCode.includes('formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget, track.dsdThroughputMBps)'), 'Track detail should show the DSD decode audit with throughput when available');
 
 const rebuildStart = appCode.indexOf('function rebuildAudioRoutes() {');
 assert.ok(rebuildStart >= 0, 'rebuildAudioRoutes implementation should exist for regression checks');

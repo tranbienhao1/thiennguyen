@@ -100,6 +100,21 @@ function decode(file, format, targetRate, bitDepth) {
     assert.equal(audit.maxChunkMs, 0, 'A fresh chunk audit should start with no slowest chunk');
     assert.equal(audit.chunkCount, 0, 'A fresh chunk audit should start with no counted chunks');
     assert.equal(audit.chunksOverBudget, 0, 'A fresh chunk audit should start with no over-budget chunks');
+    assert.equal(audit.totalInputBytes, 0, 'A fresh chunk audit should start with no decoded input bytes');
+    assert.equal(audit.totalChunkMs, 0, 'A fresh chunk audit should start with no counted decode time');
+    const throughputAudit = probeContext.newChunkAudit();
+    assert.equal(probeContext.decodeThroughputMBps(throughputAudit), 0, 'Throughput should be 0 MB/s before any chunk is decoded');
+    assert.equal(probeContext.decodeThroughputMBps(null), 0, 'Throughput without an audit object should be 0 MB/s instead of throwing');
+    probeContext.recordChunkAudit(throughputAudit, 1000, 1048576);
+    assert.equal(throughputAudit.totalInputBytes, 1048576, 'A recorded chunk should accumulate its decoded input bytes');
+    assert.equal(throughputAudit.totalChunkMs, 1000, 'A recorded chunk should accumulate its decode time');
+    assert.equal(probeContext.decodeThroughputMBps(throughputAudit), 1, '1 MiB decoded in 1000 ms should measure 1 MB/s');
+    probeContext.recordChunkAudit(throughputAudit, 1000, 1048576);
+    assert.equal(probeContext.decodeThroughputMBps(throughputAudit), 1, 'A second identical chunk should keep throughput at 1 MB/s');
+    probeContext.recordChunkAudit(throughputAudit, 500, NaN);
+    assert.equal(throughputAudit.totalInputBytes, 2097152, 'An invalid input byte count should not change the accumulated bytes');
+    assert.equal(throughputAudit.totalChunkMs, 2500, 'A chunk with invalid input bytes should still count its decode time');
+    assert.ok(Math.abs(probeContext.decodeThroughputMBps(throughputAudit) - 2097152 / 2.5 / 1048576) < 1e-9, 'Throughput should divide total bytes by total decode time');
     probeContext.recordChunkAudit(audit, 5);
     assert.equal(audit.maxChunkMs, 5, 'A fast chunk should set the slowest chunk');
     assert.equal(audit.chunkCount, 1, 'A fast chunk should be counted');
@@ -134,6 +149,7 @@ function decode(file, format, targetRate, bitDepth) {
         assert.ok(Number.isInteger(result.chunkCount) && result.chunkCount >= 1, `${format} chunkCount should count at least one decoded chunk`);
         assert.ok(Number.isInteger(result.chunksOverBudget) && result.chunksOverBudget >= 0 && result.chunksOverBudget <= result.chunkCount, `${format} chunksOverBudget should be a count within the decoded chunks`);
         assert.ok(Number.isInteger(result.finalChunkBytes) && result.finalChunkBytes >= 32768 && result.finalChunkBytes <= 262144 && result.finalChunkBytes % CHANNELS === 0, `${format} finalChunkBytes should stay within the adaptive chunk limits and aligned to channels`);
+        assert.ok(Number.isFinite(result.decodeThroughputMBps) && result.decodeThroughputMBps >= 0, `${format} decodeThroughputMBps should be a measured non-negative MB/s`);
       }
     }
   }
@@ -157,6 +173,7 @@ function decode(file, format, targetRate, bitDepth) {
     assert.ok(Number.isFinite(bigResult.maxChunkMs) && bigResult.maxChunkMs >= 0, 'Large-block DSF should report maxChunkMs');
     assert.ok(Number.isInteger(bigResult.chunkCount) && bigResult.chunkCount >= 2, 'Large-block DSF should decode in at least 2 counted chunks');
     assert.ok(Number.isInteger(bigResult.chunksOverBudget) && bigResult.chunksOverBudget <= bigResult.chunkCount, 'Large-block DSF should report an over-budget chunk count within the chunk count');
+    assert.ok(Number.isFinite(bigResult.decodeThroughputMBps) && bigResult.decodeThroughputMBps >= 0, 'Large-block DSF should report a non-negative decode throughput');
   }
   await assert.rejects(decode(makeDsf(), 'dsf', 32000, 16), /PCM chỉ hỗ trợ/);
   await assert.rejects(decode(makeDsf(), 'dsf', 48000, 16), /thuộc họ 44.1 kHz/);
