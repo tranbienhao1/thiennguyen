@@ -352,5 +352,23 @@
     return ranked.slice(0, withId.length - Math.max(0, max)).map(item => item.id);
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries};
+  // Pha A — đồng hồ đo mức Peak/RMS thật từ AnalyserNode: dữ liệu miền thời
+  // gian là byte 0–255 (128 = im lặng); peak/RMS tính trên biên độ tuyến
+  // tính rồi đổi sang dBFS, im lặng tuyệt đối hiển thị -96 dB thay vì -Infinity.
+  function peakRmsFromTimeDomain(data) {
+    if (!data || typeof data.length !== 'number' || !data.length) return {peak: 0, rms: 0, peakDb: -96, rmsDb: -96};
+    let peak = 0, sumSquares = 0;
+    for (let i = 0; i < data.length; i++) {
+      const sample = (Number(data[i]) - 128) / 128;
+      if (!Number.isFinite(sample)) continue;
+      const abs = Math.abs(sample);
+      if (abs > peak) peak = abs;
+      sumSquares += sample * sample;
+    }
+    const rms = Math.sqrt(sumSquares / data.length);
+    const toDb = value => value > 0 ? Math.max(-96, 20 * Math.log10(value)) : -96;
+    return {peak, rms, peakDb: toDb(peak), rmsDb: toDb(rms)};
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, peakRmsFromTimeDomain};
 });

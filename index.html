@@ -448,6 +448,7 @@
         </div>
         <div class="hidden w-[25%] items-center justify-end gap-3 lg:flex">
           <canvas id="visualizer" class="h-8 w-28 opacity-80"></canvas>
+          <span id="level-readout" class="w-24 text-right text-[10px] tabular-nums text-zinc-500" title="Mức đỉnh / RMS thực từ AnalyserNode">—</span>
           <span id="quality-badge" class="rounded-md border border-white/10 px-2 py-1 text-[9px] font-medium uppercase tracking-wider text-zinc-500">READY</span>
           <button id="eq-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white">EQ</button>
           <button id="queue-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Hàng đợi phát" title="Phát tiếp theo">☰</button>
@@ -1614,9 +1615,12 @@
       context.setTransform(ratio,0,0,ratio,0,0);
       const analyser = state.activeAnalyser || state.analyser, data = new Uint8Array(analyser.frequencyBinCount), bars = 32, gap = 2;
       const barWidth = (width - gap * (bars - 1)) / bars;
+      const timeData = new Uint8Array(analyser.fftSize);
+      let frame = 0;
       const draw = () => {
         if (generation !== visualizerGeneration || document.hidden || audio.paused || !audio.src) { visualizerFrame = 0; return; }
         visualizerFrame = requestAnimationFrame(draw); analyser.getByteFrequencyData(data); context.clearRect(0,0,width,height);
+        if (++frame % 30 === 0) { analyser.getByteTimeDomainData(timeData); const level = library.peakRmsFromTimeDomain(timeData); $('level-readout').textContent = `Pk ${level.peakDb.toFixed(1)} · RMS ${level.rmsDb.toFixed(1)} dB`; }
         for (let i = 0; i < bars; i++) { const value = data[Math.floor(i * data.length / bars)] / 255, barHeight = Math.max(2, value * height); context.fillStyle = `rgba(167,139,250,${.35 + value * .65})`; context.beginPath(); context.roundRect(i * (barWidth + gap), (height - barHeight) / 2, barWidth, barHeight, 2); context.fill(); }
       };
       if (!visualizerFrame) visualizerFrame = requestAnimationFrame(draw);
@@ -2745,5 +2749,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 15:52 +07 | Đã xong: Pha B - Thêm phím tắt [ ] tua ±10 giây khi đang nghe, kèm toast hiển thị thời gian đã tua (Đã tua tới 1:30 / 3:45); helper seekByStep dùng chung cho ←/→ và [ ], kẹp vị trí bằng library.clampSeekTime (live stream/NaN thì giữ nguyên vị trí), cập nhật gợi ý phím tắt trong phòng nghe | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài (revokeObjectURL) và giới hạn cache ảnh bìa trong IndexedDB để chống rò RAM offline -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 15:59 +07 | Đã xong: Pha C - Giới hạn danh mục cloud trong IndexedDB tối đa 1000 mục (MAX_CLOUD_CATALOG_ENTRIES): serializableCloudTrack đóng dấu savedAt, persistCloudCatalog dọn các mục cũ nhất qua library.pruneCatalogEntries sau mỗi lần ghi (best-effort, mục catalog cũ thiếu savedAt bị xóa trước), chống phình catalog offline theo thư viện Drive/OneDrive | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Thêm content-visibility:auto cho hàng bài hát để cuộn danh sách lớn mượt 60fps -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:04 +07 | Đã xong: Pha D - Thêm content-visibility:auto + contain-intrinsic-size:auto 300px cho thẻ .collection-card (lưới album/nghệ sĩ) để thẻ ngoài màn hình bỏ qua render như .track-row, cuộn thư viện lớn mượt 60fps; kiểm chứng đếm đúng 2 vị trí content-visibility (hàng bài hát + thẻ bộ sưu tập) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Đồng hồ đo mức Peak/RMS thật từ AnalyserNode (getByteTimeDomainData) hiển thị trong phòng nghe, tự tạm dừng vẽ khi tab ẩn -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:06 +07 | Đã xong: Pha A - Đồng hồ đo mức Peak/RMS thật từ AnalyserNode: library.peakRmsFromTimeDomain tính peak/RMS từ dữ liệu miền thời gian (byte 0–255, 128 = im lặng) đổi sang dBFS, vòng vẽ visualizer lấy mẫu mỗi 30 frame (~2 lần/giây) và hiện "Pk −3.2 · RMS −18.5 dB" ở #level-readout cạnh visualizer footer, tự dừng khi tab ẩn/tạm dừng như visualizer | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Tự động cuộn hàng đợi tới bài đang phát khi mở panel hàng đợi -->
 </body>
 </html>

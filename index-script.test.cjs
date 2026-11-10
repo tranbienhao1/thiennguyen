@@ -580,4 +580,9 @@ assert.ok(collectionCardRule, 'The collection card rule should exist');
 assert.ok(collectionCardRule[0].includes('content-visibility:auto'), 'Collection cards should use content-visibility:auto for smooth scrolling');
 assert.ok(collectionCardRule[0].includes('contain-intrinsic-size:auto 300px'), 'Collection cards should reserve intrinsic size so the scrollbar stays stable');
 assert.ok(html.includes('content-visibility:auto;contain-intrinsic-size:auto 64px;'), 'Track rows should keep their content-visibility rule');
+// Pha A — the footer should show a live Peak/RMS readout from the analyser.
+assert.match(html, /id="level-readout"/, 'The footer should include a level readout next to the visualizer');
+assert.ok(appCode.includes('analyser.getByteTimeDomainData(timeData)'), 'The visualizer should sample time-domain data for the level meter');
+assert.ok(appCode.includes('library.peakRmsFromTimeDomain(timeData)'), 'The level meter should use the shared Peak/RMS helper');
+assert.ok(appCode.includes("if (++frame % 30 === 0)"), 'The level readout should update about twice a second, not every animation frame');
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');

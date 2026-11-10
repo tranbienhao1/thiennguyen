@@ -179,6 +179,19 @@ assert.deepStrictEqual(utils.pruneCatalogEntries(null, 1000), [], 'A non-array c
 assert.deepStrictEqual(utils.pruneCatalogEntries([{savedAt:1}, {id:'', savedAt:2}, {id:'x', savedAt:3}], 1), [], 'Entries without an id should be ignored');
 assert.deepStrictEqual(utils.pruneCatalogEntries([{id:'a', savedAt:NaN}, {id:'b', savedAt:2}], 1), ['a'], 'A NaN savedAt should count as oldest');
 
+// Pha A — peakRmsFromTimeDomain (đồng hồ đo mức Peak/RMS thật).
+assert.deepStrictEqual(utils.peakRmsFromTimeDomain(new Uint8Array(2048).fill(128)), {peak:0, rms:0, peakDb:-96, rmsDb:-96}, 'Digital silence should read -96 dB');
+assert.deepStrictEqual(utils.peakRmsFromTimeDomain([]), {peak:0, rms:0, peakDb:-96, rmsDb:-96}, 'Empty data should read -96 dB');
+assert.deepStrictEqual(utils.peakRmsFromTimeDomain(null), {peak:0, rms:0, peakDb:-96, rmsDb:-96}, 'Null data should read -96 dB');
+const fullScaleLevel = utils.peakRmsFromTimeDomain(new Uint8Array([255, 0, 255, 0]));
+assert.ok(Math.abs(fullScaleLevel.peak - 1) < 0.01, 'Full-scale samples should peak at 1.0');
+assert.ok(Math.abs(fullScaleLevel.peakDb - 0) < 0.1, 'A full-scale peak should read 0 dBFS');
+assert.ok(Math.abs(fullScaleLevel.rms - 0.996) < 0.01, 'Alternating full-scale samples should RMS near 1.0');
+const halfScaleLevel = utils.peakRmsFromTimeDomain(new Uint8Array([192, 64]));
+assert.ok(Math.abs(halfScaleLevel.peak - 0.5) < 0.01, 'Half-scale samples should peak at 0.5');
+assert.ok(Math.abs(halfScaleLevel.peakDb - (-6.02)) < 0.1, 'A half-scale peak should read about -6 dBFS');
+assert.ok(Math.abs(halfScaleLevel.rms - 0.5) < 0.01, 'Half-scale samples should RMS at 0.5');
+
 assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).length, 3);
 assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);
 const albumGroups = utils.groupTracks(tracks, 'album');
