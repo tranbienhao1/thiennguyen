@@ -69,8 +69,12 @@ async function networkFirst(request) {
 }
 
 self.addEventListener('install', event => {
+  // Pha C — precache từng file riêng lẻ: cache.addAll dừng cả lượt cài đặt
+  // khi chỉ một file lỗi (404/mạng chập chờn) khiến worker mới không bao giờ
+  // kích hoạt và trình duyệt cứ chạy worker DSD cũ; allSettled vẫn kích
+  // hoạt worker mới, file lỗi sẽ được networkFirst nạp lại khi online.
   event.waitUntil(caches.open(CACHE_NAME)
-    .then(cache => cache.addAll(APP_SHELL))
+    .then(cache => Promise.allSettled(APP_SHELL.map(entry => cache.add(entry))))
     .then(() => self.skipWaiting()));
 });
 

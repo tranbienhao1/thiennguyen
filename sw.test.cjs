@@ -13,9 +13,11 @@ const shellUrl = file => new URL(file, SW_URL).href;
 class FakeResponse { constructor(body, {ok = true} = {}) { this.body = body; this.ok = ok; } clone() { return new FakeResponse(this.body, {ok: this.ok}); } }
 let networkUp = true;
 const networkBodies = new Map();
+const networkFailures = new Set();
 async function fakeFetch(input) {
   if (!networkUp) throw new Error('Network offline');
   const url = typeof input === 'string' ? new URL(input, SW_URL).href : input.url;
+  if (networkFailures.has(url)) return new FakeResponse('', {ok: false});
   return new FakeResponse(networkBodies.get(url) ?? `network:${url}`);
 }
 class FakeCache {
@@ -61,8 +63,24 @@ function fetchEvent(request) { const event = {request, respondWith(promise) { ev
   // Install: precache toàn bộ app shell và kích hoạt ngay.
   await dispatch('install');
   assert.equal(sandbox.self.skipWaitingCalled, true, 'Install should skip waiting so the new worker activates');
-  const shellCache = cacheStore.get('nocturne-v1');
+  let shellCache = cacheStore.get('nocturne-v1');
   assert.ok(shellCache && shellCache.entries.size === 9 && shellCache.entries.has(shellUrl('index.html')), 'Install should precache all 9 app-shell entries');
+  // Pha C: một file precache lỗi không được chặn cả lượt cài đặt — worker
+  // mới vẫn phải kích hoạt để trình duyệt không kẹt với worker DSD cũ, và
+  // các file còn lại vẫn được cache; file lỗi sẽ được nạp lại khi online.
+  cacheStore.delete('nocturne-v1');
+  networkFailures.add(shellUrl('icons/icon.svg'));
+  sandbox.self.skipWaitingCalled = false;
+  await dispatch('install');
+  assert.equal(sandbox.self.skipWaitingCalled, true, 'Install with one failing file should still skip waiting so the new worker activates');
+  const partialCache = cacheStore.get('nocturne-v1');
+  assert.ok(partialCache && partialCache.entries.size === 8, 'Install with one failing file should still precache the other 8 app-shell entries');
+  assert.equal(partialCache.entries.has(shellUrl('icons/icon.svg')), false, 'The failing file should be the only entry missing after a partial install');
+  assert.ok(partialCache.entries.has(shellUrl('dsd-worker.js')), 'A partial install should still precache the DSD worker script');
+  networkFailures.delete(shellUrl('icons/icon.svg'));
+  await dispatch('install');
+  shellCache = cacheStore.get('nocturne-v1');
+  assert.equal(shellCache.entries.size, 9, 'Reinstall after the failure clears should precache all 9 app-shell entries again');
   // Activate: xoá cache cũ và chiếm quyền điều khiển ngay.
   cacheStore.set('nocturne-v0', new FakeCache());
   await dispatch('activate');
