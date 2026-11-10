@@ -955,8 +955,8 @@ assert.ok(appCode.includes("renderRoomSignal(track); $('room-output')"), 'Track 
 const fetchStart = appCode.indexOf('async function fetchCloudTrack(track, url, options, provider) {');
 const fetchEnd = appCode.indexOf('const mediaErrorMessage = error => {', fetchStart);
 assert.ok(fetchStart >= 0 && fetchEnd > fetchStart, 'The cloud track loader should exist for regression checks');
-async function exerciseFetchCloudTrack({track, sliceImpl, metadataPending = false} = {}) {
-  const calls = {queued: [], upgraded: []};
+async function exerciseFetchCloudTrack({track, sliceImpl, metadataPending = false, cachedSlice = null} = {}) {
+  const calls = {queued: [], upgraded: [], cached: []};
   const state = {objectUrls: new Set()};
   class FakeURL extends URL {
     static createObjectURL() { return 'blob:https://example/slice'; }
@@ -973,8 +973,8 @@ async function exerciseFetchCloudTrack({track, sliceImpl, metadataPending = fals
     if (metadataPending) track.metadataRequest = new Promise(() => {});
   };
   const upgradeSliceToFullAudio = async () => { calls.upgraded.push(track.id); };
-  const fetchCloudTrack = new Function('library', 'queueCloudMetadata', 'state', 'URL', 'finishCloudMetadataInBackground', 'upgradeSliceToFullAudio', 'getMicrosoftToken', `${appCode.slice(fetchStart, fetchEnd)}\nreturn fetchCloudTrack;`)(
-    library, queueCloudMetadata, state, FakeURL, () => {}, upgradeSliceToFullAudio, async () => 'token',
+  const fetchCloudTrack = new Function('library', 'queueCloudMetadata', 'state', 'URL', 'finishCloudMetadataInBackground', 'upgradeSliceToFullAudio', 'getMicrosoftToken', 'getCachedFirstSlice', 'cacheFirstSlice', `${appCode.slice(fetchStart, fetchEnd)}\nreturn fetchCloudTrack;`)(
+    library, queueCloudMetadata, state, FakeURL, () => {}, upgradeSliceToFullAudio, async () => 'token', async () => cachedSlice, (track, blob) => { calls.cached.push(blob); },
   );
   const url = await Promise.race([
     fetchCloudTrack(track, 'https://example.com/a.flac', {}, 'Google Drive'),
@@ -988,12 +988,18 @@ assert.deepEqual(pendingMetadata.calls.queued, ['cloud-9'], 'Missing metadata sh
 assert.deepEqual(pendingMetadata.calls.upgraded, ['cloud-9'], 'The full file should still download in the background after the first slice');
 assert.equal(pendingMetadata.track.firstSlicePlayback, true, 'A partial first slice should be recorded as slice playback');
 assert.ok(pendingMetadata.track.metadataRequest, 'The background metadata request should stay in flight instead of blocking playback');
+assert.equal(pendingMetadata.calls.cached.length, 1, 'A fresh first slice should be written to the slice cache');
+// Pha C — cache lát đầu: có lát trong kho thì phát ngay không tải mạng.
+const cachedSliceRun = await exerciseFetchCloudTrack({track: {id: 'cloud-11', source: 'google', remoteId: 'r11', name: 'c.flac', title: 'C', format: 'flac', metadataLoaded: true, cover: 'x'}, cachedSlice: {type: 'audio/flac', size: 1048576}, sliceImpl: async () => { throw new Error('must not fetch when the slice is cached'); }});
+assert.equal(cachedSliceRun.url, 'blob:https://example/slice', 'A cached first slice should play immediately without a network fetch');
+assert.equal(cachedSliceRun.track.firstSlicePlayback, true, 'A cached first slice should be recorded as slice playback');
+assert.deepEqual(cachedSliceRun.calls.upgraded, ['cloud-11'], 'The full file should still download in the background after a cached first slice');
 const cachedTrack = {id: 'cloud-10', source: 'google', name: 'b.flac', title: 'B', format: 'flac', url: 'blob:https://example/cached', metadataLoaded: false, cover: null};
 const cachedCalls = {queued: 0};
 const cachedState = {objectUrls: new Set(['blob:https://example/cached'])};
-const cachedFetch = new Function('library', 'queueCloudMetadata', 'state', 'URL', 'finishCloudMetadataInBackground', 'upgradeSliceToFullAudio', 'getMicrosoftToken', `${appCode.slice(fetchStart, fetchEnd)}\nreturn fetchCloudTrack;`)(
+const cachedFetch = new Function('library', 'queueCloudMetadata', 'state', 'URL', 'finishCloudMetadataInBackground', 'upgradeSliceToFullAudio', 'getMicrosoftToken', 'getCachedFirstSlice', 'cacheFirstSlice', `${appCode.slice(fetchStart, fetchEnd)}\nreturn fetchCloudTrack;`)(
   {fetchAudioFirstSlice: async () => { throw new Error('must not fetch when the URL is cached'); }, normalizeAudioBlob: blob => blob, fetchAudioBlob: async () => ({})},
-  () => { cachedCalls.queued++; }, cachedState, URL, () => {}, async () => {}, async () => 'token',
+  () => { cachedCalls.queued++; }, cachedState, URL, () => {}, async () => {}, async () => 'token', async () => null, async () => {},
 );
 assert.equal(await cachedFetch(cachedTrack, 'https://example.com/b.flac', {}, 'Google Drive'), 'blob:https://example/cached', 'A cached cloud URL should return without re-downloading');
 assert.equal(cachedCalls.queued, 0, 'A cached cloud URL should not queue metadata again before returning');

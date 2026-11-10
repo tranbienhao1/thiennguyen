@@ -194,6 +194,15 @@ assert.deepStrictEqual(utils.pruneCatalogEntries(null, 1000), [], 'A non-array c
 assert.deepStrictEqual(utils.pruneCatalogEntries([{savedAt:1}, {id:'', savedAt:2}, {id:'x', savedAt:3}], 1), [], 'Entries without an id should be ignored');
 assert.deepStrictEqual(utils.pruneCatalogEntries([{id:'a', savedAt:NaN}, {id:'b', savedAt:2}], 1), ['a'], 'A NaN savedAt should count as oldest');
 
+// Pha C — pruneSliceCacheEntries (giới hạn cache lát đầu trong IndexedDB).
+assert.strictEqual(utils.FIRST_SLICE_CACHE_MAX_ENTRIES, 20, 'The first-slice cache should hold 20 slices');
+assert.strictEqual(utils.FIRST_SLICE_CACHE_MAX_BYTES, 20 * 1024 * 1024, 'The first-slice cache should hold about 20 MiB');
+assert.deepStrictEqual(utils.pruneSliceCacheEntries([{key:'a', size:1048576, savedAt:1}, {key:'b', size:1048576, savedAt:2}], 20, 20971520), [], 'A slice cache under both caps prunes nothing');
+assert.deepStrictEqual(utils.pruneSliceCacheEntries([{key:'a', size:1048576, savedAt:1}, {key:'b', size:1048576, savedAt:2}, {key:'c', size:1048576, savedAt:3}], 2, 20971520), ['a'], 'A slice cache over the entry cap evicts the oldest slice first');
+assert.deepStrictEqual(utils.pruneSliceCacheEntries([{key:'a', size:1048576, savedAt:1}, {key:'b', size:1048576, savedAt:2}], 20, 1048576), ['a'], 'A slice cache over the byte cap evicts the oldest slice first');
+assert.deepStrictEqual(utils.pruneSliceCacheEntries([{key:'a', size:1048576}, {key:'b', size:1048576, savedAt:2}], 1, 20971520), ['a'], 'A slice entry without savedAt counts as the oldest');
+assert.deepStrictEqual(utils.pruneSliceCacheEntries(null), [], 'A missing slice cache prunes nothing');
+
 // Pha C — capCatalogCovers (tổng ngân sách ảnh bìa catalog cloud trong IndexedDB).
 assert.strictEqual(utils.MAX_CATALOG_COVER_TOTAL_CHARS, 8 * 1024 * 1024, 'The catalog cover budget should be 8 MiB of characters');
 const dataCover = size => `data:image/jpeg;base64,${'x'.repeat(size)}`;

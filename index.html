@@ -597,7 +597,8 @@
       return null;
     };
     const CLOUD_CATALOG_STORE = 'cloudCatalog';
-    const CLOUD_CATALOG_VERSION = 3;
+    const FIRST_SLICE_CACHE_STORE = 'firstSliceCache';
+    const CLOUD_CATALOG_VERSION = 4;
     let cloudRestorePromise = null;
     let cloudSyncPromise = null;
     const cloudStatus = (provider, message, tone = 'text-zinc-500') => {
@@ -999,6 +1000,18 @@
         // giờ bài hát bắt đầu phát từ lát đầu ngay, tag/cover cập nhật
         // khi đọc xong (enrichCloudTrack tự render lại khi có thay đổi).
         if (!track.metadataLoaded || !track.cover) queueCloudMetadata([track]);
+        // Pha C — cache lát đầu: bài đã phát trước đây có lát đầu trong
+        // IndexedDB thì phát ngay không chờ mạng, lỗi đọc thì tải mạng.
+        try {
+          const cachedSlice = await getCachedFirstSlice(track);
+          if (cachedSlice) {
+            const sliceBlob = library.normalizeAudioBlob(cachedSlice, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, cachedSlice.type);
+            const sliceUrl = URL.createObjectURL(sliceBlob);
+            track.url = sliceUrl; track.firstSlicePlayback = true; state.objectUrls.add(sliceUrl);
+            upgradeSliceToFullAudio(track, sliceUrl, url, options, provider).catch(error => console.warn('Could not finish downloading the full audio file in the background:', error.message || error));
+            return sliceUrl;
+          }
+        } catch (error) { console.debug('Cached first slice unavailable, downloading instead:', error.message || error); }
         // Pha C — phát từ lát đầu: tải 4 MB đầu bằng Range rồi trả URL ngay
         // để phát tức thì; phần còn lại tải nền rồi đổi sang file đầy đủ.
         // Lát đầu lỗi (máy chủ không hỗ trợ Range, 416, mạng chập chờn)
@@ -1013,7 +1026,7 @@
           track.firstSlicePlayback = !firstSlice.complete;
           state.objectUrls.add(sliceUrl);
           if (firstSlice.complete) finishCloudMetadataInBackground(track, sliceBlob);
-          else upgradeSliceToFullAudio(track, sliceUrl, url, options, provider).catch(error => console.warn('Could not finish downloading the full audio file in the background:', error.message || error));
+          else { cacheFirstSlice(track, sliceBlob, firstSlice.totalBytes); upgradeSliceToFullAudio(track, sliceUrl, url, options, provider).catch(error => console.warn('Could not finish downloading the full audio file in the background:', error.message || error)); }
           return sliceUrl;
         } catch (error) { console.debug('First-slice playback unavailable, downloading the full file instead:', error.message || error); }
         let blob;
@@ -1050,7 +1063,7 @@
     function openDatabase() {
       return new Promise((resolve, reject) => {
         const request = indexedDB.open('nocturne-player', CLOUD_CATALOG_VERSION);
-        request.onupgradeneeded = () => { const db = request.result; if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id', autoIncrement: true }); if (!db.objectStoreNames.contains(CLOUD_CATALOG_STORE)) db.createObjectStore(CLOUD_CATALOG_STORE, {keyPath:'id'}); };
+        request.onupgradeneeded = () => { const db = request.result; if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id', autoIncrement: true }); if (!db.objectStoreNames.contains(CLOUD_CATALOG_STORE)) db.createObjectStore(CLOUD_CATALOG_STORE, {keyPath:'id'}); if (!db.objectStoreNames.contains(FIRST_SLICE_CACHE_STORE)) db.createObjectStore(FIRST_SLICE_CACHE_STORE, {keyPath:'key'}); };
         request.onsuccess = () => { state.db = request.result; resolve(state.db); };
         request.onerror = () => reject(request.error);
       });
@@ -1058,6 +1071,37 @@
     function catalogTransaction(mode) {
       if (!state.db || !state.db.objectStoreNames.contains(CLOUD_CATALOG_STORE)) throw new Error('IndexedDB catalog chưa sẵn sàng.');
       return state.db.transaction(CLOUD_CATALOG_STORE, mode).objectStore(CLOUD_CATALOG_STORE);
+    }
+    // Pha C — cache lát đầu (1 MB) vào IndexedDB để lần phát lại phát ngay
+    // không chờ Range; file đổi nội dung thì cache hết hạn, lỗi thì phát
+    // như cũ. Prefetch bài kế đã có qua preloadNext nên lát đầu
+    // prefetched cũng được ghi cache.
+    function sliceCacheTransaction(mode) {
+      if (!state.db || !state.db.objectStoreNames.contains(FIRST_SLICE_CACHE_STORE)) throw new Error('IndexedDB slice cache chưa sẵn sàng.');
+      return state.db.transaction(FIRST_SLICE_CACHE_STORE, mode).objectStore(FIRST_SLICE_CACHE_STORE);
+    }
+    function sliceCacheRequest(request) { return new Promise((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); }
+    async function getCachedFirstSlice(track) {
+      const key = library.historyTrackKey(track);
+      if (!key) return null;
+      try {
+        const entry = await sliceCacheRequest(sliceCacheTransaction('readonly').get(key));
+        if (!entry || !entry.blob || !entry.blob.size || (Number(track.size) > 0 && Number(entry.totalBytes) > 0 && Number(entry.totalBytes) !== Number(track.size))) return null;
+        return entry.blob;
+      } catch (error) { return null; }
+    }
+    function pruneSliceCache() {
+      let store;
+      try { store = sliceCacheTransaction('readwrite'); } catch (error) { return; }
+      const request = store.getAll();
+      request.onsuccess = () => { for (const key of library.pruneSliceCacheEntries(request.result || [], library.FIRST_SLICE_CACHE_MAX_ENTRIES, library.FIRST_SLICE_CACHE_MAX_BYTES)) { try { store.delete(key); } catch (error) {} } };
+      request.onerror = () => {};
+    }
+    function cacheFirstSlice(track, sliceBlob, totalBytes) {
+      const key = library.historyTrackKey(track);
+      if (!key || !sliceBlob || !sliceBlob.size || sliceBlob.size > library.FIRST_SLICE_BYTES) return Promise.resolve(false);
+      try { return sliceCacheRequest(sliceCacheTransaction('readwrite').put({key, blob: sliceBlob, size: sliceBlob.size, totalBytes: Number(totalBytes) || 0, savedAt: Date.now()})).then(() => { pruneSliceCache(); return true; }).catch(() => false); }
+      catch (error) { return Promise.resolve(false); }
     }
     function persistCloudCatalog(tracks) {
       if (cloudCatalogResetting) return Promise.resolve();
@@ -3020,5 +3064,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 21:20 +07 | Đã xong: Pha A - Crossfade đẳng công suất khi chuyển bài: crossfadeGains cos/sin (tổng công suất = 1, giữa fade hai deck đều -3 dB) + clampCrossfadeSeconds 0–5 giây, applyCrossfade ramp 33 điểm bằng setValueCurveAtTime qua 2 deck, deck cũ phát hết fade mới dừng/xóa src (guard generation), preloadNext hoãn lại trong lúc fade để không cắt bài cũ, chọn 0/1/2/3/5 giây trong Cài đặt và lưu localStorage (mặc định 0 = tắt, giữ cách chuyển nhanh cũ); test chạy thật applyCrossfade với deck giả (đường cong 1→0 / 0→1, giữa fade -3 dB, tổng công suất = 1, deck fade dở giữ mức hiện tại) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Thêm phím tắt bật/tắt crossfade nhanh khi đang nghe (đồng bộ với select trong Cài đặt) và hiện thời lượng crossfade trong Phòng nghe -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 21:26 +07 | Đã xong: Pha B - Phím tắt X bật/tắt crossfade nhanh khi đang nghe: toggleCrossfade tắt thì nhớ thời lượng cũ vào crossfadeSecondsBeforeOff, bật lại đúng mức đó (chưa có thì mặc định 2 giây), đồng bộ select #crossfade-seconds + localStorage nocturne-crossfade-seconds và toast xác nhận; test chạy thật toggleCrossfade với state/$/toast/localStorage giả (tắt 3 giây nhớ 3 giây, bật lại 3 giây, chưa nhớ thì 2 giây, select + localStorage + toast đồng bộ) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Thu hồi blob URL của bài cũ sau khi crossfade xong: timeout dọn deck cũ gọi releaseUnusedLocalUrl/releaseUnusedCloudUrl để không giữ file nhạc trong RAM sau khi bài cũ đã fade hết -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 23:27 +07 | Đã xong: Pha C - Chặn 'ended' tự chuyển bài khi lát đầu hết sớm (lỗi Melissa báo 23:22, phát ~10 giây rồi tự đổi bài): 'ended' trên deck chính không chuyển bài khi track đang phát từ lát đầu và file đầy đủ còn đang tải nền (ghi track.sliceEndedEarly), upgradeSliceToFullAudio phát tiếp sau khi đổi sang file đầy đủ ở đúng vị trí khi lát đầu đã hết sớm (kể cả khi deck đang tạm dừng vì đã hết); test chạy thật attachDeckEvents với deck giả (lát đầu + đang tải nền thì không chuyển bài và nhớ cờ, file đầy đủ đã về thì chuyển bài bình thường) và upgradeSliceToFullAudio (lát đầu hết sớm thì phát tiếp + xóa cờ, tạm dừng thường vẫn giữ tạm dừng) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu (theo ưu tiên Melissa chọn 23:23): tải sẵn lát đầu bài kế/bài đang hiện trên màn hình + cache lát đầu vào IndexedDB để bấm lại phát ngay; backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 23:50 +07 | Đã xong: Pha C - Prefetch + cache lát đầu: lát đầu 1 MB được ghi vào IndexedDB (store firstSliceCache, DB version 3 -> 4, giữ tối đa 20 lát / ~20 MB, pruneSliceCacheEntries xóa lát cũ nhất trước, file đổi nội dung thì cache hết hạn theo totalBytes vs track.size), fetchCloudTrack đọc cache trước khi tải mạng để bấm lại phát ngay kể cả sau khi tải lại trang (vẫn tải nền file đầy đủ), lát đầu mới tải về được ghi cache (prefetch bài kế qua preloadNext cũng ghi cache); test chạy thật fetchCloudTrack với stub cache (cache-hit phát ngay không gọi fetch mạng + vẫn nâng cấp nền, lát mới được ghi cache) và pruneSliceCacheEntries (dưới ngưỡng không xóa, vượt số lượng/byte thì xóa cũ nhất, thiếu savedAt coi là cũ nhất) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Chặn đường 'error' khi đang phát lát đầu (Melissa báo 23:33 vẫn nhảy bài sau sửa 'ended': handler 'error' trên deck gọi playNext khi lát cắt cụt gây lỗi giải mã; chặn như 'ended' — nhớ cờ sliceEndedEarly, đợi file đầy đủ rồi phát tiếp, tải nền thất bại thì mới chuyển bài; lưu ý bản sửa chỉ có hiệu lực sau khi tải lại trang) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade, kiểm toán DSD worker -->
 </body>
 </html>
