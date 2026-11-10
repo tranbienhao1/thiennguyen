@@ -115,6 +115,15 @@ function decode(file, format, targetRate, bitDepth) {
     assert.equal(throughputAudit.totalInputBytes, 2097152, 'An invalid input byte count should not change the accumulated bytes');
     assert.equal(throughputAudit.totalChunkMs, 2500, 'A chunk with invalid input bytes should still count its decode time');
     assert.ok(Math.abs(probeContext.decodeThroughputMBps(throughputAudit) - 2097152 / 2.5 / 1048576) < 1e-9, 'Throughput should divide total bytes by total decode time');
+    const initialChunkBytes = probeContext.initialChunkBytes;
+    assert.equal(typeof initialChunkBytes, 'function', 'DSD worker should expose initialChunkBytes for first-chunk audit tests');
+    assert.equal(initialChunkBytes(2, 0), 262144, 'No measured throughput should start with the maximum chunk');
+    assert.equal(initialChunkBytes(2, NaN), 262144, 'Invalid throughput should start with the maximum chunk');
+    assert.equal(initialChunkBytes(2, 100), 262144, 'A fast device should cap the first chunk at 256 KiB');
+    assert.equal(initialChunkBytes(2, 1), 52428, '1 MB/s should size the first chunk to about 50 ms of decode');
+    assert.equal(initialChunkBytes(2, 0.1), 32768, 'A slow device should not start below the 32 KiB floor');
+    assert.equal(initialChunkBytes(3, 1), 52428, 'The first chunk should stay a multiple of the channel count');
+    assert.equal(initialChunkBytes(6, 0.5), 32766, 'A slow 6-channel device should floor then align the first chunk');
     probeContext.recordChunkAudit(audit, 5);
     assert.equal(audit.maxChunkMs, 5, 'A fast chunk should set the slowest chunk');
     assert.equal(audit.chunkCount, 1, 'A fast chunk should be counted');
@@ -150,6 +159,7 @@ function decode(file, format, targetRate, bitDepth) {
         assert.ok(Number.isInteger(result.chunksOverBudget) && result.chunksOverBudget >= 0 && result.chunksOverBudget <= result.chunkCount, `${format} chunksOverBudget should be a count within the decoded chunks`);
         assert.ok(Number.isInteger(result.finalChunkBytes) && result.finalChunkBytes >= 32768 && result.finalChunkBytes <= 262144 && result.finalChunkBytes % CHANNELS === 0, `${format} finalChunkBytes should stay within the adaptive chunk limits and aligned to channels`);
         assert.ok(Number.isFinite(result.decodeThroughputMBps) && result.decodeThroughputMBps >= 0, `${format} decodeThroughputMBps should be a measured non-negative MB/s`);
+        assert.ok(Number.isInteger(result.initialChunkBytes) && result.initialChunkBytes >= 32768 && result.initialChunkBytes <= 262144 && result.initialChunkBytes % CHANNELS === 0, `${format} initialChunkBytes should stay within the adaptive chunk limits and aligned to channels`);
       }
     }
   }
@@ -174,6 +184,26 @@ function decode(file, format, targetRate, bitDepth) {
     assert.ok(Number.isInteger(bigResult.chunkCount) && bigResult.chunkCount >= 2, 'Large-block DSF should decode in at least 2 counted chunks');
     assert.ok(Number.isInteger(bigResult.chunksOverBudget) && bigResult.chunksOverBudget <= bigResult.chunkCount, 'Large-block DSF should report an over-budget chunk count within the chunk count');
     assert.ok(Number.isFinite(bigResult.decodeThroughputMBps) && bigResult.decodeThroughputMBps >= 0, 'Large-block DSF should report a non-negative decode throughput');
+  }
+  // Pha A — worker giữ throughput giữa các lần giải mã trong cùng phiên:
+  // lần đầu chưa có số đo nên lát đầu là tối đa, lần sau lát đầu vẫn nằm
+  // trong giới hạn thích nghi và chia hết cho số kênh (nhỏ hơn nếu máy chậm).
+  {
+    const posted = [];
+    const sameSelf = {cancelled: false, onmessage: null, postMessage(message) { posted.push(message); }};
+    const sameContext = vm.createContext({self: sameSelf, Blob});
+    vm.runInContext(source, sameContext, {filename: 'dsd-worker.js'});
+    function decodeInContext(file, format) {
+      return new Promise((resolve, reject) => {
+        const originalPost = sameSelf.postMessage.bind(sameSelf);
+        sameSelf.postMessage = message => { originalPost(message); if (message.type === 'done') resolve(message); else if (message.type === 'error') reject(new Error(message.message)); };
+        sameSelf.onmessage({data: {file, format, targetRate: 44100, bitDepth: 16}});
+      });
+    }
+    const first = await decodeInContext(makeDsf(RATE, 16, 65536), 'dsf');
+    assert.equal(first.initialChunkBytes, 262144, 'The first decode in a fresh worker should start with the maximum chunk');
+    const second = await decodeInContext(makeDsf(RATE, 16, 65536), 'dsf');
+    assert.ok(Number.isInteger(second.initialChunkBytes) && second.initialChunkBytes >= 32768 && second.initialChunkBytes <= 262144 && second.initialChunkBytes % CHANNELS === 0, 'The second decode should size its first chunk from the measured throughput within the adaptive limits');
   }
   await assert.rejects(decode(makeDsf(), 'dsf', 32000, 16), /PCM chỉ hỗ trợ/);
   await assert.rejects(decode(makeDsf(), 'dsf', 48000, 16), /thuộc họ 44.1 kHz/);
