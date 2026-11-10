@@ -261,7 +261,7 @@
     #track-list .track-row{min-height:61px;border:0!important;border-bottom:1px solid #ffffff10!important;border-radius:0!important}
     #track-list .track-row:hover{background:#ffffff09!important} #track-list .track-row.active{background:#ffffff0c!important;box-shadow:inset 3px 0 var(--roon-active)!important}
     #empty-state{border:0!important;background:transparent!important}
-    .roon-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;margin:0 0 60px}
+    .roon-stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:0 0 60px}
     .roon-stat{display:flex;align-items:center;gap:19px;min-height:150px;padding:24px 30px;border:0;color:#fff;text-align:left;background:#222;cursor:pointer}
     .roon-stat-icon{color:#eee;font-size:40px;line-height:1} .roon-stat-value{display:block;font-size:37px;font-weight:650;line-height:1.1}
     .roon-stat-label{display:block;margin-top:5px;color:#aaa;font-size:13px;text-transform:uppercase}
@@ -351,7 +351,6 @@
         <button class="nav-link" type="button" data-view="albums"><span class="nav-icon">◉</span> Album</button>
         <button class="nav-link" type="button" data-view="artists"><span class="nav-icon">♧</span> Nghệ sĩ</button>
         <button class="nav-link" type="button" data-view="songs"><span class="nav-icon">♫</span> Bài hát</button>
-        <button class="nav-link" type="button" data-view="artists"><span class="nav-icon">♬</span> Nhạc sĩ</button>
         <button class="nav-link" type="button" data-view="compositions"><span class="nav-icon">♙</span> Compositions</button>
         <button class="nav-link" type="button" data-view="radio"><span class="nav-icon">◉</span> My Live Radio</button>
         <button class="nav-link" type="button" id="folders-button"><span class="nav-icon">▱</span> Thư mục</button>
@@ -385,7 +384,6 @@
           <button class="roon-stat" type="button" data-view="artists"><span class="roon-stat-icon">♧</span><span><strong id="artist-total" class="roon-stat-value">0</strong><span class="roon-stat-label">Nghệ sĩ</span></span></button>
           <button class="roon-stat" type="button" data-view="albums"><span class="roon-stat-icon">◉</span><span><strong id="album-total" class="roon-stat-value">0</strong><span class="roon-stat-label">Album</span></span></button>
           <button class="roon-stat" type="button" data-view="songs"><span class="roon-stat-icon">♫</span><span><strong id="song-total" class="roon-stat-value">0</strong><span class="roon-stat-label">Bài hát</span></span></button>
-          <button class="roon-stat" type="button" data-view="composers"><span class="roon-stat-icon">♬</span><span><strong class="roon-stat-value">0</strong><span class="roon-stat-label">Nhạc sĩ</span></span></button>
         </div>
       </div>
 
@@ -2781,5 +2779,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:06 +07 | Đã xong: Pha A - Đồng hồ đo mức Peak/RMS thật từ AnalyserNode: library.peakRmsFromTimeDomain tính peak/RMS từ dữ liệu miền thời gian (byte 0–255, 128 = im lặng) đổi sang dBFS, vòng vẽ visualizer lấy mẫu mỗi 30 frame (~2 lần/giây) và hiện "Pk −3.2 · RMS −18.5 dB" ở #level-readout cạnh visualizer footer, tự dừng khi tab ẩn/tạm dừng như visualizer | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Tự động cuộn hàng đợi tới bài đang phát khi mở panel hàng đợi -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:10 +07 | Đã xong: Pha B - Tự động cuộn hàng đợi tới bài đang phát khi mở panel: library.queueDisplayOrder ghim bài đang phát làm hàng đầu #queue-list kèm nhãn "Đang phát" (không lặp lại trong danh sách chờ, số thứ tự bài tiếp theo vẫn 1..N), scrollQueueToCurrent cuộn hàng đó lên đầu danh sách khi mở panel (có guard scrollIntoView) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài (revokeObjectURL) + giới hạn cache ảnh bìa IndexedDB chống rò RAM offline -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:15 +07 | Đã xong: Pha C - Giải phóng blob URL file local của bài vừa phát xong khi đổi bài: releaseUnusedLocalUrl (revokeObjectURL + quên URL) gọi ở cả 2 nhánh đổi bài DSD/thường, có guard không thu hồi URL còn gắn deck hoặc của bài đang lặp lại; playTrack tạo lại URL từ track.file khi phát lại bài local (ảnh bìa là data:image nên không có blob URL để thu hồi) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:23 +07 | Đã xong: Pha B - Bỏ phần "Nhạc sĩ" khỏi giao diện theo yêu cầu của Melissa: xóa nút nav sidebar trùng link Nghệ sĩ và thẻ thống kê Home (lối vào duy nhất tới trang Composers, số lượng ghi cứng 0), lưới .roon-stat-grid từ repeat(4,...) thành repeat(3,...); mục Nghệ sĩ vẫn còn, logic view composers giữ nguyên | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
 </body>
 </html>
