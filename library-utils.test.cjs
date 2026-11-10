@@ -179,6 +179,38 @@ assert.deepStrictEqual(utils.pruneCatalogEntries(null, 1000), [], 'A non-array c
 assert.deepStrictEqual(utils.pruneCatalogEntries([{savedAt:1}, {id:'', savedAt:2}, {id:'x', savedAt:3}], 1), [], 'Entries without an id should be ignored');
 assert.deepStrictEqual(utils.pruneCatalogEntries([{id:'a', savedAt:NaN}, {id:'b', savedAt:2}], 1), ['a'], 'A NaN savedAt should count as oldest');
 
+// Pha C — capCatalogCovers (tổng ngân sách ảnh bìa catalog cloud trong IndexedDB).
+assert.strictEqual(utils.MAX_CATALOG_COVER_TOTAL_CHARS, 8 * 1024 * 1024, 'The catalog cover budget should be 8 MiB of characters');
+const dataCover = size => `data:image/jpeg;base64,${'x'.repeat(size)}`;
+assert.deepStrictEqual(utils.capCatalogCovers([], 100), [], 'An empty catalog caps nothing');
+assert.deepStrictEqual(utils.capCatalogCovers(null), [], 'A non-array catalog caps nothing');
+assert.deepStrictEqual(
+  utils.capCatalogCovers([{id:'a', savedAt:1, cover:dataCover(60)}, {id:'b', savedAt:2, cover:dataCover(60)}], 100).map(entry => entry.cover),
+  [null, dataCover(60)], 'The oldest cover should be dropped first when the budget is exceeded');
+assert.deepStrictEqual(
+  utils.capCatalogCovers([{id:'a', savedAt:1, cover:dataCover(60)}, {id:'b', savedAt:2, cover:dataCover(60)}], 166).map(entry => entry.cover),
+  [dataCover(60), dataCover(60)], 'Covers that fit the budget exactly should all be kept');
+assert.deepStrictEqual(
+  utils.capCatalogCovers([{id:'a', savedAt:1, cover:dataCover(60)}, {id:'b', savedAt:2, cover:'https://coverartarchive.org/x.jpg'}], 10).map(entry => entry.cover),
+  [null, 'https://coverartarchive.org/x.jpg'], 'An https cover URL should not consume the budget or be dropped');
+assert.deepStrictEqual(
+  utils.capCatalogCovers([{id:'a', cover:dataCover(60)}, {id:'b', savedAt:5, cover:dataCover(60)}], 100).map(entry => entry.cover),
+  [null, dataCover(60)], 'An entry without savedAt (old catalog) should lose its cover first');
+assert.deepStrictEqual(
+  utils.capCatalogCovers([{id:'a', savedAt:1, cover:dataCover(10)}, {id:'b', savedAt:2, cover:null}, {id:'c', savedAt:3}], 0).map(entry => entry.cover),
+  [null, null, undefined], 'A zero budget should drop every data cover but leave null covers alone');
+assert.deepStrictEqual(
+  utils.capCatalogCovers([{id:'a', savedAt:1, cover:dataCover(60)}, {id:'b', savedAt:2, cover:dataCover(60)}], NaN).map(entry => entry.cover),
+  [dataCover(60), dataCover(60)], 'A non-finite budget should fall back to the 8 MiB default');
+const coverInput = [{id:'a', savedAt:1, cover:dataCover(60)}, {id:'b', savedAt:2, cover:dataCover(60)}];
+const coverCapped = utils.capCatalogCovers(coverInput, 100);
+assert.strictEqual(coverInput[0].cover, dataCover(60), 'Capping should not mutate the input entries');
+assert.notStrictEqual(coverCapped[0], coverInput[0], 'A dropped cover should be returned as a new entry object');
+assert.strictEqual(coverCapped[1], coverInput[1], 'An untouched entry should be returned as-is');
+assert.deepStrictEqual(
+  utils.capCatalogCovers([{savedAt:1, cover:dataCover(60)}, {id:'x', savedAt:2, cover:dataCover(60)}], 10).map(entry => entry.cover),
+  [dataCover(60), null], 'Entries without an id should be ignored by the ranking but kept as-is');
+
 // Pha A — peakRmsFromTimeDomain (đồng hồ đo mức Peak/RMS thật).
 assert.deepStrictEqual(utils.peakRmsFromTimeDomain(new Uint8Array(2048).fill(128)), {peak:0, rms:0, peakDb:-96, rmsDb:-96}, 'Digital silence should read -96 dB');
 assert.deepStrictEqual(utils.peakRmsFromTimeDomain([]), {peak:0, rms:0, peakDb:-96, rmsDb:-96}, 'Empty data should read -96 dB');

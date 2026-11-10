@@ -49,5 +49,6 @@ assert.ok(appCode.includes('persistCloudCatalog'), 'Cloud catalog persistence sh
 assert.ok(Number.isFinite(entry.savedAt), 'Serialization should stamp the entry with savedAt so the oldest can be pruned');
 assert.ok(appCode.includes('savedAt:Date.now()'), 'Catalog entries should carry a save timestamp');
 assert.ok(appCode.includes('pruneCloudCatalog().then(resolve);'), 'Catalog persistence should prune after writing');
-assert.ok(appCode.includes('library.pruneCatalogEntries(request.result || [], library.MAX_CLOUD_CATALOG_ENTRIES)'), 'Pruning should use the shared library helper and cap');
+assert.ok(appCode.includes('const all = request.result || [];'), 'Pruning should read the full stored catalog before deciding what to drop');
+assert.ok(appCode.includes('library.pruneCatalogEntries(all, library.MAX_CLOUD_CATALOG_ENTRIES)'), 'Pruning should use the shared library helper and cap');
 assert.ok(appCode.includes('store.delete(id);'), 'Pruning should delete the stale catalog entries');

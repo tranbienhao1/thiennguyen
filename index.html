@@ -1021,9 +1021,17 @@
         try { store = catalogTransaction('readwrite'); } catch (error) { return resolve(); }
         const request = store.getAll();
         request.onsuccess = () => {
-          const staleIds = library.pruneCatalogEntries(request.result || [], library.MAX_CLOUD_CATALOG_ENTRIES);
-          if (!staleIds.length) return resolve();
+          const all = request.result || [];
+          const staleIds = library.pruneCatalogEntries(all, library.MAX_CLOUD_CATALOG_ENTRIES);
+          // Pha C — siết tổng ảnh bìa catalog về 8 MiB ký tự: đặt cover = null
+          // cho các mục cũ nhất vượt ngân sách; mục vừa xóa vì quá hạn thì
+          // không ghi lại (kẻo put sau delete hồi sinh mục đã xóa).
+          const staleSet = new Set(staleIds);
+          const capped = library.capCatalogCovers(all, library.MAX_CATALOG_COVER_TOTAL_CHARS);
+          const changed = capped.filter((entry, index) => entry && !staleSet.has(entry.id) && entry.cover !== all[index].cover);
+          if (!staleIds.length && !changed.length) return resolve();
           for (const id of staleIds) store.delete(id);
+          for (const entry of changed) store.put(entry);
           store.transaction.oncomplete = () => resolve();
           store.transaction.onerror = () => resolve();
         };
@@ -2796,5 +2804,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:36 +07 | Đã xong: Pha D - Thêm content-visibility:auto + contain-intrinsic-size:auto 56px cho hàng đợi (#queue-list [data-queue-row] và [data-queue-current-row]) để cuộn panel hàng đợi dài mượt 60fps như hàng bài hát và thẻ bộ sưu tập; cập nhật bộ đếm content-visibility trong test từ 2 lên 3 vị trí | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Kiểm toán engine: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:43 +07 | Đã xong: Pha A - Chia khối DSF lớn thành lát con tự thích nghi trong worker: nhánh DSF trước đây giải mã nguyên khối blockSize (file lạ khai báo khối lớn sẽ chặn progress/cancel), nay chia lát tối đa chunkBytes qua nextChunkBytes như nhánh DFF (lát chậm >50 ms thì thu nhỏ, lát nhanh <10 ms thì tăng), tiến độ báo theo từng lát con; test DSF blockSize 140000 byte/kênh xác nhận báo tiến độ >=2 lần và WAV đúng kích thước | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Ghi nhớ vị trí cuộn của danh sách bài hát khi chuyển view để quay lại đúng chỗ đang xem -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 17:57 +07 | Đã xong: Pha B - Ghi nhớ vị trí cuộn của danh sách bài hát khi chuyển view: state.viewScroll lưu scrollTop của #content-col theo từng view, saveViewScroll ghi lại trước khi rời view cũ và restoreViewScroll khôi phục khi quay về (lần đầu vào view vẫn về đầu trang, vị trí âm kẹp về 0, thiếu #content-col không ném lỗi); test view-scroll.test.cjs mới chạy trực tiếp 3 hàm trích từ index.html qua vm (chuyển Songs 420 -> Albums -> Songs về đúng 420, view lạ rơi về Albums, chọn Folders không đổi view) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài (revokeObjectURL) + giới hạn cache ảnh bìa IndexedDB chống rò RAM offline -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 18:20 +07 | Đã xong: Pha C - Tổng ngân sách ảnh bìa catalog cloud trong IndexedDB tối đa 8 MiB ký tự: library.capCatalogCovers giữ ảnh của các mục mới nhất, đặt cover = null cho các mục cũ vượt ngân sách (ảnh https không tính vì chỉ là chuỗi ngắn), pruneCloudCatalog ghi lại mục đổi và không hồi sinh mục vừa xóa vì quá hạn; đã kiểm chứng ảnh bìa là data:image nên không có blob URL để thu hồi (blob URL file local/DSD/preload đã thu hồi ở Pha C trước); test cover-budget.test.cjs mới chạy pruneCloudCatalog thật với store giả (3 ảnh 3 MiB chỉ bỏ ảnh cũ nhất, 1001 mục vừa xóa mục cũ nhất vừa bỏ ảnh cũ, tổng ảnh giữ lại <= 8 MiB) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
 </body>
 </html>

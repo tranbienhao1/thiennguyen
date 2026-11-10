@@ -352,6 +352,31 @@
     return ranked.slice(0, withId.length - Math.max(0, max)).map(item => item.id);
   }
 
+  // Pha C — tổng ngân sách ảnh bìa cho catalog cloud trong IndexedDB:
+  // giới hạn từng mục 512 KiB chưa đủ — 1000 mục có thể phình tới ~512 MB
+  // base64 khi khôi phục offline. Giữ ảnh của các mục mới nhất cho tới khi
+  // đủ MAX_CATALOG_COVER_TOTAL_CHARS, các mục cũ hơn bị đặt cover = null
+  // (lần đồng bộ sau nạp lại metadata). Ảnh URL https không tính vào ngân
+  // sách vì chỉ là chuỗi ngắn; mục thiếu savedAt được coi là cũ nhất.
+  const MAX_CATALOG_COVER_TOTAL_CHARS = 8 * 1024 * 1024;
+  function capCatalogCovers(entries, maxTotalChars = MAX_CATALOG_COVER_TOTAL_CHARS) {
+    if (!Array.isArray(entries)) return [];
+    const max = Number.isFinite(maxTotalChars) ? Math.floor(maxTotalChars) : MAX_CATALOG_COVER_TOTAL_CHARS;
+    const ranked = entries
+      .map((entry, index) => ({entry, savedAt: entry && Number.isFinite(entry.savedAt) ? entry.savedAt : -Infinity, index}))
+      .filter(item => item.entry && typeof item.entry.id === 'string' && item.entry.id);
+    ranked.sort((a, b) => (b.savedAt - a.savedAt) || (b.index - a.index));
+    const dropped = new Set();
+    let used = 0;
+    for (const {entry} of ranked) {
+      const cover = typeof entry.cover === 'string' && entry.cover.startsWith('data:image') ? entry.cover : null;
+      if (!cover) continue;
+      if (used + cover.length <= Math.max(0, max)) { used += cover.length; continue; }
+      dropped.add(entry.id);
+    }
+    return entries.map(entry => (entry && dropped.has(entry.id) ? {...entry, cover: null} : entry));
+  }
+
   // Pha A — đồng hồ đo mức Peak/RMS thật từ AnalyserNode: dữ liệu miền thời
   // gian là byte 0–255 (128 = im lặng); peak/RMS tính trên biên độ tuyến
   // tính rồi đổi sang dBFS, im lặng tuyệt đối hiển thị -96 dB thay vì -Infinity.
@@ -378,5 +403,5 @@
     return [currentTrack, ...queued.filter(track => track.id !== currentTrack.id)];
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, peakRmsFromTimeDomain, queueDisplayOrder};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, peakRmsFromTimeDomain, queueDisplayOrder};
 });
