@@ -601,7 +601,17 @@
       if (element) { element.textContent = message; element.className = `text-[10px] ${tone}`; }
       $('cloud-status').textContent = message;
     };
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', name:track.name, title:track.title, artist:track.artist, album:track.album, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:track.cover || null, metadataLoaded:!!track.metadataLoaded});
+    // Pha C — giới hạn ảnh bìa lưu vào IndexedDB: ảnh gốc chưa downscale được
+    // (canvas lỗi, ảnh <= 512px nhưng nặng) có thể là base64 vài MB; chỉ giữ
+    // tối đa 512 KiB ký tự, còn lại lưu null để lần khôi phục sau nạp lại
+    // metadata thay vì phình catalog offline. Ảnh hiển thị trong phiên giữ nguyên.
+    const MAX_CATALOG_COVER_CHARS = 512 * 1024;
+    function coverForCatalog(cover) {
+      if (typeof cover !== 'string' || !cover) return null;
+      if (!cover.startsWith('data:image')) return cover;
+      return cover.length > MAX_CATALOG_COVER_CHARS ? null : cover;
+    }
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', name:track.name, title:track.title, artist:track.artist, album:track.album, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
       return {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', thumbnailUrl:file.thumbnailLink || '', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
@@ -2702,5 +2712,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 08:41 +07 | Đã xong: Pha C - Thêm clearStalePreload, hủy bản preload cũ (xóa trạng thái + gỡ src deck chờ + revoke blob URL cloud) và giải phóng URL cloud của bài trước khi chuyển sang bài DSD, chống tràn RAM | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 12:16 +07 | Đã xong: Pha A - Preset EQ 5 dải (Phẳng/Bass/Treble/Vocal/Rock/Jazz) vào chuỗi BiquadFilter, lưu tên preset vào localStorage và khôi phục khi mở lại, sửa tay band thì đánh dấu Tùy chỉnh | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Hiển thị tên preset EQ đang dùng ngay trên nút EQ ở footer và thêm phím tắt đổi preset nhanh khi đang nghe -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:07 +07 | Đã xong: Pha B - Hiển thị tên preset EQ đang dùng trên nút EQ ở footer (EQ · Bass mạnh…) và phím tắt E đổi preset nhanh khi đang nghe, kèm toast tên preset; sửa tay band thì nút hiện Tùy chỉnh | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài và giới hạn cache ảnh bìa trong IndexedDB để chống rò RAM offline -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:15 +07 | Đã xong: Pha C - Giới hạn ảnh bìa lưu vào catalog IndexedDB tối đa 512 KiB ký tự (coverForCatalog): ảnh gốc quá lớn không downscale được thì lưu null để lần khôi phục sau nạp lại metadata, chống phình catalog offline | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
 </body>
 </html>
