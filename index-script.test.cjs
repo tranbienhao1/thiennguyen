@@ -123,7 +123,9 @@ assert.match(html, /\.track-row\.active \{[^}]*inset 2px 0 #91cde5/, 'The curren
 assert.match(html, /#track-list \.track-row \{[^}]*content-visibility:auto/, 'Off-screen library rows should skip rendering so large lists scroll at 60fps');
 assert.match(html, /#track-list \.track-row \{[^}]*contain-intrinsic-size:auto 64px/, 'Skipped library rows should reserve their 64px height so the scrollbar stays stable');
 assert.match(html, /#track-list \.track-row \{[^}]*min-height:64px/, 'Library rows should keep their 64px minimum height after the visibility optimization');
-assert.equal([...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].reduce((count, match) => count + [...match[1].matchAll(/content-visibility:auto/g)].length, 0), 3, 'The content-visibility optimization should apply exactly three times: to library rows, collection cards and queue rows');
+assert.equal([...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].reduce((count, match) => count + [...match[1].matchAll(/content-visibility:auto/g)].length, 0), 4, 'The content-visibility optimization should apply exactly four times: to library rows, collection cards, queue rows and lyric lines');
+assert.match(html, /\.lyric-line \{[^}]*content-visibility:auto/, 'Off-screen lyric lines should skip rendering so long synced lyrics scroll at 60fps');
+assert.match(html, /\.lyric-line \{[^}]*contain-intrinsic-size:auto 28px/, 'Skipped lyric lines should reserve their 28px height so the lyrics scrollbar stays stable');
 assert.ok(appCode.includes('function syncSourceNavigation()'), 'Sidebar navigation and source filter should share active state');
 assert.ok(appCode.includes("button.setAttribute('aria-current', 'page')"), 'The active sidebar destination should be announced accessibly');
 assert.ok(appCode.includes("'roon-responsive-theme','roon-reference-layout','roon-collection-responsive','roon-collection-mobile'].includes(element.id)"), 'Update detection should include every inline layout theme when comparing versions');
@@ -707,7 +709,12 @@ assert.ok(html.includes('content-visibility:auto;contain-intrinsic-size:auto 64p
 // panel hàng trăm bài sẽ mượt 60fps; hàng đang phát (56px: p-2 + h-10)
 // được giữ cùng quy tắc để scrollQueueToCurrent vẫn cuộn chính xác.
 assert.ok(html.includes('#queue-list [data-queue-row],#queue-list [data-queue-current-row] { content-visibility:auto;contain-intrinsic-size:auto 56px; }'), 'Queue rows should skip off-screen rendering like track rows');
-assert.equal((html.match(/content-visibility:auto;contain-intrinsic-size:auto \d+px;?/g) || []).length, 3, 'Exactly three content-visibility rules should exist: track rows, collection cards, queue rows');
+assert.equal((html.match(/content-visibility:auto;contain-intrinsic-size:auto \d+px;?/g) || []).length, 4, 'Exactly four content-visibility rules should exist: track rows, collection cards, queue rows and lyric lines');
+// Pha D — lời .lrc dài hàng trăm dòng trong khung cuộn max-h-72 cũng bỏ
+// qua render ngoài màn hình như hàng bài hát: dòng lời 28px (leading-6
+// 24px + padding 2px mỗi bên) nên contain-intrinsic-size giữ thanh cuộn
+// ổn định; scrollIntoView của dòng đang hát vẫn ép trình duyệt render.
+assert.ok(html.includes('.lyric-line { border-radius:8px;padding:2px 8px;transition:color .2s,background-color .2s;content-visibility:auto;contain-intrinsic-size:auto 28px; }'), 'Lyric lines should skip off-screen rendering like track rows');
 // Pha A — the footer should show a live Peak/RMS readout from the analyser.
 assert.match(html, /id="level-readout"/, 'The footer should include a level readout next to the visualizer');
 assert.ok(appCode.includes('analyser.getByteTimeDomainData(timeData)'), 'The visualizer should sample time-domain data for the level meter');

@@ -168,7 +168,7 @@
     #listening-room main>div:first-child { border-radius:12px;background:#23282b;box-shadow:0 28px 90px #0009; }
     #listening-room main>div:first-child>div:first-child { background:linear-gradient(145deg,#d4e8f022,transparent 50%,#0a0c0d88); }
     #room-cover-empty { color:#a8ccd9; } #room-title { letter-spacing:-.045em; } #room-signal,#room-output { overflow-wrap:anywhere; }
-    .lyric-line { border-radius:8px;padding:2px 8px;transition:color .2s,background-color .2s; }
+    .lyric-line { border-radius:8px;padding:2px 8px;transition:color .2s,background-color .2s;content-visibility:auto;contain-intrinsic-size:auto 28px; }
     .lyric-line-seekable { cursor:pointer; } .lyric-line-seekable:hover { color:#e4e4e7;background:#ffffff0d; } .lyric-line-active { color:#fff!important;font-weight:600;background:#ffffff14; }
     body.settings-open { overflow:hidden!important; }
     #settings-modal { z-index:100!important;position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;overscroll-behavior:contain;border:0;padding:0;color:inherit; }
@@ -1058,9 +1058,15 @@
         const request = store.getAll();
         request.onsuccess = () => {
           const entries = request.result || [];
+          // Pha C — siết catalog khi khôi phục từ IndexedDB: kho do bản cũ
+          // ghi (hoặc lần dọn sau ghi thất bại lặng) có thể vượt 1000 mục
+          // / 8 MiB ảnh bìa; chỉ nạp mục đã lọc vào RAM, rồi dọn kho ở nền
+          // (best-effort) để lần mở sau không phải lọc lại.
+          const restoredCatalog = library.prepareRestoredCatalog(entries);
+          const usable = restoredCatalog.entries;
           let restored = 0;
           const restoredTracks = [];
-          for (const entry of entries) {
+          for (const entry of usable) {
             if (!entry || !entry.id) continue;
             const existing = state.tracks.find(track => track.id === entry.id);
             if (existing) {
@@ -1071,6 +1077,7 @@
             state.tracks.push(track); restoredTracks.push(track); restored++;
           }
           if (restored) { renderTracks(); queueCloudMetadata(restoredTracks); }
+          if (restoredCatalog.changed) pruneCloudCatalog();
           restoreRecentTracks();
           resolve(restored);
         };
@@ -2842,6 +2849,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 18:41 +07 | Đã xong: Pha C - Service Worker precache bền vững khi deploy: install dùng Promise.allSettled precache từng file app shell thay cho cache.addAll (một file 404/mạng chập chờn trước đây làm cả lượt cài đặt rớt, worker mới không kích hoạt và trình duyệt kẹt với worker DSD cũ); nay file lỗi chỉ thiếu trong cache, worker mới vẫn skipWaiting và file lỗi được networkFirst nạp lại khi online; test giả lập icons/icon.svg trả ok:false (cài đặt vẫn kích hoạt, cache đủ 8/9 file gồm dsd-worker.js, cài lại đủ 9/9) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo throughput giải mã (MB/s) của DSF/DFF mẫu để đặt ngân sách chunk theo thiết bị thay vì ngưỡng 50 ms cố định -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 19:03 +07 | Đã xong: Pha D - Đo throughput giải mã DSD (MB/s): worker cộng dồn byte DSD đầu vào và thời gian từng lát vào chunk audit (newChunkAudit thêm totalInputBytes/totalChunkMs, recordChunkAudit nhận thêm inputBytes, helper decodeThroughputMBps = byte / thời gian / MiB, trả 0 khi chưa có số đo), cả hai nhánh DSF (commonLength × kênh) và DFF (raw.length) đều ghi, message done báo thêm decodeThroughputMBps, track lưu dsdThroughputMBps và formatDecodeAudit hiện thêm "· X.X MB/s" khi đo được (track cũ không có số đo giữ dòng kiểm toán cũ) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Dùng throughput đo được để đặt ngân sách chunk theo thiết bị (chunk khởi đầu và ngưỡng 50 ms thích nghi theo MB/s) thay vì ngưỡng cố định -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 19:07 +07 | Đã xong: Pha A - Lát đầu theo throughput thiết bị: worker giữ lastDecodeThroughputMBps giữa các lần giải mã trong cùng phiên, helper initialChunkBytes chọn lát đầu ~50 ms từ throughput lần trước (kẹp 32–256 KiB, chia hết cho số kênh), máy chậm bắt đầu bằng lát nhỏ để progress/cancel phản hồi kịp, máy nhanh bắt đầu bằng lát lớn; chưa có số đo thì dùng lát tối đa như trước; message done báo thêm initialChunkBytes để kiểm toán | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Hiện throughput và lát đầu trong chi tiết bài hát (mở rộng dòng kiểm toán DSD) để người dùng thấy thiết bị của mình giải mã nhanh hay chậm -->
-  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 19:18 +07 | Đã xong: Pha B - Hiện lát đầu trong dòng kiểm toán DSD: track lưu dsdInitialChunkBytes từ message done, formatDecodeAudit nhận thêm tham số thứ 5 và hiện "· lát đầu 256 KiB" (làm tròn KiB) khi đo được, track cũ không có số đo giữ dòng kiểm toán cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Rà soát IndexedDB: giới hạn số ảnh bìa cache và dọn blob URL ảnh bìa cũ khi đổi bài để chống rò RAM khi nghe offline lâu -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 19:38 +07 | Đã xong: Pha D - Thêm content-visibility:auto + contain-intrinsic-size:auto 28px cho .lyric-line để lời .lrc dài hàng trăm dòng trong khung cuộn max-h-72 bỏ qua render ngoài màn hình như hàng bài hát/thẻ bộ sưu tập/hàng đợi, cuộn lời đồng bộ mượt 60fps; scrollIntoView của dòng đang hát vẫn ép render; bộ đếm content-visibility trong test tăng 3 lên 4 vị trí | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Kiểm toán engine DSD: đo throughput giải mã theo từng lát và cảnh báo khi lát vượt ngân sách 50 ms liên tục -->
 </body>
 </html>
