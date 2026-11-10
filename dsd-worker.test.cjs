@@ -276,6 +276,36 @@ function decode(file, format, targetRate, bitDepth) {
     assert.equal(withId3.blob.size, expectedSize, 'Unpadded DSF with trailing ID3 bytes should decode to the full 3 s PCM');
     assert.deepEqual(new Uint8Array(await withId3.blob.arrayBuffer()), new Uint8Array(await unpadded.blob.arrayBuffer()), 'Trailing ID3 bytes must not leak into the decoded PCM tail');
   }
+  // Pha A — DSD phát từ lát PCM đầu: DSF 3 giây gửi đúng 1 tin 'first-slice'
+  // trước 'done' (WAV hợp lệ, ~2 giây PCM); file ngắn hơn 2 giây thì chỉ 'done'.
+  {
+    async function decodeCollecting(file, format) {
+      const posted = [];
+      const collectSelf = {cancelled: false, onmessage: null, postMessage(message) { posted.push(message); }};
+      const collectContext = vm.createContext({self: collectSelf, Blob});
+      vm.runInContext(source, collectContext, {filename: 'dsd-worker.js'});
+      const done = new Promise((resolve, reject) => {
+        const originalPost = collectSelf.postMessage.bind(collectSelf);
+        collectSelf.postMessage = message => { originalPost(message); if (message.type === 'done') resolve(message); else if (message.type === 'error') reject(new Error(message.message)); };
+      });
+      collectSelf.onmessage({data: {file, format, targetRate: 44100, bitDepth: 16}});
+      await done;
+      return posted;
+    }
+    const longPosted = await decodeCollecting(makeDsf(RATE, 4096, RATE * 3), 'dsf');
+    const slices = longPosted.filter(message => message.type === 'first-slice');
+    assert.equal(slices.length, 1, 'A 3 s DSF should send exactly one first slice before done');
+    assert.ok(longPosted.findIndex(message => message.type === 'first-slice') < longPosted.findIndex(message => message.type === 'done'), 'The first slice should arrive before the full decode finishes');
+    const slice = slices[0];
+    assert.equal(String.fromCharCode(...new Uint8Array(await slice.blob.slice(0, 4).arrayBuffer())), 'RIFF', 'The first slice should be a valid WAV blob');
+    const sliceHeader = new DataView(await slice.blob.slice(0, 44).arrayBuffer());
+    assert.equal(sliceHeader.getUint32(40, true), slice.blob.size - 44, 'The first-slice WAV header should size its own PCM data');
+    assert.ok(slice.duration >= 2 && slice.duration < 2.5, `The first slice should hold about 2 s of PCM (got ${slice.duration} s)`);
+    assert.equal(slice.blob.size, 44 + Math.round(slice.duration * 44100) * CHANNELS * 2, 'The first-slice PCM size should match its reported duration');
+    const shortPosted = await decodeCollecting(makeDsf(), 'dsf');
+    assert.equal(shortPosted.filter(message => message.type === 'first-slice').length, 0, 'A file shorter than the first slice should send no first slice');
+    assert.equal(shortPosted.filter(message => message.type === 'done').length, 1, 'A short file should still finish with one done message');
+  }
   await assert.rejects(decode(makeDsf(), 'dsf', 32000, 16), /PCM chỉ hỗ trợ/);
   await assert.rejects(decode(makeDsf(), 'dsf', 48000, 16), /thuộc họ 44.1 kHz/);
   await assert.rejects(decode(makeDff('DSD ', 3072000), 'dff', 44100, 16), /thuộc họ 48 kHz/);

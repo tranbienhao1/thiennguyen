@@ -2210,23 +2210,63 @@
         if (!location.protocol.startsWith('http')) throw new Error('Hãy mở NOCTURNE qua localhost hoặc HTTPS để dùng Web Worker.');
         const worker = new Worker(new URL('dsd-worker.js', dsdWorkerBaseUrl));
         state.dsdWorker = worker;
+        // Pha A — phát DSD từ lát PCM đầu (~2 giây) ngay khi worker gửi,
+        // deck phát lát đó trong khi worker giải mã tiếp; đặt cờ lát đầu +
+        // fullAudioPromise để guard 'ended'/'error' sẵn có không chuyển bài
+        // khi lát đầu hết sớm (như đường lát đầu cloud).
+        let dsdSliceUrl = null, dsdFullResolve = null;
+        track.firstSlicePlayback = false; track.sliceEndedEarly = false;
+        track.fullAudioPromise = new Promise(resolve => { dsdFullResolve = resolve; });
         worker.onmessage = async event => {
           const message = event.data || {};
           if (generation !== state.playGeneration || state.dsdWorker !== worker) return;
           if (message.type === 'progress') { $('play-button').textContent = `${Math.round(message.progress * 100)}%`; return; }
           if (message.type === 'error') { stopDsdWorker(false); $('play-button').textContent = '▶'; skipFailedTrack(generation, `Không thể giải mã DSD: ${message.message}. Chuyển sang bài tiếp theo.`); return; }
+          if (message.type === 'first-slice') {
+            if (state.dsdUrl) return;
+            const sliceUrl = URL.createObjectURL(message.blob); state.objectUrls.add(sliceUrl);
+            dsdSliceUrl = sliceUrl; state.dsdUrl = sliceUrl; state.dsdTrackId = track.id;
+            track.url = sliceUrl; track.duration = message.duration; track.firstSlicePlayback = true;
+            setupAudio();
+            if (!state.context) return;
+            if (state.context.state === 'suspended') await state.context.resume();
+            if (generation !== state.playGeneration) return;
+            audio.src = sliceUrl; standbyAudio.muted = true;
+            displayTrack(track);
+            try { await audio.play(); if (generation !== state.playGeneration) return; $('play-button').textContent = 'Ⅱ'; recordHistory(track); scheduleTrackRender(); }
+            catch (error) { console.error('DSD first-slice playback failed:', error); stopDsdWorker(false); skipFailedTrack(generation, `Không thể phát PCM đã giải mã trong trình duyệt. Chuyển sang bài tiếp theo.`); }
+            return;
+          }
           if (message.type !== 'done') return;
           worker.terminate(); state.dsdWorker = null;
-          const url = URL.createObjectURL(message.blob); state.dsdUrl = url; state.dsdBlob = message.blob; state.dsdTrackId = track.id; state.objectUrls.add(url);
+          const url = URL.createObjectURL(message.blob);
+          const sliceAbsoluteUrl = dsdSliceUrl ? new URL(dsdSliceUrl, location.href).href : '';
+          const wasSlicePlaying = !!dsdSliceUrl && audio.src === sliceAbsoluteUrl;
+          const slicePosition = wasSlicePlaying ? audio.currentTime : 0, sliceWasPaused = audio.paused, sliceEndedEarly = !!track.sliceEndedEarly;
+          state.dsdUrl = url; state.dsdBlob = message.blob; state.dsdTrackId = track.id; state.objectUrls.add(url);
           track.url = url; track.duration = message.duration; track.sampleRate = message.rate; track.channels = message.channels; track.dsdMultiplier = message.multiplier; track.pcmRate = message.targetRate; track.pcmDecimation = message.decimation; track.pcmBitDepth = message.bitDepth; track.dsdDecodeMs = message.decodeMs; track.dsdMaxChunkMs = message.maxChunkMs; track.dsdChunkCount = message.chunkCount; track.dsdChunksOverBudget = message.chunksOverBudget; track.dsdFinalChunkBytes = message.finalChunkBytes; track.dsdThroughputMBps = message.decodeThroughputMBps; track.dsdInitialChunkBytes = message.initialChunkBytes; track.dsdMaxConsecutiveOverBudget = message.maxConsecutiveOverBudget; track.dsdMinSliceThroughputMBps = message.minSliceThroughputMBps;
+          track.firstSlicePlayback = false; track.sliceEndedEarly = false;
+          if (dsdFullResolve) dsdFullResolve();
+          track.fullAudioPromise = null;
           setupAudio();
           if (!state.context) return;
           if (state.context.state === 'suspended') await state.context.resume();
           if (generation !== state.playGeneration) return;
+          if (wasSlicePlaying) {
+            audio.addEventListener('loadedmetadata', () => {
+              try { audio.currentTime = Math.min(slicePosition, audio.duration || slicePosition); } catch (_) {}
+              if (!sliceWasPaused || sliceEndedEarly) audio.play().then(() => { if (generation === state.playGeneration) $('play-button').textContent = 'Ⅱ'; }).catch(error => console.warn('Could not resume after upgrading DSD to the full decoded audio:', error.message || error));
+              else $('play-button').textContent = '▶';
+              scheduleTrackRender();
+            }, {once:true});
+          }
           audio.src = url; standbyAudio.muted = true;
           displayTrack(track);
-          try { await audio.play(); if (generation !== state.playGeneration) return; $('play-button').textContent = 'Ⅱ'; recordHistory(track); scheduleTrackRender(); }
-          catch (error) { console.error('DSD PCM playback failed:', error); skipFailedTrack(generation, `Không thể phát PCM đã giải mã trong trình duyệt. Chuyển sang bài tiếp theo.`); }
+          if (dsdSliceUrl && ![audio, standbyAudio].some(element => element.src === sliceAbsoluteUrl)) releaseTrackUrl(dsdSliceUrl);
+          if (!wasSlicePlaying) {
+            try { await audio.play(); if (generation !== state.playGeneration) return; $('play-button').textContent = 'Ⅱ'; recordHistory(track); scheduleTrackRender(); }
+            catch (error) { console.error('DSD PCM playback failed:', error); skipFailedTrack(generation, `Không thể phát PCM đã giải mã trong trình duyệt. Chuyển sang bài tiếp theo.`); }
+          }
         };
         worker.onerror = event => {
           if (generation !== state.playGeneration) return;
@@ -3084,5 +3124,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 23:50 +07 | Đã xong: Pha C - Prefetch + cache lát đầu: lát đầu 1 MB được ghi vào IndexedDB (store firstSliceCache, DB version 3 -> 4, giữ tối đa 20 lát / ~20 MB, pruneSliceCacheEntries xóa lát cũ nhất trước, file đổi nội dung thì cache hết hạn theo totalBytes vs track.size), fetchCloudTrack đọc cache trước khi tải mạng để bấm lại phát ngay kể cả sau khi tải lại trang (vẫn tải nền file đầy đủ), lát đầu mới tải về được ghi cache (prefetch bài kế qua preloadNext cũng ghi cache); test chạy thật fetchCloudTrack với stub cache (cache-hit phát ngay không gọi fetch mạng + vẫn nâng cấp nền, lát mới được ghi cache) và pruneSliceCacheEntries (dưới ngưỡng không xóa, vượt số lượng/byte thì xóa cũ nhất, thiếu savedAt coi là cũ nhất) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Chặn đường 'error' khi đang phát lát đầu (Melissa báo 23:33 vẫn nhảy bài sau sửa 'ended': handler 'error' trên deck gọi playNext khi lát cắt cụt gây lỗi giải mã; chặn như 'ended' — nhớ cờ sliceEndedEarly, đợi file đầy đủ rồi phát tiếp, tải nền thất bại thì mới chuyển bài; lưu ý bản sửa chỉ có hiệu lực sau khi tải lại trang) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade, kiểm toán DSD worker -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 23:56 +07 | Đã xong: Pha C - Chặn đường 'error' khi đang phát lát đầu (Melissa báo 23:52 sau khi tải lại vẫn nhảy bài, thậm chí nhanh hơn — lát 1 MB hết sớm hơn nên lỗi giải mã ở cuối lát cắt cụt kích hoạt handler 'error' gọi playNext, đường mà bản vá 'ended' 285c942 chưa chặn): handler 'error' trên deck chính không chuyển bài khi track đang phát lát đầu và file đầy đủ còn đang tải nền (nhớ cờ sliceEndedEarly như 'ended', không toast/không đếm lỗi), chỉ chuyển bài khi tải nền thất bại (toast 'Không thể tải bài hát…'); test chạy thật attachDeckEvents với deck giả (lỗi lát đầu + đang tải nền thì không chuyển bài/không toast/không đếm lỗi, tải nền lỗi thì chuyển bài + toast, lỗi thật sau khi file đã về thì chuyển bài bình thường) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Điều tra lỗi nhảy bài DSD (Melissa xác nhận cả FLAC và DSD đều bị; DSD không qua đường lát đầu nên là vấn đề riêng — kiểm toán worker DSD/WAV đã giải mã; cần cô ấy thử lại sau bản này và báo còn nhảy không/sau bao nhiêu giây/có toast không) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade, kiểm toán DSD worker -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 00:18 +07 | Đã xong: Pha D - Sửa lỗi giải mã DSF khối cuối lẻ (Melissa báo DSD phát ~10 giây rồi tự đổi bài): worker luôn dùng bước nhảy blockSize nên file DSF không chèn đệm (data chunk đúng bằng số mẫu, kênh sau nằm sát sau kênh trước trong khối cuối — 1 trong 2 dạng file thật mà ffmpeg dsfdec.c hỗ trợ) bị đọc quá cuối chunk và ném 'Không đọc đủ dữ liệu DSF.' ở khối cuối, bài DSD bị bỏ qua sau khi đã giải mã gần xong; giờ bước nhảy kênh ở khối cuối là blockLength khi file không chèn đệm, giữ blockSize khi file chèn đệm; test hồi quy mới giải mã DSF 3 giây DSD64 blockSize 4096 cả 3 dạng (không chèn đệm, chèn đệm, kèm byte ID3 cuối file) đều đủ 3 giây PCM và byte ID3 không lọt vào đuôi PCM (test đã thử fail trên code cũ) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Phát DSD theo từng lát: giải mã streaming, phát lát PCM đầu ngay khi xong thay vì đợi giải mã toàn file (giảm thời gian chờ DSD từ ~10 giây xuống ~1 giây) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 00:48 +07 | Đã xong: Pha A - Phát DSD từ lát PCM đầu: worker gửi tin 'first-slice' (WAV ~2 giây PCM) ngay khi đủ lát đầu thay vì đợi giải mã toàn file, deck phát lát đó trong khi worker giải mã tiếp; khi 'done' về thì đổi sang file đầy đủ ở đúng vị trí đang nghe (seek sau loadedmetadata, phát tiếp nếu đang phát hoặc đã hết sớm, giữ tạm dừng nếu đang tạm dừng), thu hồi blob URL lát đầu; đặt firstSlicePlayback + fullAudioPromise để guard 'ended'/'error' sẵn có không chuyển bài khi lát đầu hết sớm; file ngắn hơn 2 giây thì không có lát đầu, phát như trước | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - OneDrive dùng thẳng downloadUrl thay vì tải qua proxy (giảm thời gian chờ bài OneDrive) | Backlog: thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
 </body>
 </html>
