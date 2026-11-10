@@ -123,7 +123,7 @@ assert.match(html, /\.track-row\.active \{[^}]*inset 2px 0 #91cde5/, 'The curren
 assert.match(html, /#track-list \.track-row \{[^}]*content-visibility:auto/, 'Off-screen library rows should skip rendering so large lists scroll at 60fps');
 assert.match(html, /#track-list \.track-row \{[^}]*contain-intrinsic-size:auto 64px/, 'Skipped library rows should reserve their 64px height so the scrollbar stays stable');
 assert.match(html, /#track-list \.track-row \{[^}]*min-height:64px/, 'Library rows should keep their 64px minimum height after the visibility optimization');
-assert.equal([...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].reduce((count, match) => count + [...match[1].matchAll(/content-visibility:auto/g)].length, 0), 1, 'The content-visibility optimization should apply exactly once, to library rows only');
+assert.equal([...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].reduce((count, match) => count + [...match[1].matchAll(/content-visibility:auto/g)].length, 0), 2, 'The content-visibility optimization should apply exactly twice: to library rows and to collection cards');
 assert.ok(appCode.includes('function syncSourceNavigation()'), 'Sidebar navigation and source filter should share active state');
 assert.ok(appCode.includes("button.setAttribute('aria-current', 'page')"), 'The active sidebar destination should be announced accessibly');
 assert.ok(appCode.includes("'roon-responsive-theme','roon-reference-layout','roon-collection-responsive','roon-collection-mobile'].includes(element.id)"), 'Update detection should include every inline layout theme when comparing versions');
@@ -574,4 +574,10 @@ assert.ok(appCode.includes("seekByStep(-10);"), 'Backward seeking should step by
 assert.ok(appCode.includes("seekByStep(10);"), 'Forward seeking should step by 10 seconds');
 assert.ok(!appCode.includes('audio.currentTime = Math.max(0, audio.currentTime - 10);'), 'Arrow seeking should reuse the shared helper instead of an inline clamp');
 assert.match(html, /←\/→ hoặc \[ \] lùi\/tiến 10 giây/, 'The shortcuts hint should list the [ ] keys');
+// Pha D — collection cards should skip off-screen rendering like track rows.
+const collectionCardRule = html.match(/\.collection-card\{[^}]*\}/);
+assert.ok(collectionCardRule, 'The collection card rule should exist');
+assert.ok(collectionCardRule[0].includes('content-visibility:auto'), 'Collection cards should use content-visibility:auto for smooth scrolling');
+assert.ok(collectionCardRule[0].includes('contain-intrinsic-size:auto 300px'), 'Collection cards should reserve intrinsic size so the scrollbar stays stable');
+assert.ok(html.includes('content-visibility:auto;contain-intrinsic-size:auto 64px;'), 'Track rows should keep their content-visibility rule');
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');

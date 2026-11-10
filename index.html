@@ -250,7 +250,7 @@
   </style>
   <style id="roon-collection-responsive">
     #collection-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));column-gap:clamp(20px,2.1vw,40px);row-gap:30px} #collection-grid.hidden{display:none!important}
-    .collection-card{display:block;min-width:0;padding:0;border:0;background:transparent;color:#f2f2f2;text-align:left;cursor:pointer}
+    .collection-card{display:block;min-width:0;padding:0;border:0;background:transparent;color:#f2f2f2;text-align:left;cursor:pointer;content-visibility:auto;contain-intrinsic-size:auto 300px}
     .collection-art{position:relative;display:grid;width:100%;aspect-ratio:1;place-items:center;overflow:hidden;background:#3b3b3d}
     .collection-art img{width:100%;height:100%;object-fit:cover} .collection-art.is-artist{width:100%;border-radius:50%}
     .collection-initials{color:white;font-family:Georgia,"Times New Roman",serif;font-size:clamp(50px,5vw,76px);line-height:1}
@@ -2744,5 +2744,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:30 +07 | Đã xong: Pha A - rebuildAudioRoutes làm mượt EQ bằng setTargetAtTime (.015) thay cho gán .value trực tiếp khi thêm/xóa band EQ trong lúc đang phát: tần số/Q/gain từng filter, preamp bù headroom và direct đều ramp mềm như applyEq, tránh tiếng lụp bụp | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Thêm phím tắt [ ] tua ±10 giây khi đang nghe, kèm toast hiển thị thời gian đã tua -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 15:52 +07 | Đã xong: Pha B - Thêm phím tắt [ ] tua ±10 giây khi đang nghe, kèm toast hiển thị thời gian đã tua (Đã tua tới 1:30 / 3:45); helper seekByStep dùng chung cho ←/→ và [ ], kẹp vị trí bằng library.clampSeekTime (live stream/NaN thì giữ nguyên vị trí), cập nhật gợi ý phím tắt trong phòng nghe | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài (revokeObjectURL) và giới hạn cache ảnh bìa trong IndexedDB để chống rò RAM offline -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 15:59 +07 | Đã xong: Pha C - Giới hạn danh mục cloud trong IndexedDB tối đa 1000 mục (MAX_CLOUD_CATALOG_ENTRIES): serializableCloudTrack đóng dấu savedAt, persistCloudCatalog dọn các mục cũ nhất qua library.pruneCatalogEntries sau mỗi lần ghi (best-effort, mục catalog cũ thiếu savedAt bị xóa trước), chống phình catalog offline theo thư viện Drive/OneDrive | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Thêm content-visibility:auto cho hàng bài hát để cuộn danh sách lớn mượt 60fps -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:04 +07 | Đã xong: Pha D - Thêm content-visibility:auto + contain-intrinsic-size:auto 300px cho thẻ .collection-card (lưới album/nghệ sĩ) để thẻ ngoài màn hình bỏ qua render như .track-row, cuộn thư viện lớn mượt 60fps; kiểm chứng đếm đúng 2 vị trí content-visibility (hàng bài hát + thẻ bộ sưu tập) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Đồng hồ đo mức Peak/RMS thật từ AnalyserNode (getByteTimeDomainData) hiển thị trong phòng nghe, tự tạm dừng vẽ khi tab ẩn -->
 </body>
 </html>
