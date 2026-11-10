@@ -1008,6 +1008,9 @@
           const sliceBlob = library.normalizeAudioBlob(firstSlice.blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, firstSlice.blob.type);
           const sliceUrl = URL.createObjectURL(sliceBlob);
           track.url = sliceUrl;
+          // Pha D — ghi lại bài này phát từ lát đầu hay máy chủ đã trả
+          // toàn file, để time-to-first-audio hiển thị đúng nguồn phát.
+          track.firstSlicePlayback = !firstSlice.complete;
           state.objectUrls.add(sliceUrl);
           if (firstSlice.complete) finishCloudMetadataInBackground(track, sliceBlob);
           else upgradeSliceToFullAudio(track, sliceUrl, url, options, provider).catch(error => console.warn('Could not finish downloading the full audio file in the background:', error.message || error));
@@ -1026,6 +1029,7 @@
         blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
         const objectUrl = URL.createObjectURL(blob);
         track.url = objectUrl;
+        track.firstSlicePlayback = false;
         state.objectUrls.add(objectUrl);
         finishCloudMetadataInBackground(track, blob);
         return objectUrl;
@@ -1447,6 +1451,30 @@
       const firstChunk = Number.isFinite(initialChunkBytes) && initialChunkBytes > 0 ? ` · lát đầu ${Math.round(initialChunkBytes / 1024)} KiB` : '';
       return `giải mã ${total} · lát chậm nhất ${Math.round(maxChunkMs)} ms${overBudget}${streakWarn}${throughput}${slowestSlice}${firstChunk}`;
     }
+    // Pha D — đo thời gian từ lúc nhấn phát tới khi nghe thấy tiếng
+    // (time-to-first-audio) để kiểm chứng bước phát từ lát đầu thực sự
+    // nhanh hơn; performance.now() cho độ phân giải dưới mili-giây.
+    function measureTimeToFirstAudio(startedAtMs, nowMs) {
+      if (!Number.isFinite(startedAtMs) || !Number.isFinite(nowMs)) return null;
+      return Math.max(0, Math.round(nowMs - startedAtMs));
+    }
+    function recordTimeToFirstAudio(track, startedAtMs, nowMs, mode) {
+      const ms = measureTimeToFirstAudio(startedAtMs, nowMs);
+      if (ms === null || !track) return null;
+      track.timeToFirstAudioMs = ms; track.timeToFirstAudioMode = mode || 'full';
+      return ms;
+    }
+    const TIME_TO_FIRST_AUDIO_MODES = {preload:'đã preload', slice:'lát đầu 4 MB', full:'toàn file', local:'file local'};
+    function timeToFirstAudioText(track) {
+      if (!track || !Number.isFinite(track.timeToFirstAudioMs) || track.timeToFirstAudioMs < 0) return '';
+      const total = track.timeToFirstAudioMs >= 1000 ? `${(track.timeToFirstAudioMs / 1000).toFixed(1)} giây` : `${Math.round(track.timeToFirstAudioMs)} ms`;
+      const mode = TIME_TO_FIRST_AUDIO_MODES[track.timeToFirstAudioMode];
+      return `Nghe thấy tiếng sau ${total}${mode ? ` (${mode})` : ''}`;
+    }
+    function renderRoomSignal(track) {
+      const room = signalDescription(track), firstAudio = timeToFirstAudioText(track);
+      $('room-signal').textContent = `${room.sourceTechnical} · ${room.decoded}${room.advice ? ` · ${room.advice}` : ''}${firstAudio ? ` · ${firstAudio}` : ''}`;
+    }
     function signalDescription(track) {
       const metadata = library.trackMetadata(track);
       const sourceName = ({local:'File local trên thiết bị',google:'Google Drive qua API riêng',onedrive:'OneDrive qua API riêng',url:'URL trực tiếp'})[track.source] || `Nguồn ${sourceLabel(track.source)}`;
@@ -1860,7 +1888,7 @@
       const room = signalDescription(track), q = quality(track);
       $('quality-badge').textContent = q.label; $('quality-badge').className = `rounded-md border px-2 py-1 text-[9px] font-medium uppercase tracking-wider ${q.tone}`; $('mobile-quality').textContent = q.label;
       $('room-title').textContent = room.title; $('room-artist').textContent = room.artist; $('room-album').textContent = room.album;
-      $('room-signal').textContent = `${room.sourceTechnical} · ${room.decoded}${room.advice ? ` · ${room.advice}` : ''}`; $('room-output').textContent = `Nguồn: ${room.sourceName}. AudioContext ${state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.`;
+      renderRoomSignal(track); $('room-output').textContent = `Nguồn: ${room.sourceName}. AudioContext ${state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.`;
       $('room-quality').textContent = q.label; $('room-quality').className = `rounded-md border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider ${q.tone}`;
       const roomCover = $('room-cover'); roomCover.hidden = !track.cover; roomCover.src = track.cover || ''; $('room-cover-empty').classList.toggle('hidden', !!track.cover);
       $('favorite-button').classList.remove('hidden'); $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').classList.toggle('text-pink-300', isFavorite(track));
@@ -2007,6 +2035,11 @@
     async function playTrack(trackId) {
       const track = state.tracks.find(item => item.id === trackId);
       if (!track) return;
+      // Pha D — mốc bắt đầu đo time-to-first-audio (từ lúc nhấn phát tới
+      // khi nghe thấy tiếng); xóa lần đo cũ của bài này để không hiện
+      // số đo của lần phát trước trong lúc đang tải bài mới.
+      const playRequestedAt = performance.now();
+      track.timeToFirstAudioMs = null; track.timeToFirstAudioMode = null;
       const previousTrack = state.tracks.find(item => item.id === state.currentId);
       // Pha C — phát lại bài local đã bị thu hồi blob URL: tạo lại URL từ
       // track.file (file gốc vẫn giữ trong RAM) để phát được ngay.
@@ -2055,6 +2088,15 @@
         const nextDeck = state.activeDeck === state.deckA ? state.deckB : state.deckA;
         nextDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .01);
       }
+      // Pha D — ghi lại thời điểm nghe thấy tiếng đầu tiên: sự kiện
+      // 'playing' của deck đích, đo từ lúc nhấn phát (gồm cả thời gian
+      // chờ tải lát đầu/toàn file); generation đổi thì bỏ qua lần đo cũ.
+      target.addEventListener('playing', () => {
+        if (generation !== state.playGeneration) return;
+        const mode = wasPreloaded ? 'preload' : track.source === 'local' ? 'local' : track.firstSlicePlayback ? 'slice' : 'full';
+        recordTimeToFirstAudio(track, playRequestedAt, performance.now(), mode);
+        if (track.id === state.currentId) renderRoomSignal(track);
+      }, {once:true});
       try {
         await target.play();
         if (generation !== state.playGeneration) return;
@@ -2969,6 +3011,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 20:09 +07 | Đã xong: Pha D - Đo thời gian giải mã DSD bằng performance.now() (độ phân giải dưới mili-giây) thay vì Date.now() làm tròn 1 ms, để throughput từng lát và ngưỡng 50 ms chính xác hơn (fallback Date.now() khi worker không có performance; test đồng hồ giả tăng 7 ms/lần cho maxChunkMs đúng 7 ms, decodeMs 63 ms); gộp cả [Pha A] worker theo dõi chuỗi lát vượt 50 ms dài nhất + throughput lát chậm nhất, formatDecodeAudit cảnh báo khi ≥3 lát liên tiếp vượt 50 ms, [Pha B] Phòng nghe hiện lời khuyên giảm tần số PCM đích khi thiết bị chậm liên tiếp, [Pha C] fetchAudioBlob thử lại tối đa 3 lần trễ 400/800 ms khi lỗi mạng hoặc HTTP 429/5xx, 401/403/404/sai content-type rớt ngay | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Thêm soft-limiter (DynamicsCompressor) sau preamp/EQ để chống clipping khi tăng gain, kèm đo peak trước/sau limiter -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 21:20 +07 | Đã xong: Pha A - Crossfade đẳng công suất khi chuyển bài: crossfadeGains cos/sin (tổng công suất = 1, giữa fade hai deck đều -3 dB) + clampCrossfadeSeconds 0–5 giây, applyCrossfade ramp 33 điểm bằng setValueCurveAtTime qua 2 deck, deck cũ phát hết fade mới dừng/xóa src (guard generation), preloadNext hoãn lại trong lúc fade để không cắt bài cũ, chọn 0/1/2/3/5 giây trong Cài đặt và lưu localStorage (mặc định 0 = tắt, giữ cách chuyển nhanh cũ); test chạy thật applyCrossfade với deck giả (đường cong 1→0 / 0→1, giữa fade -3 dB, tổng công suất = 1, deck fade dở giữ mức hiện tại) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Thêm phím tắt bật/tắt crossfade nhanh khi đang nghe (đồng bộ với select trong Cài đặt) và hiện thời lượng crossfade trong Phòng nghe -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 21:26 +07 | Đã xong: Pha B - Phím tắt X bật/tắt crossfade nhanh khi đang nghe: toggleCrossfade tắt thì nhớ thời lượng cũ vào crossfadeSecondsBeforeOff, bật lại đúng mức đó (chưa có thì mặc định 2 giây), đồng bộ select #crossfade-seconds + localStorage nocturne-crossfade-seconds và toast xác nhận; test chạy thật toggleCrossfade với state/$/toast/localStorage giả (tắt 3 giây nhớ 3 giây, bật lại 3 giây, chưa nhớ thì 2 giây, select + localStorage + toast đồng bộ) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Thu hồi blob URL của bài cũ sau khi crossfade xong: timeout dọn deck cũ gọi releaseUnusedLocalUrl/releaseUnusedCloudUrl để không giữ file nhạc trong RAM sau khi bài cũ đã fade hết -->
-  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 22:45 +07 | Đã xong: Pha C - Phát nhạc Drive từ lát đầu bằng Range (theo ưu tiên Melissa chọn 21:24): fetchAudioFirstSlice tải 4 MB đầu với Range bytes=0-4194303 (fetchAudioResponse tách chung cho fetchAudioBlobOnce, đọc tổng dung lượng từ Content-Range, complete khi máy chủ trả 200 toàn file), fetchCloudTrack trả URL lát đầu ngay để phát tức thì, upgradeSliceToFullAudio tải nền toàn bộ file rồi đổi deck đang phát sang URL đầy đủ ở đúng vị trí (seek sau loadedmetadata, phát tiếp nếu đang phát; bài đã chuyển/preload thì chỉ nâng cấp track.url, chỉ thu hồi URL lát đầu khi không còn deck nào giữ), lát đầu lỗi rớt về tải toàn bộ file như cũ, 401 OneDrive làm mới token khi tải nền; test chạy thật upgradeSliceToFullAudio với deck giả (đổi src + seek 42 giây + phát tiếp, preload không đổi deck/không thu hồi, tạm dừng vẫn giữ tạm dừng, tải nền lỗi giữ nguyên lát đầu, 401 OneDrive thử lại bằng token mới) và fetchAudioFirstSlice với fetch giả (206 + Content-Range, 200 toàn file, 416/sai kiểu/rỗng đều rớt) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Đo thời gian từ lúc nhấn phát tới khi nghe thấy tiếng (time-to-first-audio) cho bài cloud, hiện trong Phòng nghe, để kiểm chứng bước lát đầu thực sự nhanh hơn -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 23:08 +07 | Đã xong: Pha D - Đo time-to-first-audio cho bài cloud, hiện trong Phòng nghe: playTrack ghi mốc performance.now() lúc nhấn phát (xóa số đo cũ), deck đích báo sự kiện 'playing' một lần rồi recordTimeToFirstAudio tính ms (kẹp ≥ 0, null khi đồng hồ lỗi) kèm nguồn phát preload/file local/lát đầu 4 MB/toàn file (fetchCloudTrack ghi track.firstSlicePlayback), renderRoomSignal thêm "Nghe thấy tiếng sau X ms/giây (nguồn)" vào dòng Thông tin tín hiệu, định dạng <1000 ms bằng ms, ≥1000 ms bằng giây; giúp đo thực tế bước lát đầu sau khi Melissa báo 23:05 vẫn chậm (nghi enrichCloudTrack chặn trước khi tải lát đầu) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Thêm soft-limiter (DynamicsCompressor) sau preamp/EQ để chống clipping khi tăng gain, kèm đo peak trước/sau limiter -->
 </body>
 </html>

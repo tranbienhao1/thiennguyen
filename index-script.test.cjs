@@ -891,5 +891,51 @@ assert.ok(appCode.includes('if (track.id === state.currentId && audio.src === sl
 assert.ok(appCode.includes("audio.addEventListener('loadedmetadata', () => {"), 'The full-file swap should seek back to the listening position after the new source loads');
 assert.ok(appCode.includes('First-slice playback unavailable, downloading the full file instead:'), 'A failed first slice should fall back to the full download');
 
+// Pha D — đo time-to-first-audio cho bài cloud, hiện trong Phòng nghe:
+// chạy thật các helper đo/ghi/hiển thị với đồng hồ giả và phần tử giả.
+const ttfaStart = appCode.indexOf('function measureTimeToFirstAudio(startedAtMs, nowMs) {');
+const ttfaEnd = appCode.indexOf('function signalDescription(track) {', ttfaStart);
+assert.ok(ttfaStart >= 0 && ttfaEnd > ttfaStart, 'Time-to-first-audio helpers should exist for regression checks');
+const roomSignalElement = {textContent: ''};
+const ttfa = new Function('signalDescription', '$', `${appCode.slice(ttfaStart, ttfaEnd)}\nreturn {measureTimeToFirstAudio, recordTimeToFirstAudio, timeToFirstAudioText, renderRoomSignal};`)(
+  () => ({sourceTechnical: 'FLAC · 96 kHz', decoded: 'FLAC được trình duyệt giải mã bằng Web Audio.', advice: ''}),
+  id => id === 'room-signal' ? roomSignalElement : {textContent: ''},
+);
+assert.equal(ttfa.measureTimeToFirstAudio(1000, 1842.4), 842, 'Time-to-first-audio should round to whole milliseconds');
+assert.equal(ttfa.measureTimeToFirstAudio(1842, 1000), 0, 'A clock running backwards should clamp to zero instead of a negative delay');
+assert.equal(ttfa.measureTimeToFirstAudio(1000, 1000), 0, 'Instant playback should measure zero');
+assert.equal(ttfa.measureTimeToFirstAudio(NaN, 1000), null, 'An unreadable start time should not produce a measurement');
+assert.equal(ttfa.measureTimeToFirstAudio(1000, Infinity), null, 'An unreadable end time should not produce a measurement');
+assert.equal(ttfa.measureTimeToFirstAudio('1000', 1842), null, 'Non-numeric timestamps should not produce a measurement');
+const measuredTrack = {id: 'cloud-1'};
+assert.equal(ttfa.recordTimeToFirstAudio(measuredTrack, 1000, 1842, 'slice'), 842, 'Recording should return the measured delay');
+assert.equal(measuredTrack.timeToFirstAudioMs, 842, 'Recording should store the delay on the track');
+assert.equal(measuredTrack.timeToFirstAudioMode, 'slice', 'Recording should store how the track started playing');
+const unmeasuredTrack = {id: 'cloud-2', timeToFirstAudioMs: 500, timeToFirstAudioMode: 'full'};
+assert.equal(ttfa.recordTimeToFirstAudio(unmeasuredTrack, NaN, 1500, 'slice'), null, 'An invalid measurement should not overwrite the previous one');
+assert.equal(unmeasuredTrack.timeToFirstAudioMs, 500, 'An invalid measurement should keep the previous delay');
+assert.equal(ttfa.recordTimeToFirstAudio(null, 1000, 1500, 'full'), null, 'Recording without a track should not throw');
+assert.equal(ttfa.timeToFirstAudioText(measuredTrack), 'Nghe thấy tiếng sau 842 ms (lát đầu 4 MB)', 'A sub-second delay from the first slice should name the slice source');
+assert.equal(ttfa.timeToFirstAudioText({timeToFirstAudioMs: 1234, timeToFirstAudioMode: 'full'}), 'Nghe thấy tiếng sau 1.2 giây (toàn file)', 'A delay over one second should show seconds and the full-file source');
+assert.equal(ttfa.timeToFirstAudioText({timeToFirstAudioMs: 1000, timeToFirstAudioMode: 'preload'}), 'Nghe thấy tiếng sau 1.0 giây (đã preload)', 'A preloaded track should name the preload source');
+assert.equal(ttfa.timeToFirstAudioText({timeToFirstAudioMs: 250, timeToFirstAudioMode: 'local'}), 'Nghe thấy tiếng sau 250 ms (file local)', 'A local file should name the local source');
+assert.equal(ttfa.timeToFirstAudioText({timeToFirstAudioMs: 500, timeToFirstAudioMode: 'weird'}), 'Nghe thấy tiếng sau 500 ms', 'An unknown source should show the delay without a source label');
+assert.equal(ttfa.timeToFirstAudioText({}), '', 'A track with no measurement should show no first-audio text');
+assert.equal(ttfa.timeToFirstAudioText({timeToFirstAudioMs: -5}), '', 'A negative delay should show no first-audio text');
+assert.equal(ttfa.timeToFirstAudioText(null), '', 'A missing track should show no first-audio text');
+ttfa.renderRoomSignal(measuredTrack);
+assert.equal(roomSignalElement.textContent, 'FLAC · 96 kHz · FLAC được trình duyệt giải mã bằng Web Audio. · Nghe thấy tiếng sau 842 ms (lát đầu 4 MB)', 'The listening room should append the first-audio delay to the signal line');
+ttfa.renderRoomSignal({id: 'cloud-3'});
+assert.equal(roomSignalElement.textContent, 'FLAC · 96 kHz · FLAC được trình duyệt giải mã bằng Web Audio.', 'The listening room should omit the first-audio delay before a track has played');
+assert.ok(appCode.includes('const playRequestedAt = performance.now();'), 'Playback should timestamp the play request with a sub-millisecond clock');
+assert.ok(appCode.includes('track.timeToFirstAudioMs = null; track.timeToFirstAudioMode = null;'), 'Starting a track should clear the previous first-audio measurement');
+assert.ok(appCode.includes("target.addEventListener('playing', () => {"), 'The target deck should report when audio actually starts');
+assert.ok(appCode.includes("const mode = wasPreloaded ? 'preload' : track.source === 'local' ? 'local' : track.firstSlicePlayback ? 'slice' : 'full';"), 'The first-audio mode should distinguish preload, local, first slice and full file');
+assert.ok(appCode.includes('recordTimeToFirstAudio(track, playRequestedAt, performance.now(), mode);'), 'The playing event should record the delay from the play request');
+assert.ok(appCode.includes('if (track.id === state.currentId) renderRoomSignal(track);'), 'The listening room should refresh when the delay is measured');
+assert.ok(appCode.includes('track.firstSlicePlayback = !firstSlice.complete;'), 'Cloud tracks should record whether they started from the first slice');
+assert.ok(appCode.includes('track.firstSlicePlayback = false;'), 'A full-file fallback should record that it did not start from a slice');
+assert.ok(appCode.includes("renderRoomSignal(track); $('room-output')"), 'Track display should render the signal line through the shared helper');
+
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');
 })().catch(error => { console.error(error); process.exit(1); });
