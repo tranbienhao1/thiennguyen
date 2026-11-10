@@ -192,24 +192,36 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
   }
   if(info.kind==='dsf') {
     const channelBytes=Math.ceil(info.sampleCount/8),blocks=Math.ceil(channelBytes/info.blockSize);
+    // Pha A — kiểm toán DSD: khối DSF có thể khai báo blockSize rất lớn
+    // (file lạ), một lát giải mã sẽ chặn progress/cancel như nhánh DFF đã
+    // tránh bằng nextChunkBytes; chia khối lớn thành lát con tối đa
+    // chunkBytes (tự thích nghi theo thời gian từng lát) trước khi giải mã.
+    let chunkBytes=MAX_DECODE_CHUNK_BYTES;
     for(let block=0;block<blocks;block++) {
       if(self.cancelled) return;
-      const rawChannels=[];
-      for(let channel=0;channel<info.channels;channel++) {
-        const start=info.dataOffset+block*info.blockSize*info.channels+channel*info.blockSize;
-        const length=Math.min(info.blockSize,channelBytes-block*info.blockSize);
-        const bytes=new Uint8Array(await file.slice(start,start+length).arrayBuffer());
-        if(bytes.length!==length) throw Error('Không đọc đủ dữ liệu DSF.');
-        rawChannels.push(bytes);
+      const blockLength=Math.min(info.blockSize,channelBytes-block*info.blockSize);
+      for(let sub=0;sub<blockLength;) {
+        if(self.cancelled) return;
+        const perChannel=Math.max(1,Math.floor(chunkBytes/info.channels));
+        const length=Math.min(perChannel,blockLength-sub);
+        const rawChannels=[];
+        for(let channel=0;channel<info.channels;channel++) {
+          const start=info.dataOffset+block*info.blockSize*info.channels+channel*info.blockSize+sub;
+          const bytes=new Uint8Array(await file.slice(start,start+length).arrayBuffer());
+          if(bytes.length!==length) throw Error('Không đọc đủ dữ liệu DSF.');
+          rawChannels.push(bytes);
+        }
+        const commonLength=Math.min(...rawChannels.map(bytes=>bytes.length));
+        const channels=rawChannels.map(bytes=>bytes.subarray(0,commonLength));
+        const chunkStartedAt = Date.now();
+        pack(channels.map((bytes,channel)=>process(bytes,states[channel])));
+        const chunkMs = Date.now() - chunkStartedAt;
+        if (chunkMs > maxChunkMs) maxChunkMs = chunkMs;
+        chunkBytes = nextChunkBytes(chunkBytes, chunkMs, info.channels);
+        processed=Math.min(info.dataSize,block*info.blockSize*info.channels+(sub+length)*info.channels);
+        self.postMessage({type:'progress',progress:Math.min(.99,processed/info.dataSize)});
+        sub+=length;
       }
-      const commonLength=Math.min(...rawChannels.map(bytes=>bytes.length));
-      const channels=rawChannels.map(bytes=>bytes.subarray(0,commonLength));
-      const chunkStartedAt = Date.now();
-      pack(channels.map((bytes,channel)=>process(bytes,states[channel])));
-      const chunkMs = Date.now() - chunkStartedAt;
-      if (chunkMs > maxChunkMs) maxChunkMs = chunkMs;
-      processed=Math.min(info.dataSize,(block+1)*info.blockSize*info.channels);
-      self.postMessage({type:'progress',progress:Math.min(.99,processed/info.dataSize)});
     }
   } else {
     if(info.dataSize%info.channels) throw Error('Kích thước DFF không chia hết cho số kênh.');

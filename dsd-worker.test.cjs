@@ -16,15 +16,15 @@ function writeTag(view, offset, value) {
 function writeU64(view, offset, value, littleEndian) {
   view.setBigUint64(offset, BigInt(value), littleEndian);
 }
-function makeDsf(rate = RATE) {
-  const dataOffset = 96, dataBytesPerChannel = SAMPLE_COUNT / 8;
+function makeDsf(rate = RATE, blockSize = 16, sampleCount = SAMPLE_COUNT) {
+  const dataOffset = 96, dataBytesPerChannel = sampleCount / 8;
   const buffer = new ArrayBuffer(dataOffset + 12 + dataBytesPerChannel * CHANNELS);
   const view = new DataView(buffer);
   writeTag(view, 0, 'DSD '); writeU64(view, 4, 28, true); writeU64(view, 12, buffer.byteLength, true);
   writeTag(view, 28, 'fmt '); writeU64(view, 32, 52, true);
   view.setUint32(40, 1, true); view.setUint32(44, 0, true); view.setUint32(48, 2, true);
   view.setUint32(52, CHANNELS, true); view.setUint32(56, rate, true); view.setUint32(60, 1, true);
-  writeU64(view, 64, SAMPLE_COUNT, true); view.setUint32(72, 16, true); view.setUint32(76, 0, true);
+  writeU64(view, 64, sampleCount, true); view.setUint32(72, blockSize, true); view.setUint32(76, 0, true);
   writeTag(view, 80, 'meta'); writeU64(view, 84, 16, true);
   writeTag(view, dataOffset, 'data'); writeU64(view, dataOffset + 4, 12 + dataBytesPerChannel * CHANNELS, true);
   for (let i = dataOffset + 12; i < buffer.byteLength; i++) view.setUint8(i, i % 2 ? 0x96 : 0x69);
@@ -114,6 +114,25 @@ function decode(file, format, targetRate, bitDepth) {
         assert.ok(Number.isFinite(result.maxChunkMs) && result.maxChunkMs >= 0, `${format} maxChunkMs should be a measured non-negative time`);
       }
     }
+  }
+  // Pha A — khối DSF lớn phải chia thành lát con: một DSF 2 kênh với
+  // blockSize 140000 byte (vượt lát 131072 byte/kênh) vẫn giải mã đúng và
+  // phải báo tiến độ ít nhất 2 lần (đã chia lát), thay vì 1 lần như trước.
+  {
+    const posted = [];
+    const bigSelf = {cancelled: false, onmessage: null, postMessage(message) { posted.push(message); }};
+    const bigContext = vm.createContext({self: bigSelf, Blob});
+    vm.runInContext(source, bigContext, {filename: 'dsd-worker.js'});
+    const bigDone = new Promise((resolve, reject) => {
+      const originalPost = bigSelf.postMessage.bind(bigSelf);
+      bigSelf.postMessage = message => { originalPost(message); if (message.type === 'done') resolve(message); else if (message.type === 'error') reject(new Error(message.message)); };
+    });
+    bigSelf.onmessage({data: {file: makeDsf(RATE, 140000, 8 * 140000), format: 'dsf', targetRate: 44100, bitDepth: 16}});
+    const bigResult = await bigDone;
+    const progressPosts = posted.filter(message => message.type === 'progress');
+    assert.ok(progressPosts.length >= 2, `Large DSF block should decode in at least 2 sub-chunks (got ${progressPosts.length} progress posts)`);
+    assert.equal(bigResult.blob.size, 44 + bigResult.duration * 44100 * CHANNELS * 2, 'Large-block DSF should decode to the expected PCM size');
+    assert.ok(Number.isFinite(bigResult.maxChunkMs) && bigResult.maxChunkMs >= 0, 'Large-block DSF should report maxChunkMs');
   }
   await assert.rejects(decode(makeDsf(), 'dsf', 32000, 16), /PCM chỉ hỗ trợ/);
   await assert.rejects(decode(makeDsf(), 'dsf', 48000, 16), /thuộc họ 44.1 kHz/);

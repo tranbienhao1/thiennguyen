@@ -646,4 +646,12 @@ assert.ok(!html.includes('data-view="composers"'), 'The home stats should no lon
 assert.ok(html.includes('.roon-stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))'), 'The home stat grid should fit its three remaining cards');
 assert.ok(html.includes('Nghệ sĩ'), 'The Artists entry should stay available after removing the duplicate Nhạc sĩ link');
 assert.equal((html.match(/data-view="artists"/g) || []).length, 2, 'Exactly one sidebar Artists link and one Artists stat card should remain');
+// Pha B — ghi nhớ vị trí cuộn của danh sách bài hát khi chuyển view:
+// lưu scrollTop của #content-col theo từng view, khôi phục khi quay lại.
+assert.ok(appCode.includes('viewScroll: {}'), 'state should hold a per-view scroll memory');
+assert.ok(appCode.includes('function saveViewScroll()'), 'View switching should save the scroll position before leaving a view');
+assert.ok(appCode.includes('function restoreViewScroll()'), 'View switching should restore the saved scroll position');
+assert.ok(appCode.includes('state.viewScroll[state.activeView] = Math.max(0, col.scrollTop || 0)'), 'Saving scroll should record a non-negative position per view');
+assert.ok(appCode.includes('col.scrollTop = Math.max(0, state.viewScroll[state.activeView] || 0)'), 'Restoring scroll should fall back to the top on a first visit');
+assert.ok(!appCode.includes("$('content-col').scrollTop = 0;"), 'View switching should no longer force the list back to the top');
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');

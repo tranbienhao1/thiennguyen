@@ -762,7 +762,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -2518,8 +2518,19 @@
     $('search').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search-mobile').value = event.target.value; renderTracks(); });
     $('search-mobile').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search').value = event.target.value; renderTracks(); });
     $('search').addEventListener('focus', () => { $('search-mobile').value = $('search').value; });
+    function saveViewScroll() {
+      const col = $('content-col');
+      if (!col || !state.activeView) return;
+      state.viewScroll[state.activeView] = Math.max(0, col.scrollTop || 0);
+    }
+    function restoreViewScroll() {
+      const col = $('content-col');
+      if (!col) return;
+      col.scrollTop = Math.max(0, state.viewScroll[state.activeView] || 0);
+    }
     function setLibraryView(view) {
       if (view === 'folders') { pickFolder(); return; }
+      saveViewScroll();
       const supported = ['home','albums','artists','songs','history'];
       state.activeView = supported.includes(view) ? view : 'albums';
       state.trackScope = null;
@@ -2527,7 +2538,7 @@
       if (state.activeView === 'history' && !state.recentHistory.length) readHistory();
       renderTracks();
       if (window.matchMedia('(max-width: 1023.98px)').matches) setSidebarOpen(false);
-      $('content-col').scrollTop = 0;
+      restoreViewScroll();
     }
     document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => setLibraryView(button.dataset.view)));
     $('back-button').addEventListener('click', () => { if (state.trackScope) { state.trackScope = null; $('back-button').setAttribute('aria-label','Quay lại'); renderTracks(); } else setLibraryView('albums'); });
@@ -2783,5 +2794,7 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:23 +07 | Đã xong: Pha B - Bỏ phần "Nhạc sĩ" khỏi giao diện theo yêu cầu của Melissa: xóa nút nav sidebar trùng link Nghệ sĩ và thẻ thống kê Home (lối vào duy nhất tới trang Composers, số lượng ghi cứng 0), lưới .roon-stat-grid từ repeat(4,...) thành repeat(3,...); mục Nghệ sĩ vẫn còn, logic view composers giữ nguyên | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:34 +07 | Đã xong: Pha C - Giới hạn cache app shell trong service worker: pruneShellCache chỉ giữ đúng 9 file APP_SHELL với URL chuẩn (không query-string), xóa bản trùng do ?v=/?x= và đường dẫn lạ cùng origin sau mỗi lần ghi cache và khi activate, chống phình Cache Storage khi dùng offline lâu; sửa test Nhạc sĩ ở index-script.test.cjs chỉ kiểm tra phần giao diện (loại chú thích log nội bộ) vì log cũ nhắc tên mục đã bỏ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:36 +07 | Đã xong: Pha D - Thêm content-visibility:auto + contain-intrinsic-size:auto 56px cho hàng đợi (#queue-list [data-queue-row] và [data-queue-current-row]) để cuộn panel hàng đợi dài mượt 60fps như hàng bài hát và thẻ bộ sưu tập; cập nhật bộ đếm content-visibility trong test từ 2 lên 3 vị trí | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Kiểm toán engine: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:43 +07 | Đã xong: Pha A - Chia khối DSF lớn thành lát con tự thích nghi trong worker: nhánh DSF trước đây giải mã nguyên khối blockSize (file lạ khai báo khối lớn sẽ chặn progress/cancel), nay chia lát tối đa chunkBytes qua nextChunkBytes như nhánh DFF (lát chậm >50 ms thì thu nhỏ, lát nhanh <10 ms thì tăng), tiến độ báo theo từng lát con; test DSF blockSize 140000 byte/kênh xác nhận báo tiến độ >=2 lần và WAV đúng kích thước | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Ghi nhớ vị trí cuộn của danh sách bài hát khi chuyển view để quay lại đúng chỗ đang xem -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 17:57 +07 | Đã xong: Pha B - Ghi nhớ vị trí cuộn của danh sách bài hát khi chuyển view: state.viewScroll lưu scrollTop của #content-col theo từng view, saveViewScroll ghi lại trước khi rời view cũ và restoreViewScroll khôi phục khi quay về (lần đầu vào view vẫn về đầu trang, vị trí âm kẹp về 0, thiếu #content-col không ném lỗi); test view-scroll.test.cjs mới chạy trực tiếp 3 hàm trích từ index.html qua vm (chuyển Songs 420 -> Albums -> Songs về đúng 420, view lạ rơi về Albums, chọn Folders không đổi view) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài (revokeObjectURL) + giới hạn cache ảnh bìa IndexedDB chống rò RAM offline -->
 </body>
 </html>
