@@ -370,5 +370,13 @@
     return {peak, rms, peakDb: toDb(peak), rmsDb: toDb(rms)};
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, peakRmsFromTimeDomain};
+  // Pha B — hàng đợi hiển thị bài đang phát ghim đầu danh sách, rồi tới các
+  // bài phát tiếp theo; bài đang phát nếu lọt vào danh sách chờ thì không lặp lại.
+  function queueDisplayOrder(currentTrack, queuedTracks) {
+    const queued = Array.isArray(queuedTracks) ? queuedTracks.filter(Boolean) : [];
+    if (!currentTrack) return queued;
+    return [currentTrack, ...queued.filter(track => track.id !== currentTrack.id)];
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, peakRmsFromTimeDomain, queueDisplayOrder};
 });

@@ -192,6 +192,15 @@ assert.ok(Math.abs(halfScaleLevel.peak - 0.5) < 0.01, 'Half-scale samples should
 assert.ok(Math.abs(halfScaleLevel.peakDb - (-6.02)) < 0.1, 'A half-scale peak should read about -6 dBFS');
 assert.ok(Math.abs(halfScaleLevel.rms - 0.5) < 0.01, 'Half-scale samples should RMS at 0.5');
 
+// Pha B — queueDisplayOrder (hàng đợi ghim bài đang phát đầu danh sách).
+const nowTrack = {id: 'now'}, nextA = {id: 'a'}, nextB = {id: 'b'};
+assert.deepStrictEqual(utils.queueDisplayOrder(nowTrack, [nextA, nextB]).map(track => track.id), ['now', 'a', 'b'], 'The playing track should pin first in the queue');
+assert.deepStrictEqual(utils.queueDisplayOrder(null, [nextA, nextB]).map(track => track.id), ['a', 'b'], 'No playing track should leave the queue order unchanged');
+assert.deepStrictEqual(utils.queueDisplayOrder(nowTrack, [nextA, nowTrack, nextB]).map(track => track.id), ['now', 'a', 'b'], 'The playing track should not repeat inside the queue');
+assert.deepStrictEqual(utils.queueDisplayOrder(nowTrack, null), [nowTrack], 'A null queue should still show the playing track');
+assert.deepStrictEqual(utils.queueDisplayOrder(null, null), [], 'No playing track and no queue should be empty');
+assert.deepStrictEqual(utils.queueDisplayOrder(undefined, [null, nextA]).map(track => track.id), ['a'], 'Falsy queue entries should be dropped');
+
 assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).length, 3);
 assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);
 const albumGroups = utils.groupTracks(tracks, 'album');

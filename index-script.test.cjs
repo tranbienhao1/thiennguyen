@@ -585,4 +585,11 @@ assert.match(html, /id="level-readout"/, 'The footer should include a level read
 assert.ok(appCode.includes('analyser.getByteTimeDomainData(timeData)'), 'The visualizer should sample time-domain data for the level meter');
 assert.ok(appCode.includes('library.peakRmsFromTimeDomain(timeData)'), 'The level meter should use the shared Peak/RMS helper');
 assert.ok(appCode.includes("if (++frame % 30 === 0)"), 'The level readout should update about twice a second, not every animation frame');
+// Pha B — mở panel hàng đợi phải cuộn tới bài đang phát (hàng ghim đầu danh sách).
+assert.ok(appCode.includes('library.queueDisplayOrder(trackById(state.currentId), tracks)'), 'renderQueue should order the queue with the playing track first');
+assert.ok(appCode.includes('data-queue-current-row'), 'The queue list should pin the playing track as its first row');
+assert.ok(appCode.includes('function scrollQueueToCurrent()'), 'Opening the queue should scroll to the playing track');
+assert.ok(appCode.includes("row.scrollIntoView({block: 'start'})"), 'The queue scroll should bring the playing track to the top of the list');
+assert.ok(appCode.includes("typeof row.scrollIntoView === 'function'"), 'The queue scroll should be guarded when scrollIntoView is unavailable');
+assert.ok(appCode.includes('renderQueue(); scrollQueueToCurrent();'), 'openQueue should render then scroll to the playing track');
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');
