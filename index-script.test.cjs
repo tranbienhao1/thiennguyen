@@ -301,16 +301,17 @@ assert.equal(limiterNode.release.value, 0.1, 'Soft limiter release should be 100
 assert.ok(appCode.includes('limiter: null'), 'App state should hold the shared soft limiter node');
 assert.ok(appCode.includes('state.limiter = createSoftLimiter(state.context)'), 'Audio setup should create the shared soft limiter');
 assert.ok(appCode.includes('state.limiter.connect(state.analyser)'), 'Audio setup should route the soft limiter into the EQ analyser');
-assert.ok(appCode.includes('deck.preamp.connect(state.limiter)'), 'Deck rebuild should route the EQ preamp through the soft limiter');
+assert.ok(appCode.includes('deck.preamp.connect(state.preLimiterAnalyser)'), 'Deck rebuild should route the EQ preamp through the pre-limiter analyser into the soft limiter');
 assert.ok(!appCode.includes('deck.preamp.connect(state.analyser)'), 'Deck rebuild should no longer route the EQ preamp straight into the analyser');
+assert.ok(!appCode.includes('deck.preamp.connect(state.limiter)'), 'Deck rebuild should route the EQ preamp through the pre-limiter analyser, not straight into the limiter');
 const deckRouteStart = appCode.indexOf('function rebuildDeckRoute(deck) {');
 assert.ok(deckRouteStart >= 0, 'Deck route builder should exist for regression checks');
 const deckRouteEnd = appCode.indexOf('function rebuildAudioRoutes() {', deckRouteStart);
 assert.ok(deckRouteEnd > deckRouteStart, 'Deck route builder should be extractable for regression checks');
 function exerciseRebuildDeckRoute() {
   const makeNode = name => ({name, connectedTo: [], disconnected: 0, connect(target) { this.connectedTo.push(target); }, disconnect() { this.disconnected++; }});
-  const limiter = makeNode('limiter'), analyser = makeNode('analyser'), directAnalyser = makeNode('directAnalyser');
-  const state = {bands: [{type: 'peaking'}], context: {createBiquadFilter: () => makeNode('filter')}, limiter, analyser, directAnalyser};
+  const limiter = makeNode('limiter'), preLimiterAnalyser = makeNode('preLimiterAnalyser'), analyser = makeNode('analyser'), directAnalyser = makeNode('directAnalyser');
+  const state = {bands: [{type: 'peaking'}], context: {createBiquadFilter: () => makeNode('filter')}, limiter, preLimiterAnalyser, analyser, directAnalyser};
   const oldFilter = makeNode('old-filter');
   const deck = {router: makeNode('router'), preamp: makeNode('preamp'), direct: makeNode('direct'), filters: [oldFilter]};
   // The extracted builder closes over the factory's `state` parameter, so
@@ -323,10 +324,31 @@ const routed = exerciseRebuildDeckRoute();
 assert.equal(routed.oldFilter.disconnected, 1, 'Rebuilding a deck route should disconnect the old EQ filter');
 assert.equal(routed.deck.preamp.disconnected, 1, 'Rebuilding a deck route should disconnect the preamp before rewiring it');
 assert.ok(routed.deck.direct.connectedTo.includes(routed.state.directAnalyser), 'Direct path should still reach the direct analyser');
-assert.ok(routed.deck.preamp.connectedTo.includes(routed.state.limiter), 'EQ preamp should connect into the soft limiter');
+assert.ok(routed.deck.preamp.connectedTo.includes(routed.state.preLimiterAnalyser), 'EQ preamp should connect into the pre-limiter analyser');
 assert.ok(!routed.deck.preamp.connectedTo.includes(routed.state.analyser), 'EQ preamp should not bypass the soft limiter into the analyser');
+assert.ok(!routed.deck.preamp.connectedTo.includes(routed.state.limiter), 'EQ preamp should reach the limiter through the pre-limiter analyser, not directly');
 assert.ok(routed.deck.router.connectedTo.includes(routed.deck.direct), 'Deck router should feed the direct path');
 assert.equal(routed.deck.filters.length, 1, 'Rebuilding a deck route should recreate one filter per EQ band');
+
+// Pha B — đo peak trước/sau limiter: mức giảm gain thực tế hiện ở readout.
+const reductionStart = appCode.indexOf('function limiterReductionText(prePeakDb, postPeakDb) {');
+assert.ok(reductionStart >= 0, 'Limiter reduction formatter should exist for regression checks');
+const reductionEnd = appCode.indexOf('let visualizerFrame = 0, visualizerGeneration = 0;', reductionStart);
+assert.ok(reductionEnd > reductionStart, 'Limiter reduction formatter should be extractable for regression checks');
+const limiterReductionText = new Function(appCode.slice(reductionStart, reductionEnd) + '\nreturn limiterReductionText;')();
+assert.equal(limiterReductionText(0, -3), ' · Lim -3.0 dB', 'A pre-limiter peak 3 dB above the post-limiter peak should report 3 dB of reduction');
+assert.equal(limiterReductionText(-1.5, -3.25), ' · Lim -1.8 dB', 'A fractional reduction should round to one decimal');
+assert.equal(limiterReductionText(-3, -3), '', 'Equal pre/post peaks should not report a reduction');
+assert.equal(limiterReductionText(-3, -1), '', 'A post-limiter peak above the pre-limiter peak should not report a reduction');
+assert.equal(limiterReductionText(-10, -10.04), '', 'A reduction within the 0.05 dB noise floor should not report');
+assert.equal(limiterReductionText(NaN, -3), '', 'A missing pre-limiter peak should not report a reduction');
+assert.equal(limiterReductionText(0, undefined), '', 'A missing post-limiter peak should not report a reduction');
+assert.equal(limiterReductionText(-96, -96), '', 'Silence before and after the limiter should not report a reduction');
+assert.ok(appCode.includes('preLimiterAnalyser: null'), 'App state should hold the pre-limiter analyser node');
+assert.ok(appCode.includes('state.preLimiterAnalyser = state.context.createAnalyser()'), 'Audio setup should create the pre-limiter analyser');
+assert.ok(appCode.includes('state.preLimiterAnalyser.connect(state.limiter)'), 'Audio setup should route the pre-limiter analyser into the soft limiter');
+assert.ok(appCode.includes('state.preLimiterAnalyser.getByteTimeDomainData(preTimeData)'), 'Level readout should sample the pre-limiter analyser');
+assert.ok(appCode.includes("if (preTimeData && $('eq-enabled').checked)"), 'Limiter reduction should only be measured while EQ is enabled');
 
 const playNextStart = appCode.indexOf('function playNext(direction = 1, auto = false) {');
 assert.ok(playNextStart >= 0, 'playNext implementation should exist for regression checks');

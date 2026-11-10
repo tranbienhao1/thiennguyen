@@ -447,7 +447,7 @@
         </div>
         <div class="hidden w-[25%] items-center justify-end gap-3 lg:flex">
           <canvas id="visualizer" class="h-8 w-28 opacity-80"></canvas>
-          <span id="level-readout" class="w-24 text-right text-[10px] tabular-nums text-zinc-500" title="Mức đỉnh / RMS thực từ AnalyserNode">—</span>
+          <span id="level-readout" class="w-40 text-right text-[10px] tabular-nums text-zinc-500" title="Mức đỉnh / RMS thực từ AnalyserNode · Lim = mức limiter đã giảm khi EQ bật">—</span>
           <span id="quality-badge" class="rounded-md border border-white/10 px-2 py-1 text-[9px] font-medium uppercase tracking-wider text-zinc-500">READY</span>
           <button id="eq-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white">EQ</button>
           <button id="queue-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Hàng đợi phát" title="Phát tiếp theo">☰</button>
@@ -762,7 +762,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -1614,7 +1614,7 @@
       deck.router.connect(deck.direct); deck.direct.connect(state.directAnalyser);
       let node = deck.router;
       deck.filters.forEach(filter => { node.connect(filter); node = filter; });
-      node.connect(deck.preamp); deck.preamp.connect(state.limiter);
+      node.connect(deck.preamp); deck.preamp.connect(state.preLimiterAnalyser);
     }
     function rebuildAudioRoutes() {
       if (!state.context) return;
@@ -1633,13 +1633,24 @@
       state.context = new AudioContextClass();
       state.analyser = state.context.createAnalyser(); state.analyser.fftSize = 256; state.analyser.smoothingTimeConstant = .82;
       state.directAnalyser = state.context.createAnalyser(); state.directAnalyser.fftSize = 256; state.directAnalyser.smoothingTimeConstant = .82;
+      state.preLimiterAnalyser = state.context.createAnalyser(); state.preLimiterAnalyser.fftSize = 256; state.preLimiterAnalyser.smoothingTimeConstant = .82;
       state.limiter = createSoftLimiter(state.context);
+      state.preLimiterAnalyser.connect(state.limiter);
       state.limiter.connect(state.analyser);
       state.analyser.connect(state.context.destination);
       state.directAnalyser.connect(state.context.destination);
       state.deckA = attachAudioElement(audio); state.deckB = attachAudioElement(standbyAudio); state.activeDeck = state.deckA;
       rebuildAudioRoutes();
       document.addEventListener('visibilitychange', () => { if (document.hidden || audio.paused) setVisualizerRunning(false); else setVisualizerRunning(true); });
+    }
+    // Pha B — đo peak trước/sau limiter: analyser phụ trước limiter cho
+    // biết EQ đẩy peak lên bao nhiêu, so với peak sau limiter để hiện mức
+    // giảm gain thực tế (chỉ khi EQ đang bật; EQ tắt thì đường limiter im).
+    function limiterReductionText(prePeakDb, postPeakDb) {
+      if (!Number.isFinite(prePeakDb) || !Number.isFinite(postPeakDb)) return '';
+      const reduction = prePeakDb - postPeakDb;
+      if (reduction <= 0.05) return '';
+      return ` · Lim -${reduction.toFixed(1)} dB`;
     }
     let visualizerFrame = 0, visualizerGeneration = 0;
     function setVisualizerRunning(running) {
@@ -1653,11 +1664,12 @@
       const analyser = state.activeAnalyser || state.analyser, data = new Uint8Array(analyser.frequencyBinCount), bars = 32, gap = 2;
       const barWidth = (width - gap * (bars - 1)) / bars;
       const timeData = new Uint8Array(analyser.fftSize);
+      const preTimeData = state.preLimiterAnalyser ? new Uint8Array(state.preLimiterAnalyser.fftSize) : null;
       let frame = 0;
       const draw = () => {
         if (generation !== visualizerGeneration || document.hidden || audio.paused || !audio.src) { visualizerFrame = 0; return; }
         visualizerFrame = requestAnimationFrame(draw); analyser.getByteFrequencyData(data); context.clearRect(0,0,width,height);
-        if (++frame % 30 === 0) { analyser.getByteTimeDomainData(timeData); const level = library.peakRmsFromTimeDomain(timeData); $('level-readout').textContent = `Pk ${level.peakDb.toFixed(1)} · RMS ${level.rmsDb.toFixed(1)} dB`; }
+        if (++frame % 30 === 0) { analyser.getByteTimeDomainData(timeData); const level = library.peakRmsFromTimeDomain(timeData); let readout = `Pk ${level.peakDb.toFixed(1)} · RMS ${level.rmsDb.toFixed(1)} dB`; if (preTimeData && $('eq-enabled').checked) { state.preLimiterAnalyser.getByteTimeDomainData(preTimeData); readout += limiterReductionText(library.peakRmsFromTimeDomain(preTimeData).peakDb, level.peakDb); } $('level-readout').textContent = readout; }
         for (let i = 0; i < bars; i++) { const value = data[Math.floor(i * data.length / bars)] / 255, barHeight = Math.max(2, value * height); context.fillStyle = `rgba(167,139,250,${.35 + value * .65})`; context.beginPath(); context.roundRect(i * (barWidth + gap), (height - barHeight) / 2, barWidth, barHeight, 2); context.fill(); }
       };
       if (!visualizerFrame) visualizerFrame = requestAnimationFrame(draw);
@@ -2824,5 +2836,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 18:20 +07 | Đã xong: Pha C - Tổng ngân sách ảnh bìa catalog cloud trong IndexedDB tối đa 8 MiB ký tự: library.capCatalogCovers giữ ảnh của các mục mới nhất, đặt cover = null cho các mục cũ vượt ngân sách (ảnh https không tính vì chỉ là chuỗi ngắn), pruneCloudCatalog ghi lại mục đổi và không hồi sinh mục vừa xóa vì quá hạn; đã kiểm chứng ảnh bìa là data:image nên không có blob URL để thu hồi (blob URL file local/DSD/preload đã thu hồi ở Pha C trước); test cover-budget.test.cjs mới chạy pruneCloudCatalog thật với store giả (3 ảnh 3 MiB chỉ bỏ ảnh cũ nhất, 1001 mục vừa xóa mục cũ nhất vừa bỏ ảnh cũ, tổng ảnh giữ lại <= 8 MiB) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 18:32 +07 | Đã xong: Pha D - Kiểm toán bộ giải mã DSD: đếm số lát vượt ngân sách 50 ms: worker dùng newChunkAudit/recordChunkAudit ghi chunkCount, chunksOverBudget và finalChunkBytes (kích thước lát đã thích nghi cuối cùng) vào message done cho cả DSF lẫn DFF, formatDecodeAudit hiện thêm "· N lát vượt 50 ms" khi N >= 1 để phân biệt lát đầu chậm rồi thích nghi tốt với mọi lát đều chậm, track cũ không có số đo vẫn giữ dòng kiểm toán cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Thêm soft-limiter (DynamicsCompressor) sau preamp/EQ để chống clipping khi tăng gain, kèm đo peak trước/sau limiter -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 18:36 +07 | Đã xong: Pha A - Soft-limiter sau EQ chống clipping: createSoftLimiter tạo DynamicsCompressor dùng chung (threshold -3 dB, knee 0, ratio 20:1, attack 3 ms, release 100 ms), setupAudio nối limiter vào analyser, rebuildDeckRoute đổi preamp -> limiter thay vì nối thẳng analyser nên meter vẫn đọc mức sau limiter; đường direct không boost nên giữ nguyên; test chạy thật createSoftLimiter và rebuildDeckRoute với node giả (thông số limiter đúng, preamp nối limiter không nối analyser, filter cũ được disconnect) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Đo peak trước/sau limiter (analyser phụ trước limiter) để hiển thị mức giảm gain thực tế khi EQ boost mạnh -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 18:39 +07 | Đã xong: Pha B - Đo peak trước/sau limiter: setupAudio tạo preLimiterAnalyser (fftSize 256) nối preamp -> preLimiterAnalyser -> limiter nên đo trong suốt không đổi âm thanh, vòng vẽ visualizer lấy mẫu peak trước limiter mỗi 30 frame và limiterReductionText hiện thêm "· Lim -X.X dB" vào #level-readout (mở rộng w-24 -> w-40) chỉ khi EQ đang bật, giảm <= 0.05 dB hoặc thiếu số đo thì ẩn; test chạy thật limiterReductionText (3 dB, làm tròn 1.8 dB, bằng nhau/im lặng/NaN đều ẩn) và rebuildDeckRoute với node giả (preamp nối preLimiterAnalyser, không nối thẳng limiter/analyser) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Rà soát Service Worker: cache phiên bản mới của dsd-worker.js và các file .js khi deploy để tránh trình duyệt cũ chạy worker DSD lỗi thời -->
 </body>
 </html>
