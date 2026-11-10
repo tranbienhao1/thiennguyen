@@ -549,6 +549,44 @@ const noPreload = exerciseClearStalePreload();
 assert.equal(noPreload.state.preloadTrackId, null, 'Clearing with no preload should stay a no-op for preload state');
 assert.equal(noPreload.state.preloadGeneration, 5, 'Clearing with no preload should still invalidate in-flight preload work');
 assert.deepEqual(noPreload.calls.revoked, [], 'Clearing with no preload should revoke nothing');
+// Pha C — thu hồi blob URL file local của bài vừa phát xong khi đổi bài
+// (chống giữ file nhạc trong RAM suốt phiên); bài local phát lại được nhờ
+// playTrack tạo lại URL từ track.file.
+function exerciseReleaseLocalUrl({track, currentId = 'other', audioSrc = '', standbySrc = ''} = {}) {
+  const calls = {revoked: []};
+  const state = {tracks: [track], currentId, objectUrls: new Set(track.url ? [track.url] : [])};
+  const audio = new FakePreloadAudio(audioSrc);
+  const standbyAudio = new FakePreloadAudio(standbySrc);
+  class FakeURL extends URL { static revokeObjectURL(url) { calls.revoked.push(url); } }
+  const releaseUnusedLocalUrl = new Function('state', 'audio', 'standbyAudio', 'URL', 'location', `${releaseSource}\nreturn releaseUnusedLocalUrl;`)(
+    state, audio, standbyAudio, FakeURL, {href: 'https://tranbienhao1.github.io/thiennguyen/'},
+  );
+  releaseUnusedLocalUrl(track);
+  return {calls, state, track};
+}
+const releasedLocal = exerciseReleaseLocalUrl({track: {id: 'old', source: 'local', url: 'blob:https://example/old'}});
+assert.deepEqual(releasedLocal.calls.revoked, ['blob:https://example/old'], 'A finished local track URL should be revoked when switching tracks');
+assert.equal(releasedLocal.state.objectUrls.has('blob:https://example/old'), false, 'A revoked local URL should leave the tracked object URL set');
+assert.equal(releasedLocal.track.url, '', 'A released local track should forget its revoked URL');
+const currentLocal = exerciseReleaseLocalUrl({track: {id: 'now', source: 'local', url: 'blob:https://example/now'}, currentId: 'now'});
+assert.deepEqual(currentLocal.calls.revoked, [], 'The current track local URL must not be revoked when repeating the same track');
+assert.equal(currentLocal.track.url, 'blob:https://example/now', 'The current track should keep its local URL');
+const liveLocal = exerciseReleaseLocalUrl({track: {id: 'old', source: 'local', url: 'blob:https://example/live'}, audioSrc: 'blob:https://example/live'});
+assert.deepEqual(liveLocal.calls.revoked, [], 'A local URL still attached to a deck must not be revoked');
+assert.equal(liveLocal.track.url, 'blob:https://example/live', 'A local URL still in use should stay cached on its track');
+const cloudNotLocal = exerciseReleaseLocalUrl({track: {id: 'c', source: 'google', url: 'blob:https://example/cloud'}});
+assert.deepEqual(cloudNotLocal.calls.revoked, [], 'The local release helper should ignore cloud tracks');
+assert.ok(appCode.includes('function releaseUnusedLocalUrl(track) {'), 'Switching tracks should release the previous local file URL');
+assert.ok(appCode.includes('track.url = URL.createObjectURL(track.file);'), 'A replayed local track should recreate its blob URL from the kept file');
+const localReleaseStart = appCode.indexOf('function releaseUnusedLocalUrl(track) {');
+const localReleaseEnd = appCode.indexOf('function clearStalePreload() {', localReleaseStart);
+assert.ok(localReleaseStart >= 0 && localReleaseEnd > localReleaseStart, 'releaseUnusedLocalUrl implementation should exist for regression checks');
+const localReleaseSource = appCode.slice(localReleaseStart, localReleaseEnd);
+assert.ok(localReleaseSource.includes("track.source !== 'local'"), 'Only local file URLs should be released by the local release helper');
+assert.ok(localReleaseSource.includes('track.id === state.currentId'), 'The local release helper should keep the URL of the track still playing');
+assert.ok(localReleaseSource.includes('element.src === absoluteUrl'), 'The local release helper should not revoke a URL still attached to a deck');
+assert.ok(localReleaseSource.includes("track.url = '';"), 'A released local track should forget its revoked URL');
+assert.equal(appCode.split('releaseUnusedLocalUrl(previousTrack);').length - 1, 2, 'Both DSD and regular track switches should release the previous local URL');
 const dsdSwitchPlayTrackStart = appCode.indexOf('async function playTrack(trackId) {');
 const dsdSwitchStopDsdStart = appCode.indexOf('function stopDsdWorker(', dsdSwitchPlayTrackStart);
 assert.ok(dsdSwitchPlayTrackStart >= 0 && dsdSwitchStopDsdStart > dsdSwitchPlayTrackStart, 'playTrack implementation should exist for regression checks');

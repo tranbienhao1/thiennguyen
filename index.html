@@ -873,6 +873,19 @@
       releaseTrackUrl(track.url);
       track.url = '';
     }
+    // Pha C — giải phóng blob URL file local của bài vừa phát xong khi đổi
+    // bài (revokeObjectURL) để không giữ nguyên file nhạc trong RAM suốt
+    // phiên; bài local vẫn phát lại được vì playTrack tạo lại URL từ
+    // track.file. Không thu hồi khi URL còn gắn trên deck đang phát/chờ,
+    // hoặc khi bài đó vẫn là bài hiện tại (lặp lại cùng bài).
+    function releaseUnusedLocalUrl(track) {
+      if (!track || track.source !== 'local' || !track.url) return;
+      if (track.id === state.currentId) return;
+      const absoluteUrl = new URL(track.url, location.href).href;
+      if ([audio, standbyAudio].some(element => element.src === absoluteUrl)) return;
+      releaseTrackUrl(track.url);
+      track.url = '';
+    }
     // Pha C — hủy bản preload cũ khi chuyển bài: tăng generation để hủy
     // preload đang chạy dở, xóa trạng thái preload, gỡ src của deck chờ và
     // giải phóng blob URL cloud của bài preload cũ (revokeObjectURL) để
@@ -1863,6 +1876,9 @@
       const track = state.tracks.find(item => item.id === trackId);
       if (!track) return;
       const previousTrack = state.tracks.find(item => item.id === state.currentId);
+      // Pha C — phát lại bài local đã bị thu hồi blob URL: tạo lại URL từ
+      // track.file (file gốc vẫn giữ trong RAM) để phát được ngay.
+      if (track.source === 'local' && !track.isDsd && !track.url && track.file) { track.url = URL.createObjectURL(track.file); state.objectUrls.add(track.url); }
       const generation = ++state.playGeneration;
       const trackUrl = track.url ? new URL(track.url, location.href).href : '';
       const wasPreloaded = state.preloadTrackId === track.id && !!trackUrl && standbyAudio.src === trackUrl;
@@ -1879,6 +1895,7 @@
           if (!track.file) throw new Error('Không tải được file DSD từ nguồn cloud.');
           await playDsdTrack(track, generation);
           releaseUnusedCloudUrl(previousTrack);
+          releaseUnusedLocalUrl(previousTrack);
         }
         catch (error) { console.error('DSD playback setup failed:', error); if (generation === state.playGeneration) $('play-button').textContent = '▶'; skipFailedTrack(generation, `Không thể chuẩn bị phát DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`); }
         return;
@@ -1923,6 +1940,7 @@
         scheduleTrackRender();
         preloadNext(true);
         releaseUnusedCloudUrl(previousTrack);
+        releaseUnusedLocalUrl(previousTrack);
       } catch (error) {
         console.error('Playback failed:', error);
         if (error.name === 'NotSupportedError' || target.error) skipFailedTrack(generation, `Không thể phát bài hát${track && (track.title || track.name) ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
@@ -2762,5 +2780,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:04 +07 | Đã xong: Pha D - Thêm content-visibility:auto + contain-intrinsic-size:auto 300px cho thẻ .collection-card (lưới album/nghệ sĩ) để thẻ ngoài màn hình bỏ qua render như .track-row, cuộn thư viện lớn mượt 60fps; kiểm chứng đếm đúng 2 vị trí content-visibility (hàng bài hát + thẻ bộ sưu tập) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Đồng hồ đo mức Peak/RMS thật từ AnalyserNode (getByteTimeDomainData) hiển thị trong phòng nghe, tự tạm dừng vẽ khi tab ẩn -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:06 +07 | Đã xong: Pha A - Đồng hồ đo mức Peak/RMS thật từ AnalyserNode: library.peakRmsFromTimeDomain tính peak/RMS từ dữ liệu miền thời gian (byte 0–255, 128 = im lặng) đổi sang dBFS, vòng vẽ visualizer lấy mẫu mỗi 30 frame (~2 lần/giây) và hiện "Pk −3.2 · RMS −18.5 dB" ở #level-readout cạnh visualizer footer, tự dừng khi tab ẩn/tạm dừng như visualizer | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Tự động cuộn hàng đợi tới bài đang phát khi mở panel hàng đợi -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:10 +07 | Đã xong: Pha B - Tự động cuộn hàng đợi tới bài đang phát khi mở panel: library.queueDisplayOrder ghim bài đang phát làm hàng đầu #queue-list kèm nhãn "Đang phát" (không lặp lại trong danh sách chờ, số thứ tự bài tiếp theo vẫn 1..N), scrollQueueToCurrent cuộn hàng đó lên đầu danh sách khi mở panel (có guard scrollIntoView) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài (revokeObjectURL) + giới hạn cache ảnh bìa IndexedDB chống rò RAM offline -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 16:15 +07 | Đã xong: Pha C - Giải phóng blob URL file local của bài vừa phát xong khi đổi bài: releaseUnusedLocalUrl (revokeObjectURL + quên URL) gọi ở cả 2 nhánh đổi bài DSD/thường, có guard không thu hồi URL còn gắn deck hoặc của bài đang lặp lại; playTrack tạo lại URL từ track.file khi phát lại bài local (ảnh bìa là data:image nên không có blob URL để thu hồi) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
 </body>
 </html>
