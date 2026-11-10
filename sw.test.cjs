@@ -27,6 +27,8 @@ class FakeCache {
   }
   async addAll(urls) { for (const url of urls) await this.add(url); }
   async put(request, response) { this.entries.set(request.url, response); }
+  async delete(request) { const url = typeof request === 'string' ? new URL(request, SW_URL).href : request.url; return this.entries.delete(url); }
+  async keys() { return [...this.entries.keys()].map(url => ({url})); }
   async match(request, {ignoreSearch = false} = {}) {
     const key = url => (ignoreSearch ? url.split('?')[0] : url);
     for (const [stored, value] of this.entries) if (key(stored) === key(request.url)) return value;
@@ -72,6 +74,21 @@ function fetchEvent(request) { const event = {request, respondWith(promise) { ev
   assert.ok(online, 'App-shell fetch should be handled');
   assert.equal((await online).body, 'library-v2', 'Online fetch should return the network response');
   assert.equal(shellCache.entries.get(shellUrl('library-utils.js')).body, 'library-v2', 'Online fetch should refresh the cache');
+  // Pha C: cache app shell chỉ giữ đúng 9 entry chuẩn — bản trùng do
+  // query-string và đường dẫn lạ cùng origin bị dọn sau mỗi lần ghi.
+  shellCache.entries.set(`${shellUrl('index.html')}?v=2`, new FakeResponse('stale-versioned'));
+  shellCache.entries.set(`${ORIGIN}/thiennguyen/other.js`, new FakeResponse('stray'));
+  const pruned = await fetchEvent(makeRequest(shellUrl('metadata-ui.js')));
+  assert.equal((await pruned).body, `network:${shellUrl('metadata-ui.js')}`, 'Fetch that triggers pruning should still return the network response');
+  assert.equal(shellCache.entries.has(`${shellUrl('index.html')}?v=2`), false, 'Versioned duplicate of a shell file should be pruned after a write');
+  assert.equal(shellCache.entries.has(`${ORIGIN}/thiennguyen/other.js`), false, 'Non-shell same-origin entry should be pruned after a write');
+  assert.equal(shellCache.entries.size, 9, 'Shell cache should keep exactly the 9 canonical app-shell entries');
+  assert.equal(shellCache.entries.get(shellUrl('metadata-ui.js')).body, `network:${shellUrl('metadata-ui.js')}`, 'Canonical entry should be refreshed by the fetch');
+  // Pha C: activate cũng dọn rác đã tích lũy từ các bản worker trước.
+  shellCache.entries.set(`${shellUrl('index.html')}?v=3`, new FakeResponse('stale-activate'));
+  await dispatch('activate');
+  assert.equal(shellCache.entries.has(`${shellUrl('index.html')}?v=3`), false, 'Activate should prune versioned duplicates left by older workers');
+  assert.equal(shellCache.entries.size, 9, 'Activate should keep exactly the 9 canonical app-shell entries');
   // Offline: navigation và worker script được phục vụ từ cache.
   networkUp = false;
   const offlineNav = await fetchEvent(makeRequest(shellUrl('./'), {mode: 'navigate'}));

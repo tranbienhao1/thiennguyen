@@ -25,6 +25,21 @@ const shellPaths = new Set(APP_SHELL.map(entry => normalizePath(new URL(entry, s
 const isShellPath = pathname => shellPaths.has(normalizePath(pathname))
   || shellPaths.has(`${normalizePath(pathname)}/index.html`);
 
+// Pha C — giới hạn cache app shell: chỉ giữ đúng các file APP_SHELL với URL
+// chuẩn (không query-string). Bản trùng do ?v= / ?x= và đường dẫn lạ cùng
+// origin lọt qua networkFirst sẽ bị xóa sau mỗi lần ghi (và khi activate),
+// để Cache Storage không phình vô hạn khi dùng offline lâu. Best-effort:
+// lỗi dọn cache không chặn việc trả response cho trang.
+async function pruneShellCache(cache) {
+  try {
+    const keys = await cache.keys();
+    await Promise.all(keys.map(request => {
+      const url = new URL(request.url);
+      return isShellPath(url.pathname) && !url.search ? undefined : cache.delete(request);
+    }));
+  } catch (error) { /* Dọn cache thất bại: giữ nguyên cache hiện tại. */ }
+}
+
 function shouldHandle(request) {
   if (request.method !== 'GET') return false;
   if (request.cache === 'no-store' || request.cache === 'only-if-cached') return false;
@@ -42,6 +57,7 @@ async function networkFirst(request) {
       try {
         const cache = await caches.open(CACHE_NAME);
         await cache.put(request, response.clone());
+        await pruneShellCache(cache);
       } catch (error) { /* Cache đầy hoặc response không cache được: vẫn trả response mạng. */ }
     }
     return response;
@@ -63,6 +79,8 @@ self.addEventListener('activate', event => {
     .then(names => Promise.all(names
       .filter(name => name !== CACHE_NAME)
       .map(name => caches.delete(name))))
+    .then(() => caches.open(CACHE_NAME))
+    .then(cache => pruneShellCache(cache))
     .then(() => self.clients.claim()));
 });
 

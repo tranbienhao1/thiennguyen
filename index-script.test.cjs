@@ -632,8 +632,10 @@ assert.ok(appCode.includes("typeof row.scrollIntoView === 'function'"), 'The que
 assert.ok(appCode.includes('renderQueue(); scrollQueueToCurrent();'), 'openQueue should render then scroll to the playing track');
 // Pha B — bỏ phần "Nhạc sĩ" khỏi giao diện theo yêu cầu của Melissa:
 // nút nav sidebar là link trùng tới trang Nghệ sĩ, thẻ thống kê Home là
-// lối vào duy nhất tới trang Composers (số lượng ghi cứng 0).
-assert.ok(!html.includes('Nhạc sĩ'), 'The sidebar and home stats should no longer offer a Nhạc sĩ entry');
+// lối vào duy nhất tới trang Composers (số lượng ghi cứng 0). Chú thích log
+// nội bộ cuối file được phép nhắc tên mục đã bỏ nên loại khỏi phần kiểm tra.
+const uiHtml = html.replace(/<!-- \[AUTO-SCHEDULE LOG\][\s\S]*?-->/g, '');
+assert.ok(!uiHtml.includes('Nhạc sĩ'), 'The sidebar and home stats should no longer offer a Nhạc sĩ entry');
 assert.ok(!html.includes('data-view="composers"'), 'The home stats should no longer link to the Composers view');
 assert.ok(html.includes('.roon-stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))'), 'The home stat grid should fit its three remaining cards');
 assert.ok(html.includes('Nghệ sĩ'), 'The Artists entry should stay available after removing the duplicate Nhạc sĩ link');
