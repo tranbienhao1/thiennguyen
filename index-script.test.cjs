@@ -227,6 +227,22 @@ assert.ok(appCode.includes("new URL('.', document.baseURI || location.href).href
 assert.ok(appCode.includes("element.addEventListener('ended', () => { if (element === audio) playNext(1, true); })"), 'Natural track endings should be distinguishable from manual Next');
 assert.ok(appCode.includes('if (event.target !== row || (event.key !== \'Enter\' && event.key !== \' \')) return'), 'Track-row keyboard playback should only trigger when the row itself has focus');
 
+const auditStart = appCode.indexOf('function formatDecodeAudit(decodeMs, maxChunkMs) {');
+assert.ok(auditStart >= 0, 'DSD decode audit formatter should exist for regression checks');
+const auditEnd = appCode.indexOf('function signalDescription(track) {', auditStart);
+assert.ok(auditEnd > auditStart, 'DSD decode audit formatter should be extractable for regression checks');
+const formatDecodeAudit = new Function(appCode.slice(auditStart, auditEnd) + '\nreturn formatDecodeAudit;')();
+assert.equal(formatDecodeAudit(1234, 34), 'giải mã 1.2 s · lát chậm nhất 34 ms', 'Slow DSD decode should show seconds and the slowest chunk');
+assert.equal(formatDecodeAudit(850, 12), 'giải mã 850 ms · lát chậm nhất 12 ms', 'Fast DSD decode should show milliseconds');
+assert.equal(formatDecodeAudit(1000, 0), 'giải mã 1.0 s · lát chậm nhất 0 ms', 'Decode of exactly one second should use the seconds form');
+assert.equal(formatDecodeAudit(null, 10), '', 'Missing decode time should hide the audit line');
+assert.equal(formatDecodeAudit(100, NaN), '', 'Missing slowest-chunk time should hide the audit line');
+assert.equal(formatDecodeAudit(-5, 10), '', 'Negative decode time should hide the audit line');
+assert.equal(formatDecodeAudit(undefined, undefined), '', 'Tracks decoded before the audit should show no audit line');
+assert.ok(appCode.includes('track.dsdDecodeMs = message.decodeMs'), 'DSD worker completion should store the measured decode time on the track');
+assert.ok(appCode.includes('track.dsdMaxChunkMs = message.maxChunkMs'), 'DSD worker completion should store the slowest chunk time on the track');
+assert.ok(appCode.includes('formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs)'), 'Track detail should show the DSD decode audit when available');
+
 const playNextStart = appCode.indexOf('function playNext(direction = 1, auto = false) {');
 assert.ok(playNextStart >= 0, 'playNext implementation should exist for regression checks');
 const playNextEndMarker = 'async function pickLocalFiles';

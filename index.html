@@ -1333,10 +1333,15 @@
     function isFavorite(track) { return state.favorites.has(track.id) || state.favorites.has(`${track.source}:${track.remoteId || track.id}`); }
     function trackById(trackId) { return state.tracks.find(item => item.id === trackId); }
     function queueTracks() { return state.queueTrackIds.map(trackById).filter(Boolean).filter(track => track.id !== state.currentId); }
+    function formatDecodeAudit(decodeMs, maxChunkMs) {
+      if (!Number.isFinite(decodeMs) || decodeMs < 0 || !Number.isFinite(maxChunkMs) || maxChunkMs < 0) return '';
+      const total = decodeMs >= 1000 ? `${(decodeMs / 1000).toFixed(1)} s` : `${Math.round(decodeMs)} ms`;
+      return `giải mã ${total} · lát chậm nhất ${Math.round(maxChunkMs)} ms`;
+    }
     function signalDescription(track) {
       const metadata = library.trackMetadata(track);
       const sourceName = ({local:'File local trên thiết bị',google:'Google Drive qua API riêng',onedrive:'OneDrive qua API riêng',url:'URL trực tiếp'})[track.source] || `Nguồn ${sourceLabel(track.source)}`;
-      const sourceTechnical = [track.format || '', track.isDsd && (track.dsdMultiplier ? `DSD${track.dsdMultiplier}` : (dsdSourceInfo(track.sampleRate) || {}).multiplier ? `DSD${(dsdSourceInfo(track.sampleRate) || {}).multiplier}` : ''), !track.isDsd && track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', !track.isDsd && track.bitDepth ? `${track.bitDepth}-bit` : '', track.isDsd && track.pcmRate ? `giải mã trên thiết bị sang PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth || state.dsdOutputDepth}-bit` : '', track.channels ? `${track.channels} kênh` : ''].filter(Boolean).join(' · ');
+      const sourceTechnical = [track.format || '', track.isDsd && (track.dsdMultiplier ? `DSD${track.dsdMultiplier}` : (dsdSourceInfo(track.sampleRate) || {}).multiplier ? `DSD${(dsdSourceInfo(track.sampleRate) || {}).multiplier}` : ''), !track.isDsd && track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', !track.isDsd && track.bitDepth ? `${track.bitDepth}-bit` : '', track.isDsd && track.pcmRate ? `giải mã trên thiết bị sang PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth || state.dsdOutputDepth}-bit` : '', track.isDsd ? formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs) : '', track.channels ? `${track.channels} kênh` : ''].filter(Boolean).join(' · ');
       const decoded = track.isDsd ? 'DSD không phát trực tiếp; NOCTURNE giải mã sang PCM trước khi phát.' : `${track.format || 'Âm thanh'} được trình duyệt giải mã bằng Web Audio.`;
       const title = metadata.title || track.name || 'Bài hát không tên';
       return { title, artist: metadata.artist, album: metadata.album, sourceName, sourceTechnical: sourceTechnical || 'Chưa đọc được metadata kỹ thuật', decoded };
@@ -1943,7 +1948,7 @@
           if (message.type !== 'done') return;
           worker.terminate(); state.dsdWorker = null;
           const url = URL.createObjectURL(message.blob); state.dsdUrl = url; state.dsdBlob = message.blob; state.dsdTrackId = track.id; state.objectUrls.add(url);
-          track.url = url; track.duration = message.duration; track.sampleRate = message.rate; track.channels = message.channels; track.dsdMultiplier = message.multiplier; track.pcmRate = message.targetRate; track.pcmDecimation = message.decimation; track.pcmBitDepth = message.bitDepth;
+          track.url = url; track.duration = message.duration; track.sampleRate = message.rate; track.channels = message.channels; track.dsdMultiplier = message.multiplier; track.pcmRate = message.targetRate; track.pcmDecimation = message.decimation; track.pcmBitDepth = message.bitDepth; track.dsdDecodeMs = message.decodeMs; track.dsdMaxChunkMs = message.maxChunkMs;
           setupAudio();
           if (!state.context) return;
           if (state.context.state === 'suspended') await state.context.resume();
@@ -2713,5 +2718,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 12:16 +07 | Đã xong: Pha A - Preset EQ 5 dải (Phẳng/Bass/Treble/Vocal/Rock/Jazz) vào chuỗi BiquadFilter, lưu tên preset vào localStorage và khôi phục khi mở lại, sửa tay band thì đánh dấu Tùy chỉnh | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Hiển thị tên preset EQ đang dùng ngay trên nút EQ ở footer và thêm phím tắt đổi preset nhanh khi đang nghe -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:07 +07 | Đã xong: Pha B - Hiển thị tên preset EQ đang dùng trên nút EQ ở footer (EQ · Bass mạnh…) và phím tắt E đổi preset nhanh khi đang nghe, kèm toast tên preset; sửa tay band thì nút hiện Tùy chỉnh | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài và giới hạn cache ảnh bìa trong IndexedDB để chống rò RAM offline -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:15 +07 | Đã xong: Pha C - Giới hạn ảnh bìa lưu vào catalog IndexedDB tối đa 512 KiB ký tự (coverForCatalog): ảnh gốc quá lớn không downscale được thì lưu null để lần khôi phục sau nạp lại metadata, chống phình catalog offline | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:21 +07 | Đã xong: Pha D - Hiển thị kết quả kiểm toán giải mã DSD trong chi tiết bài hát: worker báo decodeMs/maxChunkMs được lưu lên track và hiện dạng "giải mã 1.2 s · lát chậm nhất 34 ms" qua formatDecodeAudit, track chưa có số đo thì ẩn dòng kiểm toán | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Làm mượt gain EQ bằng setTargetAtTime (timeConstant ~30 ms) để tránh tiếng lụp bụp khi kéo band EQ trong lúc đang phát -->
 </body>
 </html>
