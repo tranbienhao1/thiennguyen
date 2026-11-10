@@ -16,9 +16,12 @@ function writeTag(view, offset, value) {
 function writeU64(view, offset, value, littleEndian) {
   view.setBigUint64(offset, BigInt(value), littleEndian);
 }
-function makeDsf(rate = RATE, blockSize = 16, sampleCount = SAMPLE_COUNT) {
-  const dataOffset = 96, dataBytesPerChannel = sampleCount / 8;
-  const buffer = new ArrayBuffer(dataOffset + 12 + dataBytesPerChannel * CHANNELS);
+function makeDsf(rate = RATE, blockSize = 16, sampleCount = SAMPLE_COUNT, options = {}) {
+  const dataOffset = 96, dataBytesPerChannel = Math.ceil(sampleCount / 8);
+  const blocks = Math.ceil(dataBytesPerChannel / blockSize);
+  const dataBytes = (options.padded ? blocks * blockSize : dataBytesPerChannel) * CHANNELS;
+  const trailingBytes = options.trailingBytes || 0;
+  const buffer = new ArrayBuffer(dataOffset + 12 + dataBytes + trailingBytes);
   const view = new DataView(buffer);
   writeTag(view, 0, 'DSD '); writeU64(view, 4, 28, true); writeU64(view, 12, buffer.byteLength, true);
   writeTag(view, 28, 'fmt '); writeU64(view, 32, 52, true);
@@ -26,8 +29,9 @@ function makeDsf(rate = RATE, blockSize = 16, sampleCount = SAMPLE_COUNT) {
   view.setUint32(52, CHANNELS, true); view.setUint32(56, rate, true); view.setUint32(60, 1, true);
   writeU64(view, 64, sampleCount, true); view.setUint32(72, blockSize, true); view.setUint32(76, 0, true);
   writeTag(view, 80, 'meta'); writeU64(view, 84, 16, true);
-  writeTag(view, dataOffset, 'data'); writeU64(view, dataOffset + 4, 12 + dataBytesPerChannel * CHANNELS, true);
-  for (let i = dataOffset + 12; i < buffer.byteLength; i++) view.setUint8(i, i % 2 ? 0x96 : 0x69);
+  writeTag(view, dataOffset, 'data'); writeU64(view, dataOffset + 4, 12 + dataBytes, true);
+  for (let i = dataOffset + 12; i < dataOffset + 12 + dataBytes; i++) view.setUint8(i, i % 2 ? 0x96 : 0x69);
+  for (let i = dataOffset + 12 + dataBytes; i < buffer.byteLength; i++) view.setUint8(i, 0x49);
   return new Blob([buffer]);
 }
 function makeDff(compression = 'DSD ', rate = RATE) {
@@ -251,6 +255,26 @@ function decode(file, format, targetRate, bitDepth) {
     assert.equal(fakeResult.maxChunkMs, 7, 'Every chunk should measure exactly 7 ms on the fake performance clock');
     assert.equal(fakeResult.chunksOverBudget, 0, '7 ms chunks should stay within the 50 ms budget');
     assert.equal(fakeResult.decodeMs, 63, 'Total decode time should follow the fake performance clock');
+  }
+  // Pha D — khối DSF cuối lẻ (file thật: 3 giây DSD64 stereo, blockSize
+  // 4096, 1.058.400 byte/kênh nên khối cuối chỉ còn 1612 byte/kênh):
+  // ffmpeg (dsfdec.c) đọc cả 2 dạng file thật — chèn đệm (data chunk lớn
+  // hơn số mẫu thật, khối cuối đủ blockSize mỗi kênh) và không chèn đệm
+  // (data chunk đúng bằng số mẫu, kênh sau nằm sát sau kênh trước trong
+  // khối cuối). Worker cũ luôn dùng bước nhảy blockSize nên với file không
+  // chèn đệm đọc quá cuối chunk dữ liệu và ném 'Không đọc đủ dữ liệu DSF.'
+  // ở khối cuối — bài DSD bị bỏ qua sau khi đã giải mã gần xong.
+  {
+    const expectedSize = 44 + 3 * 44100 * CHANNELS * 2;
+    const unpadded = await decode(makeDsf(RATE, 4096, RATE * 3), 'dsf', 44100, 16);
+    assert.equal(unpadded.blob.size, expectedSize, 'Unpadded DSF with a partial last block should decode to the full 3 s PCM');
+    assert.equal(unpadded.duration, 3, 'Unpadded DSF should report the full 3 s duration');
+    const padded = await decode(makeDsf(RATE, 4096, RATE * 3, {padded: true}), 'dsf', 44100, 16);
+    assert.equal(padded.blob.size, expectedSize, 'Padded DSF with a partial last block should decode to the full 3 s PCM');
+    assert.equal(padded.duration, 3, 'Padded DSF should report the full 3 s duration');
+    const withId3 = await decode(makeDsf(RATE, 4096, RATE * 3, {trailingBytes: 8192}), 'dsf', 44100, 16);
+    assert.equal(withId3.blob.size, expectedSize, 'Unpadded DSF with trailing ID3 bytes should decode to the full 3 s PCM');
+    assert.deepEqual(new Uint8Array(await withId3.blob.arrayBuffer()), new Uint8Array(await unpadded.blob.arrayBuffer()), 'Trailing ID3 bytes must not leak into the decoded PCM tail');
   }
   await assert.rejects(decode(makeDsf(), 'dsf', 32000, 16), /PCM chỉ hỗ trợ/);
   await assert.rejects(decode(makeDsf(), 'dsf', 48000, 16), /thuộc họ 44.1 kHz/);

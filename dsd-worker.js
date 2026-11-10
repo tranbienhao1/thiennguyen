@@ -250,18 +250,27 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
     // (file lạ), một lát giải mã sẽ chặn progress/cancel như nhánh DFF đã
     // tránh bằng nextChunkBytes; chia khối lớn thành lát con tối đa
     // chunkBytes (tự thích nghi theo thời gian từng lát) trước khi giải mã.
+    // Pha D — khối cuối lẻ: ffmpeg (dsfdec.c) đọc cả 2 dạng file thật —
+    // chèn đệm (data chunk lớn hơn số mẫu thật, khối cuối đủ blockSize mỗi
+    // kênh, bỏ qua phần đệm) và không chèn đệm (data chunk đúng bằng số
+    // mẫu, kênh sau nằm sát sau kênh trước trong khối cuối). Trước đây
+    // worker luôn dùng bước nhảy blockSize nên với file không chèn đệm đọc
+    // quá cuối chunk dữ liệu và ném 'Không đọc đủ dữ liệu DSF.' ở khối
+    // cuối — bài DSD bị bỏ qua sau khi đã giải mã gần xong.
+    const paddedDsf = info.dataSize > channelBytes*info.channels;
     let chunkBytes=initialChunkBytes(info.channels, lastDecodeThroughputMBps);
     firstChunkBytes=chunkBytes;
     for(let block=0;block<blocks;block++) {
       if(self.cancelled) return;
       const blockLength=Math.min(info.blockSize,channelBytes-block*info.blockSize);
+      const channelStride = block === blocks-1 && !paddedDsf ? blockLength : info.blockSize;
       for(let sub=0;sub<blockLength;) {
         if(self.cancelled) return;
         const perChannel=Math.max(1,Math.floor(chunkBytes/info.channels));
         const length=Math.min(perChannel,blockLength-sub);
         const rawChannels=[];
         for(let channel=0;channel<info.channels;channel++) {
-          const start=info.dataOffset+block*info.blockSize*info.channels+channel*info.blockSize+sub;
+          const start=info.dataOffset+block*info.blockSize*info.channels+channel*channelStride+sub;
           const bytes=new Uint8Array(await file.slice(start,start+length).arrayBuffer());
           if(bytes.length!==length) throw Error('Không đọc đủ dữ liệu DSF.');
           rawChannels.push(bytes);

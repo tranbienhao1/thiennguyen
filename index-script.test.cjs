@@ -462,6 +462,21 @@ assert.equal(sliceDeck.state.tracks[0].sliceEndedEarly, true, 'An early slice en
 const fullDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài đầy đủ', firstSlicePlayback:true, fullAudioPromise:null}, {id:'next', title:'Bài sau'}], currentId:'now'});
 fullDeck.target.fire('ended');
 assert.deepEqual(fullDeck.calls.playedNext, [[1, true]], 'A real ending after the full file arrived should advance to the next track');
+// Pha C — lỗi giải mã ở cuối lát đầu cũng phải đợi file đầy đủ, không chuyển bài ngay.
+const sliceErrorDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài lát đầu', firstSlicePlayback:true, fullAudioPromise:new Promise(() => {})}, {id:'next', title:'Bài sau'}], currentId:'now'});
+sliceErrorDeck.target.fire('error');
+assert.deepEqual(sliceErrorDeck.calls.playedNext, [], 'A decode error at the end of a first slice must not advance to the next track while the full file is still downloading');
+assert.equal(sliceErrorDeck.state.tracks[0].sliceEndedEarly, true, 'A first-slice decode error should be remembered so the background upgrade can resume playback');
+assert.deepEqual(sliceErrorDeck.calls.toasts, [], 'A first-slice decode error should stay silent while waiting for the full file');
+assert.equal(sliceErrorDeck.state.errorSkipCount, 0, 'A first-slice decode error should not count toward the consecutive error-skip guard');
+const sliceErrorFailedDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài lát đầu', firstSlicePlayback:true, fullAudioPromise:{catch(fn) { fn(new Error('tải nền thất bại')); return this; }}}, {id:'next', title:'Bài sau'}], currentId:'now'});
+sliceErrorFailedDeck.target.fire('error');
+assert.deepEqual(sliceErrorFailedDeck.calls.playedNext, [[1, false]], 'When the background download fails after a first-slice decode error, playback should skip to the next track');
+assert.ok(sliceErrorFailedDeck.calls.toasts[0].includes('Không thể tải bài hát') && sliceErrorFailedDeck.calls.toasts[0].includes('Bài lát đầu'), 'A failed background download should toast the track name and the skip');
+assert.equal(sliceErrorFailedDeck.state.tracks[0].sliceEndedEarly, false, 'A failed background download should clear the early-slice flag before skipping');
+const realErrorDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài đầy đủ', firstSlicePlayback:true, fullAudioPromise:null}, {id:'next', title:'Bài sau'}], currentId:'now'});
+realErrorDeck.target.fire('error');
+assert.deepEqual(realErrorDeck.calls.playedNext, [[1, false]], 'A real playback error after the full file arrived should skip to the next track');
 const skipFailedStart = appCode.indexOf('function skipFailedTrack(generation, message) {');
 assert.ok(skipFailedStart >= 0, 'skipFailedTrack implementation should exist for regression checks');
 const skipFailedEnd = appCode.indexOf('async function playTrack(trackId) {', skipFailedStart);
