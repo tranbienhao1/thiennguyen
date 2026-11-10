@@ -46,3 +46,8 @@ assert.equal(serializableCloudTrack({...baseTrack, cover: null}).cover, null, 'A
 
 assert.ok(appCode.includes('cover:coverForCatalog(track.cover)'), 'Cloud catalog serialization should route covers through the cap');
 assert.ok(appCode.includes('persistCloudCatalog'), 'Cloud catalog persistence should still exist');
+assert.ok(Number.isFinite(entry.savedAt), 'Serialization should stamp the entry with savedAt so the oldest can be pruned');
+assert.ok(appCode.includes('savedAt:Date.now()'), 'Catalog entries should carry a save timestamp');
+assert.ok(appCode.includes('pruneCloudCatalog().then(resolve);'), 'Catalog persistence should prune after writing');
+assert.ok(appCode.includes('library.pruneCatalogEntries(request.result || [], library.MAX_CLOUD_CATALOG_ENTRIES)'), 'Pruning should use the shared library helper and cap');
+assert.ok(appCode.includes('store.delete(id);'), 'Pruning should delete the stale catalog entries');

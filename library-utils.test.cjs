@@ -167,6 +167,18 @@ assert.strictEqual(utils.clampSeekTime(NaN, 200, 10), 10, 'Unknown positions sho
 assert.strictEqual(utils.clampSeekTime(100, 200, NaN), 100, 'A non-finite step should leave the position unchanged');
 assert.strictEqual(utils.clampSeekTime(100, 200, null), 100, 'A null step should leave the position unchanged');
 
+// Pha C — pruneCatalogEntries (giới hạn danh mục cloud trong IndexedDB).
+assert.strictEqual(utils.MAX_CLOUD_CATALOG_ENTRIES, 1000, 'The cloud catalog cap should be 1000 entries');
+assert.deepStrictEqual(utils.pruneCatalogEntries([], 1000), [], 'An empty catalog prunes nothing');
+assert.deepStrictEqual(utils.pruneCatalogEntries([{id:'a', savedAt:1}, {id:'b', savedAt:2}], 1000), [], 'A catalog under the cap prunes nothing');
+assert.deepStrictEqual(utils.pruneCatalogEntries([{id:'a', savedAt:3}, {id:'b', savedAt:1}, {id:'c', savedAt:2}], 2), ['b'], 'The oldest entry should be pruned first');
+assert.deepStrictEqual(utils.pruneCatalogEntries([{id:'a'}, {id:'b', savedAt:5}, {id:'c', savedAt:6}], 2), ['a'], 'Entries without savedAt (old catalogs) should be pruned first');
+assert.deepStrictEqual(utils.pruneCatalogEntries([{id:'a', savedAt:1}, {id:'b', savedAt:1}, {id:'c', savedAt:1}], 1), ['a', 'b'], 'Equal timestamps should prune in insertion order');
+assert.deepStrictEqual(utils.pruneCatalogEntries([{id:'a', savedAt:1}, {id:'b', savedAt:2}], 0), ['a', 'b'], 'A zero cap should prune everything');
+assert.deepStrictEqual(utils.pruneCatalogEntries(null, 1000), [], 'A non-array catalog should prune nothing');
+assert.deepStrictEqual(utils.pruneCatalogEntries([{savedAt:1}, {id:'', savedAt:2}, {id:'x', savedAt:3}], 1), [], 'Entries without an id should be ignored');
+assert.deepStrictEqual(utils.pruneCatalogEntries([{id:'a', savedAt:NaN}, {id:'b', savedAt:2}], 1), ['a'], 'A NaN savedAt should count as oldest');
+
 assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).length, 3);
 assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);
 const albumGroups = utils.groupTracks(tracks, 'album');

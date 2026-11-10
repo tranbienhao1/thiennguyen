@@ -611,7 +611,7 @@
       if (!cover.startsWith('data:image')) return cover;
       return cover.length > MAX_CATALOG_COVER_CHARS ? null : cover;
     }
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', name:track.name, title:track.title, artist:track.artist, album:track.album, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded});
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', name:track.name, title:track.title, artist:track.artist, album:track.album, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, savedAt:Date.now()});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
       return {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', thumbnailUrl:file.thumbnailLink || '', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
@@ -993,9 +993,28 @@
         try {
           const store = catalogTransaction('readwrite');
           for (const entry of entries) store.put(entry);
-          store.transaction.oncomplete = () => resolve();
+          store.transaction.oncomplete = () => { pruneCloudCatalog().then(resolve); };
           store.transaction.onerror = () => reject(store.transaction.error);
         } catch (error) { reject(error); }
+      });
+    }
+    // Pha C — giới hạn danh mục cloud trong IndexedDB: sau mỗi lần ghi,
+    // xóa các mục cũ nhất vượt quá MAX_CLOUD_CATALOG_ENTRIES để catalog
+    // offline không phình vô hạn theo thư viện Drive/OneDrive. Dọn dẹp là
+    // best-effort: lỗi không làm hỏng lần ghi vừa xong.
+    function pruneCloudCatalog() {
+      return new Promise(resolve => {
+        let store;
+        try { store = catalogTransaction('readwrite'); } catch (error) { return resolve(); }
+        const request = store.getAll();
+        request.onsuccess = () => {
+          const staleIds = library.pruneCatalogEntries(request.result || [], library.MAX_CLOUD_CATALOG_ENTRIES);
+          if (!staleIds.length) return resolve();
+          for (const id of staleIds) store.delete(id);
+          store.transaction.oncomplete = () => resolve();
+          store.transaction.onerror = () => resolve();
+        };
+        request.onerror = () => resolve();
       });
     }
     function clearCloudCatalog() {
@@ -2724,5 +2743,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:21 +07 | Đã xong: Pha D - Hiển thị kết quả kiểm toán giải mã DSD trong chi tiết bài hát: worker báo decodeMs/maxChunkMs được lưu lên track và hiện dạng "giải mã 1.2 s · lát chậm nhất 34 ms" qua formatDecodeAudit, track chưa có số đo thì ẩn dòng kiểm toán | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Làm mượt gain EQ bằng setTargetAtTime (timeConstant ~30 ms) để tránh tiếng lụp bụp khi kéo band EQ trong lúc đang phát -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:30 +07 | Đã xong: Pha A - rebuildAudioRoutes làm mượt EQ bằng setTargetAtTime (.015) thay cho gán .value trực tiếp khi thêm/xóa band EQ trong lúc đang phát: tần số/Q/gain từng filter, preamp bù headroom và direct đều ramp mềm như applyEq, tránh tiếng lụp bụp | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Thêm phím tắt [ ] tua ±10 giây khi đang nghe, kèm toast hiển thị thời gian đã tua -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 15:52 +07 | Đã xong: Pha B - Thêm phím tắt [ ] tua ±10 giây khi đang nghe, kèm toast hiển thị thời gian đã tua (Đã tua tới 1:30 / 3:45); helper seekByStep dùng chung cho ←/→ và [ ], kẹp vị trí bằng library.clampSeekTime (live stream/NaN thì giữ nguyên vị trí), cập nhật gợi ý phím tắt trong phòng nghe | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài (revokeObjectURL) và giới hạn cache ảnh bìa trong IndexedDB để chống rò RAM offline -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 15:59 +07 | Đã xong: Pha C - Giới hạn danh mục cloud trong IndexedDB tối đa 1000 mục (MAX_CLOUD_CATALOG_ENTRIES): serializableCloudTrack đóng dấu savedAt, persistCloudCatalog dọn các mục cũ nhất qua library.pruneCatalogEntries sau mỗi lần ghi (best-effort, mục catalog cũ thiếu savedAt bị xóa trước), chống phình catalog offline theo thư viện Drive/OneDrive | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Thêm content-visibility:auto cho hàng bài hát để cuộn danh sách lớn mượt 60fps -->
 </body>
 </html>

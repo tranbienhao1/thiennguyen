@@ -338,5 +338,19 @@
     return Math.min(Math.max(0, current + delta), duration);
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime};
+  // Pha C — giới hạn danh mục cloud trong IndexedDB: chỉ giữ maxEntries mục
+  // mới nhất theo savedAt; mục thiếu savedAt (catalog cũ) bị coi là cũ nhất
+  // nên xóa trước. Trả về danh sách id cần xóa, theo thứ tự cũ -> mới.
+  const MAX_CLOUD_CATALOG_ENTRIES = 1000;
+  function pruneCatalogEntries(entries, maxEntries = MAX_CLOUD_CATALOG_ENTRIES) {
+    if (!Array.isArray(entries)) return [];
+    const max = Number.isFinite(maxEntries) ? Math.floor(maxEntries) : MAX_CLOUD_CATALOG_ENTRIES;
+    const withId = entries.filter(entry => entry && typeof entry.id === 'string' && entry.id);
+    if (withId.length <= Math.max(0, max)) return [];
+    const ranked = withId.map((entry, index) => ({id: entry.id, savedAt: Number.isFinite(entry.savedAt) ? entry.savedAt : -Infinity, index}));
+    ranked.sort((a, b) => (a.savedAt - b.savedAt) || (a.index - b.index));
+    return ranked.slice(0, withId.length - Math.max(0, max)).map(item => item.id);
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries};
 });
