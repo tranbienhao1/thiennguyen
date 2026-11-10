@@ -417,9 +417,10 @@ const deckEventsEnd = appCode.indexOf(deckEventsEndMarker, deckEventsStart);
 assert.ok(deckEventsEnd > deckEventsStart, 'attachDeckEvents implementation should be extractable for regression checks');
 const deckEventsSource = appCode.slice(deckEventsStart, deckEventsEnd);
 class FakeDeckElement {
-  constructor() { this.handlers = {}; }
+  constructor() { this.handlers = {}; this.src = ''; this.currentTime = 0; this.duration = 300; this.paused = true; this.playCalls = 0; }
   addEventListener(type, handler) { (this.handlers[type] ||= []).push(handler); }
   fire(type) { for (const handler of this.handlers[type] || []) handler(); }
+  async play() { this.playCalls++; this.paused = false; }
 }
 function exerciseDeckError({currentId = 'bad', tracks = [{id:'bad', title:'Bài lỗi'}, {id:'next', title:'Bài sau'}], element = 'audio', errorSkipCount = 0} = {}) {
   const calls = {toasts: [], playedNext: []};
@@ -477,6 +478,43 @@ assert.equal(sliceErrorFailedDeck.state.tracks[0].sliceEndedEarly, false, 'A fai
 const realErrorDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài đầy đủ', firstSlicePlayback:true, fullAudioPromise:null}, {id:'next', title:'Bài sau'}], currentId:'now'});
 realErrorDeck.target.fire('error');
 assert.deepEqual(realErrorDeck.calls.playedNext, [[1, false]], 'A real playback error after the full file arrived should skip to the next track');
+// Pha C — race: file đầy đủ tải xong TRƯỚC khi deck đổi sau play() nên
+// swap bị bỏ lỡ, deck kẹt ở lát đầu mà fullAudioPromise đã null; lát hết
+// hoặc lỗi giải mã ở cuối lát thì phải đổi sang file đầy đủ đã sẵn sàng
+// (track.fullAudioUrl) rồi phát tiếp, không chuyển bài.
+const raceEndedDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài lát đầu', firstSlicePlayback:true, fullAudioPromise:null, fullAudioUrl:'blob:https://example/full'}, {id:'next', title:'Bài sau'}], currentId:'now'});
+raceEndedDeck.target.src = 'blob:https://example/slice';
+raceEndedDeck.target.currentTime = 3;
+raceEndedDeck.target.fire('ended');
+assert.deepEqual(raceEndedDeck.calls.playedNext, [], 'A first slice that runs out after the full file arrived but the swap was missed must not advance to the next track');
+assert.equal(raceEndedDeck.target.src, 'blob:https://example/full', 'A missed swap should switch the deck to the ready full file when the slice runs out');
+assert.equal(raceEndedDeck.state.tracks[0].fullAudioUrl, null, 'The stored full-file URL should clear once the deck switches to it');
+assert.equal(raceEndedDeck.state.tracks[0].sliceEndedEarly, false, 'The early-slice flag should not stay set after the recovery swap');
+raceEndedDeck.target.handlers.loadedmetadata.at(-1)();
+assert.equal(raceEndedDeck.target.currentTime, 3, 'The recovery swap should resume at the position where the slice ended');
+assert.equal(raceEndedDeck.target.playCalls, 1, 'The recovery swap should resume playback after switching to the full file');
+const raceErrorDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài lát đầu', firstSlicePlayback:true, fullAudioPromise:null, fullAudioUrl:'blob:https://example/full'}, {id:'next', title:'Bài sau'}], currentId:'now'});
+raceErrorDeck.target.src = 'blob:https://example/slice';
+raceErrorDeck.target.currentTime = 3;
+raceErrorDeck.target.fire('error');
+assert.deepEqual(raceErrorDeck.calls.playedNext, [], 'A decode error at the end of a first slice must not advance when the full file is ready but the swap was missed');
+assert.deepEqual(raceErrorDeck.calls.toasts, [], 'A missed-swap recovery should stay silent instead of toasting a skip');
+assert.equal(raceErrorDeck.target.src, 'blob:https://example/full', 'A missed swap should switch the deck to the ready full file on a slice decode error');
+assert.equal(raceErrorDeck.state.errorSkipCount, 0, 'A missed-swap recovery should not count toward the consecutive error-skip guard');
+raceErrorDeck.target.handlers.loadedmetadata.at(-1)();
+assert.equal(raceErrorDeck.target.currentTime, 3, 'The recovery swap should resume at the position where the slice failed');
+assert.equal(raceErrorDeck.target.playCalls, 1, 'The recovery swap should resume playback after switching to the full file');
+// Hồi quy: bài đã nạp trước rồi phát lại từ URL đầy đủ thì 'ended'/'error'
+// phải chuyển bài bình thường, không được đổi lại chính URL đầy đủ rồi
+// phát tiếp (kẹt vòng lặp) dù fullAudioUrl còn sót.
+const fullReplayDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài đầy đủ', firstSlicePlayback:true, fullAudioPromise:null, fullAudioUrl:'blob:https://example/full'}, {id:'next', title:'Bài sau'}], currentId:'now'});
+fullReplayDeck.target.src = 'blob:https://example/full';
+fullReplayDeck.target.fire('ended');
+assert.deepEqual(fullReplayDeck.calls.playedNext, [[1, true]], 'A track already playing the full file must advance normally even if the stored full-file URL is still set');
+const fullReplayErrorDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài đầy đủ', firstSlicePlayback:true, fullAudioPromise:null, fullAudioUrl:'blob:https://example/full'}, {id:'next', title:'Bài sau'}], currentId:'now'});
+fullReplayErrorDeck.target.src = 'blob:https://example/full';
+fullReplayErrorDeck.target.fire('error');
+assert.deepEqual(fullReplayErrorDeck.calls.playedNext, [[1, false]], 'A real playback error on the full file must skip even if the stored full-file URL is still set');
 const skipFailedStart = appCode.indexOf('function skipFailedTrack(generation, message) {');
 assert.ok(skipFailedStart >= 0, 'skipFailedTrack implementation should exist for regression checks');
 const skipFailedEnd = appCode.indexOf('async function playTrack(trackId) {', skipFailedStart);
@@ -890,6 +928,17 @@ assert.equal(playingSlice.audio.listeners.loadedmetadata.length, 1, 'The swap sh
 playingSlice.audio.listeners.loadedmetadata[0]();
 assert.equal(playingSlice.audio.currentTime, 42, 'The swap should resume at the position where the slice was playing');
 assert.equal(playingSlice.audio.playCalls, 1, 'The swap should resume playback when the slice was playing');
+assert.equal(playingSlice.track.fullAudioUrl, null, 'The stored full-file URL should clear once the deck switches to the full file');
+// Pha C — race: file đầy đủ tải xong trước khi deck đổi sau play() nên
+// swap bị bỏ lỡ (audio.src lúc đó chưa phải lát đầu); phải giữ lại URL
+// file đầy đủ để guard 'ended'/'error' đổi sang khi lát đầu hết.
+const raceUpgrade = await exerciseUpgradeSlice({track:{id:'now', source:'google', name:'a.flac', title:'A', format:'flac', url:'blob:https://example/slice'}, audioSrc:'blob:https://example/current', standbySrc:'blob:https://example/slice'});
+assert.equal(raceUpgrade.error, null, 'Upgrading a slice whose deck has not swapped yet should succeed');
+assert.equal(raceUpgrade.track.fullAudioUrl, 'blob:https://example/full', 'The full-file URL must be remembered when the deck swap is missed so the deck guards can recover it');
+assert.equal(raceUpgrade.audio.src, 'blob:https://example/current', 'A missed swap must not touch the deck that is still playing another track');
+assert.equal(raceUpgrade.standbyAudio.src, 'blob:https://example/slice', 'A missed swap must leave the standby deck on the slice');
+assert.equal(raceUpgrade.track.url, 'blob:https://example/full', 'The track should still point at the full file after a missed swap');
+assert.deepEqual(raceUpgrade.calls.revoked, [], 'A slice still attached to the standby deck must not be revoked after a missed swap');
 const preloadedSlice = await exerciseUpgradeSlice({track:{id:'next', source:'google', name:'a.flac', title:'A', format:'flac', url:'blob:https://example/slice'}, audioSrc:'blob:https://example/current', standbySrc:'blob:https://example/slice'});
 assert.equal(preloadedSlice.audio.src, 'blob:https://example/current', 'A preloaded slice must not swap the deck that is playing another track');
 assert.equal(preloadedSlice.track.url, 'blob:https://example/full', 'A preloaded track should still upgrade to the full file for later playback');

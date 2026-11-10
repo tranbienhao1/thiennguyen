@@ -972,6 +972,11 @@
         blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
         const fullUrl = URL.createObjectURL(blob);
         state.objectUrls.add(fullUrl);
+        // Pha C — giữ URL file đầy đủ để deck có thể đổi sang khi swap
+        // trong nâng cấp bị bỏ lỡ (file tải xong trước khi deck đổi sau
+        // play(), lúc đó audio.src chưa phải lát đầu nên điều kiện swap
+        // trượt): guard 'ended'/'error' dùng lại URL này để phát tiếp.
+        track.fullAudioUrl = fullUrl;
         const sliceAbsoluteUrl = new URL(sliceUrl, location.href).href;
         if (track.id === state.currentId && audio.src === sliceAbsoluteUrl) {
           const position = audio.currentTime, wasPaused = audio.paused, endedEarly = !!track.sliceEndedEarly;
@@ -981,6 +986,7 @@
           }, {once:true});
           audio.src = new URL(fullUrl, location.href).href;
           track.sliceEndedEarly = false;
+          track.fullAudioUrl = null;
         }
         if (track.url === sliceUrl) track.url = fullUrl;
         if (![audio, standbyAudio].some(element => element.src === sliceAbsoluteUrl)) releaseTrackUrl(sliceUrl);
@@ -2882,6 +2888,20 @@
     [$('volume'), $('volume-mobile')].forEach(input => input.addEventListener('input', () => setGain(input.value)));
     let lastDisplayedPlaybackSecond = -1;
     function attachDeckEvents(element) {
+      // Pha C — đổi deck đang phát lát đầu sang file đầy đủ ở đúng vị trí
+      // rồi phát tiếp, dùng chung cho 'ended' và 'error' khi tải nền đã
+      // xong nhưng swap trong upgradeSliceToFullAudio bị bỏ lỡ (file tải
+      // xong trước khi deck đổi sau play()). fullAudioUrl là blob URL tuyệt
+      // đối nên gán trực tiếp vào element.src, không cần location.href.
+      function resumeFullAudioFromSlice(track, position) {
+        const fullUrl = track.fullAudioUrl;
+        track.fullAudioUrl = null; track.sliceEndedEarly = false;
+        element.addEventListener('loadedmetadata', () => {
+          try { element.currentTime = Math.min(position, element.duration || position); } catch (_) {}
+          element.play().catch(error => console.warn('Could not resume after upgrading to the full audio file:', error.message || error));
+        }, {once:true});
+        element.src = fullUrl;
+      }
       element.addEventListener('timeupdate', () => {
         if (element !== audio) return;
         const playbackSecond = Math.floor(element.currentTime || 0);
@@ -2928,6 +2948,13 @@
       element.addEventListener('ended', () => {
         if (element !== audio) return;
         const track = state.tracks.find(item => item.id === state.currentId);
+        // Pha C — file đầy đủ đã tải xong nhưng swap bị bỏ lỡ (tải xong
+        // trước khi deck đổi sau play() nên audio.src lúc đó chưa phải lát
+        // đầu, fullAudioPromise đã null): deck vẫn kẹt ở lát đầu, lát hết
+        // thì đổi sang file đầy đủ ở đúng vị trí rồi phát tiếp, đừng
+        // chuyển bài. So sánh src để không đổi lại khi deck đã ở file đầy
+        // đủ (bài đã nạp trước rồi phát lại từ URL đầy đủ).
+        if (track && track.firstSlicePlayback && track.fullAudioUrl && !track.fullAudioPromise && element.src !== track.fullAudioUrl) { resumeFullAudioFromSlice(track, element.currentTime); return; }
         // Pha C — lát đầu hết trước khi file đầy đủ tải xong thì bài chưa
         // hết: đừng chuyển bài, đợi tải nền đổi sang file đầy đủ rồi phát
         // tiếp (upgradeSliceToFullAudio phát tiếp khi lát đầu đã hết sớm).
@@ -2938,6 +2965,10 @@
         if (element === standbyAudio) { state.preloadTrackId = null; state.preloadReadyUrl = null; console.warn('Next track preload failed.'); return; }
         if (element !== audio) return;
         const track = state.tracks.find(item => item.id === state.currentId);
+        // Pha C — file đầy đủ đã tải xong nhưng swap bị bỏ lỡ (như guard
+        // 'ended'): lỗi giải mã ở cuối lát đầu thì đổi sang file đầy đủ ở
+        // đúng vị trí rồi phát tiếp, đừng chuyển bài.
+        if (track && track.firstSlicePlayback && track.fullAudioUrl && !track.fullAudioPromise && element.src !== track.fullAudioUrl) { resumeFullAudioFromSlice(track, element.currentTime); return; }
         // Pha C — lỗi giải mã ở cuối lát đầu (file cắt cụt) không phải lỗi
         // bài hát: đừng chuyển bài, đợi tải nền đổi sang file đầy đủ rồi
         // phát tiếp (như chặn 'ended'); chỉ chuyển bài khi tải nền thất bại.
@@ -3125,5 +3156,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 23:56 +07 | Đã xong: Pha C - Chặn đường 'error' khi đang phát lát đầu (Melissa báo 23:52 sau khi tải lại vẫn nhảy bài, thậm chí nhanh hơn — lát 1 MB hết sớm hơn nên lỗi giải mã ở cuối lát cắt cụt kích hoạt handler 'error' gọi playNext, đường mà bản vá 'ended' 285c942 chưa chặn): handler 'error' trên deck chính không chuyển bài khi track đang phát lát đầu và file đầy đủ còn đang tải nền (nhớ cờ sliceEndedEarly như 'ended', không toast/không đếm lỗi), chỉ chuyển bài khi tải nền thất bại (toast 'Không thể tải bài hát…'); test chạy thật attachDeckEvents với deck giả (lỗi lát đầu + đang tải nền thì không chuyển bài/không toast/không đếm lỗi, tải nền lỗi thì chuyển bài + toast, lỗi thật sau khi file đã về thì chuyển bài bình thường) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Điều tra lỗi nhảy bài DSD (Melissa xác nhận cả FLAC và DSD đều bị; DSD không qua đường lát đầu nên là vấn đề riêng — kiểm toán worker DSD/WAV đã giải mã; cần cô ấy thử lại sau bản này và báo còn nhảy không/sau bao nhiêu giây/có toast không) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade, kiểm toán DSD worker -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 00:18 +07 | Đã xong: Pha D - Sửa lỗi giải mã DSF khối cuối lẻ (Melissa báo DSD phát ~10 giây rồi tự đổi bài): worker luôn dùng bước nhảy blockSize nên file DSF không chèn đệm (data chunk đúng bằng số mẫu, kênh sau nằm sát sau kênh trước trong khối cuối — 1 trong 2 dạng file thật mà ffmpeg dsfdec.c hỗ trợ) bị đọc quá cuối chunk và ném 'Không đọc đủ dữ liệu DSF.' ở khối cuối, bài DSD bị bỏ qua sau khi đã giải mã gần xong; giờ bước nhảy kênh ở khối cuối là blockLength khi file không chèn đệm, giữ blockSize khi file chèn đệm; test hồi quy mới giải mã DSF 3 giây DSD64 blockSize 4096 cả 3 dạng (không chèn đệm, chèn đệm, kèm byte ID3 cuối file) đều đủ 3 giây PCM và byte ID3 không lọt vào đuôi PCM (test đã thử fail trên code cũ) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Phát DSD theo từng lát: giải mã streaming, phát lát PCM đầu ngay khi xong thay vì đợi giải mã toàn file (giảm thời gian chờ DSD từ ~10 giây xuống ~1 giây) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 00:48 +07 | Đã xong: Pha A - Phát DSD từ lát PCM đầu: worker gửi tin 'first-slice' (WAV ~2 giây PCM) ngay khi đủ lát đầu thay vì đợi giải mã toàn file, deck phát lát đó trong khi worker giải mã tiếp; khi 'done' về thì đổi sang file đầy đủ ở đúng vị trí đang nghe (seek sau loadedmetadata, phát tiếp nếu đang phát hoặc đã hết sớm, giữ tạm dừng nếu đang tạm dừng), thu hồi blob URL lát đầu; đặt firstSlicePlayback + fullAudioPromise để guard 'ended'/'error' sẵn có không chuyển bài khi lát đầu hết sớm; file ngắn hơn 2 giây thì không có lát đầu, phát như trước | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - OneDrive dùng thẳng downloadUrl thay vì tải qua proxy (giảm thời gian chờ bài OneDrive) | Backlog: thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 01:15 +07 | Đã xong: Pha C - Sửa race khiến FLAC cloud nhảy sang bài kế sau vài giây (Melissa xác nhận 00:59: FLAC, chuyển sang bài kế — không phải cache cũ): file đầy đủ tải xong trước khi deck đổi sau play() nên swap trong upgradeSliceToFullAudio bị bỏ lỡ (audio.src lúc đó chưa phải lát đầu), deck kẹt ở lát đầu mà fullAudioPromise đã null nên guard 'ended'/'error' không chặn được; giờ upgrade lưu track.fullAudioUrl khi tải nền xong (xóa khi swap thành công), guard 'ended'/'error' dùng helper resumeFullAudioFromSlice đổi deck sang file đầy đủ ở đúng vị trí rồi phát tiếp khi swap bị bỏ lỡ, kèm chặn đổi lại khi deck đã ở file đầy đủ (tránh kẹt vòng lặp với bài đã nạp trước); test chạy thật attachDeckEvents + upgradeSliceToFullAudio (race 'ended'/'error' với fullAudioUrl sẵn thì không chuyển bài + đổi deck + phát tiếp đúng vị trí, bài đã ở file đầy đủ thì vẫn chuyển bài bình thường, upgrade lưu fullAudioUrl khi swap bị bỏ lỡ — test fail đúng trên code cũ) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Cuộn lời (shouldScrollLyricIntoView, đã viết xong ở lần 01:00, chờ commit/push sau bản này) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
 </body>
 </html>
