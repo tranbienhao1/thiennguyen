@@ -565,4 +565,13 @@ assert.ok(stalePreloadNextStart >= 0 && stalePreloadNextEnd > stalePreloadNextSt
 const stalePreloadNextSource = appCode.slice(stalePreloadNextStart, stalePreloadNextEnd);
 assert.ok(stalePreloadNextSource.includes('clearStalePreload();'), 'preloadNext should reuse the stale-preload cleanup when there is no next track');
 assert.ok(!stalePreloadNextSource.includes('state.preloadTrackId = null; state.preloadReadyUrl = null; state.preloadBusyId = null; standbyAudio.pause();'), 'preloadNext should not keep a duplicate inline copy of the stale-preload cleanup');
+assert.ok(appCode.includes("const seekByStep = delta =>"), 'Bracket/arrow seeking should share one seek helper');
+assert.ok(appCode.includes('library.clampSeekTime(audio.currentTime, audio.duration, delta)'), 'Seeking should clamp through the shared library helper');
+assert.ok(appCode.includes("toast(`Đã tua tới ${formatTime(next)} / ${formatTime(audio.duration)}.`);"), 'Seeking should toast the new position');
+assert.ok(appCode.includes("event.key === '['"), 'The [ key should seek back 10 seconds');
+assert.ok(appCode.includes("event.key === ']'"), 'The ] key should seek forward 10 seconds');
+assert.ok(appCode.includes("seekByStep(-10);"), 'Backward seeking should step by 10 seconds');
+assert.ok(appCode.includes("seekByStep(10);"), 'Forward seeking should step by 10 seconds');
+assert.ok(!appCode.includes('audio.currentTime = Math.max(0, audio.currentTime - 10);'), 'Arrow seeking should reuse the shared helper instead of an inline clamp');
+assert.match(html, /←\/→ hoặc \[ \] lùi\/tiến 10 giây/, 'The shortcuts hint should list the [ ] keys');
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');

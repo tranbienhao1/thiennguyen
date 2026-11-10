@@ -530,7 +530,7 @@
           <section class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
           <div class="mt-8 flex items-center gap-3"><span id="room-current-time" class="w-10 text-right text-[10px] tabular-nums text-zinc-500">0:00</span><input id="room-seek" class="seek-range flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="room-duration" class="w-10 text-[10px] tabular-nums text-zinc-500">0:00</span></div>
           <div class="mt-5 flex items-center justify-center gap-7"><button id="room-previous" type="button" class="text-xl text-zinc-300 hover:text-white" aria-label="Bài trước">‹</button><button id="room-play" type="button" class="grid h-14 w-14 place-items-center rounded-full bg-white text-xl text-zinc-950 transition hover:scale-105" aria-label="Phát">▶</button><button id="room-next" type="button" class="text-xl text-zinc-300 hover:text-white" aria-label="Bài tiếp">›</button></div>
-          <p class="mt-6 text-center text-[10px] text-zinc-600">Phím tắt: Space phát/tạm dừng · ←/→ lùi/tiến 10 giây · N/P bài tiếp/trước · Q hàng đợi</p>
+          <p class="mt-6 text-center text-[10px] text-zinc-600">Phím tắt: Space phát/tạm dừng · ←/→ hoặc [ ] lùi/tiến 10 giây · N/P bài tiếp/trước · Q hàng đợi</p>
         </section>
       </main>
     </div>
@@ -2432,6 +2432,7 @@
     $('sleep-cancel').addEventListener('click', clearSleepTimer);
     $('room-seek').addEventListener('input', event => { paintSeek(event.currentTarget, event.currentTarget.value); $('room-current-time').textContent = formatTime(Number(event.currentTarget.value) / 1000 * (audio.duration || 0)); });
     $('room-seek').addEventListener('change', event => { if (Number.isFinite(audio.duration)) audio.currentTime = Number(event.currentTarget.value) / 1000 * audio.duration; updatePositionState(); });
+    const seekByStep = delta => { if (!Number.isFinite(audio.duration)) return; const next = library.clampSeekTime(audio.currentTime, audio.duration, delta); audio.currentTime = next; updatePositionState(); toast(`Đã tua tới ${formatTime(next)} / ${formatTime(audio.duration)}.`); };
     document.addEventListener('keydown', event => {
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
       const target = event.target, tag = target && target.tagName;
@@ -2440,8 +2441,10 @@
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target && target.isContentEditable) || (target && target.closest && target.closest('button, a, [role="button"]')) || !$('listening-room').classList.contains('hidden')) return;
       if (!$('queue-panel').classList.contains('hidden')) { if (event.key.toLowerCase() === 'q') closeQueue(); return; }
       if (event.code === 'Space') { event.preventDefault(); $('play-button').click(); }
-      else if (event.key === 'ArrowLeft' && Number.isFinite(audio.duration)) { event.preventDefault(); audio.currentTime = Math.max(0, audio.currentTime - 10); }
-      else if (event.key === 'ArrowRight' && Number.isFinite(audio.duration)) { event.preventDefault(); audio.currentTime = Math.min(audio.duration, audio.currentTime + 10); }
+      else if (event.key === 'ArrowLeft' && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(-10); }
+      else if (event.key === 'ArrowRight' && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(10); }
+      else if (event.key === '[' && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(-10); }
+      else if (event.key === ']' && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(10); }
       else if (event.key.toLowerCase() === 'n') playNext(1);
       else if (event.key.toLowerCase() === 'p') playNext(-1);
       else if (event.key.toLowerCase() === 'q') $('queue-panel').classList.contains('hidden') ? openQueue() : closeQueue();
@@ -2720,5 +2723,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:15 +07 | Đã xong: Pha C - Giới hạn ảnh bìa lưu vào catalog IndexedDB tối đa 512 KiB ký tự (coverForCatalog): ảnh gốc quá lớn không downscale được thì lưu null để lần khôi phục sau nạp lại metadata, chống phình catalog offline | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:21 +07 | Đã xong: Pha D - Hiển thị kết quả kiểm toán giải mã DSD trong chi tiết bài hát: worker báo decodeMs/maxChunkMs được lưu lên track và hiện dạng "giải mã 1.2 s · lát chậm nhất 34 ms" qua formatDecodeAudit, track chưa có số đo thì ẩn dòng kiểm toán | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Làm mượt gain EQ bằng setTargetAtTime (timeConstant ~30 ms) để tránh tiếng lụp bụp khi kéo band EQ trong lúc đang phát -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:30 +07 | Đã xong: Pha A - rebuildAudioRoutes làm mượt EQ bằng setTargetAtTime (.015) thay cho gán .value trực tiếp khi thêm/xóa band EQ trong lúc đang phát: tần số/Q/gain từng filter, preamp bù headroom và direct đều ramp mềm như applyEq, tránh tiếng lụp bụp | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Thêm phím tắt [ ] tua ±10 giây khi đang nghe, kèm toast hiển thị thời gian đã tua -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 15:52 +07 | Đã xong: Pha B - Thêm phím tắt [ ] tua ±10 giây khi đang nghe, kèm toast hiển thị thời gian đã tua (Đã tua tới 1:30 / 3:45); helper seekByStep dùng chung cho ←/→ và [ ], kẹp vị trí bằng library.clampSeekTime (live stream/NaN thì giữ nguyên vị trí), cập nhật gợi ý phím tắt trong phòng nghe | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài (revokeObjectURL) và giới hạn cache ảnh bìa trong IndexedDB để chống rò RAM offline -->
 </body>
 </html>

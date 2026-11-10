@@ -328,5 +328,15 @@
     } catch (error) { return standby !== ready; }
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext};
+  // Pha B — tua nhanh bằng phím [ ] / ← / →: vị trí mới luôn kẹp trong
+  // [0, duration]; live stream (duration vô hạn), NaN hay duration 0 thì
+  // giữ nguyên vị trí hiện tại thay vì nhảy về 0 hay NaN.
+  function clampSeekTime(currentTime, duration, deltaSeconds) {
+    const current = Number.isFinite(currentTime) ? currentTime : 0;
+    if (!Number.isFinite(duration) || duration <= 0) return current;
+    const delta = Number.isFinite(deltaSeconds) ? deltaSeconds : 0;
+    return Math.min(Math.max(0, current + delta), duration);
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime};
 });

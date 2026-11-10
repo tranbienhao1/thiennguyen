@@ -153,6 +153,20 @@ assert.strictEqual(utils.shouldPreloadNext(200, -1), false, 'Negative positions 
 assert.strictEqual(utils.shouldPreloadNext(200, 195, '', '', 5), true, 'A custom lead should be honored');
 assert.strictEqual(utils.shouldPreloadNext(200, 190, '', '', 5), false, 'Remaining time above a custom lead should not preload');
 
+// Pha B — clampSeekTime (phím [ ] / ← / → tua ±10 giây, kẹp trong [0, duration]).
+assert.strictEqual(utils.clampSeekTime(100, 200, -10), 90, 'Seeking back 10 seconds should subtract from the current position');
+assert.strictEqual(utils.clampSeekTime(100, 200, 10), 110, 'Seeking forward 10 seconds should add to the current position');
+assert.strictEqual(utils.clampSeekTime(5, 200, -10), 0, 'Seeking back past the start should clamp to 0');
+assert.strictEqual(utils.clampSeekTime(195, 200, 10), 200, 'Seeking forward past the end should clamp to the duration');
+assert.strictEqual(utils.clampSeekTime(0, 200, -10), 0, 'Seeking back from 0 should stay at 0');
+assert.strictEqual(utils.clampSeekTime(200, 200, 10), 200, 'Seeking forward from the end should stay at the duration');
+assert.strictEqual(utils.clampSeekTime(100, Infinity, 10), 100, 'Live streams without a finite duration should not seek');
+assert.strictEqual(utils.clampSeekTime(100, NaN, 10), 100, 'Unknown durations should not seek');
+assert.strictEqual(utils.clampSeekTime(100, 0, 10), 100, 'Zero-length tracks should not seek');
+assert.strictEqual(utils.clampSeekTime(NaN, 200, 10), 10, 'Unknown positions should seek from 0');
+assert.strictEqual(utils.clampSeekTime(100, 200, NaN), 100, 'A non-finite step should leave the position unchanged');
+assert.strictEqual(utils.clampSeekTime(100, 200, null), 100, 'A null step should leave the position unchanged');
+
 assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).length, 3);
 assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);
 const albumGroups = utils.groupTracks(tracks, 'album');
