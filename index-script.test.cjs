@@ -123,7 +123,7 @@ assert.match(html, /\.track-row\.active \{[^}]*inset 2px 0 #91cde5/, 'The curren
 assert.match(html, /#track-list \.track-row \{[^}]*content-visibility:auto/, 'Off-screen library rows should skip rendering so large lists scroll at 60fps');
 assert.match(html, /#track-list \.track-row \{[^}]*contain-intrinsic-size:auto 64px/, 'Skipped library rows should reserve their 64px height so the scrollbar stays stable');
 assert.match(html, /#track-list \.track-row \{[^}]*min-height:64px/, 'Library rows should keep their 64px minimum height after the visibility optimization');
-assert.equal([...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].reduce((count, match) => count + [...match[1].matchAll(/content-visibility:auto/g)].length, 0), 2, 'The content-visibility optimization should apply exactly twice: to library rows and to collection cards');
+assert.equal([...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].reduce((count, match) => count + [...match[1].matchAll(/content-visibility:auto/g)].length, 0), 3, 'The content-visibility optimization should apply exactly three times: to library rows, collection cards and queue rows');
 assert.ok(appCode.includes('function syncSourceNavigation()'), 'Sidebar navigation and source filter should share active state');
 assert.ok(appCode.includes("button.setAttribute('aria-current', 'page')"), 'The active sidebar destination should be announced accessibly');
 assert.ok(appCode.includes("'roon-responsive-theme','roon-reference-layout','roon-collection-responsive','roon-collection-mobile'].includes(element.id)"), 'Update detection should include every inline layout theme when comparing versions');
@@ -618,6 +618,12 @@ assert.ok(collectionCardRule, 'The collection card rule should exist');
 assert.ok(collectionCardRule[0].includes('content-visibility:auto'), 'Collection cards should use content-visibility:auto for smooth scrolling');
 assert.ok(collectionCardRule[0].includes('contain-intrinsic-size:auto 300px'), 'Collection cards should reserve intrinsic size so the scrollbar stays stable');
 assert.ok(html.includes('content-visibility:auto;contain-intrinsic-size:auto 64px;'), 'Track rows should keep their content-visibility rule');
+// Pha D — hàng đợi dài cũng bỏ qua render ngoài màn hình như hàng bài hát
+// và thẻ bộ sưu tập: hàng đợi chứa ảnh bìa + nút di chuyển/xóa nên cuộn
+// panel hàng trăm bài sẽ mượt 60fps; hàng đang phát (56px: p-2 + h-10)
+// được giữ cùng quy tắc để scrollQueueToCurrent vẫn cuộn chính xác.
+assert.ok(html.includes('#queue-list [data-queue-row],#queue-list [data-queue-current-row] { content-visibility:auto;contain-intrinsic-size:auto 56px; }'), 'Queue rows should skip off-screen rendering like track rows');
+assert.equal((html.match(/content-visibility:auto;contain-intrinsic-size:auto \d+px;?/g) || []).length, 3, 'Exactly three content-visibility rules should exist: track rows, collection cards, queue rows');
 // Pha A — the footer should show a live Peak/RMS readout from the analyser.
 assert.match(html, /id="level-readout"/, 'The footer should include a level readout next to the visualizer');
 assert.ok(appCode.includes('analyser.getByteTimeDomainData(timeData)'), 'The visualizer should sample time-domain data for the level meter');
