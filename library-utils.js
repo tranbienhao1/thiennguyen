@@ -139,7 +139,7 @@
     if (error.retryable === true) return true;
     return Number.isInteger(error.status) && (error.status === 429 || error.status >= 500);
   }
-  async function fetchAudioBlobOnce(url, options, provider) {
+  async function fetchAudioResponse(url, options, provider) {
     let response;
     try { response = await fetch(url, options); }
     catch (error) { const wrapped = new Error(`${provider} không thể tải âm thanh. Kiểm tra kết nối, quyền truy cập và cấu hình CORS rồi thử lại. (${error.message || error})`); wrapped.retryable = true; throw wrapped; }
@@ -154,9 +154,30 @@
     if (contentType && !contentType.startsWith('audio/') && !['application/octet-stream','application/ogg','binary/octet-stream'].includes(contentType)) {
       throw new Error(`${provider} trả về kiểu dữ liệu ${contentType}, không phải âm thanh. Hãy kiểm tra quyền truy cập hoặc kết nối lại tài khoản.`);
     }
+    return response;
+  }
+  async function fetchAudioBlobOnce(url, options, provider) {
+    const response = await fetchAudioResponse(url, options, provider);
     const blob = await response.blob();
     if (!blob || !blob.size) throw new Error(`${provider} trả về file âm thanh rỗng.`);
     return blob;
+  }
+  // Pha C — lát đầu để phát ngay: chỉ tải 4 MB đầu bằng Range để bài hát
+  // bắt đầu phát trong tích tắc thay vì chờ tải cả file (4 MB ≈ 1–2 giây
+  // nhạc FLAC 24-bit/96 kHz, ~100 giây MP3 320 kbps — đủ để tải nền phần
+  // còn lại rồi đổi src sang file đầy đủ, xem fetchCloudTrack); máy chủ
+  // không hỗ trợ Range thì trả 200 kèm toàn bộ file, vẫn phát ngay mà
+  // không cần tải nền. Lát đầu lỗi thì fetchCloudTrack rớt về đường cũ.
+  const FIRST_SLICE_BYTES = 4 * 1024 * 1024;
+  async function fetchAudioFirstSlice(url, options = {}, provider = 'Cloud') {
+    const response = await fetchAudioResponse(url, {...options, headers:{...(options.headers || {}), Range:`bytes=0-${FIRST_SLICE_BYTES - 1}`}}, provider);
+    const blob = await response.blob();
+    if (!blob || !blob.size) throw new Error(`${provider} trả về lát âm thanh đầu rỗng.`);
+    const contentRange = (response.headers && response.headers.get('content-range')) || '';
+    const totalMatch = String(contentRange).match(/\/(\d+)\s*$/);
+    const contentLength = Number(response.headers && response.headers.get('content-length')) || 0;
+    const totalBytes = totalMatch ? Number(totalMatch[1]) : (response.status === 200 ? blob.size : contentLength);
+    return {blob, totalBytes, complete: totalBytes > 0 && blob.size >= totalBytes};
   }
 
   async function fetchAudioBlob(url, options = {}, provider = 'Cloud') {
@@ -464,5 +485,5 @@
     return [currentTrack, ...queued.filter(track => track.id !== currentTrack.id)];
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, peakRmsFromTimeDomain, queueDisplayOrder};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, peakRmsFromTimeDomain, queueDisplayOrder};
 });

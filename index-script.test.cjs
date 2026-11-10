@@ -818,4 +818,78 @@ assert.equal(exerciseToggleCrossfade(0).next, 2, 'Toggling crossfade with no rem
 assert.ok(appCode.includes("else if (event.key.toLowerCase() === 'x') toggleCrossfade();"), 'The X key should toggle crossfade');
 assert.ok(appCode.includes('crossfadeSecondsBeforeOff: 0'), 'App state should remember the crossfade duration before turning it off');
 
+// Pha C — phát nhạc Drive từ lát đầu bằng Range: tải nền phần còn lại rồi
+// đổi deck đang phát sang file đầy đủ ở đúng vị trí đang nghe.
+const upgradeStart = appCode.indexOf('async function upgradeSliceToFullAudio(track, sliceUrl, url, options, provider) {');
+const upgradeEnd = appCode.indexOf('async function fetchCloudTrack(', upgradeStart);
+assert.ok(upgradeStart >= 0 && upgradeEnd > upgradeStart, 'The background full-file upgrade helper should exist for regression checks');
+class FakeDeckAudio {
+  constructor(src = '') { this.src = src; this.currentTime = 0; this.duration = NaN; this.paused = true; this.playCalls = 0; this.listeners = {}; }
+  addEventListener(type, handler) { (this.listeners[type] ||= []).push(handler); }
+  async play() { this.playCalls++; this.paused = false; }
+}
+async function exerciseUpgradeSlice({track, currentId = 'now', audioSrc = '', standbySrc = '', audioCurrentTime = 0, audioPaused = false, fetchImpl = null} = {}) {
+  const calls = {revoked: [], created: [], metadata: []};
+  const state = {currentId, objectUrls: new Set([track.url])};
+  const audio = new FakeDeckAudio(audioSrc);
+  audio.currentTime = audioCurrentTime; audio.paused = audioPaused; audio.duration = 300;
+  const standbyAudio = new FakeDeckAudio(standbySrc);
+  class FakeURL extends URL {
+    static createObjectURL() { calls.created.push('blob:https://example/full'); return 'blob:https://example/full'; }
+    static revokeObjectURL(url) { calls.revoked.push(url); }
+  }
+  const locationStub = {href: 'https://tranbienhao1.github.io/thiennguyen/'};
+  const releaseTrackUrl = new Function('state', 'audio', 'standbyAudio', 'URL', 'location', `${releaseSource}\nreturn releaseTrackUrl;`)(state, audio, standbyAudio, FakeURL, locationStub);
+  const library = {fetchAudioBlob: fetchImpl || (async () => ({type:'audio/flac'})), normalizeAudioBlob: blob => blob};
+  const getMicrosoftToken = async () => 'refreshed-token';
+  const finishCloudMetadataInBackground = trackArg => calls.metadata.push(trackArg.id);
+  const upgradeSliceToFullAudio = new Function('library', 'getMicrosoftToken', 'state', 'audio', 'standbyAudio', 'URL', 'location', 'releaseTrackUrl', 'finishCloudMetadataInBackground', `${appCode.slice(upgradeStart, upgradeEnd)}\nreturn upgradeSliceToFullAudio;`)(
+    library, getMicrosoftToken, state, audio, standbyAudio, FakeURL, locationStub, releaseTrackUrl, finishCloudMetadataInBackground,
+  );
+  let result = null, error = null;
+  try { result = await upgradeSliceToFullAudio(track, track.url, 'https://example.com/a.flac', {}, 'Drive'); }
+  catch (caught) { error = caught; }
+  return {calls, state, audio, standbyAudio, track, result, error};
+}
+(async () => {
+const playingSlice = await exerciseUpgradeSlice({track:{id:'now', source:'google', name:'a.flac', title:'A', format:'flac', url:'blob:https://example/slice'}, audioSrc:'blob:https://example/slice', audioCurrentTime:42, audioPaused:false});
+assert.equal(playingSlice.error, null, 'Upgrading a playing slice to the full file should succeed');
+assert.equal(playingSlice.result, 'blob:https://example/full', 'The upgrade should return the full-file URL');
+assert.equal(playingSlice.audio.src, 'blob:https://example/full', 'The playing deck should switch to the full file once it is downloaded');
+assert.equal(playingSlice.track.url, 'blob:https://example/full', 'The track should point at the full file after the upgrade');
+assert.equal(playingSlice.state.objectUrls.has('blob:https://example/full'), true, 'The full-file URL should be tracked');
+assert.equal(playingSlice.state.objectUrls.has('blob:https://example/slice'), false, 'The slice URL should leave the tracked object URL set');
+assert.deepEqual(playingSlice.calls.revoked, ['blob:https://example/slice'], 'The slice URL should be revoked once the deck stops using it');
+assert.deepEqual(playingSlice.calls.metadata, ['now'], 'Cloud metadata should finish from the full file in the background');
+assert.equal(playingSlice.audio.listeners.loadedmetadata.length, 1, 'The swap should wait for the new source metadata before seeking');
+playingSlice.audio.listeners.loadedmetadata[0]();
+assert.equal(playingSlice.audio.currentTime, 42, 'The swap should resume at the position where the slice was playing');
+assert.equal(playingSlice.audio.playCalls, 1, 'The swap should resume playback when the slice was playing');
+const preloadedSlice = await exerciseUpgradeSlice({track:{id:'next', source:'google', name:'a.flac', title:'A', format:'flac', url:'blob:https://example/slice'}, audioSrc:'blob:https://example/current', standbySrc:'blob:https://example/slice'});
+assert.equal(preloadedSlice.audio.src, 'blob:https://example/current', 'A preloaded slice must not swap the deck that is playing another track');
+assert.equal(preloadedSlice.track.url, 'blob:https://example/full', 'A preloaded track should still upgrade to the full file for later playback');
+assert.deepEqual(preloadedSlice.calls.revoked, [], 'A slice still attached to the standby deck must not be revoked');
+assert.equal(preloadedSlice.audio.listeners.loadedmetadata, undefined, 'A preloaded slice should not register a seek handler');
+const pausedSlice = await exerciseUpgradeSlice({track:{id:'now', source:'google', name:'a.flac', title:'A', format:'flac', url:'blob:https://example/slice'}, audioSrc:'blob:https://example/slice', audioCurrentTime:10, audioPaused:true});
+pausedSlice.audio.listeners.loadedmetadata[0]();
+assert.equal(pausedSlice.audio.currentTime, 10, 'A paused slice should still seek back to its position after the swap');
+assert.equal(pausedSlice.audio.playCalls, 0, 'A paused slice must stay paused after the swap');
+const failedUpgrade = await exerciseUpgradeSlice({track:{id:'now', source:'google', name:'a.flac', title:'A', format:'flac', url:'blob:https://example/slice'}, audioSrc:'blob:https://example/slice', fetchImpl:async () => { const error = new Error('net down'); error.status = 500; throw error; }});
+assert.ok(failedUpgrade.error, 'A failed background download should report its error');
+assert.equal(failedUpgrade.track.url, 'blob:https://example/slice', 'A failed upgrade must keep the slice URL so playback continues');
+assert.deepEqual(failedUpgrade.calls.revoked, [], 'A failed upgrade must not revoke the slice that is still playing');
+const fetchCalls = [];
+const expiredUpgrade = await exerciseUpgradeSlice({track:{id:'next', source:'onedrive', name:'a.flac', title:'A', format:'flac', url:'blob:https://example/slice'}, audioSrc:'blob:https://example/current', fetchImpl:async (url, options) => { fetchCalls.push(options); if (fetchCalls.length === 1) { const error = new Error('expired'); error.status = 401; throw error; } return {type:'audio/flac'}; }});
+assert.equal(expiredUpgrade.error, null, 'A OneDrive upgrade should recover from an expired token');
+assert.equal(fetchCalls.length, 2, 'An expired OneDrive token should trigger one retry with a fresh token');
+assert.equal(fetchCalls[1].headers.Authorization, 'Bearer refreshed-token', 'The OneDrive retry should use the refreshed token');
+assert.ok(appCode.includes('library.fetchAudioFirstSlice(url, options, provider)'), 'Cloud tracks should start from the first Range slice instead of waiting for the whole file');
+assert.ok(appCode.includes('upgradeSliceToFullAudio(track, sliceUrl, url, options, provider)'), 'The background upgrade should finish downloading the full file after the first slice starts playing');
+assert.ok(appCode.includes('async function upgradeSliceToFullAudio(track, sliceUrl, url, options, provider) {'), 'The background full-file upgrade helper should exist');
+assert.ok(appCode.includes('function finishCloudMetadataInBackground(track, blob) {'), 'Cloud metadata finishing should be shared instead of duplicated');
+assert.ok(appCode.includes('if (track.id === state.currentId && audio.src === sliceAbsoluteUrl)'), 'The full-file swap should only touch the deck still playing the first slice');
+assert.ok(appCode.includes("audio.addEventListener('loadedmetadata', () => {"), 'The full-file swap should seek back to the listening position after the new source loads');
+assert.ok(appCode.includes('First-slice playback unavailable, downloading the full file instead:'), 'A failed first slice should fall back to the full download');
+
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');
+})().catch(error => { console.error(error); process.exit(1); });
