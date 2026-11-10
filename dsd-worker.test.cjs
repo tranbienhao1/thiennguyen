@@ -96,6 +96,25 @@ function decode(file, format, targetRate, bitDepth) {
     assert.equal(nextChunkBytes(100000, 5, 6), 199998, 'Grown chunk should stay a multiple of the channel count');
     assert.equal(nextChunkBytes(262144, NaN, 2), 262144, 'Invalid chunk time should leave the chunk unchanged');
     assert.equal(nextChunkBytes(262144, 120, 8), 131072, 'Chunk halving should work for 8 channels');
+    const audit = probeContext.newChunkAudit();
+    assert.equal(audit.maxChunkMs, 0, 'A fresh chunk audit should start with no slowest chunk');
+    assert.equal(audit.chunkCount, 0, 'A fresh chunk audit should start with no counted chunks');
+    assert.equal(audit.chunksOverBudget, 0, 'A fresh chunk audit should start with no over-budget chunks');
+    probeContext.recordChunkAudit(audit, 5);
+    assert.equal(audit.maxChunkMs, 5, 'A fast chunk should set the slowest chunk');
+    assert.equal(audit.chunkCount, 1, 'A fast chunk should be counted');
+    assert.equal(audit.chunksOverBudget, 0, 'A fast chunk should not raise the over-budget count');
+    probeContext.recordChunkAudit(audit, 120);
+    assert.equal(audit.maxChunkMs, 120, 'A slow chunk should raise the slowest chunk');
+    assert.equal(audit.chunkCount, 2, 'A slow chunk should be counted');
+    assert.equal(audit.chunksOverBudget, 1, 'A chunk over 50 ms should raise the over-budget count');
+    probeContext.recordChunkAudit(audit, 80);
+    assert.equal(audit.maxChunkMs, 120, 'A second slow chunk should keep the slowest chunk');
+    assert.equal(audit.chunkCount, 3, 'A second slow chunk should be counted');
+    assert.equal(audit.chunksOverBudget, 2, 'A second slow chunk should raise the over-budget count again');
+    probeContext.recordChunkAudit(audit, NaN);
+    assert.equal(audit.chunkCount, 3, 'An invalid chunk time should not be counted');
+    assert.equal(probeContext.recordChunkAudit(null, 120), null, 'Recording without an audit object should return null instead of throwing');
   }
   for (const [sourceRate, targetRates] of [[RATE, [44100, 88200, 176400]], [3072000, [48000, 96000, 192000]]]) {
     const files = [['dsf', makeDsf(sourceRate)], ['dff', makeDff('DSD ', sourceRate)]];
@@ -112,6 +131,9 @@ function decode(file, format, targetRate, bitDepth) {
         assert.equal(result.multiplier, sourceRate / (sourceRate === RATE ? 44100 : 48000), `${format} source DSD multiplier`);
         assert.ok(Number.isFinite(result.decodeMs) && result.decodeMs >= 0, `${format} decodeMs should be a measured non-negative time`);
         assert.ok(Number.isFinite(result.maxChunkMs) && result.maxChunkMs >= 0, `${format} maxChunkMs should be a measured non-negative time`);
+        assert.ok(Number.isInteger(result.chunkCount) && result.chunkCount >= 1, `${format} chunkCount should count at least one decoded chunk`);
+        assert.ok(Number.isInteger(result.chunksOverBudget) && result.chunksOverBudget >= 0 && result.chunksOverBudget <= result.chunkCount, `${format} chunksOverBudget should be a count within the decoded chunks`);
+        assert.ok(Number.isInteger(result.finalChunkBytes) && result.finalChunkBytes >= 32768 && result.finalChunkBytes <= 262144 && result.finalChunkBytes % CHANNELS === 0, `${format} finalChunkBytes should stay within the adaptive chunk limits and aligned to channels`);
       }
     }
   }
@@ -133,6 +155,8 @@ function decode(file, format, targetRate, bitDepth) {
     assert.ok(progressPosts.length >= 2, `Large DSF block should decode in at least 2 sub-chunks (got ${progressPosts.length} progress posts)`);
     assert.equal(bigResult.blob.size, 44 + bigResult.duration * 44100 * CHANNELS * 2, 'Large-block DSF should decode to the expected PCM size');
     assert.ok(Number.isFinite(bigResult.maxChunkMs) && bigResult.maxChunkMs >= 0, 'Large-block DSF should report maxChunkMs');
+    assert.ok(Number.isInteger(bigResult.chunkCount) && bigResult.chunkCount >= 2, 'Large-block DSF should decode in at least 2 counted chunks');
+    assert.ok(Number.isInteger(bigResult.chunksOverBudget) && bigResult.chunksOverBudget <= bigResult.chunkCount, 'Large-block DSF should report an over-budget chunk count within the chunk count');
   }
   await assert.rejects(decode(makeDsf(), 'dsf', 32000, 16), /PCM chỉ hỗ trợ/);
   await assert.rejects(decode(makeDsf(), 'dsf', 48000, 16), /thuộc họ 44.1 kHz/);

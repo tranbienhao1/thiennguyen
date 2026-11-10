@@ -35,6 +35,17 @@ function nextChunkBytes(currentBytes, chunkMs, channels) {
   next = Math.floor(next / safeChannels) * safeChannels;
   return Math.max(next, safeChannels);
 }
+// Kiểm toán DSD (Pha D): ngoài lát chậm nhất, đếm cả số lát vượt ngân sách
+// 50 ms — con số này mới cho biết bộ giới hạn chunk có giữ kịp hay không
+// (một lát đầu chậm rồi thích nghi tốt khác với mọi lát đều chậm).
+function newChunkAudit() { return {maxChunkMs: 0, chunkCount: 0, chunksOverBudget: 0}; }
+function recordChunkAudit(audit, chunkMs) {
+  if (!audit || !Number.isFinite(chunkMs) || chunkMs < 0) return audit;
+  audit.chunkCount += 1;
+  if (chunkMs > audit.maxChunkMs) audit.maxChunkMs = chunkMs;
+  if (chunkMs > CHUNK_TIME_BUDGET_MS) audit.chunksOverBudget += 1;
+  return audit;
+}
 const HTAPS = [
   0.09950731974056658, 0.09562845727714668, 0.08819647126516944, 0.07782552527068175,
   0.06534876523171299, 0.05172629311427257, 0.0379429484910187, 0.02490921351762261,
@@ -166,7 +177,7 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
   if(!Number.isSafeInteger(estimatedBytes)||estimatedBytes>MAX_PCM_BYTES||estimatedBytes>0xffffffff-36) throw Error(`PCM ${targetRate/1000} kHz/${bitDepth}-bit dự kiến vượt giới hạn WAV/bộ nhớ. Hãy chọn tần số hoặc độ sâu bit thấp hơn.`);
   const stages=Math.log2(multiplier)-3;
   const states=Array.from({length:info.channels},()=>({decoder:newDsdState(),filters:Array.from({length:stages},newDecimator)}));
-  const bytesPerSample=bitDepth/8,chunks=[];let outputBytes=0,outputFrames=0,processed=0,maxChunkMs=0;
+  const bytesPerSample=bitDepth/8,chunks=[];let outputBytes=0,outputFrames=0,processed=0,finalChunkBytes=MAX_DECODE_CHUNK_BYTES;const chunkAudit=newChunkAudit();
   function pack(channels) {
     if(!channels.length)return;
     const frames=Math.min(...channels.map(channel=>channel.length)); if(!frames)return;
@@ -216,8 +227,9 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
         const chunkStartedAt = Date.now();
         pack(channels.map((bytes,channel)=>process(bytes,states[channel])));
         const chunkMs = Date.now() - chunkStartedAt;
-        if (chunkMs > maxChunkMs) maxChunkMs = chunkMs;
+        recordChunkAudit(chunkAudit, chunkMs);
         chunkBytes = nextChunkBytes(chunkBytes, chunkMs, info.channels);
+        finalChunkBytes = chunkBytes;
         processed=Math.min(info.dataSize,block*info.blockSize*info.channels+(sub+length)*info.channels);
         self.postMessage({type:'progress',progress:Math.min(.99,processed/info.dataSize)});
         sub+=length;
@@ -236,8 +248,9 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
       for(let i=0;i<raw.length;i+=info.channels)for(let channel=0;channel<info.channels;channel++)channels[channel][i/info.channels]=raw[i+channel];
       pack(channels.map((bytes,channel)=>process(bytes,states[channel])));
       const chunkMs = Date.now() - chunkStartedAt;
-      if (chunkMs > maxChunkMs) maxChunkMs = chunkMs;
+      recordChunkAudit(chunkAudit, chunkMs);
       groupBytes = nextChunkBytes(groupBytes, chunkMs, info.channels);
+      finalChunkBytes = groupBytes;
       processed+=raw.length;
       self.postMessage({type:'progress',progress:Math.min(.99,processed/info.dataSize)});
     }
@@ -249,7 +262,7 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
   tag(0,'RIFF');wav.setUint32(4,36+outputBytes,true);tag(8,'WAVE');tag(12,'fmt ');wav.setUint32(16,16,true);wav.setUint16(20,1,true);
   wav.setUint16(22,info.channels,true);wav.setUint32(24,targetRate,true);wav.setUint32(28,targetRate*blockAlign,true);
   wav.setUint16(32,blockAlign,true);wav.setUint16(34,bitDepth,true);tag(36,'data');wav.setUint32(40,outputBytes,true);
-  self.postMessage({type:'done',blob:new Blob([header,...chunks],{type:'audio/wav'}),duration:outputFrames/targetRate,rate:info.rate,targetRate,bitDepth,channels:info.channels,multiplier:dsdMultiplier,decimation:multiplier,decodeMs:Date.now()-startedAt,maxChunkMs});
+  self.postMessage({type:'done',blob:new Blob([header,...chunks],{type:'audio/wav'}),duration:outputFrames/targetRate,rate:info.rate,targetRate,bitDepth,channels:info.channels,multiplier:dsdMultiplier,decimation:multiplier,decodeMs:Date.now()-startedAt,maxChunkMs:chunkAudit.maxChunkMs,chunkCount:chunkAudit.chunkCount,chunksOverBudget:chunkAudit.chunksOverBudget,finalChunkBytes});
 }
 self.onmessage=event=>{if(event.data&&event.data.type==='cancel'){self.cancelled=true;return;}self.cancelled=false;run(event.data).catch(error=>self.postMessage({type:'error',message:error.message||String(error)}));};
 // Decoder converts local DSD to selectable PCM rates/depths in browser memory; no audio is uploaded.
