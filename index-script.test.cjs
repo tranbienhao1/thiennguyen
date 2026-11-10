@@ -915,7 +915,7 @@ const unmeasuredTrack = {id: 'cloud-2', timeToFirstAudioMs: 500, timeToFirstAudi
 assert.equal(ttfa.recordTimeToFirstAudio(unmeasuredTrack, NaN, 1500, 'slice'), null, 'An invalid measurement should not overwrite the previous one');
 assert.equal(unmeasuredTrack.timeToFirstAudioMs, 500, 'An invalid measurement should keep the previous delay');
 assert.equal(ttfa.recordTimeToFirstAudio(null, 1000, 1500, 'full'), null, 'Recording without a track should not throw');
-assert.equal(ttfa.timeToFirstAudioText(measuredTrack), 'Nghe thấy tiếng sau 842 ms (lát đầu 4 MB)', 'A sub-second delay from the first slice should name the slice source');
+assert.equal(ttfa.timeToFirstAudioText(measuredTrack), 'Nghe thấy tiếng sau 842 ms (lát đầu 1 MB)', 'A sub-second delay from the first slice should name the slice source');
 assert.equal(ttfa.timeToFirstAudioText({timeToFirstAudioMs: 1234, timeToFirstAudioMode: 'full'}), 'Nghe thấy tiếng sau 1.2 giây (toàn file)', 'A delay over one second should show seconds and the full-file source');
 assert.equal(ttfa.timeToFirstAudioText({timeToFirstAudioMs: 1000, timeToFirstAudioMode: 'preload'}), 'Nghe thấy tiếng sau 1.0 giây (đã preload)', 'A preloaded track should name the preload source');
 assert.equal(ttfa.timeToFirstAudioText({timeToFirstAudioMs: 250, timeToFirstAudioMode: 'local'}), 'Nghe thấy tiếng sau 250 ms (file local)', 'A local file should name the local source');
@@ -924,7 +924,7 @@ assert.equal(ttfa.timeToFirstAudioText({}), '', 'A track with no measurement sho
 assert.equal(ttfa.timeToFirstAudioText({timeToFirstAudioMs: -5}), '', 'A negative delay should show no first-audio text');
 assert.equal(ttfa.timeToFirstAudioText(null), '', 'A missing track should show no first-audio text');
 ttfa.renderRoomSignal(measuredTrack);
-assert.equal(roomSignalElement.textContent, 'FLAC · 96 kHz · FLAC được trình duyệt giải mã bằng Web Audio. · Nghe thấy tiếng sau 842 ms (lát đầu 4 MB)', 'The listening room should append the first-audio delay to the signal line');
+assert.equal(roomSignalElement.textContent, 'FLAC · 96 kHz · FLAC được trình duyệt giải mã bằng Web Audio. · Nghe thấy tiếng sau 842 ms (lát đầu 1 MB)', 'The listening room should append the first-audio delay to the signal line');
 ttfa.renderRoomSignal({id: 'cloud-3'});
 assert.equal(roomSignalElement.textContent, 'FLAC · 96 kHz · FLAC được trình duyệt giải mã bằng Web Audio.', 'The listening room should omit the first-audio delay before a track has played');
 assert.ok(appCode.includes('const playRequestedAt = performance.now();'), 'Playback should timestamp the play request with a sub-millisecond clock');
@@ -936,6 +936,58 @@ assert.ok(appCode.includes('if (track.id === state.currentId) renderRoomSignal(t
 assert.ok(appCode.includes('track.firstSlicePlayback = !firstSlice.complete;'), 'Cloud tracks should record whether they started from the first slice');
 assert.ok(appCode.includes('track.firstSlicePlayback = false;'), 'A full-file fallback should record that it did not start from a slice');
 assert.ok(appCode.includes("renderRoomSignal(track); $('room-output')"), 'Track display should render the signal line through the shared helper');
+// Pha C — metadata song song + lát đầu 1 MB: fetchCloudTrack không chờ
+// đọc tag/cover nữa mà đẩy vào hàng đợi nền rồi tải lát đầu ngay, kể cả
+// khi một lần đọc metadata khác đang dở dang.
+const fetchStart = appCode.indexOf('async function fetchCloudTrack(track, url, options, provider) {');
+const fetchEnd = appCode.indexOf('const mediaErrorMessage = error => {', fetchStart);
+assert.ok(fetchStart >= 0 && fetchEnd > fetchStart, 'The cloud track loader should exist for regression checks');
+async function exerciseFetchCloudTrack({track, sliceImpl, metadataPending = false} = {}) {
+  const calls = {queued: [], upgraded: []};
+  const state = {objectUrls: new Set()};
+  class FakeURL extends URL {
+    static createObjectURL() { return 'blob:https://example/slice'; }
+    static revokeObjectURL() {}
+  }
+  const library = {
+    fetchAudioFirstSlice: sliceImpl || (async () => ({blob: {type: 'audio/flac', size: 1048576}, totalBytes: 12345678, complete: false})),
+    normalizeAudioBlob: blob => blob,
+    fetchAudioBlob: async () => ({type: 'audio/flac'}),
+  };
+  const queueCloudMetadata = tracks => {
+    calls.queued.push(...tracks.map(item => item.id));
+    // Giả lập hàng đợi nền: metadata đang đọc dở nhưng chưa xong.
+    if (metadataPending) track.metadataRequest = new Promise(() => {});
+  };
+  const upgradeSliceToFullAudio = async () => { calls.upgraded.push(track.id); };
+  const fetchCloudTrack = new Function('library', 'queueCloudMetadata', 'state', 'URL', 'finishCloudMetadataInBackground', 'upgradeSliceToFullAudio', 'getMicrosoftToken', `${appCode.slice(fetchStart, fetchEnd)}\nreturn fetchCloudTrack;`)(
+    library, queueCloudMetadata, state, FakeURL, () => {}, upgradeSliceToFullAudio, async () => 'token',
+  );
+  const url = await Promise.race([
+    fetchCloudTrack(track, 'https://example.com/a.flac', {}, 'Google Drive'),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('First slice did not return while metadata was still pending')), 2000)),
+  ]);
+  return {calls, state, track, url};
+}
+const pendingMetadata = await exerciseFetchCloudTrack({track: {id: 'cloud-9', source: 'google', name: 'a.flac', title: 'A', format: 'flac', metadataLoaded: false, cover: null}, metadataPending: true});
+assert.equal(pendingMetadata.url, 'blob:https://example/slice', 'Playback should start from the first slice even while metadata is still being read');
+assert.deepEqual(pendingMetadata.calls.queued, ['cloud-9'], 'Missing metadata should be queued in the background when playback starts');
+assert.deepEqual(pendingMetadata.calls.upgraded, ['cloud-9'], 'The full file should still download in the background after the first slice');
+assert.equal(pendingMetadata.track.firstSlicePlayback, true, 'A partial first slice should be recorded as slice playback');
+assert.ok(pendingMetadata.track.metadataRequest, 'The background metadata request should stay in flight instead of blocking playback');
+const cachedTrack = {id: 'cloud-10', source: 'google', name: 'b.flac', title: 'B', format: 'flac', url: 'blob:https://example/cached', metadataLoaded: false, cover: null};
+const cachedCalls = {queued: 0};
+const cachedState = {objectUrls: new Set(['blob:https://example/cached'])};
+const cachedFetch = new Function('library', 'queueCloudMetadata', 'state', 'URL', 'finishCloudMetadataInBackground', 'upgradeSliceToFullAudio', 'getMicrosoftToken', `${appCode.slice(fetchStart, fetchEnd)}\nreturn fetchCloudTrack;`)(
+  {fetchAudioFirstSlice: async () => { throw new Error('must not fetch when the URL is cached'); }, normalizeAudioBlob: blob => blob, fetchAudioBlob: async () => ({})},
+  () => { cachedCalls.queued++; }, cachedState, URL, () => {}, async () => {}, async () => 'token',
+);
+assert.equal(await cachedFetch(cachedTrack, 'https://example.com/b.flac', {}, 'Google Drive'), 'blob:https://example/cached', 'A cached cloud URL should return without re-downloading');
+assert.equal(cachedCalls.queued, 0, 'A cached cloud URL should not queue metadata again before returning');
+assert.ok(!appCode.includes('if (track.metadataRequest) await track.metadataRequest;'), 'Cloud playback should not wait for an in-flight metadata request before downloading audio');
+assert.ok(!appCode.includes('Cloud tag metadata remains unavailable'), 'Cloud playback should no longer block on synchronous tag enrichment');
+assert.ok(appCode.includes('if (!track.metadataLoaded || !track.cover) queueCloudMetadata([track]);'), 'Missing cloud metadata should be queued in the background when playback starts');
+assert.ok(appCode.includes("slice:'lát đầu 1 MB'"), 'The first-audio label should name the 1 MB first slice');
 
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');
 })().catch(error => { console.error(error); process.exit(1); });

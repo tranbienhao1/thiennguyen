@@ -162,13 +162,13 @@
     if (!blob || !blob.size) throw new Error(`${provider} trả về file âm thanh rỗng.`);
     return blob;
   }
-  // Pha C — lát đầu để phát ngay: chỉ tải 4 MB đầu bằng Range để bài hát
-  // bắt đầu phát trong tích tắc thay vì chờ tải cả file (4 MB ≈ 1–2 giây
-  // nhạc FLAC 24-bit/96 kHz, ~100 giây MP3 320 kbps — đủ để tải nền phần
-  // còn lại rồi đổi src sang file đầy đủ, xem fetchCloudTrack); máy chủ
+  // Pha C — lát đầu để phát ngay: chỉ tải 1 MB đầu bằng Range để bài hát
+  // bắt đầu phát trong tích tắc thay vì chờ tải cả file (1 MB ≈ 2 giây
+  // nhạc FLAC 24-bit/96 kHz, ~25 giây MP3 320 kbps — đủ để giải mã vài
+  // khung đầu rồi tải nền phần còn lại, xem fetchCloudTrack); máy chủ
   // không hỗ trợ Range thì trả 200 kèm toàn bộ file, vẫn phát ngay mà
   // không cần tải nền. Lát đầu lỗi thì fetchCloudTrack rớt về đường cũ.
-  const FIRST_SLICE_BYTES = 4 * 1024 * 1024;
+  const FIRST_SLICE_BYTES = 1 * 1024 * 1024;
   async function fetchAudioFirstSlice(url, options = {}, provider = 'Cloud') {
     const response = await fetchAudioResponse(url, {...options, headers:{...(options.headers || {}), Range:`bytes=0-${FIRST_SLICE_BYTES - 1}`}}, provider);
     const blob = await response.blob();

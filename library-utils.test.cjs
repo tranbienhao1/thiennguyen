@@ -294,19 +294,19 @@ async function expectFetchError(fetchImpl, headers, blobSize) {
   await assert.rejects(() => utils.fetchAudioBlob('https://example.com/a.flac', {}, 'Drive'));
   assert.strictEqual(authCalls, 1, 'HTTP 401 should fail immediately without retry');
   delete global.fetch;
-  // Pha C — lát đầu để phát ngay: chỉ tải 4 MB đầu bằng Range.
-  assert.strictEqual(utils.FIRST_SLICE_BYTES, 4 * 1024 * 1024, 'The first slice should cover 4 MB of audio');
+  // Pha C — lát đầu để phát ngay: chỉ tải 1 MB đầu bằng Range.
+  assert.strictEqual(utils.FIRST_SLICE_BYTES, 1 * 1024 * 1024, 'The first slice should cover 1 MB of audio');
   const sliceHeaders = values => ({get: name => values[String(name).toLowerCase()] || ''});
   let sliceRequest = null;
   global.fetch = async (url, options) => {
     sliceRequest = {url, options};
-    return {ok:true, status:206, headers:sliceHeaders({'content-type':'audio/flac', 'content-range':'bytes 0-4194303/12345678', 'content-length':'4194304'}), blob:async () => ({size:4194304, type:'audio/flac'})};
+    return {ok:true, status:206, headers:sliceHeaders({'content-type':'audio/flac', 'content-range':'bytes 0-1048575/12345678', 'content-length':'1048576'}), blob:async () => ({size:1048576, type:'audio/flac'})};
   };
   const slice = await utils.fetchAudioFirstSlice('https://example.com/a.flac', {headers:{Authorization:'Bearer token'}}, 'Drive');
-  assert.strictEqual(slice.blob.size, 4194304, 'A 206 response should return the requested first slice');
+  assert.strictEqual(slice.blob.size, 1048576, 'A 206 response should return the requested first slice');
   assert.strictEqual(slice.totalBytes, 12345678, 'The total file size should come from the Content-Range header');
   assert.strictEqual(slice.complete, false, 'A partial slice must not claim to hold the whole file');
-  assert.strictEqual(sliceRequest.options.headers.Range, 'bytes=0-4194303', 'The first slice should request exactly 4 MB with a Range header');
+  assert.strictEqual(sliceRequest.options.headers.Range, 'bytes=0-1048575', 'The first slice should request exactly 1 MB with a Range header');
   assert.strictEqual(sliceRequest.options.headers.Authorization, 'Bearer token', 'The first slice should keep the cloud authorization header');
   delete global.fetch;
   global.fetch = async () => ({ok:true, status:200, headers:sliceHeaders({'content-type':'audio/flac'}), blob:async () => ({size:1234, type:'audio/flac'})});
@@ -316,9 +316,9 @@ async function expectFetchError(fetchImpl, headers, blobSize) {
   delete global.fetch;
   global.fetch = async () => ({ok:false, status:416, text:async () => 'range not satisfiable'});
   await assert.rejects(() => utils.fetchAudioFirstSlice('https://example.com/a.flac', {}, 'Drive'), 'An unsatisfiable range should fail so the caller falls back to the full download');
-  global.fetch = async () => ({ok:true, status:206, headers:sliceHeaders({'content-type':'application/json', 'content-range':'bytes 0-4194303/12345678'}), blob:async () => ({size:4194304})});
+  global.fetch = async () => ({ok:true, status:206, headers:sliceHeaders({'content-type':'application/json', 'content-range':'bytes 0-1048575/12345678'}), blob:async () => ({size:1048576})});
   await assert.rejects(() => utils.fetchAudioFirstSlice('https://example.com/a.flac', {}, 'Drive'), 'A non-audio first slice should fail like the full download');
-  global.fetch = async () => ({ok:true, status:206, headers:sliceHeaders({'content-type':'audio/flac', 'content-range':'bytes 0-4194303/12345678'}), blob:async () => ({size:0})});
+  global.fetch = async () => ({ok:true, status:206, headers:sliceHeaders({'content-type':'audio/flac', 'content-range':'bytes 0-1048575/12345678'}), blob:async () => ({size:0})});
   await assert.rejects(() => utils.fetchAudioFirstSlice('https://example.com/a.flac', {}, 'Drive'), 'An empty first slice should fail so the caller falls back to the full download');
   delete global.fetch;
   console.log('Library metadata, filtering, grouping and audio fetch tests passed.');
