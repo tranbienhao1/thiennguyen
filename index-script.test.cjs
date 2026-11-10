@@ -68,6 +68,9 @@ assert.ok(appCode.includes('@odata.nextLink'), 'OneDrive listing should follow e
 assert.ok(appCode.includes('restoreMicrosoftSession'), 'OneDrive should restore silently from the MSAL account cache');
 assert.ok(appCode.includes("library.parseCloudConfig(localStorage.getItem('nocturne-google'))"), 'Google config reads should go through the safe cloud-config parser');
 assert.ok(appCode.includes("library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'))"), 'Microsoft config reads should go through the safe cloud-config parser');
+assert.ok(appCode.includes('library.shouldPreloadNext(element.duration, element.currentTime, standbyAudio.src, state.preloadReadyUrl, library.PRELOAD_LEAD_SECONDS, location.href)'), 'Next-track preload should start 15 seconds before the current track ends');
+assert.ok(!appCode.includes('element.duration - element.currentTime <= 12'), 'Preload timing should use the shared 15-second lead helper instead of a hardcoded 12-second check');
+assert.ok(libraryCode.includes('PRELOAD_LEAD_SECONDS = 15'), 'Preload lead should be 15 seconds for gapless playback');
 assert.ok(!appCode.includes("JSON.parse(localStorage.getItem('nocturne-google')"), 'Corrupt Google config must not throw at read time');
 assert.ok(!appCode.includes("JSON.parse(localStorage.getItem('nocturne-microsoft')"), 'Corrupt Microsoft config must not throw at read time');
 assert.ok(!appCode.includes('async function restoreGoogleSession()'), 'Google OAuth must not run during page-load/background refresh');

@@ -2436,7 +2436,7 @@
         if (!state.isSeeking && Number.isFinite(element.duration)) syncSeek(Math.round(element.currentTime / element.duration * 1000));
         if (!$('room-seek').matches(':active')) { const roomPosition = Number.isFinite(element.duration) && element.duration ? Math.round(element.currentTime / element.duration * 1000) : 0; $('room-seek').value = String(roomPosition); paintSeek($('room-seek'), roomPosition); }
         updatePositionState();
-        if (Number.isFinite(element.duration) && element.duration - element.currentTime <= 12 && (!standbyAudio.src || standbyAudio.src !== state.preloadReadyUrl)) preloadNext();
+        if (library.shouldPreloadNext(element.duration, element.currentTime, standbyAudio.src, state.preloadReadyUrl, library.PRELOAD_LEAD_SECONDS, location.href)) preloadNext();
       });
       element.addEventListener('canplay', () => {
         if (element !== standbyAudio) return;
@@ -2595,5 +2595,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 05:53 +07 | Đã xong: Pha B - Thêm parseLyrics + lyricLineAt (.lrc đồng bộ) vào library-utils.js | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Giải phóng URL.revokeObjectURL cho bản preload DSD khi chuyển bài, chống tràn RAM -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 06:05 +07 | Đã xong: Pha C - Thêm parseCloudConfig đọc cấu hình cloud đã lưu, JSON bẩn trả về {} thay vì ném SyntaxError (7 điểm đọc) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Thêm content-visibility:auto cho hàng bài hát để cuộn danh sách lớn mượt 60fps -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 06:33 +07 | Đã xong: Pha D - Thêm content-visibility:auto + contain-intrinsic-size:auto 64px cho #track-list .track-row để cuộn danh sách lớn mượt 60fps | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Nạp trước (pre-decode) bài kế tiếp khi bài hiện tại còn 15 giây để phát gapless 0 ms -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 07:06 +07 | Đã xong: Pha A - Thêm shouldPreloadNext + PRELOAD_LEAD_SECONDS=15s vào library-utils.js, nạp trước bài kế sớm hơn (12s -> 15s) và so sánh URL sau phân giải tương đối để phát gapless 0 ms | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Nối parseLyrics/lyricLineAt vào giao diện: hiển thị lời .lrc đồng bộ, dòng đang hát tự cuộn khi phát nhạc -->
 </body>
 </html>

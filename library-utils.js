@@ -305,5 +305,28 @@
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig};
+  // Pha A — nạp trước (pre-decode) bài kế tiếp để phát gapless 0 ms: bắt đầu
+  // nạp khi bài hiện tại còn PRELOAD_LEAD_SECONDS giây (đủ thời gian lấy URL
+  // ký cloud + đệm deck chờ trước khi bài hiện tại kết thúc). So sánh URL sau
+  // khi phân giải tương đối, vì standbyAudio.src luôn là URL tuyệt đối trong
+  // khi preloadReadyUrl có thể là đường dẫn tương đối — so sánh chuỗi thô sẽ
+  // gọi preloadNext lặp lại mỗi lần timeupdate. Live stream (duration vô
+  // hạn), NaN, duration 0 hay currentTime âm đều trả về false.
+  const PRELOAD_LEAD_SECONDS = 15;
+  function shouldPreloadNext(duration, currentTime, standbySrc = '', preloadReadyUrl = '', leadSeconds = PRELOAD_LEAD_SECONDS, baseUrl = '') {
+    const total = Number(duration), position = Number(currentTime), lead = Number(leadSeconds);
+    if (!Number.isFinite(total) || total <= 0) return false;
+    if (!Number.isFinite(position) || position < 0) return false;
+    if (!Number.isFinite(lead) || lead < 0) return false;
+    if (total - position > lead) return false;
+    const standby = String(standbySrc || '');
+    const ready = String(preloadReadyUrl || '');
+    if (!standby || !ready) return true;
+    try {
+      const base = baseUrl || 'http://localhost/';
+      return new URL(standby, base).href !== new URL(ready, base).href;
+    } catch (error) { return standby !== ready; }
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext};
 });

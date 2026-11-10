@@ -133,6 +133,26 @@ assert.deepStrictEqual(utils.parseCloudConfig('[1,2]'), {}, 'parseCloudConfig sh
 assert.deepStrictEqual(utils.parseCloudConfig('null'), {}, 'parseCloudConfig should reject JSON null');
 assert.deepStrictEqual(utils.parseCloudConfig('42'), {}, 'parseCloudConfig should reject a JSON number');
 
+// Pha A — shouldPreloadNext (nạp trước bài kế để phát gapless 0 ms).
+assert.strictEqual(utils.PRELOAD_LEAD_SECONDS, 15, 'Preload should start 15 seconds before the current track ends');
+assert.strictEqual(utils.shouldPreloadNext(200, 185), true, 'Preload is due exactly 15 seconds before the end');
+assert.strictEqual(utils.shouldPreloadNext(200, 184.9), false, 'Preload is not due more than 15 seconds before the end');
+assert.strictEqual(utils.shouldPreloadNext(200, 199.5), true, 'Preload stays due in the final seconds');
+assert.strictEqual(utils.shouldPreloadNext(5, 0), true, 'Short tracks are due for preload immediately');
+assert.strictEqual(utils.shouldPreloadNext(200, 190, 'https://cdn.example.com/a.flac', 'https://cdn.example.com/a.flac'), false, 'A ready standby deck should not preload again');
+assert.strictEqual(utils.shouldPreloadNext(200, 190, 'https://cdn.example.com/a.flac', 'https://cdn.example.com/b.flac'), true, 'A standby deck holding another track should preload');
+assert.strictEqual(utils.shouldPreloadNext(200, 190, '', 'https://cdn.example.com/a.flac'), true, 'An empty standby deck should preload');
+assert.strictEqual(utils.shouldPreloadNext(200, 190, 'https://cdn.example.com/a.flac', ''), true, 'A missing ready URL should preload');
+assert.strictEqual(utils.shouldPreloadNext(200, 190, 'https://site.example/music/a.flac', 'music/a.flac', 15, 'https://site.example/'), false, 'Relative ready URLs should resolve against the page URL before comparing');
+assert.strictEqual(utils.shouldPreloadNext(200, 190, 'http://localhost/music/a.flac', 'music/a.flac'), false, 'Relative ready URLs should resolve against the default base');
+assert.strictEqual(utils.shouldPreloadNext(Infinity, 100), false, 'Live streams without a finite duration should never preload');
+assert.strictEqual(utils.shouldPreloadNext(NaN, 100), false, 'Unknown durations should never preload');
+assert.strictEqual(utils.shouldPreloadNext(0, 0), false, 'Zero-length tracks should never preload');
+assert.strictEqual(utils.shouldPreloadNext(200, NaN), false, 'Unknown positions should never preload');
+assert.strictEqual(utils.shouldPreloadNext(200, -1), false, 'Negative positions should never preload');
+assert.strictEqual(utils.shouldPreloadNext(200, 195, '', '', 5), true, 'A custom lead should be honored');
+assert.strictEqual(utils.shouldPreloadNext(200, 190, '', '', 5), false, 'Remaining time above a custom lead should not preload');
+
 assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).length, 3);
 assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);
 const albumGroups = utils.groupTracks(tracks, 'album');
