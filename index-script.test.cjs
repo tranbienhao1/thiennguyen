@@ -754,4 +754,43 @@ assert.ok(appCode.includes('function restoreViewScroll()'), 'View switching shou
 assert.ok(appCode.includes('state.viewScroll[state.activeView] = Math.max(0, col.scrollTop || 0)'), 'Saving scroll should record a non-negative position per view');
 assert.ok(appCode.includes('col.scrollTop = Math.max(0, state.viewScroll[state.activeView] || 0)'), 'Restoring scroll should fall back to the top on a first visit');
 assert.ok(!appCode.includes("$('content-col').scrollTop = 0;"), 'View switching should no longer force the list back to the top');
+// Pha A — crossfade đẳng công suất khi chuyển bài: chạy thật applyCrossfade
+// với deck giả (AudioParam giả ghi lại mọi lệnh ramp).
+const crossfadeStart = appCode.indexOf('function applyCrossfade(context, oldDeck, newDeck, seconds) {');
+assert.ok(crossfadeStart >= 0, 'Equal-power crossfade helper should exist for regression checks');
+const crossfadeEnd = appCode.indexOf('function rebuildDeckRoute(deck) {', crossfadeStart);
+assert.ok(crossfadeEnd > crossfadeStart, 'Crossfade helper should be extractable for regression checks');
+const applyCrossfade = new Function('library', appCode.slice(crossfadeStart, crossfadeEnd) + '\nreturn applyCrossfade;')(require('./library-utils.js'));
+function exerciseCrossfade(seconds, startOut = 1) {
+  const makeParam = value => ({value, calls: [], setTargetAtTime(target, time, timeConstant) { this.calls.push(['target', target, time, timeConstant]); }, cancelScheduledValues(time) { this.calls.push(['cancel', time]); }, setValueAtTime(value, time) { this.calls.push(['value', value, time]); }, setValueCurveAtTime(curve, time, duration) { this.calls.push(['curve', [...curve], time, duration]); }});
+  const oldGain = makeParam(startOut), newGain = makeParam(0);
+  const duration = applyCrossfade({currentTime: 10}, {router: {gain: oldGain}}, {router: {gain: newGain}}, seconds);
+  return {duration, oldGain, newGain};
+}
+const faded = exerciseCrossfade(2);
+assert.equal(faded.duration, 2, 'A 2-second crossfade should return its duration');
+const outCurve = faded.oldGain.calls.find(call => call[0] === 'curve')[1];
+const inCurve = faded.newGain.calls.find(call => call[0] === 'curve')[1];
+assert.equal(outCurve.length, 33, 'The crossfade curve should sample 33 points');
+assert.ok(Math.abs(outCurve[0] - 1) < 1e-6 && Math.abs(outCurve[32]) < 1e-6, 'The old deck curve should run from full gain to silence');
+assert.ok(Math.abs(inCurve[0]) < 1e-6 && Math.abs(inCurve[32] - 1) < 1e-6, 'The new deck curve should run from silence to full gain');
+assert.ok(Math.abs(outCurve[16] - Math.SQRT1_2) < 1e-6, 'Halfway through the fade the old deck should sit at -3 dB');
+assert.ok(outCurve.every((value, index) => Math.abs(value ** 2 + inCurve[index] ** 2 - 1) < 1e-6), 'Old and new curves should keep total power constant');
+assert.ok(Math.abs(exerciseCrossfade(2, 0.5).oldGain.calls.find(call => call[0] === 'curve')[1][0] - 0.5) < 1e-6, 'A deck interrupted mid-fade should resume from its current gain, not jump to full');
+const instant = exerciseCrossfade(0);
+assert.equal(instant.duration, 0, 'A zero-second crossfade should keep the old instant switch');
+assert.deepEqual(instant.oldGain.calls, [['target', 0, 10, 0.018]], 'With crossfade off the old deck should ramp out fast');
+assert.deepEqual(instant.newGain.calls, [['target', 1, 10, 0.018]], 'With crossfade off the new deck should ramp in fast');
+assert.equal(exerciseCrossfade('abc').duration, 0, 'An unreadable crossfade setting should fall back to the instant switch');
+assert.ok(appCode.includes('crossfadeSeconds: 0, crossfadeUntil: 0'), 'App state should hold the crossfade setting and fade deadline');
+assert.ok(appCode.includes('applyCrossfade(state.context, oldDeck, newDeck, state.crossfadeSeconds)'), 'Track switching should crossfade through the two decks');
+assert.ok(appCode.includes('state.crossfadeUntil = fadeSeconds > 0 ? state.context.currentTime + fadeSeconds : 0'), 'Track switching should record when the crossfade ends');
+assert.ok(appCode.includes('if (state.crossfadeUntil && state.context.currentTime < state.crossfadeUntil) return;'), 'Preloading should not cut off a crossfade in progress');
+assert.ok(appCode.includes('setTimeout(() => { if (generation !== state.playGeneration) return; previous.pause();'), 'The old deck should only stop after its fade finishes');
+assert.ok(appCode.includes('fadeSeconds * 1000 + 50'), 'Old-deck cleanup should wait out the full fade');
+assert.match(html, /id="crossfade-seconds"/, 'Settings should offer a crossfade duration control');
+assert.ok(appCode.includes("localStorage.setItem('nocturne-crossfade-seconds'"), 'The crossfade setting should persist');
+assert.ok(appCode.includes("localStorage.getItem('nocturne-crossfade-seconds')"), 'The crossfade setting should be restored on startup');
+assert.ok(appCode.includes('if ([0,1,2,3,5].includes(savedCrossfade)) state.crossfadeSeconds = savedCrossfade;'), 'Only crossfade values offered by the settings control should be restored');
+
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');

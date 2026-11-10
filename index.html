@@ -490,6 +490,10 @@
           <label class="text-[10px] text-zinc-400">Độ sâu bit<select id="dsd-output-depth" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"><option value="16">16-bit — file nhỏ</option><option value="24">24-bit — dải động rộng</option></select></label>
         </div>
       </section>
+      <section class="mt-4 rounded-2xl border border-violet-300/15 bg-violet-300/[.03] p-4">
+        <div><h3 class="text-sm font-medium text-violet-100">Chuyển bài mượt (Crossfade)</h3><p class="mt-1 text-[10px] leading-4 text-zinc-500">Hai bài hát chồng lên nhau khi chuyển bài theo đường cong đẳng công suất (cos/sin) nên không hụt âm lượng giữa bài. 0 giây là tắt, giữ cách chuyển nhanh như trước.</p></div>
+        <label class="mt-3 block text-[10px] text-zinc-400">Thời lượng crossfade<select id="crossfade-seconds" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"><option value="0">Tắt — chuyển ngay</option><option value="1">1 giây</option><option value="2">2 giây</option><option value="3">3 giây</option><option value="5">5 giây</option></select></label>
+      </section>
       <section class="mt-4 rounded-2xl border border-rose-300/20 bg-rose-300/[.03] p-4">
         <h3 class="text-sm font-medium text-rose-100">Làm mới thư viện Cloud</h3>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Xóa danh mục Google Drive/OneDrive đã lưu trên trình duyệt để đồng bộ lại từ đầu. Không xóa file gốc, Client ID, lịch sử nghe hoặc yêu thích. Trang sẽ tải lại; nhạc nội bộ đã thêm trong phiên hiện tại cần chọn lại.</p>
@@ -762,7 +766,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -1619,6 +1623,30 @@
       limiter.release.value = 0.1;
       return limiter;
     }
+    // Pha A — crossfade đẳng công suất khi chuyển bài: hai deck ramp ngược
+    // nhau theo cos/sin (setValueCurveAtTime, 33 điểm) nên tổng công suất
+    // không đổi, không hụt tiếng giữa bài như fade tuyến tính; 0 giây giữ
+    // hành vi cũ (ramp nhanh 18 ms). Deck cũ giữ mức bắt đầu thực tế của
+    // nó (đang fade dở thì không nhảy về 1). Trả về thời lượng fade (giây).
+    function applyCrossfade(context, oldDeck, newDeck, seconds) {
+      const duration = library.clampCrossfadeSeconds(seconds, 0);
+      const now = context.currentTime;
+      if (!duration || !oldDeck || !newDeck) {
+        if (oldDeck) oldDeck.router.gain.setTargetAtTime(0, now, .018);
+        if (newDeck) newDeck.router.gain.setTargetAtTime(1, now, .018);
+        return 0;
+      }
+      const steps = 32, outCurve = new Float32Array(steps + 1), inCurve = new Float32Array(steps + 1);
+      const startOut = Number.isFinite(oldDeck.router.gain.value) ? oldDeck.router.gain.value : 1;
+      for (let i = 0; i <= steps; i++) { const gains = library.crossfadeGains(i / steps); outCurve[i] = gains.out * startOut; inCurve[i] = gains.in; }
+      oldDeck.router.gain.cancelScheduledValues(now);
+      oldDeck.router.gain.setValueAtTime(startOut, now);
+      oldDeck.router.gain.setValueCurveAtTime(outCurve, now, duration);
+      newDeck.router.gain.cancelScheduledValues(now);
+      newDeck.router.gain.setValueAtTime(0, now);
+      newDeck.router.gain.setValueCurveAtTime(inCurve, now, duration);
+      return duration;
+    }
     function rebuildDeckRoute(deck) {
       deck.router.disconnect(); deck.preamp.disconnect(); deck.direct.disconnect();
       deck.filters.forEach(filter => { try { filter.disconnect(); } catch (_) {} });
@@ -1883,6 +1911,9 @@
     }
     async function preloadNext(force = false) {
       if (!state.context || !state.deckA || !state.deckB) return;
+      // Pha A — đang crossfade thì deck chờ vẫn phát bài cũ: đừng pause/xóa
+      // src của nó; timeupdate sẽ gọi lại preloadNext sau khi fade xong.
+      if (state.crossfadeUntil && state.context.currentTime < state.crossfadeUntil) return;
       const index = queueIndex(), next = index >= 0 ? state.tracks[index] : null;
       if (!next || next.id === state.currentId || next.isDsd) {
         clearStalePreload();
@@ -1977,14 +2008,20 @@
         const previous = audio, oldDeck = state.activeDeck;
         const newDeck = oldDeck === state.deckA ? state.deckB : state.deckA;
         audio = target; standbyAudio = previous; state.activeDeck = newDeck;
-        if (oldDeck) oldDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .018);
-        newDeck.router.gain.setTargetAtTime(1, state.context.currentTime, .018);
-        standbyAudio.muted = true; standbyAudio.pause();
+        const fadeSeconds = applyCrossfade(state.context, oldDeck, newDeck, state.crossfadeSeconds);
+        state.crossfadeUntil = fadeSeconds > 0 ? state.context.currentTime + fadeSeconds : 0;
         if (state.preloadTrackId === track.id) { state.preloadTrackId = null; state.preloadReadyUrl = null; }
         $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ';
         recordHistory(track);
-        previous.pause(); previous.muted = true;
-        previous.removeAttribute('src'); previous.load();
+        if (fadeSeconds > 0) {
+          // Pha A — để deck cũ phát hết fade rồi mới dừng/xóa src; nếu đã
+          // chuyển bài khác thì generation đổi nên timeout này bỏ qua.
+          setTimeout(() => { if (generation !== state.playGeneration) return; previous.pause(); previous.muted = true; previous.removeAttribute('src'); previous.load(); }, fadeSeconds * 1000 + 50);
+        } else {
+          standbyAudio.muted = true; standbyAudio.pause();
+          previous.pause(); previous.muted = true;
+          previous.removeAttribute('src'); previous.load();
+        }
         scheduleTrackRender();
         preloadNext(true);
         releaseUnusedCloudUrl(previousTrack);
@@ -2466,6 +2503,10 @@
       state.dsdOutputDepth = Number(event.target.value);
       try { localStorage.setItem('nocturne-dsd-output-depth', String(state.dsdOutputDepth)); } catch (error) { console.warn('Could not save DSD output bit depth:', error); }
     });
+    $('crossfade-seconds').addEventListener('change', event => {
+      state.crossfadeSeconds = library.clampCrossfadeSeconds(event.target.value, 0);
+      try { localStorage.setItem('nocturne-crossfade-seconds', String(state.crossfadeSeconds)); } catch (error) { console.warn('Could not save crossfade setting:', error); }
+    });
     $('google-connect').addEventListener('click', () => runCloudLogin(connectGoogle));
     $('microsoft-connect').addEventListener('click', () => runCloudLogin(connectMicrosoftAndHandleAuth));
     ['google-client-id','microsoft-client-id'].forEach(id => $(id).addEventListener('input', () => { if ($('settings-error').classList.contains('hidden')) return; $('settings-error').classList.add('hidden'); }));
@@ -2777,6 +2818,11 @@
       $('dsd-output-rate').value = String(state.dsdOutputRate);
       $('dsd-output-depth').value = String(state.dsdOutputDepth);
     } catch (error) { console.warn('Could not load saved DSD output settings:', error); }
+    try {
+      const savedCrossfade = library.clampCrossfadeSeconds(localStorage.getItem('nocturne-crossfade-seconds'), 0);
+      if ([0,1,2,3,5].includes(savedCrossfade)) state.crossfadeSeconds = savedCrossfade;
+      $('crossfade-seconds').value = String(state.crossfadeSeconds);
+    } catch (error) { console.warn('Could not load saved crossfade setting:', error); }
     try { state.favorites = new Set(JSON.parse(localStorage.getItem('nocturne-favorites') || '[]')); } catch (error) { state.favorites = new Set(); }
     setGain(72);
     syncAutoplayButton(); updateSleepStatus(); renderQueueCurrent();
@@ -2854,5 +2900,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 19:07 +07 | Đã xong: Pha A - Lát đầu theo throughput thiết bị: worker giữ lastDecodeThroughputMBps giữa các lần giải mã trong cùng phiên, helper initialChunkBytes chọn lát đầu ~50 ms từ throughput lần trước (kẹp 32–256 KiB, chia hết cho số kênh), máy chậm bắt đầu bằng lát nhỏ để progress/cancel phản hồi kịp, máy nhanh bắt đầu bằng lát lớn; chưa có số đo thì dùng lát tối đa như trước; message done báo thêm initialChunkBytes để kiểm toán | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Hiện throughput và lát đầu trong chi tiết bài hát (mở rộng dòng kiểm toán DSD) để người dùng thấy thiết bị của mình giải mã nhanh hay chậm -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 19:38 +07 | Đã xong: Pha D - Thêm content-visibility:auto + contain-intrinsic-size:auto 28px cho .lyric-line để lời .lrc dài hàng trăm dòng trong khung cuộn max-h-72 bỏ qua render ngoài màn hình như hàng bài hát/thẻ bộ sưu tập/hàng đợi, cuộn lời đồng bộ mượt 60fps; scrollIntoView của dòng đang hát vẫn ép render; bộ đếm content-visibility trong test tăng 3 lên 4 vị trí | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Kiểm toán engine DSD: đo throughput giải mã theo từng lát và cảnh báo khi lát vượt ngân sách 50 ms liên tục -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 20:09 +07 | Đã xong: Pha D - Đo thời gian giải mã DSD bằng performance.now() (độ phân giải dưới mili-giây) thay vì Date.now() làm tròn 1 ms, để throughput từng lát và ngưỡng 50 ms chính xác hơn (fallback Date.now() khi worker không có performance; test đồng hồ giả tăng 7 ms/lần cho maxChunkMs đúng 7 ms, decodeMs 63 ms); gộp cả [Pha A] worker theo dõi chuỗi lát vượt 50 ms dài nhất + throughput lát chậm nhất, formatDecodeAudit cảnh báo khi ≥3 lát liên tiếp vượt 50 ms, [Pha B] Phòng nghe hiện lời khuyên giảm tần số PCM đích khi thiết bị chậm liên tiếp, [Pha C] fetchAudioBlob thử lại tối đa 3 lần trễ 400/800 ms khi lỗi mạng hoặc HTTP 429/5xx, 401/403/404/sai content-type rớt ngay | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Thêm soft-limiter (DynamicsCompressor) sau preamp/EQ để chống clipping khi tăng gain, kèm đo peak trước/sau limiter -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 21:20 +07 | Đã xong: Pha A - Crossfade đẳng công suất khi chuyển bài: crossfadeGains cos/sin (tổng công suất = 1, giữa fade hai deck đều -3 dB) + clampCrossfadeSeconds 0–5 giây, applyCrossfade ramp 33 điểm bằng setValueCurveAtTime qua 2 deck, deck cũ phát hết fade mới dừng/xóa src (guard generation), preloadNext hoãn lại trong lúc fade để không cắt bài cũ, chọn 0/1/2/3/5 giây trong Cài đặt và lưu localStorage (mặc định 0 = tắt, giữ cách chuyển nhanh cũ); test chạy thật applyCrossfade với deck giả (đường cong 1→0 / 0→1, giữa fade -3 dB, tổng công suất = 1, deck fade dở giữ mức hiện tại) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Thêm phím tắt bật/tắt crossfade nhanh khi đang nghe (đồng bộ với select trong Cài đặt) và hiện thời lượng crossfade trong Phòng nghe -->
 </body>
 </html>

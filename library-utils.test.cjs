@@ -167,6 +167,21 @@ assert.strictEqual(utils.clampSeekTime(NaN, 200, 10), 10, 'Unknown positions sho
 assert.strictEqual(utils.clampSeekTime(100, 200, NaN), 100, 'A non-finite step should leave the position unchanged');
 assert.strictEqual(utils.clampSeekTime(100, 200, null), 100, 'A null step should leave the position unchanged');
 
+// Pha A — crossfade đẳng công suất khi chuyển bài (cos/sin, tổng công suất = 1).
+const gainsAt = progress => utils.crossfadeGains(progress);
+assert.deepEqual(gainsAt(0), {out: 1, in: 0}, 'Crossfade should start with the old deck at full gain');
+assert.ok(Math.abs(gainsAt(0.5).out - Math.SQRT1_2) < 1e-12 && Math.abs(gainsAt(0.5).in - Math.SQRT1_2) < 1e-12, 'Halfway through an equal-power crossfade both decks should sit at -3 dB');
+assert.ok(Math.abs(gainsAt(1).out) < 1e-12 && Math.abs(gainsAt(1).in - 1) < 1e-12, 'Crossfade should end with the new deck at full gain');
+assert.ok([0, 0.25, 0.5, 0.75, 1].every(p => Math.abs(gainsAt(p).out ** 2 + gainsAt(p).in ** 2 - 1) < 1e-12), 'Equal-power crossfade should keep total power constant');
+assert.ok(Math.abs(gainsAt(-2).out - 1) < 1e-12 && Math.abs(gainsAt(2).in - 1) < 1e-12, 'Progress outside [0,1] should clamp to the fade ends');
+assert.deepEqual(gainsAt(NaN), {out: 1, in: 0}, 'A non-numeric progress should not start the fade');
+assert.strictEqual(utils.CROSSFADE_MAX_SECONDS, 5, 'Crossfade should cap at 5 seconds');
+assert.strictEqual(utils.clampCrossfadeSeconds('2'), 2, 'A saved crossfade setting should parse as seconds');
+assert.strictEqual(utils.clampCrossfadeSeconds(9), 5, 'Crossfade should cap at 5 seconds');
+assert.strictEqual(utils.clampCrossfadeSeconds(-1), 0, 'A negative crossfade should turn the fade off');
+assert.strictEqual(utils.clampCrossfadeSeconds('abc', 2), 2, 'An unreadable crossfade setting should fall back');
+assert.strictEqual(utils.clampCrossfadeSeconds(undefined), 0, 'A missing crossfade setting should default to off');
+
 // Pha C — pruneCatalogEntries (giới hạn danh mục cloud trong IndexedDB).
 assert.strictEqual(utils.MAX_CLOUD_CATALOG_ENTRIES, 1000, 'The cloud catalog cap should be 1000 entries');
 assert.deepStrictEqual(utils.pruneCatalogEntries([], 1000), [], 'An empty catalog prunes nothing');

@@ -363,6 +363,26 @@
     return Math.min(Math.max(0, current + delta), duration);
   }
 
+  // Pha A — crossfade đẳng công suất khi chuyển bài: gain deck cũ = cos(θ),
+  // deck mới = sin(θ) với θ = (π/2)·tiến độ; cos²+sin² = 1 nên tổng công
+  // suất không đổi, không hụt âm lượng giữa bài như fade tuyến tính.
+  // Tiến độ ngoài [0,1] được kẹp về biên; đầu vào không phải số coi như
+  // chưa fade (deck cũ giữ nguyên, deck mới im). Thời lượng crossfade
+  // tối đa 5 giây; giá trị ngoài khoảng hoặc không phải số kẹp về biên
+  // hoặc fallback (mặc định 0 = tắt).
+  const CROSSFADE_MAX_SECONDS = 5;
+  function crossfadeGains(progress) {
+    const t = Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : 0;
+    const angle = t * Math.PI / 2;
+    return {out: Math.cos(angle), in: Math.sin(angle)};
+  }
+  function clampCrossfadeSeconds(value, fallback = 0) {
+    const seconds = Number(value);
+    const fallbackSeconds = Number.isFinite(fallback) ? fallback : 0;
+    if (!Number.isFinite(seconds)) return Math.min(CROSSFADE_MAX_SECONDS, Math.max(0, fallbackSeconds));
+    return Math.min(CROSSFADE_MAX_SECONDS, Math.max(0, seconds));
+  }
+
   // Pha C — giới hạn danh mục cloud trong IndexedDB: chỉ giữ maxEntries mục
   // mới nhất theo savedAt; mục thiếu savedAt (catalog cũ) bị coi là cũ nhất
   // nên xóa trước. Trả về danh sách id cần xóa, theo thứ tự cũ -> mới.
@@ -444,5 +464,5 @@
     return [currentTrack, ...queued.filter(track => track.id !== currentTrack.id)];
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, peakRmsFromTimeDomain, queueDisplayOrder};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, peakRmsFromTimeDomain, queueDisplayOrder};
 });
