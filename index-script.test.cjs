@@ -243,6 +243,39 @@ assert.ok(appCode.includes('track.dsdDecodeMs = message.decodeMs'), 'DSD worker 
 assert.ok(appCode.includes('track.dsdMaxChunkMs = message.maxChunkMs'), 'DSD worker completion should store the slowest chunk time on the track');
 assert.ok(appCode.includes('formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs)'), 'Track detail should show the DSD decode audit when available');
 
+const rebuildStart = appCode.indexOf('function rebuildAudioRoutes() {');
+assert.ok(rebuildStart >= 0, 'rebuildAudioRoutes implementation should exist for regression checks');
+const rebuildEnd = appCode.indexOf('function setupAudio() {', rebuildStart);
+assert.ok(rebuildEnd > rebuildStart, 'rebuildAudioRoutes implementation should be extractable for regression checks');
+const rebuildSource = appCode.slice(rebuildStart, rebuildEnd);
+assert.ok(!rebuildSource.includes('.frequency.value = band.frequency'), 'Rebuilding audio routes must not hard-set filter frequency while audio may be playing');
+assert.ok(!rebuildSource.includes('.gain.value = band.gain'), 'Rebuilding audio routes must not hard-set filter gain while audio may be playing');
+assert.ok(!rebuildSource.includes('deck.preamp.gain.value ='), 'Rebuilding audio routes must not hard-set preamp gain while audio may be playing');
+assert.ok(!rebuildSource.includes('deck.direct.gain.value ='), 'Rebuilding audio routes must not hard-set direct gain while audio may be playing');
+assert.ok(rebuildSource.includes('filter.frequency.setTargetAtTime(band.frequency, state.context.currentTime, .015)'), 'Rebuilding audio routes should smooth filter frequency like applyEq');
+function exerciseRebuildAudioRoutes() {
+  const params = [];
+  const makeParam = initial => { const param = {value: initial, calls: [], setTargetAtTime(target, time, timeConstant) { param.calls.push([target, time, timeConstant]); }}; params.push(param); return param; };
+  const makeDeck = () => {
+    const filter = {type: '', frequency: makeParam(350), Q: makeParam(1), gain: makeParam(0)};
+    return {filters: [filter], preamp: {gain: makeParam(1)}, direct: {gain: makeParam(0)}, router: {disconnect() {}}, _filter: filter};
+  };
+  const deckA = makeDeck(), deckB = makeDeck();
+  const state = {context: {currentTime: 12.5}, deckA, deckB, bands: [{type: 'peaking', frequency: 1000, q: 2, gain: 3}], activeAnalyser: null};
+  const $ = id => id === 'eq-preamp' ? {value: '0'} : {checked: true};
+  const rebuildDeckRoute = deck => { deck.filters = [deck._filter]; };
+  const factory = new Function('state', '$', 'rebuildDeckRoute', rebuildSource + '\nreturn rebuildAudioRoutes;');
+  factory(state, $, rebuildDeckRoute)();
+  return {params, deckA, deckB};
+}
+const rebuilt = exerciseRebuildAudioRoutes();
+assert.ok(rebuilt.params.every(param => param.calls.length > 0), 'Every rebuilt audio param should be smoothed with setTargetAtTime');
+assert.equal(rebuilt.deckA._filter.frequency.calls[0][0], 1000, 'Rebuilt filter frequency should ramp to the band frequency');
+assert.equal(rebuilt.deckA._filter.frequency.value, 350, 'Rebuilt filter frequency must not jump to the band value instantly');
+assert.equal(rebuilt.deckA._filter.gain.calls[0][0], 3, 'Rebuilt filter gain should ramp to the band gain');
+assert.equal(rebuilt.deckA.direct.gain.calls[0][0], 0, 'Rebuilt direct gain should ramp to muted while EQ is enabled');
+assert.ok(Math.abs(rebuilt.deckA.preamp.gain.calls[0][0] - Math.pow(10, -3 / 20)) < 1e-9, 'Rebuilt preamp gain should ramp to the headroom-compensated level');
+
 const playNextStart = appCode.indexOf('function playNext(direction = 1, auto = false) {');
 assert.ok(playNextStart >= 0, 'playNext implementation should exist for regression checks');
 const playNextEndMarker = 'async function pickLocalFiles';

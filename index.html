@@ -1565,10 +1565,10 @@
       if (!state.context) return;
       [state.deckA, state.deckB].filter(Boolean).forEach(rebuildDeckRoute);
       state.filters = state.deckA.filters;
-      state.bands.forEach((band, index) => [state.deckA, state.deckB].forEach(deck => { const filter = deck.filters[index]; filter.type = band.type; filter.frequency.value = band.frequency; filter.Q.value = band.q; filter.gain.value = band.gain; }));
+      state.bands.forEach((band, index) => [state.deckA, state.deckB].forEach(deck => { const filter = deck.filters[index]; filter.type = band.type; filter.frequency.setTargetAtTime(band.frequency, state.context.currentTime, .015); filter.Q.setTargetAtTime(band.q, state.context.currentTime, .015); filter.gain.setTargetAtTime(band.gain, state.context.currentTime, .015); }));
       const maxBoost = state.bands.reduce((max, band) => Math.max(max, band.gain), 0), effectivePreamp = Math.max(-60, Math.min(0, -maxBoost + (Number($('eq-preamp').value) || 0)));
       const enabled = $('eq-enabled').checked;
-      [state.deckA, state.deckB].forEach(deck => { deck.preamp.gain.value = enabled ? Math.pow(10, effectivePreamp / 20) : 0; deck.direct.gain.value = enabled ? 0 : 1; });
+      [state.deckA, state.deckB].forEach(deck => { deck.preamp.gain.setTargetAtTime(enabled ? Math.pow(10, effectivePreamp / 20) : 0, state.context.currentTime, .015); deck.direct.gain.setTargetAtTime(enabled ? 0 : 1, state.context.currentTime, .015); });
       state.activeAnalyser = enabled ? state.analyser : state.directAnalyser;
     }
     function setupAudio() {
@@ -2719,5 +2719,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:07 +07 | Đã xong: Pha B - Hiển thị tên preset EQ đang dùng trên nút EQ ở footer (EQ · Bass mạnh…) và phím tắt E đổi preset nhanh khi đang nghe, kèm toast tên preset; sửa tay band thì nút hiện Tùy chỉnh | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài và giới hạn cache ảnh bìa trong IndexedDB để chống rò RAM offline -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:15 +07 | Đã xong: Pha C - Giới hạn ảnh bìa lưu vào catalog IndexedDB tối đa 512 KiB ký tự (coverForCatalog): ảnh gốc quá lớn không downscale được thì lưu null để lần khôi phục sau nạp lại metadata, chống phình catalog offline | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:21 +07 | Đã xong: Pha D - Hiển thị kết quả kiểm toán giải mã DSD trong chi tiết bài hát: worker báo decodeMs/maxChunkMs được lưu lên track và hiện dạng "giải mã 1.2 s · lát chậm nhất 34 ms" qua formatDecodeAudit, track chưa có số đo thì ẩn dòng kiểm toán | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Làm mượt gain EQ bằng setTargetAtTime (timeConstant ~30 ms) để tránh tiếng lụp bụp khi kéo band EQ trong lúc đang phát -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:30 +07 | Đã xong: Pha A - rebuildAudioRoutes làm mượt EQ bằng setTargetAtTime (.015) thay cho gán .value trực tiếp khi thêm/xóa band EQ trong lúc đang phát: tần số/Q/gain từng filter, preamp bù headroom và direct đều ramp mềm như applyEq, tránh tiếng lụp bụp | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Thêm phím tắt [ ] tua ±10 giây khi đang nghe, kèm toast hiển thị thời gian đã tua -->
 </body>
 </html>
