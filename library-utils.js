@@ -127,10 +127,22 @@
     return type ? new Blob([blob], {type}) : blob;
   }
 
-  async function fetchAudioBlob(url, options = {}, provider = 'Cloud') {
+  // Pha C — thử lại khi mạng chập chờn (cấp số nhân): lỗi mạng (fetch ném)
+  // và HTTP 429/5xx được thử lại tối đa 3 lần, trễ 400 ms rồi 800 ms;
+  // 401/403 (hết hạn token, tầng trên tự làm mới), 404, sai content-type
+  // hay blob rỗng là lỗi xác định nên rớt ngay không thử lại.
+  const FETCH_AUDIO_MAX_ATTEMPTS = 3;
+  const FETCH_AUDIO_RETRY_BASE_MS = 400;
+  function fetchAudioRetryDelayMs(attempt) { return FETCH_AUDIO_RETRY_BASE_MS * (2 ** attempt); }
+  function isFetchAudioRetryable(error) {
+    if (!error || typeof error !== 'object') return false;
+    if (error.retryable === true) return true;
+    return Number.isInteger(error.status) && (error.status === 429 || error.status >= 500);
+  }
+  async function fetchAudioBlobOnce(url, options, provider) {
     let response;
     try { response = await fetch(url, options); }
-    catch (error) { throw new Error(`${provider} không thể tải âm thanh. Kiểm tra kết nối, quyền truy cập và cấu hình CORS rồi thử lại. (${error.message || error})`); }
+    catch (error) { const wrapped = new Error(`${provider} không thể tải âm thanh. Kiểm tra kết nối, quyền truy cập và cấu hình CORS rồi thử lại. (${error.message || error})`); wrapped.retryable = true; throw wrapped; }
     if (!response.ok) {
       let detail = '';
       try { detail = (await response.text()).slice(0, 240); } catch (_) {}
@@ -145,6 +157,19 @@
     const blob = await response.blob();
     if (!blob || !blob.size) throw new Error(`${provider} trả về file âm thanh rỗng.`);
     return blob;
+  }
+
+  async function fetchAudioBlob(url, options = {}, provider = 'Cloud') {
+    let lastError;
+    for (let attempt = 0; attempt < FETCH_AUDIO_MAX_ATTEMPTS; attempt++) {
+      try { return await fetchAudioBlobOnce(url, options, provider); }
+      catch (error) {
+        lastError = error;
+        if (!isFetchAudioRetryable(error) || attempt === FETCH_AUDIO_MAX_ATTEMPTS - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, fetchAudioRetryDelayMs(attempt)));
+      }
+    }
+    throw lastError;
   }
 
   const TRACK_METADATA_CACHE = new WeakMap();
@@ -419,5 +444,5 @@
     return [currentTrack, ...queued.filter(track => track.id !== currentTrack.id)];
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, peakRmsFromTimeDomain, queueDisplayOrder};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, peakRmsFromTimeDomain, queueDisplayOrder};
 });

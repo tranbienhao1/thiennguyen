@@ -35,18 +35,35 @@ function nextChunkBytes(currentBytes, chunkMs, channels) {
   next = Math.floor(next / safeChannels) * safeChannels;
   return Math.max(next, safeChannels);
 }
+// Pha D — đo thời gian bằng performance.now() (độ phân giải dưới mili-giây)
+// thay vì Date.now() (làm tròn 1 ms): lát giải mã nhanh vài ms và
+// throughput từng lát đo chính xác hơn, ngưỡng 50 ms ít bị lệch do làm
+// tròn; fallback Date.now() khi môi trường worker không có performance.
+function nowMs() { return (typeof performance !== 'undefined' && typeof performance.now === 'function') ? performance.now() : Date.now(); }
 // Kiểm toán DSD (Pha D): ngoài lát chậm nhất, đếm cả số lát vượt ngân sách
 // 50 ms — con số này mới cho biết bộ giới hạn chunk có giữ kịp hay không
 // (một lát đầu chậm rồi thích nghi tốt khác với mọi lát đều chậm).
 // Đồng thời cộng dồn byte DSD đầu vào và thời gian giải mã từng lát để đo
 // throughput (MB/s) của thiết bị — cơ sở để đặt ngân sách chunk theo máy
 // thay vì ngưỡng 50 ms cố định cho mọi thiết bị.
-function newChunkAudit() { return {maxChunkMs: 0, chunkCount: 0, chunksOverBudget: 0, totalInputBytes: 0, totalChunkMs: 0}; }
+// Pha A — đo throughput theo từng lát và cảnh báo khi lát vượt ngân sách
+// liên tục: giữ chuỗi lát vượt 50 ms dài nhất (một lát chậm lẻ tẻ khác
+// với máy đuối sức nhiều lát liền) và throughput của lát chậm nhất
+// (lát có MB/s thấp nhất) để biết lát tệ nhất chậm tới mức nào.
+function newChunkAudit() { return {maxChunkMs: 0, chunkCount: 0, chunksOverBudget: 0, consecutiveOverBudget: 0, maxConsecutiveOverBudget: 0, minSliceThroughputMBps: 0, totalInputBytes: 0, totalChunkMs: 0}; }
 function recordChunkAudit(audit, chunkMs, inputBytes) {
   if (!audit || !Number.isFinite(chunkMs) || chunkMs < 0) return audit;
   audit.chunkCount += 1;
   if (chunkMs > audit.maxChunkMs) audit.maxChunkMs = chunkMs;
-  if (chunkMs > CHUNK_TIME_BUDGET_MS) audit.chunksOverBudget += 1;
+  if (chunkMs > CHUNK_TIME_BUDGET_MS) {
+    audit.chunksOverBudget += 1;
+    audit.consecutiveOverBudget += 1;
+    if (audit.consecutiveOverBudget > audit.maxConsecutiveOverBudget) audit.maxConsecutiveOverBudget = audit.consecutiveOverBudget;
+  } else audit.consecutiveOverBudget = 0;
+  if (Number.isFinite(inputBytes) && inputBytes > 0 && chunkMs > 0) {
+    const sliceThroughputMBps = inputBytes / (chunkMs / 1000) / (1024 * 1024);
+    if (audit.minSliceThroughputMBps <= 0 || sliceThroughputMBps < audit.minSliceThroughputMBps) audit.minSliceThroughputMBps = sliceThroughputMBps;
+  }
   audit.totalChunkMs += chunkMs;
   if (Number.isFinite(inputBytes) && inputBytes > 0) audit.totalInputBytes += inputBytes;
   return audit;
@@ -182,7 +199,7 @@ async function parseDff(file,view) {
   return {kind:'dff',rate,channels,dataOffset,dataSize,lsb:false};
 }
 async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
-  const startedAt = Date.now();
+  const startedAt = nowMs();
   if(!file) throw Error('Không nhận được file DSD.');
   targetRate=Number(targetRate); bitDepth=Number(bitDepth);
   if(!SUPPORTED_TARGET_RATES.includes(targetRate)) throw Error('PCM chỉ hỗ trợ 44.1/88.2/176.4 hoặc 48/96/192 kHz.');
@@ -251,9 +268,9 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
         }
         const commonLength=Math.min(...rawChannels.map(bytes=>bytes.length));
         const channels=rawChannels.map(bytes=>bytes.subarray(0,commonLength));
-        const chunkStartedAt = Date.now();
+        const chunkStartedAt = nowMs();
         pack(channels.map((bytes,channel)=>process(bytes,states[channel])));
-        const chunkMs = Date.now() - chunkStartedAt;
+        const chunkMs = nowMs() - chunkStartedAt;
         recordChunkAudit(chunkAudit, chunkMs, commonLength * info.channels);
         chunkBytes = nextChunkBytes(chunkBytes, chunkMs, info.channels);
         finalChunkBytes = chunkBytes;
@@ -270,12 +287,12 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
       if(self.cancelled) return;
       const length=Math.min(groupBytes,info.dataSize-offset);
       const raw=new Uint8Array(await file.slice(info.dataOffset+offset,info.dataOffset+offset+length).arrayBuffer());
-      const chunkStartedAt = Date.now();
+      const chunkStartedAt = nowMs();
       const channelBytes=raw.length/info.channels;
       const channels=Array.from({length:info.channels},()=>new Uint8Array(channelBytes));
       for(let i=0;i<raw.length;i+=info.channels)for(let channel=0;channel<info.channels;channel++)channels[channel][i/info.channels]=raw[i+channel];
       pack(channels.map((bytes,channel)=>process(bytes,states[channel])));
-      const chunkMs = Date.now() - chunkStartedAt;
+      const chunkMs = nowMs() - chunkStartedAt;
       recordChunkAudit(chunkAudit, chunkMs, raw.length);
       groupBytes = nextChunkBytes(groupBytes, chunkMs, info.channels);
       finalChunkBytes = groupBytes;
@@ -292,7 +309,7 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
   tag(0,'RIFF');wav.setUint32(4,36+outputBytes,true);tag(8,'WAVE');tag(12,'fmt ');wav.setUint32(16,16,true);wav.setUint16(20,1,true);
   wav.setUint16(22,info.channels,true);wav.setUint32(24,targetRate,true);wav.setUint32(28,targetRate*blockAlign,true);
   wav.setUint16(32,blockAlign,true);wav.setUint16(34,bitDepth,true);tag(36,'data');wav.setUint32(40,outputBytes,true);
-  self.postMessage({type:'done',blob:new Blob([header,...chunks],{type:'audio/wav'}),duration:outputFrames/targetRate,rate:info.rate,targetRate,bitDepth,channels:info.channels,multiplier:dsdMultiplier,decimation:multiplier,decodeMs:Date.now()-startedAt,maxChunkMs:chunkAudit.maxChunkMs,chunkCount:chunkAudit.chunkCount,chunksOverBudget:chunkAudit.chunksOverBudget,finalChunkBytes,decodeThroughputMBps:measuredThroughputMBps,initialChunkBytes:firstChunkBytes});
+  self.postMessage({type:'done',blob:new Blob([header,...chunks],{type:'audio/wav'}),duration:outputFrames/targetRate,rate:info.rate,targetRate,bitDepth,channels:info.channels,multiplier:dsdMultiplier,decimation:multiplier,decodeMs:nowMs()-startedAt,maxChunkMs:chunkAudit.maxChunkMs,chunkCount:chunkAudit.chunkCount,chunksOverBudget:chunkAudit.chunksOverBudget,maxConsecutiveOverBudget:chunkAudit.maxConsecutiveOverBudget,minSliceThroughputMBps:chunkAudit.minSliceThroughputMBps,finalChunkBytes,decodeThroughputMBps:measuredThroughputMBps,initialChunkBytes:firstChunkBytes});
 }
 self.onmessage=event=>{if(event.data&&event.data.type==='cancel'){self.cancelled=true;return;}self.cancelled=false;run(event.data).catch(error=>self.postMessage({type:'error',message:error.message||String(error)}));};
 // Decoder converts local DSD to selectable PCM rates/depths in browser memory; no audio is uploaded.
