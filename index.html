@@ -1469,6 +1469,7 @@
           if (field !== 'type') input.value = band[field];
           applyEq();
           const presetSelect = $('eq-preset'); if (presetSelect) presetSelect.value = 'custom';
+          updateEqButtonLabel();
         }));
         row.querySelector('[data-action="remove"]').addEventListener('click', () => { state.bands = state.bands.filter(item => item.id !== band.id); renderEqBands(); applyEq(); });
       });
@@ -1496,6 +1497,7 @@
       rock: [{type:'lowshelf', frequency:60, gain:5, q:0.707}, {type:'peaking', frequency:250, gain:2, q:1}, {type:'peaking', frequency:1000, gain:-2, q:1}, {type:'peaking', frequency:4000, gain:3, q:1}, {type:'highshelf', frequency:12000, gain:4, q:0.707}],
       jazz: [{type:'lowshelf', frequency:60, gain:3, q:0.707}, {type:'peaking', frequency:250, gain:0, q:1}, {type:'peaking', frequency:1000, gain:1, q:1}, {type:'peaking', frequency:4000, gain:2, q:1}, {type:'highshelf', frequency:12000, gain:3, q:0.707}]
     };
+    const EQ_PRESET_LABELS = {flat:'Phẳng', bass:'Bass mạnh', treble:'Treble sáng', vocal:'Giọng hát', rock:'Rock', jazz:'Jazz', custom:'Tùy chỉnh'};
     function eqPresetBands(name) {
       if (typeof name !== 'string' || !EQ_PRESETS[name]) return null;
       return EQ_PRESETS[name].map(band => ({type:['peaking','lowshelf','highshelf'].includes(band.type) ? band.type : 'peaking', frequency:Math.max(20, Math.min(20000, Number(band.frequency) || 1000)), gain:Math.max(-24, Math.min(24, Number(band.gain) || 0)), q:Math.max(0.1, Math.min(18, Number(band.q) || 1))}));
@@ -1507,7 +1509,25 @@
       renderEqBands(); applyEq();
       try { localStorage.setItem('nocturne-eq-preset', name); } catch (error) { console.warn('Could not save EQ preset:', error); }
       const select = $('eq-preset'); if (select) select.value = name;
+      updateEqButtonLabel();
       return true;
+    }
+    function updateEqButtonLabel() {
+      const button = $('eq-button');
+      if (!button) return;
+      const select = $('eq-preset');
+      const name = select && typeof select.value === 'string' ? select.value : 'flat';
+      const label = EQ_PRESET_LABELS[name] || EQ_PRESET_LABELS.flat;
+      button.textContent = `EQ · ${label}`;
+      const enabled = $('eq-enabled');
+      button.title = `EQ — ${label} · ${enabled && enabled.checked ? 'Đang bật' : 'Direct / DSP bypass'} · Phím E đổi preset`;
+    }
+    const EQ_PRESET_ORDER = ['flat', 'bass', 'treble', 'vocal', 'rock', 'jazz'];
+    function cycleEqPreset() {
+      const select = $('eq-preset');
+      const current = select && typeof select.value === 'string' ? select.value : 'flat';
+      const next = EQ_PRESET_ORDER[(EQ_PRESET_ORDER.indexOf(current) + 1) % EQ_PRESET_ORDER.length];
+      if (applyEqPreset(next)) toast(`Preset EQ: ${EQ_PRESET_LABELS[next]}.`);
     }
     function addEqBand(values = {}) { state.bands.push({id:++state.bandSerial, type:values.type || 'peaking', frequency:Math.max(20, Math.min(values.frequency ?? 1000, state.context ? state.context.sampleRate / 2 : 20000)), gain:values.gain ?? 0, q:values.q ?? 1}); renderEqBands(); applyEq(); }
     function attachAudioElement(element) {
@@ -2410,6 +2430,7 @@
       else if (event.key.toLowerCase() === 'n') playNext(1);
       else if (event.key.toLowerCase() === 'p') playNext(-1);
       else if (event.key.toLowerCase() === 'q') $('queue-panel').classList.contains('hidden') ? openQueue() : closeQueue();
+      else if (event.key.toLowerCase() === 'e') cycleEqPreset();
       else if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); }
     });
     $('shuffle-button').addEventListener('click', event => { state.shuffle = !state.shuffle; event.currentTarget.classList.toggle('text-violet-300', state.shuffle); toast(state.shuffle ? 'Đã bật trộn bài.' : 'Đã tắt trộn bài.'); if (state.currentId) preloadNext(true); });
@@ -2581,7 +2602,7 @@
       applyEq();
       const enabled = event.target.checked;
       $('eq-button').classList.toggle('text-violet-300', enabled);
-      $('eq-button').title = enabled ? 'EQ đang bật' : 'Direct / DSP bypass';
+      updateEqButtonLabel();
     });
     $('eq-preamp').addEventListener('input', applyEq);
     $('eq-preset').addEventListener('change', event => applyEqPreset(event.target.value));
@@ -2592,6 +2613,7 @@
       addEqBand({type:'peaking', frequency:1000, gain:0, q:1});
       addEqBand({type:'highshelf', frequency:8000, gain:0, q:0.707});
     }
+    updateEqButtonLabel();
 
     let dragDepth = 0;
     document.addEventListener('dragenter', event => { event.preventDefault(); dragDepth++; $('drop-target').classList.remove('hidden'); $('drop-target').classList.add('flex'); });
@@ -2679,5 +2701,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 07:38 +07 | Đã xong: Pha B - Nối parseLyrics/lyricLineAt vào phòng Đang phát: panel lời .lrc đồng bộ, dòng đang hát tô sáng + tự cuộn giữa, bấm dòng để tua; file .lrc cùng tên tự nạp khi thêm nhạc local, lời USLT nhúng hiện nguyên văn | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Giải phóng URL.revokeObjectURL cho bản preload DSD khi chuyển bài, chống tràn RAM -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 08:41 +07 | Đã xong: Pha C - Thêm clearStalePreload, hủy bản preload cũ (xóa trạng thái + gỡ src deck chờ + revoke blob URL cloud) và giải phóng URL cloud của bài trước khi chuyển sang bài DSD, chống tràn RAM | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 12:16 +07 | Đã xong: Pha A - Preset EQ 5 dải (Phẳng/Bass/Treble/Vocal/Rock/Jazz) vào chuỗi BiquadFilter, lưu tên preset vào localStorage và khôi phục khi mở lại, sửa tay band thì đánh dấu Tùy chỉnh | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Hiển thị tên preset EQ đang dùng ngay trên nút EQ ở footer và thêm phím tắt đổi preset nhanh khi đang nghe -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 14:07 +07 | Đã xong: Pha B - Hiển thị tên preset EQ đang dùng trên nút EQ ở footer (EQ · Bass mạnh…) và phím tắt E đổi preset nhanh khi đang nghe, kèm toast tên preset; sửa tay band thì nút hiện Tùy chỉnh | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Dọn blob URL ảnh bìa cũ khi đổi bài và giới hạn cache ảnh bìa trong IndexedDB để chống rò RAM offline -->
 </body>
 </html>

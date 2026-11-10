@@ -27,14 +27,18 @@ assert.ok(addStart > applyStart, 'applyEqPreset implementation should exist for 
 const presetsAndBands = appCode.slice(presetsStart, applyStart);
 const applySource = appCode.slice(applyStart, addStart);
 
-function buildPresetFns({state, renderEqBands, applyEq, storage, select} = {}) {
-  const calls = {rendered: 0, applied: 0, stored: {}};
+function buildPresetFns({state, renderEqBands, applyEq, storage, select, button, enabled, toast} = {}) {
+  const calls = {rendered: 0, applied: 0, stored: {}, toasts: []};
   const store = storage || {setItem: (key, value) => { calls.stored[key] = value; }, getItem: () => null};
   const stateStub = state || {bands: [], bandSerial: 0};
   const selectStub = select || {value: 'flat'};
-  const factory = new Function('state', 'renderEqBands', 'applyEq', 'localStorage', '$', `${presetsAndBands}\n${applySource}\nreturn {eqPresetBands, applyEqPreset};`);
-  const fns = factory(stateStub, renderEqBands || (() => calls.rendered++), applyEq || (() => calls.applied++), store, () => selectStub);
-  return {fns, calls, stateStub, selectStub};
+  const buttonStub = button === undefined ? {textContent: 'EQ', title: ''} : button;
+  const enabledStub = enabled === undefined ? {checked: false} : enabled;
+  const toastStub = toast || (message => calls.toasts.push(message));
+  const resolver = id => id === 'eq-button' ? buttonStub : id === 'eq-enabled' ? enabledStub : selectStub;
+  const factory = new Function('state', 'renderEqBands', 'applyEq', 'localStorage', '$', 'toast', `${presetsAndBands}\n${applySource}\nreturn {eqPresetBands, applyEqPreset, updateEqButtonLabel, cycleEqPreset, EQ_PRESET_LABELS, EQ_PRESET_ORDER};`);
+  const fns = factory(stateStub, renderEqBands || (() => calls.rendered++), applyEq || (() => calls.applied++), store, resolver, toastStub);
+  return {fns, calls, stateStub, selectStub, buttonStub, enabledStub};
 }
 
 const {fns} = buildPresetFns();
@@ -89,3 +93,49 @@ assert.equal(rejected.stateStub.bandSerial, 7, 'A failed preset apply should not
 assert.equal(rejected.calls.rendered, 0, 'A failed preset apply should not re-render');
 assert.equal(rejected.calls.applied, 0, 'A failed preset apply should not touch the audio chain');
 assert.deepEqual(rejected.calls.stored, {}, 'A failed preset apply should not persist anything');
+
+// Footer EQ button shows the active preset, and E cycles presets (Pha B).
+assert.deepEqual(Object.keys(fns.EQ_PRESET_LABELS).sort(), ['bass', 'custom', 'flat', 'jazz', 'rock', 'treble', 'vocal'], 'Every preset including custom should have a display label');
+assert.equal(fns.EQ_PRESET_LABELS.flat, 'Phẳng', 'Flat label should be Vietnamese');
+assert.equal(fns.EQ_PRESET_LABELS.bass, 'Bass mạnh', 'Bass label should be Vietnamese');
+assert.equal(fns.EQ_PRESET_LABELS.custom, 'Tùy chỉnh', 'Custom label should be Vietnamese');
+assert.deepEqual(fns.EQ_PRESET_ORDER, presetNames, 'Preset cycle should follow the documented order');
+
+const labelled = buildPresetFns();
+labelled.fns.applyEqPreset('jazz');
+assert.equal(labelled.buttonStub.textContent, 'EQ · Jazz', 'Applying a preset should show its name on the footer EQ button');
+assert.match(labelled.buttonStub.title, /Jazz/, 'The footer EQ button title should name the active preset');
+assert.match(labelled.buttonStub.title, /Phím E đổi preset/, 'The footer EQ button title should advertise the E shortcut');
+
+const cycled = buildPresetFns();
+cycled.fns.cycleEqPreset();
+assert.equal(cycled.selectStub.value, 'bass', 'Pressing E once from flat should switch to bass');
+assert.equal(cycled.buttonStub.textContent, 'EQ · Bass mạnh', 'Cycling should update the footer EQ button label');
+assert.deepEqual(cycled.calls.toasts, ['Preset EQ: Bass mạnh.'], 'Cycling should announce the new preset');
+for (const expected of ['treble', 'vocal', 'rock', 'jazz', 'flat']) {
+  cycled.fns.cycleEqPreset();
+  assert.equal(cycled.selectStub.value, expected, `Cycling should reach ${expected} next`);
+}
+assert.equal(cycled.calls.toasts.length, 6, 'Each cycle step should announce its preset');
+
+const fromCustom = buildPresetFns();
+fromCustom.selectStub.value = 'custom';
+fromCustom.fns.cycleEqPreset();
+assert.equal(fromCustom.selectStub.value, 'flat', 'Cycling from a custom curve should restart at flat');
+
+const customLabel = buildPresetFns();
+customLabel.selectStub.value = 'custom';
+customLabel.fns.updateEqButtonLabel();
+assert.equal(customLabel.buttonStub.textContent, 'EQ · Tùy chỉnh', 'A hand-edited curve should show as custom on the footer EQ button');
+
+const unknownLabel = buildPresetFns();
+unknownLabel.selectStub.value = 'mystery';
+unknownLabel.fns.updateEqButtonLabel();
+assert.equal(unknownLabel.buttonStub.textContent, 'EQ · Phẳng', 'An unknown preset value should fall back to the flat label');
+
+const noButton = buildPresetFns({button: null});
+assert.doesNotThrow(() => noButton.fns.updateEqButtonLabel(), 'Updating the label without a footer button should not throw');
+
+assert.ok(appCode.includes("event.key.toLowerCase() === 'e'"), 'The E key should be bound to the preset cycle');
+assert.ok(appCode.includes('cycleEqPreset()'), 'The E shortcut should call cycleEqPreset');
+assert.ok(appCode.includes('updateEqButtonLabel()'), 'Preset changes should refresh the footer EQ button label');
