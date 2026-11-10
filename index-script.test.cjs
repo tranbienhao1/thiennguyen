@@ -226,7 +226,8 @@ assert.ok(appCode.includes('existing.set(key, track)'), 'New local tracks should
 assert.ok(appCode.includes('track.relativePath = file.relativePath || file.webkitRelativePath || file.name'), 'Local tracks should retain relative paths for later duplicate checks');
 assert.ok(appCode.includes('state.activeAnalyser = enabled ? state.analyser : state.directAnalyser'), 'EQ toggle should switch the visualizer to the active output analyser');
 assert.ok(appCode.includes("new URL('.', document.baseURI || location.href).href"), 'DSD worker base URL should come from the document URL');
-assert.ok(appCode.includes("if (track && track.firstSlicePlayback && track.fullAudioPromise) { track.sliceEndedEarly = true; return; }"), 'A first slice that runs out before the full file arrives must not advance to the next track');
+assert.ok(appCode.includes("if (track && track.firstSlicePlayback && track.fullAudioPromise) {"), 'A first slice that runs out before the full file arrives must not advance to the next track');
+assert.ok(appCode.includes('toast(`Không thể tải bài hát'), 'A failed background download after the first slice runs out should toast and skip to the next track');
 assert.ok(appCode.includes('if (event.target !== row || (event.key !== \'Enter\' && event.key !== \' \')) return'), 'Track-row keyboard playback should only trigger when the row itself has focus');
 
 const auditStart = appCode.indexOf('function formatDecodeAudit(decodeMs, maxChunkMs, chunksOverBudget, throughputMBps, initialChunkBytes, maxConsecutiveOverBudget, minSliceThroughputMBps) {');
@@ -463,6 +464,14 @@ assert.equal(sliceDeck.state.tracks[0].sliceEndedEarly, true, 'An early slice en
 const fullDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài đầy đủ', firstSlicePlayback:true, fullAudioPromise:null}, {id:'next', title:'Bài sau'}], currentId:'now'});
 fullDeck.target.fire('ended');
 assert.deepEqual(fullDeck.calls.playedNext, [[1, true]], 'A real ending after the full file arrived should advance to the next track');
+// Pha C — lát đầu hết sớm mà tải nền sau đó thất bại thì phải chuyển bài
+// (trước đây 'ended' không đăng ký lỗi tải nền nên nhạc dừng im hẳn,
+// không toast cũng không chuyển bài).
+const sliceEndedFailedDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài lát đầu', firstSlicePlayback:true, fullAudioPromise:{catch(fn) { fn(new Error('tải nền thất bại')); return this; }}}, {id:'next', title:'Bài sau'}], currentId:'now'});
+sliceEndedFailedDeck.target.fire('ended');
+assert.deepEqual(sliceEndedFailedDeck.calls.playedNext, [[1, false]], 'When the background download fails after a first slice runs out, playback should skip to the next track');
+assert.ok(sliceEndedFailedDeck.calls.toasts[0].includes('Không thể tải bài hát') && sliceEndedFailedDeck.calls.toasts[0].includes('Bài lát đầu'), 'A failed background download after the slice runs out should toast the track name and the skip');
+assert.equal(sliceEndedFailedDeck.state.tracks[0].sliceEndedEarly, false, 'A failed background download after the slice runs out should clear the early-slice flag before skipping');
 // Pha C — lỗi giải mã ở cuối lát đầu cũng phải đợi file đầy đủ, không chuyển bài ngay.
 const sliceErrorDeck = exerciseDeckError({tracks:[{id:'now', title:'Bài lát đầu', firstSlicePlayback:true, fullAudioPromise:new Promise(() => {})}, {id:'next', title:'Bài sau'}], currentId:'now'});
 sliceErrorDeck.target.fire('error');
@@ -489,6 +498,7 @@ raceEndedDeck.target.fire('ended');
 assert.deepEqual(raceEndedDeck.calls.playedNext, [], 'A first slice that runs out after the full file arrived but the swap was missed must not advance to the next track');
 assert.equal(raceEndedDeck.target.src, 'blob:https://example/full', 'A missed swap should switch the deck to the ready full file when the slice runs out');
 assert.equal(raceEndedDeck.state.tracks[0].fullAudioUrl, null, 'The stored full-file URL should clear once the deck switches to it');
+assert.equal(raceEndedDeck.state.tracks[0].firstSlicePlayback, false, 'The recovery swap should clear slice playback now that the deck plays the full file');
 assert.equal(raceEndedDeck.state.tracks[0].sliceEndedEarly, false, 'The early-slice flag should not stay set after the recovery swap');
 raceEndedDeck.target.handlers.loadedmetadata.at(-1)();
 assert.equal(raceEndedDeck.target.currentTime, 3, 'The recovery swap should resume at the position where the slice ended');
@@ -620,7 +630,8 @@ const lyricsEnd = appCode.indexOf('function displayTrack(', lyricsStart);
 assert.ok(lyricsStart >= 0 && lyricsEnd > lyricsStart, 'Synced lyrics rendering should exist for regression checks');
 const lyricsSource = appCode.slice(lyricsStart, lyricsEnd);
 class FakeLyricElement {
-  constructor(tag) { this.tagName = String(tag).toUpperCase(); this.children = []; this.dataset = {}; this.className = ''; this.textContent = ''; this.listeners = {}; const classes = new Set(); this.classList = {add: name => classes.add(name), remove: name => classes.delete(name), toggle: (name, force) => { if (force) classes.add(name); else classes.delete(name); }, contains: name => classes.has(name)}; this.scrolledIntoView = false; this._innerHTML = ''; }
+  constructor(tag) { this.tagName = String(tag).toUpperCase(); this.children = []; this.dataset = {}; this.className = ''; this.textContent = ''; this.listeners = {}; const classes = new Set(); this.classList = {add: name => classes.add(name), remove: name => classes.delete(name), toggle: (name, force) => { if (force) classes.add(name); else classes.delete(name); }, contains: name => classes.has(name)}; this.scrolledIntoView = false; this._innerHTML = ''; this.rect = null; }
+  getBoundingClientRect() { return this.rect || {top: 200, bottom: 228, left: 0, right: 100, width: 100, height: 28}; }
   set innerHTML(value) { this.children = []; this._innerHTML = value; }
   get innerHTML() { return this._innerHTML; }
   appendChild(child) { this.children.push(child); return child; }
@@ -630,6 +641,7 @@ class FakeLyricElement {
 }
 function exerciseLyrics(lrcText, currentTime) {
   const container = new FakeLyricElement('div');
+  container.rect = {top: 0, bottom: 100, left: 0, right: 100, width: 100, height: 100};
   const audioStub = {currentTime, duration: 300};
   const stateStub = {lyrics: [], lyricIndex: -1};
   const fns = new Function('state', '$', 'library', 'audio', 'document', 'updatePositionState', `${lyricsSource}\nreturn {renderLyrics, updateLyricsHighlight};`)(
@@ -650,6 +662,14 @@ synced.fns.updateLyricsHighlight();
 assert.equal(synced.stateStub.lyricIndex, 1, 'Lyric highlight should pick the last line at or before the playback time');
 assert.ok(synced.container.children[1].classList.contains('lyric-line-active') && !synced.container.children[0].classList.contains('lyric-line-active'), 'Only the current lyric line should be highlighted');
 assert.equal(synced.container.children[1].scrolledIntoView, true, 'The current lyric line should scroll into view');
+// Pha B — dòng đang hát đã hiện đủ trong khung nhìn thì không cuộn:
+// đặt mọi dòng vào trong khung nhìn (0–100) rồi đổi dòng, scrollIntoView
+// không được gọi (code cũ cuộn vô điều kiện sẽ rớt kiểm chứng này).
+const inView = exerciseLyrics('[00:01.00]Dòng một\n[00:05.50]Dòng hai\n[00:10.00]Dòng ba', 6);
+inView.container.children.forEach(row => { row.rect = {top: 10, bottom: 38, left: 0, right: 100, width: 100, height: 28}; });
+inView.fns.updateLyricsHighlight();
+assert.equal(inView.stateStub.lyricIndex, 1, 'Lyric highlight should still pick the current line when it is already visible');
+assert.equal(inView.container.children[1].scrolledIntoView, false, 'The current lyric line should not scroll when it is already fully visible');
 synced.container.children[2].listeners.click[0]();
 assert.equal(synced.audioStub.currentTime, 10, 'Clicking a lyric line should seek to its timestamp');
 const plain = exerciseLyrics('Dòng không mốc\nDòng thứ hai', 0);
@@ -915,7 +935,7 @@ async function exerciseUpgradeSlice({track, currentId = 'now', audioSrc = '', st
   return {calls, state, audio, standbyAudio, track, result, error};
 }
 (async () => {
-const playingSlice = await exerciseUpgradeSlice({track:{id:'now', source:'google', name:'a.flac', title:'A', format:'flac', url:'blob:https://example/slice'}, audioSrc:'blob:https://example/slice', audioCurrentTime:42, audioPaused:false});
+const playingSlice = await exerciseUpgradeSlice({track:{id:'now', source:'google', name:'a.flac', title:'A', format:'flac', url:'blob:https://example/slice', firstSlicePlayback:true}, audioSrc:'blob:https://example/slice', audioCurrentTime:42, audioPaused:false});
 assert.equal(playingSlice.error, null, 'Upgrading a playing slice to the full file should succeed');
 assert.equal(playingSlice.result, 'blob:https://example/full', 'The upgrade should return the full-file URL');
 assert.equal(playingSlice.audio.src, 'blob:https://example/full', 'The playing deck should switch to the full file once it is downloaded');
@@ -929,6 +949,7 @@ playingSlice.audio.listeners.loadedmetadata[0]();
 assert.equal(playingSlice.audio.currentTime, 42, 'The swap should resume at the position where the slice was playing');
 assert.equal(playingSlice.audio.playCalls, 1, 'The swap should resume playback when the slice was playing');
 assert.equal(playingSlice.track.fullAudioUrl, null, 'The stored full-file URL should clear once the deck switches to the full file');
+assert.equal(playingSlice.track.firstSlicePlayback, false, 'The upgrade swap should clear slice playback now that the deck plays the full file');
 // Pha C — race: file đầy đủ tải xong trước khi deck đổi sau play() nên
 // swap bị bỏ lỡ (audio.src lúc đó chưa phải lát đầu); phải giữ lại URL
 // file đầy đủ để guard 'ended'/'error' đổi sang khi lát đầu hết.

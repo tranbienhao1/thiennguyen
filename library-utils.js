@@ -169,15 +169,60 @@
   // không hỗ trợ Range thì trả 200 kèm toàn bộ file, vẫn phát ngay mà
   // không cần tải nền. Lát đầu lỗi thì fetchCloudTrack rớt về đường cũ.
   const FIRST_SLICE_BYTES = 1 * 1024 * 1024;
+  // Pha D — kiểm toán bộ giải mã: lát đầu 1 MB của FLAC có ảnh bìa lớn
+  // (khối PICTURE vài MB) có thể không chứa khung nhạc nào — trình duyệt
+  // không khởi động được bộ giải mã nên play() reject rồi app nhảy bài dù
+  // file đầy đủ vẫn đang tải nền. Đo offset khung nhạc đầu tiên (fLaC +
+  // các khối metadata: 1 byte cờ/type + 3 byte độ dài BE, có thể có tiền
+  // tố ID3); nếu metadata tràn khỏi lát thì trả về cuối khối đang dở làm
+  // cận dưới để tải lại Range rộng hơn (tối đa 8 MB, tối đa 3 lần mở rộng).
+  const FIRST_SLICE_FRAME_ALLOWANCE_BYTES = 256 * 1024;
+  const FIRST_SLICE_MAX_BYTES = 8 * 1024 * 1024;
+  function flacFirstFrameOffset(bytes) {
+    const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+    let offset = 0;
+    if (view.byteLength >= 10 && view[0] === 0x49 && view[1] === 0x44 && view[2] === 0x33) {
+      const tagSize = ((view[6] & 0x7f) << 21) | ((view[7] & 0x7f) << 14) | ((view[8] & 0x7f) << 7) | (view[9] & 0x7f);
+      offset = 10 + tagSize + ((view[5] & 0x10) ? 10 : 0);
+      if (offset + 4 > view.byteLength) return -1;
+    }
+    if (view.byteLength < offset + 8) return -1;
+    if (view[offset] !== 0x66 || view[offset + 1] !== 0x4c || view[offset + 2] !== 0x61 || view[offset + 3] !== 0x43) return -1;
+    offset += 4;
+    for (;;) {
+      if (offset + 4 > view.byteLength) return -1;
+      const header = view[offset];
+      const length = (view[offset + 1] << 16) | (view[offset + 2] << 8) | view[offset + 3];
+      const blockEnd = offset + 4 + length;
+      if (blockEnd >= view.byteLength) return blockEnd;
+      if (header & 0x80) return (view[blockEnd] === 0xff && (view[blockEnd + 1] & 0xfe) === 0xf8) ? blockEnd : -1;
+      offset = blockEnd;
+    }
+  }
   async function fetchAudioFirstSlice(url, options = {}, provider = 'Cloud') {
-    const response = await fetchAudioResponse(url, {...options, headers:{...(options.headers || {}), Range:`bytes=0-${FIRST_SLICE_BYTES - 1}`}}, provider);
-    const blob = await response.blob();
+    const sliceHeaders = end => ({...(options.headers || {}), Range:`bytes=0-${end - 1}`});
+    let end = FIRST_SLICE_BYTES;
+    let response = await fetchAudioResponse(url, {...options, headers: sliceHeaders(end)}, provider);
+    let blob = await response.blob();
     if (!blob || !blob.size) throw new Error(`${provider} trả về lát âm thanh đầu rỗng.`);
     const contentRange = (response.headers && response.headers.get('content-range')) || '';
     const totalMatch = String(contentRange).match(/\/(\d+)\s*$/);
     const contentLength = Number(response.headers && response.headers.get('content-length')) || 0;
     const totalBytes = totalMatch ? Number(totalMatch[1]) : (response.status === 200 ? blob.size : contentLength);
-    return {blob, totalBytes, complete: totalBytes > 0 && blob.size >= totalBytes};
+    const isComplete = () => totalBytes > 0 && blob.size >= totalBytes;
+    for (let attempt = 0; attempt < 3 && !isComplete() && response.status === 206 && typeof blob.arrayBuffer === 'function'; attempt++) {
+      let frameOffset = -1;
+      try { frameOffset = flacFirstFrameOffset(new Uint8Array(await blob.arrayBuffer())); } catch (_) { break; }
+      if (frameOffset < 0 || frameOffset < blob.size) break;
+      const nextEnd = Math.min(frameOffset + FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, totalBytes || Infinity);
+      if (nextEnd <= end) break;
+      end = nextEnd;
+      response = await fetchAudioResponse(url, {...options, headers: sliceHeaders(end)}, provider);
+      const extended = await response.blob();
+      if (!extended || !extended.size || extended.size <= blob.size) break;
+      blob = extended;
+    }
+    return {blob, totalBytes, complete: isComplete()};
   }
 
   async function fetchAudioBlob(url, options = {}, provider = 'Cloud') {
@@ -342,6 +387,22 @@
     return index;
   }
 
+  // Pha B — có nên tự cuộn dòng lời đang hát vào giữa panel lời không:
+  // chỉ cuộn khi dòng nằm ngoài khung nhìn của panel (thò lên trên hoặc
+  // thò xuống dưới); dòng đã hiện đủ thì giữ nguyên vị trí cuộn do người
+  // dùng chọn, tránh scrollIntoView giật khung mỗi lần đổi dòng. Rect bẩn
+  // (null/NaN, khung nhìn rỗng) thì không cuộn.
+  function shouldScrollLyricIntoView(containerRect, rowRect) {
+    if (!containerRect || !rowRect) return false;
+    const top = Number(containerRect.top);
+    const bottom = Number(containerRect.bottom);
+    const rowTop = Number(rowRect.top);
+    const rowBottom = Number(rowRect.bottom);
+    if (![top, bottom, rowTop, rowBottom].every(Number.isFinite)) return false;
+    if (bottom <= top) return false;
+    return rowTop < top || rowBottom > bottom;
+  }
+
   // Pha C — đọc cấu hình cloud đã lưu: JSON bẩn (cắt cụt, không phải object)
   // thì trả về {} thay vì ném SyntaxError làm hỏng đăng nhập/khôi phục phiên.
   function parseCloudConfig(raw) {
@@ -504,5 +565,5 @@
     return [currentTrack, ...queued.filter(track => track.id !== currentTrack.id)];
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder};
 });

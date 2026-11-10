@@ -257,6 +257,23 @@ assert.deepStrictEqual(utils.queueDisplayOrder(nowTrack, null), [nowTrack], 'A n
 assert.deepStrictEqual(utils.queueDisplayOrder(null, null), [], 'No playing track and no queue should be empty');
 assert.deepStrictEqual(utils.queueDisplayOrder(undefined, [null, nextA]).map(track => track.id), ['a'], 'Falsy queue entries should be dropped');
 
+// Pha D — flacFirstFrameOffset (đo khung nhạc đầu tiên trong header FLAC).
+const flacBlock = (type, last, data) => Buffer.concat([Buffer.from([(last ? 0x80 : 0) | type, (data.length >> 16) & 0xff, (data.length >> 8) & 0xff, data.length & 0xff]), data]);
+const flacFile = pictureBytes => Buffer.concat([Buffer.from('fLaC'), flacBlock(0, false, Buffer.alloc(34)), flacBlock(6, true, Buffer.alloc(pictureBytes)), Buffer.from([0xff, 0xf9, 0, 0, 1, 2, 3, 4])]);
+const smallFlac = flacFile(100);
+assert.strictEqual(utils.flacFirstFrameOffset(smallFlac), 4 + 4 + 34 + 4 + 100, 'A FLAC frame should start right after the metadata blocks');
+const bigFlac = flacFile(1500000);
+assert.strictEqual(utils.flacFirstFrameOffset(bigFlac), 1500046, 'A big PICTURE block should push the first frame past 1 MB');
+assert.strictEqual(utils.flacFirstFrameOffset(bigFlac.subarray(0, 1048576)), 1500046, 'A truncated slice should still report where the first frame starts');
+assert.strictEqual(utils.flacFirstFrameOffset(Buffer.from('RIFFxxxx')), -1, 'A non-FLAC file should report no frame');
+assert.strictEqual(utils.flacFirstFrameOffset(null), -1, 'A missing buffer should report no frame');
+assert.strictEqual(utils.flacFirstFrameOffset(new Uint8Array(0)), -1, 'An empty buffer should report no frame');
+const badSyncFlac = Buffer.concat([Buffer.from('fLaC'), flacBlock(0, true, Buffer.alloc(34)), Buffer.from([0, 0])]);
+assert.strictEqual(utils.flacFirstFrameOffset(badSyncFlac), -1, 'A missing frame sync after the metadata should report no frame');
+const id3Flac = Buffer.concat([Buffer.from([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, 0]), Buffer.from('fLaC'), flacBlock(0, true, Buffer.alloc(34)), Buffer.from([0xff, 0xf8])]);
+assert.strictEqual(utils.flacFirstFrameOffset(id3Flac), 52, 'An ID3-prefixed FLAC should skip the tag before measuring');
+assert.strictEqual(utils.flacFirstFrameOffset(Buffer.concat([Buffer.from('fLaC'), flacBlock(0, false, Buffer.alloc(34))])), 42, 'A slice ending at a block boundary should report the next block start');
+
 assert.strictEqual(utils.metadataOptions(tracks, 'album', utils.UNKNOWN_ALBUM).length, 3);
 assert.strictEqual(utils.metadataOptions([{artist:'Adele'}, {artist:' adele  '}], 'artist', utils.UNKNOWN_ARTIST).length, 1);
 const albumGroups = utils.groupTracks(tracks, 'album');
@@ -329,6 +346,34 @@ async function expectFetchError(fetchImpl, headers, blobSize) {
   await assert.rejects(() => utils.fetchAudioFirstSlice('https://example.com/a.flac', {}, 'Drive'), 'A non-audio first slice should fail like the full download');
   global.fetch = async () => ({ok:true, status:206, headers:sliceHeaders({'content-type':'audio/flac', 'content-range':'bytes 0-1048575/12345678'}), blob:async () => ({size:0})});
   await assert.rejects(() => utils.fetchAudioFirstSlice('https://example.com/a.flac', {}, 'Drive'), 'An empty first slice should fail so the caller falls back to the full download');
+  // Pha D — lát đầu mở rộng khi FLAC có ảnh bìa lớn (khung đầu ngoài 1 MB).
+  const flacTotal = 5000000;
+  const bigFlacFile = Buffer.concat([bigFlac, Buffer.alloc(flacTotal - bigFlac.length)]);
+  const smallFlacFile = Buffer.concat([smallFlac, Buffer.alloc(2000000)]);
+  let servedFile = bigFlacFile, servedTotal = flacTotal;
+  const rangeCalls = [];
+  global.fetch = async (url, options) => {
+    const range = options.headers.Range;
+    rangeCalls.push(range);
+    const end = Number(range.match(/(\d+)$/)[1]);
+    const slice = servedFile.subarray(0, Math.min(end + 1, servedTotal));
+    return {ok:true, status:206, headers:sliceHeaders({'content-type':'audio/flac', 'content-range':`bytes 0-${slice.length - 1}/${servedTotal}`, 'content-length':String(slice.length)}), blob:async () => new Blob([slice], {type:'audio/flac'})};
+  };
+  const wide = await utils.fetchAudioFirstSlice('https://example.com/big.flac', {}, 'Drive');
+  assert.strictEqual(rangeCalls.length, 2, 'A FLAC slice without a frame should be refetched wider');
+  assert.strictEqual(rangeCalls[0], 'bytes=0-1048575', 'The first request should still ask for 1 MB');
+  assert.strictEqual(rangeCalls[1], 'bytes=0-1762189', 'The wider request should cover the first frame plus a 256 KiB allowance');
+  assert.strictEqual(wide.blob.size, 1762190, 'The wider slice should hold the first frame');
+  assert.strictEqual(wide.totalBytes, flacTotal, 'The wider slice should keep the total file size');
+  assert.strictEqual(wide.complete, false, 'The wider slice should still be partial');
+  const wideBytes = new Uint8Array(await wide.blob.arrayBuffer());
+  assert.strictEqual(wideBytes[1500046], 0xff, 'The wider slice should contain the frame sync');
+  assert.strictEqual(wideBytes[1500047], 0xf9, 'The wider slice should contain the frame sync byte');
+  rangeCalls.length = 0;
+  servedFile = smallFlacFile; servedTotal = smallFlacFile.length;
+  const narrow = await utils.fetchAudioFirstSlice('https://example.com/small.flac', {}, 'Drive');
+  assert.strictEqual(rangeCalls.length, 1, 'A FLAC slice that already holds a frame should not refetch');
+  assert.strictEqual(narrow.blob.size, 1048576, 'A slice with a frame should keep the requested 1 MB');
   delete global.fetch;
   console.log('Library metadata, filtering, grouping and audio fetch tests passed.');
 })().catch(error => { console.error(error); process.exit(1); });

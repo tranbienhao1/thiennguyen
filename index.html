@@ -986,6 +986,7 @@
           }, {once:true});
           audio.src = new URL(fullUrl, location.href).href;
           track.sliceEndedEarly = false;
+          track.firstSlicePlayback = false;
           track.fullAudioUrl = null;
         }
         if (track.url === sliceUrl) track.url = fullUrl;
@@ -1893,7 +1894,8 @@
     }
     // Pha B — lời đồng bộ .lrc trong phòng Đang phát: parseLyrics cho ra
     // các dòng có mốc thời gian (bấm để tua), lời thuần (USLT, không mốc)
-    // hiện nguyên văn không tua được; dòng đang hát tô sáng + tự cuộn giữa.
+    // hiện nguyên văn không tua được; dòng đang hát tô sáng + tự cuộn giữa
+    // khi ra ngoài khung nhìn (đang hiện đủ thì giữ vị trí cuộn của người dùng).
     function renderLyrics(lrcText) {
       const container = $('room-lyrics');
       if (!container) return;
@@ -1922,7 +1924,8 @@
       state.lyricIndex = index;
       const rows = container.querySelectorAll('.lyric-line');
       rows.forEach((row, i) => row.classList.toggle('lyric-line-active', i === index));
-      if (index >= 0 && rows[index] && typeof rows[index].scrollIntoView === 'function') rows[index].scrollIntoView({block: 'center'});
+      const activeRow = index >= 0 ? rows[index] : null;
+      if (activeRow && typeof activeRow.scrollIntoView === 'function' && library.shouldScrollLyricIntoView(container.getBoundingClientRect(), activeRow.getBoundingClientRect())) activeRow.scrollIntoView({block: 'center'});
     }
     function displayTrack(track) {
       state.currentId = track.id;
@@ -2895,7 +2898,7 @@
       // đối nên gán trực tiếp vào element.src, không cần location.href.
       function resumeFullAudioFromSlice(track, position) {
         const fullUrl = track.fullAudioUrl;
-        track.fullAudioUrl = null; track.sliceEndedEarly = false;
+        track.fullAudioUrl = null; track.sliceEndedEarly = false; track.firstSlicePlayback = false;
         element.addEventListener('loadedmetadata', () => {
           try { element.currentTime = Math.min(position, element.duration || position); } catch (_) {}
           element.play().catch(error => console.warn('Could not resume after upgrading to the full audio file:', error.message || error));
@@ -2957,8 +2960,25 @@
         if (track && track.firstSlicePlayback && track.fullAudioUrl && !track.fullAudioPromise && element.src !== track.fullAudioUrl) { resumeFullAudioFromSlice(track, element.currentTime); return; }
         // Pha C — lát đầu hết trước khi file đầy đủ tải xong thì bài chưa
         // hết: đừng chuyển bài, đợi tải nền đổi sang file đầy đủ rồi phát
-        // tiếp (upgradeSliceToFullAudio phát tiếp khi lát đầu đã hết sớm).
-        if (track && track.firstSlicePlayback && track.fullAudioPromise) { track.sliceEndedEarly = true; return; }
+        // tiếp (upgradeSliceToFullAudio phát tiếp khi lát đầu đã hết sớm);
+        // tải nền thất bại thì chuyển bài như đường 'error' (trước đây
+        // 'ended' không đăng ký lỗi tải nền nên nhạc dừng im hẳn, không
+        // toast cũng không chuyển bài); chỉ đăng ký một lần cho mỗi lần
+        // phát lát đầu để không chuyển bài hai lần nếu 'error' cũng bắn.
+        if (track && track.firstSlicePlayback && track.fullAudioPromise) {
+          if (!track.sliceEndedEarly) {
+            track.sliceEndedEarly = true;
+            track.fullAudioPromise.catch(() => {
+              if (!track.sliceEndedEarly || track.id !== state.currentId) return;
+              track.sliceEndedEarly = false;
+              state.errorSkipCount = (state.errorSkipCount || 0) + 1;
+              if (state.errorSkipCount > state.tracks.length) { state.errorSkipCount = 0; toast('Không thể phát các bài hát trong danh sách, đã dừng phát.'); return; }
+              toast(`Không thể tải bài hát${track.title || track.name ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
+              playNext(1, false);
+            });
+          }
+          return;
+        }
         playNext(1, true);
       });
       element.addEventListener('error', () => {
@@ -3156,6 +3176,7 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 23:56 +07 | Đã xong: Pha C - Chặn đường 'error' khi đang phát lát đầu (Melissa báo 23:52 sau khi tải lại vẫn nhảy bài, thậm chí nhanh hơn — lát 1 MB hết sớm hơn nên lỗi giải mã ở cuối lát cắt cụt kích hoạt handler 'error' gọi playNext, đường mà bản vá 'ended' 285c942 chưa chặn): handler 'error' trên deck chính không chuyển bài khi track đang phát lát đầu và file đầy đủ còn đang tải nền (nhớ cờ sliceEndedEarly như 'ended', không toast/không đếm lỗi), chỉ chuyển bài khi tải nền thất bại (toast 'Không thể tải bài hát…'); test chạy thật attachDeckEvents với deck giả (lỗi lát đầu + đang tải nền thì không chuyển bài/không toast/không đếm lỗi, tải nền lỗi thì chuyển bài + toast, lỗi thật sau khi file đã về thì chuyển bài bình thường) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Điều tra lỗi nhảy bài DSD (Melissa xác nhận cả FLAC và DSD đều bị; DSD không qua đường lát đầu nên là vấn đề riêng — kiểm toán worker DSD/WAV đã giải mã; cần cô ấy thử lại sau bản này và báo còn nhảy không/sau bao nhiêu giây/có toast không) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade, kiểm toán DSD worker -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 00:18 +07 | Đã xong: Pha D - Sửa lỗi giải mã DSF khối cuối lẻ (Melissa báo DSD phát ~10 giây rồi tự đổi bài): worker luôn dùng bước nhảy blockSize nên file DSF không chèn đệm (data chunk đúng bằng số mẫu, kênh sau nằm sát sau kênh trước trong khối cuối — 1 trong 2 dạng file thật mà ffmpeg dsfdec.c hỗ trợ) bị đọc quá cuối chunk và ném 'Không đọc đủ dữ liệu DSF.' ở khối cuối, bài DSD bị bỏ qua sau khi đã giải mã gần xong; giờ bước nhảy kênh ở khối cuối là blockLength khi file không chèn đệm, giữ blockSize khi file chèn đệm; test hồi quy mới giải mã DSF 3 giây DSD64 blockSize 4096 cả 3 dạng (không chèn đệm, chèn đệm, kèm byte ID3 cuối file) đều đủ 3 giây PCM và byte ID3 không lọt vào đuôi PCM (test đã thử fail trên code cũ) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Phát DSD theo từng lát: giải mã streaming, phát lát PCM đầu ngay khi xong thay vì đợi giải mã toàn file (giảm thời gian chờ DSD từ ~10 giây xuống ~1 giây) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 00:48 +07 | Đã xong: Pha A - Phát DSD từ lát PCM đầu: worker gửi tin 'first-slice' (WAV ~2 giây PCM) ngay khi đủ lát đầu thay vì đợi giải mã toàn file, deck phát lát đó trong khi worker giải mã tiếp; khi 'done' về thì đổi sang file đầy đủ ở đúng vị trí đang nghe (seek sau loadedmetadata, phát tiếp nếu đang phát hoặc đã hết sớm, giữ tạm dừng nếu đang tạm dừng), thu hồi blob URL lát đầu; đặt firstSlicePlayback + fullAudioPromise để guard 'ended'/'error' sẵn có không chuyển bài khi lát đầu hết sớm; file ngắn hơn 2 giây thì không có lát đầu, phát như trước | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - OneDrive dùng thẳng downloadUrl thay vì tải qua proxy (giảm thời gian chờ bài OneDrive) | Backlog: thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
-  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 01:15 +07 | Đã xong: Pha C - Sửa race khiến FLAC cloud nhảy sang bài kế sau vài giây (Melissa xác nhận 00:59: FLAC, chuyển sang bài kế — không phải cache cũ): file đầy đủ tải xong trước khi deck đổi sau play() nên swap trong upgradeSliceToFullAudio bị bỏ lỡ (audio.src lúc đó chưa phải lát đầu), deck kẹt ở lát đầu mà fullAudioPromise đã null nên guard 'ended'/'error' không chặn được; giờ upgrade lưu track.fullAudioUrl khi tải nền xong (xóa khi swap thành công), guard 'ended'/'error' dùng helper resumeFullAudioFromSlice đổi deck sang file đầy đủ ở đúng vị trí rồi phát tiếp khi swap bị bỏ lỡ, kèm chặn đổi lại khi deck đã ở file đầy đủ (tránh kẹt vòng lặp với bài đã nạp trước); test chạy thật attachDeckEvents + upgradeSliceToFullAudio (race 'ended'/'error' với fullAudioUrl sẵn thì không chuyển bài + đổi deck + phát tiếp đúng vị trí, bài đã ở file đầy đủ thì vẫn chuyển bài bình thường, upgrade lưu fullAudioUrl khi swap bị bỏ lỡ — test fail đúng trên code cũ) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Cuộn lời (shouldScrollLyricIntoView, đã viết xong ở lần 01:00, chờ commit/push sau bản này) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 02:47 +07 | Đã xong: Pha C - Ưu tiên cao nhất lỗi FLAC cloud nhảy bài (Melissa báo 01:20 vẫn bị sau bản 3baf9ee): (1) 'ended' khi lát đầu hết sớm mà tải nền sau đó thất bại thì chuyển bài + toast như đường 'error' (trước đây 'ended' không đăng ký lỗi tải nền nên nhạc dừng im hẳn, không toast cũng không chuyển bài); (2) dọn cờ firstSlicePlayback=false ngay khi deck đổi sang file đầy đủ (cả swap trong upgradeSliceToFullAudio lẫn resumeFullAudioFromSlice khi swap bị bỏ lỡ) để guard 'ended'/'error' không nhầm lần phát file đầy đủ thành lát đầu; test mới thử fail trên code cũ (lát hết + tải nền lỗi thì chuyển bài, swap xong thì cờ lát đầu tắt). Lưu ý: bản 3baf9ee đẩy 01:16, Melissa báo 01:20 vẫn bị — rất có thể cô ấy thử trên bản cache cũ của GitHub Pages (max-age=600), cần tải lại cứng rồi thử lại mới kết luận được | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã: FLAC có ảnh bìa lớn khiến lát đầu 1 MB không chứa khung nhạc nào (decoder không khởi động được -> play() reject -> skipFailedTrack nhảy bài) — đo offset khung nhạc đầu tiên trong header FLAC rồi tăng lát đầu khi cần | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 04:20 +07 | Đã xong: Pha D - Kiểm toán bộ giải mã, lỗi FLAC cloud nhảy bài: lát đầu 1 MB của FLAC có ảnh bìa lớn không chứa khung nhạc nào nên play() reject rồi app nhảy bài — fetchAudioFirstSlice giờ đo offset khung nhạc đầu tiên bằng flacFirstFrameOffset (đi qua các khối metadata fLaC, hỗ trợ tiền tố ID3, kiểm tra sync khung 0xFF 0xF8/0xF9) và tải lại Range rộng hơn (khung đầu + 256 KB, tối đa 8 MB, tối đa 3 lần mở rộng) để lát đầu chứa ít nhất vài khung nhạc; test chạy thật với FLAC giả có PICTURE 1.5 MB (lát mở rộng từ 1 MB lên 1762190 byte, chứa sync khung ở 1500046) và FLAC thường (chỉ 1 lần fetch); test đã thử fail trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Chặn đường play() reject nhảy bài khi lát đầu chưa có khung nhạc (dự phòng khi metadata FLAC > 8 MB hoặc WAV/MP3 có header lớn): play() reject NotSupportedError trong lúc firstSlicePlayback + fullAudioPromise thì đợi tải nền xong rồi thử phát lại từ file đầy đủ thay vì skipFailedTrack ngay; lưu ý cần xử lý deck chưa đổi (play() reject thì deck đích vẫn là standbyAudio) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
 </body>
 </html>
