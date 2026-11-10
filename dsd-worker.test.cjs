@@ -81,6 +81,22 @@ function decode(file, format, targetRate, bitDepth) {
     const result = await done;
     assert.equal(result.type, 'done', 'A decode after cancel should still complete once the handler resets the cancel flag');
   }
+  {
+    const probeSelf = {cancelled: false, onmessage: null, postMessage() {}};
+    const probeContext = vm.createContext({self: probeSelf, Blob});
+    vm.runInContext(source, probeContext, {filename: 'dsd-worker.js'});
+    const nextChunkBytes = probeContext.nextChunkBytes;
+    assert.equal(typeof nextChunkBytes, 'function', 'DSD worker should expose nextChunkBytes for chunk-size audit tests');
+    assert.equal(nextChunkBytes(262144, 120, 2), 131072, 'Chunk over 50 ms should halve');
+    assert.equal(nextChunkBytes(262144, 120, 3), 131070, 'Halved chunk should stay a multiple of the channel count');
+    assert.equal(nextChunkBytes(32768, 120, 2), 32768, 'Chunk should not shrink below the 32 KiB floor');
+    assert.equal(nextChunkBytes(32768, 5, 2), 65536, 'Fast chunk under 10 ms should double');
+    assert.equal(nextChunkBytes(262144, 5, 2), 262144, 'Chunk should not grow above the 256 KiB cap');
+    assert.equal(nextChunkBytes(131072, 30, 2), 131072, 'Chunk within the time budget should stay unchanged');
+    assert.equal(nextChunkBytes(100000, 5, 6), 199998, 'Grown chunk should stay a multiple of the channel count');
+    assert.equal(nextChunkBytes(262144, NaN, 2), 262144, 'Invalid chunk time should leave the chunk unchanged');
+    assert.equal(nextChunkBytes(262144, 120, 8), 131072, 'Chunk halving should work for 8 channels');
+  }
   for (const [sourceRate, targetRates] of [[RATE, [44100, 88200, 176400]], [3072000, [48000, 96000, 192000]]]) {
     const files = [['dsf', makeDsf(sourceRate)], ['dff', makeDff('DSD ', sourceRate)]];
     for (const rate of targetRates) for (const depth of [16, 24]) {
@@ -94,6 +110,8 @@ function decode(file, format, targetRate, bitDepth) {
         assert.equal(wav.getUint32(40, true), result.blob.size - 44, `${format} PCM data size`);
         assert.equal(result.blob.size, 44 + result.duration * rate * CHANNELS * (depth / 8), `${format} PCM frame alignment`);
         assert.equal(result.multiplier, sourceRate / (sourceRate === RATE ? 44100 : 48000), `${format} source DSD multiplier`);
+        assert.ok(Number.isFinite(result.decodeMs) && result.decodeMs >= 0, `${format} decodeMs should be a measured non-negative time`);
+        assert.ok(Number.isFinite(result.maxChunkMs) && result.maxChunkMs >= 0, `${format} maxChunkMs should be a measured non-negative time`);
       }
     }
   }

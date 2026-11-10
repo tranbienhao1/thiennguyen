@@ -408,4 +408,112 @@ assert.equal(addedToQueue.querySelector('[data-queue-action="add"]'), null, 'Add
 assert.ok(addedToQueue.querySelector('[data-queue-indicator]'), 'Adding a track to the queue should show its queued indicator');
 const currentRow = exerciseRefreshQueueRows({queuedIds: ['playing'], currentId: 'playing', rows: [queueRow('playing', queueAddButton('playing'))]})[0];
 assert.ok(currentRow.querySelector('[data-queue-action="add"]'), 'The currently playing track should keep its play-next control instead of a queue indicator');
+const lyricsStart = appCode.indexOf('function renderLyrics(');
+const lyricsEnd = appCode.indexOf('function displayTrack(', lyricsStart);
+assert.ok(lyricsStart >= 0 && lyricsEnd > lyricsStart, 'Synced lyrics rendering should exist for regression checks');
+const lyricsSource = appCode.slice(lyricsStart, lyricsEnd);
+class FakeLyricElement {
+  constructor(tag) { this.tagName = String(tag).toUpperCase(); this.children = []; this.dataset = {}; this.className = ''; this.textContent = ''; this.listeners = {}; const classes = new Set(); this.classList = {add: name => classes.add(name), remove: name => classes.delete(name), toggle: (name, force) => { if (force) classes.add(name); else classes.delete(name); }, contains: name => classes.has(name)}; this.scrolledIntoView = false; this._innerHTML = ''; }
+  set innerHTML(value) { this.children = []; this._innerHTML = value; }
+  get innerHTML() { return this._innerHTML; }
+  appendChild(child) { this.children.push(child); return child; }
+  addEventListener(type, handler) { (this.listeners[type] ||= []).push(handler); }
+  querySelectorAll(selector) { return selector === '.lyric-line' ? this.children.filter(child => child.className.split(' ').includes('lyric-line')) : []; }
+  scrollIntoView() { this.scrolledIntoView = true; }
+}
+function exerciseLyrics(lrcText, currentTime) {
+  const container = new FakeLyricElement('div');
+  const audioStub = {currentTime, duration: 300};
+  const stateStub = {lyrics: [], lyricIndex: -1};
+  const fns = new Function('state', '$', 'library', 'audio', 'document', 'updatePositionState', `${lyricsSource}\nreturn {renderLyrics, updateLyricsHighlight};`)(
+    stateStub, id => id === 'room-lyrics' ? container : null, require('./library-utils.js'), audioStub, {createElement: tag => new FakeLyricElement(tag)}, () => {});
+  fns.renderLyrics(lrcText);
+  return {container, audioStub, stateStub, fns};
+}
+assert.match(html, /id="room-lyrics"/, 'Listening room should provide a lyrics panel');
+assert.ok(appCode.includes("renderLyrics(track.lyricsText || '')"), 'Track display should render the track lyrics text');
+assert.ok(appCode.includes('updateLyricsHighlight();'), 'Playback progress should highlight the current lyric line');
+assert.ok(appCode.includes("lrcByBase") && appCode.includes("/\\.lrc$/i"), 'Local folders should match sibling .lrc files by audio basename');
+assert.ok(appCode.includes('lyrics: tags.lyrics'), 'Embedded USLT lyrics should be read from local file tags');
+const synced = exerciseLyrics('[00:01.00]Dòng một\n[00:05.50]Dòng hai\n[00:10.00]Dòng ba', 6);
+assert.equal(synced.container.children.length, 3, 'Synced .lrc should render one row per timestamped line');
+assert.deepEqual(synced.container.children.map(row => row.dataset.time), ['1', '5.5', '10'], 'Lyric rows should keep their timestamps for click-to-seek');
+assert.ok(synced.container.children.every(row => row.classList.contains('lyric-line-seekable')), 'Timestamped lyric rows should be clickable to seek');
+synced.fns.updateLyricsHighlight();
+assert.equal(synced.stateStub.lyricIndex, 1, 'Lyric highlight should pick the last line at or before the playback time');
+assert.ok(synced.container.children[1].classList.contains('lyric-line-active') && !synced.container.children[0].classList.contains('lyric-line-active'), 'Only the current lyric line should be highlighted');
+assert.equal(synced.container.children[1].scrolledIntoView, true, 'The current lyric line should scroll into view');
+synced.container.children[2].listeners.click[0]();
+assert.equal(synced.audioStub.currentTime, 10, 'Clicking a lyric line should seek to its timestamp');
+const plain = exerciseLyrics('Dòng không mốc\nDòng thứ hai', 0);
+assert.equal(plain.container.children.length, 2, 'Plain embedded lyrics should render as untimed lines');
+assert.ok(plain.container.children.every(row => !row.classList.contains('lyric-line-seekable')), 'Untimed lyric lines should not offer click-to-seek');
+const empty = exerciseLyrics(null, 0);
+assert.match(empty.container.innerHTML, /Chưa có lời đồng bộ/, 'A track without lyrics should show the empty lyrics state');
+// Pha C — hủy bản preload cũ khi chuyển sang bài DSD (chống tràn RAM).
+const releaseTrackUrlStart = appCode.indexOf('function releaseTrackUrl(url) {');
+const releaseTrackUrlEnd = appCode.indexOf('function filteredTracks() {', releaseTrackUrlStart);
+const releaseUnusedStart = appCode.indexOf('function releaseUnusedCloudUrl(track) {');
+const clearStaleStart = appCode.indexOf('function clearStalePreload() {');
+const clearStaleEnd = appCode.indexOf("window.addEventListener('beforeunload'", clearStaleStart);
+assert.ok(releaseTrackUrlStart >= 0 && releaseTrackUrlEnd > releaseTrackUrlStart, 'releaseTrackUrl implementation should exist for regression checks');
+assert.ok(releaseUnusedStart >= 0 && clearStaleStart > releaseUnusedStart && clearStaleEnd > clearStaleStart, 'clearStalePreload implementation should exist for regression checks');
+const releaseSource = appCode.slice(releaseTrackUrlStart, releaseTrackUrlEnd) + appCode.slice(releaseUnusedStart, clearStaleEnd);
+class FakePreloadAudio {
+  constructor(src = '') { this.src = src; this.paused = false; this.loaded = 0; this.removed = []; }
+  pause() { this.paused = true; }
+  removeAttribute(name) { this.removed.push(name); if (name === 'src') this.src = ''; }
+  load() { this.loaded++; }
+}
+function exerciseClearStalePreload({preloadTrack = null, audioSrc = '', standbySrc = ''} = {}) {
+  const calls = {revoked: []};
+  const tracks = preloadTrack ? [preloadTrack] : [];
+  const state = {tracks, objectUrls: new Set(preloadTrack && preloadTrack.url ? [preloadTrack.url] : []), preloadTrackId: preloadTrack ? preloadTrack.id : null, preloadReadyUrl: preloadTrack ? preloadTrack.url : null, preloadBusyId: preloadTrack ? preloadTrack.id : null, preloadGeneration: 4};
+  const audio = new FakePreloadAudio(audioSrc);
+  const standbyAudio = new FakePreloadAudio(standbySrc);
+  class FakeURL extends URL { static revokeObjectURL(url) { calls.revoked.push(url); } }
+  const clearStalePreload = new Function('state', 'audio', 'standbyAudio', 'URL', 'location', `${releaseSource}\nreturn clearStalePreload;`)(
+    state, audio, standbyAudio, FakeURL, {href: 'https://tranbienhao1.github.io/thiennguyen/'},
+  );
+  clearStalePreload();
+  return {calls, state, audio, standbyAudio, track: preloadTrack};
+}
+const staleCloud = exerciseClearStalePreload({preloadTrack: {id: 'next', source: 'google', url: 'blob:https://example/abc'}, standbySrc: 'blob:https://example/abc'});
+assert.equal(staleCloud.state.preloadTrackId, null, 'Switching to DSD should clear the stale preloaded track');
+assert.equal(staleCloud.state.preloadReadyUrl, null, 'Switching to DSD should clear the stale preloaded URL');
+assert.equal(staleCloud.state.preloadBusyId, null, 'Switching to DSD should clear the stale preload busy flag');
+assert.equal(staleCloud.state.preloadGeneration, 5, 'Clearing a stale preload should invalidate in-flight preload work');
+assert.equal(staleCloud.standbyAudio.paused, true, 'Clearing a stale preload should pause the standby deck');
+assert.deepEqual(staleCloud.standbyAudio.removed, ['src'], 'Clearing a stale preload should detach the standby deck source');
+assert.equal(staleCloud.standbyAudio.loaded, 1, 'Clearing a stale preload should reload the standby deck');
+assert.deepEqual(staleCloud.calls.revoked, ['blob:https://example/abc'], 'A stale cloud preload blob URL should be revoked when switching to DSD');
+assert.equal(staleCloud.state.objectUrls.has('blob:https://example/abc'), false, 'A revoked preload URL should leave the tracked object URL set');
+assert.equal(staleCloud.track.url, '', 'A released preload track should forget its revoked URL');
+const staleLocal = exerciseClearStalePreload({preloadTrack: {id: 'next', source: 'local', url: 'blob:https://example/local'}, standbySrc: 'blob:https://example/local'});
+assert.equal(staleLocal.state.preloadTrackId, null, 'A stale local preload should still clear its preload state');
+assert.deepEqual(staleLocal.calls.revoked, [], 'A local file preload URL should not be revoked so the file can play again');
+assert.equal(staleLocal.track.url, 'blob:https://example/local', 'A local preload should keep its file URL');
+const inUsePreload = exerciseClearStalePreload({preloadTrack: {id: 'next', source: 'onedrive', url: 'blob:https://example/live'}, audioSrc: 'blob:https://example/live'});
+assert.deepEqual(inUsePreload.calls.revoked, [], 'A preload URL still playing on the active deck must not be revoked');
+assert.equal(inUsePreload.track.url, 'blob:https://example/live', 'A preload URL still in use should stay cached on its track');
+const noPreload = exerciseClearStalePreload();
+assert.equal(noPreload.state.preloadTrackId, null, 'Clearing with no preload should stay a no-op for preload state');
+assert.equal(noPreload.state.preloadGeneration, 5, 'Clearing with no preload should still invalidate in-flight preload work');
+assert.deepEqual(noPreload.calls.revoked, [], 'Clearing with no preload should revoke nothing');
+const dsdSwitchPlayTrackStart = appCode.indexOf('async function playTrack(trackId) {');
+const dsdSwitchStopDsdStart = appCode.indexOf('function stopDsdWorker(', dsdSwitchPlayTrackStart);
+assert.ok(dsdSwitchPlayTrackStart >= 0 && dsdSwitchStopDsdStart > dsdSwitchPlayTrackStart, 'playTrack implementation should exist for regression checks');
+const dsdSwitchPlayTrackSource = appCode.slice(dsdSwitchPlayTrackStart, dsdSwitchStopDsdStart);
+const dsdBranchStart = dsdSwitchPlayTrackSource.indexOf('if (track.isDsd) {');
+const dsdBranchEnd = dsdSwitchPlayTrackSource.indexOf('setupAudio();', dsdBranchStart);
+assert.ok(dsdBranchStart >= 0 && dsdBranchEnd > dsdBranchStart, 'playTrack should keep a dedicated DSD branch');
+const dsdBranch = dsdSwitchPlayTrackSource.slice(dsdBranchStart, dsdBranchEnd);
+assert.ok(dsdBranch.indexOf('clearStalePreload();') >= 0 && dsdBranch.indexOf('clearStalePreload();') < dsdBranch.indexOf('playDsdTrack(track, generation);'), 'Switching to a DSD track should clear the stale preload before decoding');
+assert.ok(dsdBranch.indexOf('releaseUnusedCloudUrl(previousTrack);') > dsdBranch.indexOf('playDsdTrack(track, generation);'), 'Switching to a DSD track should release the previous track cloud URL after the decks are cleared');
+const stalePreloadNextStart = appCode.indexOf('async function preloadNext(force = false) {');
+const stalePreloadNextEnd = appCode.indexOf('function skipFailedTrack(', stalePreloadNextStart);
+assert.ok(stalePreloadNextStart >= 0 && stalePreloadNextEnd > stalePreloadNextStart, 'preloadNext implementation should exist for regression checks');
+const stalePreloadNextSource = appCode.slice(stalePreloadNextStart, stalePreloadNextEnd);
+assert.ok(stalePreloadNextSource.includes('clearStalePreload();'), 'preloadNext should reuse the stale-preload cleanup when there is no next track');
+assert.ok(!stalePreloadNextSource.includes('state.preloadTrackId = null; state.preloadReadyUrl = null; state.preloadBusyId = null; standbyAudio.pause();'), 'preloadNext should not keep a duplicate inline copy of the stale-preload cleanup');
 console.log('Inline app syntax, persistence and recent playback/UI regression tests passed.');

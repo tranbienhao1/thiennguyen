@@ -17,6 +17,24 @@ function dsdSourceInfo(rate) {
   return null;
 }
 const MAX_PCM_BYTES = 256 * 1024 * 1024;
+// Kiểm toán DSD: giữ mỗi lát giải mã đồng bộ đủ ngắn để progress/cancel vẫn
+// phản hồi kịp trên file DSD lớn; thu nhỏ chunk đọc DFF khi một lát chạy quá lâu.
+const MAX_DECODE_CHUNK_BYTES = 256 * 1024;
+const MIN_DECODE_CHUNK_BYTES = 32 * 1024;
+const CHUNK_TIME_BUDGET_MS = 50;
+const CHUNK_TIME_GROW_MS = 10;
+function nextChunkBytes(currentBytes, chunkMs, channels) {
+  if (!Number.isFinite(currentBytes) || currentBytes < 1) currentBytes = MAX_DECODE_CHUNK_BYTES;
+  const safeChannels = Number.isFinite(channels) && channels >= 1 ? Math.floor(channels) : 1;
+  let next = currentBytes;
+  if (Number.isFinite(chunkMs) && chunkMs >= 0) {
+    if (chunkMs > CHUNK_TIME_BUDGET_MS) next = Math.floor(currentBytes / 2);
+    else if (chunkMs < CHUNK_TIME_GROW_MS) next = currentBytes * 2;
+  }
+  next = Math.max(MIN_DECODE_CHUNK_BYTES, Math.min(MAX_DECODE_CHUNK_BYTES, next));
+  next = Math.floor(next / safeChannels) * safeChannels;
+  return Math.max(next, safeChannels);
+}
 const HTAPS = [
   0.09950731974056658, 0.09562845727714668, 0.08819647126516944, 0.07782552527068175,
   0.06534876523171299, 0.05172629311427257, 0.0379429484910187, 0.02490921351762261,
@@ -127,6 +145,7 @@ async function parseDff(file,view) {
   return {kind:'dff',rate,channels,dataOffset,dataSize,lsb:false};
 }
 async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
+  const startedAt = Date.now();
   if(!file) throw Error('Không nhận được file DSD.');
   targetRate=Number(targetRate); bitDepth=Number(bitDepth);
   if(!SUPPORTED_TARGET_RATES.includes(targetRate)) throw Error('PCM chỉ hỗ trợ 44.1/88.2/176.4 hoặc 48/96/192 kHz.');
@@ -147,7 +166,7 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
   if(!Number.isSafeInteger(estimatedBytes)||estimatedBytes>MAX_PCM_BYTES||estimatedBytes>0xffffffff-36) throw Error(`PCM ${targetRate/1000} kHz/${bitDepth}-bit dự kiến vượt giới hạn WAV/bộ nhớ. Hãy chọn tần số hoặc độ sâu bit thấp hơn.`);
   const stages=Math.log2(multiplier)-3;
   const states=Array.from({length:info.channels},()=>({decoder:newDsdState(),filters:Array.from({length:stages},newDecimator)}));
-  const bytesPerSample=bitDepth/8,chunks=[];let outputBytes=0,outputFrames=0,processed=0;
+  const bytesPerSample=bitDepth/8,chunks=[];let outputBytes=0,outputFrames=0,processed=0,maxChunkMs=0;
   function pack(channels) {
     if(!channels.length)return;
     const frames=Math.min(...channels.map(channel=>channel.length)); if(!frames)return;
@@ -185,21 +204,28 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
       }
       const commonLength=Math.min(...rawChannels.map(bytes=>bytes.length));
       const channels=rawChannels.map(bytes=>bytes.subarray(0,commonLength));
+      const chunkStartedAt = Date.now();
       pack(channels.map((bytes,channel)=>process(bytes,states[channel])));
+      const chunkMs = Date.now() - chunkStartedAt;
+      if (chunkMs > maxChunkMs) maxChunkMs = chunkMs;
       processed=Math.min(info.dataSize,(block+1)*info.blockSize*info.channels);
       self.postMessage({type:'progress',progress:Math.min(.99,processed/info.dataSize)});
     }
   } else {
     if(info.dataSize%info.channels) throw Error('Kích thước DFF không chia hết cho số kênh.');
-    const groupBytes=Math.floor((256*1024)/info.channels)*info.channels;
+    let groupBytes=Math.floor(MAX_DECODE_CHUNK_BYTES/info.channels)*info.channels;
     for(let offset=0;offset<info.dataSize;offset+=groupBytes) {
       if(self.cancelled) return;
       const length=Math.min(groupBytes,info.dataSize-offset);
       const raw=new Uint8Array(await file.slice(info.dataOffset+offset,info.dataOffset+offset+length).arrayBuffer());
+      const chunkStartedAt = Date.now();
       const channelBytes=raw.length/info.channels;
       const channels=Array.from({length:info.channels},()=>new Uint8Array(channelBytes));
       for(let i=0;i<raw.length;i+=info.channels)for(let channel=0;channel<info.channels;channel++)channels[channel][i/info.channels]=raw[i+channel];
       pack(channels.map((bytes,channel)=>process(bytes,states[channel])));
+      const chunkMs = Date.now() - chunkStartedAt;
+      if (chunkMs > maxChunkMs) maxChunkMs = chunkMs;
+      groupBytes = nextChunkBytes(groupBytes, chunkMs, info.channels);
       processed+=raw.length;
       self.postMessage({type:'progress',progress:Math.min(.99,processed/info.dataSize)});
     }
@@ -211,7 +237,7 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
   tag(0,'RIFF');wav.setUint32(4,36+outputBytes,true);tag(8,'WAVE');tag(12,'fmt ');wav.setUint32(16,16,true);wav.setUint16(20,1,true);
   wav.setUint16(22,info.channels,true);wav.setUint32(24,targetRate,true);wav.setUint32(28,targetRate*blockAlign,true);
   wav.setUint16(32,blockAlign,true);wav.setUint16(34,bitDepth,true);tag(36,'data');wav.setUint32(40,outputBytes,true);
-  self.postMessage({type:'done',blob:new Blob([header,...chunks],{type:'audio/wav'}),duration:outputFrames/targetRate,rate:info.rate,targetRate,bitDepth,channels:info.channels,multiplier:dsdMultiplier,decimation:multiplier});
+  self.postMessage({type:'done',blob:new Blob([header,...chunks],{type:'audio/wav'}),duration:outputFrames/targetRate,rate:info.rate,targetRate,bitDepth,channels:info.channels,multiplier:dsdMultiplier,decimation:multiplier,decodeMs:Date.now()-startedAt,maxChunkMs});
 }
 self.onmessage=event=>{if(event.data&&event.data.type==='cancel'){self.cancelled=true;return;}self.cancelled=false;run(event.data).catch(error=>self.postMessage({type:'error',message:error.message||String(error)}));};
 // Decoder converts local DSD to selectable PCM rates/depths in browser memory; no audio is uploaded.

@@ -167,6 +167,8 @@
     #listening-room main>div:first-child { border-radius:12px;background:#23282b;box-shadow:0 28px 90px #0009; }
     #listening-room main>div:first-child>div:first-child { background:linear-gradient(145deg,#d4e8f022,transparent 50%,#0a0c0d88); }
     #room-cover-empty { color:#a8ccd9; } #room-title { letter-spacing:-.045em; } #room-signal,#room-output { overflow-wrap:anywhere; }
+    .lyric-line { border-radius:8px;padding:2px 8px;transition:color .2s,background-color .2s; }
+    .lyric-line-seekable { cursor:pointer; } .lyric-line-seekable:hover { color:#e4e4e7;background:#ffffff0d; } .lyric-line-active { color:#fff!important;font-weight:600;background:#ffffff14; }
     body.settings-open { overflow:hidden!important; }
     #settings-modal { z-index:100!important;position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;overscroll-behavior:contain;border:0;padding:0;color:inherit; }
     #settings-modal::backdrop { background:rgba(0,0,0,.75);backdrop-filter:blur(4px); }
@@ -513,6 +515,7 @@
   <div id="eq-panel" class="fixed bottom-28 right-4 z-40 hidden max-h-[75vh] w-[min(25rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-white/10 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-xl">
     <div class="flex items-center justify-between"><h3 class="text-sm font-medium">Parametric Equalizer</h3><label class="flex items-center gap-2 text-[10px] text-zinc-400"><input id="eq-enabled" type="checkbox" class="accent-violet-500"> Bật EQ</label></div>
     <p class="mt-1 text-[10px] text-zinc-500">Tự động hạ preamp theo mức boost cao nhất để giữ headroom. Tắt EQ để bypass DSP.</p>
+    <label class="mt-3 flex items-center justify-between text-xs text-zinc-400">Preset EQ <select id="eq-preset" class="rounded-md border border-white/10 bg-zinc-950 px-2 py-1.5 text-[10px] text-zinc-200"><option value="flat">Phẳng</option><option value="bass">Bass mạnh</option><option value="treble">Treble sáng</option><option value="vocal">Giọng hát</option><option value="rock">Rock</option><option value="jazz">Jazz</option><option value="custom">Tùy chỉnh</option></select></label>
     <div id="eq-bands" class="mt-3 space-y-2"></div>
     <div class="mt-3 flex items-center justify-between gap-3"><button id="eq-add-band" class="rounded-lg border border-white/10 px-3 py-2 text-[10px] text-violet-200 hover:bg-white/5">＋ Thêm band</button><span id="eq-headroom" class="text-[10px] tabular-nums text-emerald-300">Preamp 0 dB</span></div>
     <label class="mt-3 flex items-center justify-between text-xs text-zinc-400">Preamp trim <input id="eq-preamp" class="range w-32" type="range" min="-12" max="0" step="0.5" value="0"></label>
@@ -524,6 +527,7 @@
         <section class="min-w-0"><p class="text-[10px] uppercase tracking-[.2em] text-zinc-500">Đang phát</p><h1 id="room-title" class="mt-3 break-words text-3xl font-semibold tracking-tight sm:text-4xl">Chưa phát nhạc</h1><p id="room-artist" class="mt-2 text-lg text-zinc-300">Chọn một bài hát để bắt đầu</p><p id="room-album" class="mt-1 text-sm text-zinc-500">—</p>
           <div class="mt-5 flex flex-wrap items-center gap-2"><span id="room-quality" class="rounded-md border border-white/10 px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-zinc-400">READY</span><button id="room-favorite" type="button" class="rounded-md border border-white/10 px-2.5 py-1.5 text-sm text-zinc-300 hover:text-pink-300" aria-label="Thêm vào yêu thích">♡</button></div>
           <div class="mt-7 rounded-2xl border border-white/[.08] bg-white/[.03] p-4"><div class="flex items-center justify-between"><h2 class="text-xs font-medium text-zinc-200">Thông tin tín hiệu</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">Metadata nguồn · không phải DAC</span></div><p id="room-signal" class="mt-2 text-xs leading-5 text-zinc-400">Thông tin sẽ xuất hiện khi phát nhạc.</p><p id="room-output" class="mt-1 text-[10px] leading-4 text-zinc-600">Đầu ra do trình duyệt và hệ điều hành quản lý.</p></div>
+          <section class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
           <div class="mt-8 flex items-center gap-3"><span id="room-current-time" class="w-10 text-right text-[10px] tabular-nums text-zinc-500">0:00</span><input id="room-seek" class="seek-range flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="room-duration" class="w-10 text-[10px] tabular-nums text-zinc-500">0:00</span></div>
           <div class="mt-5 flex items-center justify-center gap-7"><button id="room-previous" type="button" class="text-xl text-zinc-300 hover:text-white" aria-label="Bài trước">‹</button><button id="room-play" type="button" class="grid h-14 w-14 place-items-center rounded-full bg-white text-xl text-zinc-950 transition hover:scale-105" aria-label="Phát">▶</button><button id="room-next" type="button" class="text-xl text-zinc-300 hover:text-white" aria-label="Bài tiếp">›</button></div>
           <p class="mt-6 text-center text-[10px] text-zinc-600">Phím tắt: Space phát/tạm dừng · ←/→ lùi/tiến 10 giây · N/P bài tiếp/trước · Q hàng đợi</p>
@@ -748,7 +752,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -857,6 +861,16 @@
       if ([audio, standbyAudio].some(element => element.src === absoluteUrl)) return;
       releaseTrackUrl(track.url);
       track.url = '';
+    }
+    // Pha C — hủy bản preload cũ khi chuyển bài: tăng generation để hủy
+    // preload đang chạy dở, xóa trạng thái preload, gỡ src của deck chờ và
+    // giải phóng blob URL cloud của bài preload cũ (revokeObjectURL) để
+    // không giữ nguyên file nhạc trong RAM trong suốt bài DSD kế tiếp.
+    // Bài DSD không bao giờ là preload nên oldPreload luôn khác bài sắp phát.
+    function clearStalePreload() {
+      const oldPreload = state.tracks.find(track => track.id === state.preloadTrackId);
+      ++state.preloadGeneration; state.preloadTrackId = null; state.preloadReadyUrl = null; state.preloadBusyId = null; standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load();
+      releaseUnusedCloudUrl(oldPreload);
     }
     window.addEventListener('beforeunload', () => { for (const url of state.objectUrls) URL.revokeObjectURL(url); state.objectUrls.clear(); });
     function normalizeCoverImage(cover) {
@@ -1250,6 +1264,7 @@
             album: tags.album,
             albumArtist: tags.albumartist || tags.albumArtist || tags.album_artist,
             track: tags.track || tags.tracknumber || tags.trackNumber,
+            lyrics: tags.lyrics,
             cover
           });
         }, onError: () => resolve({}) });
@@ -1264,11 +1279,12 @@
       const url = isDsd ? '' : URL.createObjectURL(file);
       if (url) state.objectUrls.add(url);
       const cover = await normalizeCoverImage(tags.cover);
-      return { id: id(), file, url, source: 'local', name: file.name, ...metadata, cover, format, isDsd, sampleRate: technical.sampleRate, bitDepth: technical.bitDepth, channels: technical.channels, duration: technical.duration, size: file.size };
+      return { id: id(), file, url, source: 'local', name: file.name, ...metadata, cover, lyricsText: tags.lyrics || '', format, isDsd, sampleRate: technical.sampleRate, bitDepth: technical.bitDepth, channels: technical.channels, duration: technical.duration, size: file.size };
     }
     const localFileKey = file => `${file.relativePath || file.webkitRelativePath || file.name}-${file.size}`;
     async function addLocalFiles(files) {
       const candidates = [...files].filter(file => file && (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name)));
+      const lrcByBase = new Map([...files].filter(file => file && /\.lrc$/i.test(file.name)).map(file => [(file.relativePath || file.webkitRelativePath || file.name).replace(/\.[^.]+$/, '').toLowerCase(), file]));
       if (!candidates.length) { toast('Không tìm thấy file âm thanh được hỗ trợ.'); return; }
       const existing = new Map(state.tracks.filter(track => track.source === 'local').map(track => [`${track.relativePath || track.name || track.title}-${track.size}`, track]));
       const additions = [], pending = [];
@@ -1283,6 +1299,8 @@
         while (nextFile < pending.length) {
           const {file,key} = pending[nextFile++];
           const track = await makeLocalTrack(file);
+          const lrcFile = lrcByBase.get((file.relativePath || file.webkitRelativePath || file.name).replace(/\.[^.]+$/, '').toLowerCase());
+          if (lrcFile) { try { track.lyricsText = await lrcFile.text(); } catch (error) { track.lyricsText = ''; } }
           track.name = file.name; track.relativePath = file.relativePath || file.webkitRelativePath || file.name;
           additions.push(track); existing.set(key, track);
         }
@@ -1450,6 +1468,7 @@
           if (field === 'q') band.q = Math.max(0.1, Math.min(18, band.q));
           if (field !== 'type') input.value = band[field];
           applyEq();
+          const presetSelect = $('eq-preset'); if (presetSelect) presetSelect.value = 'custom';
         }));
         row.querySelector('[data-action="remove"]').addEventListener('click', () => { state.bands = state.bands.filter(item => item.id !== band.id); renderEqBands(); applyEq(); });
       });
@@ -1468,6 +1487,27 @@
         deck.direct.gain.setTargetAtTime(enabled ? 0 : 1, state.context.currentTime, .015);
       });
       state.activeAnalyser = $('eq-enabled').checked ? state.analyser : state.directAnalyser;
+    }
+    const EQ_PRESETS = {
+      flat: [{type:'lowshelf', frequency:60, gain:0, q:0.707}, {type:'peaking', frequency:250, gain:0, q:1}, {type:'peaking', frequency:1000, gain:0, q:1}, {type:'peaking', frequency:4000, gain:0, q:1}, {type:'highshelf', frequency:12000, gain:0, q:0.707}],
+      bass: [{type:'lowshelf', frequency:60, gain:6, q:0.707}, {type:'peaking', frequency:250, gain:3, q:1}, {type:'peaking', frequency:1000, gain:0, q:1}, {type:'peaking', frequency:4000, gain:0, q:1}, {type:'highshelf', frequency:12000, gain:-1, q:0.707}],
+      treble: [{type:'lowshelf', frequency:60, gain:0, q:0.707}, {type:'peaking', frequency:250, gain:-1, q:1}, {type:'peaking', frequency:1000, gain:0, q:1}, {type:'peaking', frequency:4000, gain:3, q:1}, {type:'highshelf', frequency:12000, gain:5, q:0.707}],
+      vocal: [{type:'lowshelf', frequency:60, gain:-2, q:0.707}, {type:'peaking', frequency:250, gain:-1, q:1}, {type:'peaking', frequency:1000, gain:3, q:1}, {type:'peaking', frequency:4000, gain:4, q:1}, {type:'highshelf', frequency:12000, gain:1, q:0.707}],
+      rock: [{type:'lowshelf', frequency:60, gain:5, q:0.707}, {type:'peaking', frequency:250, gain:2, q:1}, {type:'peaking', frequency:1000, gain:-2, q:1}, {type:'peaking', frequency:4000, gain:3, q:1}, {type:'highshelf', frequency:12000, gain:4, q:0.707}],
+      jazz: [{type:'lowshelf', frequency:60, gain:3, q:0.707}, {type:'peaking', frequency:250, gain:0, q:1}, {type:'peaking', frequency:1000, gain:1, q:1}, {type:'peaking', frequency:4000, gain:2, q:1}, {type:'highshelf', frequency:12000, gain:3, q:0.707}]
+    };
+    function eqPresetBands(name) {
+      if (typeof name !== 'string' || !EQ_PRESETS[name]) return null;
+      return EQ_PRESETS[name].map(band => ({type:['peaking','lowshelf','highshelf'].includes(band.type) ? band.type : 'peaking', frequency:Math.max(20, Math.min(20000, Number(band.frequency) || 1000)), gain:Math.max(-24, Math.min(24, Number(band.gain) || 0)), q:Math.max(0.1, Math.min(18, Number(band.q) || 1))}));
+    }
+    function applyEqPreset(name) {
+      const bands = eqPresetBands(name);
+      if (!bands) return false;
+      state.bands = bands.map(band => ({id:++state.bandSerial, ...band}));
+      renderEqBands(); applyEq();
+      try { localStorage.setItem('nocturne-eq-preset', name); } catch (error) { console.warn('Could not save EQ preset:', error); }
+      const select = $('eq-preset'); if (select) select.value = name;
+      return true;
     }
     function addEqBand(values = {}) { state.bands.push({id:++state.bandSerial, type:values.type || 'peaking', frequency:Math.max(20, Math.min(values.frequency ?? 1000, state.context ? state.context.sampleRate / 2 : 20000)), gain:values.gain ?? 0, q:values.q ?? 1}); renderEqBands(); applyEq(); }
     function attachAudioElement(element) {
@@ -1573,6 +1613,39 @@
       if (current) current.classList.add('active');
       previousTrackRow = current;
     }
+    // Pha B — lời đồng bộ .lrc trong phòng Đang phát: parseLyrics cho ra
+    // các dòng có mốc thời gian (bấm để tua), lời thuần (USLT, không mốc)
+    // hiện nguyên văn không tua được; dòng đang hát tô sáng + tự cuộn giữa.
+    function renderLyrics(lrcText) {
+      const container = $('room-lyrics');
+      if (!container) return;
+      state.lyrics = library.parseLyrics(lrcText);
+      state.lyricIndex = -1;
+      container.innerHTML = '';
+      const lines = state.lyrics.length ? state.lyrics : (typeof lrcText === 'string' ? lrcText.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/).map(text => text.trim()).filter(text => text && !text.startsWith('[')).map(text => ({time: NaN, text})) : []);
+      if (!lines.length) { container.innerHTML = '<p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p>'; return; }
+      for (const line of lines) {
+        const row = document.createElement('p');
+        row.className = 'lyric-line';
+        row.textContent = line.text;
+        if (Number.isFinite(line.time)) {
+          row.dataset.time = String(line.time);
+          row.classList.add('lyric-line-seekable');
+          row.addEventListener('click', () => { if (Number.isFinite(audio.duration)) { audio.currentTime = Math.min(Math.max(0, line.time), audio.duration); updatePositionState(true); } });
+        }
+        container.appendChild(row);
+      }
+    }
+    function updateLyricsHighlight() {
+      const container = $('room-lyrics');
+      if (!container || !state.lyrics.length) return;
+      const index = library.lyricLineAt(state.lyrics, audio.currentTime);
+      if (index === state.lyricIndex) return;
+      state.lyricIndex = index;
+      const rows = container.querySelectorAll('.lyric-line');
+      rows.forEach((row, i) => row.classList.toggle('lyric-line-active', i === index));
+      if (index >= 0 && rows[index] && typeof rows[index].scrollIntoView === 'function') rows[index].scrollIntoView({block: 'center'});
+    }
     function displayTrack(track) {
       state.currentId = track.id;
       $('player-footer').classList.remove('player-idle');
@@ -1593,6 +1666,7 @@
       $('favorite-button').classList.remove('hidden'); $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').classList.toggle('text-pink-300', isFavorite(track));
       renderQueueCurrent(track); syncAutoplayButton(); updateSleepStatus();
       $('room-play').textContent = !audio.src || audio.paused ? '▶' : 'Ⅱ';
+      renderLyrics(track.lyricsText || '');
       $('room-current-time').textContent = '0:00'; $('room-duration').textContent = formatTime(track.duration); $('room-seek').value = '0'; paintSeek($('room-seek'), 0);
       $('current-time').textContent = '0:00'; $('current-time-mobile').textContent = '0:00'; $('duration').textContent = formatTime(track.duration); $('duration-mobile').textContent = formatTime(track.duration);
       $('seek').value = '0'; $('seek-mobile').value = '0'; paintSeek($('seek'), 0); paintSeek($('seek-mobile'), 0);
@@ -1687,9 +1761,7 @@
       if (!state.context || !state.deckA || !state.deckB) return;
       const index = queueIndex(), next = index >= 0 ? state.tracks[index] : null;
       if (!next || next.id === state.currentId || next.isDsd) {
-        const oldPreload = state.tracks.find(track => track.id === state.preloadTrackId);
-        ++state.preloadGeneration; state.preloadTrackId = null; state.preloadReadyUrl = null; state.preloadBusyId = null; standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load();
-        releaseUnusedCloudUrl(oldPreload);
+        clearStalePreload();
         return;
       }
       const preloadUrl = next.url ? new URL(next.url, location.href).href : '';
@@ -1738,10 +1810,12 @@
       if (state.dsdUrl) stopDsdWorker(false);
       if (track.isDsd) {
         try {
+          clearStalePreload();
           if (!track.file && track.load) await track.load();
           if (generation !== state.playGeneration) return;
           if (!track.file) throw new Error('Không tải được file DSD từ nguồn cloud.');
           await playDsdTrack(track, generation);
+          releaseUnusedCloudUrl(previousTrack);
         }
         catch (error) { console.error('DSD playback setup failed:', error); if (generation === state.playGeneration) $('play-button').textContent = '▶'; skipFailedTrack(generation, `Không thể chuẩn bị phát DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`); }
         return;
@@ -2436,6 +2510,7 @@
         if (!state.isSeeking && Number.isFinite(element.duration)) syncSeek(Math.round(element.currentTime / element.duration * 1000));
         if (!$('room-seek').matches(':active')) { const roomPosition = Number.isFinite(element.duration) && element.duration ? Math.round(element.currentTime / element.duration * 1000) : 0; $('room-seek').value = String(roomPosition); paintSeek($('room-seek'), roomPosition); }
         updatePositionState();
+        updateLyricsHighlight();
         if (library.shouldPreloadNext(element.duration, element.currentTime, standbyAudio.src, state.preloadReadyUrl, library.PRELOAD_LEAD_SECONDS, location.href)) preloadNext();
       });
       element.addEventListener('canplay', () => {
@@ -2509,9 +2584,14 @@
       $('eq-button').title = enabled ? 'EQ đang bật' : 'Direct / DSP bypass';
     });
     $('eq-preamp').addEventListener('input', applyEq);
-    addEqBand({type:'lowshelf', frequency:120, gain:0, q:0.707});
-    addEqBand({type:'peaking', frequency:1000, gain:0, q:1});
-    addEqBand({type:'highshelf', frequency:8000, gain:0, q:0.707});
+    $('eq-preset').addEventListener('change', event => applyEqPreset(event.target.value));
+    let savedEqPreset = null;
+    try { savedEqPreset = localStorage.getItem('nocturne-eq-preset'); } catch (error) { console.warn('Could not load saved EQ preset:', error); }
+    if (!applyEqPreset(savedEqPreset)) {
+      addEqBand({type:'lowshelf', frequency:120, gain:0, q:0.707});
+      addEqBand({type:'peaking', frequency:1000, gain:0, q:1});
+      addEqBand({type:'highshelf', frequency:8000, gain:0, q:0.707});
+    }
 
     let dragDepth = 0;
     document.addEventListener('dragenter', event => { event.preventDefault(); dragDepth++; $('drop-target').classList.remove('hidden'); $('drop-target').classList.add('flex'); });
@@ -2596,5 +2676,8 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 06:05 +07 | Đã xong: Pha C - Thêm parseCloudConfig đọc cấu hình cloud đã lưu, JSON bẩn trả về {} thay vì ném SyntaxError (7 điểm đọc) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Thêm content-visibility:auto cho hàng bài hát để cuộn danh sách lớn mượt 60fps -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 06:33 +07 | Đã xong: Pha D - Thêm content-visibility:auto + contain-intrinsic-size:auto 64px cho #track-list .track-row để cuộn danh sách lớn mượt 60fps | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Nạp trước (pre-decode) bài kế tiếp khi bài hiện tại còn 15 giây để phát gapless 0 ms -->
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 07:06 +07 | Đã xong: Pha A - Thêm shouldPreloadNext + PRELOAD_LEAD_SECONDS=15s vào library-utils.js, nạp trước bài kế sớm hơn (12s -> 15s) và so sánh URL sau phân giải tương đối để phát gapless 0 ms | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Nối parseLyrics/lyricLineAt vào giao diện: hiển thị lời .lrc đồng bộ, dòng đang hát tự cuộn khi phát nhạc -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 07:38 +07 | Đã xong: Pha B - Nối parseLyrics/lyricLineAt vào phòng Đang phát: panel lời .lrc đồng bộ, dòng đang hát tô sáng + tự cuộn giữa, bấm dòng để tua; file .lrc cùng tên tự nạp khi thêm nhạc local, lời USLT nhúng hiện nguyên văn | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Giải phóng URL.revokeObjectURL cho bản preload DSD khi chuyển bài, chống tràn RAM -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 08:41 +07 | Đã xong: Pha C - Thêm clearStalePreload, hủy bản preload cũ (xóa trạng thái + gỡ src deck chờ + revoke blob URL cloud) và giải phóng URL cloud của bài trước khi chuyển sang bài DSD, chống tràn RAM | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã DSD: đo thời gian giải mã DSF/DFF mẫu và giới hạn chunk worker để tránh chặn UI khi file DSD lớn -->
+  <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-10 12:16 +07 | Đã xong: Pha A - Preset EQ 5 dải (Phẳng/Bass/Treble/Vocal/Rock/Jazz) vào chuỗi BiquadFilter, lưu tên preset vào localStorage và khôi phục khi mở lại, sửa tay band thì đánh dấu Tùy chỉnh | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Hiển thị tên preset EQ đang dùng ngay trên nút EQ ở footer và thêm phím tắt đổi preset nhanh khi đang nghe -->
 </body>
 </html>
