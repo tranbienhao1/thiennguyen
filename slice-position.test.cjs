@@ -101,6 +101,10 @@ function exerciseDeck({tracks, currentId = 'rio'} = {}) {
   const standbyAudio = new FakeDeckElement();
   const $ = () => ({textContent: '', value: '0', matches: () => false});
   globalThis.formatTime = seconds => `t${Math.floor(seconds || 0)}`;
+  // Pha B — handler 'timeupdate' trong attachDeckEvents giờ cập nhật cả
+  // nhãn thời gian còn lại, nên sandbox phải có formatRemainingTime
+  // (giữ đúng công thức thật, dùng formatTime đã stub ở trên).
+  globalThis.formatRemainingTime = (current, duration) => Number.isFinite(duration) && duration > 0 ? `-${globalThis.formatTime(Math.max(0, duration - (Number.isFinite(current) ? current : 0)))}` : '—';
   globalThis.lastDisplayedPlaybackSecond = -1;
   globalThis.lastPositionStateSecond = -1;
   globalThis.syncSeek = () => {};

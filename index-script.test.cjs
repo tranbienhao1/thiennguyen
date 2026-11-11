@@ -1054,7 +1054,7 @@ assert.ok(appCode.includes('upgradeSliceToFullAudio(track, sliceUrl, url, option
 assert.ok(appCode.includes('async function upgradeSliceToFullAudio(track, sliceUrl, url, options, provider) {'), 'The background full-file upgrade helper should exist');
 assert.ok(appCode.includes('function finishCloudMetadataInBackground(track, blob) {'), 'Cloud metadata finishing should be shared instead of duplicated');
 assert.ok(appCode.includes('if (track.id === state.currentId && audio.src === sliceAbsoluteUrl)'), 'The full-file swap should only touch the deck still playing the first slice');
-assert.ok(appCode.includes("audio.addEventListener('loadedmetadata', () => {"), 'The full-file swap should seek back to the listening position after the new source loads');
+assert.ok(appCode.includes("deck.addEventListener('loadedmetadata', () => {"), 'The full-file swap should seek back to the listening position after the new source loads');
 assert.ok(appCode.includes('First-slice playback unavailable, downloading the full file instead:'), 'A failed first slice should fall back to the full download');
 
 // Pha D — đo time-to-first-audio cho bài cloud, hiện trong Phòng nghe:
