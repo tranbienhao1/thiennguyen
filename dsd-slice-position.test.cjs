@@ -82,6 +82,9 @@ function makeHarness() {
     dsdWorkerBaseUrl: 'https://example.test/thiennguyen/',
     dsdSourceInfo: () => ({baseRate: 44100, multiplier: 64}),
     clearStalePreload: () => {},
+    // Pha C — đường DSD gọi preloadNext(true) khi lát đầu / file ngắn
+    // bắt đầu phát; harness cũ không cần đếm, chỉ cần hàm tồn tại.
+    preloadNext: () => {},
     stopDsdWorker: () => {},
     setupAudio: () => {},
     displayTrack: () => {},
