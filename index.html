@@ -2325,7 +2325,7 @@
             if (state.dsdUrl) return;
             const sliceUrl = URL.createObjectURL(message.blob); state.objectUrls.add(sliceUrl);
             dsdSliceUrl = sliceUrl; state.dsdUrl = sliceUrl; state.dsdTrackId = track.id;
-            track.url = sliceUrl; track.duration = message.duration; track.firstSlicePlayback = true; track.dsdFirstSliceMs = message.sliceDecodeMs;
+            track.url = sliceUrl; track.duration = message.duration; track.firstSlicePlayback = true; track.dsdFirstSliceMs = message.sliceDecodeMs; track.lastSlicePosition = null;
             setupAudio();
             if (!state.context) return;
             if (state.context.state === 'suspended') await state.context.resume();
@@ -2343,10 +2343,14 @@
           const url = URL.createObjectURL(message.blob);
           const sliceAbsoluteUrl = dsdSliceUrl ? new URL(dsdSliceUrl, location.href).href : '';
           const wasSlicePlaying = !!dsdSliceUrl && audio.src === sliceAbsoluteUrl;
-          const slicePosition = wasSlicePlaying ? audio.currentTime : 0, sliceWasPaused = audio.paused, sliceEndedEarly = !!track.sliceEndedEarly;
+          const sliceEndedEarly = !!track.sliceEndedEarly;
+          // Pha C — như đường lát đầu FLAC: khi lát PCM đầu (~2 giây) đã
+          // hết sớm thì currentTime đã nhảy về duration của lát; seek về
+          // vị trí thật đã ghi trong timeupdate thay vì cuối lát.
+          const slicePosition = wasSlicePlaying ? (sliceEndedEarly && Number.isFinite(track.lastSlicePosition) ? track.lastSlicePosition : audio.currentTime) : 0, sliceWasPaused = audio.paused;
           state.dsdUrl = url; state.dsdBlob = message.blob; state.dsdTrackId = track.id; state.objectUrls.add(url);
           track.url = url; track.duration = message.duration; track.sampleRate = message.rate; track.channels = message.channels; track.dsdMultiplier = message.multiplier; track.pcmRate = message.targetRate; track.pcmDecimation = message.decimation; track.pcmBitDepth = message.bitDepth; track.dsdDecodeMs = message.decodeMs; track.dsdMaxChunkMs = message.maxChunkMs; track.dsdChunkCount = message.chunkCount; track.dsdChunksOverBudget = message.chunksOverBudget; track.dsdFinalChunkBytes = message.finalChunkBytes; track.dsdThroughputMBps = message.decodeThroughputMBps; track.dsdInitialChunkBytes = message.initialChunkBytes; track.dsdMaxConsecutiveOverBudget = message.maxConsecutiveOverBudget; track.dsdMinSliceThroughputMBps = message.minSliceThroughputMBps;
-          track.firstSlicePlayback = false; track.sliceEndedEarly = false; track.dsdFirstSliceMs = null;
+          track.firstSlicePlayback = false; track.sliceEndedEarly = false; track.dsdFirstSliceMs = null; track.lastSlicePosition = null;
           if (dsdFullResolve) dsdFullResolve();
           track.fullAudioPromise = null;
           setupAudio();
@@ -2355,7 +2359,13 @@
           if (generation !== state.playGeneration) return;
           if (wasSlicePlaying) {
             audio.addEventListener('loadedmetadata', () => {
-              try { audio.currentTime = Math.min(slicePosition, audio.duration || slicePosition); } catch (_) {}
+              try {
+                // Kẹp vị trí seek nhỏ hơn duration một chút để 'ended'
+                // không bắn ngay sau khi đổi sang file đầy đủ (như
+                // upgradeSliceToFullAudio bên đường lát đầu FLAC).
+                const safePosition = Number.isFinite(audio.duration) && audio.duration > 0.5 ? Math.min(slicePosition, audio.duration - 0.25) : slicePosition;
+                audio.currentTime = Math.max(0, safePosition);
+              } catch (_) {}
               if (!sliceWasPaused || sliceEndedEarly) audio.play().then(() => { if (generation === state.playGeneration) $('play-button').textContent = 'Ⅱ'; }).catch(error => console.warn('Could not resume after upgrading DSD to the full decoded audio:', error.message || error));
               else $('play-button').textContent = '▶';
               scheduleTrackRender();
@@ -3338,6 +3348,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:13 +07 | Đã xong: Pha B - Hiện thời gian giải mã DSD trong Phòng nghe ngay khi lát PCM đầu phát được: worker gửi kèm sliceDecodeMs trong message 'first-slice'; formatDecodeAudit thêm tham số firstSliceMs, hiện "đang giải mã… lát đầu xong sau X" trong lúc worker còn giải mã phần còn lại, dòng tổng "giải mã X · lát chậm nhất Y ms" thay thế khi giải mã xong; track.dsdFirstSliceMs lưu khi lát đầu tới, xóa khi phát lại và khi giải mã xong để không hiện số đo cũ; test mới dsd-first-slice.test.cjs (giải mã thật DSF DSD32 3M mẫu: lát đầu ~2.02 s kèm sliceDecodeMs ≤ decodeMs tổng) đã thử fail trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu bài kế (tải sẵn lát đầu bài tiếp theo + cache vào IndexedDB, backlog) | Backlog: prefetch + cache lát đầu bài kế -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:36 +07 | Đã xong: Pha C - Lỗi FLAC cloud nhảy bài: ghi lại lỗi tải nền vào track.fullAudioError (xóa khi bắt đầu tải mới, ghi khi fetchAudioBlob lỗi kể cả 401 phiên Drive hết hạn) và thêm handler dùng chung skipAfterFullAudioFailure cho guard 'ended'/'error' — lát đầu hết sau khi tải nền đã hỏng thì toast rõ lý do rồi chuyển bài thay vì nhảy im lặng; test mới full-audio-failure.test.cjs fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã, đo time-to-first-audio cho DSD | Backlog: prefetch + cache lát đầu bài kế, thu hồi blob URL bài cũ sau crossfade -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:43 +07 | Đã xong: Pha D - Kiểm toán bộ giải mã DSD: test hồi quy dsd-truncated.test.cjs khóa guard cắt cụt cho DSF/DFF (DSF cắt giữa chunk data, DSF khai sampleCount vượt data, DFF cắt giữa data, DFF khai chunk DSD vượt FRM8, header quá ngắn) — worker phải báo lỗi rõ thay vì treo hoặc giải mã sai; file nguyên vẹn vẫn decode xong; test fail đúng trên worker đã bỏ guard (đột biến tạm trong /tmp) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Engine Lossless/DSD, gapless/crossfade, mediaSession, EQ/DSP | Backlog: prefetch + cache lát đầu bài kế, thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
-    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 13:24 +07 | Đã xong: Pha A - Kiểm toán gapless/crossfade khi chuyển bài trong lúc preload đang chạy: timeout dọn deck cũ sau crossfade (fade + 50ms) không còn xóa src khi 'timeupdate' đã gán URL bài kế lên deck đó trong 50ms trước khi timeout chạy — bỏ qua dọn khi src đã là URL bài preload (claimedByPreload), vẫn thu hồi URL bài cũ; test mới crossfade-preload.test.cjs fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - UI/playlist/lyrics (gợi ý: hiển thị thời gian còn lại của bài trong Phòng nghe) | Backlog: prefetch + cache lát đầu bài kế, kiểm toán deck swap khi crossfade, hiển thị thời gian còn lại -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 15:23 +07 | Đã xong: Pha C - Lỗi DSD nhảy bài (biến thể của lỗi vị trí FLAC f5e549a, Melissa xác nhận cả FLAC và DSD đều bị): handler 'done' của worker DSD lấy audio.currentTime để seek file đầy đủ, nhưng khi lát PCM đầu (~2 giây) đã hết sớm thì currentTime đã nhảy về duration của lát; giờ dùng track.lastSlicePosition đã ghi trong timeupdate khi lát hết sớm, kẹp seek dưới duration - 0.25 như đường FLAC, reset vị trí khi lát mới bắt đầu và xóa sau khi đổi; test mới dsd-slice-position.test.cjs (lát hết sớm thì phát tiếp từ 1.9s thay vì 2.02s, lát chưa hết thì giữ currentTime, file ~2s thì kẹp 1.8s) fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán hiệu năng render danh sách hàng nghìn bài (content-visibility/virtual list) + kiểm toán lại deck swap khi crossfade | Backlog: hiển thị thời gian còn lại của bài trong Phòng nghe, kiểm toán deck swap khi crossfade, đo hiệu năng render danh sách lớn -->
 </body>
 </html>
