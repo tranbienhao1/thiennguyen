@@ -1049,7 +1049,7 @@ const expiredUpgrade = await exerciseUpgradeSlice({track:{id:'next', source:'one
 assert.equal(expiredUpgrade.error, null, 'A OneDrive upgrade should recover from an expired token');
 assert.equal(fetchCalls.length, 2, 'An expired OneDrive token should trigger one retry with a fresh token');
 assert.equal(fetchCalls[1].headers.Authorization, 'Bearer refreshed-token', 'The OneDrive retry should use the refreshed token');
-assert.ok(appCode.includes('library.fetchAudioFirstSlice(url, options, provider)'), 'Cloud tracks should start from the first Range slice instead of waiting for the whole file');
+assert.ok(appCode.includes('library.fetchAudioFirstSlice(url, {...options, expectedTotalBytes: Number(track.size) || 0}, provider)'), 'Cloud tracks should start from the first Range slice with the known file size instead of waiting for the whole file');
 assert.ok(appCode.includes('upgradeSliceToFullAudio(track, sliceUrl, url, options, provider)'), 'The background upgrade should finish downloading the full file after the first slice starts playing');
 assert.ok(appCode.includes('async function upgradeSliceToFullAudio(track, sliceUrl, url, options, provider) {'), 'The background full-file upgrade helper should exist');
 assert.ok(appCode.includes('function finishCloudMetadataInBackground(track, blob) {'), 'Cloud metadata finishing should be shared instead of duplicated');

@@ -346,6 +346,26 @@ async function expectFetchError(fetchImpl, headers, blobSize) {
   await assert.rejects(() => utils.fetchAudioFirstSlice('https://example.com/a.flac', {}, 'Drive'), 'A non-audio first slice should fail like the full download');
   global.fetch = async () => ({ok:true, status:206, headers:sliceHeaders({'content-type':'audio/flac', 'content-range':'bytes 0-1048575/12345678'}), blob:async () => ({size:0})});
   await assert.rejects(() => utils.fetchAudioFirstSlice('https://example.com/a.flac', {}, 'Drive'), 'An empty first slice should fail so the caller falls back to the full download');
+  // Pha C — Content-Range là header cross-origin: trình duyệt ẩn nó khi
+  // máy chủ không expose (Drive không expose) nên code cũ rơi về
+  // content-length (= đúng 1 MB lát đầu) và tưởng lát là toàn file:
+  // app không tải nền, phát hết lát (~13 giây với Rio) thì nhảy bài im
+  // lặng, không toast. Bên gọi đã biết tổng số byte thật (track.size)
+  // thì lát đầu phải dùng nó làm chuẩn, không tin header.
+  global.fetch = async () => ({ok:true, status:206, headers:sliceHeaders({'content-type':'audio/flac', 'content-length':'1048576'}), blob:async () => ({size:1048576, type:'audio/flac'})});
+  const hiddenRange = await utils.fetchAudioFirstSlice('https://example.com/rio.flac', {expectedTotalBytes:20770699}, 'Drive');
+  assert.strictEqual(hiddenRange.totalBytes, 20770699, 'A hidden Content-Range must not make the slice look complete: the known file size wins');
+  assert.strictEqual(hiddenRange.complete, false, 'A 1 MB slice of a 19.8 MB file must stay partial so the background download starts');
+  delete global.fetch;
+  global.fetch = async () => ({ok:true, status:206, headers:sliceHeaders({'content-type':'audio/flac', 'content-range':'bytes 0-1048575/20770699', 'content-length':'1048576'}), blob:async () => ({size:1048576, type:'audio/flac'})});
+  const exposedRange = await utils.fetchAudioFirstSlice('https://example.com/rio.flac', {expectedTotalBytes:20770699}, 'Drive');
+  assert.strictEqual(exposedRange.totalBytes, 20770699, 'An exposed Content-Range should agree with the known file size');
+  assert.strictEqual(exposedRange.complete, false, 'A partial slice must stay partial even when Content-Range is readable');
+  delete global.fetch;
+  global.fetch = async () => ({ok:true, status:200, headers:sliceHeaders({'content-type':'audio/flac'}), blob:async () => ({size:1234, type:'audio/flac'})});
+  const wholeKnown = await utils.fetchAudioFirstSlice('https://example.com/small.flac', {expectedTotalBytes:1234}, 'Drive');
+  assert.strictEqual(wholeKnown.complete, true, 'A 200 response holding exactly the known file size should still count as complete');
+  delete global.fetch;
   // Pha D — lát đầu mở rộng khi FLAC có ảnh bìa lớn (khung đầu ngoài 1 MB).
   const flacTotal = 5000000;
   const bigFlacFile = Buffer.concat([bigFlac, Buffer.alloc(flacTotal - bigFlac.length)]);

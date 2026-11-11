@@ -208,7 +208,16 @@
     const contentRange = (response.headers && response.headers.get('content-range')) || '';
     const totalMatch = String(contentRange).match(/\/(\d+)\s*$/);
     const contentLength = Number(response.headers && response.headers.get('content-length')) || 0;
-    const totalBytes = totalMatch ? Number(totalMatch[1]) : (response.status === 200 ? blob.size : contentLength);
+    // Pha C — đừng tin Content-Range để biết file còn dài bao nhiêu:
+    // đó là header cross-origin, trình duyệt ẩn nó khi máy chủ không
+    // expose (Drive không expose) nên totalBytes rơi về content-length
+    // (= đúng 1 MB lát đầu) và lát bị tưởng là toàn file: app không tải
+    // nền, firstSlicePlayback=false, phát hết lát (~13 giây với Rio) thì
+    // 'ended' mà guard không bắt nên nhảy bài im lặng, không toast —
+    // đúng triệu chứng Melissa báo 20:03. Bên gọi đã biết tổng số byte
+    // thật từ metadata Drive/OneDrive (track.size) thì dùng nó làm chuẩn.
+    const expectedTotalBytes = Number(options.expectedTotalBytes) || 0;
+    const totalBytes = expectedTotalBytes > 0 ? expectedTotalBytes : (totalMatch ? Number(totalMatch[1]) : (response.status === 200 ? blob.size : contentLength));
     const isComplete = () => totalBytes > 0 && blob.size >= totalBytes;
     for (let attempt = 0; attempt < 3 && !isComplete() && response.status === 206 && typeof blob.arrayBuffer === 'function'; attempt++) {
       let frameOffset = -1;
