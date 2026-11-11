@@ -766,7 +766,7 @@ assert.ok(localReleaseSource.includes("track.source !== 'local'"), 'Only local f
 assert.ok(localReleaseSource.includes('track.id === state.currentId'), 'The local release helper should keep the URL of the track still playing');
 assert.ok(localReleaseSource.includes('element.src === absoluteUrl'), 'The local release helper should not revoke a URL still attached to a deck');
 assert.ok(localReleaseSource.includes("track.url = '';"), 'A released local track should forget its revoked URL');
-assert.equal(appCode.split('releaseUnusedLocalUrl(previousTrack);').length - 1, 2, 'Both DSD and regular track switches should release the previous local URL');
+assert.equal(appCode.split('releaseUnusedLocalUrl(previousTrack);').length - 1, 3, 'DSD, regular and post-crossfade track switches should release the previous local URL');
 const dsdSwitchPlayTrackStart = appCode.indexOf('async function playTrack(trackId) {');
 const dsdSwitchStopDsdStart = appCode.indexOf('function stopDsdWorker(', dsdSwitchPlayTrackStart);
 assert.ok(dsdSwitchPlayTrackStart >= 0 && dsdSwitchStopDsdStart > dsdSwitchPlayTrackStart, 'playTrack implementation should exist for regression checks');
@@ -775,8 +775,8 @@ const dsdBranchStart = dsdSwitchPlayTrackSource.indexOf('if (track.isDsd) {');
 const dsdBranchEnd = dsdSwitchPlayTrackSource.indexOf('setupAudio();', dsdBranchStart);
 assert.ok(dsdBranchStart >= 0 && dsdBranchEnd > dsdBranchStart, 'playTrack should keep a dedicated DSD branch');
 const dsdBranch = dsdSwitchPlayTrackSource.slice(dsdBranchStart, dsdBranchEnd);
-assert.ok(dsdBranch.indexOf('clearStalePreload();') >= 0 && dsdBranch.indexOf('clearStalePreload();') < dsdBranch.indexOf('playDsdTrack(track, generation);'), 'Switching to a DSD track should clear the stale preload before decoding');
-assert.ok(dsdBranch.indexOf('releaseUnusedCloudUrl(previousTrack);') > dsdBranch.indexOf('playDsdTrack(track, generation);'), 'Switching to a DSD track should release the previous track cloud URL after the decks are cleared');
+assert.ok(dsdBranch.indexOf('clearStalePreload();') >= 0 && dsdBranch.indexOf('clearStalePreload();') < dsdBranch.indexOf('playDsdTrack(track, generation, playRequestedAt);'), 'Switching to a DSD track should clear the stale preload before decoding');
+assert.ok(dsdBranch.indexOf('releaseUnusedCloudUrl(previousTrack);') > dsdBranch.indexOf('playDsdTrack(track, generation, playRequestedAt);'), 'Switching to a DSD track should release the previous track cloud URL after the decks are cleared');
 const stalePreloadNextStart = appCode.indexOf('async function preloadNext(force = false) {');
 const stalePreloadNextEnd = appCode.indexOf('function skipFailedTrack(', stalePreloadNextStart);
 assert.ok(stalePreloadNextStart >= 0 && stalePreloadNextEnd > stalePreloadNextStart, 'preloadNext implementation should exist for regression checks');
@@ -871,12 +871,70 @@ assert.ok(appCode.includes('crossfadeSeconds: 0, crossfadeUntil: 0'), 'App state
 assert.ok(appCode.includes('applyCrossfade(state.context, oldDeck, newDeck, state.crossfadeSeconds)'), 'Track switching should crossfade through the two decks');
 assert.ok(appCode.includes('state.crossfadeUntil = fadeSeconds > 0 ? state.context.currentTime + fadeSeconds : 0'), 'Track switching should record when the crossfade ends');
 assert.ok(appCode.includes('if (state.crossfadeUntil && state.context.currentTime < state.crossfadeUntil) return;'), 'Preloading should not cut off a crossfade in progress');
-assert.ok(appCode.includes('setTimeout(() => { if (generation !== state.playGeneration) return; previous.pause();'), 'The old deck should only stop after its fade finishes');
+assert.ok(appCode.includes('setTimeout(() => { if (generation === state.playGeneration) { previous.pause();'), 'The old deck should only stop after its fade finishes');
 assert.ok(appCode.includes('fadeSeconds * 1000 + 50'), 'Old-deck cleanup should wait out the full fade');
 assert.match(html, /id="crossfade-seconds"/, 'Settings should offer a crossfade duration control');
 assert.ok(appCode.includes("localStorage.setItem('nocturne-crossfade-seconds'"), 'The crossfade setting should persist');
 assert.ok(appCode.includes("localStorage.getItem('nocturne-crossfade-seconds')"), 'The crossfade setting should be restored on startup');
 assert.ok(appCode.includes('if ([0,1,2,3,5].includes(savedCrossfade)) state.crossfadeSeconds = savedCrossfade;'), 'Only crossfade values offered by the settings control should be restored');
+// Pha D — thu hồi blob URL bài cũ sau khi crossfade xong: chạy thật
+// finishPlaybackStart với deck giả + setTimeout giả ghi lại callback.
+// Trước bản sửa, release ở cuối hàm bị guard chặn vì deck cũ vẫn gắn
+// URL trong lúc fade, còn timeout chỉ dừng/xóa src mà không release
+// nên blob URL bài cũ nằm lại trong RAM suốt phiên.
+const finishStart = appCode.indexOf('function finishPlaybackStart(track, generation, target, previousTrack) {');
+const finishEnd = appCode.indexOf('async function retrySlicePlaybackFromFullAudio', finishStart);
+assert.ok(finishStart >= 0 && finishEnd > finishStart, 'The deck-swap helper should exist for regression checks');
+function exerciseFinishPlaybackStart({oldSource = 'google'} = {}) {
+  const calls = {revoked: [], timeouts: [], history: [], renders: 0, preloads: 0};
+  const oldTrack = {id: 'old', source: oldSource, url: 'blob:https://example/old-audio'};
+  const newTrack = {id: 'new', source: 'google', url: 'blob:https://example/new-audio'};
+  const makeParam = value => ({value, setTargetAtTime(target, time, timeConstant) { this.calls.push(['target', target, time, timeConstant]); }, cancelScheduledValues(time) { this.calls.push(['cancel', time]); }, setValueAtTime(value, time) { this.calls.push(['value', value, time]); }, setValueCurveAtTime(curve, time, duration) { this.calls.push(['curve', [...curve], time, duration]); }, calls: []});
+  const makeDeck = src => ({src, paused: false, muted: false, volume: 1, router: {gain: makeParam(1)}, pause() { this.paused = true; }, removeAttribute(name) { if (name === 'src') this.src = ''; }, load() {}});
+  const deckA = makeDeck(oldTrack.url), deckB = makeDeck(newTrack.url);
+  const state = {tracks: [oldTrack, newTrack], currentId: 'new', objectUrls: new Set([oldTrack.url, newTrack.url]), crossfadeSeconds: 2, crossfadeUntil: 0, playGeneration: 7, preloadTrackId: null, preloadReadyUrl: null, context: {currentTime: 100}, deckA, deckB, activeDeck: deckA};
+  class FakeURL extends URL { static revokeObjectURL(url) { calls.revoked.push(url); } }
+  const playButton = {textContent: ''}, roomPlay = {textContent: ''};
+  const finishPlaybackStart = new Function('state', 'audio', 'standbyAudio', 'URL', 'location', '$', 'applyCrossfade', 'recordHistory', 'scheduleTrackRender', 'preloadNext', 'setTimeout', `${releaseSource}\n${appCode.slice(finishStart, finishEnd)}\nreturn finishPlaybackStart;`)(
+    state, deckA, deckB, FakeURL, {href: 'https://tranbienhao1.github.io/thiennguyen/'},
+    id => (id === 'play-button' ? playButton : roomPlay), applyCrossfade,
+    track => calls.history.push(track.id), () => calls.renders++, () => calls.preloads++,
+    (fn, ms) => { calls.timeouts.push({fn, ms}); return 1; },
+  );
+  const started = finishPlaybackStart(newTrack, 7, deckB, oldTrack);
+  return {calls, state, deckA, deckB, oldTrack, newTrack, started};
+}
+const fadedCloud = exerciseFinishPlaybackStart();
+assert.equal(fadedCloud.started, true, 'A successful track switch should finish the deck swap');
+assert.equal(fadedCloud.state.crossfadeUntil, 102, 'A 2-second crossfade should end 2 seconds after it starts');
+assert.equal(fadedCloud.calls.timeouts.length, 1, 'A crossfade switch should schedule exactly one old-deck cleanup');
+assert.equal(fadedCloud.calls.timeouts[0].ms, 2050, 'Old-deck cleanup should wait out the full fade plus a small margin');
+assert.deepEqual(fadedCloud.calls.history, ['new'], 'The deck swap should record the new track in history');
+assert.deepEqual(fadedCloud.calls.revoked, [], 'The old URL must stay live while the old deck is still fading it out');
+fadedCloud.calls.timeouts[0].fn();
+assert.equal(fadedCloud.deckA.paused, true, 'The old deck should pause once its fade finishes');
+assert.equal(fadedCloud.deckA.src, '', 'The old deck source should detach once its fade finishes');
+assert.deepEqual(fadedCloud.calls.revoked, ['blob:https://example/old-audio'], 'The old cloud blob URL should be revoked after its fade finishes');
+assert.equal(fadedCloud.state.objectUrls.has('blob:https://example/old-audio'), false, 'A revoked old URL should leave the tracked object URL set');
+assert.equal(fadedCloud.oldTrack.url, '', 'A released old track should forget its revoked URL');
+assert.equal(fadedCloud.newTrack.url, 'blob:https://example/new-audio', 'The new track URL must survive the old-deck cleanup');
+const fadedLocal = exerciseFinishPlaybackStart({oldSource: 'local'});
+fadedLocal.calls.timeouts[0].fn();
+assert.deepEqual(fadedLocal.calls.revoked, ['blob:https://example/old-audio'], 'The old local blob URL should also be revoked after its fade finishes');
+const staleFade = exerciseFinishPlaybackStart();
+staleFade.state.playGeneration = 8;
+staleFade.deckA.src = 'blob:https://example/c-audio';
+staleFade.calls.timeouts[0].fn();
+assert.equal(staleFade.deckA.paused, false, 'A stale crossfade timeout must not pause the deck now playing another track');
+assert.equal(staleFade.deckA.src, 'blob:https://example/c-audio', 'A stale crossfade timeout must not detach the deck now playing another track');
+assert.deepEqual(staleFade.calls.revoked, ['blob:https://example/old-audio'], 'A stale crossfade timeout should still release the old URL once it is off every deck');
+const reattachedFade = exerciseFinishPlaybackStart();
+reattachedFade.deckB.src = 'blob:https://example/old-audio';
+reattachedFade.calls.timeouts[0].fn();
+assert.equal(reattachedFade.deckA.paused, true, 'The old deck should still pause when the old URL stays in use elsewhere');
+assert.deepEqual(reattachedFade.calls.revoked, [], 'An old URL re-attached to the new deck must not be revoked');
+assert.equal(reattachedFade.oldTrack.url, 'blob:https://example/old-audio', 'An old track whose URL is still in use should keep it');
+assert.ok(appCode.includes('releaseUnusedCloudUrl(previousTrack); releaseUnusedLocalUrl(previousTrack); }, fadeSeconds * 1000 + 50);'), 'The post-fade timeout should release the old track URLs after detaching the old deck');
 
 // Pha B — phím tắt X bật/tắt crossfade nhanh khi đang nghe.
 const toggleStart = appCode.indexOf('function toggleCrossfade() {');
@@ -1034,6 +1092,18 @@ assert.ok(appCode.includes('const playRequestedAt = performance.now();'), 'Playb
 assert.ok(appCode.includes('track.timeToFirstAudioMs = null; track.timeToFirstAudioMode = null;'), 'Starting a track should clear the previous first-audio measurement');
 assert.ok(appCode.includes("target.addEventListener('playing', () => {"), 'The target deck should report when audio actually starts');
 assert.ok(appCode.includes("const mode = wasPreloaded ? 'preload' : track.source === 'local' ? 'local' : track.firstSlicePlayback ? 'slice' : 'full';"), 'The first-audio mode should distinguish preload, local, first slice and full file');
+// Pha A — đo time-to-first-audio cho DSD: playDsdTrack trước đây không
+// gọi recordTimeToFirstAudio nên bài DSD không bao giờ hiện số đo dù đã
+// phát từ lát PCM đầu; chạy thật helper với mode 'dsd' mới.
+const dsdMeasuredTrack = {id: 'dsd-1'};
+assert.equal(ttfa.recordTimeToFirstAudio(dsdMeasuredTrack, 1000, 3250, 'dsd'), 2250, 'Recording a DSD first slice should return the measured delay');
+assert.equal(dsdMeasuredTrack.timeToFirstAudioMs, 2250, 'Recording a DSD first slice should store the delay on the track');
+assert.equal(dsdMeasuredTrack.timeToFirstAudioMode, 'dsd', 'Recording a DSD first slice should store the DSD mode');
+assert.equal(ttfa.timeToFirstAudioText(dsdMeasuredTrack), 'Nghe thấy tiếng sau 2.3 giây (lát PCM đầu DSD)', 'A DSD delay over one second should name the DSD first-slice source');
+assert.ok(appCode.includes("dsd:'lát PCM đầu DSD'"), 'The first-audio mode labels should include the DSD first slice');
+assert.ok(appCode.includes('await playDsdTrack(track, generation, playRequestedAt);'), 'DSD playback should receive the play-request timestamp');
+assert.ok(appCode.includes('async function playDsdTrack(track, generation, playRequestedAt) {'), 'DSD playback should accept the play-request timestamp');
+assert.equal(appCode.split("recordTimeToFirstAudio(track, playRequestedAt, performance.now(), 'dsd');").length - 1, 2, 'Both DSD playback starts (first slice and short-file full audio) should record time-to-first-audio');
 assert.ok(appCode.includes('recordTimeToFirstAudio(track, playRequestedAt, performance.now(), mode);'), 'The playing event should record the delay from the play request');
 assert.ok(appCode.includes('if (track.id === state.currentId) renderRoomSignal(track);'), 'The listening room should refresh when the delay is measured');
 assert.ok(appCode.includes('track.firstSlicePlayback = !firstSlice.complete;'), 'Cloud tracks should record whether they started from the first slice');
