@@ -1629,17 +1629,43 @@
       }));
       return {showRows, tracks};
     }
+    // Pha D — chữ ký của các hàng đang hiển thị: mọi thứ mà HTML của một
+    // hàng phụ thuộc vào (thứ tự đã sắp xếp, tiêu đề/nghệ sĩ/album, bìa,
+    // thời lượng, nhãn chất lượng, trạng thái hàng đợi). Bài đang phát
+    // (currentId) cố tình KHÔNG nằm trong chữ ký vì hàng đó chỉ đổi class
+    // 'active'/màu tiêu đề/lớp phủ ♫, đã có updateCurrentTrackIndicator
+    // đồng bộ tại chỗ; nhờ vậy mỗi lần đổi bài không phải dựng lại hàng
+    // nghìn hàng + hàng nghìn listener + parse lại ảnh bìa.
+    function trackRowsSignature(tracks) {
+      const queuedIds = new Set(state.queueTrackIds || []);
+      const rows = tracks.map(track => {
+        const metadata = library.trackMetadata(track);
+        const queued = queuedIds.has(track.id) && track.id !== state.currentId;
+        return [track.id, metadata.title, metadata.artist, metadata.album, track.cover ? '1' : '0', track.duration || 0, quality(track).label, queued ? '1' : '0'].join('~');
+      }).join('|');
+      return `${state.sortAsc ? 'asc' : 'desc'}#${state.groupBy || ''}#${rows}`;
+    }
     function renderTrackRows(tracks) {
       const list = $('track-list');
       const shown = [...tracks].sort((a,b) => state.sortAsc ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title));
       const groups = groupTracks(shown, state.groupBy);
+      const renderedTracks = groups.flatMap(group => group.tracks);
+      const signature = trackRowsSignature(renderedTracks);
+      if (list.dataset.trackRowsSignature === signature && list.querySelectorAll('[data-track-id]').length === renderedTracks.length) {
+        // Pha D — nội dung các hàng không đổi (chỉ đổi bài đang phát):
+        // cập nhật dấu hiệu bài đang phát tại chỗ + hàng đợi, bỏ qua
+        // việc dựng lại toàn bộ innerHTML và gắn lại listener.
+        updateCurrentTrackIndicator();
+        renderQueue();
+        return;
+      }
       list.innerHTML = groups.map(group => {
         const heading = group.label ? `<h3 class="mb-2 mt-5 border-b border-white/[.07] px-3 pb-2 text-[10px] font-medium uppercase tracking-[.18em] text-zinc-500">${escapeHtml(group.label)} <span class="ml-1 text-zinc-700">${group.tracks.length}</span></h3>` : '';
         const rows = group.tracks.map((track, trackIndex) => {
           const q = quality(track), active = track.id === state.currentId, queued = state.queueTrackIds.includes(track.id) && track.id !== state.currentId;
           const metadata = library.trackMetadata(track);
           return `<div role="button" tabindex="0" class="track-row ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]" aria-label="Phát ${escapeHtml(metadata.title)} — ${escapeHtml(metadata.artist)}" data-track-index="${trackIndex + 1}" data-track-id="${escapeHtml(track.id)}">
-            <span class="flex min-w-0 items-center gap-3"><span class="track-number w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true">${String(trackIndex + 1).padStart(2, '0')}</span><span class="track-art relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="block truncate text-xs font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${escapeHtml(metadata.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(metadata.artist)} <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
+            <span class="flex min-w-0 items-center gap-3"><span class="track-number w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true">${String(trackIndex + 1).padStart(2, '0')}</span><span class="track-art relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-xs font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${escapeHtml(metadata.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(metadata.artist)} <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
             <span class="hidden truncate text-xs text-zinc-500 sm:block">${escapeHtml(metadata.album)}</span><span class="hidden sm:block"><span class="rounded border px-1.5 py-1 text-[9px] font-medium tracking-wide ${q.tone}">${q.label}</span></span><span class="flex items-center justify-end gap-1"><span class="text-right text-[10px] tabular-nums text-zinc-500">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
           </div>`;
         }).join('');
@@ -1660,6 +1686,7 @@
         });
         row.addEventListener('contextmenu', event => { event.preventDefault(); addToQueue(row.dataset.trackId); });
       });
+      list.dataset.trackRowsSignature = signature;
       renderQueue();
     }
     function renderTracks() {
@@ -1922,9 +1949,29 @@
     }
     let previousTrackRow = null;
     function updateCurrentTrackIndicator() {
-      if (previousTrackRow) previousTrackRow.classList.remove('active');
+      // Pha D — đồng bộ cả những phần của hàng phụ thuộc vào trạng thái
+      // đang phát (màu tiêu đề, lớp phủ ♫ trên ảnh bìa) để đường cập nhật
+      // nhẹ trong renderTrackRows cho ra hàng giống hệt như dựng lại.
+      if (previousTrackRow) {
+        previousTrackRow.classList.remove('active');
+        const previousTitle = previousTrackRow.querySelector('.track-title');
+        if (previousTitle) { previousTitle.classList.remove('text-violet-200'); previousTitle.classList.add('text-zinc-200'); }
+        const previousOverlay = previousTrackRow.querySelector('.track-playing-overlay');
+        if (previousOverlay) previousOverlay.remove();
+      }
       const current = $('track-list').querySelector(`[data-track-id="${CSS.escape(String(state.currentId || ''))}"]`);
-      if (current) current.classList.add('active');
+      if (current) {
+        current.classList.add('active');
+        const title = current.querySelector('.track-title');
+        if (title) { title.classList.add('text-violet-200'); title.classList.remove('text-zinc-200'); }
+        const art = current.querySelector('.track-art');
+        if (art && !art.querySelector('.track-playing-overlay')) {
+          const overlay = document.createElement('span');
+          overlay.className = 'track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white';
+          overlay.textContent = '♫';
+          art.appendChild(overlay);
+        }
+      }
       previousTrackRow = current;
     }
     // Pha B — lời đồng bộ .lrc trong phòng Đang phát: parseLyrics cho ra
@@ -3349,5 +3396,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:36 +07 | Đã xong: Pha C - Lỗi FLAC cloud nhảy bài: ghi lại lỗi tải nền vào track.fullAudioError (xóa khi bắt đầu tải mới, ghi khi fetchAudioBlob lỗi kể cả 401 phiên Drive hết hạn) và thêm handler dùng chung skipAfterFullAudioFailure cho guard 'ended'/'error' — lát đầu hết sau khi tải nền đã hỏng thì toast rõ lý do rồi chuyển bài thay vì nhảy im lặng; test mới full-audio-failure.test.cjs fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã, đo time-to-first-audio cho DSD | Backlog: prefetch + cache lát đầu bài kế, thu hồi blob URL bài cũ sau crossfade -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:43 +07 | Đã xong: Pha D - Kiểm toán bộ giải mã DSD: test hồi quy dsd-truncated.test.cjs khóa guard cắt cụt cho DSF/DFF (DSF cắt giữa chunk data, DSF khai sampleCount vượt data, DFF cắt giữa data, DFF khai chunk DSD vượt FRM8, header quá ngắn) — worker phải báo lỗi rõ thay vì treo hoặc giải mã sai; file nguyên vẹn vẫn decode xong; test fail đúng trên worker đã bỏ guard (đột biến tạm trong /tmp) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Engine Lossless/DSD, gapless/crossfade, mediaSession, EQ/DSP | Backlog: prefetch + cache lát đầu bài kế, thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 15:23 +07 | Đã xong: Pha C - Lỗi DSD nhảy bài (biến thể của lỗi vị trí FLAC f5e549a, Melissa xác nhận cả FLAC và DSD đều bị): handler 'done' của worker DSD lấy audio.currentTime để seek file đầy đủ, nhưng khi lát PCM đầu (~2 giây) đã hết sớm thì currentTime đã nhảy về duration của lát; giờ dùng track.lastSlicePosition đã ghi trong timeupdate khi lát hết sớm, kẹp seek dưới duration - 0.25 như đường FLAC, reset vị trí khi lát mới bắt đầu và xóa sau khi đổi; test mới dsd-slice-position.test.cjs (lát hết sớm thì phát tiếp từ 1.9s thay vì 2.02s, lát chưa hết thì giữ currentTime, file ~2s thì kẹp 1.8s) fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán hiệu năng render danh sách hàng nghìn bài (content-visibility/virtual list) + kiểm toán lại deck swap khi crossfade | Backlog: hiển thị thời gian còn lại của bài trong Phòng nghe, kiểm toán deck swap khi crossfade, đo hiệu năng render danh sách lớn -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 15:42 +07 | Đã xong: Pha D - Hiệu năng render danh sách hàng nghìn bài: renderTrackRows tính chữ ký các hàng đang hiển thị (thứ tự đã sắp xếp, tiêu đề/nghệ sĩ/album, bìa, thời lượng, nhãn chất lượng, trạng thái hàng đợi) và bỏ qua dựng lại toàn bộ innerHTML + gắn lại listener khi chữ ký không đổi — đổi bài đang phát chỉ cập nhật dấu hiệu tại chỗ qua updateCurrentTrackIndicator (đồng bộ thêm màu tiêu đề + lớp phủ ♫, có class track-title/track-playing-overlay để cập nhật); bìa/thời lượng về sau, thêm/xóa hàng đợi, đổi sắp xếp vẫn dựng lại như cũ; test mới track-rows-render.test.cjs (chữ ký, dấu hiệu bài đang phát, đường nhẹ/không nhẹ) fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Kiểm toán lại deck swap khi crossfade (liên quan lỗi nhảy bài) + đo time-to-first-audio cho DSD | Backlog: prefetch + cache lát đầu bài kế, hiển thị thời gian còn lại của bài trong Phòng nghe, kiểm toán deck swap khi crossfade -->
 </body>
 </html>
