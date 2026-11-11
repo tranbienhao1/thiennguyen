@@ -965,15 +965,27 @@
     const isGraphContentUrl = url => typeof url === 'string' && url.startsWith('https://graph.microsoft.com/');
     async function upgradeSliceToFullAudio(track, sliceUrl, url, options, provider) {
       if (track.fullAudioPromise) return track.fullAudioPromise;
+      // Pha C — xóa lỗi tải nền của lần phát trước để guard 'ended'/'error'
+      // không dùng nhầm lỗi cũ; lỗi mới được ghi lại ở dưới.
+      track.fullAudioError = null;
       track.fullAudioPromise = (async () => {
         let blob;
-        try { blob = await library.fetchAudioBlob(url, options, provider); }
-        catch (error) {
-          if (error.status !== 401 && error.status !== 403) throw error;
-          if (track.source === 'google') throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
-          if (!isGraphContentUrl(url)) throw error;
-          const token = await getMicrosoftToken(false);
-          blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
+        try {
+          try { blob = await library.fetchAudioBlob(url, options, provider); }
+          catch (error) {
+            if (error.status !== 401 && error.status !== 403) throw error;
+            if (track.source === 'google') throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
+            if (!isGraphContentUrl(url)) throw error;
+            const token = await getMicrosoftToken(false);
+            blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
+          }
+        } catch (error) {
+          // Pha C — ghi lại lỗi tải nền thất bại: khi lát đầu hết mà
+          // fullAudioPromise đã null và fullAudioUrl chưa từng được set thì
+          // guard 'ended'/'error' dùng cờ này để toast rõ lý do rồi mới
+          // chuyển bài, thay vì nhảy im lặng sang bài kế.
+          track.fullAudioError = error;
+          throw error;
         }
         blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
         const fullUrl = URL.createObjectURL(blob);
@@ -2992,6 +3004,17 @@
         }, {once:true});
         element.src = fullUrl;
       }
+      // Pha C — tải nền đã thất bại trước khi lát đầu hết (fullAudioError):
+      // toast rõ lý do (vd phiên Drive hết hạn) rồi chuyển bài, thay vì
+      // nhảy im lặng như trước khi cờ này chưa tồn tại.
+      function skipAfterFullAudioFailure(track) {
+        const reason = track.fullAudioError;
+        track.fullAudioError = null; track.firstSlicePlayback = false; track.sliceEndedEarly = false;
+        state.errorSkipCount = (state.errorSkipCount || 0) + 1;
+        if (state.errorSkipCount > state.tracks.length) { state.errorSkipCount = 0; toast('Không thể phát các bài hát trong danh sách, đã dừng phát.'); return; }
+        toast(`Không thể tải bài hát${track.title || track.name ? ` “${track.title || track.name}”` : ''}: ${reason && reason.message ? reason.message : 'lỗi mạng'}. Chuyển sang bài tiếp theo.`);
+        playNext(1, false);
+      }
       element.addEventListener('timeupdate', () => {
         if (element !== audio) return;
         const playbackSecond = Math.floor(element.currentTime || 0);
@@ -3045,6 +3068,10 @@
         // chuyển bài. So sánh src để không đổi lại khi deck đã ở file đầy
         // đủ (bài đã nạp trước rồi phát lại từ URL đầy đủ).
         if (track && track.firstSlicePlayback && track.fullAudioUrl && !track.fullAudioPromise && element.src !== track.fullAudioUrl) { resumeFullAudioFromSlice(track, element.currentTime); return; }
+        // Pha C — tải nền đã thất bại trước khi lát hết (fullAudioError đã
+        // ghi, fullAudioPromise đã null, fullAudioUrl chưa từng được set):
+        // toast rõ lý do rồi chuyển bài, đừng nhảy im lặng.
+        if (track && track.firstSlicePlayback && track.fullAudioError) { skipAfterFullAudioFailure(track); return; }
         // Pha C — lát đầu hết trước khi file đầy đủ tải xong thì bài chưa
         // hết: đừng chuyển bài, đợi tải nền đổi sang file đầy đủ rồi phát
         // tiếp (upgradeSliceToFullAudio phát tiếp khi lát đầu đã hết sớm);
@@ -3076,6 +3103,9 @@
         // 'ended'): lỗi giải mã ở cuối lát đầu thì đổi sang file đầy đủ ở
         // đúng vị trí rồi phát tiếp, đừng chuyển bài.
         if (track && track.firstSlicePlayback && track.fullAudioUrl && !track.fullAudioPromise && element.src !== track.fullAudioUrl) { resumeFullAudioFromSlice(track, element.currentTime); return; }
+        // Pha C — tải nền đã thất bại trước khi lát hết (như guard 'ended'):
+        // toast rõ lý do rồi chuyển bài, đừng nhảy im lặng.
+        if (track && track.firstSlicePlayback && track.fullAudioError) { skipAfterFullAudioFailure(track); return; }
         // Pha C — lỗi giải mã ở cuối lát đầu (file cắt cụt) không phải lỗi
         // bài hát: đừng chuyển bài, đợi tải nền đổi sang file đầy đủ rồi
         // phát tiếp (như chặn 'ended'); chỉ chuyển bài khi tải nền thất bại.
@@ -3269,5 +3299,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 09:41 +07 | Đã xong: Pha D - Thu hồi blob URL bài cũ sau crossfade (chống rò RAM): timeout dọn deck cũ sau fade giờ gọi releaseUnusedCloudUrl/releaseUnusedLocalUrl sau khi gỡ src — trước đây release ở cuối hàm bị guard chặn vì deck cũ vẫn gắn URL trong lúc fade nên blob file nhạc cũ nằm lại RAM suốt phiên; release trong timeout chạy cả khi đổi bài giữa fade (guard trong helper vẫn giữ URL còn gắn deck hoặc của bài đang phát); test chạy thật finishPlaybackStart (cloud/local thu hồi sau fade, đổi bài giữa fade vẫn thu hồi mà không pause deck mới, URL gắn lại deck mới không bị thu hồi) đã thử fail trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Đo time-to-first-audio cho DSD (lát PCM đầu): playDsdTrack chưa gọi recordTimeToFirstAudio nên bài DSD không hiện số đo | Backlog: prefetch + cache lát đầu bài kế -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 09:45 +07 | Đã xong: Pha A - Đo time-to-first-audio cho DSD (lát PCM đầu): playDsdTrack trước đây không gọi recordTimeToFirstAudio nên bài DSD không bao giờ hiện số đo trong Phòng nghe; giờ playDsdTrack nhận playRequestedAt từ playTrack, ghi số đo mode 'dsd' (nhãn 'lát PCM đầu DSD') khi lát đầu phát được và khi file DSD ngắn phát từ file PCM đầy đủ; test chạy thật helper với mode 'dsd' (2.3 giây → 'Nghe thấy tiếng sau 2.3 giây (lát PCM đầu DSD)') đã thử fail trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Hiện thời gian giải mã DSD (dsdDecodeMs) trong Phòng nghe để kiểm chứng tốc độ worker | Backlog: prefetch + cache lát đầu bài kế -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:13 +07 | Đã xong: Pha B - Hiện thời gian giải mã DSD trong Phòng nghe ngay khi lát PCM đầu phát được: worker gửi kèm sliceDecodeMs trong message 'first-slice'; formatDecodeAudit thêm tham số firstSliceMs, hiện "đang giải mã… lát đầu xong sau X" trong lúc worker còn giải mã phần còn lại, dòng tổng "giải mã X · lát chậm nhất Y ms" thay thế khi giải mã xong; track.dsdFirstSliceMs lưu khi lát đầu tới, xóa khi phát lại và khi giải mã xong để không hiện số đo cũ; test mới dsd-first-slice.test.cjs (giải mã thật DSF DSD32 3M mẫu: lát đầu ~2.02 s kèm sliceDecodeMs ≤ decodeMs tổng) đã thử fail trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu bài kế (tải sẵn lát đầu bài tiếp theo + cache vào IndexedDB, backlog) | Backlog: prefetch + cache lát đầu bài kế -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:36 +07 | Đã xong: Pha C - Lỗi FLAC cloud nhảy bài: ghi lại lỗi tải nền vào track.fullAudioError (xóa khi bắt đầu tải mới, ghi khi fetchAudioBlob lỗi kể cả 401 phiên Drive hết hạn) và thêm handler dùng chung skipAfterFullAudioFailure cho guard 'ended'/'error' — lát đầu hết sau khi tải nền đã hỏng thì toast rõ lý do rồi chuyển bài thay vì nhảy im lặng; test mới full-audio-failure.test.cjs fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã, đo time-to-first-audio cho DSD | Backlog: prefetch + cache lát đầu bài kế, thu hồi blob URL bài cũ sau crossfade -->
 </body>
 </html>
