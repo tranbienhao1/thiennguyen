@@ -213,7 +213,7 @@ class FakeList extends FakeElement {
   const renderTrackRows = new Function(
     'state', '$', 'library', 'groupTracks', 'quality', 'escapeHtml', 'sourceLabel', 'formatTime',
     'renderQueue', 'updateCurrentTrackIndicator', 'metadataUI', 'addToQueue', 'playTrack', 'removeFromQueue',
-    `${extractFunction(appCode, 'trackRowsSignature')}\n${extractFunction(appCode, 'renderTrackRows')}\nreturn renderTrackRows;`,
+    `${extractFunction(appCode, 'trackRowsSignature')}\n${extractFunction(appCode, 'recordTrackRowsRender')}\n${extractFunction(appCode, 'renderTrackRows')}\nreturn renderTrackRows;`,
   )(
     state,
     id => (id === 'track-list' ? list : null),
