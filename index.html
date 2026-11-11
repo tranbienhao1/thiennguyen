@@ -527,6 +527,10 @@
       <div class="flex items-center justify-between text-xs text-zinc-400"><span>Cân bằng L / R</span><span id="balance-label" class="font-mono text-[10px] text-zinc-300">Giữa</span></div>
       <div class="mt-1.5 flex items-center gap-2"><span class="text-[9px] text-zinc-500">L</span><input id="balance-slider" class="range flex-1 cursor-pointer" type="range" min="-100" max="100" value="0" step="1" aria-label="Cân bằng kênh trái phải"><span class="text-[9px] text-zinc-500">R</span><button id="balance-reset" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-300 hover:bg-white/10 hover:text-white" title="Đặt lại về giữa">0</button></div>
     </div>
+    <div class="mt-3 border-t border-white/10 pt-3">
+      <div class="flex items-center justify-between text-xs text-zinc-400"><span>Crossfeed (tai nghe)</span><span id="crossfeed-label" class="font-mono text-[10px] text-zinc-300">Tắt</span></div>
+      <div class="mt-1.5 flex items-center gap-2"><input id="crossfeed-toggle" type="checkbox" class="accent-violet-500" aria-label="Bật crossfeed"><input id="crossfeed-slider" class="range flex-1 cursor-pointer" type="range" min="0" max="100" value="0" step="1" aria-label="Mức crossfeed"><span class="text-[9px] text-zinc-500">100%</span></div>
+    </div>
   </div>
   <div id="listening-room" class="fixed inset-0 z-[55] hidden overflow-y-auto bg-[#09090b]/95 p-4 backdrop-blur-2xl sm:p-8" role="dialog" aria-modal="true" aria-labelledby="room-title">
     <div class="mx-auto flex min-h-full max-w-6xl flex-col"><header class="flex items-center justify-between"><span class="text-[10px] font-semibold uppercase tracking-[.24em] text-violet-200">NOCTURNE · NOW PLAYING</span><button id="room-close" type="button" class="rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 hover:bg-white/10" aria-label="Đóng màn hình Đang phát">Đóng ×</button></header>
@@ -771,7 +775,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -2007,16 +2011,19 @@
       state.limiter = createSoftLimiter(state.context);
       state.preLimiterAnalyser.connect(state.limiter);
       state.limiter.connect(state.analyser);
+      state.crossfeedNodes = createCrossfeedNodes(state.context);
+      const crossfeedInput = state.crossfeedNodes ? state.crossfeedNodes.input : state.context.destination;
       if (typeof state.context.createStereoPanner === 'function') {
         state.panner = state.context.createStereoPanner();
         state.panner.pan.value = state.stereoBalance || 0;
         state.analyser.connect(state.panner);
         state.directAnalyser.connect(state.panner);
-        state.panner.connect(state.context.destination);
+        state.panner.connect(crossfeedInput);
       } else {
-        state.analyser.connect(state.context.destination);
-        state.directAnalyser.connect(state.context.destination);
+        state.analyser.connect(crossfeedInput);
+        state.directAnalyser.connect(crossfeedInput);
       }
+      if (state.crossfeedNodes) { state.crossfeedNodes.output.connect(state.context.destination); applyCrossfeedAmount(); }
       state.deckA = attachAudioElement(audio); state.deckB = attachAudioElement(standbyAudio); state.activeDeck = state.deckA;
       rebuildAudioRoutes();
       document.addEventListener('visibilitychange', () => { if (document.hidden || audio.paused) setVisualizerRunning(false); else setVisualizerRunning(true); });
@@ -2082,6 +2089,46 @@
       const slider = $('balance-slider'), label = $('balance-label');
       if (slider) slider.value = String(Math.round(balance * 100));
       if (label) label.textContent = library.formatBalance(balance);
+    }
+    // Pha A — Crossfeed kiểu Roon: tách 2 kênh; mỗi kênh đi thẳng tới merger,
+    // đồng thời một phần qua lọc thấp 700 Hz + trễ 0,3 ms rồi trộn sang kênh đối diện (mức 0 thì gain chéo = 0 nên đường thẳng không đổi).
+    function createCrossfeedNodes(ctx) {
+      if (typeof ctx.createChannelSplitter !== 'function' || typeof ctx.createChannelMerger !== 'function'
+        || typeof ctx.createDelay !== 'function' || typeof ctx.createBiquadFilter !== 'function'
+        || typeof ctx.createGain !== 'function') return null;
+      const input = ctx.createGain(), output = ctx.createGain();
+      const splitter = ctx.createChannelSplitter(2), merger = ctx.createChannelMerger(2);
+      const filterL = ctx.createBiquadFilter(), filterR = ctx.createBiquadFilter();
+      filterL.type = 'lowpass'; filterR.type = 'lowpass';
+      filterL.frequency.value = library.CROSSFEED_CUTOFF_HZ; filterR.frequency.value = library.CROSSFEED_CUTOFF_HZ;
+      const delayL = ctx.createDelay(0.005), delayR = ctx.createDelay(0.005);
+      delayL.delayTime.value = library.CROSSFEED_DELAY_S; delayR.delayTime.value = library.CROSSFEED_DELAY_S;
+      const gainL = ctx.createGain(), gainR = ctx.createGain();
+      gainL.gain.value = 0; gainR.gain.value = 0;
+      input.connect(splitter);
+      splitter.connect(merger, 0, 0);
+      splitter.connect(merger, 1, 1);
+      splitter.connect(filterL, 0); filterL.connect(delayL); delayL.connect(gainL); gainL.connect(merger, 0, 1);
+      splitter.connect(filterR, 1); filterR.connect(delayR); delayR.connect(gainR); gainR.connect(merger, 0, 0);
+      merger.connect(output);
+      return {input, output, splitter, merger, filterL, filterR, delayL, delayR, gainL, gainR};
+    }
+    function applyCrossfeedAmount() {
+      const nodes = state.crossfeedNodes;
+      if (!nodes || !state.context) return;
+      const gain = library.crossfeedCrossGain(state.crossfeed);
+      nodes.gainL.gain.setTargetAtTime(gain, state.context.currentTime, .015);
+      nodes.gainR.gain.setTargetAtTime(gain, state.context.currentTime, .015);
+    }
+    function setCrossfeed(value) {
+      const amount = library.clampCrossfeed(value, 0);
+      state.crossfeed = amount; if (amount > 0) state.crossfeedLast = amount;
+      try { localStorage.setItem('nocturne-crossfeed', String(amount)); } catch (_) {}
+      applyCrossfeedAmount();
+      const slider = $('crossfeed-slider'), label = $('crossfeed-label'), toggle = $('crossfeed-toggle');
+      if (slider) slider.value = String(Math.round(amount * 100));
+      if (label) label.textContent = library.formatCrossfeed(amount);
+      if (toggle) toggle.checked = amount > 0;
     }
     function paintSeek(input, value) {
       const percent = Math.max(0, Math.min(100, Number(value) / 10));
@@ -2193,7 +2240,7 @@
       const room = signalDescription(track), q = quality(track);
       $('quality-badge').textContent = q.label; $('quality-badge').className = `rounded-md border px-2 py-1 text-[9px] font-medium uppercase tracking-wider ${q.tone}`; $('mobile-quality').textContent = q.label;
       $('room-title').textContent = room.title; $('room-artist').textContent = room.artist; $('room-album').textContent = room.album;
-      renderRoomSignal(track); $('room-output').textContent = `Nguồn: ${room.sourceName}. AudioContext ${state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.${state.stereoBalance ? ` · Cân bằng: ${library.formatBalance(state.stereoBalance)}` : ''}`;
+      renderRoomSignal(track); $('room-output').textContent = `Nguồn: ${room.sourceName}. AudioContext ${state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.${state.stereoBalance ? ` · Cân bằng: ${library.formatBalance(state.stereoBalance)}` : ''}${state.crossfeed ? ` · Crossfeed: ${library.formatCrossfeed(state.crossfeed)}` : ''}`;
       $('room-quality').textContent = q.label; $('room-quality').className = `rounded-md border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider ${q.tone}`;
       const roomCover = $('room-cover'); roomCover.hidden = !track.cover; roomCover.src = track.cover || ''; $('room-cover-empty').classList.toggle('hidden', !!track.cover);
       $('favorite-button').classList.remove('hidden'); $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').classList.toggle('text-pink-300', isFavorite(track));
@@ -3582,6 +3629,18 @@
         toast('Cân bằng âm thanh: Giữa (0)');
       });
     }
+    try { const savedCrossfeed = parseFloat(localStorage.getItem('nocturne-crossfeed'));
+      if (Number.isFinite(savedCrossfeed)) { state.crossfeed = library.clampCrossfeed(savedCrossfeed, 0); if (state.crossfeed > 0) state.crossfeedLast = state.crossfeed; } } catch (_) {}
+    const crossfeedToggle = $('crossfeed-toggle'), crossfeedSlider = $('crossfeed-slider');
+    if (crossfeedSlider) {
+      crossfeedSlider.value = String(Math.round(state.crossfeed * 100));
+      $('crossfeed-label').textContent = library.formatCrossfeed(state.crossfeed);
+      crossfeedSlider.addEventListener('input', event => { setCrossfeed(Number(event.target.value) / 100); });
+    }
+    if (crossfeedToggle) {
+      crossfeedToggle.checked = state.crossfeed > 0;
+      crossfeedToggle.addEventListener('change', event => { setCrossfeed(event.target.checked ? (state.crossfeedLast || 0.3) : 0); });
+    }
     let savedEqPreset = null;
     try { savedEqPreset = localStorage.getItem('nocturne-eq-preset'); } catch (error) { console.warn('Could not load saved EQ preset:', error); }
     if (!applyEqPreset(savedEqPreset)) {
@@ -3742,5 +3801,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 22:30 +07 | Đã xong: Pha A - Cân bằng kênh âm thanh trái/phải Stereo Balance L/R qua StereoPannerNode trong AudioContext Graph + UI điều chỉnh trong panel Parametric Equalizer (#balance-slider, #balance-label, #balance-reset), lưu localStorage và khôi phục khi mở lại trang, cập nhật dòng tín hiệu Phòng nghe; bổ sung phím tắt M (tắt/bật tiếng), ↑/↓ (tăng/giảm âm lượng 5%), J/L hoặc ←/→ tua ±10s, K hoặc Space phát/tạm dừng; test mới balance.test.cjs | Kiểm chứng: 3/3 Tầng PASS, node --test 38/38 | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu bài kế khi bài kế là DSD | Backlog: Ambient Glow đổi màu nền theo ảnh bìa album, Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe, Roon Radio phát tiếp bài tương tự khi hết hàng đợi -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 22:38 +07 | Đã xong: Pha C - Prefetch + cache lát đầu bài kế khi bài kế là DSD: preloadDsdNext đã tải trước file DSD vào track.file nhưng khi chuyển bài playDsdTrack vẫn chờ worker giải mã ~2 giây đầu mới nghe thấy tiếng; giờ sau khi file tải xong (cả nhánh file đã có) gọi prefetchDsdFirstSlice — kiểm tra cache trước, mở worker nền riêng giải mã lát PCM đầu (~2 giây) rồi ghi firstSliceCache (giới hạn DSD 3 MB, meta tốc độ xuất/bit depth như đường phát DSD) để khi chuyển bài playDsdTrack đọc cache và phát ngay, worker dừng ngay sau lát đầu không giải mã toàn file ở nền; playTrack dừng worker prefetch khi bài bắt đầu phát để khỏi giải mã trùng; test mới dsd-prefetch-slice.test.cjs (worker nhận đúng file/format/tốc độ, lát về ghi cache đúng meta rồi dừng worker, đã cache thì không mở worker, lỗi worker không ghi cache, generation đổi thì lát về muộn bị bỏ, 2 lần gọi đua nhau chỉ 1 worker, file đã có vẫn prefetch, file:// không mở worker, nối dây tĩnh) fail đúng trên code cũ; đã cập nhật sandbox dsd-next-prefetch.test.cjs (stub cache-hit nên không mở worker) | Kiểm chứng: 3/3 Tầng PASS, node --test 38/38 | Lượt kế tiếp: Pha D - Kiểm toán worker với file DFF DSD512 24-bit (giải mã thật, kiểm tra lát PCM đầu + duration + header WAV 24-bit) | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe, Roon Radio phát tiếp bài tương tự khi hết hàng đợi, kiểm toán worker với file DFF DSD512 24-bit -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 23:40 +07 | Đã xong: Pha D - Kiểm toán worker với file DFF DSD512 24-bit: DFF 2 giây DSD512 stereo (~10,8 MB, 45,2 triệu mẫu, 22,5792 MHz) giải mã thật đúng sang PCM 44,1 kHz 24-bit (multiplier 512, duration 2 s, đúng kích thước 3 byte/mẫu, header WAV ghi 44,1 kHz/24-bit/đúng data size), chia nhiều lát, gửi đúng 1 lát PCM đầu (~2 giây, cũng 24-bit) trước 'done' — như bản DSF DSD512 24-bit, khẳng định đường đọc chunk DSDIFF (FRM8/PROP/DSD, MSB-first) đúng ở tốc độ lấy mẫu cao nhất; kiểm chứng đột biến (đổi kỳ vọng bit depth 24 thành 16) fail đúng; đầu lần chạy rebase gặp xung đột index.html với commit auto-evolve 42fe5c0 (Stereo Balance) trên origin — đã gộp tay: state giữ cả panner/stereoBalance lẫn preloadDsdSliceTrackId/preloadDsdSliceWorker, giữ đủ 3 dòng log 22:24/22:30/22:38, test toàn bộ vẫn 39/39 sau gộp | Kiểm chứng: 3/3 Tầng PASS, node --test 38/38 | Lượt kế tiếp: Pha A - DSP crossfeed kiểu Roon cho nghe tai nghe (trộn nhẹ kênh trái/phải, bật/tắt trong panel EQ) | Backlog: Roon Radio phát tiếp bài tương tự khi hết hàng đợi (chờ Melissa chọn), Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-12 00:12 +07 | Đã xong: Pha A - DSP Crossfeed kiểu Roon cho nghe tai nghe: đồ thị chèn sau panner (panner → splitter 2 kênh → merger → destination; mỗi kênh đi thẳng, đồng thời một phần qua lọc thấp 700 Hz + trễ 0,3 ms + gain chéo tối đa 0,35 ≈ −9 dB rồi trộn sang kênh đối diện), mức 0 thì gain chéo = 0 nên đường thẳng không đổi; UI trong panel Parametric Equalizer (#crossfeed-toggle bật/tắt, #crossfeed-slider 0–100%, #crossfeed-label), bật lại khôi phục mức cuối (mặc định 30%), lưu localStorage 'nocturne-crossfeed' và khôi phục khi mở lại trang, hiện mức trong dòng tín hiệu Phòng nghe; fallback khi trình duyệt thiếu ChannelSplitter/ChannelMerger/Delay/BiquadFilter thì nối thẳng destination như cũ; test mới crossfeed.test.cjs (helper kẹp/gain/định dạng, nối dây đồ thị mock, fallback, fail đúng trên code cũ); đã cập nhật guard nối dây trong index-script.test.cjs theo đồ thị mới | Kiểm chứng: 3/3 Tầng PASS, node --test 39/39 | Lượt kế tiếp: Pha B - Signal Path kiểu Roon trong Phòng nghe (vẽ chuỗi Nguồn → Giải mã → DSP → Đầu ra từ dữ liệu đã có) | Backlog: Roon Radio phát tiếp bài tương tự khi hết hàng đợi (chờ Melissa chọn), Album view kiểu Roon (lưới bìa album + trang chi tiết album), Ambient Glow đổi màu nền theo ảnh bìa album -->
 </body>
 </html>

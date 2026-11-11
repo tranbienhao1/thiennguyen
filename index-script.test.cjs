@@ -56,8 +56,10 @@ assert.ok([48000,96000,192000].every(rate => html.includes(`value="${rate}"`)), 
 assert.ok(appCode.includes('const dsdSourceInfo = rate =>'), 'DSD source family should be resolved for 44.1 and 48 kHz masters');
 assert.ok(appCode.includes('state.dsdOutputRate = fallbackRate'), 'DSD playback should select a PCM rate compatible with the source rate family');
 assert.ok(appCode.includes('[44100,48000,88200,96000,176400,192000].includes(savedRate)'), 'All supported DSD output rates should restore from settings');
-assert.ok(appCode.includes('state.analyser.connect(state.context.destination)'), 'EQ analyser output should be routed to the speakers');
-assert.ok(appCode.includes('state.directAnalyser.connect(state.context.destination)'), 'Direct output should be routed to the speakers');
+assert.ok(appCode.includes('state.panner.connect(crossfeedInput)'), 'Panner output should be routed through crossfeed to the speakers');
+assert.ok(appCode.includes('state.crossfeedNodes.output.connect(state.context.destination)'), 'Crossfeed output should be routed to the speakers');
+assert.ok(appCode.includes('state.analyser.connect(crossfeedInput)'), 'Without a panner, the EQ analyser output should be routed through crossfeed to the speakers');
+assert.ok(appCode.includes('state.directAnalyser.connect(crossfeedInput)'), 'Without a panner, the direct output should be routed through crossfeed to the speakers');
 assert.ok(appCode.includes('library.metadataOptions'), 'Artist/album dropdowns should use normalized metadata options');
 assert.ok(appCode.includes('library.resolveTrackMetadata'), 'Local and cloud metadata should share the same cleanup logic');
 assert.ok(appCode.includes('restoreCloudCatalog'), 'Cloud catalog should be restored from IndexedDB');
