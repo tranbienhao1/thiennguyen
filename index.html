@@ -1498,15 +1498,22 @@
     function isFavorite(track) { return state.favorites.has(track.id) || state.favorites.has(`${track.source}:${track.remoteId || track.id}`); }
     function trackById(trackId) { return state.tracks.find(item => item.id === trackId); }
     function queueTracks() { return state.queueTrackIds.map(trackById).filter(Boolean).filter(track => track.id !== state.currentId); }
-    function formatDecodeAudit(decodeMs, maxChunkMs, chunksOverBudget, throughputMBps, initialChunkBytes, maxConsecutiveOverBudget, minSliceThroughputMBps) {
-      if (!Number.isFinite(decodeMs) || decodeMs < 0 || !Number.isFinite(maxChunkMs) || maxChunkMs < 0) return '';
-      const total = decodeMs >= 1000 ? `${(decodeMs / 1000).toFixed(1)} s` : `${Math.round(decodeMs)} ms`;
-      const overBudget = Number.isFinite(chunksOverBudget) && chunksOverBudget >= 1 ? ` · ${Math.round(chunksOverBudget)} lát vượt 50 ms` : '';
-      const streakWarn = Number.isFinite(maxConsecutiveOverBudget) && maxConsecutiveOverBudget >= 3 ? ` · cảnh báo: ${Math.round(maxConsecutiveOverBudget)} lát liên tiếp vượt 50 ms` : '';
-      const throughput = Number.isFinite(throughputMBps) && throughputMBps > 0 ? ` · ${throughputMBps.toFixed(1)} MB/s` : '';
-      const slowestSlice = Number.isFinite(minSliceThroughputMBps) && minSliceThroughputMBps > 0 ? ` · throughput lát chậm nhất ${minSliceThroughputMBps.toFixed(1)} MB/s` : '';
-      const firstChunk = Number.isFinite(initialChunkBytes) && initialChunkBytes > 0 ? ` · lát đầu ${Math.round(initialChunkBytes / 1024)} KiB` : '';
-      return `giải mã ${total} · lát chậm nhất ${Math.round(maxChunkMs)} ms${overBudget}${streakWarn}${throughput}${slowestSlice}${firstChunk}`;
+    function formatDecodeAudit(decodeMs, maxChunkMs, chunksOverBudget, throughputMBps, initialChunkBytes, maxConsecutiveOverBudget, minSliceThroughputMBps, firstSliceMs) {
+      if (Number.isFinite(decodeMs) && decodeMs >= 0 && Number.isFinite(maxChunkMs) && maxChunkMs >= 0) {
+        const total = decodeMs >= 1000 ? `${(decodeMs / 1000).toFixed(1)} s` : `${Math.round(decodeMs)} ms`;
+        const overBudget = Number.isFinite(chunksOverBudget) && chunksOverBudget >= 1 ? ` · ${Math.round(chunksOverBudget)} lát vượt 50 ms` : '';
+        const streakWarn = Number.isFinite(maxConsecutiveOverBudget) && maxConsecutiveOverBudget >= 3 ? ` · cảnh báo: ${Math.round(maxConsecutiveOverBudget)} lát liên tiếp vượt 50 ms` : '';
+        const throughput = Number.isFinite(throughputMBps) && throughputMBps > 0 ? ` · ${throughputMBps.toFixed(1)} MB/s` : '';
+        const slowestSlice = Number.isFinite(minSliceThroughputMBps) && minSliceThroughputMBps > 0 ? ` · throughput lát chậm nhất ${minSliceThroughputMBps.toFixed(1)} MB/s` : '';
+        const firstChunk = Number.isFinite(initialChunkBytes) && initialChunkBytes > 0 ? ` · lát đầu ${Math.round(initialChunkBytes / 1024)} KiB` : '';
+        return `giải mã ${total} · lát chậm nhất ${Math.round(maxChunkMs)} ms${overBudget}${streakWarn}${throughput}${slowestSlice}${firstChunk}`;
+      }
+      // Pha B — khi worker mới giải mã xong lát PCM đầu mà file đầy đủ
+      // chưa xong: chưa có số đo toàn file nên hiện thời gian giải mã lát
+      // đầu để kiểm chứng tốc độ worker ngay trong lúc đang nghe lát đầu.
+      if (!Number.isFinite(firstSliceMs) || firstSliceMs < 0) return '';
+      const total = firstSliceMs >= 1000 ? `${(firstSliceMs / 1000).toFixed(1)} s` : `${Math.round(firstSliceMs)} ms`;
+      return `đang giải mã… lát đầu xong sau ${total}`;
     }
     // Pha D — đo thời gian từ lúc nhấn phát tới khi nghe thấy tiếng
     // (time-to-first-audio) để kiểm chứng bước phát từ lát đầu thực sự
@@ -1535,7 +1542,7 @@
     function signalDescription(track) {
       const metadata = library.trackMetadata(track);
       const sourceName = ({local:'File local trên thiết bị',google:'Google Drive qua API riêng',onedrive:'OneDrive qua API riêng',url:'URL trực tiếp'})[track.source] || `Nguồn ${sourceLabel(track.source)}`;
-      const sourceTechnical = [track.format || '', track.isDsd && (track.dsdMultiplier ? `DSD${track.dsdMultiplier}` : (dsdSourceInfo(track.sampleRate) || {}).multiplier ? `DSD${(dsdSourceInfo(track.sampleRate) || {}).multiplier}` : ''), !track.isDsd && track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', !track.isDsd && track.bitDepth ? `${track.bitDepth}-bit` : '', track.isDsd && track.pcmRate ? `giải mã trên thiết bị sang PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth || state.dsdOutputDepth}-bit` : '', track.isDsd ? formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget, track.dsdThroughputMBps, track.dsdInitialChunkBytes, track.dsdMaxConsecutiveOverBudget, track.dsdMinSliceThroughputMBps) : '', track.channels ? `${track.channels} kênh` : ''].filter(Boolean).join(' · ');
+      const sourceTechnical = [track.format || '', track.isDsd && (track.dsdMultiplier ? `DSD${track.dsdMultiplier}` : (dsdSourceInfo(track.sampleRate) || {}).multiplier ? `DSD${(dsdSourceInfo(track.sampleRate) || {}).multiplier}` : ''), !track.isDsd && track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', !track.isDsd && track.bitDepth ? `${track.bitDepth}-bit` : '', track.isDsd && track.pcmRate ? `giải mã trên thiết bị sang PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth || state.dsdOutputDepth}-bit` : '', track.isDsd ? formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget, track.dsdThroughputMBps, track.dsdInitialChunkBytes, track.dsdMaxConsecutiveOverBudget, track.dsdMinSliceThroughputMBps, track.dsdFirstSliceMs) : '', track.channels ? `${track.channels} kênh` : ''].filter(Boolean).join(' · ');
       const decoded = track.isDsd ? 'DSD không phát trực tiếp; NOCTURNE giải mã sang PCM trước khi phát.' : `${track.format || 'Âm thanh'} được trình duyệt giải mã bằng Web Audio.`;
       const advice = track.isDsd && Number.isFinite(track.dsdMaxConsecutiveOverBudget) && track.dsdMaxConsecutiveOverBudget >= 3 ? `Thiết bị giải mã chậm ${Math.round(track.dsdMaxConsecutiveOverBudget)} lát liên tiếp — thử giảm tần số PCM đích trong cài đặt DSD để giải mã nhẹ hơn.` : '';
       const title = metadata.title || track.name || 'Bài hát không tên';
@@ -2271,7 +2278,7 @@
         // fullAudioPromise để guard 'ended'/'error' sẵn có không chuyển bài
         // khi lát đầu hết sớm (như đường lát đầu cloud).
         let dsdSliceUrl = null, dsdFullResolve = null;
-        track.firstSlicePlayback = false; track.sliceEndedEarly = false;
+        track.firstSlicePlayback = false; track.sliceEndedEarly = false; track.dsdFirstSliceMs = null;
         track.fullAudioPromise = new Promise(resolve => { dsdFullResolve = resolve; });
         worker.onmessage = async event => {
           const message = event.data || {};
@@ -2282,7 +2289,7 @@
             if (state.dsdUrl) return;
             const sliceUrl = URL.createObjectURL(message.blob); state.objectUrls.add(sliceUrl);
             dsdSliceUrl = sliceUrl; state.dsdUrl = sliceUrl; state.dsdTrackId = track.id;
-            track.url = sliceUrl; track.duration = message.duration; track.firstSlicePlayback = true;
+            track.url = sliceUrl; track.duration = message.duration; track.firstSlicePlayback = true; track.dsdFirstSliceMs = message.sliceDecodeMs;
             setupAudio();
             if (!state.context) return;
             if (state.context.state === 'suspended') await state.context.resume();
@@ -2303,7 +2310,7 @@
           const slicePosition = wasSlicePlaying ? audio.currentTime : 0, sliceWasPaused = audio.paused, sliceEndedEarly = !!track.sliceEndedEarly;
           state.dsdUrl = url; state.dsdBlob = message.blob; state.dsdTrackId = track.id; state.objectUrls.add(url);
           track.url = url; track.duration = message.duration; track.sampleRate = message.rate; track.channels = message.channels; track.dsdMultiplier = message.multiplier; track.pcmRate = message.targetRate; track.pcmDecimation = message.decimation; track.pcmBitDepth = message.bitDepth; track.dsdDecodeMs = message.decodeMs; track.dsdMaxChunkMs = message.maxChunkMs; track.dsdChunkCount = message.chunkCount; track.dsdChunksOverBudget = message.chunksOverBudget; track.dsdFinalChunkBytes = message.finalChunkBytes; track.dsdThroughputMBps = message.decodeThroughputMBps; track.dsdInitialChunkBytes = message.initialChunkBytes; track.dsdMaxConsecutiveOverBudget = message.maxConsecutiveOverBudget; track.dsdMinSliceThroughputMBps = message.minSliceThroughputMBps;
-          track.firstSlicePlayback = false; track.sliceEndedEarly = false;
+          track.firstSlicePlayback = false; track.sliceEndedEarly = false; track.dsdFirstSliceMs = null;
           if (dsdFullResolve) dsdFullResolve();
           track.fullAudioPromise = null;
           setupAudio();
@@ -3261,5 +3268,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 09:14 +07 | Đã xong: Pha C - OneDrive dùng thẳng downloadUrl thay vì tải qua Graph /content (giảm thời gian chờ bài OneDrive): loadMicrosoftAudio lấy link tải tạm thời mới qua resolveMicrosoftDownloadUrl (dùng lại trong 30 phút) rồi tải lát đầu + file đầy đủ thẳng từ SharePoint không gửi Authorization header (tránh preflight CORS, khỏi đưa token sang host lưu trữ); link hết hạn (403) thì xóa link cũ rồi rớt về đường /content + Bearer, Graph không trả link cũng rớt về /content; 3 đường thử lại bằng token (upgradeSliceToFullAudio, fetchCloudTrack, fetchCloudFile) chỉ chạy khi URL còn là Graph (isGraphContentUrl) vì thử lại bằng token trên downloadUrl hết hạn là vô ích; test mới onedrive-direct.test.cjs (link mới dùng lại, link cũ > 30 phút lấy mới, FLAC/DSD tải thẳng không header, 403 rớt về /content + Bearer, không có track thì không gọi Graph) đã thử fail trên code cũ; cập nhật sandbox index-script.test.cjs truyền isGraphContentUrl | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Thu hồi blob URL bài cũ sau crossfade (chống rò RAM, backlog) | Backlog: đo time-to-first-audio cho DSD, prefetch + cache lát đầu bài kế -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 09:41 +07 | Đã xong: Pha D - Thu hồi blob URL bài cũ sau crossfade (chống rò RAM): timeout dọn deck cũ sau fade giờ gọi releaseUnusedCloudUrl/releaseUnusedLocalUrl sau khi gỡ src — trước đây release ở cuối hàm bị guard chặn vì deck cũ vẫn gắn URL trong lúc fade nên blob file nhạc cũ nằm lại RAM suốt phiên; release trong timeout chạy cả khi đổi bài giữa fade (guard trong helper vẫn giữ URL còn gắn deck hoặc của bài đang phát); test chạy thật finishPlaybackStart (cloud/local thu hồi sau fade, đổi bài giữa fade vẫn thu hồi mà không pause deck mới, URL gắn lại deck mới không bị thu hồi) đã thử fail trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Đo time-to-first-audio cho DSD (lát PCM đầu): playDsdTrack chưa gọi recordTimeToFirstAudio nên bài DSD không hiện số đo | Backlog: prefetch + cache lát đầu bài kế -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 09:45 +07 | Đã xong: Pha A - Đo time-to-first-audio cho DSD (lát PCM đầu): playDsdTrack trước đây không gọi recordTimeToFirstAudio nên bài DSD không bao giờ hiện số đo trong Phòng nghe; giờ playDsdTrack nhận playRequestedAt từ playTrack, ghi số đo mode 'dsd' (nhãn 'lát PCM đầu DSD') khi lát đầu phát được và khi file DSD ngắn phát từ file PCM đầy đủ; test chạy thật helper với mode 'dsd' (2.3 giây → 'Nghe thấy tiếng sau 2.3 giây (lát PCM đầu DSD)') đã thử fail trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Hiện thời gian giải mã DSD (dsdDecodeMs) trong Phòng nghe để kiểm chứng tốc độ worker | Backlog: prefetch + cache lát đầu bài kế -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:13 +07 | Đã xong: Pha B - Hiện thời gian giải mã DSD trong Phòng nghe ngay khi lát PCM đầu phát được: worker gửi kèm sliceDecodeMs trong message 'first-slice'; formatDecodeAudit thêm tham số firstSliceMs, hiện "đang giải mã… lát đầu xong sau X" trong lúc worker còn giải mã phần còn lại, dòng tổng "giải mã X · lát chậm nhất Y ms" thay thế khi giải mã xong; track.dsdFirstSliceMs lưu khi lát đầu tới, xóa khi phát lại và khi giải mã xong để không hiện số đo cũ; test mới dsd-first-slice.test.cjs (giải mã thật DSF DSD32 3M mẫu: lát đầu ~2.02 s kèm sliceDecodeMs ≤ decodeMs tổng) đã thử fail trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu bài kế (tải sẵn lát đầu bài tiếp theo + cache vào IndexedDB, backlog) | Backlog: prefetch + cache lát đầu bài kế -->
 </body>
 </html>

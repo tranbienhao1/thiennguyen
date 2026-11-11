@@ -232,7 +232,7 @@ assert.ok(appCode.includes("if (track && track.firstSlicePlayback && track.fullA
 assert.ok(appCode.includes('toast(`Không thể tải bài hát'), 'A failed background download after the first slice runs out should toast and skip to the next track');
 assert.ok(appCode.includes('if (event.target !== row || (event.key !== \'Enter\' && event.key !== \' \')) return'), 'Track-row keyboard playback should only trigger when the row itself has focus');
 
-const auditStart = appCode.indexOf('function formatDecodeAudit(decodeMs, maxChunkMs, chunksOverBudget, throughputMBps, initialChunkBytes, maxConsecutiveOverBudget, minSliceThroughputMBps) {');
+const auditStart = appCode.indexOf('function formatDecodeAudit(decodeMs, maxChunkMs, chunksOverBudget, throughputMBps, initialChunkBytes, maxConsecutiveOverBudget, minSliceThroughputMBps, firstSliceMs) {');
 assert.ok(auditStart >= 0, 'DSD decode audit formatter should exist for regression checks');
 const auditEnd = appCode.indexOf('function signalDescription(track) {', auditStart);
 assert.ok(auditEnd > auditStart, 'DSD decode audit formatter should be extractable for regression checks');
@@ -260,6 +260,11 @@ assert.equal(formatDecodeAudit(null, 10), '', 'Missing decode time should hide t
 assert.equal(formatDecodeAudit(100, NaN), '', 'Missing slowest-chunk time should hide the audit line');
 assert.equal(formatDecodeAudit(-5, 10), '', 'Negative decode time should hide the audit line');
 assert.equal(formatDecodeAudit(undefined, undefined), '', 'Tracks decoded before the audit should show no audit line');
+assert.equal(formatDecodeAudit(undefined, undefined, undefined, undefined, undefined, undefined, undefined, 850), 'đang giải mã… lát đầu xong sau 850 ms', 'While the first DSD slice plays, the room should show how long that slice took to decode');
+assert.equal(formatDecodeAudit(undefined, undefined, undefined, undefined, undefined, undefined, undefined, 2300), 'đang giải mã… lát đầu xong sau 2.3 s', 'A first slice slower than one second should use the seconds form');
+assert.equal(formatDecodeAudit(1234, 34, 0, 0, 0, 0, 0, 850), 'giải mã 1.2 s · lát chậm nhất 34 ms', 'Once the full decode finishes, the total audit should replace the first-slice line');
+assert.equal(formatDecodeAudit(undefined, undefined, undefined, undefined, undefined, undefined, undefined, -5), '', 'A negative first-slice time should hide the partial audit line');
+assert.equal(formatDecodeAudit(undefined, undefined, undefined, undefined, undefined, undefined, undefined, NaN), '', 'A missing first-slice time should hide the partial audit line');
 assert.ok(appCode.includes('track.dsdDecodeMs = message.decodeMs'), 'DSD worker completion should store the measured decode time on the track');
 assert.ok(appCode.includes('track.dsdMaxChunkMs = message.maxChunkMs'), 'DSD worker completion should store the slowest chunk time on the track');
 assert.ok(appCode.includes('track.dsdChunksOverBudget = message.chunksOverBudget'), 'DSD worker completion should store the over-budget chunk count on the track');
@@ -269,7 +274,7 @@ assert.ok(appCode.includes('track.dsdThroughputMBps = message.decodeThroughputMB
 assert.ok(appCode.includes('track.dsdInitialChunkBytes = message.initialChunkBytes'), 'DSD worker completion should store the first chunk size on the track');
 assert.ok(appCode.includes('track.dsdMaxConsecutiveOverBudget = message.maxConsecutiveOverBudget'), 'DSD worker completion should store the longest over-budget streak on the track');
 assert.ok(appCode.includes('track.dsdMinSliceThroughputMBps = message.minSliceThroughputMBps'), 'DSD worker completion should store the slowest-slice throughput on the track');
-assert.ok(appCode.includes('formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget, track.dsdThroughputMBps, track.dsdInitialChunkBytes, track.dsdMaxConsecutiveOverBudget, track.dsdMinSliceThroughputMBps)'), 'Track detail should show the DSD decode audit with streak warning and slowest-slice throughput when available');
+assert.ok(appCode.includes('formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget, track.dsdThroughputMBps, track.dsdInitialChunkBytes, track.dsdMaxConsecutiveOverBudget, track.dsdMinSliceThroughputMBps, track.dsdFirstSliceMs)'), 'Track detail should show the DSD decode audit with streak warning and slowest-slice throughput when available');
 assert.ok(appCode.includes('track.dsdMaxConsecutiveOverBudget) && track.dsdMaxConsecutiveOverBudget >= 3'), 'A sustained slow DSD streak should produce device advice in the track detail');
 assert.ok(appCode.includes('thử giảm tần số PCM đích trong cài đặt DSD'), 'Device advice should suggest lowering the DSD target PCM rate');
 assert.ok(appCode.includes('room.advice ? ` · ${room.advice}` : '), 'Listening room should show the DSD device advice when present');

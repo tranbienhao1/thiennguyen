@@ -244,7 +244,7 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
     outputBytes+=bytes.length;outputFrames+=frames;
     if(outputBytes>MAX_PCM_BYTES) throw Error('PCM sau chuyển đổi vượt 256 MB; hãy chọn chất lượng thấp hơn.');
     chunks.push(bytes);
-    if(!firstSliceSent&&outputBytes>=firstSliceBytes){firstSliceSent=true;self.postMessage({type:'first-slice',blob:wavBlob(chunks,outputBytes),duration:outputFrames/targetRate});}
+    if(!firstSliceSent&&outputBytes>=firstSliceBytes){firstSliceSent=true;self.postMessage({type:'first-slice',blob:wavBlob(chunks,outputBytes),duration:outputFrames/targetRate,sliceDecodeMs:nowMs()-startedAt});}
   }
   function process(bytes,state) {
     const values=new Float32Array(Math.ceil(bytes.length/(2**stages))+2);let count=0;
