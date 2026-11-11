@@ -34,10 +34,10 @@ function makeDsf(rate = RATE, blockSize = 16, sampleCount = SAMPLE_COUNT, option
   for (let i = dataOffset + 12 + dataBytes; i < buffer.byteLength; i++) view.setUint8(i, 0x49);
   return new Blob([buffer]);
 }
-function makeDff(compression = 'DSD ', rate = RATE) {
+function makeDff(compression = 'DSD ', rate = RATE, sampleCount = SAMPLE_COUNT) {
   const propSize = 4 + (12 + 4) + (12 + 2) + (12 + 4);
   const propOffset = 16, dataOffset = propOffset + 12 + propSize;
-  const dataBytes = SAMPLE_COUNT / 8 * CHANNELS;
+  const dataBytes = sampleCount / 8 * CHANNELS;
   const buffer = new ArrayBuffer(dataOffset + 12 + dataBytes);
   const view = new DataView(buffer);
   writeTag(view, 0, 'FRM8'); writeU64(view, 4, buffer.byteLength - 12, false); writeTag(view, 12, 'DSD ');
@@ -296,6 +296,40 @@ function decode(file, format, targetRate, bitDepth) {
     const slice51224Wav = new DataView(await slices51224[0].blob.slice(0, 44).arrayBuffer());
     assert.equal(slice51224Wav.getUint16(34, true), 24, 'The DSD512 first slice should also be 24-bit in the WAV header');
     assert.equal(slices51224[0].blob.size, 44 + Math.round(slices51224[0].duration * 44100) * CHANNELS * 3, 'The DSD512 first slice should hold the expected 24-bit PCM frames');
+  }
+  // Pha D — kiểm toán worker với file DFF DSD256 24-bit (backlog): DFF
+  // 2,5 giây DSD256 stereo (~7,1 MB, 28,2 triệu mẫu) phải giải mã đúng
+  // sang PCM 88,2 kHz 24-bit (multiplier 256, đúng duration/kích thước
+  // 3 byte/mẫu, header WAV ghi 24-bit), chia nhiều lát và gửi đúng 1 lát
+  // PCM đầu (~2 giây, cũng 24-bit) trước 'done' — như bản DSF DSD512
+  // 24-bit, thay vì sai đường đọc chunk DSDIFF (FRM8/PROP/DSD, MSB-first)
+  // hay ghi nhầm độ sâu bit ở container DFF.
+  {
+    const posted = [];
+    const dff25624Self = {cancelled: false, onmessage: null, postMessage(message) { posted.push(message); }};
+    const dff25624Context = vm.createContext({self: dff25624Self, Blob});
+    vm.runInContext(source, dff25624Context, {filename: 'dsd-worker.js'});
+    const dff25624Done = new Promise((resolve, reject) => {
+      const originalPost = dff25624Self.postMessage.bind(dff25624Self);
+      dff25624Self.postMessage = message => { originalPost(message); if (message.type === 'done') resolve(message); else if (message.type === 'error') reject(new Error(message.message)); };
+    });
+    dff25624Self.onmessage({data: {file: makeDff('DSD ', 11289600, 11289600 * 2.5), format: 'dff', targetRate: 88200, bitDepth: 24}});
+    const dff25624Result = await dff25624Done;
+    assert.equal(dff25624Result.multiplier, 256, 'DFF DSD256 should decode with multiplier 256 at 24-bit');
+    assert.equal(dff25624Result.duration, 2.5, 'A 2.5 s DFF DSD256 file should report 2.5 s duration at 24-bit');
+    assert.equal(dff25624Result.bitDepth, 24, 'A DFF DSD256 file decoded at 24-bit should report 24-bit depth');
+    assert.equal(dff25624Result.blob.size, 44 + 2.5 * 88200 * CHANNELS * 3, 'A 2.5 s DFF DSD256 file should decode to the expected 24-bit PCM size');
+    const dff25624Wav = new DataView(await dff25624Result.blob.slice(0, 44).arrayBuffer());
+    assert.equal(dff25624Wav.getUint32(24, true), 88200, 'A DFF DSD256 file decoded at 24-bit should write 88.2 kHz in the WAV header');
+    assert.equal(dff25624Wav.getUint16(34, true), 24, 'A DFF DSD256 file decoded at 24-bit should write 24-bit depth in the WAV header');
+    assert.equal(dff25624Wav.getUint32(40, true), dff25624Result.blob.size - 44, 'A DFF DSD256 24-bit WAV should declare its full PCM data size');
+    assert.ok(dff25624Result.chunkCount >= 2, `A large DFF DSD256 file should decode in multiple chunks at 24-bit (got ${dff25624Result.chunkCount})`);
+    const slicesDff25624 = posted.filter(message => message.type === 'first-slice');
+    assert.equal(slicesDff25624.length, 1, 'A 2.5 s DFF DSD256 file should send exactly one first slice before done at 24-bit');
+    assert.ok(slicesDff25624[0].duration >= 2 && slicesDff25624[0].duration < 2.5, `The DFF DSD256 first slice should hold about 2 s of PCM at 24-bit (got ${slicesDff25624[0].duration} s)`);
+    const sliceDff25624Wav = new DataView(await slicesDff25624[0].blob.slice(0, 44).arrayBuffer());
+    assert.equal(sliceDff25624Wav.getUint16(34, true), 24, 'The DFF DSD256 first slice should also be 24-bit in the WAV header');
+    assert.equal(slicesDff25624[0].blob.size, 44 + Math.round(slicesDff25624[0].duration * 88200) * CHANNELS * 3, 'The DFF DSD256 first slice should hold the expected 24-bit PCM frames');
   }
   // Pha A — worker giữ throughput giữa các lần giải mã trong cùng phiên:
   // lần đầu chưa có số đo nên lát đầu là tối đa, lần sau lát đầu vẫn nằm

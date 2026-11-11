@@ -303,7 +303,12 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
     if(info.dataSize%info.channels) throw Error('Kích thước DFF không chia hết cho số kênh.');
     let groupBytes=initialChunkBytes(info.channels, lastDecodeThroughputMBps);
     firstChunkBytes=groupBytes;
-    for(let offset=0;offset<info.dataSize;offset+=groupBytes) {
+    // Pha D — tiến offset theo đúng số byte vừa đọc (length), không theo
+    // groupBytes: kích thước lát tự thích nghi đổi sau mỗi lát (chậm thì
+    // thu nhỏ, nhanh thì giữ tối đa) nên `offset += groupBytes` cũ tiến
+    // sai — lát thu nhỏ thì đọc lặp lại đuôi lát trước (thừa khung PCM,
+    // DFF DSD256 2,5 giây ra 2,58 giây), lát tăng thì bỏ qua dữ liệu.
+    for(let offset=0;offset<info.dataSize;) {
       if(self.cancelled) return;
       const length=Math.min(groupBytes,info.dataSize-offset);
       const raw=new Uint8Array(await file.slice(info.dataOffset+offset,info.dataOffset+offset+length).arrayBuffer());
@@ -317,6 +322,7 @@ async function run({file,format,targetRate=DEFAULT_TARGET_RATE,bitDepth=16}) {
       groupBytes = nextChunkBytes(groupBytes, chunkMs, info.channels);
       finalChunkBytes = groupBytes;
       processed+=raw.length;
+      offset+=length;
       self.postMessage({type:'progress',progress:Math.min(.99,processed/info.dataSize)});
     }
   }
