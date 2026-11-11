@@ -166,12 +166,12 @@ const bigFlacSliceBlob = new Blob([new Uint8Array(1572864)], {type: 'audio/flac'
 
   // Đường nối: worker ghi cache khi lát đầu về, playDsdTrack đọc cache
   // trước khi tạo worker; số lần ghi số đo 'dsd' vẫn đúng 2 chỗ.
-  assert.ok(appCode.includes('cacheFirstSlice(track, message.blob, track.size, library.DSD_FIRST_SLICE_CACHE_MAX_BYTES)'), 'The worker first-slice handler should cache the decoded PCM slice');
+  assert.ok(appCode.includes('cacheFirstSlice(track, message.blob, track.size, library.DSD_FIRST_SLICE_CACHE_MAX_BYTES, {dsdRate: state.dsdOutputRate, dsdDepth: state.dsdOutputDepth})'), 'The worker first-slice handler should cache the decoded PCM slice with its decode settings');
   const dsdStart = appCode.indexOf('async function playDsdTrack(track, generation, playRequestedAt) {');
   const dsdEnd = appCode.indexOf('function playNext(', dsdStart);
   assert.ok(dsdStart >= 0 && dsdEnd > dsdStart, 'DSD playback should exist for regression checks');
   const dsdBody = appCode.slice(dsdStart, dsdEnd);
-  assert.ok(dsdBody.includes('const cachedSlice = await getCachedFirstSlice(track);'), 'DSD playback should read the cached first slice before decoding');
+  assert.ok(dsdBody.includes('const cachedSlice = await getCachedFirstSlice(track, {dsdRate: state.dsdOutputRate, dsdDepth: state.dsdOutputDepth});'), 'DSD playback should read the cached first slice with the current decode settings before decoding');
   assert.ok(dsdBody.includes('playDsdFirstSlice(track, cachedSlice, generation, playRequestedAt)'), 'DSD playback should play the cached slice through the shared helper');
   assert.ok(dsdBody.indexOf('getCachedFirstSlice(track)') < dsdBody.indexOf('new Worker(new URL(\'dsd-worker.js\''), 'The cached DSD slice should play before the worker starts decoding');
   assert.equal(appCode.split("recordTimeToFirstAudio(track, playRequestedAt, performance.now(), 'dsd');").length - 1, 2, 'Both DSD playback starts (first slice and short-file full audio) should record time-to-first-audio');

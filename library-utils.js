@@ -567,6 +567,21 @@
   // 3 MB, vẫn nằm trong ngân sách chung 20 lát / 20 MB của
   // pruneSliceCacheEntries (lát quá lớn tự bị loại khi dọn kho).
   const DSD_FIRST_SLICE_CACHE_MAX_BYTES = 3 * 1024 * 1024;
+  // Pha C — lát PCM đầu DSD là âm thanh đã giải mã nên chỉ hợp lệ với
+  // đúng thông số giải mã lúc ghi (tốc độ xuất PCM + bit depth); lát
+  // FLAC là byte gốc của file nên không cần đối chiếu meta (không có kỳ
+  // vọng thì luôn hợp lệ). Mục cũ không có meta thì coi là hết hạn để
+  // worker giải mã lại một lần rồi ghi meta mới; meta bẩn (không phải
+  // số) cũng hết hạn thay vì phát nhầm lát sai tốc độ/bit depth.
+  function sliceCacheMetaMatches(entryMeta, expectedMeta) {
+    if (!expectedMeta || typeof expectedMeta !== 'object') return true;
+    if (!entryMeta || typeof entryMeta !== 'object') return false;
+    const rate = Number(entryMeta.dsdRate), expectedRate = Number(expectedMeta.dsdRate);
+    const depth = Number(entryMeta.dsdDepth), expectedDepth = Number(expectedMeta.dsdDepth);
+    if (!Number.isFinite(rate) || !Number.isFinite(expectedRate) || rate !== expectedRate) return false;
+    if (!Number.isFinite(depth) || !Number.isFinite(expectedDepth) || depth !== expectedDepth) return false;
+    return true;
+  }
   function pruneSliceCacheEntries(entries, maxEntries = FIRST_SLICE_CACHE_MAX_ENTRIES, maxBytes = FIRST_SLICE_CACHE_MAX_BYTES) {
     if (!Array.isArray(entries)) return [];
     const maxCount = Number.isFinite(maxEntries) ? Math.floor(maxEntries) : FIRST_SLICE_CACHE_MAX_ENTRIES;
@@ -607,5 +622,5 @@
     return [currentTrack, ...queued.filter(track => track.id !== currentTrack.id)];
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder};
 });
