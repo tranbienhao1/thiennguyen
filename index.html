@@ -1156,7 +1156,7 @@
       const key = library.historyTrackKey(track);
       const limit = Number.isFinite(maxBytes) && maxBytes > 0 ? maxBytes : library.FIRST_SLICE_BYTES;
       if (!key || !sliceBlob || !sliceBlob.size || sliceBlob.size > limit) return Promise.resolve(false);
-      try { return sliceCacheRequest(sliceCacheTransaction('readwrite').put({key, blob: sliceBlob, size: sliceBlob.size, totalBytes: Number(totalBytes) || 0, savedAt: Date.now()})).then(() => { pruneSliceCache(); return true; }).catch(() => false); }
+      try { return sliceCacheRequest(sliceCacheTransaction('readwrite').put({key, blob: sliceBlob, size: sliceBlob.size, totalBytes: Number(totalBytes) || 0, savedAt: Date.now()})).then(() => { pruneSliceCache(); track.firstSliceCached = true; if (track.id === state.currentId) renderRoomSignal(track); return true; }).catch(() => false); }
       catch (error) { return Promise.resolve(false); }
     }
     function persistCloudCatalog(tracks) {
@@ -1578,6 +1578,32 @@
       const mode = TIME_TO_FIRST_AUDIO_MODES[track.timeToFirstAudioMode];
       return `Nghe thấy tiếng sau ${total}${mode ? ` (${mode})` : ''}`;
     }
+    // Pha D — trạng thái cache lát đầu trong chi tiết bài hát (Phòng
+    // nghe): bài cloud (Drive/OneDrive) và bài DSD phát từ lát đầu được
+    // ghi vào IndexedDB nên lần bấm lại phát ngay; trạng thái chỉ hiện
+    // khi đã biết (true/false), chưa kiểm tra xong thì ẩn để không hiện
+    // sai. Làm mới chỉ đọc kho một lần cho mỗi track (đã biết thì thôi,
+    // đang đọc dở thì không đọc trùng) rồi vẽ lại Phòng nghe nếu bài
+    // vẫn đang phát.
+    function usesFirstSliceCache(track) {
+      return !!track && (!!track.isDsd || track.source === 'google' || track.source === 'onedrive');
+    }
+    function firstSliceCacheText(cached) {
+      if (cached === true) return 'lát đầu đã lưu trong bộ nhớ · phát ngay khi bấm lại';
+      if (cached === false) return 'lát đầu chưa lưu trong bộ nhớ';
+      return '';
+    }
+    async function refreshFirstSliceCacheStatus(track) {
+      if (!usesFirstSliceCache(track) || track.firstSliceCached === true || track.firstSliceCached === false || track.firstSliceCacheChecking) return;
+      track.firstSliceCacheChecking = true;
+      try {
+        const cached = await getCachedFirstSlice(track);
+        if (track.firstSliceCached === !!cached) return;
+        track.firstSliceCached = !!cached;
+        if (track.id === state.currentId) renderRoomSignal(track);
+      } catch (error) { /* giữ trạng thái chưa biết, không làm hỏng dòng tín hiệu */ }
+      finally { track.firstSliceCacheChecking = false; }
+    }
     // Pha D — số đo render danh sách trong Phòng nghe: chỉ hiện khi lần
     // dựng lại gần nhất chậm (từ 100 ms trở lên) để biết danh sách hàng
     // nghìn bài có đang làm chậm giao diện; đường nhẹ (skipped) và render
@@ -1590,11 +1616,12 @@
     function renderRoomSignal(track) {
       const room = signalDescription(track), firstAudio = timeToFirstAudioText(track), rowsPerf = trackRowsPerfText();
       $('room-signal').textContent = `${room.sourceTechnical} · ${room.decoded}${room.advice ? ` · ${room.advice}` : ''}${firstAudio ? ` · ${firstAudio}` : ''}${rowsPerf ? ` · ${rowsPerf}` : ''}`;
+      refreshFirstSliceCacheStatus(track);
     }
     function signalDescription(track) {
       const metadata = library.trackMetadata(track);
       const sourceName = ({local:'File local trên thiết bị',google:'Google Drive qua API riêng',onedrive:'OneDrive qua API riêng',url:'URL trực tiếp'})[track.source] || `Nguồn ${sourceLabel(track.source)}`;
-      const sourceTechnical = [track.format || '', track.isDsd && (track.dsdMultiplier ? `DSD${track.dsdMultiplier}` : (dsdSourceInfo(track.sampleRate) || {}).multiplier ? `DSD${(dsdSourceInfo(track.sampleRate) || {}).multiplier}` : ''), !track.isDsd && track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', !track.isDsd && track.bitDepth ? `${track.bitDepth}-bit` : '', track.isDsd && track.pcmRate ? `giải mã trên thiết bị sang PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth || state.dsdOutputDepth}-bit` : '', track.isDsd ? formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget, track.dsdThroughputMBps, track.dsdInitialChunkBytes, track.dsdMaxConsecutiveOverBudget, track.dsdMinSliceThroughputMBps, track.dsdFirstSliceMs) : '', track.channels ? `${track.channels} kênh` : ''].filter(Boolean).join(' · ');
+      const sourceTechnical = [track.format || '', track.isDsd && (track.dsdMultiplier ? `DSD${track.dsdMultiplier}` : (dsdSourceInfo(track.sampleRate) || {}).multiplier ? `DSD${(dsdSourceInfo(track.sampleRate) || {}).multiplier}` : ''), !track.isDsd && track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', !track.isDsd && track.bitDepth ? `${track.bitDepth}-bit` : '', track.isDsd && track.pcmRate ? `giải mã trên thiết bị sang PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth || state.dsdOutputDepth}-bit` : '', track.isDsd ? formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget, track.dsdThroughputMBps, track.dsdInitialChunkBytes, track.dsdMaxConsecutiveOverBudget, track.dsdMinSliceThroughputMBps, track.dsdFirstSliceMs) : '', track.channels ? `${track.channels} kênh` : '', usesFirstSliceCache(track) ? firstSliceCacheText(track.firstSliceCached) : ''].filter(Boolean).join(' · ');
       const decoded = track.isDsd ? 'DSD không phát trực tiếp; NOCTURNE giải mã sang PCM trước khi phát.' : `${track.format || 'Âm thanh'} được trình duyệt giải mã bằng Web Audio.`;
       const advice = track.isDsd && Number.isFinite(track.dsdMaxConsecutiveOverBudget) && track.dsdMaxConsecutiveOverBudget >= 3 ? `Thiết bị giải mã chậm ${Math.round(track.dsdMaxConsecutiveOverBudget)} lát liên tiếp — thử giảm tần số PCM đích trong cài đặt DSD để giải mã nhẹ hơn.` : '';
       const title = metadata.title || track.name || 'Bài hát không tên';
@@ -3537,5 +3564,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 19:51 +07 | Đã xong: Pha B - Footer hiện tổng thời lượng bài nhạc (Melissa báo 19:48, ảnh chụp footer 0:00/0:00): bài Google lần đầu chưa biết track.duration, loadedmetadata bắn trên deck đích (standby) trước khi đổi deck nên footer kẹt 0:00, timeupdate chỉ cập nhật room-duration; giờ timeupdate đồng bộ luôn #duration/#duration-mobile khi duration hữu hạn, loadCloudMetadata đồng bộ footer khi metadata nền về cho bài đang phát (chỉ khi duration hữu hạn); test mới footer-duration.test.cjs (timeupdate 0:05/3:17 thì footer 3:17, loadedmetadata trên deck đang phát vẫn ghi footer) fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Cache lát đầu DSD vào IndexedDB để phát lại ngay sau tải lại trang | Backlog: hiển thị trạng thái cache lát đầu (FLAC/DSD) trong chi tiết bài hát, hiển thị thời gian giải mã DSD trong Phòng nghe khi đang giải mã, kiểm toán worker với file DSD512 24-bit -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 20:13 +07 | Đã xong: Pha C - Cache lát đầu DSD vào IndexedDB để phát lại ngay sau tải lại trang: worker ghi lát PCM đầu (~2 giây) vào firstSliceCache khi message 'first-slice' về (giới hạn riêng 3 MB vì lát 192 kHz/24-bit nặng ~2.3 MB, vượt 1 MB của lát FLAC; cacheFirstSlice nhận thêm maxBytes), playDsdTrack đọc cache trước khi tạo worker và phát ngay qua helper dùng chung playDsdFirstSlice (tách từ handler 'first-slice': đặt cờ lát đầu, ghi số đo nghe thấy tiếng, tải bài kế; lát phát lỗi thì dọn URL để lát worker còn phát được, lát cache phát lỗi thì worker giải mã lại); test mới dsd-slice-cache.test.cjs (ghi/đọc lát DSD 2.3 MB, FLAC giữ giới hạn 1 MB, helper phát thành công/lỗi/blob rỗng/thiếu context/generation cũ, nối dây cache trước worker) fail đúng trên code cũ (thiếu hằng số); đã sửa sandbox dsd-slice-position/dsd-prefetch-next (nạp helper thật + stub cache/library, đếm gộp preloadNext/lastSlicePosition) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Điều tra nguyên nhân riêng của FLAC tự chuyển bài (Melissa báo 20:03 +07: chỉ còn FLAC bị, DSD đã hết — ưu tiên cao nhất) | Backlog: hiển thị trạng thái cache lát đầu (FLAC/DSD) trong chi tiết bài hát, hiển thị thời gian giải mã DSD trong Phòng nghe khi đang giải mã, kiểm toán worker với file DSD512 24-bit -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 20:25 +07 | Đã xong: Pha C - Sửa dứt điểm FLAC Drive nhảy bài ở ~13 giây (Melissa báo 20:03, trả lời 20:20: không toast, vẫn ~13 giây, FLAC trên Google Drive): nguyên nhân gốc là fetchAudioFirstSlice tin header Content-Range để biết tổng số byte, nhưng đó là header cross-origin — trình duyệt ẩn nó khi máy chủ không expose (Drive không expose; đã kiểm chứng bằng Chrome thật: 206 có Content-Range nhưng không expose thì get('content-range') trả null) — totalBytes rơi về content-length (= đúng 1 MB lát đầu) nên lát bị tưởng là toàn file: app không tải nền, firstSlicePlayback=false, phát hết lát (~12.96 giây với Rio) thì 'ended' mà guard không bắt nên nhảy bài im lặng, không toast; đúng cả 3 câu trả lời của cô ấy và giải thích vì sao DSD (không qua lát đầu) không bị, vì sao mọi bản vá guard trước đây không ăn. Giờ fetchCloudTrack đưa tổng số byte thật (track.size từ metadata Drive/OneDrive) qua expectedTotalBytes và fetchAudioFirstSlice ưu tiên nó hơn header (thiếu thì vẫn dùng header như cũ); test mới trong library-utils.test.cjs (206 không Content-Range + expectedTotalBytes thì totalBytes đúng 20770699 và complete=false — fail đúng trên code cũ với totalBytes=1048576, 206 có header thì khớp, 200 đủ size thì complete=true) và cập nhật assertion index-script.test.cjs theo chữ ký gọi mới | Kiểm chứng: 3/3 Tầng PASS, node --test 33/33 | Lượt kế tiếp: Pha D - Hiển thị trạng thái cache lát đầu (FLAC/DSD) trong chi tiết bài hát | Backlog: hiển thị thời gian giải mã DSD trong Phòng nghe khi đang giải mã, kiểm toán worker với file DSD512 24-bit -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 20:36 +07 | Đã xong: Pha D - Hiển thị trạng thái cache lát đầu (FLAC/DSD) trong chi tiết bài hát (Phòng nghe): signalDescription gắn dòng "lát đầu đã lưu trong bộ nhớ · phát ngay khi bấm lại" / "lát đầu chưa lưu trong bộ nhớ" cho bài cloud (Drive/OneDrive) và bài DSD, bài local không phải DSD thì ẩn, trạng thái chưa biết thì ẩn; renderRoomSignal gọi refreshFirstSliceCacheStatus đọc IndexedDB một lần cho mỗi bài rồi vẽ lại nếu bài vẫn đang phát, cacheFirstSlice ghi xong thì đánh dấu đã lưu để dòng đổi ngay không cần mở lại; test mới slice-cache-status.test.cjs (hàm thuần, tích hợp signalDescription, làm mới async: đọc 1 lần, không đọc lại khi đã biết, không vẽ lại khi bài đã chuyển, lỗi đọc giữ trạng thái chưa biết, 2 lần gọi đua nhau chỉ đọc 1 lần) fail đúng trên code cũ (thiếu helper). Melissa xác nhận 20:32 lỗi FLAC nhảy bài đã hết, lịch quay lại vòng xoay thường | Kiểm chứng: 3/3 Tầng PASS, node --test 34/34 | Lượt kế tiếp: Pha A - Kiểm toán worker với file DSD512 24-bit | Backlog: hiển thị trạng thái cache lát đầu trong tooltip huy hiệu chất lượng từng hàng bài hát, đo time-to-first-audio cho bài DSD local, kiểm toán worker với file DFF DSD256 24-bit -->
 </body>
 </html>
