@@ -47,6 +47,20 @@ for (const [label, guard] of [['ended', endedGuard], ['error', errorGuard]]) {
   assert.ok(guard.indexOf('track.fullAudioError') < guard.indexOf('if (track && track.firstSlicePlayback && track.fullAudioPromise) {'), `The '${label}' guard should check the recorded error before the still-running download`);
 }
 
+// Pha C — lát đầu hết trong khi tải nền còn đang chạy, tải nền sau đó
+// mới thất bại: callback .catch() phải dùng chung skipAfterFullAudioFailure
+// để toast đúng lý do đã ghi (vd phiên Drive hết hạn) thay vì toast
+// chung chung không nêu lý do như trước; vẫn giữ guard sliceEndedEarly
+// + currentId để không chuyển bài hai lần hay chuyển nhầm bài mới.
+for (const [label, guard] of [['ended', endedGuard], ['error', errorGuard]]) {
+  const catchStart = guard.indexOf('track.fullAudioPromise.catch(');
+  assert.ok(catchStart >= 0, `The '${label}' guard should wait on the still-running background download`);
+  const catchBlock = guard.slice(catchStart, guard.indexOf('});', catchStart));
+  assert.ok(catchBlock.includes('skipAfterFullAudioFailure(track)'), `The '${label}' guard should route a late background failure through the shared failure handler so the toast carries the recorded reason`);
+  assert.ok(catchBlock.includes("if (!track.sliceEndedEarly || track.id !== state.currentId) return;"), `The '${label}' guard should only skip for the track that is still current`);
+  assert.ok(!catchBlock.includes(', chuyển sang bài tiếp theo.'), `The '${label}' guard should no longer toast a reason-less skip message for a late background failure`);
+}
+
 function makeUpgradeContext(fetchAudioBlob) {
   const state = {objectUrls: new Set(), currentId: 'other-track'};
   const audio = {src: '', currentTime: 0, paused: true, addEventListener() {}};

@@ -3084,11 +3084,10 @@
             track.sliceEndedEarly = true;
             track.fullAudioPromise.catch(() => {
               if (!track.sliceEndedEarly || track.id !== state.currentId) return;
-              track.sliceEndedEarly = false;
-              state.errorSkipCount = (state.errorSkipCount || 0) + 1;
-              if (state.errorSkipCount > state.tracks.length) { state.errorSkipCount = 0; toast('Không thể phát các bài hát trong danh sách, đã dừng phát.'); return; }
-              toast(`Không thể tải bài hát${track.title || track.name ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
-              playNext(1, false);
+              // Pha C — tải nền thất bại sau khi lát đầu đã hết: dùng
+              // chung skipAfterFullAudioFailure để toast đúng lý do đã
+              // ghi (vd phiên Drive hết hạn) thay vì toast chung chung.
+              skipAfterFullAudioFailure(track);
             });
           }
           return;
@@ -3114,11 +3113,10 @@
             track.sliceEndedEarly = true;
             track.fullAudioPromise.catch(() => {
               if (!track.sliceEndedEarly || track.id !== state.currentId) return;
-              track.sliceEndedEarly = false;
-              state.errorSkipCount = (state.errorSkipCount || 0) + 1;
-              if (state.errorSkipCount > state.tracks.length) { state.errorSkipCount = 0; toast('Không thể phát các bài hát trong danh sách, đã dừng phát.'); return; }
-              toast(`Không thể tải bài hát${track.title || track.name ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
-              playNext(1, false);
+              // Pha C — tải nền thất bại sau khi lát đầu đã hết: dùng
+              // chung skipAfterFullAudioFailure để toast đúng lý do đã
+              // ghi (vd phiên Drive hết hạn) thay vì toast chung chung.
+              skipAfterFullAudioFailure(track);
             });
           }
           return;
@@ -3301,5 +3299,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:13 +07 | Đã xong: Pha B - Hiện thời gian giải mã DSD trong Phòng nghe ngay khi lát PCM đầu phát được: worker gửi kèm sliceDecodeMs trong message 'first-slice'; formatDecodeAudit thêm tham số firstSliceMs, hiện "đang giải mã… lát đầu xong sau X" trong lúc worker còn giải mã phần còn lại, dòng tổng "giải mã X · lát chậm nhất Y ms" thay thế khi giải mã xong; track.dsdFirstSliceMs lưu khi lát đầu tới, xóa khi phát lại và khi giải mã xong để không hiện số đo cũ; test mới dsd-first-slice.test.cjs (giải mã thật DSF DSD32 3M mẫu: lát đầu ~2.02 s kèm sliceDecodeMs ≤ decodeMs tổng) đã thử fail trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu bài kế (tải sẵn lát đầu bài tiếp theo + cache vào IndexedDB, backlog) | Backlog: prefetch + cache lát đầu bài kế -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:36 +07 | Đã xong: Pha C - Lỗi FLAC cloud nhảy bài: ghi lại lỗi tải nền vào track.fullAudioError (xóa khi bắt đầu tải mới, ghi khi fetchAudioBlob lỗi kể cả 401 phiên Drive hết hạn) và thêm handler dùng chung skipAfterFullAudioFailure cho guard 'ended'/'error' — lát đầu hết sau khi tải nền đã hỏng thì toast rõ lý do rồi chuyển bài thay vì nhảy im lặng; test mới full-audio-failure.test.cjs fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã, đo time-to-first-audio cho DSD | Backlog: prefetch + cache lát đầu bài kế, thu hồi blob URL bài cũ sau crossfade -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:43 +07 | Đã xong: Pha D - Kiểm toán bộ giải mã DSD: test hồi quy dsd-truncated.test.cjs khóa guard cắt cụt cho DSF/DFF (DSF cắt giữa chunk data, DSF khai sampleCount vượt data, DFF cắt giữa data, DFF khai chunk DSD vượt FRM8, header quá ngắn) — worker phải báo lỗi rõ thay vì treo hoặc giải mã sai; file nguyên vẹn vẫn decode xong; test fail đúng trên worker đã bỏ guard (đột biến tạm trong /tmp) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Engine Lossless/DSD, gapless/crossfade, mediaSession, EQ/DSP | Backlog: prefetch + cache lát đầu bài kế, thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 11:09 +07 | Đã xong: Pha C - Lỗi FLAC cloud nhảy bài: guard 'ended'/'error' khi tải nền thất bại muộn (lát đầu đã hết trước, tải nền sau đó mới hỏng) thì dùng chung skipAfterFullAudioFailure để toast đúng lý do đã ghi (vd phiên Drive hết hạn) thay vì toast chung chung không nêu lý do; test mới trong full-audio-failure.test.cjs fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Kiểm toán gapless/crossfade khi chuyển bài trong lúc preload đang chạy | Backlog: prefetch + cache lát đầu bài kế, kiểm toán deck swap khi crossfade -->
 </body>
 </html>
