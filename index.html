@@ -523,6 +523,10 @@
     <div id="eq-bands" class="mt-3 space-y-2"></div>
     <div class="mt-3 flex items-center justify-between gap-3"><button id="eq-add-band" class="rounded-lg border border-white/10 px-3 py-2 text-[10px] text-violet-200 hover:bg-white/5">＋ Thêm band</button><span id="eq-headroom" class="text-[10px] tabular-nums text-emerald-300">Preamp 0 dB</span></div>
     <label class="mt-3 flex items-center justify-between text-xs text-zinc-400">Preamp trim <input id="eq-preamp" class="range w-32" type="range" min="-12" max="0" step="0.5" value="0"></label>
+    <div class="mt-3 border-t border-white/10 pt-3">
+      <div class="flex items-center justify-between text-xs text-zinc-400"><span>Cân bằng L / R</span><span id="balance-label" class="font-mono text-[10px] text-zinc-300">Giữa</span></div>
+      <div class="mt-1.5 flex items-center gap-2"><span class="text-[9px] text-zinc-500">L</span><input id="balance-slider" class="range flex-1 cursor-pointer" type="range" min="-100" max="100" value="0" step="1" aria-label="Cân bằng kênh trái phải"><span class="text-[9px] text-zinc-500">R</span><button id="balance-reset" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-300 hover:bg-white/10 hover:text-white" title="Đặt lại về giữa">0</button></div>
+    </div>
   </div>
   <div id="listening-room" class="fixed inset-0 z-[55] hidden overflow-y-auto bg-[#09090b]/95 p-4 backdrop-blur-2xl sm:p-8" role="dialog" aria-modal="true" aria-labelledby="room-title">
     <div class="mx-auto flex min-h-full max-w-6xl flex-col"><header class="flex items-center justify-between"><span class="text-[10px] font-semibold uppercase tracking-[.24em] text-violet-200">NOCTURNE · NOW PLAYING</span><button id="room-close" type="button" class="rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 hover:bg-white/10" aria-label="Đóng màn hình Đang phát">Đóng ×</button></header>
@@ -767,7 +771,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -2003,8 +2007,16 @@
       state.limiter = createSoftLimiter(state.context);
       state.preLimiterAnalyser.connect(state.limiter);
       state.limiter.connect(state.analyser);
-      state.analyser.connect(state.context.destination);
-      state.directAnalyser.connect(state.context.destination);
+      if (typeof state.context.createStereoPanner === 'function') {
+        state.panner = state.context.createStereoPanner();
+        state.panner.pan.value = state.stereoBalance || 0;
+        state.analyser.connect(state.panner);
+        state.directAnalyser.connect(state.panner);
+        state.panner.connect(state.context.destination);
+      } else {
+        state.analyser.connect(state.context.destination);
+        state.directAnalyser.connect(state.context.destination);
+      }
       state.deckA = attachAudioElement(audio); state.deckB = attachAudioElement(standbyAudio); state.activeDeck = state.deckA;
       rebuildAudioRoutes();
       document.addEventListener('visibilitychange', () => { if (document.hidden || audio.paused) setVisualizerRunning(false); else setVisualizerRunning(true); });
@@ -2040,10 +2052,36 @@
       };
       if (!visualizerFrame) visualizerFrame = requestAnimationFrame(draw);
     }
+    let volumeBeforeMute = 80;
     function setGain(value) {
-      const linear = Number(value) / 100, volume = linear === 0 ? 0 : Math.pow(10, (-60 + linear * 60) / 20);
+      const num = Number(value);
+      if (num > 0) volumeBeforeMute = num;
+      const linear = num / 100, volume = linear === 0 ? 0 : Math.pow(10, (-60 + linear * 60) / 20);
       audio.volume = volume; standbyAudio.volume = volume;
       $('volume').value = value; $('volume-mobile').value = value;
+    }
+    function toggleMute() {
+      const current = Number($('volume').value) || 0;
+      if (current > 0) {
+        volumeBeforeMute = current;
+        setGain(0);
+        toast('Đã tắt tiếng (Mute).');
+      } else {
+        const next = volumeBeforeMute || 80;
+        setGain(next);
+        toast(`Đã bật tiếng (${next}%).`);
+      }
+    }
+    function setStereoBalance(value) {
+      const balance = library.clampBalance(value, 0);
+      state.stereoBalance = balance;
+      try { localStorage.setItem('nocturne-stereo-balance', String(balance)); } catch (_) {}
+      if (state.panner && state.context) {
+        state.panner.pan.setTargetAtTime(balance, state.context.currentTime, .015);
+      }
+      const slider = $('balance-slider'), label = $('balance-label');
+      if (slider) slider.value = String(Math.round(balance * 100));
+      if (label) label.textContent = library.formatBalance(balance);
     }
     function paintSeek(input, value) {
       const percent = Math.max(0, Math.min(100, Number(value) / 10));
@@ -2155,7 +2193,7 @@
       const room = signalDescription(track), q = quality(track);
       $('quality-badge').textContent = q.label; $('quality-badge').className = `rounded-md border px-2 py-1 text-[9px] font-medium uppercase tracking-wider ${q.tone}`; $('mobile-quality').textContent = q.label;
       $('room-title').textContent = room.title; $('room-artist').textContent = room.artist; $('room-album').textContent = room.album;
-      renderRoomSignal(track); $('room-output').textContent = `Nguồn: ${room.sourceName}. AudioContext ${state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.`;
+      renderRoomSignal(track); $('room-output').textContent = `Nguồn: ${room.sourceName}. AudioContext ${state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.${state.stereoBalance ? ` · Cân bằng: ${library.formatBalance(state.stereoBalance)}` : ''}`;
       $('room-quality').textContent = q.label; $('room-quality').className = `rounded-md border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider ${q.tone}`;
       const roomCover = $('room-cover'); roomCover.hidden = !track.cover; roomCover.src = track.cover || ''; $('room-cover-empty').classList.toggle('hidden', !!track.cover);
       $('favorite-button').classList.remove('hidden'); $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').classList.toggle('text-pink-300', isFavorite(track));
@@ -3173,11 +3211,14 @@
       if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); return; }
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target && target.isContentEditable) || (target && target.closest && target.closest('button, a, [role="button"]')) || !$('listening-room').classList.contains('hidden')) return;
       if (!$('queue-panel').classList.contains('hidden')) { if (event.key.toLowerCase() === 'q') closeQueue(); return; }
-      if (event.code === 'Space') { event.preventDefault(); $('play-button').click(); }
-      else if (event.key === 'ArrowLeft' && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(-10); }
-      else if (event.key === 'ArrowRight' && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(10); }
+      if (event.code === 'Space' || event.key.toLowerCase() === 'k') { event.preventDefault(); $('play-button').click(); }
+      else if ((event.key === 'ArrowLeft' || event.key.toLowerCase() === 'j') && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(-10); }
+      else if ((event.key === 'ArrowRight' || event.key.toLowerCase() === 'l') && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(10); }
       else if (event.key === '[' && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(-10); }
       else if (event.key === ']' && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(10); }
+      else if (event.key === 'ArrowUp') { event.preventDefault(); const cur = Number($('volume').value) || 0; const next = Math.min(100, cur + 5); setGain(next); toast(`Âm lượng: ${next}%`); }
+      else if (event.key === 'ArrowDown') { event.preventDefault(); const cur = Number($('volume').value) || 0; const next = Math.max(0, cur - 5); setGain(next); toast(`Âm lượng: ${next}%`); }
+      else if (event.key.toLowerCase() === 'm') { event.preventDefault(); toggleMute(); }
       else if (event.key.toLowerCase() === 'n') playNext(1);
       else if (event.key.toLowerCase() === 'p') playNext(-1);
       else if (event.key.toLowerCase() === 'q') $('queue-panel').classList.contains('hidden') ? openQueue() : closeQueue();
@@ -3479,6 +3520,24 @@
     });
     $('eq-preamp').addEventListener('input', applyEq);
     $('eq-preset').addEventListener('change', event => applyEqPreset(event.target.value));
+    try {
+      const savedBalance = parseFloat(localStorage.getItem('nocturne-stereo-balance'));
+      if (Number.isFinite(savedBalance)) state.stereoBalance = library.clampBalance(savedBalance, 0);
+    } catch (_) {}
+    const balanceSlider = $('balance-slider'), balanceReset = $('balance-reset');
+    if (balanceSlider) {
+      balanceSlider.value = String(Math.round(state.stereoBalance * 100));
+      $('balance-label').textContent = library.formatBalance(state.stereoBalance);
+      balanceSlider.addEventListener('input', event => {
+        setStereoBalance(Number(event.target.value) / 100);
+      });
+    }
+    if (balanceReset) {
+      balanceReset.addEventListener('click', () => {
+        setStereoBalance(0);
+        toast('Cân bằng âm thanh: Giữa (0)');
+      });
+    }
     let savedEqPreset = null;
     try { savedEqPreset = localStorage.getItem('nocturne-eq-preset'); } catch (error) { console.warn('Could not load saved EQ preset:', error); }
     if (!applyEqPreset(savedEqPreset)) {
@@ -3636,5 +3695,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 21:51 +07 | Đã xong: Pha D - Kiểm toán worker với file DFF DSD256 24-bit + SỬA LỖI THẬT: audit mới (DFF 2,5 giây DSD256 stereo ~7,1 MB, 28,2 triệu mẫu, giải mã sang PCM 88,2 kHz 24-bit) phát hiện worker giải mã DFF ra thừa khung — duration 2,58 giây thay vì 2,5 giây (DFF DSD64 2,5 giây ra tới 2,78 giây), trong khi DSF cùng mẫu thì đúng 2,5 giây; nguyên nhân gốc là vòng lặp DFF dùng `offset += groupBytes` trong khi groupBytes tự thích nghi đổi sau mỗi lát (lát chậm thì thu nhỏ) nên offset tiến ít hơn số byte vừa đọc, đọc lặp lại đuôi lát trước. Sửa: vòng lặp tiến offset theo đúng length vừa đọc (`offset += length`), như đường DSF vốn dùng `sub += length`. Sau sửa, DFF và DSF cùng ra đúng 2,5 giây/đúng kích thước PCM ở mọi tốc độ/bit depth thử được; audit kiểm tra multiplier 256, duration 2,5, bitDepth 24, header WAV (88,2 kHz, 24-bit, đúng data size), nhiều lát, đúng 1 lát PCM đầu ~2 giây cũng 24-bit; đã tham số hoá makeDff nhận sampleCount; test mới fail đúng trên worker cũ (duration 2,581269841269841 thay vì 2,5) | Kiểm chứng: 3/3 Tầng PASS, node --test 37/37 | Lượt kế tiếp: Pha A - Đo time-to-first-audio cho bài DSD local (ghi số đo thật vào Phòng nghe như bản cloud, so sánh với DSD cloud) | Backlog: hiển thị trạng thái cache lát đầu trong tooltip huy hiệu chất lượng từng hàng bài hát, Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe, Roon Radio phát tiếp bài tương tự khi hết hàng đợi, kiểm toán worker với file DFF DSD512 24-bit -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 22:08 +07 | Đã xong: Pha A - Đo time-to-first-audio cho bài DSD local: trước đây DSD local và DSD cloud cùng ghi mode 'dsd' nên Phòng nghe không phân biệt được, và đường DSD không làm mới dòng tín hiệu sau khi ghi số đo (chỉ hiện khi giải mã toàn file xong) trong khi đường thường làm mới ngay qua listener 'playing'. Giờ cả hai đường phát DSD (lát PCM đầu qua playDsdFirstSlice + file DSD ngắn trong handler 'done') ghi mode 'dsd-local' khi track.source === 'local' (nhãn 'lát PCM đầu DSD · file local') và 'dsd' cho cloud, rồi gọi renderRoomSignal ngay khi bài vẫn đang phát; test chạy thật trong dsd-slice-cache.test.cjs (lát local ghi 'dsd-local' + làm mới Phòng nghe, lát cloud giữ 'dsd') và assertion nhãn 'dsd-local' trong index-script.test.cjs fail đúng trên code cũ (thiếu nhãn/lệnh làm mới); đã thêm stub renderRoomSignal vào 3 sandbox chạy thật (dsd-slice-cache, dsd-prefetch-next, dsd-slice-position) | Kiểm chứng: 3/3 Tầng PASS, node --test 37/37 | Lượt kế tiếp: Pha B - Hiển thị trạng thái cache lát đầu trong tooltip huy hiệu chất lượng từng hàng bài hát | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe, Roon Radio phát tiếp bài tương tự khi hết hàng đợi, kiểm toán worker với file DFF DSD512 24-bit -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 22:24 +07 | Đã xong: Pha B - Hiển thị trạng thái cache lát đầu trong tooltip huy hiệu chất lượng từng hàng bài hát: tooltip huy hiệu gộp dòng kiểm toán DSD (nếu có) + trạng thái cache lát đầu qua helper dùng chung usesFirstSliceCache/firstSliceCacheText — 'lát đầu đã lưu trong bộ nhớ · phát ngay khi bấm lại' / 'lát đầu chưa lưu trong bộ nhớ', chỉ hiện khi đã biết; chữ ký hàng thêm trạng thái cache để đường nhẹ dựng lại khi tooltip đổi thay vì bỏ qua; refreshFirstSliceCacheStatus và cacheFirstSlice (ghi xong) đều gọi scheduleTrackRender (debounce 180 ms) khi là bài đang phát để tooltip cập nhật theo, không chỉ dòng Phòng nghe; test chạy thật trong track-rows-render.test.cjs (chữ ký đổi khi trạng thái đổi, tooltip hiện/ẩn đúng) + slice-cache-status.test.cjs (làm mới xong thì dựng lại hàng) fail đúng trên code cũ; đã thêm stub 2 helper vào 5 sandbox trích renderTrackRows (track-rows-render, tidal-rows, versions, dsd-row-audit, render-rows-perf) và sửa assertion tĩnh tooltip trong dsd-row-audit theo biến badgeTitle mới | Kiểm chứng: 3/3 Tầng PASS, node --test 37/37 | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu bài kế khi bài kế là DSD (preloadNext hiện bỏ qua isDsd) | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe, Roon Radio phát tiếp bài tương tự khi hết hàng đợi, kiểm toán worker với file DFF DSD512 24-bit -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 22:30 +07 | Đã xong: Pha A - Cân bằng kênh âm thanh trái/phải Stereo Balance L/R qua StereoPannerNode trong AudioContext Graph + UI điều chỉnh trong panel Parametric Equalizer (#balance-slider, #balance-label, #balance-reset), lưu localStorage và khôi phục khi mở lại trang, cập nhật dòng tín hiệu Phòng nghe; bổ sung phím tắt M (tắt/bật tiếng), ↑/↓ (tăng/giảm âm lượng 5%), J/L hoặc ←/→ tua ±10s, K hoặc Space phát/tạm dừng; test mới balance.test.cjs | Kiểm chứng: 3/3 Tầng PASS, node --test 38/38 | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu bài kế khi bài kế là DSD | Backlog: Ambient Glow đổi màu nền theo ảnh bìa album, Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe, Roon Radio phát tiếp bài tương tự khi hết hàng đợi -->
 </body>
 </html>

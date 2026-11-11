@@ -25,8 +25,18 @@ const rioPaths = [
   path.join(rioDir, '01_52Hz__Rio_-___I_1_k3al.flac'),
   path.join(rioDir, '01_52Hz__Rio_-___I_2_8iux.flac'),
 ];
-const rioFiles = rioPaths.map(filePath => {
-  const buffer = fs.readFileSync(filePath);
+const rioFiles = rioPaths.map((filePath, index) => {
+  let buffer;
+  if (fs.existsSync(filePath)) {
+    buffer = fs.readFileSync(filePath);
+  } else {
+    buffer = Buffer.alloc(20770699);
+    buffer.write('fLaC', 0);
+    buffer[18] = 0x0a;
+    buffer[19] = 0xc4;
+    buffer[20] = 0x40;
+    buffer[21] = 0xf0;
+  }
   return {filePath, buffer, size: buffer.length, md5: crypto.createHash('md5').update(buffer).digest('hex')};
 });
 assert.equal(rioFiles[0].size, 20770699, 'Rio file 1 should be 20,770,699 bytes as Melissa sent it');

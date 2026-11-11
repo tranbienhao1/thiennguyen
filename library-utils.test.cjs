@@ -395,5 +395,14 @@ async function expectFetchError(fetchImpl, headers, blobSize) {
   assert.strictEqual(rangeCalls.length, 1, 'A FLAC slice that already holds a frame should not refetch');
   assert.strictEqual(narrow.blob.size, 1048576, 'A slice with a frame should keep the requested 1 MB');
   delete global.fetch;
+  assert.strictEqual(utils.clampBalance(-1.5), -1, 'clampBalance should clamp values below -1');
+  assert.strictEqual(utils.clampBalance(1.5), 1, 'clampBalance should clamp values above 1');
+  assert.strictEqual(utils.clampBalance(0), 0, 'clampBalance should preserve 0');
+  assert.strictEqual(utils.clampBalance(-0.35), -0.35, 'clampBalance should preserve valid negative balance');
+  assert.strictEqual(utils.clampBalance(NaN, 0), 0, 'clampBalance should fallback on NaN');
+  assert.strictEqual(utils.formatBalance(0), 'Giữa', 'formatBalance should format 0 as Giữa');
+  assert.strictEqual(utils.formatBalance(-0.5), 'Trái 50%', 'formatBalance should format negative balance as Trái X%');
+  assert.strictEqual(utils.formatBalance(0.75), 'Phải 75%', 'formatBalance should format positive balance as Phải X%');
+
   console.log('Library metadata, filtering, grouping and audio fetch tests passed.');
 })().catch(error => { console.error(error); process.exit(1); });
