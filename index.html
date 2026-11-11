@@ -997,14 +997,23 @@
         track.fullAudioUrl = fullUrl;
         const sliceAbsoluteUrl = new URL(sliceUrl, location.href).href;
         if (track.id === state.currentId && audio.src === sliceAbsoluteUrl) {
-          const position = audio.currentTime, wasPaused = audio.paused, endedEarly = !!track.sliceEndedEarly;
+          const endedEarly = !!track.sliceEndedEarly;
+          // Pha C — lát đầu đã hết sớm thì currentTime đã nhảy về duration,
+          // seek về vị trí thật đã ghi trong timeupdate thay vì cuối bài.
+          const position = endedEarly && Number.isFinite(track.lastSlicePosition) ? track.lastSlicePosition : audio.currentTime, wasPaused = audio.paused;
           audio.addEventListener('loadedmetadata', () => {
-            try { audio.currentTime = Math.min(position, audio.duration || position); } catch (_) {}
+            try {
+              // Kẹp vị trí seek nhỏ hơn duration một chút để 'ended' không
+              // bắn ngay sau khi đổi sang file đầy đủ.
+              const safePosition = Number.isFinite(audio.duration) && audio.duration > 0.5 ? Math.min(position, audio.duration - 0.25) : position;
+              audio.currentTime = Math.max(0, safePosition);
+            } catch (_) {}
             if (!wasPaused || endedEarly) audio.play().catch(error => console.warn('Could not resume after upgrading to the full audio file:', error.message || error));
           }, {once:true});
           audio.src = new URL(fullUrl, location.href).href;
           track.sliceEndedEarly = false;
           track.firstSlicePlayback = false;
+          track.lastSlicePosition = null;
           track.fullAudioUrl = null;
         }
         if (track.url === sliceUrl) track.url = fullUrl;
@@ -1032,7 +1041,7 @@
           if (cachedSlice) {
             const sliceBlob = library.normalizeAudioBlob(cachedSlice, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, cachedSlice.type);
             const sliceUrl = URL.createObjectURL(sliceBlob);
-            track.url = sliceUrl; track.firstSlicePlayback = true; state.objectUrls.add(sliceUrl);
+            track.url = sliceUrl; track.firstSlicePlayback = true; track.lastSlicePosition = null; state.objectUrls.add(sliceUrl);
             upgradeSliceToFullAudio(track, sliceUrl, url, options, provider).catch(error => console.warn('Could not finish downloading the full audio file in the background:', error.message || error));
             return sliceUrl;
           }
@@ -1049,6 +1058,7 @@
           // Pha D — ghi lại bài này phát từ lát đầu hay máy chủ đã trả
           // toàn file, để time-to-first-audio hiển thị đúng nguồn phát.
           track.firstSlicePlayback = !firstSlice.complete;
+          track.lastSlicePosition = null;
           state.objectUrls.add(sliceUrl);
           if (firstSlice.complete) finishCloudMetadataInBackground(track, sliceBlob);
           else { cacheFirstSlice(track, sliceBlob, firstSlice.totalBytes); upgradeSliceToFullAudio(track, sliceUrl, url, options, provider).catch(error => console.warn('Could not finish downloading the full audio file in the background:', error.message || error)); }
@@ -2132,7 +2142,21 @@
         // hiệu lực, chống giữ file nhạc trong RAM suốt phiên. Release
         // chạy cả khi generation đã đổi (đổi bài giữa fade): guard trong
         // helper vẫn giữ URL còn gắn deck hoặc của bài đang phát.
-        setTimeout(() => { if (generation === state.playGeneration) { previous.pause(); previous.muted = true; previous.removeAttribute('src'); previous.load(); } releaseUnusedCloudUrl(previousTrack); releaseUnusedLocalUrl(previousTrack); }, fadeSeconds * 1000 + 50);
+        // Pha A — đừng dọn deck cũ nếu preload đã gán bài kế lên nó sau
+        // khi fade kết thúc: timeupdate gọi preloadNext trong 50ms trước
+        // khi timeout này chạy; xóa src lúc đó sẽ hủy bản preload vừa
+        // xong, mất gapless và phải tải lại bài kế từ đầu khi bấm Next.
+        // Chỉ dừng/xóa src khi deck vẫn còn giữ bài cũ; thu hồi URL bài
+        // cũ vẫn chạy trong cả hai trường hợp.
+        setTimeout(() => {
+          if (generation === state.playGeneration) {
+            const preloadTrack = state.preloadTrackId ? state.tracks.find(item => item.id === state.preloadTrackId) : null;
+            const preloadHref = preloadTrack && preloadTrack.url ? new URL(preloadTrack.url, location.href).href : '';
+            const claimedByPreload = preloadHref !== '' && previous.src === preloadHref;
+            if (!claimedByPreload) { previous.pause(); previous.muted = true; previous.removeAttribute('src'); previous.load(); }
+          }
+          releaseUnusedCloudUrl(previousTrack); releaseUnusedLocalUrl(previousTrack);
+        }, fadeSeconds * 1000 + 50);
       } else {
         standbyAudio.muted = true; standbyAudio.pause();
         previous.pause(); previous.muted = true;
@@ -2998,8 +3022,16 @@
       function resumeFullAudioFromSlice(track, position) {
         const fullUrl = track.fullAudioUrl;
         track.fullAudioUrl = null; track.sliceEndedEarly = false; track.firstSlicePlayback = false;
+        // Pha C — như upgradeSliceToFullAudio: khi lát hết, position truyền
+        // vào (element.currentTime lúc 'ended'/'error') đã là duration;
+        // dùng vị trí thật đã ghi trong timeupdate, kẹp dưới duration.
+        const resumePosition = Number.isFinite(track.lastSlicePosition) ? track.lastSlicePosition : position;
+        track.lastSlicePosition = null;
         element.addEventListener('loadedmetadata', () => {
-          try { element.currentTime = Math.min(position, element.duration || position); } catch (_) {}
+          try {
+            const safePosition = Number.isFinite(element.duration) && element.duration > 0.5 ? Math.min(resumePosition, element.duration - 0.25) : resumePosition;
+            element.currentTime = Math.max(0, safePosition);
+          } catch (_) {}
           element.play().catch(error => console.warn('Could not resume after upgrading to the full audio file:', error.message || error));
         }, {once:true});
         element.src = fullUrl;
@@ -3017,6 +3049,13 @@
       }
       element.addEventListener('timeupdate', () => {
         if (element !== audio) return;
+        // Pha C — ghi lại vị trí phát thật trong lúc đang phát lát đầu:
+        // khi lát đầu hết, trình duyệt nhảy currentTime về duration (197s
+        // với file FLAC của Melissa) rồi mới bắn 'ended'; lúc đổi sang
+        // file đầy đủ mà lấy currentTime lúc đó sẽ seek về cuối bài rồi
+        // 'ended' bắn ngay và app nhảy bài. Chỉ ghi khi còn trong bài.
+        const sliceTrack = state.tracks.find(item => item.id === state.currentId);
+        if (sliceTrack && sliceTrack.firstSlicePlayback && Number.isFinite(element.currentTime) && Number.isFinite(element.duration) && element.currentTime < element.duration) sliceTrack.lastSlicePosition = element.currentTime;
         const playbackSecond = Math.floor(element.currentTime || 0);
         if (playbackSecond !== lastDisplayedPlaybackSecond) {
           lastDisplayedPlaybackSecond = playbackSecond;
@@ -3299,6 +3338,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:13 +07 | Đã xong: Pha B - Hiện thời gian giải mã DSD trong Phòng nghe ngay khi lát PCM đầu phát được: worker gửi kèm sliceDecodeMs trong message 'first-slice'; formatDecodeAudit thêm tham số firstSliceMs, hiện "đang giải mã… lát đầu xong sau X" trong lúc worker còn giải mã phần còn lại, dòng tổng "giải mã X · lát chậm nhất Y ms" thay thế khi giải mã xong; track.dsdFirstSliceMs lưu khi lát đầu tới, xóa khi phát lại và khi giải mã xong để không hiện số đo cũ; test mới dsd-first-slice.test.cjs (giải mã thật DSF DSD32 3M mẫu: lát đầu ~2.02 s kèm sliceDecodeMs ≤ decodeMs tổng) đã thử fail trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu bài kế (tải sẵn lát đầu bài tiếp theo + cache vào IndexedDB, backlog) | Backlog: prefetch + cache lát đầu bài kế -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:36 +07 | Đã xong: Pha C - Lỗi FLAC cloud nhảy bài: ghi lại lỗi tải nền vào track.fullAudioError (xóa khi bắt đầu tải mới, ghi khi fetchAudioBlob lỗi kể cả 401 phiên Drive hết hạn) và thêm handler dùng chung skipAfterFullAudioFailure cho guard 'ended'/'error' — lát đầu hết sau khi tải nền đã hỏng thì toast rõ lý do rồi chuyển bài thay vì nhảy im lặng; test mới full-audio-failure.test.cjs fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã, đo time-to-first-audio cho DSD | Backlog: prefetch + cache lát đầu bài kế, thu hồi blob URL bài cũ sau crossfade -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 10:43 +07 | Đã xong: Pha D - Kiểm toán bộ giải mã DSD: test hồi quy dsd-truncated.test.cjs khóa guard cắt cụt cho DSF/DFF (DSF cắt giữa chunk data, DSF khai sampleCount vượt data, DFF cắt giữa data, DFF khai chunk DSD vượt FRM8, header quá ngắn) — worker phải báo lỗi rõ thay vì treo hoặc giải mã sai; file nguyên vẹn vẫn decode xong; test fail đúng trên worker đã bỏ guard (đột biến tạm trong /tmp) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Engine Lossless/DSD, gapless/crossfade, mediaSession, EQ/DSP | Backlog: prefetch + cache lát đầu bài kế, thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
-    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 11:09 +07 | Đã xong: Pha C - Lỗi FLAC cloud nhảy bài: guard 'ended'/'error' khi tải nền thất bại muộn (lát đầu đã hết trước, tải nền sau đó mới hỏng) thì dùng chung skipAfterFullAudioFailure để toast đúng lý do đã ghi (vd phiên Drive hết hạn) thay vì toast chung chung không nêu lý do; test mới trong full-audio-failure.test.cjs fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Kiểm toán gapless/crossfade khi chuyển bài trong lúc preload đang chạy | Backlog: prefetch + cache lát đầu bài kế, kiểm toán deck swap khi crossfade -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 13:24 +07 | Đã xong: Pha A - Kiểm toán gapless/crossfade khi chuyển bài trong lúc preload đang chạy: timeout dọn deck cũ sau crossfade (fade + 50ms) không còn xóa src khi 'timeupdate' đã gán URL bài kế lên deck đó trong 50ms trước khi timeout chạy — bỏ qua dọn khi src đã là URL bài preload (claimedByPreload), vẫn thu hồi URL bài cũ; test mới crossfade-preload.test.cjs fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - UI/playlist/lyrics (gợi ý: hiển thị thời gian còn lại của bài trong Phòng nghe) | Backlog: prefetch + cache lát đầu bài kế, kiểm toán deck swap khi crossfade, hiển thị thời gian còn lại -->
 </body>
 </html>

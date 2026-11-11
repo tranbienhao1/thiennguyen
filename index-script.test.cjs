@@ -876,7 +876,7 @@ assert.ok(appCode.includes('crossfadeSeconds: 0, crossfadeUntil: 0'), 'App state
 assert.ok(appCode.includes('applyCrossfade(state.context, oldDeck, newDeck, state.crossfadeSeconds)'), 'Track switching should crossfade through the two decks');
 assert.ok(appCode.includes('state.crossfadeUntil = fadeSeconds > 0 ? state.context.currentTime + fadeSeconds : 0'), 'Track switching should record when the crossfade ends');
 assert.ok(appCode.includes('if (state.crossfadeUntil && state.context.currentTime < state.crossfadeUntil) return;'), 'Preloading should not cut off a crossfade in progress');
-assert.ok(appCode.includes('setTimeout(() => { if (generation === state.playGeneration) { previous.pause();'), 'The old deck should only stop after its fade finishes');
+assert.ok(appCode.includes('if (!claimedByPreload) { previous.pause(); previous.muted = true; previous.removeAttribute(\'src\'); previous.load(); }'), 'The old deck should only stop after its fade finishes, unless the preload has claimed it for the next track');
 assert.ok(appCode.includes('fadeSeconds * 1000 + 50'), 'Old-deck cleanup should wait out the full fade');
 assert.match(html, /id="crossfade-seconds"/, 'Settings should offer a crossfade duration control');
 assert.ok(appCode.includes("localStorage.setItem('nocturne-crossfade-seconds'"), 'The crossfade setting should persist');
@@ -939,7 +939,7 @@ reattachedFade.calls.timeouts[0].fn();
 assert.equal(reattachedFade.deckA.paused, true, 'The old deck should still pause when the old URL stays in use elsewhere');
 assert.deepEqual(reattachedFade.calls.revoked, [], 'An old URL re-attached to the new deck must not be revoked');
 assert.equal(reattachedFade.oldTrack.url, 'blob:https://example/old-audio', 'An old track whose URL is still in use should keep it');
-assert.ok(appCode.includes('releaseUnusedCloudUrl(previousTrack); releaseUnusedLocalUrl(previousTrack); }, fadeSeconds * 1000 + 50);'), 'The post-fade timeout should release the old track URLs after detaching the old deck');
+assert.ok(appCode.includes('releaseUnusedCloudUrl(previousTrack); releaseUnusedLocalUrl(previousTrack);\n        }, fadeSeconds * 1000 + 50);'), 'The post-fade timeout should release the old track URLs after detaching the old deck');
 
 // Pha B — phím tắt X bật/tắt crossfade nhanh khi đang nghe.
 const toggleStart = appCode.indexOf('function toggleCrossfade() {');
