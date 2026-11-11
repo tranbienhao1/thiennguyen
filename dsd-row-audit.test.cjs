@@ -35,7 +35,7 @@ function extractFunction(code, name) {
 // Nối dây tĩnh: hàng phải tính dòng kiểm toán cho bài DSD và gắn nó làm
 // tooltip của huy hiệu chất lượng; chữ ký hàng phải gồm số đo giải mã.
 assert.ok(appCode.includes('formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget, track.dsdThroughputMBps, track.dsdInitialChunkBytes, track.dsdMaxConsecutiveOverBudget, track.dsdMinSliceThroughputMBps, track.dsdFirstSliceMs)'), 'The row should compute the DSD decode audit from the track measurements');
-assert.ok(appCode.includes('title="${escapeHtml(audit)}"'), 'The quality badge should carry the decode audit as its tooltip');
+assert.ok(appCode.includes('title="${escapeHtml(badgeTitle)}"'), 'The quality badge should carry the decode audit as its tooltip');
 assert.ok(appCode.includes('track.dsdDecodeMs'), 'The row signature should include the DSD decode measurements');
 
 const libraryStub = {trackMetadata: track => ({title: track.title, artist: track.artist, album: track.album})};
@@ -130,7 +130,7 @@ function makeHarness() {
   const renderTrackRows = new Function(
     'state', '$', 'library', 'groupTracks', 'quality', 'escapeHtml', 'sourceLabel', 'formatTime',
     'renderQueue', 'updateCurrentTrackIndicator', 'metadataUI', 'addToQueue', 'playTrack', 'removeFromQueue',
-    'performance', 'formatDecodeAudit',
+    'performance', 'formatDecodeAudit', 'usesFirstSliceCache', 'firstSliceCacheText',
     `${extractFunction(appCode, 'trackRowsSignature')}\n${extractFunction(appCode, 'recordTrackRowsRender')}\n${extractFunction(appCode, 'renderTrackRows')}\nreturn renderTrackRows;`,
   )(
     state,
@@ -147,6 +147,8 @@ function makeHarness() {
     () => {}, () => {}, () => {},
     {now: () => 1000},
     formatDecodeAudit,
+    track => !!track && (!!track.isDsd || track.source === 'google' || track.source === 'onedrive'),
+    cached => cached === true ? 'lát đầu đã lưu trong bộ nhớ · phát ngay khi bấm lại' : cached === false ? 'lát đầu chưa lưu trong bộ nhớ' : '',
   );
   return {list, state, calls, renderTrackRows};
 }

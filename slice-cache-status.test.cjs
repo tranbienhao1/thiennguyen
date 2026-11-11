@@ -81,7 +81,7 @@ assert.ok(signalDescription({source: 'local', name: 'a.dsf', format: 'DSF', isDs
   // Làm mới trạng thái: đọc kho một lần rồi vẽ lại Phòng nghe nếu bài
   // vẫn đang phát; bài đã biết trạng thái thì không đọc lại.
   function makeRefresh({cached = null, throws = false, currentId = 't1', deferred = null} = {}) {
-    const calls = {cacheReads: 0, rendered: []};
+    const calls = {cacheReads: 0, rendered: [], rowRenders: 0};
     let resolveDeferred;
     const gate = deferred ? new Promise(resolve => { resolveDeferred = resolve; }) : null;
     const getCachedFirstSlice = async () => {
@@ -92,9 +92,9 @@ assert.ok(signalDescription({source: 'local', name: 'a.dsf', format: 'DSF', isDs
     };
     const state = {currentId};
     const refresh = new Function(
-      'getCachedFirstSlice', 'renderRoomSignal', 'state',
+      'getCachedFirstSlice', 'renderRoomSignal', 'scheduleTrackRender', 'state',
       `${usesSource}\n${refreshSource}\nreturn refreshFirstSliceCacheStatus;`,
-    )(getCachedFirstSlice, track => { calls.rendered.push(track.id); }, state);
+    )(getCachedFirstSlice, track => { calls.rendered.push(track.id); }, () => { calls.rowRenders++; }, state);
     return {calls, refresh, resolveDeferred};
   }
   {
@@ -103,6 +103,7 @@ assert.ok(signalDescription({source: 'local', name: 'a.dsf', format: 'DSF', isDs
     await refresh(track);
     assert.equal(track.firstSliceCached, true, 'A cached slice read should mark the track cached');
     assert.deepEqual(calls.rendered, ['t1'], 'A newly known status should refresh the room signal while the track is current');
+    assert.equal(calls.rowRenders, 1, 'A newly known status should schedule a row render so the quality-badge tooltip updates');
     assert.equal(calls.cacheReads, 1, 'The cache should be read once for a status refresh');
   }
   {

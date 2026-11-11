@@ -108,6 +108,15 @@ const qualityStub = track => ({label: (track.sampleRate || 0) > 48000 ? 'HI-RES'
   state.queueTrackIds = [];
   state.currentId = 'a';
   assert.equal(signature(tracks), first, 'Restoring the queue and the playing track should restore the signature');
+  // Pha B — trạng thái cache lát đầu nằm trong chữ ký để đường nhẹ dựng
+  // lại hàng khi tooltip huy hiệu đổi (code cũ không có nên chữ ký giữ
+  // nguyên, tooltip không bao giờ xuất hiện).
+  tracks[0].firstSliceCached = true;
+  assert.notEqual(signature(tracks), first, 'A newly known cache status must change the signature so the badge tooltip rebuilds');
+  tracks[0].firstSliceCached = false;
+  assert.notEqual(signature(tracks), first, 'A cache status flipping to uncached must also change the signature');
+  delete tracks[0].firstSliceCached;
+  assert.equal(signature(tracks), first, 'Forgetting the cache status should restore the signature');
   tracks[1].cover = 'blob:cover-b';
   assert.notEqual(signature(tracks), first, 'A cover arriving later must change the signature so the row rebuilds with the cover');
   tracks[1].cover = undefined;
@@ -213,6 +222,7 @@ class FakeList extends FakeElement {
   const renderTrackRows = new Function(
     'state', '$', 'library', 'groupTracks', 'quality', 'escapeHtml', 'sourceLabel', 'formatTime',
     'renderQueue', 'updateCurrentTrackIndicator', 'metadataUI', 'addToQueue', 'playTrack', 'removeFromQueue',
+    'usesFirstSliceCache', 'firstSliceCacheText',
     `${extractFunction(appCode, 'trackRowsSignature')}\n${extractFunction(appCode, 'recordTrackRowsRender')}\n${extractFunction(appCode, 'renderTrackRows')}\nreturn renderTrackRows;`,
   )(
     state,
@@ -227,6 +237,8 @@ class FakeList extends FakeElement {
     () => { calls.indicator++; },
     {open: () => {}},
     () => {}, () => {}, () => {},
+    track => !!track && (!!track.isDsd || track.source === 'google' || track.source === 'onedrive'),
+    cached => cached === true ? 'lát đầu đã lưu trong bộ nhớ · phát ngay khi bấm lại' : cached === false ? 'lát đầu chưa lưu trong bộ nhớ' : '',
   );
   const tracks = makeTracks();
   renderTrackRows(tracks);
@@ -251,4 +263,19 @@ class FakeList extends FakeElement {
   assert.equal(list.htmlSets, 5, 'An empty scope must rebuild once to clear the rows');
   renderTrackRows([]);
   assert.equal(list.htmlSets, 5, 'Repeating an empty render must take the light path');
+  // Pha B — tooltip huy hiệu chất lượng mang trạng thái cache lát đầu:
+  // bài cloud đã biết đã lưu/chưa lưu thì title có dòng trạng thái, bài
+  // chưa kiểm tra thì không có (code cũ không có dòng này).
+  tracks[0].source = 'google'; tracks[0].firstSliceCached = true;
+  renderTrackRows(tracks);
+  assert.equal(list.htmlSets, 6, 'A newly known cache status must rebuild the rows');
+  assert.ok(list.innerHTML.includes('title="lát đầu đã lưu trong bộ nhớ · phát ngay khi bấm lại"'), 'A cached cloud track should show the cached status in its quality-badge tooltip');
+  tracks[0].firstSliceCached = false;
+  renderTrackRows(tracks);
+  assert.equal(list.htmlSets, 7, 'A cache status flip must rebuild the rows');
+  assert.ok(list.innerHTML.includes('title="lát đầu chưa lưu trong bộ nhớ"'), 'An uncached cloud track should show the uncached status in its quality-badge tooltip');
+  delete tracks[0].firstSliceCached;
+  renderTrackRows(tracks);
+  assert.equal(list.htmlSets, 8, 'Forgetting the cache status must rebuild the rows');
+  assert.ok(!list.innerHTML.includes('lát đầu'), 'A track with unknown cache status should show no cache line in its tooltip');
 }

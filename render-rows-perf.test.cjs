@@ -100,7 +100,7 @@ function makeHarness(trackCount = 2) {
   const renderTrackRows = new Function(
     'state', '$', 'library', 'groupTracks', 'quality', 'escapeHtml', 'sourceLabel', 'formatTime',
     'renderQueue', 'updateCurrentTrackIndicator', 'metadataUI', 'addToQueue', 'playTrack', 'removeFromQueue',
-    'performance',
+    'performance', 'usesFirstSliceCache', 'firstSliceCacheText',
     `${extractFunction(appCode, 'trackRowsSignature')}\n${extractFunction(appCode, 'recordTrackRowsRender')}\n${extractFunction(appCode, 'renderTrackRows')}\nreturn renderTrackRows;`,
   )(
     state,
@@ -116,6 +116,8 @@ function makeHarness(trackCount = 2) {
     {open: () => {}},
     () => {}, () => {}, () => {},
     performance,
+    track => !!track && (!!track.isDsd || track.source === 'google' || track.source === 'onedrive'),
+    cached => cached === true ? 'lát đầu đã lưu trong bộ nhớ · phát ngay khi bấm lại' : cached === false ? 'lát đầu chưa lưu trong bộ nhớ' : '',
   );
   return {list, state, calls, renderTrackRows};
 }
