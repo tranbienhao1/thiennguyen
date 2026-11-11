@@ -99,7 +99,7 @@ const bigFlacSliceBlob = new Blob([new Uint8Array(1572864)], {type: 'audio/flac'
   assert.ok(helperStart >= 0 && helperEnd > helperStart, 'The shared DSD first-slice player should exist for regression checks');
   function makePlayHarness({playImpl} = {}) {
     const elements = {};
-    const calls = {displayed: [], recorded: [], history: [], rendered: 0, preloaded: 0, setup: 0};
+    const calls = {displayed: [], recorded: [], history: [], rendered: 0, preloaded: 0, setup: 0, roomSignals: []};
     const revoked = [];
     let urlCounter = 0;
     class FakeURL {
@@ -108,8 +108,8 @@ const bigFlacSliceBlob = new Blob([new Uint8Array(1572864)], {type: 'audio/flac'
     }
     const audio = {src: '', muted: false, paused: false, playCalls: 0, play: playImpl || (async function () { audio.playCalls++; })};
     const standbyAudio = {src: '', muted: false};
-    const state = {objectUrls: new Set(), dsdUrl: null, dsdTrackId: null, playGeneration: 1, context: {state: 'running', resume: async () => {}}};
-    const playDsdFirstSlice = new Function('state', 'audio', 'standbyAudio', 'URL', 'setupAudio', 'displayTrack', 'recordTimeToFirstAudio', 'recordHistory', 'scheduleTrackRender', 'preloadNext', '$', `${appCode.slice(helperStart, helperEnd)}\nreturn playDsdFirstSlice;`)(
+    const state = {objectUrls: new Set(), dsdUrl: null, dsdTrackId: null, playGeneration: 1, currentId: null, context: {state: 'running', resume: async () => {}}};
+    const playDsdFirstSlice = new Function('state', 'audio', 'standbyAudio', 'URL', 'setupAudio', 'displayTrack', 'recordTimeToFirstAudio', 'recordHistory', 'scheduleTrackRender', 'preloadNext', '$', 'renderRoomSignal', `${appCode.slice(helperStart, helperEnd)}\nreturn playDsdFirstSlice;`)(
       state, audio, standbyAudio, FakeURL,
       () => { calls.setup++; },
       track => { calls.displayed.push(track.id); },
@@ -118,6 +118,7 @@ const bigFlacSliceBlob = new Blob([new Uint8Array(1572864)], {type: 'audio/flac'
       () => { calls.rendered++; },
       () => { calls.preloaded++; },
       id => (elements[id] ||= {textContent: ''}),
+      track => { calls.roomSignals.push(track.id); },
     );
     return {elements, calls, revoked, audio, standbyAudio, state, playDsdFirstSlice};
   }
@@ -125,6 +126,7 @@ const bigFlacSliceBlob = new Blob([new Uint8Array(1572864)], {type: 'audio/flac'
   {
     const harness = makePlayHarness();
     const track = {id: 'google:dsd1', source: 'google', remoteId: 'dsd1', name: 'album.dsf', size: 19800000};
+    harness.state.currentId = track.id;
     const sliceUrl = await harness.playDsdFirstSlice(track, dsdSliceBlob, 1, 1000);
     assert.equal(sliceUrl, 'blob:fake/dsd-slice-1', 'Playing a cached DSD slice should return its object URL');
     assert.equal(track.url, sliceUrl, 'Playing a cached DSD slice should set it as the track URL');
@@ -134,10 +136,23 @@ const bigFlacSliceBlob = new Blob([new Uint8Array(1572864)], {type: 'audio/flac'
     assert.equal(harness.audio.src, sliceUrl, 'Playing a cached DSD slice should set it on the deck');
     assert.equal(harness.standbyAudio.muted, true, 'Playing a cached DSD slice should mute the standby deck');
     assert.deepEqual(harness.calls.recorded, ['dsd'], 'Playing a cached DSD slice should record time-to-first-audio as a DSD slice');
+    assert.deepEqual(harness.calls.roomSignals, ['google:dsd1'], 'Playing a cached DSD slice should refresh the room signal as soon as the delay is measured');
     assert.equal(harness.elements['play-button'].textContent, 'Ⅱ', 'Playing a cached DSD slice should show the pause icon');
     assert.deepEqual(harness.calls.history, ['google:dsd1'], 'Playing a cached DSD slice should record listening history');
     assert.equal(harness.calls.preloaded, 1, 'Playing a cached DSD slice should preload the next track');
     assert.ok(harness.state.objectUrls.has(sliceUrl), 'Playing a cached DSD slice should track its object URL');
+  }
+  // Pha A — DSD local: lát đầu ghi mode 'dsd-local' để Phòng nghe phân
+  // biệt với DSD cloud, số đo hiện ngay khi nghe thấy tiếng (code cũ
+  // ghi chung mode 'dsd' và không làm mới dòng tín hiệu).
+  {
+    const harness = makePlayHarness();
+    const track = {id: 'local:dsd1', source: 'local', name: 'album.dsf', size: 19800000};
+    harness.state.currentId = track.id;
+    const sliceUrl = await harness.playDsdFirstSlice(track, dsdSliceBlob, 1, 1000);
+    assert.equal(sliceUrl, 'blob:fake/dsd-slice-1', 'Playing a local DSD slice should return its object URL');
+    assert.deepEqual(harness.calls.recorded, ['dsd-local'], 'Playing a local DSD slice should record time-to-first-audio with the local DSD mode');
+    assert.deepEqual(harness.calls.roomSignals, ['local:dsd1'], 'Playing a local DSD slice should refresh the room signal as soon as the delay is measured');
   }
   // Lát phát lỗi (play() reject): ném lỗi, dọn URL để lát worker còn phát được.
   {
@@ -174,7 +189,7 @@ const bigFlacSliceBlob = new Blob([new Uint8Array(1572864)], {type: 'audio/flac'
   assert.ok(dsdBody.includes('const cachedSlice = await getCachedFirstSlice(track, {dsdRate: state.dsdOutputRate, dsdDepth: state.dsdOutputDepth});'), 'DSD playback should read the cached first slice with the current decode settings before decoding');
   assert.ok(dsdBody.includes('playDsdFirstSlice(track, cachedSlice, generation, playRequestedAt)'), 'DSD playback should play the cached slice through the shared helper');
   assert.ok(dsdBody.indexOf('getCachedFirstSlice(track)') < dsdBody.indexOf('new Worker(new URL(\'dsd-worker.js\''), 'The cached DSD slice should play before the worker starts decoding');
-  assert.equal(appCode.split("recordTimeToFirstAudio(track, playRequestedAt, performance.now(), 'dsd');").length - 1, 2, 'Both DSD playback starts (first slice and short-file full audio) should record time-to-first-audio');
+  assert.equal(appCode.split("recordTimeToFirstAudio(track, playRequestedAt, performance.now(), track.source === 'local' ? 'dsd-local' : 'dsd');").length - 1, 2, 'Both DSD playback starts (first slice and short-file full audio) should record time-to-first-audio with the local/cloud DSD mode');
 
   console.log('DSD first-slice cache tests passed.');
 })().catch(error => { console.error(error); process.exit(1); });

@@ -94,6 +94,7 @@ function makeHarness() {
     releaseTrackUrl: () => {},
     releaseUnusedCloudUrl: () => {},
     releaseUnusedLocalUrl: () => {},
+    renderRoomSignal: () => {},
     skipFailedTrack: (generation, message) => calls.skipped.push(message),
     toast: message => calls.toasts.push(message),
     $,

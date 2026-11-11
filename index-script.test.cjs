@@ -1106,10 +1106,14 @@ assert.equal(ttfa.recordTimeToFirstAudio(dsdMeasuredTrack, 1000, 3250, 'dsd'), 2
 assert.equal(dsdMeasuredTrack.timeToFirstAudioMs, 2250, 'Recording a DSD first slice should store the delay on the track');
 assert.equal(dsdMeasuredTrack.timeToFirstAudioMode, 'dsd', 'Recording a DSD first slice should store the DSD mode');
 assert.equal(ttfa.timeToFirstAudioText(dsdMeasuredTrack), 'Nghe thấy tiếng sau 2.3 giây (lát PCM đầu DSD)', 'A DSD delay over one second should name the DSD first-slice source');
+// Pha A — DSD local: mode riêng để Phòng nghe phân biệt với DSD cloud.
+assert.equal(ttfa.timeToFirstAudioText({timeToFirstAudioMs: 2250, timeToFirstAudioMode: 'dsd-local'}), 'Nghe thấy tiếng sau 2.3 giây (lát PCM đầu DSD · file local)', 'A local DSD delay should name the local DSD first-slice source');
+assert.equal(ttfa.timeToFirstAudioText({timeToFirstAudioMs: 250, timeToFirstAudioMode: 'dsd-local'}), 'Nghe thấy tiếng sau 250 ms (lát PCM đầu DSD · file local)', 'A sub-second local DSD delay should name the local DSD source');
 assert.ok(appCode.includes("dsd:'lát PCM đầu DSD'"), 'The first-audio mode labels should include the DSD first slice');
+assert.ok(appCode.includes("'dsd-local':'lát PCM đầu DSD · file local'"), 'The first-audio mode labels should distinguish local DSD from cloud DSD');
 assert.ok(appCode.includes('await playDsdTrack(track, generation, playRequestedAt);'), 'DSD playback should receive the play-request timestamp');
 assert.ok(appCode.includes('async function playDsdTrack(track, generation, playRequestedAt) {'), 'DSD playback should accept the play-request timestamp');
-assert.equal(appCode.split("recordTimeToFirstAudio(track, playRequestedAt, performance.now(), 'dsd');").length - 1, 2, 'Both DSD playback starts (first slice and short-file full audio) should record time-to-first-audio');
+assert.equal(appCode.split("recordTimeToFirstAudio(track, playRequestedAt, performance.now(), track.source === 'local' ? 'dsd-local' : 'dsd');").length - 1, 2, 'Both DSD playback starts (first slice and short-file full audio) should record time-to-first-audio with the local/cloud DSD mode');
 assert.ok(appCode.includes('recordTimeToFirstAudio(track, playRequestedAt, performance.now(), mode);'), 'The playing event should record the delay from the play request');
 assert.ok(appCode.includes('if (track.id === state.currentId) renderRoomSignal(track);'), 'The listening room should refresh when the delay is measured');
 assert.ok(appCode.includes('track.firstSlicePlayback = !firstSlice.complete;'), 'Cloud tracks should record whether they started from the first slice');
