@@ -331,6 +331,40 @@ function decode(file, format, targetRate, bitDepth) {
     assert.equal(sliceDff25624Wav.getUint16(34, true), 24, 'The DFF DSD256 first slice should also be 24-bit in the WAV header');
     assert.equal(slicesDff25624[0].blob.size, 44 + Math.round(slicesDff25624[0].duration * 88200) * CHANNELS * 3, 'The DFF DSD256 first slice should hold the expected 24-bit PCM frames');
   }
+  // Pha D — kiểm toán worker với file DFF DSD512 24-bit (backlog): DFF
+  // 2 giây DSD512 stereo (~10,8 MB, 45,2 triệu mẫu) phải giải mã đúng
+  // sang PCM 44,1 kHz 24-bit (multiplier 512, đúng duration/kích thước
+  // 3 byte/mẫu, header WAV ghi 24-bit), chia nhiều lát và gửi đúng 1 lát
+  // PCM đầu (~2 giây, cũng 24-bit) trước 'done' — như bản DSF DSD512
+  // 24-bit, thay vì sai đường đọc chunk DSDIFF (FRM8/PROP/DSD, MSB-first)
+  // hay rớt ở tốc độ lấy mẫu cao nhất 22,5792 MHz.
+  {
+    const posted = [];
+    const dff51224Self = {cancelled: false, onmessage: null, postMessage(message) { posted.push(message); }};
+    const dff51224Context = vm.createContext({self: dff51224Self, Blob});
+    vm.runInContext(source, dff51224Context, {filename: 'dsd-worker.js'});
+    const dff51224Done = new Promise((resolve, reject) => {
+      const originalPost = dff51224Self.postMessage.bind(dff51224Self);
+      dff51224Self.postMessage = message => { originalPost(message); if (message.type === 'done') resolve(message); else if (message.type === 'error') reject(new Error(message.message)); };
+    });
+    dff51224Self.onmessage({data: {file: makeDff('DSD ', 22579200, 22579200 * 2), format: 'dff', targetRate: 44100, bitDepth: 24}});
+    const dff51224Result = await dff51224Done;
+    assert.equal(dff51224Result.multiplier, 512, 'DFF DSD512 should decode with multiplier 512 at 24-bit');
+    assert.equal(dff51224Result.duration, 2, 'A 2 s DFF DSD512 file should report 2 s duration at 24-bit');
+    assert.equal(dff51224Result.bitDepth, 24, 'A DFF DSD512 file decoded at 24-bit should report 24-bit depth');
+    assert.equal(dff51224Result.blob.size, 44 + 2 * 44100 * CHANNELS * 3, 'A 2 s DFF DSD512 file should decode to the expected 24-bit PCM size');
+    const dff51224Wav = new DataView(await dff51224Result.blob.slice(0, 44).arrayBuffer());
+    assert.equal(dff51224Wav.getUint32(24, true), 44100, 'A DFF DSD512 file decoded at 24-bit should write 44.1 kHz in the WAV header');
+    assert.equal(dff51224Wav.getUint16(34, true), 24, 'A DFF DSD512 file decoded at 24-bit should write 24-bit depth in the WAV header');
+    assert.equal(dff51224Wav.getUint32(40, true), dff51224Result.blob.size - 44, 'A DFF DSD512 24-bit WAV should declare its full PCM data size');
+    assert.ok(dff51224Result.chunkCount >= 2, `A large DFF DSD512 file should decode in multiple chunks at 24-bit (got ${dff51224Result.chunkCount})`);
+    const slicesDff51224 = posted.filter(message => message.type === 'first-slice');
+    assert.equal(slicesDff51224.length, 1, 'A 2 s DFF DSD512 file should send exactly one first slice before done at 24-bit');
+    assert.ok(slicesDff51224[0].duration >= 2 && slicesDff51224[0].duration < 2.5, `The DFF DSD512 first slice should hold about 2 s of PCM at 24-bit (got ${slicesDff51224[0].duration} s)`);
+    const sliceDff51224Wav = new DataView(await slicesDff51224[0].blob.slice(0, 44).arrayBuffer());
+    assert.equal(sliceDff51224Wav.getUint16(34, true), 24, 'The DFF DSD512 first slice should also be 24-bit in the WAV header');
+    assert.equal(slicesDff51224[0].blob.size, 44 + Math.round(slicesDff51224[0].duration * 44100) * CHANNELS * 3, 'The DFF DSD512 first slice should hold the expected 24-bit PCM frames');
+  }
   // Pha A — worker giữ throughput giữa các lần giải mã trong cùng phiên:
   // lần đầu chưa có số đo nên lát đầu là tối đa, lần sau lát đầu vẫn nằm
   // trong giới hạn thích nghi và chia hết cho số kênh (nhỏ hơn nếu máy chậm).

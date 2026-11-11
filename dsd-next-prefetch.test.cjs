@@ -45,27 +45,41 @@ class FakeAudio {
 }
 
 function makeHarness({next, currentId = 'flac-now'} = {}) {
-  const calls = {loads: 0, cleared: 0, released: []};
+  const calls = {loads: 0, cleared: 0, released: [], workers: 0, cacheWrites: 0};
+  // Pha C — preloadDsdNext giờ gọi prefetchDsdFirstSlice sau khi tải
+  // xong: sandbox này giả lát đầu đã có trong cache nên prefetch dừng
+  // ở bước đọc cache, không mở worker; hành vi tải file DSD của các
+  // case cũ giữ nguyên (xem dsd-prefetch-slice.test.cjs cho worker).
+  class FakeWorker {
+    constructor() { calls.workers++; this.terminated = false; }
+    postMessage() {}
+    terminate() { this.terminated = true; }
+  }
   const currentTrack = {id: 'flac-now', format: 'FLAC', title: 'Intro', source: 'google', url: 'blob:https://example/now'};
   const state = {
     tracks: [currentTrack, next], currentId, autoplay: true, repeat: 0, shuffle: false,
     queueTrackIds: [], preloadTrackId: null, preloadBusyId: null, preloadReadyUrl: null,
-    preloadGeneration: 0, crossfadeUntil: 0,
+    preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null,
+    dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeUntil: 0,
     context: {currentTime: 100}, deckA: makeDeck(), deckB: makeDeck(), activeDeck: null,
     objectUrls: new Set(),
   };
   state.activeDeck = state.deckA;
   const audio = new FakeAudio();
   const standbyAudio = new FakeAudio();
-  const location = {href: 'https://example.test/thiennguyen/'};
+  const location = {href: 'https://example.test/thiennguyen/', protocol: 'https:'};
   const clearStalePreload = () => {
     calls.cleared++;
     ++state.preloadGeneration; state.preloadTrackId = null; state.preloadReadyUrl = null; state.preloadBusyId = null;
   };
+  const getCachedFirstSlice = async () => new Blob(['cached-pcm-slice']);
+  const cacheFirstSlice = () => { calls.cacheWrites++; return Promise.resolve(true); };
+  const library = {DSD_FIRST_SLICE_CACHE_MAX_BYTES: 3 * 1024 * 1024};
   const factory = new Function('state', 'audio', 'standbyAudio', 'location', 'queueTracks', 'clearStalePreload', 'releaseUnusedCloudUrl', 'console',
-    `${extractFunction(appCode, 'queueIndex')}\n${extractFunction(appCode, 'preloadDsdNext')}\n${extractFunction(appCode, 'preloadNext')}\nreturn preloadNext;`);
+    'getCachedFirstSlice', 'cacheFirstSlice', 'Worker', 'library', 'dsdWorkerBaseUrl',
+    `${extractFunction(appCode, 'queueIndex')}\n${extractFunction(appCode, 'stopPrefetchDsdSlice')}\n${extractFunction(appCode, 'prefetchDsdFirstSlice')}\n${extractFunction(appCode, 'preloadDsdNext')}\n${extractFunction(appCode, 'preloadNext')}\nreturn preloadNext;`);
   const preloadNext = factory(state, audio, standbyAudio, location, () => [], clearStalePreload,
-    item => calls.released.push(item && item.id), console);
+    item => calls.released.push(item && item.id), console, getCachedFirstSlice, cacheFirstSlice, FakeWorker, library, 'https://example.test/');
   return {calls, state, audio, standbyAudio, currentTrack, preloadNext};
 }
 
@@ -79,12 +93,14 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
     const harness = makeHarness({next});
     next.load = async () => { harness.calls.loads++; await tick(); next.file = new Blob(['fake-dsd-bytes']); };
     await harness.preloadNext(true);
+    await tick();
     assert.equal(harness.calls.loads, 1, 'The DSD next track should be downloaded once in the background');
     assert.ok(next.file, 'The downloaded DSD file should be kept on the track so playTrack can decode it immediately');
     assert.equal(harness.state.preloadTrackId, 'dsd-next', 'The DSD next track should be recorded as preloaded');
     assert.equal(harness.state.preloadBusyId, null, 'The preload should no longer be busy once the DSD file is downloaded');
     assert.equal(harness.standbyAudio.src, '', 'Prefetching a DSD track must not touch the standby deck (DSD cannot play through it)');
     assert.equal(harness.state.preloadReadyUrl, null, 'A DSD prefetch has no deck URL to mark ready');
+    assert.equal(harness.calls.workers, 0, 'The slice prefetch must not open a worker when the first slice is already cached (see dsd-prefetch-slice.test.cjs for the worker path)');
   }
 
   // File đã có (tải trước đó hoặc tải lại trang vẫn giữ file): không tải lại.
@@ -94,8 +110,10 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
     next.load = async () => { harness.calls.loads++; };
     await harness.preloadNext(true);
     await harness.preloadNext(true);
+    await tick();
     assert.equal(harness.calls.loads, 0, 'A DSD next track that already has its file must not be downloaded again');
     assert.equal(harness.state.preloadTrackId, 'dsd-next', 'An already-downloaded DSD next track should still be recorded as preloaded');
+    assert.equal(harness.calls.workers, 0, 'The slice prefetch must not open a worker when the first slice is already cached');
   }
 
   // Đang tải dở: lần gọi thứ hai (timeupdate gọi liên tục) không tải trùng.

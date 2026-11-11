@@ -771,7 +771,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -2304,14 +2304,53 @@
     async function preloadDsdNext(next) {
       if (!next.load) return;
       if (state.preloadTrackId === next.id && (next.file || state.preloadBusyId === next.id)) return;
-      if (next.file) { state.preloadTrackId = next.id; state.preloadReadyUrl = null; return; }
+      if (next.file) { state.preloadTrackId = next.id; state.preloadReadyUrl = null; prefetchDsdFirstSlice(next, state.preloadGeneration); return; }
       const generation = ++state.preloadGeneration;
       state.preloadTrackId = next.id; state.preloadBusyId = next.id; state.preloadReadyUrl = null;
       try {
         await next.load();
         if (generation !== state.preloadGeneration) return;
+        prefetchDsdFirstSlice(next, generation);
       } catch (error) { console.warn('Could not preload next DSD track:', error); }
       finally { if (generation === state.preloadGeneration) state.preloadBusyId = null; }
+    }
+    // Pha C — prefetch + cache lát đầu bài kế khi bài kế là DSD:
+    // preloadDsdNext đã tải trước file DSD vào track.file nhưng khi
+    // chuyển bài playDsdTrack vẫn chờ worker giải mã ~2 giây đầu mới
+    // nghe thấy tiếng; giải mã trước lát PCM đầu (~2 giây) trong
+    // worker nền riêng rồi ghi vào firstSliceCache (cùng meta tốc độ
+    // xuất/bit depth như đường phát DSD) để khi chuyển bài playDsdTrack
+    // đọc cache và phát ngay. Worker nền dừng ngay sau khi lát đầu về
+    // — không giải mã toàn file ở nền để khỏi nhân đôi CPU với worker
+    // của bài đang phát; lát cache lỗi/hết hạn thì playDsdTrack giải
+    // mã lại như trước.
+    function stopPrefetchDsdSlice() {
+      if (state.preloadDsdSliceWorker) { try { state.preloadDsdSliceWorker.terminate(); } catch (error) {} state.preloadDsdSliceWorker = null; }
+      state.preloadDsdSliceTrackId = null;
+    }
+    async function prefetchDsdFirstSlice(next, generation) {
+      if (!next || !next.file || !next.format || typeof Worker === 'undefined' || !location.protocol.startsWith('http')) return;
+      if (state.preloadDsdSliceTrackId === next.id) return;
+      const meta = {dsdRate: state.dsdOutputRate, dsdDepth: state.dsdOutputDepth};
+      try {
+        const cached = await getCachedFirstSlice(next, meta);
+        if (cached || generation !== state.preloadGeneration) return;
+      } catch (error) { /* Không đọc được cache thì vẫn giải mã trước. */ }
+      if (state.preloadDsdSliceTrackId === next.id) return;
+      stopPrefetchDsdSlice();
+      const worker = new Worker(new URL('dsd-worker.js', dsdWorkerBaseUrl));
+      state.preloadDsdSliceWorker = worker; state.preloadDsdSliceTrackId = next.id;
+      worker.onmessage = event => {
+        const message = event.data || {};
+        if (generation !== state.preloadGeneration || state.preloadDsdSliceWorker !== worker) { try { worker.terminate(); } catch (error) {} return; }
+        if (message.type === 'first-slice') {
+          cacheFirstSlice(next, message.blob, next.size, library.DSD_FIRST_SLICE_CACHE_MAX_BYTES, meta);
+          stopPrefetchDsdSlice();
+        } else if (message.type === 'error') { stopPrefetchDsdSlice(); }
+      };
+      worker.onerror = () => { if (state.preloadDsdSliceWorker === worker) stopPrefetchDsdSlice(); };
+      try { worker.postMessage({file: next.file, format: String(next.format).toLowerCase(), targetRate: state.dsdOutputRate, bitDepth: state.dsdOutputDepth}); }
+      catch (error) { console.warn('Could not prefetch the DSD first slice:', error.message || error); stopPrefetchDsdSlice(); }
     }
     async function preloadNext(force = false) {
       if (!state.context || !state.deckA || !state.deckB) return;
@@ -2445,6 +2484,11 @@
       renderQueue();
       if (!wasPreloaded) ++state.preloadGeneration;
       if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; }
+      // Pha C — bài bắt đầu phát thì worker prefetch lát đầu DSD (nếu
+      // đang giải mã dở cho bài này hoặc cho bài kế cũ) không còn cần
+      // nữa: dừng để khỏi giải mã trùng với worker của playDsdTrack;
+      // lát đã ghi cache vẫn còn để playDsdTrack phát ngay.
+      stopPrefetchDsdSlice();
       if (state.dsdUrl) stopDsdWorker(false);
       if (track.isDsd) {
         try {
@@ -3696,5 +3740,7 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 22:08 +07 | Đã xong: Pha A - Đo time-to-first-audio cho bài DSD local: trước đây DSD local và DSD cloud cùng ghi mode 'dsd' nên Phòng nghe không phân biệt được, và đường DSD không làm mới dòng tín hiệu sau khi ghi số đo (chỉ hiện khi giải mã toàn file xong) trong khi đường thường làm mới ngay qua listener 'playing'. Giờ cả hai đường phát DSD (lát PCM đầu qua playDsdFirstSlice + file DSD ngắn trong handler 'done') ghi mode 'dsd-local' khi track.source === 'local' (nhãn 'lát PCM đầu DSD · file local') và 'dsd' cho cloud, rồi gọi renderRoomSignal ngay khi bài vẫn đang phát; test chạy thật trong dsd-slice-cache.test.cjs (lát local ghi 'dsd-local' + làm mới Phòng nghe, lát cloud giữ 'dsd') và assertion nhãn 'dsd-local' trong index-script.test.cjs fail đúng trên code cũ (thiếu nhãn/lệnh làm mới); đã thêm stub renderRoomSignal vào 3 sandbox chạy thật (dsd-slice-cache, dsd-prefetch-next, dsd-slice-position) | Kiểm chứng: 3/3 Tầng PASS, node --test 37/37 | Lượt kế tiếp: Pha B - Hiển thị trạng thái cache lát đầu trong tooltip huy hiệu chất lượng từng hàng bài hát | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe, Roon Radio phát tiếp bài tương tự khi hết hàng đợi, kiểm toán worker với file DFF DSD512 24-bit -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 22:24 +07 | Đã xong: Pha B - Hiển thị trạng thái cache lát đầu trong tooltip huy hiệu chất lượng từng hàng bài hát: tooltip huy hiệu gộp dòng kiểm toán DSD (nếu có) + trạng thái cache lát đầu qua helper dùng chung usesFirstSliceCache/firstSliceCacheText — 'lát đầu đã lưu trong bộ nhớ · phát ngay khi bấm lại' / 'lát đầu chưa lưu trong bộ nhớ', chỉ hiện khi đã biết; chữ ký hàng thêm trạng thái cache để đường nhẹ dựng lại khi tooltip đổi thay vì bỏ qua; refreshFirstSliceCacheStatus và cacheFirstSlice (ghi xong) đều gọi scheduleTrackRender (debounce 180 ms) khi là bài đang phát để tooltip cập nhật theo, không chỉ dòng Phòng nghe; test chạy thật trong track-rows-render.test.cjs (chữ ký đổi khi trạng thái đổi, tooltip hiện/ẩn đúng) + slice-cache-status.test.cjs (làm mới xong thì dựng lại hàng) fail đúng trên code cũ; đã thêm stub 2 helper vào 5 sandbox trích renderTrackRows (track-rows-render, tidal-rows, versions, dsd-row-audit, render-rows-perf) và sửa assertion tĩnh tooltip trong dsd-row-audit theo biến badgeTitle mới | Kiểm chứng: 3/3 Tầng PASS, node --test 37/37 | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu bài kế khi bài kế là DSD (preloadNext hiện bỏ qua isDsd) | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe, Roon Radio phát tiếp bài tương tự khi hết hàng đợi, kiểm toán worker với file DFF DSD512 24-bit -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 22:30 +07 | Đã xong: Pha A - Cân bằng kênh âm thanh trái/phải Stereo Balance L/R qua StereoPannerNode trong AudioContext Graph + UI điều chỉnh trong panel Parametric Equalizer (#balance-slider, #balance-label, #balance-reset), lưu localStorage và khôi phục khi mở lại trang, cập nhật dòng tín hiệu Phòng nghe; bổ sung phím tắt M (tắt/bật tiếng), ↑/↓ (tăng/giảm âm lượng 5%), J/L hoặc ←/→ tua ±10s, K hoặc Space phát/tạm dừng; test mới balance.test.cjs | Kiểm chứng: 3/3 Tầng PASS, node --test 38/38 | Lượt kế tiếp: Pha C - Prefetch + cache lát đầu bài kế khi bài kế là DSD | Backlog: Ambient Glow đổi màu nền theo ảnh bìa album, Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe, Roon Radio phát tiếp bài tương tự khi hết hàng đợi -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 22:38 +07 | Đã xong: Pha C - Prefetch + cache lát đầu bài kế khi bài kế là DSD: preloadDsdNext đã tải trước file DSD vào track.file nhưng khi chuyển bài playDsdTrack vẫn chờ worker giải mã ~2 giây đầu mới nghe thấy tiếng; giờ sau khi file tải xong (cả nhánh file đã có) gọi prefetchDsdFirstSlice — kiểm tra cache trước, mở worker nền riêng giải mã lát PCM đầu (~2 giây) rồi ghi firstSliceCache (giới hạn DSD 3 MB, meta tốc độ xuất/bit depth như đường phát DSD) để khi chuyển bài playDsdTrack đọc cache và phát ngay, worker dừng ngay sau lát đầu không giải mã toàn file ở nền; playTrack dừng worker prefetch khi bài bắt đầu phát để khỏi giải mã trùng; test mới dsd-prefetch-slice.test.cjs (worker nhận đúng file/format/tốc độ, lát về ghi cache đúng meta rồi dừng worker, đã cache thì không mở worker, lỗi worker không ghi cache, generation đổi thì lát về muộn bị bỏ, 2 lần gọi đua nhau chỉ 1 worker, file đã có vẫn prefetch, file:// không mở worker, nối dây tĩnh) fail đúng trên code cũ; đã cập nhật sandbox dsd-next-prefetch.test.cjs (stub cache-hit nên không mở worker) | Kiểm chứng: 3/3 Tầng PASS, node --test 38/38 | Lượt kế tiếp: Pha D - Kiểm toán worker với file DFF DSD512 24-bit (giải mã thật, kiểm tra lát PCM đầu + duration + header WAV 24-bit) | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe, Roon Radio phát tiếp bài tương tự khi hết hàng đợi, kiểm toán worker với file DFF DSD512 24-bit -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 23:40 +07 | Đã xong: Pha D - Kiểm toán worker với file DFF DSD512 24-bit: DFF 2 giây DSD512 stereo (~10,8 MB, 45,2 triệu mẫu, 22,5792 MHz) giải mã thật đúng sang PCM 44,1 kHz 24-bit (multiplier 512, duration 2 s, đúng kích thước 3 byte/mẫu, header WAV ghi 44,1 kHz/24-bit/đúng data size), chia nhiều lát, gửi đúng 1 lát PCM đầu (~2 giây, cũng 24-bit) trước 'done' — như bản DSF DSD512 24-bit, khẳng định đường đọc chunk DSDIFF (FRM8/PROP/DSD, MSB-first) đúng ở tốc độ lấy mẫu cao nhất; kiểm chứng đột biến (đổi kỳ vọng bit depth 24 thành 16) fail đúng; đầu lần chạy rebase gặp xung đột index.html với commit auto-evolve 42fe5c0 (Stereo Balance) trên origin — đã gộp tay: state giữ cả panner/stereoBalance lẫn preloadDsdSliceTrackId/preloadDsdSliceWorker, giữ đủ 3 dòng log 22:24/22:30/22:38, test toàn bộ vẫn 39/39 sau gộp | Kiểm chứng: 3/3 Tầng PASS, node --test 38/38 | Lượt kế tiếp: Pha A - DSP crossfeed kiểu Roon cho nghe tai nghe (trộn nhẹ kênh trái/phải, bật/tắt trong panel EQ) | Backlog: Roon Radio phát tiếp bài tương tự khi hết hàng đợi (chờ Melissa chọn), Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe -->
 </body>
 </html>
