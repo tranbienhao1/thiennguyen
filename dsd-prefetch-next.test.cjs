@@ -60,7 +60,7 @@ class FakeAudio {
 }
 
 function makeHarness() {
-  const calls = {toasts: [], skipped: [], preloadNext: []};
+  const calls = {toasts: [], skipped: [], preloadNext: [], cached: []};
   const elements = {};
   const $ = id => (elements[id] ||= {textContent: '', value: ''});
   const audio = new FakeAudio();
@@ -102,8 +102,17 @@ function makeHarness() {
     toast: message => calls.toasts.push(message),
     $,
     Worker: FakeWorker,
+    // Pha C — playDsdTrack đọc cache lát đầu trước khi tạo worker và ghi
+    // cache khi lát của worker về; sandbox này không có lát cache sẵn.
+    getCachedFirstSlice: async () => null,
+    cacheFirstSlice: (...args) => { calls.cached.push(args); },
+    library: {DSD_FIRST_SLICE_CACHE_MAX_BYTES: 3 * 1024 * 1024},
   };
   vm.createContext(context);
+  // Pha C — lát PCM đầu được phát qua helper dùng chung playDsdFirstSlice
+  // (từ worker hoặc từ cache); nạp helper thật để đường lát đầu chạy như
+  // trong app thay vì stub.
+  vm.runInContext(extractFunction(appCode, 'playDsdFirstSlice'), context, {filename: 'play-dsd-first-slice.js'});
   vm.runInContext(extractFunction(appCode, 'playDsdTrack'), context, {filename: 'play-dsd-track.js'});
   return {context, calls, audio, standbyAudio, track, state, getWorker: () => workerInstance};
 }
@@ -170,7 +179,9 @@ const doneMessage = (overrides = {}) => ({
   }
 
   // Nối dây tĩnh: cả hai đường phát của DSD (lát đầu + file ngắn) đều
-  // gọi preloadNext(true) sau khi phát thành công.
-  const dsdSource = extractFunction(appCode, 'playDsdTrack');
+  // gọi preloadNext(true) sau khi phát thành công — lệnh của lát đầu giờ
+  // nằm trong helper dùng chung playDsdFirstSlice, không còn trong
+  // playDsdTrack nữa nên đếm gộp cả hai hàm.
+  const dsdSource = extractFunction(appCode, 'playDsdTrack') + extractFunction(appCode, 'playDsdFirstSlice');
   assert.equal((dsdSource.match(/preloadNext\(true\)/g) || []).length, 2, 'Both DSD playback paths (first slice and short file) should prefetch the next track');
 })().catch(error => { console.error(error); process.exit(1); });

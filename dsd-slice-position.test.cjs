@@ -55,7 +55,7 @@ class FakeAudio {
 }
 
 function makeHarness() {
-  const calls = {toasts: [], skipped: []};
+  const calls = {toasts: [], skipped: [], cached: []};
   const elements = {};
   const $ = id => (elements[id] ||= {textContent: '', value: ''});
   const audio = new FakeAudio();
@@ -98,8 +98,17 @@ function makeHarness() {
     toast: message => calls.toasts.push(message),
     $,
     Worker: FakeWorker,
+    // Pha C — playDsdTrack đọc cache lát đầu trước khi tạo worker và ghi
+    // cache khi lát của worker về; sandbox này không có lát cache sẵn.
+    getCachedFirstSlice: async () => null,
+    cacheFirstSlice: (...args) => { calls.cached.push(args); },
+    library: {DSD_FIRST_SLICE_CACHE_MAX_BYTES: 3 * 1024 * 1024},
   };
   vm.createContext(context);
+  // Pha C — lát PCM đầu được phát qua helper dùng chung playDsdFirstSlice
+  // (từ worker hoặc từ cache); nạp helper thật để đường lát đầu chạy như
+  // trong app thay vì stub.
+  vm.runInContext(extractFunction(appCode, 'playDsdFirstSlice'), context, {filename: 'play-dsd-first-slice.js'});
   vm.runInContext(extractFunction(appCode, 'playDsdTrack'), context, {filename: 'play-dsd-track.js'});
   return {context, calls, audio, standbyAudio, track, state, getWorker: () => workerInstance};
 }
@@ -115,7 +124,7 @@ const doneMessage = (overrides = {}) => ({
 });
 
 async function startSlice(harness) {
-  const {context, track, audio} = harness;
+  const {context, track, audio, calls} = harness;
   const playPromise = context.playDsdTrack(track, 1, 0);
   await tick(); await tick();
   const worker = harness.getWorker();
@@ -124,6 +133,7 @@ async function startSlice(harness) {
   await tick(); await tick();
   assert.ok(audio.src.startsWith('blob:'), 'The first PCM slice should start playing on the main deck');
   assert.equal(track.firstSlicePlayback, true, 'The DSD track should be marked as playing from its first slice');
+  assert.equal(calls.cached.length, 1, 'The worker first slice should be written to the slice cache for the next replay');
   return {worker, playPromise};
 }
 
@@ -192,8 +202,10 @@ async function startSlice(harness) {
   }
 
   // Nối dây tĩnh trong playDsdTrack: dùng vị trí đã ghi khi lát hết sớm,
-  // kẹp dưới duration, reset khi lát mới bắt đầu và xóa sau khi đổi.
-  const dsdSource = extractFunction(appCode, 'playDsdTrack');
+  // kẹp dưới duration, reset khi lát mới bắt đầu và xóa sau khi đổi —
+  // lệnh reset khi lát mới bắt đầu giờ nằm trong helper dùng chung
+  // playDsdFirstSlice nên đếm gộp cả hai hàm.
+  const dsdSource = extractFunction(appCode, 'playDsdTrack') + extractFunction(appCode, 'playDsdFirstSlice');
   assert.ok(dsdSource.includes('sliceEndedEarly && Number.isFinite(track.lastSlicePosition)'), 'The DSD done handler should resume from the recorded slice position when the first slice already ended');
   assert.ok(dsdSource.includes('duration - 0.25'), 'The DSD done handler should clamp the resume position below the full file duration');
   assert.ok((dsdSource.match(/track\.lastSlicePosition = null/g) || []).length >= 2, 'The recorded DSD slice position should be reset when a new slice starts and cleared after swapping to the full file');
