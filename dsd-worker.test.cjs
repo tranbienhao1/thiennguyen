@@ -168,7 +168,7 @@ function decode(file, format, targetRate, bitDepth) {
     assert.equal(audit.maxConsecutiveOverBudget, 3, 'A longer streak should raise the longest over-budget streak');
     assert.equal(probeContext.recordChunkAudit(null, 120), null, 'Recording without an audit object should return null instead of throwing');
   }
-  for (const [sourceRate, targetRates] of [[RATE, [44100, 88200, 176400]], [3072000, [48000, 96000, 192000]]]) {
+  for (const [sourceRate, baseRate, targetRates] of [[RATE, 44100, [44100, 88200, 176400]], [3072000, 48000, [48000, 96000, 192000]], [11289600, 44100, [44100, 88200, 176400]], [12288000, 48000, [48000, 96000, 192000]]]) {
     const files = [['dsf', makeDsf(sourceRate)], ['dff', makeDff('DSD ', sourceRate)]];
     for (const rate of targetRates) for (const depth of [16, 24]) {
       for (const [format, file] of files) {
@@ -180,7 +180,7 @@ function decode(file, format, targetRate, bitDepth) {
         assert.equal(wav.getUint16(34, true), depth, `${format} PCM depth`);
         assert.equal(wav.getUint32(40, true), result.blob.size - 44, `${format} PCM data size`);
         assert.equal(result.blob.size, 44 + result.duration * rate * CHANNELS * (depth / 8), `${format} PCM frame alignment`);
-        assert.equal(result.multiplier, sourceRate / (sourceRate === RATE ? 44100 : 48000), `${format} source DSD multiplier`);
+        assert.equal(result.multiplier, sourceRate / baseRate, `${format} source DSD multiplier`);
         assert.ok(Number.isFinite(result.decodeMs) && result.decodeMs >= 0, `${format} decodeMs should be a measured non-negative time`);
         assert.ok(Number.isFinite(result.maxChunkMs) && result.maxChunkMs >= 0, `${format} maxChunkMs should be a measured non-negative time`);
         assert.ok(Number.isInteger(result.chunkCount) && result.chunkCount >= 1, `${format} chunkCount should count at least one decoded chunk`);
@@ -216,6 +216,30 @@ function decode(file, format, targetRate, bitDepth) {
     assert.ok(Number.isFinite(bigResult.decodeThroughputMBps) && bigResult.decodeThroughputMBps >= 0, 'Large-block DSF should report a non-negative decode throughput');
     assert.ok(Number.isInteger(bigResult.maxConsecutiveOverBudget) && bigResult.maxConsecutiveOverBudget >= 0 && bigResult.maxConsecutiveOverBudget <= bigResult.chunkCount, 'Large-block DSF should report an over-budget streak within the chunk count');
     assert.ok(Number.isFinite(bigResult.minSliceThroughputMBps) && bigResult.minSliceThroughputMBps >= 0, 'Large-block DSF should report a non-negative slowest-slice throughput');
+  }
+  // Pha A — kiểm toán worker với file DSD256 lớn (backlog): DSF 3 giây
+  // DSD256 stereo (~8,5 MB, 33,9 triệu mẫu) phải giải mã đúng sang PCM
+  // 44,1 kHz 16-bit (multiplier 256, đúng duration/kích thước), chia
+  // nhiều lát và gửi đúng 1 lát PCM đầu (~2 giây) trước 'done' — như
+  // DSD64, thay vì rớt hoặc sai hệ số decimation ở tốc độ cao.
+  {
+    const posted = [];
+    const big256Self = {cancelled: false, onmessage: null, postMessage(message) { posted.push(message); }};
+    const big256Context = vm.createContext({self: big256Self, Blob});
+    vm.runInContext(source, big256Context, {filename: 'dsd-worker.js'});
+    const big256Done = new Promise((resolve, reject) => {
+      const originalPost = big256Self.postMessage.bind(big256Self);
+      big256Self.postMessage = message => { originalPost(message); if (message.type === 'done') resolve(message); else if (message.type === 'error') reject(new Error(message.message)); };
+    });
+    big256Self.onmessage({data: {file: makeDsf(11289600, 4096, 11289600 * 3), format: 'dsf', targetRate: 44100, bitDepth: 16}});
+    const big256Result = await big256Done;
+    assert.equal(big256Result.multiplier, 256, 'DSD256 should decode with multiplier 256');
+    assert.equal(big256Result.duration, 3, 'A 3 s DSD256 file should report 3 s duration');
+    assert.equal(big256Result.blob.size, 44 + 3 * 44100 * CHANNELS * 2, 'A 3 s DSD256 file should decode to the expected PCM size');
+    assert.ok(big256Result.chunkCount >= 2, `A large DSD256 file should decode in multiple chunks (got ${big256Result.chunkCount})`);
+    const slices256 = posted.filter(message => message.type === 'first-slice');
+    assert.equal(slices256.length, 1, 'A 3 s DSD256 file should send exactly one first slice before done');
+    assert.ok(slices256[0].duration >= 2 && slices256[0].duration < 2.5, `The DSD256 first slice should hold about 2 s of PCM (got ${slices256[0].duration} s)`);
   }
   // Pha A — worker giữ throughput giữa các lần giải mã trong cùng phiên:
   // lần đầu chưa có số đo nên lát đầu là tối đa, lần sau lát đầu vẫn nằm
