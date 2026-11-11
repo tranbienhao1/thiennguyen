@@ -356,6 +356,34 @@
     return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'vi'));
   }
 
+  // Pha B — Versions kiểu Roon: gộp các bản trùng của cùng một bài
+  // (cùng tiêu đề + nghệ sĩ đã chuẩn hoá, bỏ dấu/chữ hoa) thành một
+  // nhóm; bản chính là bản chất lượng cao nhất (sample rate, rồi bit
+  // depth, rồi dung lượng). Bài không có tiêu đề/nghệ sĩ thật (tên mặc
+  // định) không gộp để khỏi nhầm hai bài không tên khác nhau thành một.
+  function compareTrackQuality(a, b) {
+    const rank = track => ({sampleRate: Number(track && track.sampleRate) || 0, bitDepth: Number(track && track.bitDepth) || 0, size: Number(track && track.size) || 0});
+    const ra = rank(a), rb = rank(b);
+    return (rb.sampleRate - ra.sampleRate) || (rb.bitDepth - ra.bitDepth) || (rb.size - ra.size);
+  }
+  function groupTrackVersions(tracks) {
+    if (!Array.isArray(tracks)) return [];
+    const groups = new Map();
+    for (const track of tracks) {
+      if (!track || typeof track !== 'object') continue;
+      const metadata = trackMetadata(track);
+      const key = metadata.title === 'Bài hát không tên' || metadata.artist === UNKNOWN_ARTIST
+        ? `id:${track.id}`
+        : `${metadataKey(metadata.title)}\t${metadataKey(metadata.artist)}`;
+      if (!groups.has(key)) groups.set(key, {key, title: metadata.title, artist: metadata.artist, versions: []});
+      groups.get(key).versions.push(track);
+    }
+    return [...groups.values()].map(group => {
+      const versions = [...group.versions].sort(compareTrackQuality);
+      return {...group, primary: versions[0], versions};
+    });
+  }
+
   // Pha B — lời đồng bộ .lrc: [mm:ss.xx] (1-3 chữ số thập phân), nhiều mốc
   // trên một dòng, thẻ Enhanced LRC <mm:ss.xx> từng từ, thẻ [offset:±ms]
   // (cộng vào mọi mốc), thẻ metadata [ti:/ar:/al:] bị bỏ qua. Trả về mảng
@@ -579,5 +607,5 @@
     return [currentTrack, ...queued.filter(track => track.id !== currentTrack.id)];
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder};
 });
