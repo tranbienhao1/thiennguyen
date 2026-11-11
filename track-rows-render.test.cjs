@@ -44,7 +44,7 @@ assert.ok(appCode.includes('list.dataset.trackRowsSignature === signature'), 're
 assert.ok(appCode.includes('list.dataset.trackRowsSignature = signature'), 'renderTrackRows should store the signature after rebuilding');
 assert.ok(appCode.includes("querySelector('.track-title')"), 'The active-row indicator should sync the row title colour in place');
 assert.ok(appCode.includes("querySelector('.track-playing-overlay')"), 'The active-row indicator should sync the playing overlay in place');
-assert.ok(appCode.includes("class=\"track-title block truncate text-xs font-medium"), 'The row template should mark the title span for in-place updates');
+assert.ok(appCode.includes("class=\"track-title block truncate text-sm font-medium"), 'The row template should mark the title span for in-place updates');
 assert.ok(appCode.includes('track-playing-overlay absolute inset-0'), 'The row template should mark the playing overlay for in-place updates');
 
 class FakeClassList {

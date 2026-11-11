@@ -117,7 +117,7 @@ function badgeTitle(listHtml, trackId) {
   const row = [...listHtml.matchAll(/<div[^>]*data-track-id="([^"]+)"[^>]*>([\s\S]*?)<\/div>/g)]
     .find(match => match[1] === trackId);
   assert.ok(row, `Row for ${trackId} should be rendered`);
-  const badge = row[2].match(/<span class="rounded border[^>]*>/);
+  const badge = row[2].match(/<span class="rounded-full border[^>]*>/);
   assert.ok(badge, `Row for ${trackId} should have a quality badge`);
   const title = badge[0].match(/ title="([^"]*)"/);
   return title ? title[1] : null;
