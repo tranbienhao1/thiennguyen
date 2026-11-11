@@ -168,7 +168,9 @@ assert.ok(appCode.includes('target.volume = audio.volume; target.muted = false;'
 assert.ok(appCode.includes('state.dsdUrl) stopDsdWorker(false);'), 'Track switches should clear stale DSD decoder state');
 assert.ok(appCode.includes('function scheduleTrackRender()'), 'Track-list redraws should be deferrable during switches');
 assert.ok(appCode.includes('function renderRecentTracks()'), 'A recent-listening shelf should render quick resume cards');
-assert.match(appCode, /target\.play\(\)[\s\S]{0,950}recordHistory\(track\);/, 'A track should enter history only after playback starts successfully');
+assert.match(appCode, /target\.play\(\)[\s\S]{0,950}finishPlaybackStart\(track, generation, target, previousTrack\);/, 'A track should enter history only after playback starts successfully');
+const finishPlaybackStart = appCode.indexOf('function finishPlaybackStart(track, generation, target, previousTrack) {');
+assert.ok(finishPlaybackStart >= 0 && appCode.slice(finishPlaybackStart, appCode.indexOf('async function retrySlicePlaybackFromFullAudio', finishPlaybackStart)).includes('recordHistory(track);'), 'The deck-swap helper should record history only after playback starts successfully');
 assert.ok(appCode.includes("recordHistory(track); scheduleTrackRender()"), 'Successfully decoded DSD playback should also enter recent history');
 assert.ok(!/scheduleTrackRender\(\);\s*recordHistory\(track\);/.test(appCode), 'Failed playback attempts must not be recorded as listening history');
 assert.ok(appCode.includes('function restoreRecentTracks()'), 'Recent listening should restore after reload');
@@ -926,11 +928,12 @@ async function exerciseUpgradeSlice({track, currentId = 'now', audioSrc = '', st
   const library = {fetchAudioBlob: fetchImpl || (async () => ({type:'audio/flac'})), normalizeAudioBlob: blob => blob};
   const getMicrosoftToken = async () => 'refreshed-token';
   const finishCloudMetadataInBackground = trackArg => calls.metadata.push(trackArg.id);
-  const upgradeSliceToFullAudio = new Function('library', 'getMicrosoftToken', 'state', 'audio', 'standbyAudio', 'URL', 'location', 'releaseTrackUrl', 'finishCloudMetadataInBackground', `${appCode.slice(upgradeStart, upgradeEnd)}\nreturn upgradeSliceToFullAudio;`)(
+  const upgradeSliceToFullAudio = new Function('library', 'getMicrosoftToken', 'state', 'audio', 'standbyAudio', 'URL', 'location', 'releaseTrackUrl', 'finishCloudMetadataInBackground', 'isGraphContentUrl', `${appCode.slice(upgradeStart, upgradeEnd)}\nreturn upgradeSliceToFullAudio;`)(
     library, getMicrosoftToken, state, audio, standbyAudio, FakeURL, locationStub, releaseTrackUrl, finishCloudMetadataInBackground,
+    url => typeof url === 'string' && url.startsWith('https://graph.microsoft.com/'),
   );
   let result = null, error = null;
-  try { result = await upgradeSliceToFullAudio(track, track.url, 'https://example.com/a.flac', {}, 'Drive'); }
+  try { result = await upgradeSliceToFullAudio(track, track.url, 'https://graph.microsoft.com/v1.0/me/drive/items/x/content', {}, 'Drive'); }
   catch (caught) { error = caught; }
   return {calls, state, audio, standbyAudio, track, result, error};
 }
@@ -1060,8 +1063,9 @@ async function exerciseFetchCloudTrack({track, sliceImpl, metadataPending = fals
     if (metadataPending) track.metadataRequest = new Promise(() => {});
   };
   const upgradeSliceToFullAudio = async () => { calls.upgraded.push(track.id); };
-  const fetchCloudTrack = new Function('library', 'queueCloudMetadata', 'state', 'URL', 'finishCloudMetadataInBackground', 'upgradeSliceToFullAudio', 'getMicrosoftToken', 'getCachedFirstSlice', 'cacheFirstSlice', `${appCode.slice(fetchStart, fetchEnd)}\nreturn fetchCloudTrack;`)(
+  const fetchCloudTrack = new Function('library', 'queueCloudMetadata', 'state', 'URL', 'finishCloudMetadataInBackground', 'upgradeSliceToFullAudio', 'getMicrosoftToken', 'getCachedFirstSlice', 'cacheFirstSlice', 'isGraphContentUrl', `${appCode.slice(fetchStart, fetchEnd)}\nreturn fetchCloudTrack;`)(
     library, queueCloudMetadata, state, FakeURL, () => {}, upgradeSliceToFullAudio, async () => 'token', async () => cachedSlice, (track, blob) => { calls.cached.push(blob); },
+    url => typeof url === 'string' && url.startsWith('https://graph.microsoft.com/'),
   );
   const url = await Promise.race([
     fetchCloudTrack(track, 'https://example.com/a.flac', {}, 'Google Drive'),
@@ -1084,9 +1088,10 @@ assert.deepEqual(cachedSliceRun.calls.upgraded, ['cloud-11'], 'The full file sho
 const cachedTrack = {id: 'cloud-10', source: 'google', name: 'b.flac', title: 'B', format: 'flac', url: 'blob:https://example/cached', metadataLoaded: false, cover: null};
 const cachedCalls = {queued: 0};
 const cachedState = {objectUrls: new Set(['blob:https://example/cached'])};
-const cachedFetch = new Function('library', 'queueCloudMetadata', 'state', 'URL', 'finishCloudMetadataInBackground', 'upgradeSliceToFullAudio', 'getMicrosoftToken', 'getCachedFirstSlice', 'cacheFirstSlice', `${appCode.slice(fetchStart, fetchEnd)}\nreturn fetchCloudTrack;`)(
+const cachedFetch = new Function('library', 'queueCloudMetadata', 'state', 'URL', 'finishCloudMetadataInBackground', 'upgradeSliceToFullAudio', 'getMicrosoftToken', 'getCachedFirstSlice', 'cacheFirstSlice', 'isGraphContentUrl', `${appCode.slice(fetchStart, fetchEnd)}\nreturn fetchCloudTrack;`)(
   {fetchAudioFirstSlice: async () => { throw new Error('must not fetch when the URL is cached'); }, normalizeAudioBlob: blob => blob, fetchAudioBlob: async () => ({})},
   () => { cachedCalls.queued++; }, cachedState, URL, () => {}, async () => {}, async () => 'token', async () => null, async () => {},
+  url => typeof url === 'string' && url.startsWith('https://graph.microsoft.com/'),
 );
 assert.equal(await cachedFetch(cachedTrack, 'https://example.com/b.flac', {}, 'Google Drive'), 'blob:https://example/cached', 'A cached cloud URL should return without re-downloading');
 assert.equal(cachedCalls.queued, 0, 'A cached cloud URL should not queue metadata again before returning');

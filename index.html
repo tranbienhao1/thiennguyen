@@ -958,6 +958,11 @@
     // phát); nếu bài đã chuyển đi hoặc đang được preload thì chỉ nâng cấp
     // track.url để lần phát sau dùng file đầy đủ, và chỉ thu hồi URL lát
     // đầu khi không còn deck nào giữ nó.
+    // Pha C — chỉ thử lại bằng Bearer token khi URL còn là Graph /content;
+    // downloadUrl đã xác thực sẵn nên 401/403 nghĩa là link hết hạn, thử
+    // lại bằng token sang host lưu trữ không có tác dụng — để đường gọi
+    // trên rớt về /content thay vì thử lại vô ích.
+    const isGraphContentUrl = url => typeof url === 'string' && url.startsWith('https://graph.microsoft.com/');
     async function upgradeSliceToFullAudio(track, sliceUrl, url, options, provider) {
       if (track.fullAudioPromise) return track.fullAudioPromise;
       track.fullAudioPromise = (async () => {
@@ -966,6 +971,7 @@
         catch (error) {
           if (error.status !== 401 && error.status !== 403) throw error;
           if (track.source === 'google') throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
+          if (!isGraphContentUrl(url)) throw error;
           const token = await getMicrosoftToken(false);
           blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
         }
@@ -1041,7 +1047,7 @@
         catch (error) {
           if (error.status !== 401 && error.status !== 403) throw error;
           if (track.source === 'google') throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
-          else if (track.source === 'onedrive') {
+          else if (track.source === 'onedrive' && isGraphContentUrl(url)) {
             const token = await getMicrosoftToken(false);
             blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
           } else throw error;
@@ -2085,6 +2091,56 @@
       playNext(1, false);
       return true;
     }
+    // Pha A — hoàn tất việc đổi deck sau khi play() thành công: tách khối
+    // swap khỏi playTrack để đường thử lại từ file đầy đủ (lát đầu không
+    // có khung nhạc) dùng chung, tránh nhân đôi logic crossfade/dọn deck.
+    function finishPlaybackStart(track, generation, target, previousTrack) {
+      if (generation !== state.playGeneration) return false;
+      const previous = audio, oldDeck = state.activeDeck;
+      const newDeck = oldDeck === state.deckA ? state.deckB : state.deckA;
+      audio = target; standbyAudio = previous; state.activeDeck = newDeck;
+      const fadeSeconds = applyCrossfade(state.context, oldDeck, newDeck, state.crossfadeSeconds);
+      state.crossfadeUntil = fadeSeconds > 0 ? state.context.currentTime + fadeSeconds : 0;
+      if (state.preloadTrackId === track.id) { state.preloadTrackId = null; state.preloadReadyUrl = null; }
+      $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ';
+      recordHistory(track);
+      if (fadeSeconds > 0) {
+        // Pha A — để deck cũ phát hết fade rồi mới dừng/xóa src; nếu đã
+        // chuyển bài khác thì generation đổi nên timeout này bỏ qua.
+        setTimeout(() => { if (generation !== state.playGeneration) return; previous.pause(); previous.muted = true; previous.removeAttribute('src'); previous.load(); }, fadeSeconds * 1000 + 50);
+      } else {
+        standbyAudio.muted = true; standbyAudio.pause();
+        previous.pause(); previous.muted = true;
+        previous.removeAttribute('src'); previous.load();
+      }
+      scheduleTrackRender();
+      preloadNext(true);
+      releaseUnusedCloudUrl(previousTrack);
+      releaseUnusedLocalUrl(previousTrack);
+      return true;
+    }
+    // Pha A — lát đầu không có khung nhạc (metadata FLAC > 8 MB, header
+    // WAV/MP3 lớn): play() reject NotSupportedError thì đừng nhảy bài ngay;
+    // đợi tải nền xong rồi phát lại từ file đầy đủ trên cùng deck đích
+    // (play() reject nên deck chưa đổi, target vẫn là standbyAudio).
+    async function retrySlicePlaybackFromFullAudio(track, generation, target, previousTrack) {
+      const pending = track.fullAudioPromise;
+      let fullUrl = track.fullAudioUrl || null;
+      if (pending) {
+        try { fullUrl = await pending; }
+        catch (error) { console.warn('Could not download the full audio file for retry:', error.message || error); return false; }
+      }
+      if (generation !== state.playGeneration) return false;
+      fullUrl = fullUrl || track.fullAudioUrl || track.url;
+      if (!fullUrl) return false;
+      const fullHref = new URL(fullUrl, location.href).href;
+      if (target.src !== fullHref || target.error) { target.src = fullHref; target.load(); }
+      try { await target.play(); }
+      catch (error) { console.warn('Could not play the full audio file after the first slice failed:', error.message || error); return false; }
+      if (generation !== state.playGeneration) return false;
+      track.firstSlicePlayback = false; track.sliceEndedEarly = false; track.fullAudioUrl = null;
+      return finishPlaybackStart(track, generation, target, previousTrack);
+    }
     async function playTrack(trackId) {
       const track = state.tracks.find(item => item.id === trackId);
       if (!track) return;
@@ -2152,30 +2208,15 @@
       }, {once:true});
       try {
         await target.play();
-        if (generation !== state.playGeneration) return;
-        const previous = audio, oldDeck = state.activeDeck;
-        const newDeck = oldDeck === state.deckA ? state.deckB : state.deckA;
-        audio = target; standbyAudio = previous; state.activeDeck = newDeck;
-        const fadeSeconds = applyCrossfade(state.context, oldDeck, newDeck, state.crossfadeSeconds);
-        state.crossfadeUntil = fadeSeconds > 0 ? state.context.currentTime + fadeSeconds : 0;
-        if (state.preloadTrackId === track.id) { state.preloadTrackId = null; state.preloadReadyUrl = null; }
-        $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ';
-        recordHistory(track);
-        if (fadeSeconds > 0) {
-          // Pha A — để deck cũ phát hết fade rồi mới dừng/xóa src; nếu đã
-          // chuyển bài khác thì generation đổi nên timeout này bỏ qua.
-          setTimeout(() => { if (generation !== state.playGeneration) return; previous.pause(); previous.muted = true; previous.removeAttribute('src'); previous.load(); }, fadeSeconds * 1000 + 50);
-        } else {
-          standbyAudio.muted = true; standbyAudio.pause();
-          previous.pause(); previous.muted = true;
-          previous.removeAttribute('src'); previous.load();
-        }
-        scheduleTrackRender();
-        preloadNext(true);
-        releaseUnusedCloudUrl(previousTrack);
-        releaseUnusedLocalUrl(previousTrack);
+        finishPlaybackStart(track, generation, target, previousTrack);
       } catch (error) {
         console.error('Playback failed:', error);
+        // Pha A — play() reject vì lát đầu không có khung nhạc mà file đầy
+        // đủ còn đang tải (hoặc đã tải xong): thử phát lại từ file đầy đủ
+        // thay vì nhảy bài ngay; chỉ nhảy khi tải nền lỗi hoặc phát lại lỗi.
+        if ((error.name === 'NotSupportedError' || target.error) && track.firstSlicePlayback && (track.fullAudioPromise || track.fullAudioUrl)) {
+          if (await retrySlicePlaybackFromFullAudio(track, generation, target, previousTrack)) return;
+        }
         if (error.name === 'NotSupportedError' || target.error) skipFailedTrack(generation, `Không thể phát bài hát${track && (track.title || track.name) ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
         else toast(mediaErrorMessage(error));
       }
@@ -2465,6 +2506,7 @@
       catch (error) {
         if (error.status !== 401 && error.status !== 403) throw error;
         if (track.source === 'google') throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
+        if (!isGraphContentUrl(url)) throw error;
         const token = await getMicrosoftToken(false);
         blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
       }
@@ -2592,11 +2634,39 @@
         throw error;
       }
     }
+    // Pha C — OneDrive dùng thẳng downloadUrl: link tải tạm thời của Graph
+    // đã xác thực sẵn nên tải nhạc thẳng từ SharePoint mà không cần gửi
+    // Authorization header (tránh preflight CORS, khỏi đưa token sang host
+    // lưu trữ) và bỏ qua bước redirect qua /content của Graph. Link chỉ
+    // sống ngắn nên chỉ dùng lại trong 30 phút, còn không thì lấy mới mỗi
+    // lần bấm phát; hết hạn thì rớt về đường /content + Bearer như cũ.
+    const MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS = 30 * 60 * 1000;
+    async function resolveMicrosoftDownloadUrl(track) {
+      if (track.downloadUrl && track.downloadUrlAt && Date.now() - track.downloadUrlAt < MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS) return track.downloadUrl;
+      const token = state.microsoftAccessToken || await getMicrosoftToken(false);
+      const item = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}`, token);
+      const url = item && item['@microsoft.graph.downloadUrl'];
+      if (!url) return '';
+      track.downloadUrl = url;
+      track.downloadUrlAt = Date.now();
+      return url;
+    }
     async function loadMicrosoftAudio(itemId) {
-      const token = await getMicrosoftToken(false);
       const track = state.tracks.find(item => item.remoteId === itemId && item.source === 'onedrive');
       if (!track) throw new Error('Không tìm thấy bài hát trong thư viện.');
-      track.downloadUrl = '';
+      const directUrl = await resolveMicrosoftDownloadUrl(track).catch(() => '');
+      if (directUrl) {
+        try {
+          if (isDsdFormat(track.format)) { await fetchCloudFile(track, directUrl, {}, 'OneDrive'); return track.file; }
+          await fetchCloudTrack(track, directUrl, {}, 'OneDrive');
+          return;
+        } catch (error) {
+          console.warn('OneDrive direct download failed, retrying through Graph:', error.message || error);
+          track.downloadUrl = '';
+          track.downloadUrlAt = 0;
+        }
+      }
+      const token = await getMicrosoftToken(false);
       const url = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}/content`;
       if (isDsdFormat(track.format)) { await fetchCloudFile(track, url, {headers:{Authorization:`Bearer ${token}`}}, 'OneDrive'); return track.file; }
       await fetchCloudTrack(track, url, {headers:{Authorization:`Bearer ${token}`}}, 'OneDrive');
@@ -3178,5 +3248,6 @@
   <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 00:48 +07 | Đã xong: Pha A - Phát DSD từ lát PCM đầu: worker gửi tin 'first-slice' (WAV ~2 giây PCM) ngay khi đủ lát đầu thay vì đợi giải mã toàn file, deck phát lát đó trong khi worker giải mã tiếp; khi 'done' về thì đổi sang file đầy đủ ở đúng vị trí đang nghe (seek sau loadedmetadata, phát tiếp nếu đang phát hoặc đã hết sớm, giữ tạm dừng nếu đang tạm dừng), thu hồi blob URL lát đầu; đặt firstSlicePlayback + fullAudioPromise để guard 'ended'/'error' sẵn có không chuyển bài khi lát đầu hết sớm; file ngắn hơn 2 giây thì không có lát đầu, phát như trước | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha C - OneDrive dùng thẳng downloadUrl thay vì tải qua proxy (giảm thời gian chờ bài OneDrive) | Backlog: thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 02:47 +07 | Đã xong: Pha C - Ưu tiên cao nhất lỗi FLAC cloud nhảy bài (Melissa báo 01:20 vẫn bị sau bản 3baf9ee): (1) 'ended' khi lát đầu hết sớm mà tải nền sau đó thất bại thì chuyển bài + toast như đường 'error' (trước đây 'ended' không đăng ký lỗi tải nền nên nhạc dừng im hẳn, không toast cũng không chuyển bài); (2) dọn cờ firstSlicePlayback=false ngay khi deck đổi sang file đầy đủ (cả swap trong upgradeSliceToFullAudio lẫn resumeFullAudioFromSlice khi swap bị bỏ lỡ) để guard 'ended'/'error' không nhầm lần phát file đầy đủ thành lát đầu; test mới thử fail trên code cũ (lát hết + tải nền lỗi thì chuyển bài, swap xong thì cờ lát đầu tắt). Lưu ý: bản 3baf9ee đẩy 01:16, Melissa báo 01:20 vẫn bị — rất có thể cô ấy thử trên bản cache cũ của GitHub Pages (max-age=600), cần tải lại cứng rồi thử lại mới kết luận được | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Kiểm toán bộ giải mã: FLAC có ảnh bìa lớn khiến lát đầu 1 MB không chứa khung nhạc nào (decoder không khởi động được -> play() reject -> skipFailedTrack nhảy bài) — đo offset khung nhạc đầu tiên trong header FLAC rồi tăng lát đầu khi cần | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 04:20 +07 | Đã xong: Pha D - Kiểm toán bộ giải mã, lỗi FLAC cloud nhảy bài: lát đầu 1 MB của FLAC có ảnh bìa lớn không chứa khung nhạc nào nên play() reject rồi app nhảy bài — fetchAudioFirstSlice giờ đo offset khung nhạc đầu tiên bằng flacFirstFrameOffset (đi qua các khối metadata fLaC, hỗ trợ tiền tố ID3, kiểm tra sync khung 0xFF 0xF8/0xF9) và tải lại Range rộng hơn (khung đầu + 256 KB, tối đa 8 MB, tối đa 3 lần mở rộng) để lát đầu chứa ít nhất vài khung nhạc; test chạy thật với FLAC giả có PICTURE 1.5 MB (lát mở rộng từ 1 MB lên 1762190 byte, chứa sync khung ở 1500046) và FLAC thường (chỉ 1 lần fetch); test đã thử fail trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Chặn đường play() reject nhảy bài khi lát đầu chưa có khung nhạc (dự phòng khi metadata FLAC > 8 MB hoặc WAV/MP3 có header lớn): play() reject NotSupportedError trong lúc firstSlicePlayback + fullAudioPromise thì đợi tải nền xong rồi thử phát lại từ file đầy đủ thay vì skipFailedTrack ngay; lưu ý cần xử lý deck chưa đổi (play() reject thì deck đích vẫn là standbyAudio) | Backlog: OneDrive dùng thẳng downloadUrl, thu hồi blob URL bài cũ sau crossfade, đo time-to-first-audio cho DSD -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 09:14 +07 | Đã xong: Pha C - OneDrive dùng thẳng downloadUrl thay vì tải qua Graph /content (giảm thời gian chờ bài OneDrive): loadMicrosoftAudio lấy link tải tạm thời mới qua resolveMicrosoftDownloadUrl (dùng lại trong 30 phút) rồi tải lát đầu + file đầy đủ thẳng từ SharePoint không gửi Authorization header (tránh preflight CORS, khỏi đưa token sang host lưu trữ); link hết hạn (403) thì xóa link cũ rồi rớt về đường /content + Bearer, Graph không trả link cũng rớt về /content; 3 đường thử lại bằng token (upgradeSliceToFullAudio, fetchCloudTrack, fetchCloudFile) chỉ chạy khi URL còn là Graph (isGraphContentUrl) vì thử lại bằng token trên downloadUrl hết hạn là vô ích; test mới onedrive-direct.test.cjs (link mới dùng lại, link cũ > 30 phút lấy mới, FLAC/DSD tải thẳng không header, 403 rớt về /content + Bearer, không có track thì không gọi Graph) đã thử fail trên code cũ; cập nhật sandbox index-script.test.cjs truyền isGraphContentUrl | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Thu hồi blob URL bài cũ sau crossfade (chống rò RAM, backlog) | Backlog: đo time-to-first-audio cho DSD, prefetch + cache lát đầu bài kế -->
 </body>
 </html>
