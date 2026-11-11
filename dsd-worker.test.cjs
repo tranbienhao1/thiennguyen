@@ -168,7 +168,7 @@ function decode(file, format, targetRate, bitDepth) {
     assert.equal(audit.maxConsecutiveOverBudget, 3, 'A longer streak should raise the longest over-budget streak');
     assert.equal(probeContext.recordChunkAudit(null, 120), null, 'Recording without an audit object should return null instead of throwing');
   }
-  for (const [sourceRate, baseRate, targetRates] of [[RATE, 44100, [44100, 88200, 176400]], [3072000, 48000, [48000, 96000, 192000]], [11289600, 44100, [44100, 88200, 176400]], [12288000, 48000, [48000, 96000, 192000]]]) {
+  for (const [sourceRate, baseRate, targetRates] of [[RATE, 44100, [44100, 88200, 176400]], [3072000, 48000, [48000, 96000, 192000]], [11289600, 44100, [44100, 88200, 176400]], [12288000, 48000, [48000, 96000, 192000]], [22579200, 44100, [44100, 88200, 176400]], [24576000, 48000, [48000, 96000, 192000]]]) {
     const files = [['dsf', makeDsf(sourceRate)], ['dff', makeDff('DSD ', sourceRate)]];
     for (const rate of targetRates) for (const depth of [16, 24]) {
       for (const [format, file] of files) {
@@ -240,6 +240,30 @@ function decode(file, format, targetRate, bitDepth) {
     const slices256 = posted.filter(message => message.type === 'first-slice');
     assert.equal(slices256.length, 1, 'A 3 s DSD256 file should send exactly one first slice before done');
     assert.ok(slices256[0].duration >= 2 && slices256[0].duration < 2.5, `The DSD256 first slice should hold about 2 s of PCM (got ${slices256[0].duration} s)`);
+  }
+  // Pha A — kiểm toán worker với file DSD512 lớn (backlog): DSF 2 giây
+  // DSD512 stereo (~11,3 MB, 45,2 triệu mẫu) phải giải mã đúng sang PCM
+  // 44,1 kHz 16-bit (multiplier 512, đúng duration/kích thước), chia
+  // nhiều lát và gửi đúng 1 lát PCM đầu (~2 giây) trước 'done' — như
+  // DSD256, thay vì rớt hoặc sai hệ số decimation ở tốc độ cao nhất.
+  {
+    const posted = [];
+    const big512Self = {cancelled: false, onmessage: null, postMessage(message) { posted.push(message); }};
+    const big512Context = vm.createContext({self: big512Self, Blob});
+    vm.runInContext(source, big512Context, {filename: 'dsd-worker.js'});
+    const big512Done = new Promise((resolve, reject) => {
+      const originalPost = big512Self.postMessage.bind(big512Self);
+      big512Self.postMessage = message => { originalPost(message); if (message.type === 'done') resolve(message); else if (message.type === 'error') reject(new Error(message.message)); };
+    });
+    big512Self.onmessage({data: {file: makeDsf(22579200, 4096, 22579200 * 2), format: 'dsf', targetRate: 44100, bitDepth: 16}});
+    const big512Result = await big512Done;
+    assert.equal(big512Result.multiplier, 512, 'DSD512 should decode with multiplier 512');
+    assert.equal(big512Result.duration, 2, 'A 2 s DSD512 file should report 2 s duration');
+    assert.equal(big512Result.blob.size, 44 + 2 * 44100 * CHANNELS * 2, 'A 2 s DSD512 file should decode to the expected PCM size');
+    assert.ok(big512Result.chunkCount >= 2, `A large DSD512 file should decode in multiple chunks (got ${big512Result.chunkCount})`);
+    const slices512 = posted.filter(message => message.type === 'first-slice');
+    assert.equal(slices512.length, 1, 'A 2 s DSD512 file should send exactly one first slice before done');
+    assert.ok(slices512[0].duration >= 2 && slices512[0].duration < 2.5, `The DSD512 first slice should hold about 2 s of PCM (got ${slices512[0].duration} s)`);
   }
   // Pha A — worker giữ throughput giữa các lần giải mã trong cùng phiên:
   // lần đầu chưa có số đo nên lát đầu là tối đa, lần sau lát đầu vẫn nằm
