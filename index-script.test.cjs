@@ -1063,9 +1063,10 @@ const ttfaStart = appCode.indexOf('function measureTimeToFirstAudio(startedAtMs,
 const ttfaEnd = appCode.indexOf('function signalDescription(track) {', ttfaStart);
 assert.ok(ttfaStart >= 0 && ttfaEnd > ttfaStart, 'Time-to-first-audio helpers should exist for regression checks');
 const roomSignalElement = {textContent: ''};
-const ttfa = new Function('signalDescription', '$', `${appCode.slice(ttfaStart, ttfaEnd)}\nreturn {measureTimeToFirstAudio, recordTimeToFirstAudio, timeToFirstAudioText, renderRoomSignal};`)(
+const ttfa = new Function('signalDescription', '$', 'state', `${appCode.slice(ttfaStart, ttfaEnd)}\nreturn {measureTimeToFirstAudio, recordTimeToFirstAudio, timeToFirstAudioText, renderRoomSignal};`)(
   () => ({sourceTechnical: 'FLAC · 96 kHz', decoded: 'FLAC được trình duyệt giải mã bằng Web Audio.', advice: ''}),
   id => id === 'room-signal' ? roomSignalElement : {textContent: ''},
+  {},
 );
 assert.equal(ttfa.measureTimeToFirstAudio(1000, 1842.4), 842, 'Time-to-first-audio should round to whole milliseconds');
 assert.equal(ttfa.measureTimeToFirstAudio(1842, 1000), 0, 'A clock running backwards should clamp to zero instead of a negative delay');
