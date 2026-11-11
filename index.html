@@ -2133,16 +2133,35 @@
       if (current + 1 < state.tracks.length) return current + 1;
       return state.repeat === 1 ? 0 : -1;
     }
+    // Pha C — bài kế là DSD: không phát được qua deck chờ (cần giải mã
+    // worker sang PCM trước) nên preloadNext cũ bỏ qua hẳn; tải trước
+    // file DSD vào track.file để khi chuyển bài playTrack bỏ qua bước
+    // tải từ Drive và giải mã ngay, tránh chờ tải toàn file lúc hết
+    // bài. Chỉ tải khi chưa có file và chưa đang tải; lỗi tải thì để
+    // playTrack thử lại lúc chuyển bài, không nhảy bài im lặng ở đây.
+    async function preloadDsdNext(next) {
+      if (!next.load) return;
+      if (state.preloadTrackId === next.id && (next.file || state.preloadBusyId === next.id)) return;
+      if (next.file) { state.preloadTrackId = next.id; state.preloadReadyUrl = null; return; }
+      const generation = ++state.preloadGeneration;
+      state.preloadTrackId = next.id; state.preloadBusyId = next.id; state.preloadReadyUrl = null;
+      try {
+        await next.load();
+        if (generation !== state.preloadGeneration) return;
+      } catch (error) { console.warn('Could not preload next DSD track:', error); }
+      finally { if (generation === state.preloadGeneration) state.preloadBusyId = null; }
+    }
     async function preloadNext(force = false) {
       if (!state.context || !state.deckA || !state.deckB) return;
       // Pha A — đang crossfade thì deck chờ vẫn phát bài cũ: đừng pause/xóa
       // src của nó; timeupdate sẽ gọi lại preloadNext sau khi fade xong.
       if (state.crossfadeUntil && state.context.currentTime < state.crossfadeUntil) return;
       const index = queueIndex(), next = index >= 0 ? state.tracks[index] : null;
-      if (!next || next.id === state.currentId || next.isDsd) {
+      if (!next || next.id === state.currentId) {
         clearStalePreload();
         return;
       }
+      if (next.isDsd) { await preloadDsdNext(next); return; }
       const preloadUrl = next.url ? new URL(next.url, location.href).href : '';
       if (!force && state.preloadTrackId === next.id && (state.preloadBusyId === next.id || (preloadUrl && standbyAudio.src === preloadUrl))) return;
       const oldPreload = state.tracks.find(track => track.id === state.preloadTrackId);
@@ -3418,5 +3437,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 15:42 +07 | Đã xong: Pha D - Hiệu năng render danh sách hàng nghìn bài: renderTrackRows tính chữ ký các hàng đang hiển thị (thứ tự đã sắp xếp, tiêu đề/nghệ sĩ/album, bìa, thời lượng, nhãn chất lượng, trạng thái hàng đợi) và bỏ qua dựng lại toàn bộ innerHTML + gắn lại listener khi chữ ký không đổi — đổi bài đang phát chỉ cập nhật dấu hiệu tại chỗ qua updateCurrentTrackIndicator (đồng bộ thêm màu tiêu đề + lớp phủ ♫, có class track-title/track-playing-overlay để cập nhật); bìa/thời lượng về sau, thêm/xóa hàng đợi, đổi sắp xếp vẫn dựng lại như cũ; test mới track-rows-render.test.cjs (chữ ký, dấu hiệu bài đang phát, đường nhẹ/không nhẹ) fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha A - Kiểm toán lại deck swap khi crossfade (liên quan lỗi nhảy bài) + đo time-to-first-audio cho DSD | Backlog: prefetch + cache lát đầu bài kế, hiển thị thời gian còn lại của bài trong Phòng nghe, kiểm toán deck swap khi crossfade -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 16:23 +07 | Đã xong: Pha A - Kiểm toán deck swap khi crossfade (liên quan lỗi FLAC cloud nhảy bài): handler 'loadedmetadata' trong upgradeSliceToFullAudio và handler 'done' DSD tham chiếu biến audio vốn bị gán lại khi finishPlaybackStart đổi deck — deck đổi trong lúc chờ metadata thì seek/play nhầm sang deck mới, bài mới bị tua về vị trí bài cũ (~13s); giờ giữ đúng deck bằng const deck = audio và chỉ seek/play khi deck đó vẫn là deck đang phát của đúng bài (deck === audio, track còn là bài hiện tại, DSD thêm generation); test mới deck-swap-metadata.test.cjs (deck đổi trước loadedmetadata thì bài mới không bị tua/không phát, không đổi thì vẫn phát tiếp từ 12.96s) fail đúng trên code cũ (bài mới bị tua về 12.96s); đã kiểm tra resumeFullAudioFromSlice an toàn vì dùng tham số element ổn định | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha B - Hiển thị thời gian còn lại của bài trong Phòng nghe | Backlog: prefetch lát đầu bài kế ngay khi bắt đầu phát bài hiện tại, hiển thị thời gian còn lại của bài trong Phòng nghe, đo hiệu năng render danh sách lớn sau bản sửa chữ ký hàng -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 18:57 +07 | Đã xong: Pha C - Prefetch lát đầu bài kế ngay khi bài DSD bắt đầu phát (ưu tiên Melissa chọn 23:23): playDsdTrack trước đây không gọi preloadNext ở đâu cả nên bài kế chỉ được tải khi gần hết bài (timeupdate + shouldPreloadNext), với Drive chậm thì không đủ thời gian tải nền; giờ gọi preloadNext(true) khi lát PCM đầu phát được và khi file DSD ngắn (không có lát đầu) phát được — như đường phát thường trong finishPlaybackStart; phát lỗi thì không prefetch; test mới dsd-prefetch-next.test.cjs (lát đầu phát → prefetch 1 lần với true, file ngắn phát → prefetch, phát lỗi → không prefetch + vẫn bỏ bài) fail đúng trên code cũ; đã sửa sandbox dsd-slice-position.test.cjs (thêm stub preloadNext) | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Đo hiệu năng render danh sách lớn sau bản sửa chữ ký hàng | Backlog: prefetch bài kế khi bài kế là DSD (preloadNext hiện bỏ qua isDsd), đo hiệu năng render danh sách lớn sau bản sửa chữ ký hàng, kiểm toán worker DSD với file DSD256 lớn -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 19:18 +07 | Đã xong: Pha C - Prefetch bài kế khi bài kế là DSD (ưu tiên Melissa chọn 23:23, vượt vòng xoay): preloadNext cũ bỏ qua hẳn bài kế DSD (guard next.isDsd) vì DSD không phát được qua deck chờ — cần giải mã worker sang PCM; hết bài mới tải toàn file từ Drive rồi mới giải mã nên chuyển bài chậm. Giờ preloadDsdNext tải trước file DSD vào track.file (guard generation, không tải lại khi đã có file/đang tải, lỗi tải thì để playTrack thử lại lúc chuyển bài) để playTrack bỏ qua bước tải và giải mã ngay khi chuyển bài, không chạm deck chờ; test mới dsd-next-prefetch.test.cjs (tải nền 1 lần, không tải lại khi đã có file, không tải trùng khi đang tải, tải lỗi thì thử lại, DSD local không load thì thôi, FLAC kế vẫn preload qua deck) fail đúng trên code cũ | Kiểm chứng: 3/3 Tầng PASS | Lượt kế tiếp: Pha D - Đo hiệu năng render danh sách lớn sau bản sửa chữ ký hàng | Backlog: cache lát đầu DSD vào IndexedDB để phát lại ngay sau tải lại trang, đo hiệu năng render danh sách lớn sau bản sửa chữ ký hàng, kiểm toán worker DSD với file DSD256 lớn -->
 </body>
 </html>
