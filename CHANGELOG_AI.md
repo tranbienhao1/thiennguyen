@@ -2,6 +2,41 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 03:55 +07] — [Pha D] Network Status Monitor, Offline Indicator & Smart Fallback: Giám Sát Kết Nối Mạng PWA & Trải Nghiệm Ngoại Tuyến Liền Mạch
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **4. Hiệu Năng, Kiến Trúc & Độ Bền Hệ Thống (Architecture & PWA)**.
+- **Tính năng triển khai:**
+  1. **Các hàm kiểm tra trạng thái mạng & khả năng phát ngoại tuyến (`library-utils.js`):**
+     - `isOnlineState(navigatorObj)`: Kiểm tra an toàn trạng thái kết nối `navigator.onLine`, tự động fallback sang `true` nếu môi trường không có đối tượng `navigator` (như test runner hoặc server-side rendering).
+     - `formatNetworkStatus(online)`: Định dạng trạng thái mạng kèm nhãn (`Trực tuyến` / `Ngoại tuyến`) và thông điệp giải thích thân thiện cho người dùng.
+     - `canPlayOffline(track)`: Xác định bài hát có thể phát khi mất mạng hay không (trả về `true` cho bài cục bộ `source === 'local'`, bài có file/blob trong RAM, hoặc bài đã được lưu lát PCM/lát 1MB trong bộ nhớ cache IndexedDB).
+  2. **Thanh thông báo trạng thái ngoại tuyến chuẩn Dark Mode Audiophile (`#offline-banner` trong `index.html`):**
+     - Thiết kế pill bo tròn đặt ở đầu trang (`fixed left-1/2 top-4 z-[69] -translate-x-1/2`), viền vàng hổ phách `border-amber-500/30`, nền kính mờ `bg-amber-950/90 backdrop-blur-xl`, đèn báo hiệu nhấp nháy `animate-pulse`.
+     - Tự động hiển thị khi thiết bị ngắt kết nối Internet và tự động ẩn khi mạng được khôi phục.
+  3. **Lắng nghe sự kiện kết nối & Cơ chế phục hồi thông minh:**
+     - `window.addEventListener('offline')`: Kích hoạt thanh báo ngoại tuyến, thông báo toast "Mất kết nối mạng. Đang ở chế độ Ngoại tuyến."
+     - `window.addEventListener('online')`: Tự động ẩn thanh báo, thông báo toast "Đã kết nối Internet trở lại.", tự động kiểm tra bản cập nhật mới (`checkForAppUpdate`) và tiếp tục tải trước (prefetch) bài hát tiếp theo (`preloadNext`).
+  4. **Bảo vệ trình phát nhạc `playTrack` khi ngoại tuyến:**
+     - Ngăn ngừa tình trạng trình duyệt gửi yêu cầu `fetch` mạng khi đang offline khiến Promise reject, gây lỗi decoder và kích hoạt cơ chế `skipFailedTrack` nhảy qua toàn bộ playlist cloud.
+     - Hiển thị toast hướng dẫn trực quan: "Đang ngoại tuyến. Bài hát cloud này cần Internet để tải." giúp người dùng hiểu rõ nguyên nhân.
+  5. **Bộ kiểm thử tự động (Unit & Integration Tests):**
+     - Tạo mới `offline-mode.test.cjs` gồm 14 test cases kiểm tra: độ chính xác của `isOnlineState`, `formatNetworkStatus`, phân loại `canPlayOffline`, và kiểm tra tích hợp DOM & script logic.
+     - Toàn bộ 14/14 test cases PASS 100%.
+
+### 📁 Các File Đã Sửa / Tạo Mới:
+- `library-utils.js`: Bổ sung `isOnlineState`, `formatNetworkStatus`, `canPlayOffline`, cập nhật export `NocturneLibrary`.
+- `index.html`: Thêm markup `#offline-banner`, hàm `updateNetworkStatus`, cập nhật `playTrack`, bổ sung event listener `online`/`offline`, thêm auto-schedule log comment.
+- `offline-mode.test.cjs`: Test suite mới cho tính năng Network Status Monitor & Offline Mode (14/14 PASS).
+- `CHANGELOG_AI.md`: Cập nhật nhật ký tiến hóa chu kỳ.
+
+### 🚀 Đề Xuất Cho Chu Kỳ Kế Tiếp:
+- **Pha A (Audio Engine & DSP):** Parametric EQ Presets & AutoEQ profile compensation cho tai nghe phổ biến (HD600, AirPods Pro, Sony WH-1000XM...).
+- **Pha B (UI/UX & Visualizer):** Waveform seekbar trực quan hóa dạng sóng bài hát bằng Web Audio Analyser/Canvas.
+- **Pha C (Core Features):** Đồng bộ lời bài hát .lrc cuộn mượt từng từ (Karaoke highlight effect).
+
+---
+
 ## [Chu Kỳ 2026-11-13 03:45 +07] — [Pha C] Sleep Timer Fade-Out: Giảm Dần Âm Lượng Mượt Mà 30s Cuối Trước Khi Dừng Nhạc
 
 ### 🎯 Hạng Mục Nâng Cấp:

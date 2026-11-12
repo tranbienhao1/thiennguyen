@@ -655,6 +655,10 @@
       <button id="update-now" class="rounded-lg bg-violet-500 px-3 py-1.5 text-[11px] font-semibold text-white shadow-lg shadow-violet-950/40 transition hover:bg-violet-400" type="button">Cập nhật</button>
     </div>
   </div>
+  <div id="offline-banner" class="fixed left-1/2 top-4 z-[69] hidden -translate-x-1/2 items-center gap-2 rounded-full border border-amber-500/30 bg-amber-950/90 px-4 py-1.5 text-xs text-amber-200 shadow-2xl backdrop-blur-xl transition" role="status" aria-live="polite">
+    <span class="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse"></span>
+    <span id="offline-banner-text" class="text-[11px] font-medium">Ngoại tuyến · Chỉ phát nhạc cục bộ & bộ nhớ đệm</span>
+  </div>
 
   <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
@@ -877,6 +881,17 @@
     function hideUpdateBanner() {
       $('update-banner').classList.add('hidden');
       $('update-banner').classList.remove('flex');
+    }
+    function updateNetworkStatus(isOnline) {
+      const banner = $('offline-banner');
+      if (!banner) return;
+      if (isOnline) {
+        banner.classList.add('hidden');
+        banner.classList.remove('flex');
+      } else {
+        banner.classList.remove('hidden');
+        banner.classList.add('flex');
+      }
     }
     const isAppPlaying = () => {
       try { return !!audio && !audio.paused && !audio.ended; }
@@ -3000,7 +3015,16 @@
       if (track.isDsd) {
         try {
           clearStalePreload();
-          if (!track.file && track.load) await track.load();
+          if (!track.file && track.load) {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+              const canPlay = typeof library?.canPlayOffline === 'function' ? library.canPlayOffline(track) : (track.source === 'local' || !!track.file || !!track.blob);
+              if (!canPlay) {
+                toast('Đang ngoại tuyến. Bài DSD cloud này cần Internet để tải.');
+                return;
+              }
+            }
+            await track.load();
+          }
           if (generation !== state.playGeneration) return;
           if (!track.file) throw new Error('Không tải được file DSD từ nguồn cloud.');
           await playDsdTrack(track, generation, playRequestedAt);
@@ -3017,6 +3041,13 @@
       const target = standbyAudio;
       const cachedCloudUrl = wasPreloaded || (track.url && state.objectUrls.has(track.url));
       if (track.load && !cachedCloudUrl) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          const canPlay = typeof library?.canPlayOffline === 'function' ? library.canPlayOffline(track) : (track.source === 'local' || !!track.file || !!track.blob);
+          if (!canPlay) {
+            toast('Đang ngoại tuyến. Bài hát cloud này cần Internet để tải.');
+            return;
+          }
+        }
         try { await track.load(); }
         catch (error) { console.error('Track streaming failed:', error); releaseUnusedCloudUrl(track); skipFailedTrack(generation, `Không thể phát bài hát: ${mediaErrorMessage(error)}. Chuyển sang bài tiếp theo.`); return; }
       }
@@ -4248,7 +4279,19 @@
     setInterval(() => { if (!document.hidden) checkForAppUpdate(); }, UPDATE_CHECK_INTERVAL);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForAppUpdate(); });
     window.addEventListener('focus', checkForAppUpdate);
-    window.addEventListener('online', checkForAppUpdate);
+    window.addEventListener('online', () => {
+      updateNetworkStatus(true);
+      toast('Đã kết nối Internet trở lại.');
+      checkForAppUpdate();
+      if (state.currentId) preloadNext(true);
+    });
+    window.addEventListener('offline', () => {
+      updateNetworkStatus(false);
+      toast('Mất kết nối mạng. Đang ở chế độ Ngoại tuyến.');
+    });
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      updateNetworkStatus(false);
+    }
   })();
   </script>
   <script>
@@ -4342,5 +4385,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:26 +07 | Đã xong: Pha A - ReplayGain & Loudness Normalization: đồng bộ mức âm lượng giữa các bài hát bằng thuật toán ReplayGain 2.0 (parseReplayGain đọc tag TXXX, Vorbis comments, camelCase / snake_case; computeReplayGainMultiplier tính linear gain, hỗ trợ cả 2 chế độ Track / Album, bù Preamp ±6 dB và cơ chế Anti-clip chống clipping khi gain * peak > 1.0); UI trong panel Parametric Equalizer (#replaygain-toggle, #replaygain-badge, #replaygain-mode, #replaygain-preamp, #replaygain-preamp-val); tích hợp vào setGain điều khiển âm lượng thực tế của deck; hiển thị trong Roon Signal Path (DSP Stage · ENHANCED); kiểm chứng 16/16 test mới, toàn bộ 72/72 suite test PASS | Lượt kế tiếp: Pha B - Album view kiểu Roon (lưới bìa album + trang chi tiết album với danh sách bài và thông tin phát hành) | Backlog: Sleep timer fade-out mượt mà, PWA Service Worker offline caching, Waveform seekbar -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:34 +07 | Đã xong: Pha B - Album View kiểu Roon: hiển thị trang chi tiết album với hero header (#album-hero: ảnh bìa lớn, tên album, nghệ sĩ, thống kê số bài + tổng thời lượng qua library.formatAlbumDuration, huy hiệu chất lượng phát hành cao nhất DSD/Hi-Res/Lossless qua library.summarizeAlbum); các nút hành động nhanh (#album-hero-play phát toàn bộ album, #album-hero-queue thêm toàn bộ album vào hàng đợi, #album-hero-back quay lại danh sách bộ sưu tập); tự động ẩn hero khi thoát scope album; kiểm chứng 11/11 test mới, toàn bộ 83/83 suite test PASS | Lượt kế tiếp: Pha C - Sleep timer fade-out mượt mà (giảm dần âm lượng trong 30 giây cuối trước khi dừng phát) | Backlog: PWA Service Worker offline caching, Waveform seekbar, AutoEQ presets cho tai nghe -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:45 +07 | Đã xong: Pha C - Sleep Timer Fade-Out: giảm âm lượng mượt mà theo đường cong equal-power sine (library.calculateSleepFadeGain) trong 30 giây cuối (hoặc min(30s, duration/2)) trước khi dừng phát khi hết giờ hẹn ngủ; checkbox tùy chọn #sleep-fadeout trong #sleep-panel; bảo toàn và khôi phục nguyên vẹn mức âm lượng ban đầu (state.sleepOriginalVolume) khi dừng hoặc khi hủy hẹn giờ (clearSleepTimer, sleep-track-end); helper formatSleepRemaining định dạng thời gian còn lại; kiểm chứng 14/14 test mới, toàn bộ suite test PASS | Lượt kế tiếp: Pha D - PWA Service Worker offline caching nâng cao cho bài đã tải | Backlog: Waveform seekbar bằng Web Audio Analyser/Canvas, AutoEQ presets cho tai nghe, Ambient Sound Mixer -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:55 +07 | Đã xong: Pha D - Network Status Monitor, Offline Indicator & Smart Fallback: giám sát trạng thái mạng PWA qua helper thuần library.isOnlineState, library.formatNetworkStatus và library.canPlayOffline; thanh thông báo #offline-banner với hiệu ứng pulse và nhãn trạng thái; lắng nghe sự kiện online/offline tự động chuyển chế độ và toast phản hồi; playTrack ngăn chặn lỗi giải mã mạng cho bài cloud khi mất mạng và toast hướng dẫn rõ ràng thay vì bỏ qua bài; kiểm chứng 14/14 test mới, toàn bộ suite test PASS | Lượt kế tiếp: Pha A - Parametric EQ presets / AutoEQ profiles cho các dòng tai nghe phổ biến | Backlog: Waveform seekbar bằng Web Audio Analyser/Canvas, Ambient Sound Mixer, Đồng bộ lyrics .lrc cuộn mượt từng từ -->
 </body>
 </html>
