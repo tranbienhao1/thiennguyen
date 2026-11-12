@@ -564,7 +564,18 @@
       <header class="flex items-center justify-between"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300">PLAY NEXT</p><h2 id="queue-title" class="mt-1 text-xl font-semibold">Hàng đợi <span id="queue-count" class="text-sm font-normal text-zinc-500">0</span></h2></div><button id="queue-close" type="button" class="rounded-xl border border-white/10 px-3 py-2 text-xs text-zinc-300 hover:bg-white/10" aria-label="Đóng hàng đợi">Đóng ×</button></header>
       <section class="mt-6 rounded-2xl border border-violet-300/15 bg-violet-300/[.04] p-3"><p class="text-[9px] uppercase tracking-[.18em] text-zinc-500">Đang phát</p><div class="mt-2 flex min-w-0 items-center gap-3"><div id="queue-current-cover" class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-white/5 text-violet-200">♫</div><div class="min-w-0"><p id="queue-current-title" class="truncate text-xs font-medium text-zinc-200">Chưa phát nhạc</p><p id="queue-current-artist" class="mt-1 truncate text-[10px] text-zinc-500">—</p></div></div></section>
       <div class="mt-5 flex items-center justify-between gap-2"><h3 class="text-xs font-medium text-zinc-300">Phát tiếp theo</h3><div class="flex gap-2"><button id="queue-add-library" type="button" class="text-[10px] text-violet-300 hover:text-violet-200">＋ Thêm thư viện</button><button id="queue-clear" type="button" class="text-[10px] text-zinc-500 hover:text-rose-300">Xóa</button></div></div>
-      <div id="queue-list" class="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto"></div><p id="queue-empty" class="py-8 text-center text-xs text-zinc-600">Chưa có bài được xếp riêng. Dùng ＋ ở thư viện để thêm bài phát tiếp.</p>
+      <div id="queue-list" class="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto"></div>
+      <p id="queue-empty" class="py-8 text-center text-xs text-zinc-600">Chưa có bài được xếp riêng. Dùng ＋ ở thư viện để thêm bài phát tiếp.</p>
+      <div id="roon-radio-banner" class="mt-3 flex items-center justify-between rounded-xl border border-violet-400/20 bg-violet-500/[.06] p-2.5">
+        <div class="min-w-0 flex-1 pr-2">
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs font-semibold text-violet-200">⚡ Roon Radio</span>
+            <span id="roon-radio-badge" class="rounded border border-violet-400/30 bg-violet-400/10 px-1.5 py-0.5 text-[9px] text-violet-300">Tự động</span>
+          </div>
+          <p id="roon-radio-hint" class="mt-0.5 truncate text-[10px] text-zinc-400">Tự động phát bài tương tự khi hết danh sách</p>
+        </div>
+        <button id="roon-radio-toggle" type="button" class="shrink-0 rounded-lg border border-violet-400/30 bg-violet-500/20 px-2.5 py-1 text-[10px] font-medium text-violet-200 hover:bg-violet-500/30" aria-label="Bật/tắt Roon Radio">Đang bật</button>
+      </div>
       <p class="mt-4 border-t border-white/[.07] pt-3 text-[10px] leading-4 text-zinc-600">Sau hàng đợi này, NOCTURNE tiếp tục theo thứ tự thư viện, trộn bài và lặp lại hiện tại.</p>
     </aside>
   </div>
@@ -786,7 +797,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -2357,6 +2368,35 @@
       list.querySelectorAll('[data-queue-action="remove"]').forEach(button => button.addEventListener('click', () => removeFromQueue(button.closest('[data-queue-row]').dataset.queueRow)));
       list.querySelectorAll('[data-queue-move]').forEach(button => button.addEventListener('click', () => moveQueueTrack(button.closest('[data-queue-row]').dataset.queueRow, button.dataset.queueMove === 'up' ? -1 : 1)));
       renderQueueCurrent();
+      updateRoonRadioStatus();
+    }
+    // Pha C — Roon Radio: tự động hiển thị gợi ý bài tiếp theo và trạng thái trong hàng đợi
+    function updateRoonRadioStatus() {
+      const banner = $('roon-radio-banner'), btn = $('roon-radio-toggle');
+      const hint = $('roon-radio-hint'), badge = $('roon-radio-badge');
+      if (!banner || !btn || !hint || !badge) return;
+      btn.textContent = state.roonRadio ? 'Đang bật' : 'Đã tắt';
+      btn.className = `shrink-0 rounded-lg border px-2.5 py-1 text-[10px] font-medium transition ${state.roonRadio ? 'border-violet-400/30 bg-violet-500/20 text-violet-200 hover:bg-violet-500/30' : 'border-white/10 bg-white/5 text-zinc-500 hover:text-zinc-300'}`;
+      badge.textContent = state.roonRadio ? 'Tự động' : 'Tắt';
+      badge.className = `rounded border px-1.5 py-0.5 text-[9px] ${state.roonRadio ? 'border-violet-400/30 bg-violet-400/10 text-violet-300' : 'border-white/10 bg-white/5 text-zinc-500'}`;
+      if (!state.roonRadio) {
+        hint.textContent = 'Dừng phát khi hết danh sách hoặc hàng đợi.';
+        return;
+      }
+      const cur = state.tracks.find(t => t.id === state.currentId);
+      if (cur && typeof library.selectRoonRadioTrack === 'function') {
+        const radio = library.selectRoonRadioTrack(cur, state.tracks, {
+          recentHistory: state.recentHistory,
+          favorites: state.favorites,
+          excludeIds: [state.currentId, ...state.queueTrackIds]
+        });
+        if (radio && radio.track) {
+          const meta = library.trackMetadata(radio.track);
+          hint.textContent = `Sắp phát: ${meta.title || radio.track.name} · ${radio.reason}`;
+          return;
+        }
+      }
+      hint.textContent = 'Tự động phát bài tương tự khi hết danh sách.';
     }
     function refreshQueueRows() {
       renderQueue();
@@ -2421,7 +2461,16 @@
         return choices.length ? state.tracks.indexOf(choices[Math.floor(Math.random() * choices.length)]) : state.repeat === 1 ? current : -1;
       }
       if (current + 1 < state.tracks.length) return current + 1;
-      return state.repeat === 1 ? 0 : -1;
+      if (state.repeat === 1) return 0;
+      if (state.roonRadio && typeof library?.selectRoonRadioTrack === 'function') {
+        const radio = library.selectRoonRadioTrack(state.tracks[current], state.tracks, {
+          recentHistory: state.recentHistory,
+          favorites: state.favorites,
+          excludeIds: [state.currentId, ...state.queueTrackIds]
+        });
+        if (radio && radio.track) return state.tracks.indexOf(radio.track);
+      }
+      return -1;
     }
     // Pha C — bài kế là DSD: không phát được qua deck chờ (cần giải mã
     // worker sang PCM trước) nên preloadNext cũ bỏ qua hẳn; tải trước
@@ -2870,7 +2919,22 @@
       if (direction > 0 && auto && state.repeat === 2) { audio.currentTime = 0; try { const played = audio.play(); if (played && played.catch) played.catch(() => {}); } catch (error) {} return; }
       if (direction > 0 && auto && !state.autoplay) return;
       if (direction > 0 && state.shuffle && state.preloadTrackId && state.preloadTrackId !== state.currentId) { playTrack(state.preloadTrackId); return; }
-      if (!state.shuffle && state.repeat !== 1 && direction > 0 && currentIndex >= state.tracks.length - 1) return;
+      if (!state.shuffle && state.repeat !== 1 && direction > 0 && currentIndex >= state.tracks.length - 1) {
+        if (state.roonRadio && typeof library.selectRoonRadioTrack === 'function') {
+          const radio = library.selectRoonRadioTrack(state.tracks[currentIndex], state.tracks, {
+            recentHistory: state.recentHistory,
+            favorites: state.favorites,
+            excludeIds: [state.currentId, ...state.queueTrackIds]
+          });
+          if (radio && radio.track) {
+            const meta = library.trackMetadata(radio.track);
+            toast(`⚡ Roon Radio: ${meta.title || radio.track.name} (${radio.reason})`);
+            playTrack(radio.track.id);
+            return;
+          }
+        }
+        return;
+      }
       if (!state.shuffle && state.repeat !== 1 && direction < 0 && currentIndex <= 0) return;
       let index;
       if (state.shuffle) {
@@ -3379,6 +3443,13 @@
     $('queue-backdrop').addEventListener('click', closeQueue);
     $('queue-clear').addEventListener('click', () => { state.queueTrackIds = []; renderQueue(); renderTracks(); if (state.currentId && audio.src) preloadNext(true); });
     $('queue-add-library').addEventListener('click', () => { closeQueue(); $('track-list').scrollIntoView({behavior:'smooth', block:'start'}); toast('Nhấn ＋ ở một bài hát để thêm vào Phát tiếp theo.'); });
+    $('roon-radio-toggle').addEventListener('click', () => {
+      state.roonRadio = !state.roonRadio;
+      try { localStorage.setItem('nocturne-roon-radio', String(state.roonRadio)); } catch (_) {}
+      updateRoonRadioStatus();
+      toast(state.roonRadio ? '⚡ Roon Radio đã bật.' : 'Roon Radio đã tắt.');
+      if (state.currentId && audio.src) preloadNext(true);
+    });
     $('autoplay-button').addEventListener('click', event => { state.autoplay = !state.autoplay; syncAutoplayButton(); toast(state.autoplay ? 'Tự động phát tiếp đã bật.' : 'Tự động phát tiếp đã tắt.'); if (state.currentId) preloadNext(true); });
     $('sleep-button').addEventListener('click', () => $('sleep-panel').classList.toggle('hidden'));
     $('sleep-close').addEventListener('click', () => $('sleep-panel').classList.add('hidden'));
@@ -3782,8 +3853,12 @@
       $('crossfade-seconds').value = String(state.crossfadeSeconds);
     } catch (error) { console.warn('Could not load saved crossfade setting:', error); }
     try { state.favorites = new Set(JSON.parse(localStorage.getItem('nocturne-favorites') || '[]')); } catch (error) { state.favorites = new Set(); }
+    try {
+      const savedRadio = localStorage.getItem('nocturne-roon-radio');
+      if (savedRadio !== null) state.roonRadio = savedRadio === 'true';
+    } catch (_) {}
     setGain(72);
-    syncAutoplayButton(); updateSleepStatus(); renderQueueCurrent();
+    syncAutoplayButton(); updateSleepStatus(); renderQueueCurrent(); updateRoonRadioStatus();
     openDatabase().then(restoreRecentTracks).catch(error => { console.error('IndexedDB is unavailable:', error); restoreRecentTracks(); toast('Không thể bật lịch sử IndexedDB; mục nghe gần đây vẫn lưu trong trình duyệt.'); });
     if (!window.isSecureContext) console.info('Directory picker and cloud OAuth require HTTPS or localhost; use the file input fallback for local playback.');
     renderTracks();
@@ -3896,5 +3971,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-11 23:40 +07 | Đã xong: Pha D - Kiểm toán worker với file DFF DSD512 24-bit: DFF 2 giây DSD512 stereo (~10,8 MB, 45,2 triệu mẫu, 22,5792 MHz) giải mã thật đúng sang PCM 44,1 kHz 24-bit (multiplier 512, duration 2 s, đúng kích thước 3 byte/mẫu, header WAV ghi 44,1 kHz/24-bit/đúng data size), chia nhiều lát, gửi đúng 1 lát PCM đầu (~2 giây, cũng 24-bit) trước 'done' — như bản DSF DSD512 24-bit, khẳng định đường đọc chunk DSDIFF (FRM8/PROP/DSD, MSB-first) đúng ở tốc độ lấy mẫu cao nhất; kiểm chứng đột biến (đổi kỳ vọng bit depth 24 thành 16) fail đúng; đầu lần chạy rebase gặp xung đột index.html với commit auto-evolve 42fe5c0 (Stereo Balance) trên origin — đã gộp tay: state giữ cả panner/stereoBalance lẫn preloadDsdSliceTrackId/preloadDsdSliceWorker, giữ đủ 3 dòng log 22:24/22:30/22:38, test toàn bộ vẫn 39/39 sau gộp | Kiểm chứng: 3/3 Tầng PASS, node --test 38/38 | Lượt kế tiếp: Pha A - DSP crossfeed kiểu Roon cho nghe tai nghe (trộn nhẹ kênh trái/phải, bật/tắt trong panel EQ) | Backlog: Roon Radio phát tiếp bài tương tự khi hết hàng đợi (chờ Melissa chọn), Album view kiểu Roon (lưới bìa album + trang chi tiết album), Signal Path kiểu Roon trong Phòng nghe -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-12 00:12 +07 | Đã xong: Pha A - DSP Crossfeed kiểu Roon cho nghe tai nghe: đồ thị chèn sau panner (panner → splitter 2 kênh → merger → destination; mỗi kênh đi thẳng, đồng thời một phần qua lọc thấp 700 Hz + trễ 0,3 ms + gain chéo tối đa 0,35 ≈ −9 dB rồi trộn sang kênh đối diện), mức 0 thì gain chéo = 0 nên đường thẳng không đổi; UI trong panel Parametric Equalizer (#crossfeed-toggle bật/tắt, #crossfeed-slider 0–100%, #crossfeed-label), bật lại khôi phục mức cuối (mặc định 30%), lưu localStorage 'nocturne-crossfeed' và khôi phục khi mở lại trang, hiện mức trong dòng tín hiệu Phòng nghe; fallback khi trình duyệt thiếu ChannelSplitter/ChannelMerger/Delay/BiquadFilter thì nối thẳng destination như cũ; test mới crossfeed.test.cjs (helper kẹp/gain/định dạng, nối dây đồ thị mock, fallback, fail đúng trên code cũ); đã cập nhật guard nối dây trong index-script.test.cjs theo đồ thị mới | Kiểm chứng: 3/3 Tầng PASS, node --test 39/39 | Lượt kế tiếp: Pha B - Signal Path kiểu Roon trong Phòng nghe (vẽ chuỗi Nguồn → Giải mã → DSP → Đầu ra từ dữ liệu đã có) | Backlog: Roon Radio phát tiếp bài tương tự khi hết hàng đợi (chờ Melissa chọn), Album view kiểu Roon (lưới bìa album + trang chi tiết album), Ambient Glow đổi màu nền theo ảnh bìa album -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-12 01:05 +07 | Đã xong: Pha B - Signal Path kiểu Roon trong Phòng nghe: trực quan hóa chuỗi tín hiệu thời gian thực Nguồn → Giải mã → DSP → Đầu ra từ metadata bài hát và AudioContext graph; badge hiển thị tầng chất lượng (BIT-PERFECT, HI-RES, LOSSLESS, DSD, ENHANCED); panel mở rộng/thu gọn (#toggle-signal-path / #room-signal-chain); tự động đồng bộ khi thay đổi EQ, Balance L/R, Crossfeed hoặc khi chuyển bài; kiểm chứng 3/3 tầng PASS | Lượt kế tiếp: Pha C - Roon Radio: tự động phát bài tiếp theo tương tự khi danh sách phát/hàng đợi kết thúc (dựa trên nghệ sĩ, thể loại, hoặc gợi ý ngẫu nhiên thông minh từ thư viện) | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Ambient Glow đổi màu nền theo ảnh bìa album, Sleep timer fade-out mượt mà -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 00:06 +07 | Đã xong: Pha C - Roon Radio: tự động chọn và phát tiếp bài hát tương tự từ thư viện khi danh sách phát hoặc hàng đợi kết thúc; thuật toán tính điểm thông minh selectRoonRadioTrack (ưu tiên cùng nghệ sĩ, cùng album, yêu thích, tương đồng định dạng Hi-Res/DSD, phạt bài vừa nghe tránh lặp lại); UI banner trong panel Hàng đợi (#roon-radio-banner, #roon-radio-badge, #roon-radio-hint, #roon-radio-toggle), ghi nhớ localStorage 'nocturne-roon-radio'; kết nối với queueIndex để prefetch/preload trước và chuyển bài mượt mà không dừng nhạc; kiểm chứng 3/3 tầng PASS | Lượt kế tiếp: Pha D - Ambient Glow: trích xuất màu chủ đạo từ ảnh bìa album để tạo hiệu ứng ánh sáng nền động mềm mại cho giao diện và Phòng nghe | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Sleep timer fade-out mượt mà, ReplayGain / Loudness Normalization -->
 </body>
 </html>

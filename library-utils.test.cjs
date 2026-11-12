@@ -432,5 +432,37 @@ async function expectFetchError(fetchImpl, headers, blobSize) {
   const emptyPath = utils.computeSignalPath(null);
   assert.strictEqual(emptyPath.steps.length, 0);
 
+  // Pha C — Roon Radio (selectRoonRadioTrack) tests
+  assert.strictEqual(typeof utils.selectRoonRadioTrack, 'function', 'selectRoonRadioTrack should be a function');
+  assert.strictEqual(utils.selectRoonRadioTrack(null, []), null, 'Empty library returns null');
+  assert.strictEqual(utils.selectRoonRadioTrack({id: 't1'}, [{id: 't1'}]), null, 'Only current track in library returns null');
+
+  const pool = [
+    {id: 't1', artist: 'Pink Floyd', album: 'The Dark Side of the Moon', title: 'Time'},
+    {id: 't2', artist: 'Pink Floyd', album: 'Wish You Were Here', title: 'Shine On'},
+    {id: 't3', artist: 'Led Zeppelin', album: 'IV', title: 'Stairway to Heaven'},
+    {id: 't4', artist: 'Queen', album: 'A Night at the Opera', title: 'Bohemian Rhapsody'}
+  ];
+
+  // 1. Same artist prioritized
+  const pickSameArtist = utils.selectRoonRadioTrack(pool[0], pool);
+  assert.ok(pickSameArtist && pickSameArtist.track);
+  assert.strictEqual(pickSameArtist.track.id, 't2', 'Should pick track from same artist');
+  assert.ok(pickSameArtist.reason.includes('Pink Floyd'));
+
+  // 2. Favorite boosted when no same artist
+  const pickFav = utils.selectRoonRadioTrack(pool[2], pool, {
+    excludeIds: ['t1', 't2'],
+    favorites: new Set(['t4'])
+  });
+  assert.strictEqual(pickFav.track.id, 't4', 'Should pick favorite track');
+
+  // 3. Recency penalty avoids recently played
+  const pickAvoidRecent = utils.selectRoonRadioTrack(pool[0], pool, {
+    recentHistory: ['t2'] // t2 just played
+  });
+  // Since t2 has penalty -80, other tracks should beat it
+  assert.notStrictEqual(pickAvoidRecent.track.id, 't2', 'Should avoid recently played track');
+
   console.log('Library metadata, filtering, grouping and audio fetch tests passed.');
 })().catch(error => { console.error(error); process.exit(1); });

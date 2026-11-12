@@ -811,5 +811,91 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath};
+  // Pha C — Roon Radio: tự động chọn bài hát tương tự từ thư viện
+  // khi danh sách phát hoặc hàng đợi kết thúc để nhạc không bị dừng đột ngột.
+  function selectRoonRadioTrack(currentTrack, tracks, options = {}) {
+    if (!Array.isArray(tracks) || tracks.length === 0) return null;
+
+    const excludeSet = new Set(Array.isArray(options.excludeIds) ? options.excludeIds : []);
+    if (currentTrack && currentTrack.id) excludeSet.add(currentTrack.id);
+
+    const candidates = tracks.filter(t => t && t.id && !excludeSet.has(t.id));
+    if (candidates.length === 0) return null;
+
+    const currentMeta = currentTrack ? trackMetadata(currentTrack) : null;
+    const currentArtistKey = currentMeta && currentMeta.artist ? metadataKey(currentMeta.artist) : '';
+    const currentAlbumKey = currentMeta && currentMeta.album ? metadataKey(currentMeta.album) : '';
+    const unknownArtistKey = metadataKey(UNKNOWN_ARTIST);
+    const unknownAlbumKey = metadataKey(UNKNOWN_ALBUM);
+
+    const isCurrentKnownArtist = currentArtistKey && currentArtistKey !== unknownArtistKey;
+    const isCurrentKnownAlbum = currentAlbumKey && currentAlbumKey !== unknownAlbumKey;
+    const isCurrentDsd = !!(currentTrack && currentTrack.isDsd);
+    const currentRate = Number(currentTrack && currentTrack.sampleRate) || 0;
+    const currentDepth = Number(currentTrack && currentTrack.bitDepth) || 0;
+    const isCurrentHiRes = !isCurrentDsd && (currentRate > 48000 || currentDepth > 16);
+
+    const recentList = Array.isArray(options.recentHistory) ? options.recentHistory : [];
+    const favorites = options.favorites instanceof Set
+      ? options.favorites
+      : new Set(Array.isArray(options.favorites) ? options.favorites : []);
+
+    const scored = candidates.map(track => {
+      const meta = trackMetadata(track);
+      const artistKey = meta && meta.artist ? metadataKey(meta.artist) : '';
+      const albumKey = meta && meta.album ? metadataKey(meta.album) : '';
+
+      let score = 10;
+      let primaryReason = 'Khám phá thư viện';
+
+      // 1. Cùng nghệ sĩ
+      if (isCurrentKnownArtist && artistKey === currentArtistKey) {
+        score += 60;
+        primaryReason = `Cùng nghệ sĩ ${meta.artist}`;
+      } else if (isCurrentKnownAlbum && albumKey === currentAlbumKey) {
+        // 2. Cùng album
+        score += 40;
+        primaryReason = `Cùng album ${meta.album}`;
+      }
+
+      // 3. Bài yêu thích
+      if (favorites.has(track.id)) {
+        score += 25;
+        if (primaryReason === 'Khám phá thư viện') {
+          primaryReason = 'Từ bài hát yêu thích';
+        }
+      }
+
+      // 4. Tương đồng định dạng
+      if (isCurrentDsd && track.isDsd) {
+        score += 15;
+      } else if (isCurrentHiRes && !track.isDsd && (Number(track.sampleRate) > 48000 || Number(track.bitDepth) > 16)) {
+        score += 10;
+      }
+
+      // 5. Phạt bài vừa nghe gần đây
+      const trackKey = historyTrackKey(track);
+      const recentIndex = recentList.findIndex(item => {
+        const itemKey = typeof item === 'string' ? item : (item && (item.trackKey || item.id));
+        return itemKey === trackKey || itemKey === track.id;
+      });
+      if (recentIndex >= 0) {
+        if (recentIndex < 3) score -= 80;
+        else if (recentIndex < 8) score -= 40;
+        else score -= 15;
+      }
+
+      let hash = 0;
+      const str = String(track.id || '');
+      for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) & 0xff;
+      score += (hash % 6);
+
+      return { track, reason: primaryReason, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0];
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack};
 });

@@ -2,6 +2,51 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 00:06 +07] — [Pha C] Roon Radio: Tự Động Chọn & Phát Bài Tương Tự Khi Hết Danh Sách
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)**.
+- **Tính năng triển khai:**
+  1. **Thuật toán thông minh `selectRoonRadioTrack(currentTrack, tracks, options)` (`library-utils.js`):**
+     - Tự động phân tích và tính điểm độ tương đồng đa chiều giữa bài đang phát và các bài trong thư viện:
+       - **Ưu tiên nghệ sĩ (+60 điểm):** Chọn các bản nhạc cùng nghệ sĩ hoặc nghệ sĩ hợp tác.
+       - **Ưu tiên album (+40 điểm):** Tận dụng các bản nhạc cùng album (đặc biệt hiệu quả với album tuyển tập / compilation nhiều nghệ sĩ).
+       - **Điểm thưởng yêu thích (+25 điểm):** Tăng khả năng chọn các bài đã được người dùng thả tim (Favorites).
+       - **Tương đồng định dạng Audiophile (+15 DSD / +10 Hi-Res):** Giữ mạch trải nghiệm âm thanh độ phân giải cao liền mạch.
+       - **Chống lặp bài vừa nghe (-80 điểm cho 3 bài gần nhất, -40 cho 8 bài gần nhất):** Đảm bảo không bị tua lại vòng lặp các bài vừa phát.
+       - **Đa dạng hóa tự nhiên:** Tích hợp hàm băm ID nhẹ nhàng để chọn ngẫu nhiên có kiểm soát trong nhóm điểm cao nhất.
+       - Trả về đối tượng `{ track, reason, score }` giải thích rõ lý do gợi ý (ví dụ: `Cùng nghệ sĩ Pink Floyd`, `Từ bài hát yêu thích`).
+  2. **Tích hợp sâu vào Audio Engine & Playback Pipeline (`index.html`):**
+     - **Tự động chuyển bài liền mạch (`playNext`):** Khi danh sách phát hoặc hàng đợi kết thúc (`currentIndex >= state.tracks.length - 1`), thay vì ngắt tiếng im lặng, Roon Radio lập tức khởi động, hiện thông báo toast kín đáo (`⚡ Roon Radio: [Tên bài] (Cùng nghệ sĩ...)`) và tiếp tục phát nhạc.
+     - **Tự động đệm & giải mã trước (`queueIndex` ➔ `preloadNext`):** `queueIndex()` dự đoán trước bài Roon Radio kế tiếp, cho phép hệ thống tải trước và giải mã nền (kể cả lát PCM đầu DSD) để chuyển bài chuẩn Gapless / Crossfade.
+  3. **Giao diện điều khiển trong Panel Hàng Đợi (`#queue-panel`):**
+     - Banner trạng thái Roon Radio (`#roon-radio-banner`) với huy hiệu động (`#roon-radio-badge`).
+     - Dòng xem trước thông minh (`#roon-radio-hint`): Hiển thị trước bài tiếp theo mà Radio dự kiến sẽ phát (`Sắp phát: [Tên bài] · [Lý do]`).
+     - Nút gạt bật/tắt nhanh (`#roon-radio-toggle`), lưu cấu hình vào `localStorage['nocturne-roon-radio']`.
+  4. **Kiểm thử tự động (Unit & Integration Tests):**
+     - Đã tạo file test mới `roon-radio.test.cjs` kiểm thử 6 kịch bản lựa chọn (cùng nghệ sĩ, cùng album, bài yêu thích, phạt bài vừa nghe, định dạng DSD, và thư viện rỗng/đơn bài), kèm kiểm tra DOM/Listeners.
+     - Đã thêm kiểm thử đơn vị trong `library-utils.test.cjs`.
+
+### 📝 Các File Đã Sửa / Tạo Mới:
+- `library-utils.js`: Bổ sung hàm `selectRoonRadioTrack` và xuất trong `NocturneLibrary`.
+- `library-utils.test.cjs`: Thêm assertions cho `selectRoonRadioTrack`.
+- `index.html`: Thêm `state.roonRadio`, cập nhật UI hàng đợi (`#roon-radio-banner`, `#roon-radio-badge`, `#roon-radio-hint`, `#roon-radio-toggle`), tích hợp Roon Radio vào `queueIndex()` và `playNext()`, hàm `updateRoonRadioStatus()`, khôi phục `localStorage`, và thêm log bình luận cuối trang.
+- `roon-radio.test.cjs`: Test suite mới kiểm tra toàn diện tính năng Roon Radio.
+- `CHANGELOG_AI.md`: Cập nhật nhật ký tiến hóa chu kỳ.
+
+### 🧪 Kết Quả Kiểm Chứng (Self-Test):
+- `node roon-radio.test.cjs`: PASS (2/2 test suites).
+- `node signal-path.test.cjs`: PASS.
+- `node index-script.test.cjs`: PASS.
+- `node library-utils.test.cjs`: PASS.
+- Không có lỗi cú pháp hay thiếu literal ID.
+
+### 🚀 Đề Xuất Cho Chu Kỳ Tiếp Theo:
+- **Phân khu 2 (UI/UX & Visualizer):** **Ambient Glow** — Trích xuất màu chủ đạo (Dominant Palette) từ ảnh bìa album đang phát để làm ánh sáng nền mờ huyền ảo theo nhịp điệu cho toàn trang và phòng nghe.
+- **Hoặc Phân khu 1 (Audio Engine):** **Sleep Timer Fade-out** — Giảm âm lượng theo đường cong logarit mượt mà trong 30 giây cuối trước khi dừng phát khi hết giờ hẹn ngủ.
+
+---
+
 ## [Chu Kỳ 2026-11-12 01:05 +07] — [Pha B] Signal Path Kiểu Roon Trong Phòng Nghe (Nguồn → Giải Mã → DSP → Đầu Ra)
 
 ### 🎯 Hạng Mục Nâng Cấp:
