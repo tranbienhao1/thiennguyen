@@ -634,7 +634,14 @@
     </aside>
   </div>
   <div id="sleep-panel" class="fixed bottom-28 right-4 z-[57] hidden w-[min(19rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl" role="dialog" aria-labelledby="sleep-title">
-    <div class="flex items-center justify-between"><h2 id="sleep-title" class="text-sm font-medium">Hẹn giờ ngủ</h2><button id="sleep-close" type="button" class="text-zinc-500 hover:text-white" aria-label="Đóng">✕</button></div><p id="sleep-status" class="mt-1 text-[10px] text-zinc-500">Chọn thời điểm dừng phát.</p><div class="mt-3 grid grid-cols-3 gap-2"><button data-sleep-minutes="15" class="rounded-lg border border-white/10 px-2 py-2 text-xs hover:bg-white/5">15 phút</button><button data-sleep-minutes="30" class="rounded-lg border border-white/10 px-2 py-2 text-xs hover:bg-white/5">30 phút</button><button data-sleep-minutes="45" class="rounded-lg border border-white/10 px-2 py-2 text-xs hover:bg-white/5">45 phút</button><button data-sleep-minutes="60" class="rounded-lg border border-white/10 px-2 py-2 text-xs hover:bg-white/5">60 phút</button><button data-sleep-minutes="90" class="rounded-lg border border-white/10 px-2 py-2 text-xs hover:bg-white/5">90 phút</button><button id="sleep-track-end" class="rounded-lg border border-violet-300/20 px-2 py-2 text-[10px] text-violet-200 hover:bg-violet-300/10">Hết bài</button></div><button id="sleep-cancel" type="button" class="mt-3 w-full rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white">Hủy hẹn giờ</button>
+    <div class="flex items-center justify-between"><h2 id="sleep-title" class="text-sm font-medium">Hẹn giờ ngủ</h2><button id="sleep-close" type="button" class="text-zinc-500 hover:text-white" aria-label="Đóng">✕</button></div><p id="sleep-status" class="mt-1 text-[10px] text-zinc-500">Chọn thời điểm dừng phát.</p><div class="mt-3 grid grid-cols-3 gap-2"><button data-sleep-minutes="15" class="rounded-lg border border-white/10 px-2 py-2 text-xs hover:bg-white/5">15 phút</button><button data-sleep-minutes="30" class="rounded-lg border border-white/10 px-2 py-2 text-xs hover:bg-white/5">30 phút</button><button data-sleep-minutes="45" class="rounded-lg border border-white/10 px-2 py-2 text-xs hover:bg-white/5">45 phút</button><button data-sleep-minutes="60" class="rounded-lg border border-white/10 px-2 py-2 text-xs hover:bg-white/5">60 phút</button><button data-sleep-minutes="90" class="rounded-lg border border-white/10 px-2 py-2 text-xs hover:bg-white/5">90 phút</button><button id="sleep-track-end" class="rounded-lg border border-violet-300/20 px-2 py-2 text-[10px] text-violet-200 hover:bg-violet-300/10">Hết bài</button></div>
+    <div class="mt-3 flex items-center justify-between border-t border-white/10 pt-2.5 text-xs text-zinc-400">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input id="sleep-fadeout" type="checkbox" class="accent-violet-500" checked>
+        <span class="text-[11px]">Fade-out 30s cuối</span>
+      </label>
+    </div>
+    <button id="sleep-cancel" type="button" class="mt-3 w-full rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white">Hủy hẹn giờ</button>
   </div>
   <div id="toast" class="pointer-events-none fixed bottom-32 left-1/2 z-[60] hidden -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-800 px-4 py-2.5 text-xs text-zinc-100 shadow-xl"></div>
   <div id="update-banner" class="fixed left-1/2 top-4 z-[70] hidden w-[min(92vw,480px)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-violet-300/25 bg-[#181422]/95 px-4 py-3 shadow-2xl shadow-black/50 backdrop-blur-xl" role="status" aria-live="polite">
@@ -851,7 +858,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -2701,12 +2708,74 @@
       $('sleep-status').textContent = state.sleepAtTrackEnd ? 'Sẽ dừng khi bài hiện tại kết thúc.' : state.sleepDeadline ? `Sẽ dừng lúc ${new Date(state.sleepDeadline).toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}.` : 'Chọn thời điểm dừng phát.';
     }
     function setSleepTimer(minutes) {
-      clearTimeout(state.sleepTimer); state.sleepAtTrackEnd = false; state.sleepDeadline = Date.now() + minutes * 60000;
-      state.sleepTimer = setTimeout(() => { audio.pause(); if (state.dsdWorker || state.dsdUrl) stopDsdWorker(); clearSleepTimer(); toast('Hẹn giờ ngủ: đã tạm dừng phát.'); }, minutes * 60000);
-      updateSleepStatus(); $('sleep-panel').classList.add('hidden'); toast(`Sẽ tạm dừng sau ${minutes} phút.`);
+      clearTimeout(state.sleepTimer);
+      clearTimeout(state.sleepFadeTimer);
+      clearInterval(state.sleepFadeInterval);
+      state.sleepTimer = null;
+      state.sleepFadeTimer = null;
+      state.sleepFadeInterval = null;
+      if (state.sleepOriginalVolume !== null) {
+        setGain(state.sleepOriginalVolume);
+        state.sleepOriginalVolume = null;
+      }
+      state.sleepAtTrackEnd = false;
+      const durationMs = minutes * 60000;
+      state.sleepDeadline = Date.now() + durationMs;
+      const fadeDuration = library?.DEFAULT_SLEEP_FADEOUT_MS || 30000;
+      const fadeMs = Math.min(fadeDuration, durationMs / 2);
+      const fadeStartMs = Math.max(0, durationMs - fadeMs);
+      const fadeCheckbox = $('sleep-fadeout');
+      const fadeEnabled = !fadeCheckbox || fadeCheckbox.checked;
+
+      if (fadeEnabled && fadeStartMs > 0) {
+        state.sleepFadeTimer = setTimeout(() => {
+          if (state.sleepOriginalVolume === null) {
+            state.sleepOriginalVolume = Number($('volume')?.value) || 80;
+          }
+          state.sleepFadeInterval = setInterval(() => {
+            const remaining = state.sleepDeadline - Date.now();
+            if (remaining <= 0) {
+              clearInterval(state.sleepFadeInterval);
+              state.sleepFadeInterval = null;
+              return;
+            }
+            const gain = typeof library?.calculateSleepFadeGain === 'function'
+              ? library.calculateSleepFadeGain(remaining, fadeMs)
+              : Math.max(0, remaining / fadeMs);
+            setGain(state.sleepOriginalVolume * gain);
+          }, 250);
+        }, fadeStartMs);
+      }
+
+      state.sleepTimer = setTimeout(() => {
+        audio.pause();
+        if (state.dsdWorker || state.dsdUrl) stopDsdWorker();
+        if (state.sleepOriginalVolume !== null) {
+          setGain(state.sleepOriginalVolume);
+          state.sleepOriginalVolume = null;
+        }
+        clearSleepTimer();
+        toast('Hẹn giờ ngủ: đã tạm dừng phát.');
+      }, durationMs);
+
+      updateSleepStatus();
+      $('sleep-panel').classList.add('hidden');
+      toast(`Sẽ tạm dừng sau ${minutes} phút${fadeEnabled ? ' (fade-out 30s cuối)' : ''}.`);
     }
     function clearSleepTimer() {
-      clearTimeout(state.sleepTimer); state.sleepTimer = null; state.sleepDeadline = 0; state.sleepAtTrackEnd = false; updateSleepStatus();
+      clearTimeout(state.sleepTimer);
+      clearTimeout(state.sleepFadeTimer);
+      clearInterval(state.sleepFadeInterval);
+      state.sleepTimer = null;
+      state.sleepFadeTimer = null;
+      state.sleepFadeInterval = null;
+      if (state.sleepOriginalVolume !== null) {
+        setGain(state.sleepOriginalVolume);
+        state.sleepOriginalVolume = null;
+      }
+      state.sleepDeadline = 0;
+      state.sleepAtTrackEnd = false;
+      updateSleepStatus();
       $('sleep-panel').classList.add('hidden');
     }
     function queueIndex() {
@@ -3715,7 +3784,23 @@
     $('sleep-button').addEventListener('click', () => $('sleep-panel').classList.toggle('hidden'));
     $('sleep-close').addEventListener('click', () => $('sleep-panel').classList.add('hidden'));
     document.querySelectorAll('[data-sleep-minutes]').forEach(button => button.addEventListener('click', () => setSleepTimer(Number(button.dataset.sleepMinutes))));
-    $('sleep-track-end').addEventListener('click', () => { clearTimeout(state.sleepTimer); state.sleepTimer = null; state.sleepDeadline = 0; state.sleepAtTrackEnd = true; updateSleepStatus(); $('sleep-panel').classList.add('hidden'); toast('Sẽ dừng khi bài hiện tại kết thúc.'); });
+    $('sleep-track-end').addEventListener('click', () => {
+      clearTimeout(state.sleepTimer);
+      clearTimeout(state.sleepFadeTimer);
+      clearInterval(state.sleepFadeInterval);
+      state.sleepTimer = null;
+      state.sleepFadeTimer = null;
+      state.sleepFadeInterval = null;
+      if (state.sleepOriginalVolume !== null) {
+        setGain(state.sleepOriginalVolume);
+        state.sleepOriginalVolume = null;
+      }
+      state.sleepDeadline = 0;
+      state.sleepAtTrackEnd = true;
+      updateSleepStatus();
+      $('sleep-panel').classList.add('hidden');
+      toast('Sẽ dừng khi bài hiện tại kết thúc.');
+    });
     $('sleep-cancel').addEventListener('click', clearSleepTimer);
     $('room-seek').addEventListener('input', event => { paintSeek(event.currentTarget, event.currentTarget.value); const previewTime = Number(event.currentTarget.value) / 1000 * (audio.duration || 0); $('room-current-time').textContent = formatTime(previewTime); $('room-remaining').textContent = formatRemainingTime(previewTime, audio.duration); });
     $('room-seek').addEventListener('change', event => { if (Number.isFinite(audio.duration)) audio.currentTime = Number(event.currentTarget.value) / 1000 * audio.duration; updatePositionState(); });
@@ -4256,5 +4341,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:12 +07 | Đã xong: Pha D - Ambient Glow: trích xuất bảng màu chủ đạo từ ảnh bìa album bằng canvas siêu nhẹ (12x12) qua library.extractDominantColors; tạo lớp ánh sáng nền động đa tầng (#ambient-glow) với chuyển cảnh mượt 1.5s trong Phòng nghe (#listening-room); gán biến CSS --ambient-c1, --ambient-c2; fallback an toàn khi không có ảnh hoặc bị CORS; kiểm chứng 12/12 test đơn vị + DOM, toàn bộ 56/56 suite test PASS | Lượt kế tiếp: Pha A - ReplayGain / Loudness Normalization hoặc Parametric EQ nâng cao | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Sleep timer fade-out mượt mà, PWA Service Worker offline caching -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:26 +07 | Đã xong: Pha A - ReplayGain & Loudness Normalization: đồng bộ mức âm lượng giữa các bài hát bằng thuật toán ReplayGain 2.0 (parseReplayGain đọc tag TXXX, Vorbis comments, camelCase / snake_case; computeReplayGainMultiplier tính linear gain, hỗ trợ cả 2 chế độ Track / Album, bù Preamp ±6 dB và cơ chế Anti-clip chống clipping khi gain * peak > 1.0); UI trong panel Parametric Equalizer (#replaygain-toggle, #replaygain-badge, #replaygain-mode, #replaygain-preamp, #replaygain-preamp-val); tích hợp vào setGain điều khiển âm lượng thực tế của deck; hiển thị trong Roon Signal Path (DSP Stage · ENHANCED); kiểm chứng 16/16 test mới, toàn bộ 72/72 suite test PASS | Lượt kế tiếp: Pha B - Album view kiểu Roon (lưới bìa album + trang chi tiết album với danh sách bài và thông tin phát hành) | Backlog: Sleep timer fade-out mượt mà, PWA Service Worker offline caching, Waveform seekbar -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:34 +07 | Đã xong: Pha B - Album View kiểu Roon: hiển thị trang chi tiết album với hero header (#album-hero: ảnh bìa lớn, tên album, nghệ sĩ, thống kê số bài + tổng thời lượng qua library.formatAlbumDuration, huy hiệu chất lượng phát hành cao nhất DSD/Hi-Res/Lossless qua library.summarizeAlbum); các nút hành động nhanh (#album-hero-play phát toàn bộ album, #album-hero-queue thêm toàn bộ album vào hàng đợi, #album-hero-back quay lại danh sách bộ sưu tập); tự động ẩn hero khi thoát scope album; kiểm chứng 11/11 test mới, toàn bộ 83/83 suite test PASS | Lượt kế tiếp: Pha C - Sleep timer fade-out mượt mà (giảm dần âm lượng trong 30 giây cuối trước khi dừng phát) | Backlog: PWA Service Worker offline caching, Waveform seekbar, AutoEQ presets cho tai nghe -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:45 +07 | Đã xong: Pha C - Sleep Timer Fade-Out: giảm âm lượng mượt mà theo đường cong equal-power sine (library.calculateSleepFadeGain) trong 30 giây cuối (hoặc min(30s, duration/2)) trước khi dừng phát khi hết giờ hẹn ngủ; checkbox tùy chọn #sleep-fadeout trong #sleep-panel; bảo toàn và khôi phục nguyên vẹn mức âm lượng ban đầu (state.sleepOriginalVolume) khi dừng hoặc khi hủy hẹn giờ (clearSleepTimer, sleep-track-end); helper formatSleepRemaining định dạng thời gian còn lại; kiểm chứng 14/14 test mới, toàn bộ suite test PASS | Lượt kế tiếp: Pha D - PWA Service Worker offline caching nâng cao cho bài đã tải | Backlog: Waveform seekbar bằng Web Audio Analyser/Canvas, AutoEQ presets cho tai nghe, Ambient Sound Mixer -->
 </body>
 </html>

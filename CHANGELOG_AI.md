@@ -2,6 +2,41 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 03:45 +07] — [Pha C] Sleep Timer Fade-Out: Giảm Dần Âm Lượng Mượt Mà 30s Cuối Trước Khi Dừng Nhạc
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)**.
+- **Tính năng triển khai:**
+  1. **Đường cong Equal-Power Sine Fade-Out `calculateSleepFadeGain` (`library-utils.js`):**
+     - Thay vì giảm tuyến tính (linear) khiến âm lượng tụt nhanh đột ngột ở dải đầu và khó nghe ở dải cuối, hàm áp dụng đường cong equal-power sine $\sin(\text{ratio} \times \pi / 2)$ giúp tai người cảm nhận âm lượng giảm dần đều và êm dịu.
+     - Thời lượng fade-out mặc định là 30 giây (`DEFAULT_SLEEP_FADEOUT_MS = 30000`), tự động giới hạn `min(30s, duration/2)` cho các khoảng thời gian hẹn giờ ngắn để tránh fade quá sớm.
+     - Trả về hệ số $1$ khi còn nhiều thời gian, giảm mượt dần về $0$ khi chạm mốc deadline, và trả về $0$ an toàn nếu thời gian đã hết hoặc tham số không hợp lệ.
+  2. **Định dạng thời gian còn lại `formatSleepRemaining` (`library-utils.js`):**
+     - Hỗ trợ định dạng thời gian còn lại thân thiện: `45 giây`, `1 phút`, `2 phút 5 giây`, hoặc `Hết giờ`.
+  3. **Tùy chọn giao diện & Tích hợp điều khiển âm lượng (`index.html`):**
+     - Thêm checkbox tùy chọn `#sleep-fadeout` ("Fade-out 30s cuối", mặc định bật) trong hộp thoại hẹn giờ `#sleep-panel`.
+     - `state` mở rộng để theo dõi: `sleepFadeTimer`, `sleepFadeInterval`, `sleepOriginalVolume`.
+     - `setSleepTimer(minutes)`: Bắt đầu chu kỳ giảm âm lượng dần đều trong 30 giây cuối qua `setInterval` 250ms gọi `setGain(state.sleepOriginalVolume * gain)`.
+     - **Cơ chế bảo toàn và khôi phục âm lượng gốc:**
+       - Ghi nhớ mức âm lượng của người dùng trước khi bắt đầu fade.
+       - Khi hết giờ (dừng phát nhạc) hoặc khi người dùng hủy hẹn giờ (`clearSleepTimer`) hay chuyển sang chế độ dừng khi hết bài (`#sleep-track-end`), hệ thống tự động dọn dẹp các timer/interval và khôi phục nguyên vẹn mức âm lượng ban đầu của người dùng.
+  4. **Bộ kiểm thử tự động (Unit & Integration Tests):**
+     - Tạo mới `sleep-fadeout.test.cjs` gồm 14 test cases kiểm tra: giá trị đường cong equal-power, xử lý thời gian âm/NaN, giới hạn clamp min 1s, định dạng chuỗi thời gian, và kiểm tra tích hợp DOM & script logic.
+     - Kiểm chứng toàn bộ: **14/14 test mới PASS**, toàn bộ regression test suite PASS.
+
+### 📁 Các File Đã Sửa / Tạo Mới:
+- `library-utils.js`: Bổ sung `DEFAULT_SLEEP_FADEOUT_MS`, `calculateSleepFadeGain`, `formatSleepRemaining`, cập nhật export `NocturneLibrary`.
+- `index.html`: Thêm checkbox `#sleep-fadeout`, cập nhật `state`, tích hợp fade-out và khôi phục volume vào `setSleepTimer`, `clearSleepTimer`, `#sleep-track-end`, thêm auto-schedule log comment.
+- `sleep-fadeout.test.cjs`: Test suite mới cho tính năng Sleep Timer Fade-Out (14/14 PASS).
+- `CHANGELOG_AI.md`: Cập nhật nhật ký tiến hóa chu kỳ.
+
+### 🚀 Đề Xuất Cho Chu Kỳ Kế Tiếp:
+- **Pha D (Architecture & PWA):** PWA Service Worker offline caching nâng cao cho bài hát đã tải.
+- **Pha A (Audio Engine & DSP):** AutoEQ profiles bù trừ tần số cho các dòng tai nghe phổ biến.
+- **Pha B (UI/UX & Visualizer):** Waveform seekbar trực quan hóa dạng sóng bài hát bằng Web Audio Analyser/Canvas.
+
+---
+
 ## [Chu Kỳ 2026-11-13 03:34 +07] — [Pha B] Album View Kiểu Roon: Trang Chi Tiết Album Với Hero Header & Thao Tác Nhanh
 
 ### 🎯 Hạng Mục Nâng Cấp:
