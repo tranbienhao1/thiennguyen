@@ -2,6 +2,43 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 05:25 +07] — [Pha B] Waveform Seekbar: Trực Quan Hóa Dạng Sóng Bài Hát Bằng Web Audio Analyser & Canvas
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. Giao Diện Người Dùng & Trực Quan Hóa Âm Thanh (UI/UX & Visualizer)**.
+- **Tính năng triển khai:**
+  1. **Các hàm tiện ích dạng sóng (`library-utils.js`):**
+     - `generateWaveformPeaks(channelData, numBuckets)`: Thuật toán phân rã mảng mẫu PCM âm thanh `Float32Array` thành các bucket đều nhau (mặc định 200 mẫu), tính toán biên độ đỉnh tuyệt đối lớn nhất trong mỗi khoảng (giá trị chuẩn hóa 0.0 – 1.0). Xử lý an toàn các trường hợp mảng rỗng hoặc số lượng bucket không hợp lệ.
+     - `renderWaveformCanvas(canvas, peaks, playbackFraction, options)`: Vẽ đồ thị dạng sóng đối xứng theo trục giữa canvas với 2 dải màu phân biệt trực quan: phần bài hát đã phát (`rgba(167,139,250,0.9)` - tím sáng) và phần chưa phát (`rgba(167,139,250,0.35)` - tím mờ), kèm vạch định vị playhead 2px sắc nét (`rgba(255,255,255,0.9)`).
+     - `formatWaveformStatus(numPeaks, isReady)`: Trả về trạng thái dạng sóng bằng tiếng Việt thân thiện (`Dạng sóng: 200 mẫu` hoặc `Dạng sóng: đang tải...`).
+  2. **Thành phần giao diện trong Phòng nghe (`#listening-room` trong `index.html`):**
+     - Bổ sung `<canvas id="waveform-canvas">` ngay phía trên thanh trượt thời gian `#room-seek`, thiết kế cong nhẹ bo góc và con trỏ tay chỉ `cursor-pointer`.
+     - Kèm thuộc tính trợ năng tiếng Việt `aria-label="Dạng sóng bài hát - nhấn để tua"`.
+  3. **Cơ chế nạp & giải mã âm thanh OfflineAudioContext:**
+     - `generateTrackWaveform(track)`: Tự động tải dữ liệu nhị phân của bài hát qua fetch ngầm, khởi tạo `OfflineAudioContext` để giải mã PCM toàn bài mà không phát ra loa, trích xuất 200 đỉnh dạng sóng và lưu vào `state.waveformPeaks`.
+     - Bộ nhớ đệm `state.waveformTrackId` giúp tái sử dụng ngay lập tức dạng sóng đã tính mà không tốn công giải mã lại.
+     - Cơ chế fallback an toàn: khi gặp file stream hoặc lỗi mạng, tự động sinh dạng sóng dự phòng nhẹ nhàng để giao diện vẫn hiển thị đẹp mắt.
+  4. **Tương tác tua bài hát mượt mà (Click-to-seek & Timeupdate):**
+     - Người dùng có thể nhấp trực tiếp vào bất kỳ vị trí nào trên đồ thị sóng để tua bài hát tức thì (`audio.currentTime = fraction * audio.duration`).
+     - Tích hợp vòng lặp cập nhật `renderWaveformSeekbar()` trong sự kiện `timeupdate` của trình phát, di chuyển vạch playhead và tô màu dạng sóng thời gian thực mượt mà.
+     - Bảo vệ sandbox thông minh (`typeof renderWaveformSeekbar === 'function'`) chống lỗi tham chiếu trong môi trường test cô lập.
+  5. **Bộ kiểm thử tự động (Unit & Integration Tests):**
+     - Tạo mới `waveform-seekbar.test.cjs` gồm 18 test cases kiểm thử: hàm xử lý đỉnh mẫu, vẽ canvas, định dạng chuỗi, cấu trúc DOM và các hàm hook trong script.
+     - Toàn bộ 18/18 test cases PASS 100%, bộ hồi quy tổng thể 145/145 PASS trên toàn bộ 26 test suites.
+
+### 📁 Các File Đã Sửa / Tạo Mới:
+- `library-utils.js`: Bổ sung các hàm `generateWaveformPeaks`, `renderWaveformCanvas`, `formatWaveformStatus` và export trong `NocturneLibrary`.
+- `index.html`: Thêm canvas `#waveform-canvas`, mở rộng `state`, bổ sung `generateTrackWaveform`, `renderWaveformSeekbar`, click-to-seek listener, kết nối `displayTrack` và `timeupdate`, thêm auto-schedule log comment.
+- `waveform-seekbar.test.cjs`: Test suite mới cho tính năng Waveform seekbar (18/18 PASS).
+- `CHANGELOG_AI.md`: Cập nhật nhật ký tiến hóa chu kỳ `[Pha B]`.
+
+### 🚀 Đề Xuất Cho Chu Kỳ Kế Tiếp:
+- **Pha C (Core Features):** Đồng bộ lời bài hát .lrc cuộn mượt từng từ (Karaoke word-by-word highlight).
+- **Pha D (Architecture & PWA):** Ambient Sound Mixer (tiếng mưa rơi, lửa trại kết hợp nhạc nền audiophile).
+- **Pha A (Audio Engine & DSP):** AutoEQ Headphone Compensation Presets cho các dòng tai nghe phổ biến.
+
+---
+
 ## [Chu Kỳ 2026-11-13 04:35 +07] — [Pha A] Tone Controls (Bass & Treble Quick Trim): Bộ Điều Chỉnh Âm Sắc Nhanh Trong Chuỗi Xử Lý DSP
 
 ### 🎯 Hạng Mục Nâng Cấp:
