@@ -660,5 +660,156 @@
     return `${Math.round(clamped * 100)}%`;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed};
+  // Pha B — Signal Path kiểu Roon trong Phòng nghe: tính toán chuỗi Nguồn → Giải mã → DSP → Đầu ra
+  // từ metadata kỹ thuật của bài hát và cấu hình Web Audio Graph hiện tại.
+  function computeSignalPath(track, options = {}) {
+    if (!track || typeof track !== 'object') {
+      return {
+        qualityTier: 'standard',
+        qualityLabel: 'READY',
+        hasDsp: false,
+        steps: []
+      };
+    }
+
+    const isDsd = !!track.isDsd;
+    const sampleRate = Number(track.sampleRate) || 0;
+    const bitDepth = Number(track.bitDepth) || 0;
+    const format = String(track.format || (isDsd ? 'DSD' : 'Âm thanh')).toUpperCase();
+    const channels = Number(track.channels) || 2;
+    const channelText = channels === 1 ? 'Mono (1 kênh)' : channels === 2 ? 'Stereo (2 kênh)' : `${channels} kênh`;
+
+    const sourceLabels = {
+      local: 'Tệp nội bộ trên thiết bị',
+      google: 'Google Drive (Stream trực tiếp)',
+      onedrive: 'Microsoft OneDrive (SharePoint / Graph)',
+      url: 'URL mạng trực tiếp / WebDAV'
+    };
+    const sourceName = sourceLabels[track.source] || `Nguồn ${track.source || 'không xác định'}`;
+
+    // 1. Stage: Source
+    let sourceFormatLabel = format;
+    let sourceTechLabel = '';
+    if (isDsd) {
+      const mult = track.dsdMultiplier || (sampleRate ? Math.round(sampleRate / 44100) : 64);
+      sourceFormatLabel = `DSD${mult} (${format})`;
+      sourceTechLabel = sampleRate ? `${(sampleRate / 1000000).toFixed(2)} MHz · 1-bit` : '1-bit';
+    } else if (sampleRate && bitDepth) {
+      sourceTechLabel = `${(sampleRate / 1000).toFixed(sampleRate % 1000 ? 1 : 0)} kHz · ${bitDepth}-bit`;
+    } else if (sampleRate) {
+      sourceTechLabel = `${(sampleRate / 1000).toFixed(sampleRate % 1000 ? 1 : 0)} kHz`;
+    } else {
+      sourceTechLabel = channelText;
+    }
+
+    const sourceStep = {
+      stage: 'source',
+      title: 'Nguồn phát (Source)',
+      description: `${sourceFormatLabel} · ${sourceTechLabel}`,
+      detail: `${sourceName} · ${channelText}`,
+      badge: sourceFormatLabel,
+      icon: 'source'
+    };
+
+    // 2. Stage: Decode
+    let decodeStep;
+    if (isDsd) {
+      const targetRate = options.dsdOutputRate || track.pcmRate || 44100;
+      const targetDepth = options.dsdOutputDepth || track.pcmBitDepth || 16;
+      decodeStep = {
+        stage: 'decode',
+        title: 'Giải mã DSD (Decoder)',
+        description: `Decimation FIR 48-tap → PCM ${(targetRate / 1000).toFixed(1)} kHz / ${targetDepth}-bit`,
+        detail: 'Giải mã phần mềm thời gian thực bằng Web Worker (dsd2pcm)',
+        badge: 'DSD → PCM',
+        icon: 'decode'
+      };
+    } else {
+      const isLossless = ['FLAC', 'WAV', 'AIFF', 'ALAC'].includes(format);
+      decodeStep = {
+        stage: 'decode',
+        title: 'Giải mã âm thanh (Decoder)',
+        description: isLossless ? `${format} Lossless Decode (Không mất mát dữ liệu)` : `${format} Audio Decode (Web Audio API)`,
+        detail: isLossless ? 'Trình duyệt giải mã dòng byte nguyên bản' : 'Trình duyệt giải mã luồng âm thanh nén',
+        badge: isLossless ? 'Lossless' : 'Compressed',
+        icon: 'decode'
+      };
+    }
+
+    // 3. Stage: DSP
+    const dspActive = [];
+    if (options.eqEnabled) {
+      const presetLabel = options.eqPreset ? (options.eqPresetLabels?.[options.eqPreset] || options.eqPreset) : 'Tùy chỉnh';
+      const preampText = Number.isFinite(options.eqPreamp) ? ` (Preamp ${options.eqPreamp.toFixed(1)} dB)` : '';
+      dspActive.push(`Parametric EQ: ${presetLabel}${preampText}`);
+    }
+    if (Number.isFinite(options.stereoBalance) && Math.abs(options.stereoBalance) > 0.01) {
+      const pct = Math.round(options.stereoBalance * 100);
+      dspActive.push(`Cân bằng L/R: ${pct < 0 ? `Trái ${Math.abs(pct)}%` : `Phải ${pct}%`}`);
+    }
+    if (options.crossfeedEnabled && Number(options.crossfeedAmount) > 0) {
+      dspActive.push(`Crossfeed tai nghe: ${Math.round(options.crossfeedAmount * 100)}%`);
+    }
+
+    let dspStep;
+    if (dspActive.length > 0) {
+      dspStep = {
+        stage: 'dsp',
+        title: 'Xử lý DSP (Digital Signal Processing)',
+        description: dspActive.join(' · '),
+        detail: 'Xử lý chuỗi BiquadFilter / Panner / Crossfeed qua Web Audio Graph',
+        badge: 'DSP Active',
+        isEnhanced: true,
+        icon: 'dsp'
+      };
+    } else {
+      dspStep = {
+        stage: 'dsp',
+        title: 'Xử lý DSP (Bypass)',
+        description: 'Bypass DSP — Tín hiệu nguyên bản (Bit-perfect path)',
+        detail: 'Không có bộ lọc EQ hay hiệu ứng nào được áp dụng',
+        badge: 'Bit-perfect',
+        isEnhanced: false,
+        icon: 'bypass'
+      };
+    }
+
+    // 4. Stage: Output
+    const contextRate = options.contextRate ? `${(options.contextRate / 1000).toFixed(1)} kHz` : 'Tần số hệ thống';
+    const outputStep = {
+      stage: 'output',
+      title: 'Thiết bị đầu ra (Output)',
+      description: `AudioContext Destination · ${contextRate}`,
+      detail: 'Hệ điều hành / Trình duyệt điều phối tới DAC hoặc Loa/Tai nghe',
+      badge: contextRate,
+      icon: 'output'
+    };
+
+    // Quality Tier Assessment
+    let qualityTier = 'standard';
+    let qualityLabel = 'STANDARD';
+    if (isDsd) {
+      qualityTier = 'dsd';
+      qualityLabel = 'DSD';
+    } else if ((sampleRate && sampleRate > 48000) || (bitDepth && bitDepth > 16)) {
+      qualityTier = 'highres';
+      qualityLabel = 'HI-RES';
+    } else if (['FLAC', 'WAV', 'AIFF', 'ALAC'].includes(format)) {
+      qualityTier = 'lossless';
+      qualityLabel = 'LOSSLESS';
+    }
+
+    if (dspActive.length > 0) {
+      qualityLabel = `${qualityLabel} · ENHANCED`;
+    }
+
+    return {
+      qualityTier,
+      qualityLabel,
+      hasDsp: dspActive.length > 0,
+      steps: [sourceStep, decodeStep, dspStep, outputStep]
+    };
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath};
 });

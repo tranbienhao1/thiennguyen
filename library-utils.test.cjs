@@ -404,5 +404,33 @@ async function expectFetchError(fetchImpl, headers, blobSize) {
   assert.strictEqual(utils.formatBalance(-0.5), 'Trái 50%', 'formatBalance should format negative balance as Trái X%');
   assert.strictEqual(utils.formatBalance(0.75), 'Phải 75%', 'formatBalance should format positive balance as Phải X%');
 
+  // Pha B — Signal Path (computeSignalPath) tests
+  const flacTrack = {format: 'FLAC', sampleRate: 96000, bitDepth: 24, channels: 2, source: 'google'};
+  const bitPerfectPath = utils.computeSignalPath(flacTrack, {contextRate: 48000, eqEnabled: false, stereoBalance: 0, crossfeedEnabled: false});
+  assert.strictEqual(bitPerfectPath.qualityTier, 'highres');
+  assert.strictEqual(bitPerfectPath.qualityLabel, 'HI-RES');
+  assert.strictEqual(bitPerfectPath.hasDsp, false);
+  assert.strictEqual(bitPerfectPath.steps.length, 4);
+  assert.strictEqual(bitPerfectPath.steps[0].stage, 'source');
+  assert.strictEqual(bitPerfectPath.steps[2].stage, 'dsp');
+  assert.strictEqual(bitPerfectPath.steps[2].isEnhanced, false);
+
+  const enhancedPath = utils.computeSignalPath(flacTrack, {contextRate: 48000, eqEnabled: true, eqPreset: 'bass', eqPresetLabels: {bass: 'Bass mạnh'}, stereoBalance: -0.2, crossfeedEnabled: true, crossfeedAmount: 0.3});
+  assert.strictEqual(enhancedPath.hasDsp, true);
+  assert.strictEqual(enhancedPath.qualityLabel, 'HI-RES · ENHANCED');
+  assert.strictEqual(enhancedPath.steps[2].isEnhanced, true);
+  assert.ok(enhancedPath.steps[2].description.includes('Bass mạnh'));
+  assert.ok(enhancedPath.steps[2].description.includes('Trái 20%'));
+  assert.ok(enhancedPath.steps[2].description.includes('30%'));
+
+  const dsdTrack = {isDsd: true, format: 'DSF', dsdMultiplier: 128, sampleRate: 5644800, source: 'local'};
+  const dsdPath = utils.computeSignalPath(dsdTrack, {contextRate: 44100, dsdOutputRate: 88200, dsdOutputDepth: 24});
+  assert.strictEqual(dsdPath.qualityTier, 'dsd');
+  assert.ok(dsdPath.steps[0].description.includes('DSD128'));
+  assert.ok(dsdPath.steps[1].description.includes('88.2 kHz'));
+
+  const emptyPath = utils.computeSignalPath(null);
+  assert.strictEqual(emptyPath.steps.length, 0);
+
   console.log('Library metadata, filtering, grouping and audio fetch tests passed.');
 })().catch(error => { console.error(error); process.exit(1); });

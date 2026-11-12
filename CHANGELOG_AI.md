@@ -2,6 +2,50 @@
 
 ---
 
+## [Chu Kỳ 2026-11-12 01:05 +07] — [Pha B] Signal Path Kiểu Roon Trong Phòng Nghe (Nguồn → Giải Mã → DSP → Đầu Ra)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. UI/UX & Visualizer Hiện Đại** kết hợp **1. Audio Engine & DSP (Web Audio API)**.
+- **Tính năng triển khai:**
+  1. **Hàm lõi tính toán chuỗi tín hiệu `computeSignalPath(track, options)`:** Phân tích toàn diện 4 công đoạn (Stages) của chuỗi tín hiệu âm thanh thực tế:
+     - **Nguồn phát (Source):** Định dạng (FLAC, DSD, WAV, MP3...), tần số lấy mẫu (kHz/MHz), độ sâu bit (1-bit / 16-bit / 24-bit), số kênh (Stereo / Mono), nguồn lưu trữ (Local, Google Drive, OneDrive, WebDAV).
+     - **Giải mã (Decoder):** Nhận diện giải mã Lossless / nén, giải mã Web Audio API native hoặc giải mã phần mềm thời gian thực bằng Web Worker đa luồng (FIR decimation DSD → PCM 44.1–192 kHz).
+     - **DSP (Digital Signal Processing):** Tự động phát hiện trạng thái xử lý tín hiệu:
+       - *Bit-perfect*: Khi EQ tắt (Direct/Bypass), cân bằng L/R ở giữa và Crossfeed tắt.
+       - *Enhanced*: Khi bật Parametric EQ (hiển thị rõ tên preset + mức preamp trim), thay đổi cân bằng L/R, hoặc kích hoạt Crossfeed mô phỏng không gian tai nghe.
+     - **Đầu ra (Output):** AudioContext Destination theo tần số phần cứng hệ thống (DAC / Loa ngoài / Tai nghe).
+     - **Đánh giá tầng chất lượng (Quality Tier):** `DSD`, `HI-RES` (khi >48kHz hoặc >16-bit), `LOSSLESS`, hoặc `STANDARD`, kèm hậu tố `· ENHANCED` khi chuỗi có can thiệp DSP.
+  2. **Giao diện chuỗi tín hiệu kiểu Roon trong Phòng nghe (`#listening-room`):**
+     - Huy hiệu tầng chất lượng động (`#signal-path-badge`) đổi màu theo phong cách Audiophile: Xanh ngọc (Bit-perfect Lossless), Cyan (Hi-Res), Vàng cam (DSD), Tím neon (DSP Enhanced).
+     - Nút mở rộng/thu gọn trực quan (`#toggle-signal-path`) chuyển đổi `Chi tiết ▾` / `Thu gọn ▴`.
+     - Container chuỗi tín hiệu phân tầng (`#room-signal-chain`) hiển thị tiến trình 4 bước với đường timeline liên kết, biểu tượng trực quan, tiêu đề và chi tiết kỹ thuật từng bước.
+  3. **Tự động đồng bộ thời gian thực:**
+     - Tự động làm mới khi đổi bài hát, chuyển trạng thái cache lát đầu DSD/FLAC.
+     - Tự động cập nhật ngay lập tức khi người dùng bật/tắt EQ, đổi preset EQ, chỉnh thanh trượt Cân bằng L/R hoặc Crossfeed mà không cần đóng mở lại Phòng nghe.
+  4. **Bộ kiểm thử tự động (Unit & Integration Tests):**
+     - Đã thêm kiểm thử đơn vị cho `computeSignalPath` trong `library-utils.test.cjs`.
+     - Đã tạo mới file test `signal-path.test.cjs` xác nhận logic thuần, phân loại tầng chất lượng, trạng thái bypass vs enhanced, và tính toàn vẹn của DOM / Event listeners.
+
+### 📝 Các File Đã Sửa / Tạo Mới:
+- `library-utils.js`: Bổ sung hàm `computeSignalPath(track, options)` và xuất trong `NocturneLibrary`.
+- `library-utils.test.cjs`: Thêm test assertions cho `computeSignalPath`.
+- `index.html`: Cập nhật UI trong `#listening-room` (`#signal-path-badge`, `#toggle-signal-path`, `#room-signal-chain`), thêm hàm `renderSignalPathChain`, gắn hook vào `renderRoomSignal`, `applyEq`, `setStereoBalance`, `setCrossfeed`, `openListeningRoom`, và thêm log bình luận cuối trang.
+- `signal-path.test.cjs`: File test suite mới kiểm tra toàn diện tính năng Signal Path Roon-style.
+- `CHANGELOG_AI.md`: Cập nhật nhật ký tiến hóa chu kỳ.
+
+### 🧪 Kết Quả Kiểm Chứng (Self-Test):
+- Cú pháp mã nguồn chuẩn, không có lỗi console hay thiếu literal ID.
+- `node signal-path.test.cjs`: PASS (2/2 test suites).
+- `node index-script.test.cjs`: PASS (toàn bộ kiểm tra hồi quy).
+- `node library-utils.test.cjs`: PASS.
+- Đầy đủ các test suites đều chạy thành công trên môi trường Node.js.
+
+### 🚀 Đề Xuất Cho Chu Kỳ Tiếp Theo:
+- **Phân khu 3 (Tính Năng & Trải Nghiệm Người Dùng):** **Roon Radio** — Tự động đề xuất và phát tiếp các bài hát tương tự từ thư viện khi hết danh sách phát hoặc hàng đợi (dựa trên nghệ sĩ, thể loại, hoặc tính ngẫu nhiên thông minh).
+- **Hoặc Phân khu 2 (UI/UX & Visualizer):** **Ambient Glow** — Trích xuất màu chủ đạo từ ảnh bìa album để làm ánh sáng nền chuyển màu huyền ảo cho toàn bộ ứng dụng.
+
+---
+
 ## [Chu Kỳ 2026-11-11 22:30 +07] — Cân Bằng Âm Thanh L/R (Stereo Balance) & Mở Rộng Phím Tắt
 
 ### 🎯 Hạng Mục Nâng Cấp:
