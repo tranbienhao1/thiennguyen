@@ -2,6 +2,45 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 03:26 +07] — [Pha A] ReplayGain & Loudness Normalization: Đồng Bộ Âm Lượng Tự Động Giữa Các Bản Nhạc
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP (Web Audio API)**.
+- **Tính năng triển khai:**
+  1. **Đọc và chuẩn hóa thông số ReplayGain `parseReplayGain(input)` (`library-utils.js`):**
+     - Đọc toàn diện các thẻ ReplayGain từ ID3v2 TXXX, FLAC/Ogg Vorbis Comments, ApeTag hoặc metadata nạp từ cloud/local: `replaygain_track_gain`, `replaygain_track_peak`, `replaygain_album_gain`, `replaygain_album_peak` (hỗ trợ cả định dạng chuỗi `"-6.5 dB"` lẫn số thực).
+     - Cơ chế fallback thông minh: nếu bài hát chỉ có Album Gain hoặc chỉ có Track Gain, tự động dự phòng chéo để không bị mất khả năng cân bằng âm lượng.
+  2. **Thuật toán tính toán Gain và chống xén biên độ `computeReplayGainMultiplier` (`library-utils.js`):**
+     - Hỗ trợ 2 chế độ audiophile: **Track Mode** (chuẩn hóa từng bài độc lập) và **Album Mode** (giữ nguyên độ tương phản động giữa các bài trong cùng album).
+     - Tích hợp điều chỉnh Preamp bù trừ ($\pm 6\text{ dB}$).
+     - **Cơ chế Anti-clip:** Tự động kiểm tra đỉnh biên độ ($multiplier \times peak > 1.0$) để kẹp gain về mức an toàn tối đa $1.0 / peak$, bảo vệ màng loa/tai nghe và tránh méo tiếng kỹ thuật số (clipping/distortion).
+     - Giới hạn an toàn kẹp gain giữa $-30\text{ dB}$ và $+15\text{ dB}$.
+  3. **Tích hợp sâu vào Audio Pipeline & Playback Engine (`index.html`):**
+     - Điều khiển âm lượng thực tế của deck phát thông qua `setGain`: áp dụng `replayGainMultiplier` một cách trong suốt mà không làm lệch giá trị slider người dùng đã chỉnh.
+     - Tự động gọi `applyReplayGain(track)` khi chuyển bài hoặc nạp bài mới trong `displayTrack`.
+     - Tích hợp vào **Roon Signal Path**: hiển thị thông tin ReplayGain trong chuỗi DSP và tự động nâng hạng chất lượng chuỗi tín hiệu thành `ENHANCED`.
+  4. **Giao diện điều khiển trong panel Parametric Equalizer (`#eq-panel`):**
+     - Nút gạt bật/tắt `#replaygain-toggle` kèm huy hiệu trạng thái `#replaygain-badge` (hiện mức dB bù trừ thực tế hoặc cảnh báo Anti-clip `⚡`).
+     - Bộ chọn chế độ `#replaygain-mode` (Từng bài / Cả album).
+     - Thanh trượt chỉnh Preamp bù `#replaygain-preamp` kèm hiển thị số đo `#replaygain-preamp-val`.
+     - Tự động lưu và khôi phục trạng thái qua `localStorage`.
+  5. **Bộ kiểm thử tự động (Unit & Integration Tests):**
+     - Tạo mới `replaygain.test.cjs` kiểm thử 16 kịch bản: đọc thẻ, định dạng dB/peak, tính multiplier, bù preamp, chống clipping, chế độ track/album, format text, tích hợp Signal Path và kiểm tra DOM/Listeners.
+     - Toàn bộ test suite chạy đạt **72/72 PASS (0 fail)**.
+
+### 📁 Các File Đã Sửa / Tạo Mới:
+- `library-utils.js`: Bổ sung `parseReplayGain`, `computeReplayGainMultiplier`, `formatReplayGain`, cập nhật `computeSignalPath`.
+- `index.html`: Thêm markup UI ReplayGain trong `#eq-panel`, thêm `replayGainEnabled/Mode/Preamp/Multiplier` vào `state`, cập nhật `setGain`, `renderSignalPathChain`, `displayTrack`, thêm các hàm `applyReplayGain`, `updateReplayGainUi`, `setReplayGain*`, thêm auto-schedule log comment.
+- `replaygain.test.cjs`: File test suite mới kiểm tra toàn diện logic ReplayGain.
+- `CHANGELOG_AI.md`: Cập nhật nhật ký tiến hóa chu kỳ.
+
+### 🚀 Đề Xuất Cho Chu Kỳ Kế Tiếp:
+- **Pha B (UI/UX & Visualizer):** Album view kiểu Roon (lưới bìa album + trang chi tiết album với danh sách bài và thông tin phát hành).
+- **Pha C (Core Features):** Sleep timer fade-out mượt mà (giảm dần âm lượng 30s cuối).
+- **Pha D (Architecture & PWA):** PWA Service Worker offline caching nâng cao cho bài hát đã nghe.
+
+---
+
 ## [Chu Kỳ 2026-11-13 03:12 +07] — [Pha D] Ambient Glow: Hiệu Ứng Ánh Sáng Nền Động Trích Xuất Từ Bìa Album
 
 ### 🎯 Hạng Mục Nâng Cấp:

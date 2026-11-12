@@ -533,6 +533,26 @@
       <div class="flex items-center justify-between text-xs text-zinc-400"><span>Crossfeed (tai nghe)</span><span id="crossfeed-label" class="font-mono text-[10px] text-zinc-300">Tắt</span></div>
       <div class="mt-1.5 flex items-center gap-2"><input id="crossfeed-toggle" type="checkbox" class="accent-violet-500" aria-label="Bật crossfeed"><input id="crossfeed-slider" class="range flex-1 cursor-pointer" type="range" min="0" max="100" value="0" step="1" aria-label="Mức crossfeed"><span class="text-[9px] text-zinc-500">100%</span></div>
     </div>
+    <div class="mt-3 border-t border-white/10 pt-3">
+      <div class="flex items-center justify-between text-xs text-zinc-400">
+        <label class="flex items-center gap-2 cursor-pointer"><input id="replaygain-toggle" type="checkbox" class="accent-violet-500" aria-label="Bật ReplayGain"><span>ReplayGain</span></label>
+        <span id="replaygain-badge" class="font-mono text-[10px] text-zinc-400">Tắt</span>
+      </div>
+      <div class="mt-2 flex items-center justify-between gap-2 text-[10px] text-zinc-400">
+        <span>Chế độ</span>
+        <select id="replaygain-mode" class="rounded-md border border-white/10 bg-zinc-950 px-2 py-1 text-[10px] text-zinc-200">
+          <option value="track">Từng bài (Track Gain)</option>
+          <option value="album">Cả album (Album Gain)</option>
+        </select>
+      </div>
+      <div class="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-zinc-400">
+        <span>Bù Preamp</span>
+        <div class="flex items-center gap-1.5">
+          <input id="replaygain-preamp" class="range w-24 cursor-pointer" type="range" min="-6" max="6" step="0.5" value="0" aria-label="Bù Preamp ReplayGain">
+          <span id="replaygain-preamp-val" class="w-10 text-right font-mono text-[9px] text-zinc-300">0.0 dB</span>
+        </div>
+      </div>
+    </div>
   </div>
   <div id="listening-room" class="fixed inset-0 z-[55] hidden overflow-y-auto bg-[#09090b]/95 p-4 backdrop-blur-2xl sm:p-8" role="dialog" aria-modal="true" aria-labelledby="room-title">
     <div id="ambient-glow" aria-hidden="true"></div>
@@ -800,7 +820,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -1691,6 +1711,8 @@
       const stereoBalance = state.stereoBalance || 0;
       const crossfeedEnabled = (state.crossfeed || 0) > 0;
       const crossfeedAmount = state.crossfeed || 0;
+      const replayGainEnabled = !!state.replayGainEnabled;
+      const replayGainText = state.currentReplayGainResult && typeof library.formatReplayGain === 'function' ? library.formatReplayGain(state.currentReplayGainResult) : '';
       const contextRate = state.context?.sampleRate || 48000;
       const dsdOutputRate = state.dsdOutputRate;
       const dsdOutputDepth = state.dsdOutputDepth;
@@ -1705,6 +1727,8 @@
         stereoBalance,
         crossfeedEnabled,
         crossfeedAmount,
+        replayGainEnabled,
+        replayGainText,
         dsdOutputRate,
         dsdOutputDepth
       });
@@ -2202,7 +2226,9 @@
       const num = Number(value);
       if (num > 0) volumeBeforeMute = num;
       const linear = num / 100, volume = linear === 0 ? 0 : Math.pow(10, (-60 + linear * 60) / 20);
-      audio.volume = volume; standbyAudio.volume = volume;
+      const rgMult = (state.replayGainEnabled && Number.isFinite(state.replayGainMultiplier)) ? state.replayGainMultiplier : 1;
+      const effectiveVolume = Math.max(0, Math.min(1, volume * rgMult));
+      audio.volume = effectiveVolume; standbyAudio.volume = effectiveVolume;
       $('volume').value = value; $('volume-mobile').value = value;
     }
     function toggleMute() {
@@ -2275,6 +2301,77 @@
         const cur = state.tracks.find(t => t.id === state.currentId);
         if (cur) renderSignalPathChain(cur);
       }
+    }
+    // Pha A — ReplayGain & Loudness Normalization: đồng bộ mức âm lượng giữa các bài hát
+    function updateReplayGainUi(result = state.currentReplayGainResult) {
+      const badge = $('replaygain-badge');
+      const toggle = $('replaygain-toggle');
+      const modeSelect = $('replaygain-mode');
+      const preampSlider = $('replaygain-preamp');
+      const preampVal = $('replaygain-preamp-val');
+      if (toggle) toggle.checked = !!state.replayGainEnabled;
+      if (modeSelect) modeSelect.value = state.replayGainMode || 'track';
+      if (preampSlider) preampSlider.value = String(state.replayGainPreamp || 0);
+      if (preampVal) {
+        const val = state.replayGainPreamp || 0;
+        preampVal.textContent = `${val > 0 ? '+' : ''}${val.toFixed(1)} dB`;
+      }
+      if (badge) {
+        if (!state.replayGainEnabled) {
+          badge.textContent = 'Tắt';
+          badge.className = 'font-mono text-[10px] text-zinc-500';
+        } else if (!result || !result.hasReplayGain) {
+          badge.textContent = 'Không có tag';
+          badge.className = 'font-mono text-[10px] text-zinc-400';
+        } else {
+          const sign = result.effectiveDb > 0 ? '+' : '';
+          badge.textContent = `${sign}${result.effectiveDb.toFixed(1)} dB${result.isClipped ? ' ⚡' : ''}`;
+          badge.className = `font-mono text-[10px] ${result.isClipped ? 'text-amber-300' : 'text-emerald-300'}`;
+        }
+      }
+      if (typeof renderSignalPathChain === 'function' && state.currentId) {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (cur) renderSignalPathChain(cur);
+      }
+    }
+    function applyReplayGain(track) {
+      if (!track) {
+        state.currentReplayGainResult = null;
+        state.replayGainMultiplier = 1;
+        updateReplayGainUi(null);
+        return;
+      }
+      const rg = typeof library.parseReplayGain === 'function' ? library.parseReplayGain(track) : { hasReplayGain: false, trackGain: 0, albumGain: 0 };
+      const result = typeof library.computeReplayGainMultiplier === 'function' ? library.computeReplayGainMultiplier(rg, {
+        enabled: state.replayGainEnabled,
+        mode: state.replayGainMode || 'track',
+        preampDb: state.replayGainPreamp || 0,
+        preventClipping: true
+      }) : { multiplier: 1, effectiveDb: 0, isClipped: false, hasReplayGain: false };
+      state.currentReplayGainResult = result;
+      state.replayGainMultiplier = result.multiplier;
+      updateReplayGainUi(result);
+      setGain(Number($('volume').value) || 72);
+    }
+    function setReplayGainEnabled(enabled) {
+      state.replayGainEnabled = !!enabled;
+      try { localStorage.setItem('nocturne-replaygain', state.replayGainEnabled ? '1' : '0'); } catch (_) {}
+      const cur = state.tracks.find(t => t.id === state.currentId);
+      applyReplayGain(cur);
+      toast(state.replayGainEnabled ? 'Đã bật ReplayGain.' : 'Đã tắt ReplayGain.');
+    }
+    function setReplayGainMode(mode) {
+      state.replayGainMode = mode === 'album' ? 'album' : 'track';
+      try { localStorage.setItem('nocturne-replaygain-mode', state.replayGainMode); } catch (_) {}
+      const cur = state.tracks.find(t => t.id === state.currentId);
+      applyReplayGain(cur);
+    }
+    function setReplayGainPreamp(val) {
+      const num = Math.max(-6, Math.min(6, Number(val) || 0));
+      state.replayGainPreamp = num;
+      try { localStorage.setItem('nocturne-replaygain-preamp', String(num)); } catch (_) {}
+      const cur = state.tracks.find(t => t.id === state.currentId);
+      applyReplayGain(cur);
     }
     function paintSeek(input, value) {
       const percent = Math.max(0, Math.min(100, Number(value) / 10));
@@ -2399,6 +2496,7 @@
       scheduleTrackRender(); renderRecentTracks();
       updateCurrentTrackIndicator();
       if (typeof applyAmbientGlow === 'function') applyAmbientGlow(track);
+      if (typeof applyReplayGain === 'function') applyReplayGain(track);
     }
     function renderQueueCurrent(track = trackById(state.currentId)) {
       const title = $('queue-current-title'), artist = $('queue-current-artist'), cover = $('queue-current-cover');
@@ -3860,6 +3958,25 @@
       crossfeedToggle.checked = state.crossfeed > 0;
       crossfeedToggle.addEventListener('change', event => { setCrossfeed(event.target.checked ? (state.crossfeedLast || 0.3) : 0); });
     }
+    try {
+      state.replayGainEnabled = localStorage.getItem('nocturne-replaygain') === '1';
+      state.replayGainMode = localStorage.getItem('nocturne-replaygain-mode') || 'track';
+      state.replayGainPreamp = Number(localStorage.getItem('nocturne-replaygain-preamp')) || 0;
+    } catch (_) {}
+    const rgToggle = $('replaygain-toggle'), rgMode = $('replaygain-mode'), rgPreamp = $('replaygain-preamp');
+    if (rgToggle) {
+      rgToggle.checked = !!state.replayGainEnabled;
+      rgToggle.addEventListener('change', event => setReplayGainEnabled(event.target.checked));
+    }
+    if (rgMode) {
+      rgMode.value = state.replayGainMode || 'track';
+      rgMode.addEventListener('change', event => setReplayGainMode(event.target.value));
+    }
+    if (rgPreamp) {
+      rgPreamp.value = String(state.replayGainPreamp || 0);
+      rgPreamp.addEventListener('input', event => setReplayGainPreamp(event.target.value));
+    }
+    updateReplayGainUi();
     let savedEqPreset = null;
     try { savedEqPreset = localStorage.getItem('nocturne-eq-preset'); } catch (error) { console.warn('Could not load saved EQ preset:', error); }
     if (!applyEqPreset(savedEqPreset)) {
@@ -4028,5 +4145,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-12 01:05 +07 | Đã xong: Pha B - Signal Path kiểu Roon trong Phòng nghe: trực quan hóa chuỗi tín hiệu thời gian thực Nguồn → Giải mã → DSP → Đầu ra từ metadata bài hát và AudioContext graph; badge hiển thị tầng chất lượng (BIT-PERFECT, HI-RES, LOSSLESS, DSD, ENHANCED); panel mở rộng/thu gọn (#toggle-signal-path / #room-signal-chain); tự động đồng bộ khi thay đổi EQ, Balance L/R, Crossfeed hoặc khi chuyển bài; kiểm chứng 3/3 tầng PASS | Lượt kế tiếp: Pha C - Roon Radio: tự động phát bài tiếp theo tương tự khi danh sách phát/hàng đợi kết thúc (dựa trên nghệ sĩ, thể loại, hoặc gợi ý ngẫu nhiên thông minh từ thư viện) | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Ambient Glow đổi màu nền theo ảnh bìa album, Sleep timer fade-out mượt mà -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 00:06 +07 | Đã xong: Pha C - Roon Radio: tự động chọn và phát tiếp bài hát tương tự từ thư viện khi danh sách phát hoặc hàng đợi kết thúc; thuật toán tính điểm thông minh selectRoonRadioTrack (ưu tiên cùng nghệ sĩ, cùng album, yêu thích, tương đồng định dạng Hi-Res/DSD, phạt bài vừa nghe tránh lặp lại); UI banner trong panel Hàng đợi (#roon-radio-banner, #roon-radio-badge, #roon-radio-hint, #roon-radio-toggle), ghi nhớ localStorage 'nocturne-roon-radio'; kết nối với queueIndex để prefetch/preload trước và chuyển bài mượt mà không dừng nhạc; kiểm chứng 3/3 tầng PASS | Lượt kế tiếp: Pha D - Ambient Glow: trích xuất màu chủ đạo từ ảnh bìa album để tạo hiệu ứng ánh sáng nền động mềm mại cho giao diện và Phòng nghe | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Sleep timer fade-out mượt mà, ReplayGain / Loudness Normalization -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:12 +07 | Đã xong: Pha D - Ambient Glow: trích xuất bảng màu chủ đạo từ ảnh bìa album bằng canvas siêu nhẹ (12x12) qua library.extractDominantColors; tạo lớp ánh sáng nền động đa tầng (#ambient-glow) với chuyển cảnh mượt 1.5s trong Phòng nghe (#listening-room); gán biến CSS --ambient-c1, --ambient-c2; fallback an toàn khi không có ảnh hoặc bị CORS; kiểm chứng 12/12 test đơn vị + DOM, toàn bộ 56/56 suite test PASS | Lượt kế tiếp: Pha A - ReplayGain / Loudness Normalization hoặc Parametric EQ nâng cao | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Sleep timer fade-out mượt mà, PWA Service Worker offline caching -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:26 +07 | Đã xong: Pha A - ReplayGain & Loudness Normalization: đồng bộ mức âm lượng giữa các bài hát bằng thuật toán ReplayGain 2.0 (parseReplayGain đọc tag TXXX, Vorbis comments, camelCase / snake_case; computeReplayGainMultiplier tính linear gain, hỗ trợ cả 2 chế độ Track / Album, bù Preamp ±6 dB và cơ chế Anti-clip chống clipping khi gain * peak > 1.0); UI trong panel Parametric Equalizer (#replaygain-toggle, #replaygain-badge, #replaygain-mode, #replaygain-preamp, #replaygain-preamp-val); tích hợp vào setGain điều khiển âm lượng thực tế của deck; hiển thị trong Roon Signal Path (DSP Stage · ENHANCED); kiểm chứng 16/16 test mới, toàn bộ 72/72 suite test PASS | Lượt kế tiếp: Pha B - Album view kiểu Roon (lưới bìa album + trang chi tiết album với danh sách bài và thông tin phát hành) | Backlog: Sleep timer fade-out mượt mà, PWA Service Worker offline caching, Waveform seekbar -->
 </body>
 </html>

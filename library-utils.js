@@ -750,6 +750,9 @@
     if (options.crossfeedEnabled && Number(options.crossfeedAmount) > 0) {
       dspActive.push(`Crossfeed tai nghe: ${Math.round(options.crossfeedAmount * 100)}%`);
     }
+    if (options.replayGainEnabled && options.replayGainText) {
+      dspActive.push(`ReplayGain: ${options.replayGainText}`);
+    }
 
     let dspStep;
     if (dspActive.length > 0) {
@@ -757,7 +760,7 @@
         stage: 'dsp',
         title: 'Xử lý DSP (Digital Signal Processing)',
         description: dspActive.join(' · '),
-        detail: 'Xử lý chuỗi BiquadFilter / Panner / Crossfeed qua Web Audio Graph',
+        detail: 'Xử lý chuỗi BiquadFilter / Panner / Crossfeed / ReplayGain qua Web Audio Graph',
         badge: 'DSP Active',
         isEnhanced: true,
         icon: 'dsp'
@@ -932,5 +935,136 @@
     return results;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors};
+  // ── Pha A — ReplayGain & Loudness Normalization ──
+  // Chuẩn hóa mức âm lượng giữa các bản nhạc dựa trên thông số ReplayGain
+  // (ID3v2 TXXX, FLAC Vorbis comments hoặc ApeTag).
+  function parseGainString(val) {
+    if (typeof val === 'number' && Number.isFinite(val)) return val;
+    if (typeof val !== 'string') return null;
+    const match = val.match(/([-+]?\d+(?:\.\d+)?)\s*(?:dB)?/i);
+    return match ? parseFloat(match[1]) : null;
+  }
+
+  function parsePeakString(val) {
+    if (typeof val === 'number' && Number.isFinite(val)) return val;
+    if (typeof val !== 'string') return null;
+    const num = parseFloat(val);
+    return Number.isFinite(num) && num > 0 ? num : null;
+  }
+
+  function parseReplayGain(input = {}) {
+    if (!input || typeof input !== 'object') {
+      return { trackGain: 0, trackPeak: 1, albumGain: 0, albumPeak: 1, hasReplayGain: false, hasTrackGain: false, hasAlbumGain: false };
+    }
+
+    const tags = input.tags || input;
+    let trackGain = null, trackPeak = null, albumGain = null, albumPeak = null;
+
+    const candidates = [
+      ['trackGain', [input.trackGain, input.replayGainTrackGain, input.replaygain_track_gain, input.REPLAYGAIN_TRACK_GAIN, tags.trackGain, tags.replayGainTrackGain, tags.replaygain_track_gain, tags.REPLAYGAIN_TRACK_GAIN]],
+      ['trackPeak', [input.trackPeak, input.replayGainTrackPeak, input.replaygain_track_peak, input.REPLAYGAIN_TRACK_PEAK, tags.trackPeak, tags.replayGainTrackPeak, tags.replaygain_track_peak, tags.REPLAYGAIN_TRACK_PEAK]],
+      ['albumGain', [input.albumGain, input.replayGainAlbumGain, input.replaygain_album_gain, input.REPLAYGAIN_ALBUM_GAIN, tags.albumGain, tags.replayGainAlbumGain, tags.replaygain_album_gain, tags.REPLAYGAIN_ALBUM_GAIN]],
+      ['albumPeak', [input.albumPeak, input.replayGainAlbumPeak, input.replaygain_album_peak, input.REPLAYGAIN_ALBUM_PEAK, tags.albumPeak, tags.replayGainAlbumPeak, tags.replaygain_album_peak, tags.REPLAYGAIN_ALBUM_PEAK]],
+    ];
+
+    for (const [key, list] of candidates) {
+      for (const val of list) {
+        if (val !== undefined && val !== null) {
+          const parsed = key.endsWith('Peak') ? parsePeakString(val) : parseGainString(val);
+          if (parsed !== null) {
+            if (key === 'trackGain') trackGain = parsed;
+            else if (key === 'trackPeak') trackPeak = parsed;
+            else if (key === 'albumGain') albumGain = parsed;
+            else if (key === 'albumPeak') albumPeak = parsed;
+            break;
+          }
+        }
+      }
+    }
+
+    if (Array.isArray(tags.TXXX)) {
+      for (const frame of tags.TXXX) {
+        const desc = String(frame.description || '').toUpperCase();
+        const data = frame.data;
+        if (trackGain === null && desc === 'REPLAYGAIN_TRACK_GAIN') trackGain = parseGainString(data);
+        if (trackPeak === null && desc === 'REPLAYGAIN_TRACK_PEAK') trackPeak = parsePeakString(data);
+        if (albumGain === null && desc === 'REPLAYGAIN_ALBUM_GAIN') albumGain = parseGainString(data);
+        if (albumPeak === null && desc === 'REPLAYGAIN_ALBUM_PEAK') albumPeak = parsePeakString(data);
+      }
+    }
+
+    const hasTrack = trackGain !== null;
+    const hasAlbum = albumGain !== null;
+    const hasReplayGain = hasTrack || hasAlbum;
+
+    const finalTrackGain = hasTrack ? trackGain : (hasAlbum ? albumGain : 0);
+    const finalAlbumGain = hasAlbum ? albumGain : (hasTrack ? trackGain : 0);
+    const finalTrackPeak = trackPeak !== null ? trackPeak : 1.0;
+    const finalAlbumPeak = albumPeak !== null ? albumPeak : finalTrackPeak;
+
+    return {
+      trackGain: finalTrackGain,
+      trackPeak: finalTrackPeak,
+      albumGain: finalAlbumGain,
+      albumPeak: finalAlbumPeak,
+      hasReplayGain,
+      hasTrackGain: hasTrack,
+      hasAlbumGain: hasAlbum
+    };
+  }
+
+  function computeReplayGainMultiplier(parsedRg, options = {}) {
+    const mode = options.mode === 'album' ? 'album' : 'track';
+    const enabled = options.enabled !== false;
+    const preampDb = Number(options.preampDb) || 0;
+    const preventClipping = options.preventClipping !== false;
+
+    if (!enabled) {
+      return { multiplier: 1, rawGainDb: 0, totalGainDb: 0, effectiveDb: 0, isClipped: false, mode, hasReplayGain: false };
+    }
+
+    const rg = (parsedRg && typeof parsedRg === 'object' && typeof parsedRg.hasReplayGain === 'boolean') ? parsedRg : parseReplayGain(parsedRg);
+    const rawGainDb = mode === 'album' ? rg.albumGain : rg.trackGain;
+    const peak = mode === 'album' ? rg.albumPeak : rg.trackPeak;
+    const hasGain = mode === 'album' ? rg.hasAlbumGain : rg.hasTrackGain;
+
+    const totalGainDb = (hasGain ? rawGainDb : 0) + preampDb;
+    let multiplier = Math.pow(10, totalGainDb / 20);
+    let isClipped = false;
+
+    if (preventClipping && peak > 0 && (multiplier * peak > 1.0)) {
+      multiplier = 1.0 / peak;
+      isClipped = true;
+    }
+
+    multiplier = Math.max(0.0316, Math.min(5.62, multiplier));
+    const effectiveDb = 20 * Math.log10(multiplier);
+
+    return {
+      multiplier,
+      rawGainDb: hasGain ? rawGainDb : 0,
+      totalGainDb,
+      effectiveDb: Math.round(effectiveDb * 10) / 10,
+      isClipped,
+      mode,
+      hasReplayGain: hasGain
+    };
+  }
+
+  function formatReplayGain(gainResult) {
+    if (!gainResult) return 'Bypass';
+    if (typeof gainResult === 'number') {
+      const sign = gainResult > 0 ? '+' : '';
+      return `${sign}${gainResult.toFixed(1)} dB`;
+    }
+    if (!gainResult.hasReplayGain) {
+      return 'Không có tag';
+    }
+    const sign = gainResult.effectiveDb > 0 ? '+' : '';
+    const clipTag = gainResult.isClipped ? ' (Anti-clip)' : '';
+    const modeTag = gainResult.mode === 'album' ? 'Album' : 'Track';
+    return `${sign}${gainResult.effectiveDb.toFixed(1)} dB · ${modeTag}${clipTag}`;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain};
 });
