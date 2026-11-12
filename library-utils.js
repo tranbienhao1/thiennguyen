@@ -753,6 +753,12 @@
     if (options.replayGainEnabled && options.replayGainText) {
       dspActive.push(`ReplayGain: ${options.replayGainText}`);
     }
+    if ((Number.isFinite(options.toneBass) && Math.abs(options.toneBass) > 0.05) || (Number.isFinite(options.toneTreble) && Math.abs(options.toneTreble) > 0.05)) {
+      const toneText = formatToneSummary(options.toneBass, options.toneTreble);
+      if (toneText && toneText !== '0 dB') {
+        dspActive.push(`Âm sắc: ${toneText}`);
+      }
+    }
 
     let dspStep;
     if (dspActive.length > 0) {
@@ -1195,5 +1201,33 @@
     return false;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline};
+  // ── Pha A — Tone Controls (Bass & Treble Quick Trim) ──
+  // Bộ điều chỉnh âm sắc nhanh dải trầm (100 Hz low-shelf) và dải cao (10 kHz high-shelf) ±6 dB
+  const TONE_BASS_FREQ_HZ = 100;
+  const TONE_TREBLE_FREQ_HZ = 10000;
+  const TONE_GAIN_MIN_DB = -6;
+  const TONE_GAIN_MAX_DB = 6;
+
+  function clampToneGain(val, min = TONE_GAIN_MIN_DB, max = TONE_GAIN_MAX_DB) {
+    const num = Number(val);
+    if (!Number.isFinite(num)) return 0;
+    return Math.max(min, Math.min(max, Math.round(num * 2) / 2));
+  }
+
+  function formatToneGain(val) {
+    const num = Number(val) || 0;
+    if (Math.abs(num) < 0.05) return '0 dB';
+    return `${num > 0 ? '+' : ''}${num.toFixed(1)} dB`;
+  }
+
+  function formatToneSummary(bass, treble) {
+    const b = Number(bass) || 0, t = Number(treble) || 0;
+    if (Math.abs(b) < 0.05 && Math.abs(t) < 0.05) return '0 dB';
+    const parts = [];
+    if (Math.abs(b) >= 0.05) parts.push(`Bass ${formatToneGain(b)}`);
+    if (Math.abs(t) >= 0.05) parts.push(`Treble ${formatToneGain(t)}`);
+    return parts.join(' · ');
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary};
 });

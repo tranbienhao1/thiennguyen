@@ -2,6 +2,42 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 04:35 +07] — [Pha A] Tone Controls (Bass & Treble Quick Trim): Bộ Điều Chỉnh Âm Sắc Nhanh Trong Chuỗi Xử Lý DSP
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP (Web Audio API)**.
+- **Tính năng triển khai:**
+  1. **Các hàm toán học & tiện ích Tone Controls (`library-utils.js`):**
+     - Hằng số tần số chuẩn audiophile: `TONE_BASS_FREQ_HZ = 100` (low-shelf 100 Hz), `TONE_TREBLE_FREQ_HZ = 10000` (high-shelf 10 kHz), dải bù trừ `TONE_GAIN_MIN_DB = -6`, `TONE_GAIN_MAX_DB = 6`.
+     - `clampToneGain(val)`: Giới hạn gain trong dải ±6 dB và làm tròn chính xác về bước nhảy 0.5 dB.
+     - `formatToneGain(val)`: Định dạng chuỗi hiển thị mức gain (`0 dB`, `+2.5 dB`, `-1.5 dB`).
+     - `formatToneSummary(bass, treble)`: Định dạng tóm tắt trạng thái âm sắc (`Bass +2.0 dB · Treble -1.5 dB`).
+     - Cập nhật `computeSignalPath(track, options)`: Tích hợp thông tin âm sắc vào tầng DSP (DSP Stage) trong Roon Signal Path khi có can thiệp, đánh dấu `isEnhanced = true`.
+  2. **Giao diện điều khiển trong panel Parametric EQ (`#eq-panel` trong `index.html`):**
+     - Thêm khu vực "Âm sắc nhanh (Tone Controls)" gồm 2 thanh trượt riêng biệt: Trầm (Bass -6..+6 dB) và Bổng (Treble -6..+6 dB).
+     - Nút reset nhanh "0" cho từng thanh trượt giúp đưa ngay về mức 0 dB phẳng.
+     - Nhãn tóm tắt động `#tone-summary-label` hiển thị giá trị hiện tại.
+  3. **Kiến trúc AudioContext Graph & Định Tuyến Động (Dynamic Bypass):**
+     - Tạo cặp node `BiquadFilterNode` độc lập `state.toneNodes` (`bass: lowshelf`, `treble: highshelf`) thông qua `createToneNodes(ctx)`.
+     - **Cơ chế Dynamic Bypass:** Khi cả Bass và Treble đều ở mức 0 dB, hệ thống tự động bypass để tín hiệu âm thanh đi thẳng tới loa (Bit-perfect bit-transparent). Khi người dùng kéo thanh trượt, hệ thống chuyển mạch mượt mà 15ms (`setTargetAtTime`) sang chuỗi bộ lọc mà không gây bất kỳ tiếng click/pop nào.
+     - Lưu trạng thái vào `localStorage` (`nocturne-tone-bass`, `nocturne-tone-treble`) và tự động nạp lại khi tải lại trang.
+  4. **Bộ kiểm thử tự động (Unit & Integration Tests):**
+     - Tạo mới `tone-controls.test.cjs` gồm 16 test cases kiểm thử: tính chính xác của hàm kẹp biên độ, làm tròn 0.5 dB, định dạng chuỗi, tích hợp trong Roon Signal Path, và kiểm tra DOM/script integration.
+     - Toàn bộ 16/16 test cases PASS 100%.
+
+### 📁 Các File Đã Sửa / Tạo Mới:
+- `library-utils.js`: Bổ sung các hằng số và hàm tiện ích Tone Controls, cập nhật `computeSignalPath` và export `NocturneLibrary`.
+- `index.html`: Thêm markup Tone Controls trong `#eq-panel`, mở rộng `state`, bổ sung `createToneNodes`, `applyToneControls`, `setToneBass`, `setToneTreble`, `resetToneControls`, kết nối vào `setupAudio`, thêm auto-schedule log comment.
+- `tone-controls.test.cjs`: Test suite mới cho tính năng Tone Controls (16/16 PASS).
+- `CHANGELOG_AI.md`: Cập nhật nhật ký tiến hóa chu kỳ `[Pha A]`.
+
+### 🚀 Đề Xuất Cho Chu Kỳ Kế Tiếp:
+- **Pha B (UI/UX & Visualizer):** Waveform seekbar trực quan hóa dạng sóng bài hát bằng Web Audio Analyser/Canvas.
+- **Pha C (Core Features):** Đồng bộ lời bài hát .lrc cuộn mượt từng từ (Karaoke word-by-word highlight).
+- **Pha D (Architecture & PWA):** Ambient Sound Mixer (tiếng mưa rơi, lửa trại kết hợp nhạc nền audiophile).
+
+---
+
 ## [Chu Kỳ 2026-11-13 03:55 +07] — [Pha D] Network Status Monitor, Offline Indicator & Smart Fallback: Giám Sát Kết Nối Mạng PWA & Trải Nghiệm Ngoại Tuyến Liền Mạch
 
 ### 🎯 Hạng Mục Nâng Cấp:

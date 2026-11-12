@@ -557,6 +557,26 @@
     <div class="mt-3 flex items-center justify-between gap-3"><button id="eq-add-band" class="rounded-lg border border-white/10 px-3 py-2 text-[10px] text-violet-200 hover:bg-white/5">＋ Thêm band</button><span id="eq-headroom" class="text-[10px] tabular-nums text-emerald-300">Preamp 0 dB</span></div>
     <label class="mt-3 flex items-center justify-between text-xs text-zinc-400">Preamp trim <input id="eq-preamp" class="range w-32" type="range" min="-12" max="0" step="0.5" value="0"></label>
     <div class="mt-3 border-t border-white/10 pt-3">
+      <div class="flex items-center justify-between text-xs text-zinc-400">
+        <span>Âm sắc nhanh (Tone Controls)</span>
+        <span id="tone-summary-label" class="font-mono text-[10px] text-zinc-300">0 dB</span>
+      </div>
+      <div class="mt-2 space-y-2">
+        <div class="flex items-center justify-between gap-2 text-[10px] text-zinc-400">
+          <span class="w-12">Trầm (Bass)</span>
+          <input id="tone-bass-slider" class="range flex-1 cursor-pointer" type="range" min="-6" max="6" step="0.5" value="0" aria-label="Điều chỉnh Bass">
+          <span id="tone-bass-val" class="w-12 text-right font-mono tabular-nums text-zinc-300">0 dB</span>
+          <button id="tone-bass-reset" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] text-zinc-300 hover:bg-white/10 hover:text-white" title="Đặt lại Bass">0</button>
+        </div>
+        <div class="flex items-center justify-between gap-2 text-[10px] text-zinc-400">
+          <span class="w-12">Bổng (Treble)</span>
+          <input id="tone-treble-slider" class="range flex-1 cursor-pointer" type="range" min="-6" max="6" step="0.5" value="0" aria-label="Điều chỉnh Treble">
+          <span id="tone-treble-val" class="w-12 text-right font-mono tabular-nums text-zinc-300">0 dB</span>
+          <button id="tone-treble-reset" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] text-zinc-300 hover:bg-white/10 hover:text-white" title="Đặt lại Treble">0</button>
+        </div>
+      </div>
+    </div>
+    <div class="mt-3 border-t border-white/10 pt-3">
       <div class="flex items-center justify-between text-xs text-zinc-400"><span>Cân bằng L / R</span><span id="balance-label" class="font-mono text-[10px] text-zinc-300">Giữa</span></div>
       <div class="mt-1.5 flex items-center gap-2"><span class="text-[9px] text-zinc-500">L</span><input id="balance-slider" class="range flex-1 cursor-pointer" type="range" min="-100" max="100" value="0" step="1" aria-label="Cân bằng kênh trái phải"><span class="text-[9px] text-zinc-500">R</span><button id="balance-reset" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-300 hover:bg-white/10 hover:text-white" title="Đặt lại về giữa">0</button></div>
     </div>
@@ -862,7 +882,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -1780,6 +1800,8 @@
         stereoBalance,
         crossfeedEnabled,
         crossfeedAmount,
+        toneBass: state.toneBass || 0,
+        toneTreble: state.toneTreble || 0,
         replayGainEnabled,
         replayGainText,
         dsdOutputRate,
@@ -2316,6 +2338,7 @@
         state.directAnalyser.connect(crossfeedInput);
       }
       if (state.crossfeedNodes) { state.crossfeedNodes.output.connect(state.context.destination); applyCrossfeedAmount(); }
+      state.toneNodes = createToneNodes(state.context);
       state.deckA = attachAudioElement(audio); state.deckB = attachAudioElement(standbyAudio); state.activeDeck = state.deckA;
       rebuildAudioRoutes();
       document.addEventListener('visibilitychange', () => { if (document.hidden || audio.paused) setVisualizerRunning(false); else setVisualizerRunning(true); });
@@ -2431,6 +2454,77 @@
         const cur = state.tracks.find(t => t.id === state.currentId);
         if (cur) renderSignalPathChain(cur);
       }
+    }
+    // Pha A — Tone Controls (Bass & Treble Quick Trim): bộ điều chỉnh âm sắc nhanh dải trầm 100 Hz và dải cao 10 kHz
+    function createToneNodes(ctx) {
+      if (!ctx || typeof ctx.createBiquadFilter !== 'function') return null;
+      const bass = ctx.createBiquadFilter();
+      bass.type = 'lowshelf';
+      bass.frequency.value = library.TONE_BASS_FREQ_HZ || 100;
+      bass.gain.value = Number(state.toneBass) || 0;
+
+      const treble = ctx.createBiquadFilter();
+      treble.type = 'highshelf';
+      treble.frequency.value = library.TONE_TREBLE_FREQ_HZ || 10000;
+      treble.gain.value = Number(state.toneTreble) || 0;
+
+      bass.connect(treble);
+      treble.connect(ctx.destination);
+      return { bass, treble, input: bass, output: treble };
+    }
+    function applyToneControls() {
+      const nodes = state.toneNodes;
+      if (nodes && state.context) {
+        nodes.bass.gain.setTargetAtTime(state.toneBass || 0, state.context.currentTime, .015);
+        nodes.treble.gain.setTargetAtTime(state.toneTreble || 0, state.context.currentTime, .015);
+        const hasTone = Math.abs(state.toneBass || 0) > 0.05 || Math.abs(state.toneTreble || 0) > 0.05;
+        if (state.crossfeedNodes) {
+          try {
+            state.crossfeedNodes.output.disconnect();
+            if (hasTone) {
+              state.crossfeedNodes.output.connect(nodes.input);
+            } else {
+              state.crossfeedNodes.output.connect(state.context.destination);
+            }
+          } catch (_) {}
+        }
+      }
+      const bassSlider = $('tone-bass-slider'), bassVal = $('tone-bass-val');
+      const trebleSlider = $('tone-treble-slider'), trebleVal = $('tone-treble-val');
+      const summaryLabel = $('tone-summary-label');
+
+      if (bassSlider) bassSlider.value = String(state.toneBass || 0);
+      if (bassVal) bassVal.textContent = library.formatToneGain(state.toneBass);
+      if (trebleSlider) trebleSlider.value = String(state.toneTreble || 0);
+      if (trebleVal) trebleVal.textContent = library.formatToneGain(state.toneTreble);
+      if (summaryLabel) summaryLabel.textContent = library.formatToneSummary(state.toneBass, state.toneTreble);
+
+      if (typeof renderSignalPathChain === 'function' && state.currentId) {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (cur) renderSignalPathChain(cur);
+      }
+    }
+    function setToneBass(value) {
+      const gain = library.clampToneGain(value);
+      state.toneBass = gain;
+      try { localStorage.setItem('nocturne-tone-bass', String(gain)); } catch (_) {}
+      applyToneControls();
+    }
+    function setToneTreble(value) {
+      const gain = library.clampToneGain(value);
+      state.toneTreble = gain;
+      try { localStorage.setItem('nocturne-tone-treble', String(gain)); } catch (_) {}
+      applyToneControls();
+    }
+    function resetToneControls() {
+      state.toneBass = 0;
+      state.toneTreble = 0;
+      try {
+        localStorage.setItem('nocturne-tone-bass', '0');
+        localStorage.setItem('nocturne-tone-treble', '0');
+      } catch (_) {}
+      applyToneControls();
+      toast('Đã đặt lại Tone Controls về phẳng (0 dB).');
     }
     // Pha A — ReplayGain & Loudness Normalization: đồng bộ mức âm lượng giữa các bài hát
     function updateReplayGainUi(result = state.currentReplayGainResult) {
@@ -4202,6 +4296,35 @@
       rgPreamp.addEventListener('input', event => setReplayGainPreamp(event.target.value));
     }
     updateReplayGainUi();
+    try {
+      const savedBass = parseFloat(localStorage.getItem('nocturne-tone-bass'));
+      if (Number.isFinite(savedBass)) state.toneBass = library.clampToneGain(savedBass);
+      const savedTreble = parseFloat(localStorage.getItem('nocturne-tone-treble'));
+      if (Number.isFinite(savedTreble)) state.toneTreble = library.clampToneGain(savedTreble);
+    } catch (_) {}
+    const toneBassSlider = $('tone-bass-slider'), toneTrebleSlider = $('tone-treble-slider');
+    const toneBassReset = $('tone-bass-reset'), toneTrebleReset = $('tone-treble-reset');
+    if (toneBassSlider) {
+      toneBassSlider.value = String(state.toneBass || 0);
+      toneBassSlider.addEventListener('input', e => setToneBass(e.target.value));
+    }
+    if (toneTrebleSlider) {
+      toneTrebleSlider.value = String(state.toneTreble || 0);
+      toneTrebleSlider.addEventListener('input', e => setToneTreble(e.target.value));
+    }
+    if (toneBassReset) {
+      toneBassReset.addEventListener('click', () => {
+        setToneBass(0);
+        toast('Âm trầm (Bass): 0 dB');
+      });
+    }
+    if (toneTrebleReset) {
+      toneTrebleReset.addEventListener('click', () => {
+        setToneTreble(0);
+        toast('Âm bổng (Treble): 0 dB');
+      });
+    }
+    applyToneControls();
     let savedEqPreset = null;
     try { savedEqPreset = localStorage.getItem('nocturne-eq-preset'); } catch (error) { console.warn('Could not load saved EQ preset:', error); }
     if (!applyEqPreset(savedEqPreset)) {
@@ -4386,5 +4509,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:34 +07 | Đã xong: Pha B - Album View kiểu Roon: hiển thị trang chi tiết album với hero header (#album-hero: ảnh bìa lớn, tên album, nghệ sĩ, thống kê số bài + tổng thời lượng qua library.formatAlbumDuration, huy hiệu chất lượng phát hành cao nhất DSD/Hi-Res/Lossless qua library.summarizeAlbum); các nút hành động nhanh (#album-hero-play phát toàn bộ album, #album-hero-queue thêm toàn bộ album vào hàng đợi, #album-hero-back quay lại danh sách bộ sưu tập); tự động ẩn hero khi thoát scope album; kiểm chứng 11/11 test mới, toàn bộ 83/83 suite test PASS | Lượt kế tiếp: Pha C - Sleep timer fade-out mượt mà (giảm dần âm lượng trong 30 giây cuối trước khi dừng phát) | Backlog: PWA Service Worker offline caching, Waveform seekbar, AutoEQ presets cho tai nghe -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:45 +07 | Đã xong: Pha C - Sleep Timer Fade-Out: giảm âm lượng mượt mà theo đường cong equal-power sine (library.calculateSleepFadeGain) trong 30 giây cuối (hoặc min(30s, duration/2)) trước khi dừng phát khi hết giờ hẹn ngủ; checkbox tùy chọn #sleep-fadeout trong #sleep-panel; bảo toàn và khôi phục nguyên vẹn mức âm lượng ban đầu (state.sleepOriginalVolume) khi dừng hoặc khi hủy hẹn giờ (clearSleepTimer, sleep-track-end); helper formatSleepRemaining định dạng thời gian còn lại; kiểm chứng 14/14 test mới, toàn bộ suite test PASS | Lượt kế tiếp: Pha D - PWA Service Worker offline caching nâng cao cho bài đã tải | Backlog: Waveform seekbar bằng Web Audio Analyser/Canvas, AutoEQ presets cho tai nghe, Ambient Sound Mixer -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:55 +07 | Đã xong: Pha D - Network Status Monitor, Offline Indicator & Smart Fallback: giám sát trạng thái mạng PWA qua helper thuần library.isOnlineState, library.formatNetworkStatus và library.canPlayOffline; thanh thông báo #offline-banner với hiệu ứng pulse và nhãn trạng thái; lắng nghe sự kiện online/offline tự động chuyển chế độ và toast phản hồi; playTrack ngăn chặn lỗi giải mã mạng cho bài cloud khi mất mạng và toast hướng dẫn rõ ràng thay vì bỏ qua bài; kiểm chứng 14/14 test mới, toàn bộ suite test PASS | Lượt kế tiếp: Pha A - Parametric EQ presets / AutoEQ profiles cho các dòng tai nghe phổ biến | Backlog: Waveform seekbar bằng Web Audio Analyser/Canvas, Ambient Sound Mixer, Đồng bộ lyrics .lrc cuộn mượt từng từ -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 04:35 +07 | Đã xong: Pha A - Tone Controls (Bass & Treble Quick Trim): tích hợp bộ điều chỉnh âm sắc nhanh dải trầm (100 Hz low-shelf) và dải cao (10 kHz high-shelf) ±6 dB với bước 0.5 dB; UI slider kèm nút reset nhanh trong panel EQ (#tone-bass-slider, #tone-treble-slider, #tone-summary-label); AudioContext Graph định tuyến động qua createToneNodes (khi 0 dB tự động bypass bit-perfect, khi có can thiệp chuyển mượt 15ms sang biquad filter); hiển thị trong Roon Signal Path (DSP Stage · ENHANCED); lưu localStorage nocturne-tone-bass / nocturne-tone-treble; kiểm chứng 16/16 test mới, toàn bộ suite test PASS | Lượt kế tiếp: Pha B - Waveform seekbar trực quan hóa dạng sóng bài hát bằng Web Audio Analyser/Canvas | Backlog: Ambient Sound Mixer, Đồng bộ lyrics .lrc cuộn mượt từng từ, AutoEQ headphone compensation profiles -->
 </body>
 </html>
