@@ -145,6 +145,8 @@
     #quality-badge { border-radius:5px; } footer button.rounded-lg { border-color:#ffffff12;background:#ffffff05; }
     footer button.rounded-lg:hover { background:#ffffff10; }
     #listening-room { background:radial-gradient(ellipse at 26% 48%,#263136 0,transparent 40%),rgba(16,18,20,.98); }
+    #ambient-glow { pointer-events:none;position:absolute;inset:0;border-radius:inherit;opacity:0;transition:opacity 1.5s ease,background 1.5s ease;z-index:0; }
+    #ambient-glow.active { opacity:1; }
     #metadata-modal:not(.hidden) { display:flex; }
     .metadata-dialog a { color:#a8d9ec;text-decoration:underline;text-underline-offset:3px; }
     .metadata-tab { flex:none;padding:10px 1px 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:#8f999e;font-size:12px; }
@@ -533,6 +535,7 @@
     </div>
   </div>
   <div id="listening-room" class="fixed inset-0 z-[55] hidden overflow-y-auto bg-[#09090b]/95 p-4 backdrop-blur-2xl sm:p-8" role="dialog" aria-modal="true" aria-labelledby="room-title">
+    <div id="ambient-glow" aria-hidden="true"></div>
     <div class="mx-auto flex min-h-full max-w-6xl flex-col"><header class="flex items-center justify-between"><span class="text-[10px] font-semibold uppercase tracking-[.24em] text-violet-200">NOCTURNE · NOW PLAYING</span><button id="room-close" type="button" class="rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 hover:bg-white/10" aria-label="Đóng màn hình Đang phát">Đóng ×</button></header>
       <main class="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,.85fr)] lg:gap-16">
         <div class="relative mx-auto aspect-square w-full max-w-[min(72vw,520px)] overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 shadow-2xl shadow-violet-950/20"><div class="absolute inset-0 bg-gradient-to-br from-violet-500/15 via-transparent to-black/40"></div><img id="room-cover" class="relative h-full w-full object-contain" alt="Bìa album" hidden><div id="room-cover-empty" class="grid h-full w-full place-items-center text-8xl text-violet-200/70">♫</div></div>
@@ -1728,6 +1731,57 @@
         return `<div class="relative flex items-start gap-3 pl-1">${!isLast ? '<div class="absolute left-[11px] top-5 -bottom-2 w-px bg-white/10"></div>' : ''}<span class="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-white/10 bg-zinc-900 text-[10px] text-zinc-300">${icon}</span><div class="min-w-0 flex-1"><div class="flex items-center justify-between gap-2"><span class="text-[11px] font-medium text-zinc-200">${escapeHtml(step.title)}</span><span class="rounded border px-1.5 py-0.5 text-[9px] font-medium ${badgeColor}">${escapeHtml(step.badge)}</span></div><p class="mt-0.5 text-[10px] leading-4 text-zinc-400">${escapeHtml(step.description)}</p><p class="text-[9px] leading-3 text-zinc-600">${escapeHtml(step.detail)}</p></div></div>`;
       }).join('');
     }
+    // ── Pha D — Ambient Glow: Trích xuất màu chủ đạo từ bìa album để tạo
+    // hiệu ứng nền phát sáng mềm động trong Phòng nghe và thanh phát.
+    // Sử dụng Canvas offscreen nhỏ (12×12) để lấy pixel, gọi
+    // library.extractDominantColors rồi áp gradient radial lên #ambient-glow.
+    // Fallback mặc định violet khi ảnh CORS-blocked hoặc không có bìa.
+    const _ambientCanvas = document.createElement('canvas');
+    _ambientCanvas.width = 12; _ambientCanvas.height = 12;
+    const _ambientCtx = _ambientCanvas.getContext('2d', { willReadFrequently: true });
+    let _lastAmbientCoverId = '';
+    function applyAmbientGlow(track) {
+      const glow = $('ambient-glow');
+      if (!glow) return;
+      const coverSrc = track?.cover;
+      const trackId = track?.id || '';
+      if (_lastAmbientCoverId === trackId && glow.classList.contains('active')) return;
+      _lastAmbientCoverId = trackId;
+      if (!coverSrc) {
+        glow.classList.remove('active');
+        glow.style.background = '';
+        document.documentElement.style.removeProperty('--ambient-c1');
+        document.documentElement.style.removeProperty('--ambient-c2');
+        return;
+      }
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () {
+        try {
+          _ambientCtx.drawImage(img, 0, 0, 12, 12);
+          const data = _ambientCtx.getImageData(0, 0, 12, 12);
+          const colors = library.extractDominantColors(data.data, 12, 12, 3);
+          if (colors.length === 0) {
+            glow.classList.remove('active');
+            return;
+          }
+          const c1 = colors[0], c2 = colors[1] || colors[0], c3 = colors[2] || colors[0];
+          const bg = `radial-gradient(ellipse at 20% 30%, rgba(${c1[0]},${c1[1]},${c1[2]},.18) 0%, transparent 55%), `
+            + `radial-gradient(ellipse at 80% 70%, rgba(${c2[0]},${c2[1]},${c2[2]},.12) 0%, transparent 50%), `
+            + `radial-gradient(ellipse at 50% 100%, rgba(${c3[0]},${c3[1]},${c3[2]},.10) 0%, transparent 45%)`;
+          glow.style.background = bg;
+          glow.classList.add('active');
+          document.documentElement.style.setProperty('--ambient-c1', `${c1[0]},${c1[1]},${c1[2]}`);
+          document.documentElement.style.setProperty('--ambient-c2', `${c2[0]},${c2[1]},${c2[2]}`);
+        } catch (_e) {
+          glow.classList.remove('active');
+        }
+      };
+      img.onerror = function () {
+        glow.classList.remove('active');
+      };
+      img.src = coverSrc;
+    }
     function renderCollectionCards(tracks) {
       const grid = $('collection-grid'), view = state.activeView;
       const metadata = track => library.trackMetadata(track);
@@ -2344,6 +2398,7 @@
       $('seek').value = '0'; $('seek-mobile').value = '0'; paintSeek($('seek'), 0); paintSeek($('seek-mobile'), 0);
       scheduleTrackRender(); renderRecentTracks();
       updateCurrentTrackIndicator();
+      if (typeof applyAmbientGlow === 'function') applyAmbientGlow(track);
     }
     function renderQueueCurrent(track = trackById(state.currentId)) {
       const title = $('queue-current-title'), artist = $('queue-current-artist'), cover = $('queue-current-cover');
@@ -3972,5 +4027,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-12 00:12 +07 | Đã xong: Pha A - DSP Crossfeed kiểu Roon cho nghe tai nghe: đồ thị chèn sau panner (panner → splitter 2 kênh → merger → destination; mỗi kênh đi thẳng, đồng thời một phần qua lọc thấp 700 Hz + trễ 0,3 ms + gain chéo tối đa 0,35 ≈ −9 dB rồi trộn sang kênh đối diện), mức 0 thì gain chéo = 0 nên đường thẳng không đổi; UI trong panel Parametric Equalizer (#crossfeed-toggle bật/tắt, #crossfeed-slider 0–100%, #crossfeed-label), bật lại khôi phục mức cuối (mặc định 30%), lưu localStorage 'nocturne-crossfeed' và khôi phục khi mở lại trang, hiện mức trong dòng tín hiệu Phòng nghe; fallback khi trình duyệt thiếu ChannelSplitter/ChannelMerger/Delay/BiquadFilter thì nối thẳng destination như cũ; test mới crossfeed.test.cjs (helper kẹp/gain/định dạng, nối dây đồ thị mock, fallback, fail đúng trên code cũ); đã cập nhật guard nối dây trong index-script.test.cjs theo đồ thị mới | Kiểm chứng: 3/3 Tầng PASS, node --test 39/39 | Lượt kế tiếp: Pha B - Signal Path kiểu Roon trong Phòng nghe (vẽ chuỗi Nguồn → Giải mã → DSP → Đầu ra từ dữ liệu đã có) | Backlog: Roon Radio phát tiếp bài tương tự khi hết hàng đợi (chờ Melissa chọn), Album view kiểu Roon (lưới bìa album + trang chi tiết album), Ambient Glow đổi màu nền theo ảnh bìa album -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-12 01:05 +07 | Đã xong: Pha B - Signal Path kiểu Roon trong Phòng nghe: trực quan hóa chuỗi tín hiệu thời gian thực Nguồn → Giải mã → DSP → Đầu ra từ metadata bài hát và AudioContext graph; badge hiển thị tầng chất lượng (BIT-PERFECT, HI-RES, LOSSLESS, DSD, ENHANCED); panel mở rộng/thu gọn (#toggle-signal-path / #room-signal-chain); tự động đồng bộ khi thay đổi EQ, Balance L/R, Crossfeed hoặc khi chuyển bài; kiểm chứng 3/3 tầng PASS | Lượt kế tiếp: Pha C - Roon Radio: tự động phát bài tiếp theo tương tự khi danh sách phát/hàng đợi kết thúc (dựa trên nghệ sĩ, thể loại, hoặc gợi ý ngẫu nhiên thông minh từ thư viện) | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Ambient Glow đổi màu nền theo ảnh bìa album, Sleep timer fade-out mượt mà -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 00:06 +07 | Đã xong: Pha C - Roon Radio: tự động chọn và phát tiếp bài hát tương tự từ thư viện khi danh sách phát hoặc hàng đợi kết thúc; thuật toán tính điểm thông minh selectRoonRadioTrack (ưu tiên cùng nghệ sĩ, cùng album, yêu thích, tương đồng định dạng Hi-Res/DSD, phạt bài vừa nghe tránh lặp lại); UI banner trong panel Hàng đợi (#roon-radio-banner, #roon-radio-badge, #roon-radio-hint, #roon-radio-toggle), ghi nhớ localStorage 'nocturne-roon-radio'; kết nối với queueIndex để prefetch/preload trước và chuyển bài mượt mà không dừng nhạc; kiểm chứng 3/3 tầng PASS | Lượt kế tiếp: Pha D - Ambient Glow: trích xuất màu chủ đạo từ ảnh bìa album để tạo hiệu ứng ánh sáng nền động mềm mại cho giao diện và Phòng nghe | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Sleep timer fade-out mượt mà, ReplayGain / Loudness Normalization -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:12 +07 | Đã xong: Pha D - Ambient Glow: trích xuất bảng màu chủ đạo từ ảnh bìa album bằng canvas siêu nhẹ (12x12) qua library.extractDominantColors; tạo lớp ánh sáng nền động đa tầng (#ambient-glow) với chuyển cảnh mượt 1.5s trong Phòng nghe (#listening-room); gán biến CSS --ambient-c1, --ambient-c2; fallback an toàn khi không có ảnh hoặc bị CORS; kiểm chứng 12/12 test đơn vị + DOM, toàn bộ 56/56 suite test PASS | Lượt kế tiếp: Pha A - ReplayGain / Loudness Normalization hoặc Parametric EQ nâng cao | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Sleep timer fade-out mượt mà, PWA Service Worker offline caching -->
 </body>
 </html>

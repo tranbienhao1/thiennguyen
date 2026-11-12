@@ -897,5 +897,40 @@
     return scored[0];
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack};
+  // ── Pha D — Ambient Glow: Trích xuất bảng màu chủ đạo từ pixel data ──
+  // Nhận RGBA Uint8ClampedArray (hoặc plain Array) + kích thước canvas,
+  // trả về mảng tối đa `count` màu dạng [r, g, b] sắp theo tần suất giảm dần.
+  // Thuật toán: Lượng tử hóa (quantize) mỗi kênh xuống bước 32 (8 mức) rồi
+  // đếm tần suất; bỏ pixel quá tối (< 25) và quá sáng (> 230) để glow có màu
+  // rõ ràng. Fallback: mảng rỗng nếu không đủ pixel hợp lệ.
+  function extractDominantColors(pixelData, width, height, count) {
+    count = Math.max(1, Math.min(count || 3, 8));
+    const step = 32;
+    const bins = Object.create(null);
+    const total = width * height;
+    for (let i = 0; i < total; i++) {
+      const off = i * 4;
+      const r = pixelData[off], g = pixelData[off + 1], b = pixelData[off + 2];
+      const a = pixelData[off + 3];
+      if (a < 128) continue;
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (lum < 25 || lum > 230) continue;
+      const qr = Math.round(r / step) * step;
+      const qg = Math.round(g / step) * step;
+      const qb = Math.round(b / step) * step;
+      const key = `${qr},${qg},${qb}`;
+      if (!bins[key]) bins[key] = { r: 0, g: 0, b: 0, n: 0 };
+      bins[key].r += r; bins[key].g += g; bins[key].b += b; bins[key].n += 1;
+    }
+    const entries = Object.values(bins).filter(b => b.n > 0);
+    entries.sort((a, b) => b.n - a.n);
+    const results = [];
+    for (let i = 0; i < Math.min(count, entries.length); i++) {
+      const e = entries[i];
+      results.push([Math.round(e.r / e.n), Math.round(e.g / e.n), Math.round(e.b / e.n)]);
+    }
+    return results;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors};
 });

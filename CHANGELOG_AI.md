@@ -2,6 +2,41 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 03:12 +07] — [Pha D] Ambient Glow: Hiệu Ứng Ánh Sáng Nền Động Trích Xuất Từ Bìa Album
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. UI/UX & Visualizer Hiện Đại**.
+- **Tính năng triển khai:**
+  1. **Thuật toán trích xuất màu chủ đạo `extractDominantColors(pixelData, width, height, count)` (`library-utils.js`):**
+     - Xử lý dữ liệu pixel mảng RGBA từ canvas offscreen siêu nhẹ (12×12 pixel).
+     - Lượng tử hóa không gian màu (quantization với bước 32) để gom nhóm màu hiệu quả và tính tần suất xuất hiện.
+     - Lọc bỏ các pixel quá tối (luminance < 25) và quá sáng (luminance > 230), loại bỏ pixel trong suốt (alpha < 128) để ánh sáng nền giữ độ bão hòa và tương phản tốt trong giao diện tối.
+     - Trả về danh sách `[r, g, b]` được sắp xếp theo mức độ phổ biến giảm dần.
+  2. **Hiệu ứng nền phát sáng mềm mại thời gian thực (`#ambient-glow` trong `index.html`):**
+     - Tạo lớp phủ nền mềm mại đa điểm phát (`radial-gradient` 3 điểm phát quang: 20% 30%, 80% 70%, 50% 100%) dựa trên bảng màu được trích xuất.
+     - Thiết lập chuyển cảnh mượt mà 60fps (`transition: opacity 1.5s ease, background 1.5s ease`).
+     - Đặt các biến CSS toàn cục `--ambient-c1` và `--ambient-c2` để các thành phần UI khác có thể tận dụng màu sắc bìa album.
+     - Fallback an toàn: ẩn hiệu ứng nhẹ nhàng khi bài hát không có bìa hoặc khi ảnh bìa bị lỗi cross-origin (CORS).
+  3. **Tích hợp liền mạch vào vòng đời phát nhạc (`displayTrack`):**
+     - Tự động gọi `applyAmbientGlow(track)` mỗi khi chuyển bài hát mới hoặc cập nhật metadata.
+     - Kiểm tra tránh tính toán lại lặp (caching id bài hát `_lastAmbientCoverId`).
+  4. **Bộ kiểm thử tự động (Unit & Integration Tests):**
+     - Tạo mới `ambient-glow.test.cjs` kiểm thử 12 kịch bản: pixel quá tối, quá sáng, đồng nhất, sắp xếp tần suất, pixel trong suốt, giới hạn số lượng màu, mảng rỗng, cùng các assertions về DOM và script integration.
+     - Toàn bộ test suite chạy đạt 56/56 PASS.
+
+### 📁 Các File Đã Sửa / Tạo Mới:
+- `library-utils.js`: Bổ sung hàm `extractDominantColors` và xuất trong `NocturneLibrary`.
+- `index.html`: Thêm CSS `#ambient-glow`, chèn markup `#ambient-glow` trong `#listening-room`, bổ sung hàm `applyAmbientGlow`, tích hợp gọi từ `displayTrack`, thêm auto-schedule log comment.
+- `ambient-glow.test.cjs`: File test suite mới kiểm tra thuật toán và DOM integration.
+- `CHANGELOG_AI.md`: Cập nhật nhật ký tiến hóa chu kỳ.
+
+### 🚀 Đề Xuất Cho Chu Kỳ Kế Tiếp:
+- **Pha A (Audio Engine & DSP):** Tích hợp ReplayGain / Loudness Normalization hoặc Parametric EQ nâng cao (AutoEQ profiles).
+- **Pha B (UI/UX & Core Features):** Album view kiểu Roon (lưới bìa album + trang chi tiết album).
+- **Pha C (Core Features):** Sleep timer fade-out mượt mà (giảm dần âm lượng 30s cuối).
+
+---
+
 ## [Chu Kỳ 2026-11-13 00:06 +07] — [Pha C] Roon Radio: Tự Động Chọn & Phát Bài Tương Tự Khi Hết Danh Sách
 
 ### 🎯 Hạng Mục Nâng Cấp:
