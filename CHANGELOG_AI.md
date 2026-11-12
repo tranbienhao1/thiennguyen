@@ -2,6 +2,43 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 03:34 +07] — [Pha B] Album View Kiểu Roon: Trang Chi Tiết Album Với Hero Header & Thao Tác Nhanh
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. UI/UX & Visualizer Hiện Đại**.
+- **Tính năng triển khai:**
+  1. **Thuật toán tổng hợp thông tin album `summarizeAlbum(tracks)` & `formatAlbumDuration` (`library-utils.js`):**
+     - Tổng hợp tổng thời lượng của toàn bộ các bài hát trong album và định dạng thân thiện (`X giờ Y phút` hoặc `X phút Y giây`).
+     - Tự động phát hiện và gán huy hiệu chất lượng cao nhất của bản phát hành: `DSD` (nếu có bài DSD) > `HI-RES` (nếu có bài >48kHz hoặc >16-bit) > `LOSSLESS` (FLAC/WAV/AIFF 16/44.1) > `STANDARD`.
+     - Tập hợp các định dạng âm thanh xuất hiện trong album và năm phát hành.
+  2. **Giao diện Hero Header chi tiết album kiểu Roon (`#album-hero` trong `index.html`):**
+     - Khung hiển thị ảnh bìa nổi bật với bóng đổ sâu (`shadow-xl shadow-black/40`).
+     - Huy hiệu chất lượng phát hành (`#album-hero-quality`) đổi màu động theo tầng chất lượng: vàng hổ phách (DSD), cyan (Hi-Res), trắng ngà (Lossless).
+     - Tiêu đề album lớn, tên nghệ sĩ, thông tin số bài hát và tổng thời lượng phát.
+     - **Nút hành động nhanh:**
+       - `▶ Phát album` (`#album-hero-play`): Bắt đầu phát bài đầu tiên và tự động đưa toàn bộ các bài còn lại của album vào danh sách phát tiếp theo.
+       - `＋ Hàng đợi` (`#album-hero-queue`): Thêm toàn bộ các bài trong album vào hàng đợi (`queueTrackIds`) một cách thông minh, không trùng bài đang phát.
+       - `‹ Quay lại` (`#album-hero-back`): Đóng chi tiết album, khôi phục lại lưới hiển thị album đầy đủ.
+  3. **Tự động chuyển đổi ngữ cảnh và điều hướng linh hoạt:**
+     - Tự động gọi `showAlbumHero(entry, action)` khi nhấn vào bất kỳ thẻ album nào trong lưới.
+     - Tự động ẩn `#album-hero` khi người dùng chuyển tab điều hướng (Home, Artists, Songs, History) hoặc nhấn nút `‹ Quay lại` trên thanh tiêu đề.
+  4. **Bộ kiểm thử tự động (Unit & Integration Tests):**
+     - Tạo mới `album-view.test.cjs` kiểm thử 11 kịch bản: định dạng thời lượng, tổng hợp thông tin album, xếp bậc chất lượng DSD / Hi-Res / Lossless, và kiểm tra tính toàn vẹn của DOM markup cùng script logic.
+     - Toàn bộ test suite chạy đạt **83/83 PASS (0 fail)**.
+
+### 📁 Các File Đã Sửa / Tạo Mới:
+- `library-utils.js`: Bổ sung `summarizeAlbum` và `formatAlbumDuration`, cập nhật export `NocturneLibrary`.
+- `index.html`: Thêm markup `#album-hero` vào `library-view`, bổ sung hàm `showAlbumHero`, tích hợp vào `renderCollectionCards`, `renderTracks`, `setLibraryView`, `back-button`, thêm auto-schedule log comment.
+- `album-view.test.cjs`: File test suite mới kiểm tra logic tóm tắt album và giao diện chi tiết album.
+- `CHANGELOG_AI.md`: Cập nhật nhật ký tiến hóa chu kỳ.
+
+### 🚀 Đề Xuất Cho Chu Kỳ Kế Tiếp:
+- **Pha C (Core Features):** Sleep timer fade-out mượt mà (giảm dần âm lượng trong 30 giây cuối trước khi dừng phát).
+- **Pha D (Architecture & PWA):** PWA Service Worker offline caching nâng cao cho bài hát đã tải.
+- **Pha A (Audio Engine & DSP):** AutoEQ profiles bù trừ tần số cho các dòng tai nghe phổ biến.
+
+---
+
 ## [Chu Kỳ 2026-11-13 03:26 +07] — [Pha A] ReplayGain & Loudness Normalization: Đồng Bộ Âm Lượng Tự Động Giữa Các Bản Nhạc
 
 ### 🎯 Hạng Mục Nâng Cấp:

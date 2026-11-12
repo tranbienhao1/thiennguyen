@@ -410,6 +410,37 @@
           <select id="group-by" aria-label="Nhóm bài hát"><option value="none">Không nhóm</option><option value="artist">Nhóm nghệ sĩ</option><option value="album">Nhóm album</option></select>
         </div>
         <div id="collection-grid" aria-live="polite"></div>
+        <div id="album-hero" class="hidden mb-6 rounded-2xl border border-white/10 bg-gradient-to-b from-white/[.04] to-transparent p-5 sm:p-6">
+          <div class="flex flex-col gap-5 sm:flex-row sm:items-end">
+            <div id="album-hero-cover" class="relative aspect-square w-32 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-zinc-800 shadow-xl shadow-black/40 sm:w-40">
+              <span class="grid h-full w-full place-items-center text-4xl text-zinc-500">♫</span>
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span id="album-hero-type" class="text-[10px] font-semibold uppercase tracking-[.2em] text-violet-300">ALBUM</span>
+                <span id="album-hero-quality" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-300">LOSSLESS</span>
+              </div>
+              <h2 id="album-hero-title" class="mt-1.5 truncate text-xl font-bold tracking-tight text-white sm:text-2xl">Album Title</h2>
+              <p id="album-hero-artist" class="mt-0.5 truncate text-xs font-medium text-zinc-300 sm:text-sm">Artist Name</p>
+              <div id="album-hero-meta" class="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
+                <span id="album-hero-tracks">0 bài</span>
+                <span>·</span>
+                <span id="album-hero-duration">0:00</span>
+              </div>
+              <div class="mt-3.5 flex flex-wrap items-center gap-2.5">
+                <button id="album-hero-play" type="button" class="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-violet-700/25 transition hover:bg-violet-500" title="Phát toàn bộ album">
+                  <span>▶</span><span>Phát album</span>
+                </button>
+                <button id="album-hero-queue" type="button" class="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white" title="Thêm toàn bộ album vào hàng đợi">
+                  <span>＋</span><span>Hàng đợi</span>
+                </button>
+                <button id="album-hero-back" type="button" class="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400 transition hover:bg-white/10 hover:text-white" title="Quay lại danh sách album">
+                  <span>‹</span><span>Quay lại</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
         <div id="track-list-header" class="hidden grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b px-3 pb-2 text-[10px] uppercase tracking-[.16em] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]"><span>Bài hát</span><span class="hidden sm:block">Album</span><span class="hidden sm:block">Chất lượng</span><span class="text-right">Thời lượng / info</span></div>
         <div id="track-list" class="mt-1 space-y-1"></div>
         <div id="empty-state" class="mt-3 rounded-2xl border border-dashed border-white/10 px-5 py-12 text-center">
@@ -1806,6 +1837,80 @@
       };
       img.src = coverSrc;
     }
+    // Pha B — Album View kiểu Roon: hiển thị trang chi tiết album với ảnh bìa lớn,
+    // thông tin chất lượng phát hành (DSD/Hi-Res/Lossless), tổng thời lượng và các nút
+    // thao tác nhanh (Phát album, Thêm hàng đợi).
+    function showAlbumHero(entry, action = 'album') {
+      const hero = $('album-hero');
+      if (!hero || !entry) return;
+      const isAlbum = action === 'album';
+      const summary = typeof library.summarizeAlbum === 'function' ? library.summarizeAlbum(entry.tracks) : {
+        trackCount: entry.tracks ? entry.tracks.length : 0,
+        formattedDuration: '',
+        highestQuality: { label: 'LOSSLESS', tier: 'lossless' }
+      };
+
+      const titleEl = $('album-hero-title');
+      const artistEl = $('album-hero-artist');
+      const typeEl = $('album-hero-type');
+      const qualityEl = $('album-hero-quality');
+      const tracksEl = $('album-hero-tracks');
+      const durationEl = $('album-hero-duration');
+      const coverEl = $('album-hero-cover');
+
+      if (titleEl) titleEl.textContent = entry.name;
+      if (artistEl) artistEl.textContent = isAlbum ? (entry.artist || '—') : `${entry.tracks.length} bài hát`;
+      if (typeEl) typeEl.textContent = isAlbum ? 'ALBUM' : 'ARTIST';
+      if (qualityEl) {
+        qualityEl.textContent = summary.highestQuality.label;
+        const tone = summary.highestQuality.tier === 'dsd' ? 'border-amber-400/30 bg-amber-500/10 text-amber-300' :
+          summary.highestQuality.tier === 'highres' ? 'border-cyan-400/30 bg-cyan-500/10 text-cyan-300' :
+          'border-white/10 bg-white/5 text-zinc-300';
+        qualityEl.className = `rounded border px-2 py-0.5 text-[9px] font-medium ${tone}`;
+      }
+      if (tracksEl) tracksEl.textContent = `${summary.trackCount} bài`;
+      if (durationEl) durationEl.textContent = summary.formattedDuration || '—';
+      if (coverEl) {
+        coverEl.innerHTML = entry.cover ? `<img src="${escapeHtml(entry.cover)}" class="h-full w-full object-cover" alt="">` : `<span class="grid h-full w-full place-items-center text-4xl text-zinc-500">♫</span>`;
+      }
+
+      const playBtn = $('album-hero-play');
+      const queueBtn = $('album-hero-queue');
+      const backBtn = $('album-hero-back');
+
+      if (playBtn) {
+        playBtn.onclick = () => {
+          if (entry.tracks && entry.tracks.length > 0) {
+            playTrack(entry.tracks[0].id);
+            state.queueTrackIds = entry.tracks.slice(1).map(t => t.id);
+            renderQueue();
+            toast(`Đang phát: ${entry.name}`);
+          }
+        };
+      }
+      if (queueBtn) {
+        queueBtn.onclick = () => {
+          let count = 0;
+          for (const t of (entry.tracks || [])) {
+            if (!state.queueTrackIds.includes(t.id) && t.id !== state.currentId) {
+              state.queueTrackIds.push(t.id);
+              count++;
+            }
+          }
+          renderQueue();
+          toast(`Đã thêm ${count} bài vào hàng đợi.`);
+        };
+      }
+      if (backBtn) {
+        backBtn.onclick = () => {
+          state.trackScope = null;
+          hero.classList.add('hidden');
+          renderTracks();
+        };
+      }
+
+      hero.classList.remove('hidden');
+    }
     function renderCollectionCards(tracks) {
       const grid = $('collection-grid'), view = state.activeView;
       const metadata = track => library.trackMetadata(track);
@@ -1843,9 +1948,10 @@
       }).join('');
       const empty = $('empty-state');
       const showRows = isSongView || view === 'history' || (view === 'albums' && state.collectionSort === 'tracks');
-      grid.classList.toggle('hidden', showRows);
-      $('track-list').classList.toggle('hidden', !showRows);
-      $('track-list-header').classList.toggle('hidden', !showRows);
+      if (!state.trackScope) $('album-hero')?.classList.add('hidden');
+      grid.classList.toggle('hidden', showRows || !!state.trackScope);
+      $('track-list').classList.toggle('hidden', !showRows && !state.trackScope);
+      $('track-list-header').classList.toggle('hidden', !showRows && !state.trackScope);
       empty.classList.toggle('hidden', tracks.length > 0);
       grid.innerHTML = cards;
       $('artist-total').textContent = artists.size;
@@ -1861,6 +1967,7 @@
         grid.classList.add('hidden'); $('track-list').classList.remove('hidden'); $('track-list-header').classList.remove('hidden');
         $('back-button').setAttribute('aria-label', 'Quay lại danh sách bộ sưu tập');
         state.trackScope = entry.tracks.map(track => track.id);
+        showAlbumHero(entry, card.dataset.collectionAction);
         renderTrackRows(entry.tracks);
       }));
       return {showRows, tracks};
@@ -1988,6 +2095,7 @@
       recordTrackRowsRender(performance.now() - startedAt, renderedTracks.length, false);
     }
     function renderTracks() {
+      if (!state.trackScope) $('album-hero')?.classList.add('hidden');
       updateMetadataFilters();
       const shown = filteredTracks();
       renderRecentTracks();
@@ -3666,6 +3774,7 @@
       const supported = ['home','albums','artists','songs','history'];
       state.activeView = supported.includes(view) ? view : 'albums';
       state.trackScope = null;
+      $('album-hero')?.classList.add('hidden');
       state.groupBy = 'none';
       if (state.activeView === 'history' && !state.recentHistory.length) readHistory();
       renderTracks();
@@ -3673,7 +3782,7 @@
       restoreViewScroll();
     }
     document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => setLibraryView(button.dataset.view)));
-    $('back-button').addEventListener('click', () => { if (state.trackScope) { state.trackScope = null; $('back-button').setAttribute('aria-label','Quay lại'); renderTracks(); } else setLibraryView('albums'); });
+    $('back-button').addEventListener('click', () => { if (state.trackScope) { state.trackScope = null; $('album-hero')?.classList.add('hidden'); $('back-button').setAttribute('aria-label','Quay lại'); renderTracks(); } else setLibraryView('albums'); });
     $('open-settings-sidebar').addEventListener('click', showSettings);
     $('header-favorites').addEventListener('click', () => { state.focusOnly = !state.focusOnly; renderTracks(); });
     $('header-search').addEventListener('click', () => { const input = window.matchMedia('(max-width: 640px)').matches ? $('search-mobile') : $('search'); input.focus(); });
@@ -4146,5 +4255,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 00:06 +07 | Đã xong: Pha C - Roon Radio: tự động chọn và phát tiếp bài hát tương tự từ thư viện khi danh sách phát hoặc hàng đợi kết thúc; thuật toán tính điểm thông minh selectRoonRadioTrack (ưu tiên cùng nghệ sĩ, cùng album, yêu thích, tương đồng định dạng Hi-Res/DSD, phạt bài vừa nghe tránh lặp lại); UI banner trong panel Hàng đợi (#roon-radio-banner, #roon-radio-badge, #roon-radio-hint, #roon-radio-toggle), ghi nhớ localStorage 'nocturne-roon-radio'; kết nối với queueIndex để prefetch/preload trước và chuyển bài mượt mà không dừng nhạc; kiểm chứng 3/3 tầng PASS | Lượt kế tiếp: Pha D - Ambient Glow: trích xuất màu chủ đạo từ ảnh bìa album để tạo hiệu ứng ánh sáng nền động mềm mại cho giao diện và Phòng nghe | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Sleep timer fade-out mượt mà, ReplayGain / Loudness Normalization -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:12 +07 | Đã xong: Pha D - Ambient Glow: trích xuất bảng màu chủ đạo từ ảnh bìa album bằng canvas siêu nhẹ (12x12) qua library.extractDominantColors; tạo lớp ánh sáng nền động đa tầng (#ambient-glow) với chuyển cảnh mượt 1.5s trong Phòng nghe (#listening-room); gán biến CSS --ambient-c1, --ambient-c2; fallback an toàn khi không có ảnh hoặc bị CORS; kiểm chứng 12/12 test đơn vị + DOM, toàn bộ 56/56 suite test PASS | Lượt kế tiếp: Pha A - ReplayGain / Loudness Normalization hoặc Parametric EQ nâng cao | Backlog: Album view kiểu Roon (lưới bìa album + trang chi tiết album), Sleep timer fade-out mượt mà, PWA Service Worker offline caching -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:26 +07 | Đã xong: Pha A - ReplayGain & Loudness Normalization: đồng bộ mức âm lượng giữa các bài hát bằng thuật toán ReplayGain 2.0 (parseReplayGain đọc tag TXXX, Vorbis comments, camelCase / snake_case; computeReplayGainMultiplier tính linear gain, hỗ trợ cả 2 chế độ Track / Album, bù Preamp ±6 dB và cơ chế Anti-clip chống clipping khi gain * peak > 1.0); UI trong panel Parametric Equalizer (#replaygain-toggle, #replaygain-badge, #replaygain-mode, #replaygain-preamp, #replaygain-preamp-val); tích hợp vào setGain điều khiển âm lượng thực tế của deck; hiển thị trong Roon Signal Path (DSP Stage · ENHANCED); kiểm chứng 16/16 test mới, toàn bộ 72/72 suite test PASS | Lượt kế tiếp: Pha B - Album view kiểu Roon (lưới bìa album + trang chi tiết album với danh sách bài và thông tin phát hành) | Backlog: Sleep timer fade-out mượt mà, PWA Service Worker offline caching, Waveform seekbar -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:34 +07 | Đã xong: Pha B - Album View kiểu Roon: hiển thị trang chi tiết album với hero header (#album-hero: ảnh bìa lớn, tên album, nghệ sĩ, thống kê số bài + tổng thời lượng qua library.formatAlbumDuration, huy hiệu chất lượng phát hành cao nhất DSD/Hi-Res/Lossless qua library.summarizeAlbum); các nút hành động nhanh (#album-hero-play phát toàn bộ album, #album-hero-queue thêm toàn bộ album vào hàng đợi, #album-hero-back quay lại danh sách bộ sưu tập); tự động ẩn hero khi thoát scope album; kiểm chứng 11/11 test mới, toàn bộ 83/83 suite test PASS | Lượt kế tiếp: Pha C - Sleep timer fade-out mượt mà (giảm dần âm lượng trong 30 giây cuối trước khi dừng phát) | Backlog: PWA Service Worker offline caching, Waveform seekbar, AutoEQ presets cho tai nghe -->
 </body>
 </html>

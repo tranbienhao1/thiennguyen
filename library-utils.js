@@ -1066,5 +1066,81 @@
     return `${sign}${gainResult.effectiveDb.toFixed(1)} dB · ${modeTag}${clipTag}`;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain};
+  // ── Pha B — Roon-style Album Summary & Formatting ──
+  function formatAlbumDuration(totalSeconds) {
+    totalSeconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
+    if (totalSeconds >= 3600) {
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      return `${h} giờ ${m} phút`;
+    }
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m} phút${s ? ` ${s} giây` : ''}`;
+  }
+
+  function summarizeAlbum(tracks = []) {
+    if (!Array.isArray(tracks) || tracks.length === 0) {
+      return {
+        trackCount: 0,
+        totalDuration: 0,
+        formattedDuration: '0 phút',
+        highestQuality: { tier: 'standard', label: 'STANDARD' },
+        formats: [],
+        year: null
+      };
+    }
+
+    let totalDuration = 0;
+    let hasDsd = false;
+    let hasHiRes = false;
+    let hasLossless = false;
+    const formatSet = new Set();
+    let year = null;
+
+    for (const track of tracks) {
+      if (!track) continue;
+      const d = Number(track.duration);
+      if (Number.isFinite(d) && d > 0) totalDuration += d;
+
+      const fmt = String(track.format || '').toUpperCase();
+      if (fmt) formatSet.add(fmt);
+
+      if (track.isDsd) {
+        hasDsd = true;
+      } else {
+        const rate = Number(track.sampleRate) || 0;
+        const depth = Number(track.bitDepth) || 0;
+        if (rate > 48000 || depth > 16) {
+          hasHiRes = true;
+        } else if (['FLAC', 'WAV', 'AIFF', 'ALAC'].includes(fmt)) {
+          hasLossless = true;
+        }
+      }
+
+      if (!year && track.year) year = track.year;
+    }
+
+    let highestQuality;
+    if (hasDsd) {
+      highestQuality = { tier: 'dsd', label: 'DSD' };
+    } else if (hasHiRes) {
+      highestQuality = { tier: 'highres', label: 'HI-RES' };
+    } else if (hasLossless) {
+      highestQuality = { tier: 'lossless', label: 'LOSSLESS' };
+    } else {
+      highestQuality = { tier: 'standard', label: 'STANDARD' };
+    }
+
+    return {
+      trackCount: tracks.length,
+      totalDuration: Math.round(totalDuration),
+      formattedDuration: formatAlbumDuration(totalDuration),
+      highestQuality,
+      formats: Array.from(formatSet),
+      year
+    };
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration};
 });
