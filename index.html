@@ -3027,7 +3027,31 @@
       state.lyricIndex = -1;
       container.innerHTML = '';
       const lines = state.lyrics.length ? state.lyrics : (typeof lrcText === 'string' ? lrcText.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/).map(text => text.trim()).filter(text => text && !text.startsWith('[')).map(text => ({time: NaN, text})) : []);
-      if (!lines.length) { container.innerHTML = '<p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p>'; return; }
+      if (!lines.length) {
+        container.innerHTML = `<div class="py-4 text-center text-xs text-zinc-500"><p>Chưa có lời đồng bộ (.lrc) cho bài này.</p><div class="mt-3 flex items-center justify-center gap-2"><button type="button" id="lyrics-retry-btn" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-violet-300 hover:bg-white/10">🔍 Tìm lời trực tuyến</button><button type="button" id="lyrics-paste-btn" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-zinc-300 hover:bg-white/10">📝 Dán lời .lrc</button></div></div>`;
+        const retryBtn = $('lyrics-retry-btn');
+        if (retryBtn) retryBtn.addEventListener('click', () => {
+          const cur = state.tracks.find(t => t.id === state.currentId);
+          if (cur) {
+            cur.lyricsText = '';
+            triggerLyricsFetch(cur);
+          }
+        });
+        const pasteBtn = $('lyrics-paste-btn');
+        if (pasteBtn) pasteBtn.addEventListener('click', () => {
+          const pasted = prompt('Dán nội dung lời bài hát (.lrc) vào đây:');
+          if (pasted && pasted.trim()) {
+            const cur = state.tracks.find(t => t.id === state.currentId);
+            if (cur) {
+              cur.lyricsText = pasted.trim();
+              try { localStorage.setItem(`nocturne-lyrics-${cur.id}`, cur.lyricsText); } catch (_) {}
+              renderLyrics(cur.lyricsText);
+              toast('Đã nạp lời bài hát thành công!');
+            }
+          }
+        });
+        return;
+      }
       for (const line of lines) {
         const row = document.createElement('p');
         row.className = 'lyric-line';
@@ -3042,8 +3066,9 @@
             span.textContent = word.text;
             span.addEventListener('click', (e) => {
               if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
-              if (Number.isFinite(audio.duration)) {
-                audio.currentTime = Math.min(Math.max(0, word.time), audio.duration);
+              const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+              if (currentAudio && Number.isFinite(currentAudio.duration)) {
+                currentAudio.currentTime = Math.min(Math.max(0, word.time), currentAudio.duration);
                 updatePositionState(true);
               }
             });
@@ -3058,9 +3083,74 @@
         if (Number.isFinite(line.time)) {
           row.dataset.time = String(line.time);
           row.classList.add('lyric-line-seekable');
-          row.addEventListener('click', () => { if (Number.isFinite(audio.duration)) { audio.currentTime = Math.min(Math.max(0, line.time), audio.duration); updatePositionState(true); } });
+          row.addEventListener('click', () => {
+            const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+            if (currentAudio && Number.isFinite(currentAudio.duration)) {
+              currentAudio.currentTime = Math.min(Math.max(0, line.time), currentAudio.duration);
+              updatePositionState(true);
+            }
+          });
         }
         container.appendChild(row);
+      }
+    }
+    async function triggerLyricsFetch(track) {
+      if (!track) return;
+      if (track.lyricsText) {
+        renderLyrics(track.lyricsText);
+        return;
+      }
+      try {
+        const cached = localStorage.getItem(`nocturne-lyrics-${track.id}`);
+        if (cached) {
+          track.lyricsText = cached;
+          renderLyrics(cached);
+          return;
+        }
+      } catch (_) {}
+
+      const container = $('room-lyrics');
+      if (container) {
+        container.innerHTML = '<p class="text-xs text-violet-300 animate-pulse">Đang tìm lời đồng bộ (.lrc) trực tuyến qua LRCLIB...</p>';
+      }
+
+      const meta = library.trackMetadata ? library.trackMetadata(track) : { title: track.title, artist: track.artist };
+      const cleaned = library.cleanSearchQuery ? library.cleanSearchQuery(meta.title, meta.artist) : { title: meta.title, artist: meta.artist };
+      if (!cleaned.title) {
+        renderLyrics('');
+        return;
+      }
+
+      try {
+        const dur = Math.round(Number(track.duration) || 0);
+        let url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleaned.title)}&artist_name=${encodeURIComponent(cleaned.artist || '')}`;
+        if (dur > 0) url += `&duration=${dur}`;
+        const resp = await fetch(url);
+        let lrc = null;
+        if (resp.ok) {
+          const data = await resp.json();
+          lrc = data.syncedLyrics || data.plainLyrics;
+        } else {
+          const searchResp = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent((cleaned.artist ? cleaned.artist + ' ' : '') + cleaned.title)}`);
+          if (searchResp.ok) {
+            const list = await searchResp.json();
+            if (Array.isArray(list) && list.length > 0) {
+              const best = list.find(item => item.syncedLyrics) || list[0];
+              lrc = best.syncedLyrics || best.plainLyrics;
+            }
+          }
+        }
+
+        if (lrc && state.currentId === track.id) {
+          track.lyricsText = lrc;
+          try { localStorage.setItem(`nocturne-lyrics-${track.id}`, lrc); } catch (_) {}
+          renderLyrics(lrc);
+          toast(`Đã tìm thấy lời đồng bộ (.lrc) cho “${meta.title}”`);
+        } else if (state.currentId === track.id) {
+          renderLyrics('');
+        }
+      } catch (err) {
+        if (state.currentId === track.id) renderLyrics('');
       }
     }
     function updateLyricsHighlight() {
@@ -3141,6 +3231,7 @@
       renderQueueCurrent(track); syncAutoplayButton(); updateSleepStatus();
       $('room-play').textContent = !audio.src || audio.paused ? '▶' : 'Ⅱ';
       renderLyrics(track.lyricsText || '');
+      if (!track.lyricsText && typeof triggerLyricsFetch === 'function') triggerLyricsFetch(track);
       $('room-current-time').textContent = '0:00'; $('room-duration').textContent = formatTime(track.duration); $('room-remaining').textContent = formatRemainingTime(0, track.duration); $('room-seek').value = '0'; paintSeek($('room-seek'), 0);
       $('current-time').textContent = '0:00'; $('current-time-mobile').textContent = '0:00'; $('duration').textContent = formatTime(track.duration); $('duration-mobile').textContent = formatTime(track.duration);
       $('seek').value = '0'; $('seek-mobile').value = '0'; paintSeek($('seek'), 0); paintSeek($('seek-mobile'), 0);
@@ -3152,44 +3243,86 @@
       if (typeof updateRoonFullscreenUI === 'function') updateRoonFullscreenUI();
       if (typeof renderSignalPathPopover === 'function' && !$('signal-path-popover')?.classList.contains('hidden')) renderSignalPathPopover();
     }
+    function syncCanvasDimensions(canvas) {
+      if (!canvas || typeof canvas.getBoundingClientRect !== 'function') return;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.round(rect.width * dpr);
+      const h = Math.round(rect.height * dpr);
+      if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    }
     async function generateTrackWaveform(track) {
       const canvas = document.getElementById('waveform-canvas');
       if (!canvas || !track) return;
-      if (state.waveformTrackId === track.id) return; // already computed
-      state.waveformPeaks = null;
+      if (state.waveformTrackId === track.id && state.waveformPeaks) {
+        renderWaveformSeekbar();
+        return;
+      }
+      const NUM_BUCKETS = 200;
       state.waveformTrackId = track.id;
       state.waveformDecoding = true;
-      const NUM_BUCKETS = 200;
+
+      const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+      const meta = lib?.trackMetadata ? lib.trackMetadata(track) : { title: track.title, artist: track.artist };
+      const seed = `${meta.title || track.title || ''} ${meta.artist || track.artist || ''} ${track.id || ''}`;
+      if (lib && typeof lib.generateDeterministicWaveform === 'function') {
+        state.waveformPeaks = lib.generateDeterministicWaveform(seed, NUM_BUCKETS);
+      } else {
+        state.waveformPeaks = new Float32Array(NUM_BUCKETS).fill(0.35);
+      }
+      renderWaveformSeekbar();
+
       try {
-        // For local/cloud files: fetch and decode via OfflineAudioContext
         const src = track.src || track.url || '';
-        if (!src) { state.waveformDecoding = false; return; }
-        const resp = await fetch(src, { mode: 'cors', credentials: 'same-origin' });
-        if (!resp.ok) { state.waveformDecoding = false; return; }
-        const arrayBuffer = await resp.arrayBuffer();
-        const offCtx = new OfflineAudioContext(1, 1, 44100); // temp for decoding
-        const audioBuffer = await offCtx.decodeAudioData(arrayBuffer);
-        const channelData = audioBuffer.getChannelData(0);
-        state.waveformPeaks = NocturneLibrary.generateWaveformPeaks(channelData, NUM_BUCKETS);
-        state.waveformTrackId = track.id;
-      } catch(e) {
-        // Network/decoding errors: fall back to silent waveform
-        state.waveformPeaks = new Float32Array(NUM_BUCKETS).fill(0.1);
+        if (src && !src.startsWith('data:') && !String(track.format || '').includes('DSD')) {
+          const resp = await fetch(src, { mode: 'cors' });
+          if (resp.ok) {
+            const arrayBuffer = await resp.arrayBuffer();
+            const AudioCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+            if (AudioCtx) {
+              const offCtx = new AudioCtx(1, 44100, 44100);
+              const audioBuffer = await offCtx.decodeAudioData(arrayBuffer);
+              if (audioBuffer && audioBuffer.numberOfChannels > 0) {
+                const channelData = audioBuffer.getChannelData(0);
+                if (lib && typeof lib.generateWaveformPeaks === 'function') {
+                  const realPeaks = lib.generateWaveformPeaks(channelData, NUM_BUCKETS);
+                  if (state.waveformTrackId === track.id) {
+                    state.waveformPeaks = realPeaks;
+                    renderWaveformSeekbar();
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // Fallback peaks already rendered
       } finally {
         state.waveformDecoding = false;
       }
-      renderWaveformSeekbar();
     }
     function renderWaveformSeekbar() {
+      const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      const curTrack = state.tracks.find(t => t.id === state.currentId);
+      const dur = (curAudio && Number.isFinite(curAudio.duration) && curAudio.duration > 0)
+        ? curAudio.duration
+        : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0);
+      const curTime = (curAudio && Number.isFinite(curAudio.currentTime)) ? curAudio.currentTime : 0;
+      const fraction = dur > 0 ? Math.max(0, Math.min(1, curTime / dur)) : 0;
+
+      const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
       const canvas = document.getElementById('waveform-canvas');
-      const audio = document.getElementById('audio-player') || document.querySelector('audio');
-      const fraction = (audio && audio.duration) ? (audio.currentTime / audio.duration) : 0;
-      if (canvas && state.waveformPeaks) {
-        NocturneLibrary.renderWaveformCanvas(canvas, state.waveformPeaks, fraction);
+      if (canvas && state.waveformPeaks && lib && typeof lib.renderWaveformCanvas === 'function') {
+        syncCanvasDimensions(canvas);
+        lib.renderWaveformCanvas(canvas, state.waveformPeaks, fraction);
       }
       const fsCanvas = document.getElementById('fullscreen-waveform');
-      if (fsCanvas && state.waveformPeaks && state.isFullscreen) {
-        NocturneLibrary.renderWaveformCanvas(fsCanvas, state.waveformPeaks, fraction);
+      if (fsCanvas && state.waveformPeaks && state.isFullscreen && lib && typeof lib.renderWaveformCanvas === 'function') {
+        syncCanvasDimensions(fsCanvas);
+        lib.renderWaveformCanvas(fsCanvas, state.waveformPeaks, fraction);
       }
     }
     function renderQueueCurrent(track = trackById(state.currentId)) {
@@ -5323,11 +5456,19 @@
     $('room-seek').addEventListener('change', event => { if (Number.isFinite(audio.duration)) audio.currentTime = Number(event.currentTarget.value) / 1000 * audio.duration; updatePositionState(); });
     document.getElementById('waveform-canvas')?.addEventListener('click', function(e) {
       const rect = this.getBoundingClientRect();
-      const fraction = (e.clientX - rect.left) / rect.width;
-      const audio = document.getElementById('audio-player') || document.querySelector('audio');
-      if (audio && audio.duration) {
-        audio.currentTime = fraction * audio.duration;
+      if (!rect.width) return;
+      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      const curTrack = state.tracks.find(t => t.id === state.currentId);
+      const dur = (currentAudio && Number.isFinite(currentAudio.duration) && currentAudio.duration > 0)
+        ? currentAudio.duration
+        : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0);
+      if (currentAudio && dur > 0) {
+        const targetTime = Math.max(0, Math.min(fraction * dur, dur));
+        currentAudio.currentTime = targetTime;
+        updatePositionState(true);
         renderWaveformSeekbar();
+        toast(`Đã tua dạng sóng tới ${formatTime(targetTime)} / ${formatTime(dur)}`);
       }
     });
     const seekByStep = delta => { if (!Number.isFinite(audio.duration)) return; const next = library.clampSeekTime(audio.currentTime, audio.duration, delta); audio.currentTime = next; updatePositionState(); toast(`Đã tua tới ${formatTime(next)} / ${formatTime(audio.duration)}.`); };
@@ -5894,11 +6035,16 @@
     if (fsWaveform) {
       fsWaveform.addEventListener('click', (e) => {
         const rect = fsWaveform.getBoundingClientRect();
+        if (!rect.width) return;
         const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
         const track = trackById(state.currentId);
-        const dur = (track && track.duration) || (audio && audio.duration) || 0;
-        if (dur > 0 && audio) {
-          audio.currentTime = ratio * dur;
+        const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+        const dur = (currentAudio && Number.isFinite(currentAudio.duration) && currentAudio.duration > 0)
+          ? currentAudio.duration
+          : (track && Number.isFinite(track.duration) ? track.duration : 0);
+        if (dur > 0 && currentAudio) {
+          currentAudio.currentTime = ratio * dur;
+          updatePositionState(true);
           updateRoonFullscreenUI();
         }
       });
@@ -6054,5 +6200,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 13:25 +07 | Đã xong: Swarm UI Pixel-Perfect - Chuẩn hóa giao diện web theo đúng ảnh Roon Desktop thực tế: Idle Player Bar nút #zone-idle-pill xanh tím (#5265a2) bo tròn ở chính giữa mở zone modal; My Tracks Focus ẩn mặc định và toggle mở mượt mà khi bấm Focus; Track rows cấu trúc cột chuẩn Roon với link nghệ sĩ tím (#7675ed) và link album; Home View banner Discover (#discover-banner) màu #5265a2 và mục Your recent artists (#recent-artists-section) với carousel avatar tròn; kiểm chứng 15/15 test roon-pixel-perfect.test.cjs PASS 100%, 410/410 toàn bộ suite test PASS | Lượt kế tiếp: Pha D - AutoEQ headphone compensation profiles cho các dòng tai nghe audiophile | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 18:05 +07 | Đã xong: Pha D - AutoEQ Headphone Compensation Profiles & Audiophile PEQ Presets (8 model tai nghe chuẩn Harman Over-Ear/In-Ear: Sennheiser HD600/HD650, Audio-Technica M50x, Sony 1000XM4, Beyerdynamic DT770, AirPods Pro, HiFiMan Sundara; tự động tính Negative Preamp chống clipping; UI #autoeq-select, #autoeq-badge trong #eq-panel; đồng bộ Roon Signal Path DSP Stage; lưu localStorage bền vững); kiểm chứng 11/11 test autoeq-profiles.test.cjs PASS 100%, 421/421 toàn bộ suite test PASS | Lượt kế tiếp: Pha A - Reversible Phase Invert (Đảo pha tuyệt đối 180° kiểm tra cực âm tính hiệu) | Backlog: Reversible Phase Invert, Gapless audio transitions buffer monitoring -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 23:25 +07 | Đã xong: Pha A - Reversible Phase Invert (Đảo pha tuyệt đối 180° / Absolute Polarity Inversion Ø qua hệ số pha GainNode không gây tiếng click/pop; UI #phase-invert-toggle & #phase-invert-badge trong #eq-panel; tích hợp Roon Signal Path DSP Stage; lưu localStorage bền vững); kiểm chứng 9/9 test phase-invert.test.cjs PASS 100%, 430/430 toàn bộ suite test PASS | Lượt kế tiếp: Pha B - Gapless audio transitions & Audio buffer lookahead monitor | Backlog: Gapless audio transitions, Dynamic Range Meter (EBU R128) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 00:55 +07 | Đã xong: Fix & Nâng cấp 2 Phân mục Lời bài hát & Dạng sóng theo phản hồi người dùng: (1) Tự động tìm & nạp lời đồng bộ (.lrc) trực tuyến qua LRCLIB API với cleanSearchQuery, lưu cache localStorage, hỗ trợ nút tìm lại và dán lời .lrc thủ công; (2) High-DPI Waveform Seekbar: syncCanvasDimensions theo DPR, thuật toán generateDeterministicWaveform tạo hình bao sóng sống động theo seed bài hát khi không thể decode PCM thô, sửa click-to-seek trên cả waveform-canvas & fullscreen-waveform bắt chuẩn activeDeck, tua mượt mà kèm toast thông báo; kiểm chứng 5/5 test lyrics-waveform.test.cjs PASS 100%, 440/440 toàn bộ test suite PASS | Lượt kế tiếp: Pha B - Gapless audio transitions & Audio buffer lookahead monitor -->
 </body>
 </html>

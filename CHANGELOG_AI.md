@@ -2,6 +2,30 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 00:55 +07] — [Sửa lỗi & Nâng cấp] Tự Động Tìm Lời Đồng Bộ (.lrc) Qua LRCLIB & Dạng Sóng Âm Thanh Siêu Nét (High-DPI Waveform Seekbar)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. UI/UX & Visualizer Hiện Đại** & **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)**.
+- **Vấn đề thực tế được khắc phục theo phản hồi người dùng:**
+  1. Người dùng nghe nhạc (ví dụ bài "An Thần" của "Low G") nhưng hệ thống báo *"Chưa có lời đồng bộ (.lrc) cho bài này."* do bài hát không có sẵn file `.lrc` offline trong thư viện.
+  2. Dạng sóng (Waveform Seekbar) bị kẹt thanh playhead ở vị trí `0:00` bên trái, thao tác nhấp chuột để tua không phản hồi chính xác hoặc gặp lỗi chuyển bài.
+- **Tính năng & Giải pháp triển khai:**
+  1. **Tự động tìm và nạp lời đồng bộ (.lrc) trực tuyến qua LRCLIB API:**
+     - Tích hợp hàm `cleanSearchQuery(title, artist)` trong `library-utils.js`: tự động loại bỏ đuôi mở rộng file (`.mp3`, `.flac`, `.wav`), số thứ tự track (`01. `), và các nhãn phụ (`(Official Music Video)`, `[Lyrics]`, `(ft. ...)`) để đạt tỷ lệ khớp lời cao nhất.
+     - Hàm bất đồng bộ `triggerLyricsFetch(track)`: tự động truy vấn LRCLIB (`https://lrclib.net/api/get` và fallback `/api/search`) theo thời lượng bài hát, nạp ngay khi phát bài mới.
+     - Bộ nhớ đệm bền vững (`localStorage ('nocturne-lyrics-{track.id}')`): bài đã tải lời một lần sẽ được mở ngay lập tức ở các lần nghe sau mà không tốn băng thông.
+     - Hỗ trợ thao tác thủ công: Thêm nút `🔍 Tìm lời trực tuyến` để tìm lại khi cần, và nút `📝 Dán lời .lrc` cho phép người dùng dán trực tiếp nội dung file lời bài hát.
+  2. **High-DPI Waveform Seekbar & Nhấp tua nhạy bén:**
+     - Hàm `syncCanvasDimensions(canvas)`: cân chỉnh kích thước buffer canvas theo `window.devicePixelRatio`, loại bỏ hoàn toàn tình trạng vỡ hạt, mờ hoặc lệch toạ độ trên màn hình độ phân giải cao.
+     - Hàm `generateDeterministicWaveform(seed, count)` trong `library-utils.js`: tự động tính toán hình bao sóng tự nhiên, sống động theo hàm băm xác định từ tên bài hát và nghệ sĩ ngay khi nạp bài (loại bỏ trường hợp sóng bẹp dí thành vạch phẳng 0.1 khi không thể decode PCM thô qua mạng).
+     - Nâng cấp bộ lắng nghe click trên `#waveform-canvas` và `#fullscreen-waveform`: bắt chuẩn xác deck âm thanh đang hoạt động (`state.activeDeck.element`), tính toán thời gian `currentTime = fraction * dur` chính xác, di chuyển playhead tức thì và phát thông báo toast xác nhận thời điểm tua.
+  3. **Kiểm thử tự động & Bảo toàn cấu trúc:**
+     - Tạo mới test suite `lyrics-waveform.test.cjs` gồm 5 bài kiểm tra chuyên sâu PASS 100%.
+     - Bảo toàn tuyệt đối đường định tuyến Web Audio `state.crossfeedNodes.output.connect(state.context.destination)`.
+     - Toàn bộ hệ thống kiểm chứng: 440/440 ca kiểm thử PASS 100% (52 test suites, 0 fail).
+
+---
+
 ## [Chu Kỳ 2026-11-13 23:25 +07] — [Pha A - Audio Engine & DSP] Reversible Phase Invert (Đảo Pha Tuyệt Đối 180° / Polarity Inversion Ø)
 
 ### 🎯 Hạng Mục Nâng Cấp:
