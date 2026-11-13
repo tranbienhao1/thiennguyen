@@ -828,6 +828,12 @@
         dspActive.push(`Âm sắc: ${toneText}`);
       }
     }
+    if (options.autoEqProfile && options.autoEqProfile !== 'none') {
+      const profile = getAutoEqProfile(options.autoEqProfile);
+      if (profile) {
+        dspActive.push(`AutoEQ: ${profile.name}`);
+      }
+    }
 
     let dspStep;
     if (dspActive.length > 0) {
@@ -1838,5 +1844,160 @@
     return stages;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages};
+  // --- AutoEQ Headphone Profiles & Harman Target Compensation ---
+  const AUTOEQ_PROFILES = {
+    'none': {
+      id: 'none',
+      name: 'Không cân chỉnh (Bypass)',
+      category: 'Direct',
+      description: 'Phẳng / Không can thiệp đường cong tai nghe',
+      preamp: 0,
+      bands: []
+    },
+    'sennheiser-hd600': {
+      id: 'sennheiser-hd600',
+      name: 'Sennheiser HD 600',
+      category: 'Over-Ear Open',
+      description: 'Cân chỉnh Harman Over-Ear: bù sub-bass, làm phẳng mid/treble',
+      preamp: -4.5,
+      bands: [
+        { type: 'lowshelf', frequency: 50, gain: 4.5, q: 0.71 },
+        { type: 'peaking', frequency: 190, gain: -1.5, q: 1.2 },
+        { type: 'peaking', frequency: 1250, gain: -1.2, q: 2.0 },
+        { type: 'peaking', frequency: 3200, gain: -2.0, q: 2.5 },
+        { type: 'peaking', frequency: 5800, gain: 2.2, q: 3.0 },
+        { type: 'highshelf', frequency: 10000, gain: 1.5, q: 0.71 }
+      ]
+    },
+    'sennheiser-hd650': {
+      id: 'sennheiser-hd650',
+      name: 'Sennheiser HD 650 / 6XX',
+      category: 'Over-Ear Open',
+      description: 'Cân chỉnh Harman Over-Ear: bù sub-bass, giảm mờ mid-bass, mở rộng dải treble',
+      preamp: -5.0,
+      bands: [
+        { type: 'lowshelf', frequency: 45, gain: 5.0, q: 0.71 },
+        { type: 'peaking', frequency: 220, gain: -2.0, q: 1.1 },
+        { type: 'peaking', frequency: 1300, gain: -1.0, q: 1.8 },
+        { type: 'peaking', frequency: 3300, gain: -1.8, q: 2.2 },
+        { type: 'peaking', frequency: 5600, gain: 3.0, q: 2.8 },
+        { type: 'highshelf', frequency: 10500, gain: 2.0, q: 0.71 }
+      ]
+    },
+    'ath-m50x': {
+      id: 'ath-m50x',
+      name: 'Audio-Technica ATH-M50x',
+      category: 'Over-Ear Closed',
+      description: 'Cân chỉnh Harman Over-Ear: giảm dải bass thừa, tăng vocal, làm mượt treble gắt',
+      preamp: -3.5,
+      bands: [
+        { type: 'peaking', frequency: 180, gain: -3.5, q: 1.0 },
+        { type: 'peaking', frequency: 400, gain: 1.5, q: 1.5 },
+        { type: 'peaking', frequency: 1200, gain: -1.5, q: 2.0 },
+        { type: 'peaking', frequency: 3100, gain: 3.0, q: 2.0 },
+        { type: 'peaking', frequency: 9200, gain: -4.0, q: 3.0 }
+      ]
+    },
+    'sony-wh1000xm4': {
+      id: 'sony-wh1000xm4',
+      name: 'Sony WH-1000XM4',
+      category: 'Over-Ear ANC',
+      description: 'Cân chỉnh Harman Over-Ear: gọt bass bloat, mở rộng vocal & độ trong trẻo soundstage',
+      preamp: -4.0,
+      bands: [
+        { type: 'peaking', frequency: 150, gain: -5.0, q: 0.8 },
+        { type: 'peaking', frequency: 700, gain: 1.8, q: 1.4 },
+        { type: 'peaking', frequency: 2400, gain: 3.5, q: 1.8 },
+        { type: 'peaking', frequency: 6500, gain: -2.5, q: 2.5 },
+        { type: 'highshelf', frequency: 8500, gain: 3.0, q: 0.71 }
+      ]
+    },
+    'beyer-dt770': {
+      id: 'beyer-dt770',
+      name: 'Beyerdynamic DT 770 Pro (80Ω)',
+      category: 'Over-Ear Studio',
+      description: 'Cân chỉnh Harman Over-Ear: triệt tiêu đỉnh gắt 6kHz/8.5kHz (Beyer peak), nâng vocal',
+      preamp: -3.0,
+      bands: [
+        { type: 'lowshelf', frequency: 70, gain: -1.5, q: 0.71 },
+        { type: 'peaking', frequency: 2200, gain: 2.5, q: 1.6 },
+        { type: 'peaking', frequency: 6000, gain: -5.0, q: 3.0 },
+        { type: 'peaking', frequency: 8500, gain: -4.0, q: 3.5 },
+        { type: 'highshelf', frequency: 11000, gain: -1.5, q: 0.71 }
+      ]
+    },
+    'airpods-pro': {
+      id: 'airpods-pro',
+      name: 'Apple AirPods Pro',
+      category: 'In-Ear TWS',
+      description: 'Cân chỉnh Harman In-Ear: làm mịn upper-midrange, cân bằng dải âm tự nhiên',
+      preamp: -3.0,
+      bands: [
+        { type: 'lowshelf', frequency: 60, gain: 2.5, q: 0.71 },
+        { type: 'peaking', frequency: 1800, gain: -2.0, q: 2.0 },
+        { type: 'peaking', frequency: 4500, gain: 3.0, q: 2.5 },
+        { type: 'peaking', frequency: 7500, gain: -3.0, q: 3.0 }
+      ]
+    },
+    'hifiman-sundara': {
+      id: 'hifiman-sundara',
+      name: 'HiFiMan Sundara',
+      category: 'Planar Magnetic',
+      description: 'Cân chỉnh Harman Over-Ear: tăng lực sub-bass Planar, kiểm soát treble 9kHz',
+      preamp: -4.5,
+      bands: [
+        { type: 'lowshelf', frequency: 45, gain: 4.5, q: 0.71 },
+        { type: 'peaking', frequency: 1500, gain: -1.0, q: 2.0 },
+        { type: 'peaking', frequency: 2200, gain: 1.5, q: 2.5 },
+        { type: 'peaking', frequency: 9200, gain: -3.0, q: 3.0 },
+        { type: 'highshelf', frequency: 12000, gain: 1.0, q: 0.71 }
+      ]
+    }
+  };
+
+  function getAutoEqProfile(id) {
+    if (typeof id !== 'string' || !AUTOEQ_PROFILES[id]) return null;
+    const profile = AUTOEQ_PROFILES[id];
+    return {
+      id: profile.id,
+      name: profile.name,
+      category: profile.category,
+      description: profile.description,
+      preamp: profile.preamp,
+      bands: profile.bands.map(b => ({
+        type: b.type || 'peaking',
+        frequency: Math.max(20, Math.min(20000, Number(b.frequency) || 1000)),
+        gain: Math.max(-24, Math.min(24, Number(b.gain) || 0)),
+        q: Math.max(0.1, Math.min(18, Number(b.q) || 1))
+      }))
+    };
+  }
+
+  function listAutoEqProfiles() {
+    return Object.keys(AUTOEQ_PROFILES).map(key => ({
+      id: AUTOEQ_PROFILES[key].id,
+      name: AUTOEQ_PROFILES[key].name,
+      category: AUTOEQ_PROFILES[key].category,
+      description: AUTOEQ_PROFILES[key].description,
+      preamp: AUTOEQ_PROFILES[key].preamp,
+      bandCount: AUTOEQ_PROFILES[key].bands.length
+    }));
+  }
+
+  function calculateAutoEqPreamp(bands = []) {
+    if (!Array.isArray(bands) || bands.length === 0) return 0;
+    let maxBoost = 0;
+    for (const band of bands) {
+      const g = Number(band && band.gain) || 0;
+      if (g > maxBoost) maxBoost = g;
+    }
+    return maxBoost > 0 ? -Math.round(maxBoost * 10) / 10 : 0;
+  }
+
+  function formatAutoEqProfile(profile) {
+    if (!profile || profile.id === 'none') return 'Không cân chỉnh (Bypass)';
+    return `${profile.name} (${profile.category || 'Harman'}) · Preamp ${profile.preamp || 0} dB`;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile};
 });

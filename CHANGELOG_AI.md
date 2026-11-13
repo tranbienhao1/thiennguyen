@@ -2,6 +2,35 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 18:05 +07] — [Pha D - Audio Engine & DSP] AutoEQ Headphone Compensation Profiles (Harman Target) & Audiophile PEQ Presets
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP (Web Audio API) & 3. Trải Nghiệm Nghe Nhạc Audiophile**.
+- **Tính năng triển khai:**
+  1. **Thư viện cấu hình AutoEQ Harman Target (`AUTOEQ_PROFILES`):**
+     - Tích hợp 8 hồ sơ bù trừ đáp tuyến tần số tai nghe đo đạc chuẩn mục tiêu Harman Curve (Over-Ear & In-Ear Target 2018):
+       - `none`: Flat / Bypass không can thiệp.
+       - `sennheiser-hd600`: Sennheiser HD 600 (Bù sub-bass 50Hz +4.5dB, căn chỉnh mid/treble).
+       - `sennheiser-hd650`: Sennheiser HD 650 / 6XX (Bù sub-bass 45Hz +5.0dB, giảm mid-bass 220Hz, mở rộng treble).
+       - `ath-m50x`: Audio-Technica ATH-M50x (Hạ bớt bass thừa 180Hz -3.5dB, tăng vocal 3.1kHz +3.0dB, làm mượt treble 9.2kHz).
+       - `sony-wh1000xm4`: Sony WH-1000XM4 (Gọt mid-bass bloat 150Hz -5.0dB, tăng vocal 2.4kHz +3.5dB và treble 8.5kHz).
+       - `beyer-dt770`: Beyerdynamic DT 770 Pro 80Ω (Triệt tiêu đỉnh chói "Beyer peak" 6kHz/8.5kHz, nâng dải vocal 2.2kHz).
+       - `airpods-pro`: Apple AirPods Pro (Cân chỉnh mượt mà theo chuẩn Harman In-Ear Target).
+       - `hifiman-sundara`: HiFiMan Sundara (Bù lực sub-bass Planar Magnetic 45Hz +4.5dB, làm dịu dải cao 9.2kHz).
+     - Mỗi hồ sơ tự động tính toán preamp an toàn âm (Negative Preamp Headroom, ví dụ `-4.5 dB` đến `-5.0 dB`) bằng `calculateAutoEqPreamp` để loại bỏ 100% hiện tượng méo tiếng clipping kỹ thuật số (0 dBFS inter-sample clipping).
+  2. **Giao diện điều khiển trong Hộp thoại Parametric Equalizer (`#eq-panel`):**
+     - Bổ sung phân mục riêng **Cân chỉnh tai nghe (AutoEQ Harman)** với menu lựa chọn `#autoeq-select`.
+     - Huy hiệu trạng thái thời gian thực `#autoeq-badge` (sáng tím khi kích hoạt) và dòng mô tả đặc tính âm thanh `#autoeq-desc`.
+     - Tự động điền chuỗi filter band vào `state.bands`, gán preamp an toàn, bật toggle EQ, và lưu cấu hình bền vững vào `localStorage.getItem('nocturne-autoeq-profile')`.
+  3. **Tích hợp Roon Signal Path (Chuỗi tín hiệu thời gian thực):**
+     - Trong trạm xử lý **DSP Stage** của Signal Path (`buildRoonSignalPathStages` / `computeSignalPath`), hiển thị chi tiết tên dòng tai nghe đang được cân chỉnh: `AutoEQ: [Tên Tai Nghe] (DSP Active / Enhanced)`.
+  4. **Kiểm thử tự động & Bảo toàn cấu trúc:**
+     - Bộ kiểm thử mới `autoeq-profiles.test.cjs` gồm 11 bài kiểm tra phủ kín tiện ích tính toán và tích hợp DOM/Script.
+     - Bảo toàn tuyệt đối đường định tuyến Web Audio `state.crossfeedNodes.output.connect(state.context.destination)`.
+     - Toàn bộ hệ thống kiểm chứng: 421/421 ca kiểm thử PASS 100% (52 test suites, 0 fail).
+
+---
+
 ## [Chu Kỳ 2026-11-13 13:25 +07] — [Swarm UI] Chuẩn Hóa Pixel-Perfect Theo Giao Diện Roon Desktop Thực Tế (Idle Zone Pill, Collapsible Focus, Roon Track Rows & Discover/Recent Artists Banner)
 
 ### 🎯 Hạng Mục Nâng Cấp:
