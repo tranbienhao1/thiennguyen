@@ -2044,5 +2044,310 @@
     return peaks;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform};
+  // ── Orynivo Audio Engine Utilities (CUE Sheet, Smart Playlist & Rating) ──
+
+  function parseCueSheet(cueText, totalDuration = null) {
+    const tracks = [];
+    let globalTitle = '';
+    let globalPerformer = '';
+    let globalSongwriter = '';
+    let globalFile = '';
+    let globalGenre = '';
+    let globalDate = '';
+
+    if (typeof cueText !== 'string' || !cueText.trim()) {
+      return Object.assign(tracks, {
+        title: '',
+        album: '',
+        performer: '',
+        artist: '',
+        songwriter: '',
+        file: '',
+        genre: '',
+        date: '',
+        tracks
+      });
+    }
+
+    const lines = cueText.split(/\r?\n/);
+    let currentTrack = null;
+    let currentFile = '';
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+
+      // REM lines (e.g. REM GENRE "Rock", REM DATE 1994)
+      const remMatch = line.match(/^REM\s+(\S+)\s*(.*)$/i);
+      if (remMatch) {
+        const remKey = remMatch[1].toUpperCase();
+        const remVal = remMatch[2].replace(/^["']|["']$/g, '').trim();
+        if (remKey === 'GENRE') {
+          if (!currentTrack) globalGenre = remVal;
+          else currentTrack.genre = remVal;
+        } else if (remKey === 'DATE' || remKey === 'YEAR') {
+          if (!currentTrack) globalDate = remVal;
+          else currentTrack.year = remVal;
+        }
+        continue;
+      }
+
+      // FILE "filename" TYPE
+      const fileMatch = line.match(/^FILE\s+(?:"([^"]+)"|'([^']*)'|(\S+))\s*(.*)$/i);
+      if (fileMatch) {
+        const fileName = (fileMatch[1] || fileMatch[2] || fileMatch[3] || '').trim();
+        currentFile = fileName;
+        if (!currentTrack && !globalFile) {
+          globalFile = fileName;
+        }
+        continue;
+      }
+
+      // TRACK nn AUDIO
+      const trackMatch = line.match(/^TRACK\s+(\d+)(?:\s+(\S+))?/i);
+      if (trackMatch) {
+        const trackNum = parseInt(trackMatch[1], 10);
+        currentTrack = {
+          number: trackNum,
+          track: trackNum,
+          title: '',
+          performer: '',
+          artist: '',
+          album: '',
+          file: currentFile || globalFile || '',
+          offset: 0,
+          startTime: 0,
+          start: 0,
+          duration: 0,
+          indexes: {}
+        };
+        tracks.push(currentTrack);
+        continue;
+      }
+
+      // Global or Per-Track properties
+      if (!currentTrack) {
+        const titleMatch = line.match(/^TITLE\s+(?:"([^"]+)"|'([^']*)'|(.*))$/i);
+        if (titleMatch) {
+          globalTitle = (titleMatch[1] || titleMatch[2] || titleMatch[3] || '').trim();
+          continue;
+        }
+
+        const performerMatch = line.match(/^PERFORMER\s+(?:"([^"]+)"|'([^']*)'|(.*))$/i);
+        if (performerMatch) {
+          globalPerformer = (performerMatch[1] || performerMatch[2] || performerMatch[3] || '').trim();
+          continue;
+        }
+
+        const songwriterMatch = line.match(/^SONGWRITER\s+(?:"([^"]+)"|'([^']*)'|(.*))$/i);
+        if (songwriterMatch) {
+          globalSongwriter = (songwriterMatch[1] || songwriterMatch[2] || songwriterMatch[3] || '').trim();
+          continue;
+        }
+      } else {
+        const titleMatch = line.match(/^TITLE\s+(?:"([^"]+)"|'([^']*)'|(.*))$/i);
+        if (titleMatch) {
+          currentTrack.title = (titleMatch[1] || titleMatch[2] || titleMatch[3] || '').trim();
+          continue;
+        }
+
+        const performerMatch = line.match(/^PERFORMER\s+(?:"([^"]+)"|'([^']*)'|(.*))$/i);
+        if (performerMatch) {
+          currentTrack.performer = (performerMatch[1] || performerMatch[2] || performerMatch[3] || '').trim();
+          continue;
+        }
+
+        const songwriterMatch = line.match(/^SONGWRITER\s+(?:"([^"]+)"|'([^']*)'|(.*))$/i);
+        if (songwriterMatch) {
+          currentTrack.songwriter = (songwriterMatch[1] || songwriterMatch[2] || songwriterMatch[3] || '').trim();
+          continue;
+        }
+
+        // INDEX nn mm:ss:ff
+        const indexMatch = line.match(/^INDEX\s+(\d+)\s+(\d{1,3}):(\d{2}):(\d{2})/i);
+        if (indexMatch) {
+          const idxNum = indexMatch[1];
+          const mm = parseInt(indexMatch[2], 10);
+          const ss = parseInt(indexMatch[3], 10);
+          const ff = parseInt(indexMatch[4], 10);
+          const offsetSeconds = mm * 60 + ss + ff / 75;
+          currentTrack.indexes[idxNum] = offsetSeconds;
+
+          if (idxNum === '01' || idxNum === '1') {
+            currentTrack.offset = offsetSeconds;
+            currentTrack.startTime = offsetSeconds;
+            currentTrack.start = offsetSeconds;
+            currentTrack.index01 = offsetSeconds;
+          } else if (idxNum === '00' || idxNum === '0') {
+            currentTrack.index00 = offsetSeconds;
+          }
+          continue;
+        }
+      }
+    }
+
+    // Post-process tracks
+    for (let i = 0; i < tracks.length; i++) {
+      const track = tracks[i];
+      if (!track.title) {
+        track.title = `Track ${track.number}`;
+      }
+      if (!track.performer) {
+        track.performer = globalPerformer || globalSongwriter || UNKNOWN_ARTIST;
+      }
+      track.artist = track.performer;
+      track.album = globalTitle || UNKNOWN_ALBUM;
+      if (!track.file) {
+        track.file = globalFile;
+      }
+      if (globalGenre && !track.genre) {
+        track.genre = globalGenre;
+      }
+      if (globalDate && !track.year) {
+        track.year = globalDate;
+      }
+
+      // Calculate track duration from offset difference between consecutive tracks
+      if (i < tracks.length - 1) {
+        const next = tracks[i + 1];
+        const diff = next.offset - track.offset;
+        track.duration = diff > 0 ? diff : 0;
+      } else if (totalDuration != null && Number.isFinite(Number(totalDuration))) {
+        track.duration = Math.max(0, Number(totalDuration) - track.offset);
+      } else {
+        track.duration = 0;
+      }
+    }
+
+    tracks.title = globalTitle;
+    tracks.album = globalTitle;
+    tracks.performer = globalPerformer;
+    tracks.artist = globalPerformer || globalSongwriter;
+    tracks.songwriter = globalSongwriter;
+    tracks.file = globalFile;
+    tracks.genre = globalGenre;
+    tracks.date = globalDate;
+    tracks.tracks = tracks;
+
+    return tracks;
+  }
+
+  function evaluateSmartPlaylist(rules, track) {
+    if (!rules || typeof rules !== 'object') return true;
+    if (!track || typeof track !== 'object') return false;
+
+    // rules.format: checks track.format / quality
+    if (rules.format !== undefined && rules.format !== null && rules.format !== '') {
+      const reqFormats = Array.isArray(rules.format) ? rules.format : [rules.format];
+      const matched = reqFormats.some(fmt => {
+        const f = String(fmt).toLowerCase().trim();
+        if (!f || f === 'all') return true;
+
+        if (f === 'dsd' || f.includes('dsd')) {
+          if (track.isDsd) return true;
+          if (track.qualityTier === 'dsd') return true;
+          const fmtStr = String(track.format || '').toLowerCase();
+          if (fmtStr.includes('dsd') || fmtStr === 'dsf' || fmtStr === 'dff') return true;
+          const pathStr = String(track.path || track.file || track.url || track.name || '').toLowerCase();
+          if (/\.(dsf|dff)$/i.test(pathStr)) return true;
+          const qStr = String((track.quality && track.quality.label) || track.quality || track.qualityLabel || '').toLowerCase();
+          if (qStr.includes('dsd')) return true;
+          return false;
+        }
+
+        if (f === 'hires' || f === 'hi-res' || f.includes('hi-res') || f.includes('hires') || f === 'highres') {
+          if (track.isHiRes) return true;
+          if (track.qualityTier === 'highres') return true;
+          if ((track.sampleRate && track.sampleRate > 48000) || (track.bitDepth && track.bitDepth > 16)) return true;
+          const fmtStr = String(track.format || '').toLowerCase();
+          if (fmtStr.includes('hi-res') || fmtStr.includes('hires')) return true;
+          const qStr = String((track.quality && track.quality.label) || track.quality || track.qualityLabel || '').toLowerCase();
+          if (qStr.includes('hi-res') || qStr.includes('hires')) return true;
+          return false;
+        }
+
+        if (f === 'lossless') {
+          if (track.qualityTier === 'lossless') return true;
+          const fmtStr = String(track.format || '').toLowerCase();
+          if (fmtStr.includes('lossless') || fmtStr.includes('flac') || fmtStr.includes('wav') || fmtStr.includes('alac')) return true;
+          return false;
+        }
+
+        const fmtStr = String(track.format || '').toLowerCase();
+        const qStr = String((track.quality && track.quality.label) || track.quality || track.qualityLabel || '').toLowerCase();
+        const pathStr = String(track.path || track.file || track.url || track.name || '').toLowerCase();
+        return fmtStr.includes(f) || qStr.includes(f) || pathStr.endsWith('.' + f);
+      });
+      if (!matched) return false;
+    }
+
+    // rules.favorite: checks isFavorite
+    if (rules.favorite !== undefined && rules.favorite !== null) {
+      const isFav = Boolean(track.isFavorite || track.favorite);
+      if (Boolean(rules.favorite) !== isFav) {
+        return false;
+      }
+    }
+
+    // rules.minDuration / maxDuration: checks track.duration
+    if (rules.minDuration !== undefined && rules.minDuration !== null) {
+      const minDur = Number(rules.minDuration);
+      const trackDur = Number(track.duration || 0);
+      if (trackDur < minDur) return false;
+    }
+    if (rules.maxDuration !== undefined && rules.maxDuration !== null) {
+      const maxDur = Number(rules.maxDuration);
+      const trackDur = Number(track.duration || 0);
+      if (trackDur > maxDur) return false;
+    }
+
+    // rules.artist: case-insensitive substring
+    if (rules.artist !== undefined && rules.artist !== null && rules.artist !== '') {
+      const reqArtist = String(rules.artist).toLowerCase().trim();
+      const trackArtist = String(track.artist || track.performer || '').toLowerCase();
+      if (!trackArtist.includes(reqArtist)) return false;
+    }
+
+    // rules.genre: case-insensitive substring
+    if (rules.genre !== undefined && rules.genre !== null && rules.genre !== '') {
+      const reqGenre = String(rules.genre).toLowerCase().trim();
+      const trackGenre = String(track.genre || '').toLowerCase();
+      if (!trackGenre.includes(reqGenre)) return false;
+    }
+
+    // rules.minRating: checks track.rating (1-5)
+    if (rules.minRating !== undefined && rules.minRating !== null) {
+      const minRating = Number(rules.minRating);
+      const trackRating = Number(track.rating || 0);
+      if (trackRating < minRating) return false;
+    }
+
+    if (rules.rating !== undefined && rules.rating !== null) {
+      const reqRating = Number(rules.rating);
+      const trackRating = Number(track.rating || 0);
+      if (trackRating !== reqRating) return false;
+    }
+
+    if (rules.maxRating !== undefined && rules.maxRating !== null) {
+      const maxRating = Number(rules.maxRating);
+      const trackRating = Number(track.rating || 0);
+      if (trackRating > maxRating) return false;
+    }
+
+    return true;
+  }
+
+  function clampRating(rating) {
+    const num = Math.round(Number(rating));
+    if (!Number.isFinite(num) || num < 0) return 0;
+    if (num > 5) return 5;
+    return num;
+  }
+
+  function formatRating(rating) {
+    const stars = clampRating(rating);
+    return '★'.repeat(stars) + '☆'.repeat(5 - stars);
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating};
 });

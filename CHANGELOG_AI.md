@@ -2,6 +2,29 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 03:30 +07] — [Swarm Orynivo Integration] Tích Hợp CUE Sheet Parser, Smart Playlists Engine & Đánh Giá 5 Sao Audiophile từ Orynivo (bschlaack/Orynivo)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)** & **4. Kiến Trúc & Quản Lý Thư Viện Audiophile**.
+- **Tính năng tiếp thu từ kho lưu trữ Orynivo (https://github.com/bschlaack/Orynivo):**
+  1. **Hỗ trợ CUE Sheet chuyên sâu (`parseCueSheet`):**
+     - Hỗ trợ tải hoặc kéo thả các file `.cue` đi kèm album/CD rip nguyên khối (FLAC/WAV/APE).
+     - Phân tích cú pháp CUE chuẩn: đọc tiêu đề album, nghệ sĩ, tên file âm thanh gốc, các lệnh `TRACK nn AUDIO`, `INDEX 01` quy đổi khung hình `mm:ss:ff` (75 fps) sang giây chính xác.
+     - Tự động tạo các bản nhạc ảo (Virtual Tracks) và liên kết với file âm thanh gốc; phát nhạc với độ lệch `cueStart` và `cueEnd` liền mạch, hiển thị thời lượng chuẩn từng bài.
+  2. **Bộ máy Danh sách phát Thông minh (Smart Playlists Engine — `evaluateSmartPlaylist`):**
+     - Đánh giá động danh sách phát theo quy tắc đa điều kiện: Định dạng chất lượng (`format: 'dsd' | 'hires' | 'lossless'`), trạng thái yêu thích (`favorite`), độ dài bài hát (`minDuration / maxDuration`), nghệ sĩ, thể loại và mức đánh giá sao.
+     - Tích hợp điều hướng Smart Playlists trong thanh Sidebar và các nút lọc nhanh trên Focus bar: *DSD Collection*, *Hi-Res Audiophile*, *Top Yêu Thích > 4m*.
+  3. **Hệ thống Đánh giá 5 Sao Không Xâm Phạm File (Non-Destructive Audiophile Rating):**
+     - Thêm giao diện đánh giá sao tương tác trong Phòng nghe (`#room-rating`) với 5 ngôi sao nhấp chuột (`data-rating="1..5"`), cùng nhãn hiển thị sao trên từng hàng bài hát.
+     - Tiện ích xử lý thuần `clampRating(rating)` và `formatRating(rating)` (hiển thị `★★★★☆`, `☆☆☆☆☆`).
+     - Lưu trữ bền vững vào `localStorage` (`nocturne-rating-${track.id}`) mà không sửa đổi file âm thanh nguồn.
+  4. **Kiểm thử tự động & Bảo toàn cấu trúc:**
+     - Bộ kiểm thử mới `cue-smart-playlist.test.cjs` (6 tests) và `orynivo-features.test.cjs` (21 tests) PASS 100%.
+     - Bảo toàn tuyệt đối đường định tuyến Web Audio `state.crossfeedNodes.output.connect(state.context.destination)`.
+     - Toàn bộ hệ thống kiểm chứng: 462/462 ca kiểm thử PASS 100% (56 test suites, 0 fail).
+
+---
+
 ## [Chu Kỳ 2026-11-14 00:55 +07] — [Sửa lỗi & Nâng cấp] Tự Động Tìm Lời Đồng Bộ (.lrc) Qua LRCLIB & Dạng Sóng Âm Thanh Siêu Nét (High-DPI Waveform Seekbar)
 
 ### 🎯 Hạng Mục Nâng Cấp:
