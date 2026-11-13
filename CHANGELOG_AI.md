@@ -2,6 +2,29 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 13:25 +07] — [Swarm UI] Chuẩn Hóa Pixel-Perfect Theo Giao Diện Roon Desktop Thực Tế (Idle Zone Pill, Collapsible Focus, Roon Track Rows & Discover/Recent Artists Banner)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. Giao Diện Người Dùng & Trực Quan Hóa Audiophile (UI/UX & Visualizer)**.
+- **Tính năng triển khai qua Swarm Teamwork (`@qa-2` & `@designer-2`):**
+  1. **Thanh Player Đáy khi rảnh (Idle Player Bar) & Nút Zone Pill chuẩn Roon:**
+     - Thiết kế thanh đáy cố định tối giản khi chưa phát nhạc (`footer.player-idle`), thay thế nút mặc định bằng nút pill bo tròn ở chính giữa `#zone-idle-pill` với nhãn `Select an audio zone` ("Chọn vùng phát: ...").
+     - Tông màu xanh tím nhận diện thương hiệu Roon `#5265a2`, hiệu ứng bóng mờ `box-shadow: 0 4px 14px rgba(0,0,0,0.4)` và bo tròn mềm mại `rounded-full`.
+     - Nhấp chuột trực tiếp vào `#zone-idle-pill` kích hoạt mở ngay hộp thoại chọn vùng phát `#zone-modal` (`toggleZoneModal(true)`). Bảo toàn phần tử `#audio-zone-button` để tương thích ngược 100%.
+  2. **Trang Danh Sách Bài Hát (My Tracks) & Roon Focus Thu Gọn:**
+     - Đặt thanh công cụ lọc `#roon-focus-bar` ẩn mặc định (`class="hidden ..."`), loại bỏ các đoạn văn bản tĩnh thừa.
+     - Nút `› Focus` (`#focus-button`) điều khiển đóng/mở thanh công cụ Focus mượt mà qua cơ chế toggle lớp hiển thị.
+     - Cấu trúc cột danh sách bài hát chuẩn Roon Image 5: số thứ tự `#`, `Bài hát / Track` (kèm ảnh bìa và thời lượng), `Nghệ sĩ / Album artist` (màu link tím xanh `#7675ed` đặc trưng của Roon, có gạch chân khi hover), `Album` (link hover underline), và cột chất lượng/định dạng.
+  3. **Trang Chủ Home Dashboard Chuẩn Roon Desktop:**
+     - Thêm banner **Discover** (`#discover-banner`) với nền xanh tím `#5265a2`, phông chữ serif sang trọng cùng dòng phụ đề kinh điển: *"Roon’s classic way to explore your library and re-discover music you've collected. >"*.
+     - Thêm phân mục **Your recent artists** (`#recent-artists-section`) với tiêu đề rõ ràng, bộ nút điều hướng carousel `< >` và nút pill `MORE`, cùng các avatar nghệ sĩ dạng vòng tròn lớn (`rounded-full`, viền sáng tím và chữ viết tắt nghệ sĩ hoa phông serif `RM`, `GD`, `VA`, `TH`, `HL`).
+  4. **Kiểm thử tự động TDD & Bảo Toàn Tuyệt Đối Đồ Thị Âm Thanh:**
+     - Tạo bộ kiểm thử TDD `roon-pixel-perfect.test.cjs` gồm 15 ca kiểm tra chi tiết bao quát toàn bộ 4 yêu cầu.
+     - Nghiêm ngặt bảo tồn cấu trúc dây nối Web Audio: `state.crossfeedNodes.output.connect(state.context.destination)`.
+     - Toàn bộ hệ thống kiểm thử: 410/410 ca kiểm tra PASS tuyệt đối (51 test suites, 0 fail).
+
+---
+
 ## [Chu Kỳ 2026-11-13 12:55 +07] — [Swarm UI] Hoàn Thiện Từng Mục Giao Diện Web Chuẩn Roon Labs (Sidebar, Home Stats, Album Format Badges, Artist Glow)
 
 ### 🎯 Hạng Mục Nâng Cấp:

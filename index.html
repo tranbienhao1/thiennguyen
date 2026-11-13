@@ -296,6 +296,11 @@
     .audio-zone-empty{display:none} footer.player-idle>div:first-child{display:grid;place-items:center}
     footer.player-idle .audio-zone-empty{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
     footer.player-idle .audio-zone-empty button{min-width:240px;height:51px;padding:0 27px;border:0;border-radius:999px;background:var(--roon-accent);color:#fff;font-size:16px}
+    #zone-idle-pill{background:#5265a2!important;color:#fff!important;padding:8px 24px!important;border-radius:9999px!important;font-size:13px!important;font-weight:500!important;border:none!important;box-shadow:0 4px 14px rgba(0,0,0,0.4)!important;min-width:auto!important;height:auto!important}
+    #discover-banner{background:#5265a2;border-radius:16px}
+    #recent-artists-section .artist-avatar{border-radius:50%}
+    .artist-link{color:#7675ed;cursor:pointer} .artist-link:hover{text-decoration:underline}
+    .album-link{cursor:pointer} .album-link:hover{text-decoration:underline}
     footer.player-idle>div>div>div:not(.audio-zone-empty){display:none!important} footer.player-idle>div:first-child>div:nth-child(2){display:none!important} #listening-room{background:#151515!important}
     @media(min-width:1500px){#sidebar{flex-basis:300px}#collection-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
     @media(max-width:1023.98px){#app-shell{height:calc(100dvh - 104px);min-height:360px}#sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(300px,86vw);height:100dvh;max-height:100dvh;transform:translateX(0)}body.sidebar-collapsed #sidebar{transform:translateX(-105%);opacity:0;pointer-events:none}body:not(.sidebar-collapsed) #sidebar{transform:translateX(0);opacity:1}#sidebar-toggle{display:grid}#content-col>header{min-height:58px;padding:0 16px!important}#home-view,#library-view{padding:30px 26px 46px}#home-heading{margin-bottom:46px;font-size:54px}#library-intro{margin:24px 0 36px}#collection-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 18px}.roon-stat-grid{gap:12px}.roon-stat{min-height:112px;padding:16px}.roon-stat-value{font-size:29px}}
@@ -399,6 +404,37 @@
           <button class="roon-stat" type="button" data-view="albums"><span class="roon-stat-icon">◉</span><span><strong id="album-total" class="roon-stat-value">0</strong><span class="roon-stat-label">Album</span></span></button>
           <button class="roon-stat" type="button" data-view="songs"><span class="roon-stat-icon">♫</span><span><strong id="song-total" class="roon-stat-value">0</strong><span class="roon-stat-label">Bài hát</span></span></button>
         </div>
+
+        <!-- Discover Banner -->
+        <div id="discover-banner" class="mb-8 cursor-pointer rounded-2xl bg-[#5265a2] p-6 text-white transition hover:opacity-95 sm:p-8" style="background:#5265a2">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="font-serif text-2xl font-normal text-white sm:text-3xl">Discover</h2>
+              <p class="mt-1 text-sm font-normal text-white/80">Roon’s classic way to explore your library and re-discover music you've collected. &gt;</p>
+            </div>
+            <span class="text-2xl text-white/60">›</span>
+          </div>
+        </div>
+
+        <!-- Recent Artists Section -->
+        <section id="recent-artists-section" class="mb-8" aria-labelledby="recent-artists-title">
+          <div class="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
+            <h2 id="recent-artists-title" class="text-lg font-semibold text-white">Your recent artists</h2>
+            <div class="flex items-center gap-2">
+              <button type="button" class="grid h-7 w-7 place-items-center rounded-full border border-white/10 text-xs text-zinc-400 transition hover:border-white/20 hover:text-white" aria-label="Trước">&lt;</button>
+              <button type="button" class="grid h-7 w-7 place-items-center rounded-full border border-white/10 text-xs text-zinc-400 transition hover:border-white/20 hover:text-white" aria-label="Tiếp">&gt;</button>
+              <button type="button" class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white">MORE</button>
+            </div>
+          </div>
+          <div id="recent-artists-list" class="flex items-center gap-5 overflow-x-auto py-2">
+            <div class="group flex shrink-0 cursor-pointer flex-col items-center gap-2">
+              <div class="artist-avatar grid h-20 w-20 place-items-center rounded-full border border-purple-400/30 bg-gradient-to-br from-purple-600/40 to-indigo-900/60 text-lg font-medium text-white shadow-lg transition group-hover:scale-105" style="border-radius:50%">
+                <span>R</span>
+              </div>
+              <span class="max-w-[80px] truncate text-center text-xs text-zinc-300 transition group-hover:text-purple-300">Roon Artist</span>
+            </div>
+          </div>
+        </section>
       </div>
 
       <section id="recent-section" class="mt-7 hidden" aria-labelledby="recent-title">
@@ -421,10 +457,7 @@
           <select id="group-by" aria-label="Nhóm bài hát"><option value="none">Không nhóm</option><option value="artist">Nhóm nghệ sĩ</option><option value="album">Nhóm album</option></select>
         </div>
         <!-- Roon Focus Engine Bar -->
-        <div id="roon-focus-bar" class="mb-4 flex flex-wrap items-center gap-1.5 rounded-xl border border-white/5 bg-white/[.02] p-2 backdrop-blur-sm">
-          <div class="flex items-center gap-1.5 px-2 text-xs font-semibold uppercase tracking-wider text-purple-400">
-            <span>› Focus</span>
-          </div>
+        <div id="roon-focus-bar" class="hidden mb-4 flex flex-wrap items-center gap-1.5 rounded-xl border border-white/5 bg-white/[.02] p-2 backdrop-blur-sm">
           <button type="button" class="focus-pill active rounded-lg border border-purple-500/50 bg-purple-500/20 px-2.5 py-1 text-xs font-medium text-purple-200 transition hover:bg-purple-500/30" data-focus="all">
             <span>Tất cả</span>
             <span id="focus-count-all" class="ml-1 rounded-full bg-purple-400/20 px-1.5 py-0.2 text-[10px]">0</span>
@@ -482,7 +515,7 @@
             </div>
           </div>
         </div>
-        <div id="track-list-header" class="hidden grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b px-3 pb-2 text-[10px] uppercase tracking-[.16em] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]"><span>Bài hát</span><span class="hidden sm:block">Album</span><span class="hidden sm:block">Chất lượng</span><span class="text-right">Thời lượng / info</span></div>
+        <div id="track-list-header" class="hidden grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b px-3 pb-2 text-[10px] uppercase tracking-[.16em] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]"><span class="flex items-center gap-2"><span class="w-5 text-center">#</span><span>Track / Bài hát</span></span><span class="hidden sm:block">Album artist / Album</span><span class="hidden sm:block">Chất lượng / Format</span><span class="text-right">Length / Thời lượng</span></div>
         <div id="track-list" class="mt-1 space-y-1"></div>
         <div id="empty-state" class="mt-3 rounded-2xl border border-dashed border-white/10 px-5 py-12 text-center">
           <div class="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-xl text-zinc-500">♫</div>
@@ -504,6 +537,10 @@
     <div class="mx-auto max-w-[1600px] px-3 sm:px-6">
       <div class="flex h-[86px] items-center gap-3 sm:h-[96px] sm:gap-6">
         <div class="audio-zone-empty">
+          <button id="zone-idle-pill" type="button" class="flex items-center gap-2 rounded-full font-medium transition hover:opacity-90 active:scale-95 shadow-[0_4px_14px_rgba(0,0,0,0.4)]" style="background: #5265a2; color: #fff; padding: 8px 24px; border-radius: 9999px; font-size: 13px; font-weight: 500; border: none; box-shadow: 0 4px 14px rgba(0,0,0,0.4);" onclick="toggleZoneModal(true)">
+            <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+            <span>Select an audio zone</span>
+          </button>
           <button id="zone-footer-btn" type="button" class="hidden sm:flex items-center gap-1.5 rounded-lg border border-purple-500/20 bg-purple-500/5 px-2.5 py-1 text-[10px] text-purple-300 hover:border-purple-400/40 hover:bg-purple-500/10 transition" title="Đổi vùng phát âm thanh" aria-label="Đổi vùng phát âm thanh">
             <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
             <span id="zone-footer-label" class="font-medium">PWA DSP</span>
@@ -2267,6 +2304,7 @@
       state.lastTrackRowsSkipped = skipped;
     }
     function renderTrackRows(tracks) {
+      // Roon styling: artist-link (#7675ed), album-link hover:underline
       const startedAt = performance.now();
       const list = $('track-list');
       const shown = [...tracks].sort((a,b) => state.sortAsc ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title));
@@ -2318,8 +2356,8 @@
           // đổi thành ▶ khi hover, tiêu đề text-sm rõ hơn nghệ sĩ text-xs,
           // huy hiệu chất lượng thành pill, thời lượng text-xs.
           return `<div role="button" tabindex="0" class="track-row${versionInfo.versionIndex > 0 ? ' track-version-row' : ''} ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[.06] ${versionInfo.versionIndex > 0 ? 'py-2 pl-10 pr-4' : 'px-4 py-2'} text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]" aria-label="Phát ${escapeHtml(metadata.title)} — ${escapeHtml(metadata.artist)}" data-track-index="${trackIndex + 1}" data-track-id="${escapeHtml(track.id)}">
-            <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${escapeHtml(metadata.title)}</span><span class="mt-0.5 block truncate text-xs text-zinc-500">${escapeHtml(metadata.artist)} <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
-            <span class="hidden truncate text-xs text-zinc-500 sm:block">${escapeHtml(metadata.album)}</span><span class="hidden sm:block"><span class="rounded-full border px-2 py-0.5 text-[9px] font-medium tracking-wide ${q.tone}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${q.label}</span></span><span class="flex items-center justify-end gap-1">${versionInfo.versionIndex === 0 && versionInfo.versionGroup.versions.length > 1 ? `<button type="button" data-version-action="toggle" data-version-key="${escapeHtml(versionInfo.versionGroup.key)}" class="shrink-0 rounded-full border border-violet-400/40 px-2 py-0.5 text-[10px] font-medium text-violet-200 hover:bg-violet-400/10" aria-expanded="${expandedVersions.has(versionInfo.versionGroup.key)}" aria-label="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn' : 'Mở rộng'} ${versionInfo.versionGroup.versions.length} phiên bản của ${escapeHtml(metadata.title)}" title="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn các phiên bản' : 'Xem các phiên bản khác'}">${versionInfo.versionGroup.versions.length} phiên bản ${expandedVersions.has(versionInfo.versionGroup.key) ? '▴' : '▾'}</button>` : ''}<span class="text-right text-xs tabular-nums text-zinc-400">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
+            <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${escapeHtml(metadata.title)}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${escapeHtml(metadata.artist)}</span> <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
+            <span class="hidden truncate text-xs text-zinc-500 sm:block"><span class="album-link hover:underline cursor-pointer">${escapeHtml(metadata.album)}</span></span><span class="hidden sm:block"><span class="rounded-full border px-2 py-0.5 text-[9px] font-medium tracking-wide ${q.tone}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${q.label}</span></span><span class="flex items-center justify-end gap-1">${versionInfo.versionIndex === 0 && versionInfo.versionGroup.versions.length > 1 ? `<button type="button" data-version-action="toggle" data-version-key="${escapeHtml(versionInfo.versionGroup.key)}" class="shrink-0 rounded-full border border-violet-400/40 px-2 py-0.5 text-[10px] font-medium text-violet-200 hover:bg-violet-400/10" aria-expanded="${expandedVersions.has(versionInfo.versionGroup.key)}" aria-label="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn' : 'Mở rộng'} ${versionInfo.versionGroup.versions.length} phiên bản của ${escapeHtml(metadata.title)}" title="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn các phiên bản' : 'Xem các phiên bản khác'}">${versionInfo.versionGroup.versions.length} phiên bản ${expandedVersions.has(versionInfo.versionGroup.key) ? '▴' : '▾'}</button>` : ''}<span class="text-right text-xs tabular-nums text-zinc-400">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
           </div>`;
         }).join('');
         return heading + rows;
@@ -5257,7 +5295,7 @@
     $('header-search').addEventListener('click', () => { const input = window.matchMedia('(max-width: 640px)').matches ? $('search-mobile') : $('search'); input.focus(); });
     $('search-mobile').addEventListener('focus', () => $('content-col').scrollTo({top:0,behavior:'smooth'}));
     $('filter-toggle').addEventListener('click', event => { const open = $('filter-controls').hidden; $('filter-controls').hidden = !open; event.currentTarget.setAttribute('aria-expanded',String(open)); });
-    $('focus-button').addEventListener('click', () => { state.focusOnly = !state.focusOnly; renderTracks(); });
+    $('focus-button').addEventListener('click', () => { state.focusOnly = !state.focusOnly; const bar = $('roon-focus-bar'); if (bar) bar.classList.toggle('hidden'); renderTracks(); });
     $('focus-heart').addEventListener('click', event => { event.stopPropagation(); state.focusOnly = !state.focusOnly; renderTracks(); });
     $('audio-zone-button').addEventListener('click', () => toast('Đầu ra hiện được trình duyệt và hệ điều hành quản lý.'));
     $('play-library-button').addEventListener('click', () => {
@@ -5651,6 +5689,8 @@
     if (zonePickerBtn) zonePickerBtn.addEventListener('click', () => toggleZoneModal(true));
     const zoneFooterBtn = $('zone-footer-btn');
     if (zoneFooterBtn) zoneFooterBtn.addEventListener('click', () => toggleZoneModal(true));
+    const zoneIdlePill = $('zone-idle-pill');
+    if (zoneIdlePill) $('zone-idle-pill').addEventListener('click', () => toggleZoneModal(true));
     const zoneModalClose = $('zone-modal-close');
     if (zoneModalClose) zoneModalClose.addEventListener('click', () => toggleZoneModal(false));
     const zoneModal = $('zone-modal');
@@ -5880,5 +5920,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 12:15 +07 | Đã xong: Pha A & B - Roon Multi-Output Zone Controller & Roon Core Bridge (Phương án 3: Kết hợp cả hai): chuyển đổi vùng phát nội bộ (PWA DSP vs Direct DAC Bit-perfect bypass); cổng kết nối Roon Core Bridge giao thức MOO wire qua WebSocket (com.roonlabs.registry/info, com.roonlabs.transport/subscribe_zones); định dạng Roon 3-line metadata (formatRoonThreeLine) trong Phòng nghe; 4 tác vụ ngữ cảnh Roon kinh điển (triggerRoonAction: play_now, play_next, add_queue, start_radio); modal quản lý vùng và kết nối Roon (#zone-modal, #roon-bridge-input, #roon-bridge-badge); kiểm chứng 15/15 test roon-zone-bridge.test.cjs PASS 100%, 359/359 toàn bộ suite test PASS | Lượt kế tiếp: Pha C - Tối ưu hóa bộ nhớ và AutoEQ profiles cho các dòng tai nghe phổ biến | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 12:35 +07 | Đã xong: Pha B & C - Hoàn thiện trọn bộ Giao diện Roon Luxe UI: Roon Focus Engine bar (#roon-focus-bar) lọc tức thì DSD/Hi-Res/CD Lossless/Cloud/Favorite; Roon Signal Path Popover (#signal-path-popover) đèn LED phát sáng 5 sao Bit-Perfect & biểu đồ 4 trạm xử lý; Chế độ Roon Immersive Fullscreen Now Playing (#roon-fullscreen-view) toàn màn hình phím tắt F với Waveform seekbar & Karaoke lyrics; kiểm chứng 18/18 test roon-luxe-ui.test.cjs PASS 100%, 377/377 toàn bộ suite test PASS | Lượt kế tiếp: Pha D - AutoEQ headphone compensation profiles cho các dòng tai nghe audiophile | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 12:55 +07 | Đã xong: Swarm UI - Hoàn thiện từng mục giao diện web chuẩn Roon Labs: sidebar active highlight viền sáng tím và phân cấp Browse vs My Library; Home View stats cards bo góc gradient tối và tab Recent Activity; Collection Cards album format badge (DSD, HI-RES, LOSSLESS) và artist circular avatar glow; kiểm chứng 18/18 test roon-sections.test.cjs PASS 100%, 395/395 toàn bộ suite test PASS | Lượt kế tiếp: Pha D - AutoEQ headphone compensation profiles cho các dòng tai nghe audiophile | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 13:25 +07 | Đã xong: Swarm UI Pixel-Perfect - Chuẩn hóa giao diện web theo đúng ảnh Roon Desktop thực tế: Idle Player Bar nút #zone-idle-pill xanh tím (#5265a2) bo tròn ở chính giữa mở zone modal; My Tracks Focus ẩn mặc định và toggle mở mượt mà khi bấm Focus; Track rows cấu trúc cột chuẩn Roon với link nghệ sĩ tím (#7675ed) và link album; Home View banner Discover (#discover-banner) màu #5265a2 và mục Your recent artists (#recent-artists-section) với carousel avatar tròn; kiểm chứng 15/15 test roon-pixel-perfect.test.cjs PASS 100%, 410/410 toàn bộ suite test PASS | Lượt kế tiếp: Pha D - AutoEQ headphone compensation profiles cho các dòng tai nghe audiophile | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
 </body>
 </html>
