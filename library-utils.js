@@ -3,7 +3,10 @@
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.NocturneLibrary = api;
+  if (typeof root === 'object' && root !== null) {
+    root.NocturneLibrary = api;
+    if (!root.library) root.library = api;
+  }
 })(typeof globalThis === 'object' ? globalThis : this, function () {
   const UNKNOWN_ARTIST = 'Nghệ sĩ không xác định';
   const UNKNOWN_ALBUM = '—';
@@ -394,20 +397,86 @@
     const offsetMs = offset ? Number(offset[1]) : 0;
     const entries = [];
     for (const rawLine of text.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/)) {
-      const times = [...rawLine.matchAll(/\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g)];
+      const times = [...rawLine.matchAll(/\[(\d{1,3}):(\d{2})(?:[.:](\d+))?\]/g)];
       if (!times.length) continue;
-      const lyric = rawLine.replace(/\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g, '').replace(/<\d{1,3}:\d{2}(?:[.:]\d{1,3})?>/g, '').trim();
+      const lyric = rawLine.replace(/\[(\d{1,3}):(\d{2})(?:[.:](\d+))?\]/g, '').replace(/<\d{1,3}:\d{2}(?:[.:]\d+)?>/g, '').trim();
       if (!lyric) continue;
+      let firstTimeMs = null;
       for (const match of times) {
         const minutes = Number(match[1]);
         const seconds = Number(match[2]);
         if (seconds >= 60) continue;
-        const fraction = match[3] ? Number(match[3].padEnd(3, '0')) : 0;
-        const timeMs = Math.max(0, (minutes * 60 + seconds) * 1000 + fraction + offsetMs);
-        entries.push({time: timeMs / 1000, text: lyric});
+        const fractionSec = match[3] ? Number('0.' + match[3]) : 0;
+        const totalSec = Math.max(0, Math.round((minutes * 60 + seconds + fractionSec + (offsetMs / 1000)) * 10000) / 10000);
+        const timeMs = Math.max(0, totalSec * 1000);
+        if (firstTimeMs === null) firstTimeMs = timeMs;
+        const line = {time: totalSec, text: lyric};
+        const words = parseKaraokeWords(rawLine, timeMs, offsetMs, (timeMs - firstTimeMs) / 1000, false);
+        Object.defineProperty(line, 'words', {
+          value: words,
+          enumerable: false,
+          writable: true,
+          configurable: true
+        });
+        entries.push(line);
       }
     }
     return entries.sort((a, b) => a.time - b.time);
+  }
+
+  // Pha C — tách mốc thời gian từng từ cho Karaoke Enhanced LRC: <mm:ss.xx>
+  // hoặc <mm:ss.xxx>; trả về mảng [{time, text}] đã cộng offsetMs và sắp
+  // xếp theo thời gian; trả về [] nếu không có thẻ từ hoặc content không hợp lệ.
+  function parseKaraokeWords(content, lineTimeMs = 0, offsetMs = 0, relativeOffsetSec = 0, sort = true) {
+    if (typeof content !== 'string') return [];
+    const clean = content.replace(/\[(\d{1,3}):(\d{2})(?:[.:](\d+))?\]/g, '').trim();
+    const tagRegex = /<(\d{1,3}):(\d{2})(?:[.:](\d+))?>/g;
+    const matches = [...clean.matchAll(tagRegex)];
+    if (!matches.length) return [];
+
+    const words = [];
+    const off = Number(offsetMs) || 0;
+    const relOffset = Number(relativeOffsetSec) || 0;
+
+    // Chữ đứng trước mốc từ đầu tiên (nếu có) lấy theo mốc của dòng
+    if (matches[0].index > 0) {
+      const prefix = clean.slice(0, matches[0].index).trim();
+      if (prefix) {
+        const timeMs = Math.max(0, Number(lineTimeMs) || 0);
+        words.push({ time: Math.round((timeMs / 1000) * 10000) / 10000, text: prefix });
+      }
+    }
+
+    for (let i = 0; i < matches.length; i++) {
+      const match = matches[i];
+      const minutes = Number(match[1]);
+      const seconds = Number(match[2]);
+      if (seconds >= 60) continue;
+      const fractionSec = match[3] ? Number('0.' + match[3]) : 0;
+      const wordSec = minutes * 60 + seconds + fractionSec + (off / 1000) + relOffset;
+      const time = Math.round(Math.max(0, wordSec) * 10000) / 10000;
+      const startIndex = match.index + match[0].length;
+      const endIndex = i + 1 < matches.length ? matches[i + 1].index : clean.length;
+      const wordText = clean.slice(startIndex, endIndex).trim();
+      if (wordText) {
+        words.push({ time, text: wordText });
+      }
+    }
+    return sort ? words.sort((a, b) => a.time - b.time) : words;
+  }
+
+  // Từ đang hát tại `seconds`: chỉ số của từ cuối cùng có time <= seconds,
+  // -1 khi chưa tới từ đầu tiên hoặc đầu vào không hợp lệ.
+  function lyricWordAt(words, seconds) {
+    if (!Array.isArray(words) || !words.length) return -1;
+    const current = Number(seconds);
+    if (Number.isNaN(current)) return -1;
+    let index = -1;
+    for (let i = 0; i < words.length; i++) {
+      const time = Number(words[i] && words[i].time);
+      if (Number.isFinite(time) && time <= current) index = i;
+    }
+    return index;
   }
 
   // Dòng lời đang hát tại `seconds`: chỉ số của mốc cuối cùng <= seconds,
@@ -1295,5 +1364,210 @@
     return 'Dạng sóng: đang tải...';
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus};
+  // --- Procedural Ambient Sound Synthesis & Volume Utilities (Pha D) ---
+
+  function generatePinkNoiseBuffer(context, duration) {
+    if (!context || typeof context.createBuffer !== 'function') return null;
+    const sampleRate = (context && context.sampleRate) || 44100;
+    const numFrames = Math.floor(Math.max(0, Number(duration) || 0) * sampleRate);
+    const buffer = context.createBuffer(2, numFrames, sampleRate);
+    if (numFrames === 0) return buffer;
+
+    for (let channel = 0; channel < 2; channel++) {
+      const data = buffer.getChannelData(channel);
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      // Pre-warm filter registers
+      for (let w = 0; w < 64; w++) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        b6 = white * 0.115926;
+      }
+      for (let i = 0; i < numFrames; i++) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        const pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+        b6 = white * 0.115926;
+        data[i] = Math.max(-1.0, Math.min(1.0, pink));
+      }
+    }
+    return buffer;
+  }
+
+  function generateBrownNoiseBuffer(context, duration) {
+    if (!context || typeof context.createBuffer !== 'function') return null;
+    const sampleRate = (context && context.sampleRate) || 44100;
+    const numFrames = Math.floor(Math.max(0, Number(duration) || 0) * sampleRate);
+    const buffer = context.createBuffer(2, numFrames, sampleRate);
+    if (numFrames === 0) return buffer;
+
+    for (let channel = 0; channel < 2; channel++) {
+      const data = buffer.getChannelData(channel);
+      let y = 0.0;
+      // Pre-warm leaky integrator
+      for (let w = 0; w < 64; w++) {
+        const white = Math.random() * 2 - 1;
+        y = (y + 0.02 * white) / 1.02;
+      }
+      for (let i = 0; i < numFrames; i++) {
+        const white = Math.random() * 2 - 1;
+        y = (y + 0.02 * white) / 1.02;
+        data[i] = Math.max(-1.0, Math.min(1.0, y * 3.5));
+      }
+    }
+    return buffer;
+  }
+
+  function generateCampfireCrackleBuffer(context, duration) {
+    if (!context || typeof context.createBuffer !== 'function') return null;
+    const sampleRate = (context && context.sampleRate) || 44100;
+    const numFrames = Math.floor(Math.max(0, Number(duration) || 0) * sampleRate);
+    const buffer = context.createBuffer(2, numFrames, sampleRate);
+    if (numFrames === 0) return buffer;
+
+    for (let channel = 0; channel < 2; channel++) {
+      const data = buffer.getChannelData(channel);
+      let idx = 0;
+      while (idx < numFrames) {
+        // Inter-arrival interval between 15ms and 120ms
+        const dt = 0.015 + Math.random() * 0.105;
+        const intervalSamples = Math.floor(dt * sampleRate);
+        idx += intervalSamples;
+        if (idx >= numFrames) break;
+
+        const isLoudPop = Math.random() < 0.15;
+        const amplitude = isLoudPop ? (0.45 + Math.random() * 0.45) : (0.05 + Math.random() * 0.25);
+        const tauDur = isLoudPop ? (0.008 + Math.random() * 0.020) : (0.002 + Math.random() * 0.007);
+        const decaySamples = Math.floor(tauDur * sampleRate);
+        const fRes = 300 + Math.random() * 2200;
+
+        for (let j = 0; j < decaySamples && (idx + j) < numFrames; j++) {
+          const t = j / sampleRate;
+          const envelope = Math.exp(-t / (tauDur * 0.35));
+          const snapNoise = (Math.random() * 2 - 1) * 0.7;
+          const woodRing = Math.sin(2 * Math.PI * fRes * t) * 0.3;
+          const sample = (snapNoise + woodRing) * amplitude * envelope;
+          data[idx + j] = Math.max(-1.0, Math.min(1.0, data[idx + j] + sample));
+        }
+      }
+    }
+    return buffer;
+  }
+
+  function createAmbientChannel(context, type, options = {}) {
+    if (!context) return null;
+    const vol = (options && options.volume !== undefined) ? options.volume : 0.4;
+    const gainNode = context.createGain ? context.createGain() : null;
+    if (gainNode && gainNode.gain) gainNode.gain.value = vol;
+
+    if (type === 'rain') {
+      const buffer = generatePinkNoiseBuffer(context, 4.0);
+      const source = context.createBufferSource ? context.createBufferSource() : null;
+      let lp = null, hp = null;
+      if (source) {
+        source.buffer = buffer;
+        source.loop = true;
+      }
+      if (context.createBiquadFilter) {
+        lp = context.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 1200;
+        hp = context.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 200;
+        if (source && gainNode) {
+          source.connect(lp);
+          lp.connect(hp);
+          hp.connect(gainNode);
+        }
+      } else if (source && gainNode) {
+        source.connect(gainNode);
+      }
+      if (source && typeof source.start === 'function') {
+        try { source.start(0); } catch (_) {}
+      }
+      return {
+        type: 'rain',
+        source,
+        gainNode,
+        filters: { lp, hp },
+        filter: lp,
+        stop() {
+          try { if (source && typeof source.stop === 'function') source.stop(); } catch (_) {}
+          try { if (source && typeof source.disconnect === 'function') source.disconnect(); } catch (_) {}
+        }
+      };
+    }
+
+    if (type === 'campfire') {
+      const emberBuffer = generateBrownNoiseBuffer(context, 4.0);
+      const crackleBuffer = generateCampfireCrackleBuffer(context, 6.0);
+      const emberSource = context.createBufferSource ? context.createBufferSource() : null;
+      const crackleSource = context.createBufferSource ? context.createBufferSource() : null;
+      if (emberSource) { emberSource.buffer = emberBuffer; emberSource.loop = true; }
+      if (crackleSource) { crackleSource.buffer = crackleBuffer; crackleSource.loop = true; }
+      if (emberSource && gainNode) emberSource.connect(gainNode);
+      if (crackleSource && gainNode) crackleSource.connect(gainNode);
+      if (emberSource && typeof emberSource.start === 'function') {
+        try { emberSource.start(0); } catch (_) {}
+      }
+      if (crackleSource && typeof crackleSource.start === 'function') {
+        try { crackleSource.start(0); } catch (_) {}
+      }
+      return {
+        type: 'campfire',
+        source: emberSource,
+        emberSource,
+        crackleSource,
+        gainNode,
+        stop() {
+          try { if (emberSource && typeof emberSource.stop === 'function') emberSource.stop(); } catch (_) {}
+          try { if (crackleSource && typeof crackleSource.stop === 'function') crackleSource.stop(); } catch (_) {}
+          try { if (emberSource && typeof emberSource.disconnect === 'function') emberSource.disconnect(); } catch (_) {}
+          try { if (crackleSource && typeof crackleSource.disconnect === 'function') crackleSource.disconnect(); } catch (_) {}
+        }
+      };
+    }
+
+    return {
+      type,
+      gainNode,
+      stop() {
+        try { if (gainNode && typeof gainNode.disconnect === 'function') gainNode.disconnect(); } catch (_) {}
+      }
+    };
+  }
+
+  function clampAmbientVolume(val, defaultVal = 40) {
+    if (val === null || val === undefined || val === '') return defaultVal;
+    const num = Number(val);
+    if (!Number.isFinite(num) || Number.isNaN(num)) return defaultVal;
+    return Math.max(0, Math.min(100, Math.round(num)));
+  }
+
+  function formatAmbientVolume(vol) {
+    const clamped = clampAmbientVolume(vol, 0);
+    return `${clamped}%`;
+  }
+
+  function formatAmbientSummary(rainEnabled, rainVol, campfireEnabled, campfireVol) {
+    const rOn = Boolean(rainEnabled);
+    const cOn = Boolean(campfireEnabled);
+    if (!rOn && !cOn) return 'Đang tắt';
+    const rText = `Mưa ${formatAmbientVolume(rainVol)}`;
+    const cText = `Lửa trại ${formatAmbientVolume(campfireVol)}`;
+    if (rOn && cOn) return `${rText} · ${cText}`;
+    return rOn ? rText : cText;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary};
 });

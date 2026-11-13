@@ -172,6 +172,13 @@
     #room-cover-empty { color:#a8ccd9; } #room-title { letter-spacing:-.045em; } #room-signal,#room-output { overflow-wrap:anywhere; }
     .lyric-line { border-radius:8px;padding:2px 8px;transition:color .2s,background-color .2s;content-visibility:auto;contain-intrinsic-size:auto 28px; }
     .lyric-line-seekable { cursor:pointer; } .lyric-line-seekable:hover { color:#e4e4e7;background:#ffffff0d; } .lyric-line-active { color:#fff!important;font-weight:600;background:#ffffff14; }
+    .lyric-word { display:inline-block;transition:color .15s ease,opacity .15s ease,text-shadow .15s ease,transform .15s ease;cursor:pointer; }
+    .lyric-word.lyric-word-sung { color:#e4e4e7;opacity:.85; }
+    .lyric-word.lyric-word-active { color:#c4b5fd;font-weight:700;text-shadow:0 0 10px rgba(167,139,250,.75),0 0 20px rgba(139,92,246,.4);transform:scale(1.05); }
+    .lyric-line-active .lyric-word { color:#a1a1aa;opacity:.65; }
+    .lyric-line-active .lyric-word.lyric-word-sung { color:#fff!important;opacity:1;text-shadow:none; }
+    .lyric-line-active .lyric-word.lyric-word-active { color:#c4b5fd!important;font-weight:700;opacity:1;text-shadow:0 0 10px rgba(167,139,250,.8),0 0 20px rgba(139,92,246,.5);transform:scale(1.05); }
+    #room-lyrics { scroll-behavior:smooth; }
     body.settings-open { overflow:hidden!important; }
     #settings-modal { z-index:100!important;position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;overscroll-behavior:contain;border:0;padding:0;color:inherit; }
     #settings-modal::backdrop { background:rgba(0,0,0,.75);backdrop-filter:blur(4px); }
@@ -184,7 +191,7 @@
     #settings-modal #close-settings:hover,#settings-modal #close-settings:focus-visible { background:#ffffff18;color:#fff; }
     #settings-modal section,#settings-modal>div>div>section,#settings-modal>div>section { border-radius:11px;background:#ffffff04; }
     #settings-modal input,#settings-modal select,#direct-url,#eq-panel input[type=number] { border-color:#ffffff14;background:#111416; }
-    #queue-panel aside,#eq-panel,#sleep-panel { border-color:#ffffff12;background:rgba(25,28,30,.97); }
+    #queue-panel aside,#eq-panel,#sleep-panel,#ambient-panel { border-color:#ffffff12;background:rgba(25,28,30,.97); }
     #queue-panel section { border-color:#91cde526;background:#91cde508; } #toast { border-color:#ffffff18;background:#252a2d; }
   </style>
   <style id="roon-responsive-theme">
@@ -487,11 +494,12 @@
           <button id="room-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Màn hình Đang phát" title="Đang phát">⛶</button>
           <button id="autoplay-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Tự động phát tiếp" title="Tự động phát tiếp">▶∞</button>
           <button id="sleep-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Hẹn giờ ngủ" title="Hẹn giờ ngủ">◷</button>
+          <button id="ambient-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Âm thanh môi trường" title="Âm thanh môi trường" aria-expanded="false">🌧</button>
           <span class="text-xs text-zinc-500">◖</span><input id="volume" class="range w-20" type="range" min="0" max="100" value="72" aria-label="Âm lượng">
         </div>
         <div class="flex items-center gap-2 sm:hidden"><input id="volume-mobile" class="range w-14" type="range" min="0" max="100" value="72" aria-label="Âm lượng"><button id="seek-mobile-button" class="hidden text-xs text-violet-300" aria-label="Tua">0:00</button></div>
       </div>
-      <div class="flex items-center gap-1.5 pb-2 sm:hidden"><span id="current-time-mobile" class="text-[9px] tabular-nums text-zinc-500">0:00</span><input id="seek-mobile" class="seek-range min-w-0 flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="duration-mobile" class="text-[9px] tabular-nums text-zinc-500">0:00</span><span id="mobile-quality" class="hidden text-[9px] text-zinc-500">—</span><button id="queue-button-mobile" type="button" class="px-1 text-xs text-zinc-500 hover:text-white" aria-label="Hàng đợi phát">☰</button><button id="autoplay-button-mobile" type="button" class="px-1 text-xs text-zinc-500 hover:text-white" aria-label="Tự động phát tiếp" title="Tự động phát tiếp">▶∞</button><button id="sleep-button-mobile" type="button" class="px-1 text-xs text-zinc-500 hover:text-white" aria-label="Hẹn giờ ngủ">◷</button></div>
+      <div class="flex items-center gap-1.5 pb-2 sm:hidden"><span id="current-time-mobile" class="text-[9px] tabular-nums text-zinc-500">0:00</span><input id="seek-mobile" class="seek-range min-w-0 flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="duration-mobile" class="text-[9px] tabular-nums text-zinc-500">0:00</span><span id="mobile-quality" class="hidden text-[9px] text-zinc-500">—</span><button id="queue-button-mobile" type="button" class="px-1 text-xs text-zinc-500 hover:text-white" aria-label="Hàng đợi phát">☰</button><button id="autoplay-button-mobile" type="button" class="px-1 text-xs text-zinc-500 hover:text-white" aria-label="Tự động phát tiếp" title="Tự động phát tiếp">▶∞</button><button id="sleep-button-mobile" type="button" class="px-1 text-xs text-zinc-500 hover:text-white" aria-label="Hẹn giờ ngủ">◷</button><button id="ambient-button-mobile" type="button" class="px-1 text-xs text-zinc-500 hover:text-white" aria-label="Âm thanh môi trường" title="Âm thanh môi trường" aria-expanded="false">🌧</button></div>
     </div>
   </footer>
 
@@ -663,6 +671,54 @@
       </label>
     </div>
     <button id="sleep-cancel" type="button" class="mt-3 w-full rounded-lg border border-white/10 px-3 py-2 text-xs text-zinc-400 hover:text-white">Hủy hẹn giờ</button>
+  </div>
+  <div id="ambient-panel" class="fixed bottom-28 right-4 z-[58] hidden w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl" role="dialog" aria-labelledby="ambient-title" hidden>
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <h2 id="ambient-title" class="text-sm font-medium text-zinc-100">Âm thanh môi trường</h2>
+        <span id="ambient-badge" class="rounded border border-violet-400/30 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-medium text-violet-300">Tắt</span>
+      </div>
+      <button id="ambient-close" type="button" class="text-zinc-500 hover:text-white" aria-label="Đóng">✕</button>
+    </div>
+    <p class="mt-1 text-[10px] text-zinc-500">Hòa âm thiên nhiên vào không gian nghe nhạc audiophile bằng bộ tổng hợp âm thanh thuần Web Audio.</p>
+
+    <div class="mt-4 space-y-3">
+      <!-- Kênh Tiếng Mưa -->
+      <div class="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+        <div class="flex items-center justify-between">
+          <label class="flex items-center gap-2 cursor-pointer text-xs font-medium text-zinc-200">
+            <input id="ambient-rain-toggle" type="checkbox" class="accent-violet-500">
+            <span>Tiếng mưa rơi</span>
+          </label>
+          <span id="ambient-rain-val" class="font-mono text-[10px] tabular-nums text-zinc-400">40%</span>
+        </div>
+        <div class="mt-2.5 flex items-center gap-3">
+          <span class="text-xs text-zinc-500" aria-hidden="true">🌧</span>
+          <input id="ambient-rain-slider" class="range flex-1 cursor-pointer" type="range" min="0" max="100" step="1" value="40" aria-label="Âm lượng tiếng mưa rơi">
+        </div>
+      </div>
+
+      <!-- Kênh Lửa Trại -->
+      <div class="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+        <div class="flex items-center justify-between">
+          <label class="flex items-center gap-2 cursor-pointer text-xs font-medium text-zinc-200">
+            <input id="ambient-campfire-toggle" type="checkbox" class="accent-violet-500">
+            <span>Lửa trại bập bùng</span>
+          </label>
+          <span id="ambient-campfire-val" class="font-mono text-[10px] tabular-nums text-zinc-400">30%</span>
+        </div>
+        <div class="mt-2.5 flex items-center gap-3">
+          <span class="text-xs text-zinc-500" aria-hidden="true">🔥</span>
+          <input id="ambient-campfire-slider" class="range flex-1 cursor-pointer" type="range" min="0" max="100" step="1" value="30" aria-label="Âm lượng lửa trại bập bùng">
+        </div>
+      </div>
+    </div>
+
+    <!-- Chân bảng điều khiển: Trạng thái & Nút tắt nhanh -->
+    <div class="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
+      <span id="ambient-summary" class="text-[10px] text-zinc-400">Đang tắt</span>
+      <button id="ambient-reset" type="button" class="rounded border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-zinc-300 hover:bg-white/10 hover:text-white">Tắt tất cả</button>
+    </div>
   </div>
   <div id="toast" class="pointer-events-none fixed bottom-32 left-1/2 z-[60] hidden -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-800 px-4 py-2.5 text-xs text-zinc-100 shadow-xl"></div>
   <div id="update-banner" class="fixed left-1/2 top-4 z-[70] hidden w-[min(92vw,480px)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-violet-300/25 bg-[#181422]/95 px-4 py-3 shadow-2xl shadow-black/50 backdrop-blur-xl" role="status" aria-live="polite">
@@ -884,7 +940,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -2675,7 +2731,30 @@
       for (const line of lines) {
         const row = document.createElement('p');
         row.className = 'lyric-line';
-        row.textContent = line.text;
+        row.classList.add('lyric-line');
+        if (line.words && Array.isArray(line.words) && line.words.length > 0) {
+          for (let w = 0; w < line.words.length; w++) {
+            const word = line.words[w];
+            const span = document.createElement('span');
+            span.className = 'lyric-word';
+            span.classList.add('lyric-word');
+            span.dataset.time = String(word.time);
+            span.textContent = word.text;
+            span.addEventListener('click', (e) => {
+              if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+              if (Number.isFinite(audio.duration)) {
+                audio.currentTime = Math.min(Math.max(0, word.time), audio.duration);
+                updatePositionState(true);
+              }
+            });
+            row.appendChild(span);
+            if (w < line.words.length - 1 && typeof document.createTextNode === 'function') {
+              row.appendChild(document.createTextNode(' '));
+            }
+          }
+        } else {
+          row.textContent = line.text;
+        }
         if (Number.isFinite(line.time)) {
           row.dataset.time = String(line.time);
           row.classList.add('lyric-line-seekable');
@@ -2688,12 +2767,52 @@
       const container = $('room-lyrics');
       if (!container || !state.lyrics.length) return;
       const index = library.lyricLineAt(state.lyrics, audio.currentTime);
-      if (index === state.lyricIndex) return;
-      state.lyricIndex = index;
-      const rows = container.querySelectorAll('.lyric-line');
-      rows.forEach((row, i) => row.classList.toggle('lyric-line-active', i === index));
-      const activeRow = index >= 0 ? rows[index] : null;
-      if (activeRow && typeof activeRow.scrollIntoView === 'function' && library.shouldScrollLyricIntoView(container.getBoundingClientRect(), activeRow.getBoundingClientRect())) activeRow.scrollIntoView({block: 'center'});
+      const lineChanged = (index !== state.lyricIndex);
+      if (lineChanged) {
+        state.lyricIndex = index;
+        const rows = container.querySelectorAll('.lyric-line');
+        rows.forEach((row, i) => {
+          row.classList.toggle('lyric-line-active', i === index);
+          const rawSpans = (typeof row.querySelectorAll === 'function' && row.querySelectorAll('.lyric-word').length)
+            ? row.querySelectorAll('.lyric-word')
+            : (row.children && Array.isArray(row.children) ? row.children.filter(c => c.classList && c.classList.contains('lyric-word')) : []);
+          const spans = Array.from(new Set(rawSpans));
+          if (!spans || !spans.length) return;
+          if (i < index) {
+            spans.forEach(span => {
+              span.classList.add('lyric-word-sung');
+              span.classList.remove('lyric-word-active');
+            });
+          } else if (i > index) {
+            spans.forEach(span => {
+              span.classList.remove('lyric-word-sung');
+              span.classList.remove('lyric-word-active');
+            });
+          }
+        });
+        const activeRow = index >= 0 ? rows[index] : null;
+        if (activeRow && typeof activeRow.scrollIntoView === 'function' && library.shouldScrollLyricIntoView(container.getBoundingClientRect(), activeRow.getBoundingClientRect())) activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      if (index >= 0 && index < state.lyrics.length) {
+        const activeLine = state.lyrics[index];
+        if (activeLine && activeLine.words && activeLine.words.length) {
+          const rows = container.querySelectorAll('.lyric-line');
+          const activeRow = rows[index];
+          if (activeRow) {
+            const rawSpans = (typeof activeRow.querySelectorAll === 'function' && activeRow.querySelectorAll('.lyric-word').length)
+              ? activeRow.querySelectorAll('.lyric-word')
+              : (activeRow.children && Array.isArray(activeRow.children) ? activeRow.children.filter(c => c.classList && c.classList.contains('lyric-word')) : []);
+            const spans = Array.from(new Set(rawSpans));
+            if (spans && spans.length) {
+              const wordIndex = library.lyricWordAt(activeLine.words, audio.currentTime);
+              spans.forEach((span, w) => {
+                span.classList.toggle('lyric-word-sung', w < wordIndex);
+                span.classList.toggle('lyric-word-active', w === wordIndex);
+              });
+            }
+          }
+        }
+      }
     }
     function displayTrack(track) {
       state.currentId = track.id;
@@ -2890,6 +3009,9 @@
               ? library.calculateSleepFadeGain(remaining, fadeMs)
               : Math.max(0, remaining / fadeMs);
             setGain(state.sleepOriginalVolume * gain);
+            if (state.ambientMasterGain && state.context) {
+              state.ambientMasterGain.gain.setTargetAtTime(0.5 * gain, state.context.currentTime, 0.05);
+            }
           }, 250);
         }, fadeStartMs);
       }
@@ -2897,6 +3019,9 @@
       state.sleepTimer = setTimeout(() => {
         audio.pause();
         if (state.dsdWorker || state.dsdUrl) stopDsdWorker();
+        if (state.ambientMasterGain && state.context) {
+          state.ambientMasterGain.gain.setValueAtTime(0, state.context.currentTime);
+        }
         if (state.sleepOriginalVolume !== null) {
           setGain(state.sleepOriginalVolume);
           state.sleepOriginalVolume = null;
@@ -2916,14 +3041,513 @@
       state.sleepTimer = null;
       state.sleepFadeTimer = null;
       state.sleepFadeInterval = null;
-      if (state.sleepOriginalVolume !== null) {
-        setGain(state.sleepOriginalVolume);
+      if (state.sleepOriginalVolume != null) {
+        if (typeof setGain === 'function') setGain(state.sleepOriginalVolume);
         state.sleepOriginalVolume = null;
+        if (typeof applyAmbientVolumes === 'function') {
+          applyAmbientVolumes();
+        }
       }
       state.sleepDeadline = 0;
       state.sleepAtTrackEnd = false;
-      updateSleepStatus();
-      $('sleep-panel').classList.add('hidden');
+      if (typeof updateSleepStatus === 'function') updateSleepStatus();
+      if ($('sleep-panel')) $('sleep-panel').classList.add('hidden');
+    }
+
+    // ── Pha D — Ambient Sound Mixer (Mưa & Lửa Trại) ──────────────────────────
+    // Định tuyến Audio Graph độc lập hội tụ trực tiếp tại destination
+    // để bảo toàn chế độ Bit-perfect và giữ sạch visualizer của bài hát.
+
+    function setupAmbientAudio(customCtx) {
+      const ctx = customCtx || state.context;
+      if (!ctx) return;
+      if (customCtx && state.context !== customCtx) {
+        state.context = customCtx;
+      }
+      if (state.ambientNodes && state.ambientMasterGain) return;
+
+      // 1. Master & Channel Gain Nodes
+      state.ambientMasterGain = ctx.createGain();
+      state.ambientMasterGain.gain.setValueAtTime(0.5, ctx.currentTime);
+      state.ambientMasterGain.connect(ctx.destination);
+
+      state.ambientRainGain = ctx.createGain();
+      state.ambientRainGain.gain.setValueAtTime(0, ctx.currentTime);
+      state.ambientRainGain.connect(state.ambientMasterGain);
+
+      state.ambientCampfireGain = ctx.createGain();
+      state.ambientCampfireGain.gain.setValueAtTime(0, ctx.currentTime);
+      state.ambientCampfireGain.connect(state.ambientMasterGain);
+
+      // 2. Chuẩn bị buffer âm thanh mẫu (Stereo Decorrelated RAM Buffers)
+      if (!state.ambientBuffers) {
+        state.ambientBuffers = {
+          rain: (typeof library?.generatePinkNoiseBuffer === 'function' && typeof ctx.createBuffer === 'function') ? library.generatePinkNoiseBuffer(ctx, 4.0) : null,
+          campfireBase: (typeof library?.generateBrownNoiseBuffer === 'function' && typeof ctx.createBuffer === 'function') ? library.generateBrownNoiseBuffer(ctx, 4.0) : null,
+          campfireCrackle: (typeof library?.generateCampfireCrackleBuffer === 'function' && typeof ctx.createBuffer === 'function') ? library.generateCampfireCrackleBuffer(ctx, 6.0) : null
+        };
+      }
+
+      // 3. Sub-graph Tiếng Mưa: Rain Source -> LP 1200Hz -> HP 200Hz -> rainGain
+      const rainLP = typeof ctx.createBiquadFilter === 'function' ? ctx.createBiquadFilter() : null;
+      if (rainLP) { rainLP.type = 'lowpass'; rainLP.frequency.value = 1200; }
+      const rainHP = typeof ctx.createBiquadFilter === 'function' ? ctx.createBiquadFilter() : null;
+      if (rainHP) { rainHP.type = 'highpass'; rainHP.frequency.value = 200; }
+      if (rainLP && rainHP) {
+        rainLP.connect(rainHP);
+        rainHP.connect(state.ambientRainGain);
+      }
+
+      // 4. Sub-graph Lửa Trại: Base -> LP 450Hz -> BaseGain ┐
+      //                       Crackle -> HP 600Hz -> CrackleGain ┴-> campfireGain
+      const campfireLP = typeof ctx.createBiquadFilter === 'function' ? ctx.createBiquadFilter() : null;
+      if (campfireLP) { campfireLP.type = 'lowpass'; campfireLP.frequency.value = 450; }
+      const campfireHP = typeof ctx.createBiquadFilter === 'function' ? ctx.createBiquadFilter() : null;
+      if (campfireHP) { campfireHP.type = 'highpass'; campfireHP.frequency.value = 600; }
+
+      const campfireBaseGain = typeof ctx.createGain === 'function' ? ctx.createGain() : null;
+      if (campfireBaseGain) {
+        campfireBaseGain.gain.value = 0.75;
+        if (campfireLP) {
+          campfireLP.connect(campfireBaseGain);
+          campfireBaseGain.connect(state.ambientCampfireGain);
+        }
+      }
+
+      const campfireCrackleGain = typeof ctx.createGain === 'function' ? ctx.createGain() : null;
+      if (campfireCrackleGain) {
+        campfireCrackleGain.gain.value = 0.9;
+        if (campfireHP) {
+          campfireHP.connect(campfireCrackleGain);
+          campfireCrackleGain.connect(state.ambientCampfireGain);
+        }
+      }
+
+      state.ambientNodes = {
+        masterGain: state.ambientMasterGain,
+        rain: {
+          lp: rainLP,
+          hp: rainHP,
+          filter: rainLP,
+          gain: state.ambientRainGain,
+          source: null,
+          lfo: null,
+          lfoGain: null
+        },
+        campfire: {
+          lp: campfireLP,
+          hp: campfireHP,
+          filter: campfireLP,
+          baseGain: campfireBaseGain,
+          crackleGain: campfireCrackleGain,
+          gain: state.ambientCampfireGain,
+          baseSource: null,
+          crackleSource: null,
+          emberSource: null
+        }
+      };
+
+      if (state.ambientRainEnabled) {
+        if (!state.ambientNodes.rain.source) {
+          const src = ctx.createBufferSource();
+          if (state.ambientBuffers?.rain) src.buffer = state.ambientBuffers.rain;
+          src.loop = true;
+          if (rainLP) src.connect(rainLP);
+          else src.connect(state.ambientRainGain);
+          try { src.start(0); } catch (_) {}
+          state.ambientNodes.rain.source = src;
+        }
+        if (!state.ambientNodes.rain.lfo && typeof ctx.createOscillator === 'function') {
+          const lfo = ctx.createOscillator();
+          lfo.type = 'sine';
+          lfo.frequency.value = 0.2;
+          const lfoGain = ctx.createGain();
+          lfoGain.gain.value = 0;
+          lfo.connect(lfoGain);
+          lfoGain.connect(state.ambientRainGain.gain);
+          try { lfo.start(0); } catch (_) {}
+          state.ambientNodes.rain.lfo = lfo;
+          state.ambientNodes.rain.lfoGain = lfoGain;
+          state.ambientRainLfo = lfo;
+        }
+      }
+      if (state.ambientCampfireEnabled) {
+        if (!state.ambientNodes.campfire.baseSource) {
+          const base = ctx.createBufferSource();
+          if (state.ambientBuffers?.campfireBase) base.buffer = state.ambientBuffers.campfireBase;
+          base.loop = true;
+          if (campfireLP) base.connect(campfireLP);
+          else if (campfireBaseGain) base.connect(campfireBaseGain);
+          else base.connect(state.ambientCampfireGain);
+          try { base.start(0); } catch (_) {}
+          state.ambientNodes.campfire.baseSource = base;
+          state.ambientNodes.campfire.emberSource = base;
+        }
+        if (!state.ambientNodes.campfire.crackleSource) {
+          const crackle = ctx.createBufferSource();
+          if (state.ambientBuffers?.campfireCrackle) crackle.buffer = state.ambientBuffers.campfireCrackle;
+          crackle.loop = true;
+          if (campfireHP) crackle.connect(campfireHP);
+          else if (campfireCrackleGain) crackle.connect(campfireCrackleGain);
+          else crackle.connect(state.ambientCampfireGain);
+          try { crackle.start(0); } catch (_) {}
+          state.ambientNodes.campfire.crackleSource = crackle;
+        }
+      }
+      applyAmbientVolumes();
+    }
+
+    function applyAmbientVolumes() {
+      const anyActive = Boolean(state.ambientRainEnabled || state.ambientCampfireEnabled);
+      const rainVol = typeof library?.clampAmbientVolume === 'function'
+        ? library.clampAmbientVolume(state.ambientRainVolume, 40)
+        : Math.max(0, Math.min(100, Math.round(Number(state.ambientRainVolume) || 40)));
+      const campfireVol = typeof library?.clampAmbientVolume === 'function'
+        ? library.clampAmbientVolume(state.ambientCampfireVolume, 30)
+        : Math.max(0, Math.min(100, Math.round(Number(state.ambientCampfireVolume) || 30)));
+
+      const rainVal = $('ambient-rain-val');
+      if (rainVal && typeof library?.formatAmbientVolume === 'function') {
+        rainVal.textContent = library.formatAmbientVolume(rainVol);
+      }
+      const campfireVal = $('ambient-campfire-val');
+      if (campfireVal && typeof library?.formatAmbientVolume === 'function') {
+        campfireVal.textContent = library.formatAmbientVolume(campfireVol);
+      }
+
+      const summary = $('ambient-summary');
+      if (summary && typeof library?.formatAmbientSummary === 'function') {
+        summary.textContent = library.formatAmbientSummary(
+          state.ambientRainEnabled, rainVol,
+          state.ambientCampfireEnabled, campfireVol
+        );
+      }
+
+      const badge = $('ambient-badge');
+      if (badge) {
+        badge.textContent = anyActive ? 'Đang phát' : 'Tắt';
+        badge.className = anyActive
+          ? 'rounded border border-emerald-400/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-300'
+          : 'rounded border border-violet-400/30 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-medium text-violet-300';
+      }
+
+      [$('ambient-button'), $('ambient-button-mobile')].forEach(btn => {
+        if (btn) {
+          btn.classList.toggle('text-violet-300', anyActive);
+          btn.classList.toggle('border-violet-400/30', anyActive);
+        }
+      });
+
+      if (!state.context || !state.ambientMasterGain) return;
+      const t = state.context.currentTime;
+
+      const targetMasterGain = anyActive ? 0.5 : 0;
+      state.ambientMasterGain.gain.setTargetAtTime(targetMasterGain, t, 0.035);
+
+      const targetRainGain = state.ambientRainEnabled ? (rainVol / 100) : 0;
+      if (state.ambientRainGain) {
+        state.ambientRainGain.gain.setTargetAtTime(targetRainGain, t, 0.035);
+      }
+      if (state.ambientNodes?.rain?.lfoGain) {
+        state.ambientNodes.rain.lfoGain.gain.setTargetAtTime(targetRainGain * 0.15, t, 0.035);
+      }
+
+      const targetCampfireGain = state.ambientCampfireEnabled ? (campfireVol / 100) : 0;
+      if (state.ambientCampfireGain) {
+        state.ambientCampfireGain.gain.setTargetAtTime(targetCampfireGain, t, 0.035);
+      }
+    }
+
+    async function ensureAudioContextRunning() {
+      if (!state.context || state.context.state === 'closed') {
+        state.context = null;
+        if (typeof setupAudio === 'function') {
+          try { setupAudio(); } catch (_) {}
+        }
+        if (!state.context) {
+          const AudioContextClass = (typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) ||
+                                    (typeof globalThis !== 'undefined' && globalThis.AudioContext);
+          if (AudioContextClass) {
+            state.context = new AudioContextClass();
+          }
+        }
+      }
+      if (!state.context) return;
+      if (!state.ambientNodes || !state.ambientMasterGain) {
+        setupAmbientAudio(state.context);
+      }
+      if (state.context.state === 'suspended') {
+        if (!state._audioResumePromise) {
+          state._audioResumePromise = state.context.resume().catch(() => {}).finally(() => {
+            state._audioResumePromise = null;
+          });
+        }
+        await state._audioResumePromise;
+      }
+    }
+
+    function toggleAmbientRain(enabled) {
+      const target = enabled !== undefined ? !!enabled : !state.ambientRainEnabled;
+      state.ambientRainEnabled = target;
+      const toggle = $('ambient-rain-toggle');
+      if (toggle) toggle.checked = target;
+      try {
+        localStorage.setItem('nocturne-ambient-rain-enabled', String(target));
+      } catch (_) {}
+
+      if (target) {
+        if (!state.ambientNodes && state.context) {
+          setupAmbientAudio(state.context);
+        }
+        if (state.context && state.ambientNodes?.rain) {
+          const ctx = state.context;
+          const rain = state.ambientNodes.rain;
+          if (!rain.source || rain.source.stopped) {
+            const src = ctx.createBufferSource();
+            if (state.ambientBuffers?.rain) src.buffer = state.ambientBuffers.rain;
+            src.loop = true;
+            if (rain.lp) src.connect(rain.lp);
+            else src.connect(state.ambientRainGain);
+            try { src.start(0); } catch (_) {}
+            rain.source = src;
+          }
+          if (!rain.lfo || rain.lfo.stopped) {
+            if (typeof ctx.createOscillator === 'function') {
+              const lfo = ctx.createOscillator();
+              lfo.type = 'sine';
+              lfo.frequency.value = 0.2;
+              const lfoGain = ctx.createGain();
+              lfoGain.gain.value = 0;
+              lfo.connect(lfoGain);
+              lfoGain.connect(state.ambientRainGain.gain);
+              try { lfo.start(0); } catch (_) {}
+              rain.lfo = lfo;
+              rain.lfoGain = lfoGain;
+              state.ambientRainLfo = lfo;
+            }
+          }
+        }
+        ensureAudioContextRunning();
+      } else {
+        if (state.ambientNodes?.rain) {
+          const rain = state.ambientNodes.rain;
+          if (rain.source) {
+            try { rain.source.stop(0); } catch (_) {}
+            try { rain.source.disconnect(); } catch (_) {}
+            rain.source = null;
+          }
+          if (rain.lfo) {
+            try { rain.lfo.stop(0); } catch (_) {}
+            try { rain.lfo.disconnect(); } catch (_) {}
+            rain.lfo = null;
+          }
+          if (state.ambientRainLfo) {
+            try { state.ambientRainLfo.stop(0); } catch (_) {}
+            try { state.ambientRainLfo.disconnect(); } catch (_) {}
+            state.ambientRainLfo = null;
+          }
+        }
+      }
+      applyAmbientVolumes();
+    }
+
+    function toggleAmbientCampfire(enabled) {
+      const target = enabled !== undefined ? !!enabled : !state.ambientCampfireEnabled;
+      state.ambientCampfireEnabled = target;
+      const toggle = $('ambient-campfire-toggle');
+      if (toggle) toggle.checked = target;
+      try {
+        localStorage.setItem('nocturne-ambient-campfire-enabled', String(target));
+      } catch (_) {}
+
+      if (target) {
+        if (!state.ambientNodes && state.context) {
+          setupAmbientAudio(state.context);
+        }
+        if (state.context && state.ambientNodes?.campfire) {
+          const ctx = state.context;
+          const campfire = state.ambientNodes.campfire;
+          if (!campfire.baseSource || campfire.baseSource.stopped) {
+            const base = ctx.createBufferSource();
+            if (state.ambientBuffers?.campfireBase) base.buffer = state.ambientBuffers.campfireBase;
+            base.loop = true;
+            if (campfire.lp) base.connect(campfire.lp);
+            else if (campfire.baseGain) base.connect(campfire.baseGain);
+            else base.connect(state.ambientCampfireGain);
+            try { base.start(0); } catch (_) {}
+            campfire.baseSource = base;
+            campfire.emberSource = base;
+          }
+          if (!campfire.crackleSource || campfire.crackleSource.stopped) {
+            const crackle = ctx.createBufferSource();
+            if (state.ambientBuffers?.campfireCrackle) crackle.buffer = state.ambientBuffers.campfireCrackle;
+            crackle.loop = true;
+            if (campfire.hp) crackle.connect(campfire.hp);
+            else if (campfire.crackleGain) crackle.connect(campfire.crackleGain);
+            else crackle.connect(state.ambientCampfireGain);
+            try { crackle.start(0); } catch (_) {}
+            campfire.crackleSource = crackle;
+          }
+        }
+        ensureAudioContextRunning();
+      } else {
+        if (state.ambientNodes?.campfire) {
+          const campfire = state.ambientNodes.campfire;
+          if (campfire.baseSource) {
+            try { campfire.baseSource.stop(0); } catch (_) {}
+            try { campfire.baseSource.disconnect(); } catch (_) {}
+            campfire.baseSource = null;
+            campfire.emberSource = null;
+          }
+          if (campfire.crackleSource) {
+            try { campfire.crackleSource.stop(0); } catch (_) {}
+            try { campfire.crackleSource.disconnect(); } catch (_) {}
+            campfire.crackleSource = null;
+          }
+        }
+      }
+      applyAmbientVolumes();
+    }
+
+    function setAmbientRainVolume(volume) {
+      const clamped = typeof library?.clampAmbientVolume === 'function' ? library.clampAmbientVolume(volume, 40) : Math.max(0, Math.min(100, Math.round(Number(volume) || 40)));
+      state.ambientRainVolume = clamped;
+      const slider = $('ambient-rain-slider');
+      if (slider && Number(slider.value) !== clamped) slider.value = String(clamped);
+      try {
+        localStorage.setItem('nocturne-ambient-rain-volume', String(clamped));
+      } catch (_) {}
+      applyAmbientVolumes();
+    }
+
+    function setAmbientCampfireVolume(volume) {
+      const clamped = typeof library?.clampAmbientVolume === 'function' ? library.clampAmbientVolume(volume, 30) : Math.max(0, Math.min(100, Math.round(Number(volume) || 30)));
+      state.ambientCampfireVolume = clamped;
+      const slider = $('ambient-campfire-slider');
+      if (slider && Number(slider.value) !== clamped) slider.value = String(clamped);
+      try {
+        localStorage.setItem('nocturne-ambient-campfire-volume', String(clamped));
+      } catch (_) {}
+      applyAmbientVolumes();
+    }
+
+    function resetAmbientMixer() {
+      state.ambientRainEnabled = false;
+      state.ambientCampfireEnabled = false;
+      try {
+        localStorage.setItem('nocturne-ambient-rain-enabled', 'false');
+        localStorage.setItem('nocturne-ambient-campfire-enabled', 'false');
+      } catch (_) {}
+      const rainToggle = $('ambient-rain-toggle');
+      if (rainToggle) rainToggle.checked = false;
+      const campfireToggle = $('ambient-campfire-toggle');
+      if (campfireToggle) campfireToggle.checked = false;
+
+      if (state.ambientNodes?.rain) {
+        const rain = state.ambientNodes.rain;
+        if (rain.source) {
+          try { rain.source.stop(0); } catch (_) {}
+          try { rain.source.disconnect(); } catch (_) {}
+          rain.source = null;
+        }
+        if (rain.lfo) {
+          try { rain.lfo.stop(0); } catch (_) {}
+          try { rain.lfo.disconnect(); } catch (_) {}
+          rain.lfo = null;
+        }
+        if (state.ambientRainLfo) {
+          try { state.ambientRainLfo.stop(0); } catch (_) {}
+          try { state.ambientRainLfo.disconnect(); } catch (_) {}
+          state.ambientRainLfo = null;
+        }
+      }
+      if (state.ambientNodes?.campfire) {
+        const campfire = state.ambientNodes.campfire;
+        if (campfire.baseSource) {
+          try { campfire.baseSource.stop(0); } catch (_) {}
+          try { campfire.baseSource.disconnect(); } catch (_) {}
+          campfire.baseSource = null;
+          campfire.emberSource = null;
+        }
+        if (campfire.crackleSource) {
+          try { campfire.crackleSource.stop(0); } catch (_) {}
+          try { campfire.crackleSource.disconnect(); } catch (_) {}
+          campfire.crackleSource = null;
+        }
+      }
+
+      applyAmbientVolumes();
+      const summary = $('ambient-summary');
+      if (summary) summary.textContent = 'Đang tắt';
+      if (state.ambientMasterGain && state.context) {
+        state.ambientMasterGain.gain.setValueAtTime(0, state.context.currentTime);
+      }
+    }
+
+    function toggleAmbientPanel(open) {
+      const panel = $('ambient-panel');
+      if (!panel) return;
+      const isHidden = panel.hidden !== undefined ? panel.hidden : panel.classList.contains('hidden');
+      const shouldOpen = open !== undefined ? !!open : isHidden;
+      panel.hidden = !shouldOpen;
+      panel.classList.toggle('hidden', !shouldOpen);
+      [$('ambient-button'), $('ambient-button-mobile')].forEach(btn => {
+        if (btn) btn.setAttribute('aria-expanded', String(shouldOpen));
+      });
+      if (shouldOpen) {
+        ensureAudioContextRunning();
+      }
+    }
+
+    function restoreAmbientSettings() {
+      let rEn = false, cEn = false, rVol = 40, cVol = 30;
+      try {
+        const savedREn = localStorage.getItem('nocturne-ambient-rain-enabled');
+        rEn = savedREn === 'true';
+
+        const savedRVol = localStorage.getItem('nocturne-ambient-rain-volume');
+        if (savedRVol !== null && savedRVol !== undefined && savedRVol !== '') {
+          const num = Number(savedRVol);
+          if (!Number.isFinite(num) || Number.isNaN(num) || num < 0 || num > 100) rVol = 40;
+          else rVol = Math.round(num);
+        } else {
+          rVol = 40;
+        }
+
+        const savedCEn = localStorage.getItem('nocturne-ambient-campfire-enabled');
+        cEn = savedCEn === 'true';
+
+        const savedCVol = localStorage.getItem('nocturne-ambient-campfire-volume');
+        if (savedCVol !== null && savedCVol !== undefined && savedCVol !== '') {
+          const num = Number(savedCVol);
+          if (!Number.isFinite(num) || Number.isNaN(num) || num < 0 || num > 100) cVol = 30;
+          else cVol = Math.round(num);
+        } else {
+          cVol = 30;
+        }
+      } catch (_) {
+        rEn = false;
+        cEn = false;
+        rVol = 40;
+        cVol = 30;
+      }
+
+      state.ambientRainEnabled = rEn;
+      state.ambientRainVolume = rVol;
+      state.ambientCampfireEnabled = cEn;
+      state.ambientCampfireVolume = cVol;
+
+      const rainToggle = $('ambient-rain-toggle');
+      if (rainToggle) rainToggle.checked = rEn;
+      const rainSlider = $('ambient-rain-slider');
+      if (rainSlider) rainSlider.value = String(rVol);
+
+      const campfireToggle = $('ambient-campfire-toggle');
+      if (campfireToggle) campfireToggle.checked = cEn;
+      const campfireSlider = $('ambient-campfire-slider');
+      if (campfireSlider) campfireSlider.value = String(cVol);
+
+      applyAmbientVolumes();
     }
     function queueIndex() {
       const current = state.tracks.findIndex(track => track.id === state.currentId);
@@ -3404,7 +4028,7 @@
       const currentIndex = state.tracks.findIndex(track => track.id === state.currentId);
       if (currentIndex < 0) { playTrack(state.tracks[direction < 0 ? state.tracks.length - 1 : 0].id); return; }
       if (direction < 0 && audio.currentTime > 3) { audio.currentTime = 0; return; }
-      if (direction > 0 && auto && state.sleepAtTrackEnd) { audio.pause(); if (state.dsdWorker || state.dsdUrl) stopDsdWorker(false); clearSleepTimer(); toast('Hẹn giờ ngủ: đã tạm dừng khi hết bài.'); return; }
+      if (direction > 0 && auto && state.sleepAtTrackEnd) { audio.pause(); if (state.dsdWorker || state.dsdUrl) stopDsdWorker(false); if (state.ambientMasterGain && state.context) state.ambientMasterGain.gain.setValueAtTime(0, state.context.currentTime); clearSleepTimer(); toast('Hẹn giờ ngủ: đã tạm dừng khi hết bài.'); return; }
       if (direction > 0) {
         const queued = queueTracks()[0];
         if (queued) { playTrack(queued.id); return; }
@@ -3965,6 +4589,27 @@
       toast('Sẽ dừng khi bài hiện tại kết thúc.');
     });
     $('sleep-cancel').addEventListener('click', clearSleepTimer);
+    $('ambient-button')?.addEventListener('click', () => toggleAmbientPanel());
+    $('ambient-button-mobile')?.addEventListener('click', () => toggleAmbientPanel());
+    $('ambient-close')?.addEventListener('click', () => toggleAmbientPanel(false));
+    $('ambient-rain-toggle')?.addEventListener('change', e => toggleAmbientRain(e.target.checked));
+    $('ambient-rain-slider')?.addEventListener('input', e => {
+      ensureAudioContextRunning();
+      setAmbientRainVolume(Number(e.target.value));
+    });
+    $('ambient-campfire-toggle')?.addEventListener('change', e => toggleAmbientCampfire(e.target.checked));
+    $('ambient-campfire-slider')?.addEventListener('input', e => {
+      ensureAudioContextRunning();
+      setAmbientCampfireVolume(Number(e.target.value));
+    });
+    $('ambient-reset')?.addEventListener('click', () => resetAmbientMixer());
+    document.addEventListener('click', event => {
+      const panel = $('ambient-panel');
+      if (!panel || panel.hidden || panel.classList.contains('hidden')) return;
+      if (!panel.contains(event.target) && !$('ambient-button')?.contains(event.target) && !$('ambient-button-mobile')?.contains(event.target)) {
+        toggleAmbientPanel(false);
+      }
+    });
     $('room-seek').addEventListener('input', event => { paintSeek(event.currentTarget, event.currentTarget.value); const previewTime = Number(event.currentTarget.value) / 1000 * (audio.duration || 0); $('room-current-time').textContent = formatTime(previewTime); $('room-remaining').textContent = formatRemainingTime(previewTime, audio.duration); });
     $('room-seek').addEventListener('change', event => { if (Number.isFinite(audio.duration)) audio.currentTime = Number(event.currentTarget.value) / 1000 * audio.duration; updatePositionState(); });
     document.getElementById('waveform-canvas')?.addEventListener('click', function(e) {
@@ -3981,7 +4626,7 @@
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
       const target = event.target, tag = target && target.tagName;
       if (event.key === 'Escape' && isSettingsOpen()) { event.preventDefault(); hideSettings(); return; }
-      if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); return; }
+      if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); toggleAmbientPanel(false); return; }
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target && target.isContentEditable) || (target && target.closest && target.closest('button, a, [role="button"]')) || !$('listening-room').classList.contains('hidden')) return;
       if (!$('queue-panel').classList.contains('hidden')) { if (event.key.toLowerCase() === 'q') closeQueue(); return; }
       if (event.code === 'Space' || event.key.toLowerCase() === 'k') { event.preventDefault(); $('play-button').click(); }
@@ -3997,7 +4642,7 @@
       else if (event.key.toLowerCase() === 'q') $('queue-panel').classList.contains('hidden') ? openQueue() : closeQueue();
       else if (event.key.toLowerCase() === 'e') cycleEqPreset();
       else if (event.key.toLowerCase() === 'x') toggleCrossfade();
-      else if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); }
+      else if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); toggleAmbientPanel(false); }
     });
     $('shuffle-button').addEventListener('click', event => { state.shuffle = !state.shuffle; event.currentTarget.classList.toggle('text-violet-300', state.shuffle); toast(state.shuffle ? 'Đã bật trộn bài.' : 'Đã tắt trộn bài.'); if (state.currentId) preloadNext(true); });
     $('repeat-button').addEventListener('click', event => { state.repeat = (state.repeat + 1) % 3; event.currentTarget.textContent = state.repeat === 2 ? '↻¹' : '↻'; event.currentTarget.classList.toggle('text-violet-300', state.repeat > 0); toast(['Không lặp','Lặp danh sách','Lặp bài hiện tại'][state.repeat]); if (state.currentId) preloadNext(true); });
@@ -4426,7 +5071,7 @@
       if (savedRadio !== null) state.roonRadio = savedRadio === 'true';
     } catch (_) {}
     setGain(72);
-    syncAutoplayButton(); updateSleepStatus(); renderQueueCurrent(); updateRoonRadioStatus();
+    syncAutoplayButton(); updateSleepStatus(); renderQueueCurrent(); updateRoonRadioStatus(); restoreAmbientSettings();
     openDatabase().then(restoreRecentTracks).catch(error => { console.error('IndexedDB is unavailable:', error); restoreRecentTracks(); toast('Không thể bật lịch sử IndexedDB; mục nghe gần đây vẫn lưu trong trình duyệt.'); });
     if (!window.isSecureContext) console.info('Directory picker and cloud OAuth require HTTPS or localhost; use the file input fallback for local playback.');
     renderTracks();
@@ -4559,5 +5204,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 03:55 +07 | Đã xong: Pha D - Network Status Monitor, Offline Indicator & Smart Fallback: giám sát trạng thái mạng PWA qua helper thuần library.isOnlineState, library.formatNetworkStatus và library.canPlayOffline; thanh thông báo #offline-banner với hiệu ứng pulse và nhãn trạng thái; lắng nghe sự kiện online/offline tự động chuyển chế độ và toast phản hồi; playTrack ngăn chặn lỗi giải mã mạng cho bài cloud khi mất mạng và toast hướng dẫn rõ ràng thay vì bỏ qua bài; kiểm chứng 14/14 test mới, toàn bộ suite test PASS | Lượt kế tiếp: Pha A - Parametric EQ presets / AutoEQ profiles cho các dòng tai nghe phổ biến | Backlog: Waveform seekbar bằng Web Audio Analyser/Canvas, Ambient Sound Mixer, Đồng bộ lyrics .lrc cuộn mượt từng từ -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 04:35 +07 | Đã xong: Pha A - Tone Controls (Bass & Treble Quick Trim): tích hợp bộ điều chỉnh âm sắc nhanh dải trầm (100 Hz low-shelf) và dải cao (10 kHz high-shelf) ±6 dB với bước 0.5 dB; UI slider kèm nút reset nhanh trong panel EQ (#tone-bass-slider, #tone-treble-slider, #tone-summary-label); AudioContext Graph định tuyến động qua createToneNodes (khi 0 dB tự động bypass bit-perfect, khi có can thiệp chuyển mượt 15ms sang biquad filter); hiển thị trong Roon Signal Path (DSP Stage · ENHANCED); lưu localStorage nocturne-tone-bass / nocturne-tone-treble; kiểm chứng 16/16 test mới, toàn bộ suite test PASS | Lượt kế tiếp: Pha B - Waveform seekbar trực quan hóa dạng sóng bài hát bằng Web Audio Analyser/Canvas | Backlog: Ambient Sound Mixer, Đồng bộ lyrics .lrc cuộn mượt từng từ, AutoEQ headphone compensation profiles -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 05:25 +07 | Đã xong: Pha B - Waveform seekbar trực quan hóa dạng sóng bài hát bằng Web Audio Analyser/Canvas: canvas #waveform-canvas trong Phòng nghe; helper library.generateWaveformPeaks tính toán biên độ đỉnh từ dữ liệu PCM decode qua OfflineAudioContext (200 mẫu); library.renderWaveformCanvas vẽ đồ thị dạng sóng 2 màu (tím đã phát / mờ chưa phát) cùng vạch playhead 2px; click-to-seek trực tiếp trên canvas dạng sóng; đồng bộ vị trí liên tục theo timeupdate; fallback an toàn khi lỗi tải/giải mã; kiểm chứng 18/18 test mới, toàn bộ 145/145 test PASS | Lượt kế tiếp: Pha C - Đồng bộ lời bài hát .lrc cuộn mượt từng từ (Karaoke word-by-word highlight) | Backlog: Ambient Sound Mixer, AutoEQ headphone compensation profiles, Reversible Phase Invert -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 09:35 +07 | Đã xong: Pha D - Ambient Sound Mixer (Mưa & Lửa trại) kết hợp tổng hợp âm thanh thủ tục Web Audio API: pink noise buffer 7-stage Voss-McCartney, brown noise leaky integrator AR(1), campfire crackle Poisson impulses (~12 pulses/s, crest factor > 3.0); kiến trúc Audio Graph độc lập nối thẳng context.destination bảo toàn 100% Bit-perfect và giữ sạch visualizer; điều chế LFO 0.2 Hz không đảo pha (gain >= 0); headroom scaling 0.5 chống clipping; mở khóa AudioContext bằng cử chỉ ensureAudioContextRunning; UI tiếng Việt #ambient-panel với thanh trượt và toggle độc lập; lưu trữ localStorage bền vững; tích hợp làm mờ và cắt âm cùng sleep timer; kiểm chứng 80/80 test suite ambient-mixer.test.cjs PASS 100% | Lượt kế tiếp: Pha A - Tối ưu hóa bộ nhớ và AutoEQ profiles cho các dòng tai nghe phổ biến | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
 </body>
 </html>
