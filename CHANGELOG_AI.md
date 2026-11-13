@@ -2,6 +2,38 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 12:35 +07] — [Pha B & C] Hoàn Thiện Trọn Bộ Giao Diện Roon Luxe UI (Focus Engine, Signal Path LED Popover, Immersive Fullscreen Now Playing)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. Giao Diện Người Dùng & Trực Quan Hóa Audiophile (UI/UX & Visualizer)**.
+- **Tính năng triển khai:**
+  1. **Roon "Focus" Engine (Bộ lọc thư viện tức thì đa chiều):**
+     - Thanh công cụ Roon Focus `#roon-focus-bar` với các pill phân loại nhanh: `Tất cả`, `DSD Audiophile`, `Hi-Res Lossless (>48k/16b)`, `Lossless CD (16/44.1)`, `Yêu thích ♥`, và `Cloud ☁`.
+     - Bộ đếm danh mục thời gian thực `countFocusCategories`: hiển thị số lượng bài tương ứng trên từng pill lọc.
+     - Hàm lọc thuần túy `filterTracksByFocus`: tích hợp chặt chẽ vào `filteredTracks()` và `renderFocusBar()`, tương thích 100% với tìm kiếm và sắp xếp.
+  2. **Roon Signal Path Popover Modal (Đèn LED phát sáng chuẩn Roon & 4 chặng xử lý):**
+     - Đèn LED chất lượng âm thanh Roon `#signal-path-led` và hệ thống đánh giá sao `#signal-path-stars` qua `computeRoonSignalLed`:
+       - Tím phát sáng (`#a855f7`, 5 sao): Bit-Perfect Lossless / DSD Direct.
+       - Xanh lá (`#10b981`, 4 sao): High-Resolution Audio.
+       - Xanh dương (`#3b82f6`, 4 sao): Enhanced DSP Processing (EQ / Tone / Crossfeed).
+       - Xanh ngọc (`#34d399`, 3 sao): Lossless CD Quality.
+       - Vàng hổ phách (`#eab308`, 2 sao): Standard Quality.
+     - Hộp thoại Popover dọc `#signal-path-popover` mô phỏng 4 trạm xử lý liên kết bằng đường dây phát sáng gradient (`buildRoonSignalPathStages`):
+       - Trạm 1: Nguồn âm thanh (Source file, codec, kHz, bit depth, channels).
+       - Trạm 2: Trình giải mã (Decoder stream preservation).
+       - Trạm 3: Bộ xử lý DSP (Bypass Direct Bit-perfect vs Chuỗi xử lý EQ/Crossfeed/Limiter).
+       - Trạm 4: Đầu ra & Vùng phát (DAC output, AudioContext rate).
+  3. **Chế độ Now Playing Toàn Màn Hình Roon Immersive Fullscreen (`#roon-fullscreen-view`):**
+     - Trải nghiệm phòng nghe tràn viền cao cấp: ảnh bìa album siêu lớn kèm lớp ánh sáng Ambient Glow động đồng điệu tông màu bìa đĩa (`#fullscreen-ambient-glow`).
+     - Dạng sóng Waveform seekbar toàn màn hình (`#fullscreen-waveform`): trực quan hóa dạng sóng và tua bài tương tác mượt mà.
+     - Dòng lời bài hát Karaoke đồng bộ tự động nhảy theo thời gian thực (`#fullscreen-lyrics-box`).
+     - Nút kích hoạt `#fullscreen-toggle-btn` trên footer cố định, phím tắt `F` chuyển đổi nhanh và phím `Escape` để thoát tức thì.
+  4. **Kiểm chứng tự động toàn diện:**
+     - Tạo mới test suite `roon-luxe-ui.test.cjs` gồm 18 bài kiểm thử phủ kín cả 3 tầng: Pure library helpers, DOM markup cấu trúc và Script integration. Toàn bộ 18/18 test PASS 100%.
+     - Kiểm chứng hồi quy toàn bộ hệ thống (`node --test *.test.cjs`): 377/377 tests PASS, 44 suites, 0 fail.
+
+---
+
 ## [Chu Kỳ 2026-11-13 12:15 +07] — [Pha A & B] Roon Multi-Output Zone Controller & Roon Core Bridge: Quản Lý Đa Vùng Phát Audiophile & Tích Hợp Giao Thức Roon MOO/WebSocket
 
 ### 🎯 Hạng Mục Nâng Cấp:

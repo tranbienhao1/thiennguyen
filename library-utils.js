@@ -1688,5 +1688,155 @@
     return 'Sẵn sàng';
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus};
+  // ── Roon Luxe UI Helpers (Focus Engine, Signal Path LED & Stages) ─────────
+
+  function filterTracksByFocus(tracks, focusCriteria, options = {}) {
+    if (!Array.isArray(tracks)) return [];
+    if (!focusCriteria || focusCriteria === 'all' || (Array.isArray(focusCriteria) && focusCriteria.length === 0)) {
+      return tracks;
+    }
+    const criteria = Array.isArray(focusCriteria) ? focusCriteria : [focusCriteria];
+    const favs = options.favorites || new Set();
+
+    return tracks.filter(track => {
+      if (!track) return false;
+      return criteria.every(crit => {
+        if (!crit || crit === 'all') return true;
+        if (crit === 'dsd') {
+          return Boolean(track.isDsd || (track.format && track.format.toUpperCase().includes('DSD')) || (track.path && track.path.match(/\.(dsf|dff)$/i)));
+        }
+        if (crit === 'hires') {
+          return !track.isDsd && ((track.sampleRate && track.sampleRate > 48000) || (track.bitDepth && track.bitDepth > 16));
+        }
+        if (crit === 'lossless') {
+          return !track.isDsd &&
+            (!track.bitDepth || track.bitDepth <= 16) &&
+            (!track.sampleRate || track.sampleRate <= 48000) &&
+            (!track.format || track.format.toUpperCase().includes('FLAC') || track.format.toUpperCase().includes('WAV') || track.format.toUpperCase().includes('ALAC') || track.format.toUpperCase().includes('LOSSLESS'));
+        }
+        if (crit === 'favorite') {
+          return Boolean(track.isFavorite || (favs && favs.has(track.id)));
+        }
+        if (crit === 'cloud') {
+          return track.source === 'google' || track.source === 'microsoft' || track.source === 'cloud';
+        }
+        if (crit === 'local') {
+          return track.source === 'local' || !track.source;
+        }
+        return true;
+      });
+    });
+  }
+
+  function countFocusCategories(tracks, favorites = new Set()) {
+    if (!Array.isArray(tracks)) return { all: 0, dsd: 0, hires: 0, lossless: 0, favorite: 0, cloud: 0, local: 0 };
+    const counts = { all: tracks.length, dsd: 0, hires: 0, lossless: 0, favorite: 0, cloud: 0, local: 0 };
+    for (const track of tracks) {
+      if (!track) continue;
+      if (track.isDsd || (track.format && track.format.toUpperCase().includes('DSD')) || (track.path && track.path.match(/\.(dsf|dff)$/i))) {
+        counts.dsd++;
+      } else if ((track.sampleRate && track.sampleRate > 48000) || (track.bitDepth && track.bitDepth > 16)) {
+        counts.hires++;
+      } else if (!track.format || track.format.toUpperCase().includes('FLAC') || track.format.toUpperCase().includes('WAV') || track.format.toUpperCase().includes('ALAC') || track.format.toUpperCase().includes('LOSSLESS')) {
+        counts.lossless++;
+      }
+      if (track.isFavorite || (favorites && favorites.has(track.id))) {
+        counts.favorite++;
+      }
+      if (track.source === 'google' || track.source === 'microsoft' || track.source === 'cloud') {
+        counts.cloud++;
+      } else {
+        counts.local++;
+      }
+    }
+    return counts;
+  }
+
+  function formatFocusBadge(criterion) {
+    const labels = {
+      all: 'Tất cả',
+      dsd: 'DSD Audiophile',
+      hires: 'Hi-Res Lossless',
+      lossless: 'Lossless CD',
+      favorite: 'Yêu thích',
+      cloud: 'Đám mây',
+      local: 'Tập tin máy'
+    };
+    return labels[criterion] || criterion || '';
+  }
+
+  function computeRoonSignalLed(qualityTier, isBitPerfect) {
+    if (isBitPerfect || qualityTier === 'BIT-PERFECT') {
+      return { color: 'purple', hex: '#a855f7', label: 'Bit-Perfect', stars: 5, pulse: true };
+    }
+    if (qualityTier === 'DSD') {
+      return { color: 'purple', hex: '#c084fc', label: 'DSD Direct', stars: 5, pulse: true };
+    }
+    if (qualityTier === 'HI-RES') {
+      return { color: 'green', hex: '#10b981', label: 'High Resolution', stars: 4, pulse: false };
+    }
+    if (qualityTier === 'ENHANCED') {
+      return { color: 'blue', hex: '#3b82f6', label: 'Enhanced DSP', stars: 4, pulse: false };
+    }
+    if (qualityTier === 'LOSSLESS') {
+      return { color: 'green', hex: '#34d399', label: 'Lossless CD', stars: 3, pulse: false };
+    }
+    return { color: 'yellow', hex: '#eab308', label: 'Standard Quality', stars: 2, pulse: false };
+  }
+
+  function buildRoonSignalPathStages(track, options = {}) {
+    if (!track) return [];
+    const stages = [];
+    const isBypassed = !!options.isDspBypassed;
+
+    // Stage 1: Source
+    const sourceRateStr = track.sampleRate ? `${(track.sampleRate / 1000).toFixed(1)}kHz` : 'PCM';
+    const sourceDepthStr = track.bitDepth ? `${track.bitDepth}-bit` : '';
+    const sourceDesc = track.isDsd
+      ? `DSD${track.dsdMultiplier || 64} · 1-bit / ${(track.sampleRate ? (track.sampleRate / 1000000).toFixed(2) : '2.82')}MHz`
+      : `${track.format || 'FLAC'} ${sourceRateStr}${sourceDepthStr ? ` / ${sourceDepthStr}` : ''}`;
+    stages.push({
+      stage: 'source',
+      name: 'Nguồn âm thanh',
+      icon: 'file',
+      status: track.isDsd ? 'dsd' : (track.sampleRate > 48000 || track.bitDepth > 16 ? 'hires' : 'lossless'),
+      description: sourceDesc,
+      subtext: track.title || 'Bài hát'
+    });
+
+    // Stage 2: Decoder
+    stages.push({
+      stage: 'decoder',
+      name: 'Bộ giải mã',
+      icon: 'cpu',
+      status: 'bitperfect',
+      description: track.isDsd ? 'DSD-to-PCM Audio Worker Engine' : 'Trình giải mã Native Audio Web',
+      subtext: 'Bảo toàn nguyên vẹn bitstream'
+    });
+
+    // Stage 3: DSP
+    stages.push({
+      stage: 'dsp',
+      name: 'Bộ xử lý DSP',
+      icon: 'sliders',
+      status: isBypassed ? 'bypassed' : 'enhanced',
+      description: isBypassed ? 'Bit-Perfect Direct (Bypass hoàn toàn DSP)' : (options.dspSummary || 'PWA DSP Engine Active'),
+      subtext: isBypassed ? 'Không can thiệp tín hiệu số' : (options.dspDetails || 'EQ & Headroom Management')
+    });
+
+    // Stage 4: Output
+    const outRate = options.outputSampleRate || 48000;
+    stages.push({
+      stage: 'output',
+      name: 'Đầu ra & Vùng phát',
+      icon: 'speaker',
+      status: 'ready',
+      description: options.zoneName || 'Phòng nghe Audiophile',
+      subtext: `AudioContext ${(outRate / 1000).toFixed(1)} kHz`
+    });
+
+    return stages;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages};
 });

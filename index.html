@@ -416,6 +416,36 @@
           <select id="album-filter" aria-label="Lọc theo album"><option value="*">Mọi album</option></select>
           <select id="group-by" aria-label="Nhóm bài hát"><option value="none">Không nhóm</option><option value="artist">Nhóm nghệ sĩ</option><option value="album">Nhóm album</option></select>
         </div>
+        <!-- Roon Focus Engine Bar -->
+        <div id="roon-focus-bar" class="mb-4 flex flex-wrap items-center gap-1.5 rounded-xl border border-white/5 bg-white/[.02] p-2 backdrop-blur-sm">
+          <div class="flex items-center gap-1.5 px-2 text-xs font-semibold uppercase tracking-wider text-purple-400">
+            <span>› Focus</span>
+          </div>
+          <button type="button" class="focus-pill active rounded-lg border border-purple-500/50 bg-purple-500/20 px-2.5 py-1 text-xs font-medium text-purple-200 transition hover:bg-purple-500/30" data-focus="all">
+            <span>Tất cả</span>
+            <span id="focus-count-all" class="ml-1 rounded-full bg-purple-400/20 px-1.5 py-0.2 text-[10px]">0</span>
+          </button>
+          <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="dsd">
+            <span class="text-amber-300">● DSD</span>
+            <span id="focus-count-dsd" class="ml-1 rounded-full bg-white/10 px-1.5 py-0.2 text-[10px] text-zinc-400">0</span>
+          </button>
+          <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="hires">
+            <span class="text-emerald-300">● Hi-Res</span>
+            <span id="focus-count-hires" class="ml-1 rounded-full bg-white/10 px-1.5 py-0.2 text-[10px] text-zinc-400">0</span>
+          </button>
+          <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="lossless">
+            <span class="text-sky-300">● CD Lossless</span>
+            <span id="focus-count-lossless" class="ml-1 rounded-full bg-white/10 px-1.5 py-0.2 text-[10px] text-zinc-400">0</span>
+          </button>
+          <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="favorite">
+            <span class="text-pink-400">♥ Yêu thích</span>
+            <span id="focus-count-favorite" class="ml-1 rounded-full bg-white/10 px-1.5 py-0.2 text-[10px] text-zinc-400">0</span>
+          </button>
+          <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="cloud">
+            <span>☁ Cloud</span>
+            <span id="focus-count-cloud" class="ml-1 rounded-full bg-white/10 px-1.5 py-0.2 text-[10px] text-zinc-400">0</span>
+          </button>
+        </div>
         <div id="collection-grid" aria-live="polite"></div>
         <div id="album-hero" class="hidden mb-6 rounded-2xl border border-white/10 bg-gradient-to-b from-white/[.04] to-transparent p-5 sm:p-6">
           <div class="flex flex-col gap-5 sm:flex-row sm:items-end">
@@ -497,7 +527,8 @@
           <span id="quality-badge" class="rounded-md border border-white/10 px-2 py-1 text-[9px] font-medium uppercase tracking-wider text-zinc-500">READY</span>
           <button id="eq-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white">EQ</button>
           <button id="queue-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Hàng đợi phát" title="Phát tiếp theo">☰</button>
-          <button id="room-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Màn hình Đang phát" title="Đang phát">⛶</button>
+          <button id="room-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Màn hình Đang phát" title="Đang phát">Phòng nghe</button>
+          <button id="fullscreen-toggle-btn" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-purple-300 hover:text-white hover:border-purple-400 transition" aria-label="Toàn màn hình Roon (F)" title="Toàn màn hình Roon (F)">⛶</button>
           <button id="autoplay-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Tự động phát tiếp" title="Tự động phát tiếp">▶∞</button>
           <button id="sleep-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Hẹn giờ ngủ" title="Hẹn giờ ngủ">◷</button>
           <button id="ambient-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Âm thanh môi trường" title="Âm thanh môi trường" aria-expanded="false">🌧</button>
@@ -769,6 +800,73 @@
       </div>
     </div>
   </div>
+
+  <!-- Roon Signal Path Popover Modal -->
+  <div id="signal-path-popover" class="fixed inset-0 z-[85] hidden place-items-center bg-black/75 backdrop-blur-md p-4" role="dialog" aria-modal="true" aria-labelledby="signal-path-title">
+    <div class="relative w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-purple-950/40">
+      <div class="flex items-center justify-between border-b border-white/10 pb-4">
+        <div class="flex items-center gap-3">
+          <div id="signal-path-led" class="h-3.5 w-3.5 rounded-full bg-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.8)]"></div>
+          <div>
+            <h3 id="signal-path-title" class="text-sm font-bold tracking-wide text-white">ROON SIGNAL PATH</h3>
+            <div id="signal-path-stars" class="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-purple-400">★★★★★ Bit-Perfect</div>
+          </div>
+        </div>
+        <button id="signal-path-close" type="button" class="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white transition" aria-label="Đóng">✕</button>
+      </div>
+      <div class="relative my-5 pl-4">
+        <div class="absolute left-7 top-4 bottom-4 w-0.5 bg-gradient-to-b from-purple-500 via-indigo-500 to-purple-600 opacity-50"></div>
+        <div id="signal-path-stages" class="space-y-4"></div>
+      </div>
+      <div class="border-t border-white/5 pt-3 text-[11px] text-zinc-400 flex items-center justify-between">
+        <span>Độ trung thực âm thanh: Tuyệt đối</span>
+        <span class="rounded bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-300">Audiophile Grade</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Roon Immersive Fullscreen Now Playing View -->
+  <div id="roon-fullscreen-view" class="fixed inset-0 z-[100] hidden flex-col justify-between bg-zinc-950 p-6 sm:p-10 transition-opacity duration-300">
+    <div id="fullscreen-ambient-glow" class="pointer-events-none absolute inset-0 opacity-40 blur-3xl" aria-hidden="true"></div>
+    <div class="relative z-10 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-purple-400">ROON NOW PLAYING</span>
+        <span id="fullscreen-signal-led" class="h-2.5 w-2.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span>
+      </div>
+      <button id="fullscreen-exit-btn" type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10 hover:text-white transition" aria-label="Thoát toàn màn hình">
+        <span>Thu nhỏ ✕ (Esc)</span>
+      </button>
+    </div>
+    <div class="relative z-10 mx-auto my-auto grid w-full max-w-5xl grid-cols-1 items-center gap-8 md:grid-cols-2">
+      <div class="relative mx-auto aspect-square w-64 sm:w-80 md:w-96 overflow-hidden rounded-2xl border border-white/15 bg-zinc-900 shadow-2xl shadow-black/80">
+        <img id="fullscreen-cover-img" class="h-full w-full object-cover hidden" alt="Bìa album">
+        <div id="fullscreen-cover-empty" class="grid h-full w-full place-items-center text-6xl text-zinc-600">♫</div>
+      </div>
+      <div class="flex flex-col justify-center space-y-4">
+        <div>
+          <span id="fullscreen-quality-badge" class="rounded-md border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-purple-300">BIT-PERFECT</span>
+          <h1 id="fullscreen-title" class="mt-2 text-2xl sm:text-3xl font-extrabold text-white tracking-tight line-clamp-2">Chưa phát bài nào</h1>
+          <p id="fullscreen-artist" class="mt-1 text-sm sm:text-base font-medium text-zinc-300">Nghệ sĩ</p>
+          <p id="fullscreen-album" class="text-xs sm:text-sm text-zinc-500">Album</p>
+        </div>
+        <div class="w-full">
+          <canvas id="fullscreen-waveform" class="h-16 w-full cursor-pointer rounded-lg bg-white/[0.02]" aria-label="Dạng sóng toàn màn hình"></canvas>
+          <div class="mt-1 flex items-center justify-between text-xs text-zinc-400 font-mono">
+            <span id="fullscreen-time-cur">0:00</span>
+            <span id="fullscreen-time-dur">0:00</span>
+          </div>
+        </div>
+        <div id="fullscreen-lyrics-box" class="h-20 overflow-hidden rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center text-sm font-medium text-purple-200">
+          <p id="fullscreen-lyric-line" class="italic">...</p>
+        </div>
+      </div>
+    </div>
+    <div class="relative z-10 mx-auto flex items-center gap-6">
+      <button id="fullscreen-prev-btn" type="button" class="text-zinc-400 hover:text-white text-xl" aria-label="Bài trước">⏮</button>
+      <button id="fullscreen-play-btn" type="button" class="h-12 w-12 rounded-full bg-purple-600 text-white grid place-items-center text-xl shadow-lg shadow-purple-600/40 hover:scale-105 transition" aria-label="Phát hoặc tạm dừng">▶</button>
+      <button id="fullscreen-next-btn" type="button" class="text-zinc-400 hover:text-white text-xl" aria-label="Bài kế tiếp">⏭</button>
+    </div>
+  </div>
   <div id="toast" class="pointer-events-none fixed bottom-32 left-1/2 z-[60] hidden -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-800 px-4 py-2.5 text-xs text-zinc-100 shadow-xl"></div>
   <div id="update-banner" class="fixed left-1/2 top-4 z-[70] hidden w-[min(92vw,480px)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-violet-300/25 bg-[#181422]/95 px-4 py-3 shadow-2xl shadow-black/50 backdrop-blur-xl" role="status" aria-live="polite">
     <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 text-base text-violet-200">↻</span>
@@ -989,7 +1087,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [] };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -1102,7 +1200,11 @@
       URL.revokeObjectURL(url); state.objectUrls.delete(url);
     }
     function filteredTracks() {
-      return library.filterTracks(state.tracks, {source:state.filter, artist:state.artist, album:state.album, query:state.query, favoritesOnly:state.focusOnly || state.favoritesOnly, isFavorite});
+      let list = library.filterTracks(state.tracks, {source:state.filter, artist:state.artist, album:state.album, query:state.query, favoritesOnly:state.focusOnly || state.favoritesOnly, isFavorite});
+      if (state.activeFocus && state.activeFocus !== 'all' && typeof library?.filterTracksByFocus === 'function') {
+        list = library.filterTracksByFocus(list, state.activeFocus, { favorites: state.favorites });
+      }
+      return list;
     }
     function groupTracks(tracks, groupBy) { return library.groupTracks(tracks, groupBy); }
     function releaseUnusedCloudUrl(track) {
@@ -2248,6 +2350,7 @@
     function renderTracks() {
       if (!state.trackScope) $('album-hero')?.classList.add('hidden');
       updateMetadataFilters();
+      if (typeof renderFocusBar === 'function') renderFocusBar();
       const shown = filteredTracks();
       renderRecentTracks();
       $('all-count').textContent = state.tracks.length;
@@ -2898,6 +3001,8 @@
       if (typeof applyAmbientGlow === 'function') applyAmbientGlow(track);
       if (typeof applyReplayGain === 'function') applyReplayGain(track);
       if (typeof generateTrackWaveform === 'function') generateTrackWaveform(track);
+      if (typeof updateRoonFullscreenUI === 'function') updateRoonFullscreenUI();
+      if (typeof renderSignalPathPopover === 'function' && !$('signal-path-popover')?.classList.contains('hidden')) renderSignalPathPopover();
     }
     async function generateTrackWaveform(track) {
       const canvas = document.getElementById('waveform-canvas');
@@ -2929,10 +3034,15 @@
     }
     function renderWaveformSeekbar() {
       const canvas = document.getElementById('waveform-canvas');
-      if (!canvas || !state.waveformPeaks) return;
       const audio = document.getElementById('audio-player') || document.querySelector('audio');
       const fraction = (audio && audio.duration) ? (audio.currentTime / audio.duration) : 0;
-      NocturneLibrary.renderWaveformCanvas(canvas, state.waveformPeaks, fraction);
+      if (canvas && state.waveformPeaks) {
+        NocturneLibrary.renderWaveformCanvas(canvas, state.waveformPeaks, fraction);
+      }
+      const fsCanvas = document.getElementById('fullscreen-waveform');
+      if (fsCanvas && state.waveformPeaks && state.isFullscreen) {
+        NocturneLibrary.renderWaveformCanvas(fsCanvas, state.waveformPeaks, fraction);
+      }
     }
     function renderQueueCurrent(track = trackById(state.currentId)) {
       const title = $('queue-current-title'), artist = $('queue-current-artist'), cover = $('queue-current-cover');
@@ -3833,6 +3943,171 @@
       if (shouldOpen) {
         renderZoneModalList();
         updateRoonBridgeUI();
+      }
+    }
+
+    // ── Roon Luxe UI Functions ──
+
+    function setFocusFilter(criterion) {
+      state.activeFocus = criterion || 'all';
+      renderFocusBar();
+      renderTracks();
+      const label = library.formatFocusBadge ? library.formatFocusBadge(criterion) : criterion;
+      if (criterion !== 'all') {
+        toast(`Bộ lọc Roon Focus: ${label}`);
+      }
+    }
+
+    function renderFocusBar() {
+      const bar = $('roon-focus-bar');
+      if (!bar) return;
+      const counts = library.countFocusCategories ? library.countFocusCategories(state.tracks, state.favorites) : { all: state.tracks.length };
+      ['all', 'dsd', 'hires', 'lossless', 'favorite', 'cloud'].forEach(cat => {
+        const cntEl = $(`focus-count-${cat}`);
+        if (cntEl && counts[cat] !== undefined) cntEl.textContent = String(counts[cat]);
+      });
+      bar.querySelectorAll('.focus-pill').forEach(btn => {
+        const cat = btn.getAttribute('data-focus');
+        const isActive = state.activeFocus === cat || (!state.activeFocus && cat === 'all');
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('border-purple-500/50', isActive);
+        btn.classList.toggle('bg-purple-500/20', isActive);
+        btn.classList.toggle('text-purple-200', isActive);
+      });
+    }
+
+    function toggleSignalPathPopover(open) {
+      const popover = $('signal-path-popover');
+      if (!popover) return;
+      const shouldOpen = open !== undefined ? !!open : popover.classList.contains('hidden');
+      popover.classList.toggle('hidden', !shouldOpen);
+      if (shouldOpen) {
+        renderSignalPathPopover();
+      }
+    }
+
+    function renderSignalPathPopover() {
+      const track = state.currentId ? trackById(state.currentId) : (state.tracks[0] || null);
+      const isDirect = state.activeZoneId === 'zone_direct';
+      const q = track ? quality(track) : { label: 'BIT-PERFECT', tone: 'emerald' };
+      const led = library.computeRoonSignalLed ? library.computeRoonSignalLed(q.label, isDirect) : { color: 'purple', hex: '#a855f7', stars: 5, label: 'Bit-Perfect' };
+
+      const ledEl = $('signal-path-led');
+      if (ledEl) {
+        ledEl.style.backgroundColor = led.hex;
+        ledEl.style.boxShadow = `0 0 14px ${led.hex}`;
+      }
+      const starsEl = $('signal-path-stars');
+      if (starsEl) {
+        const starStr = '★'.repeat(led.stars || 4) + '☆'.repeat(Math.max(0, 5 - (led.stars || 4)));
+        starsEl.textContent = `${starStr} ${led.label}`;
+        starsEl.style.color = led.hex;
+      }
+      const container = $('signal-path-stages');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (!track) {
+        container.innerHTML = '<p class="text-xs text-zinc-400">Chưa phát bài hát nào để hiển thị chuỗi tín hiệu.</p>';
+        return;
+      }
+
+      const activeZone = state.zones.find(z => z.id === state.activeZoneId) || state.roonZones.find(z => z.id === state.activeZoneId);
+      const zoneName = activeZone ? (activeZone.name || activeZone.display_name) : 'Phòng nghe Audiophile';
+      const stages = library.buildRoonSignalPathStages ? library.buildRoonSignalPathStages(track, {
+        isDspBypassed: isDirect,
+        zoneName,
+        outputSampleRate: state.context?.sampleRate || 48000,
+        dspSummary: 'Parametric EQ & Headroom Active'
+      }) : [];
+
+      stages.forEach((st, idx) => {
+        const node = document.createElement('div');
+        node.className = 'relative flex items-start gap-4';
+        node.innerHTML = `
+          <div class="relative z-10 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-purple-400/50 bg-zinc-900 text-[11px] font-bold text-purple-300 shadow">
+            ${idx + 1}
+          </div>
+          <div class="min-w-0 flex-1 rounded-xl border border-white/5 bg-white/[.02] p-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-zinc-200">${escapeHtml(st.name)}</span>
+              <span class="rounded bg-purple-500/15 px-1.5 py-0.5 text-[9px] font-medium text-purple-300">${st.status.toUpperCase()}</span>
+            </div>
+            <p class="mt-1 font-mono text-xs text-purple-200">${escapeHtml(st.description)}</p>
+            <p class="mt-0.5 text-[10px] text-zinc-400">${escapeHtml(st.subtext)}</p>
+          </div>
+        `;
+        container.appendChild(node);
+      });
+    }
+
+    function toggleRoonFullscreen(open) {
+      const view = $('roon-fullscreen-view');
+      if (!view) return;
+      const shouldOpen = open !== undefined ? !!open : view.classList.contains('hidden');
+      state.isFullscreen = shouldOpen;
+      view.classList.toggle('hidden', !shouldOpen);
+      view.classList.toggle('flex', shouldOpen);
+      if (shouldOpen) {
+        updateRoonFullscreenUI();
+        if (typeof generateTrackWaveform === 'function' && state.currentId) {
+          const track = trackById(state.currentId);
+          if (track) generateTrackWaveform(track);
+        }
+      }
+    }
+
+    function updateRoonFullscreenUI() {
+      const view = $('roon-fullscreen-view');
+      if (!view || view.classList.contains('hidden')) return;
+      const track = state.currentId ? trackById(state.currentId) : null;
+      if (!track) return;
+
+      const meta = library.trackMetadata ? library.trackMetadata(track) : track;
+      if ($('fullscreen-title')) $('fullscreen-title').textContent = meta.title || track.title;
+      if ($('fullscreen-artist')) $('fullscreen-artist').textContent = meta.artist || track.artist;
+      if ($('fullscreen-album')) $('fullscreen-album').textContent = meta.album || track.album || '';
+
+      const q = quality(track);
+      if ($('fullscreen-quality-badge')) {
+        $('fullscreen-quality-badge').textContent = q.label;
+        $('fullscreen-quality-badge').className = `rounded-md border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${q.tone}`;
+      }
+
+      const img = $('fullscreen-cover-img');
+      const empty = $('fullscreen-cover-empty');
+      if (img && empty) {
+        if (track.cover) {
+          img.src = track.cover;
+          img.classList.remove('hidden');
+          empty.classList.add('hidden');
+        } else {
+          img.classList.add('hidden');
+          empty.classList.remove('hidden');
+        }
+      }
+
+      if ($('fullscreen-play-btn')) {
+        $('fullscreen-play-btn').textContent = (!audio.src || audio.paused) ? '▶' : 'Ⅱ';
+      }
+
+      const curSec = audio?.currentTime || 0;
+      const durSec = track.duration || audio?.duration || 0;
+      if ($('fullscreen-time-cur')) $('fullscreen-time-cur').textContent = formatTime(curSec);
+      if ($('fullscreen-time-dur')) $('fullscreen-time-dur').textContent = formatTime(durSec);
+
+      const fsCanvas = $('fullscreen-waveform');
+      if (fsCanvas && state.waveformPeaks && typeof library?.renderWaveformCanvas === 'function') {
+        const progress = durSec > 0 ? (curSec / durSec) : 0;
+        library.renderWaveformCanvas(fsCanvas, state.waveformPeaks, progress);
+      }
+
+      if (state.lyrics && state.lyrics.length > 0 && typeof library?.lyricLineAt === 'function') {
+        const idx = library.lyricLineAt(state.lyrics, curSec);
+        const lLine = $('fullscreen-lyric-line');
+        if (lLine && state.lyrics[idx]) {
+          lLine.textContent = state.lyrics[idx].text;
+        }
       }
     }
     function queueIndex() {
@@ -5398,9 +5673,69 @@
         }
       });
     }
+    const focusBar = $('roon-focus-bar');
+    if (focusBar) {
+      focusBar.addEventListener('click', (e) => {
+        const btn = e.target.closest('.focus-pill');
+        if (btn) {
+          setFocusFilter(btn.getAttribute('data-focus'));
+        }
+      });
+    }
+
+    const toggleSigPath = $('toggle-signal-path');
+    if (toggleSigPath) toggleSigPath.addEventListener('click', () => toggleSignalPathPopover(true));
+    const sigPathBadge = $('signal-path-badge');
+    if (sigPathBadge) sigPathBadge.addEventListener('click', () => toggleSignalPathPopover(true));
+    const sigPathClose = $('signal-path-close');
+    if (sigPathClose) sigPathClose.addEventListener('click', () => toggleSignalPathPopover(false));
+    const sigPathPopover = $('signal-path-popover');
+    if (sigPathPopover) {
+      sigPathPopover.addEventListener('click', (e) => {
+        if (e.target === sigPathPopover) toggleSignalPathPopover(false);
+      });
+    }
+
+    const fsToggleBtn = $('fullscreen-toggle-btn');
+    if (fsToggleBtn) fsToggleBtn.addEventListener('click', () => toggleRoonFullscreen(true));
+    const fsExitBtn = $('fullscreen-exit-btn');
+    if (fsExitBtn) fsExitBtn.addEventListener('click', () => toggleRoonFullscreen(false));
+    const fsPlayBtn = $('fullscreen-play-btn');
+    if (fsPlayBtn) {
+      fsPlayBtn.addEventListener('click', () => {
+        if (audio && audio.src) {
+          if (audio.paused) audio.play();
+          else audio.pause();
+        }
+      });
+    }
+    const fsPrevBtn = $('fullscreen-prev-btn');
+    if (fsPrevBtn) fsPrevBtn.addEventListener('click', () => playNext(-1));
+    const fsNextBtn = $('fullscreen-next-btn');
+    if (fsNextBtn) fsNextBtn.addEventListener('click', () => playNext(1));
+    const fsWaveform = $('fullscreen-waveform');
+    if (fsWaveform) {
+      fsWaveform.addEventListener('click', (e) => {
+        const rect = fsWaveform.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const track = trackById(state.currentId);
+        const dur = (track && track.duration) || (audio && audio.duration) || 0;
+        if (dur > 0 && audio) {
+          audio.currentTime = ratio * dur;
+          updateRoonFullscreenUI();
+        }
+      });
+    }
+
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && zoneModal && !zoneModal.classList.contains('hidden')) {
-        toggleZoneModal(false);
+      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+      if (e.key === 'Escape') {
+        if (zoneModal && !zoneModal.classList.contains('hidden')) toggleZoneModal(false);
+        if (sigPathPopover && !sigPathPopover.classList.contains('hidden')) toggleSignalPathPopover(false);
+        if (state.isFullscreen) toggleRoonFullscreen(false);
+      } else if ((e.key === 'f' || e.key === 'F') && !isInput && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        toggleRoonFullscreen();
       }
     });
     openDatabase().then(restoreRecentTracks).catch(error => { console.error('IndexedDB is unavailable:', error); restoreRecentTracks(); toast('Không thể bật lịch sử IndexedDB; mục nghe gần đây vẫn lưu trong trình duyệt.'); });
@@ -5537,5 +5872,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 05:25 +07 | Đã xong: Pha B - Waveform seekbar trực quan hóa dạng sóng bài hát bằng Web Audio Analyser/Canvas: canvas #waveform-canvas trong Phòng nghe; helper library.generateWaveformPeaks tính toán biên độ đỉnh từ dữ liệu PCM decode qua OfflineAudioContext (200 mẫu); library.renderWaveformCanvas vẽ đồ thị dạng sóng 2 màu (tím đã phát / mờ chưa phát) cùng vạch playhead 2px; click-to-seek trực tiếp trên canvas dạng sóng; đồng bộ vị trí liên tục theo timeupdate; fallback an toàn khi lỗi tải/giải mã; kiểm chứng 18/18 test mới, toàn bộ 145/145 test PASS | Lượt kế tiếp: Pha C - Đồng bộ lời bài hát .lrc cuộn mượt từng từ (Karaoke word-by-word highlight) | Backlog: Ambient Sound Mixer, AutoEQ headphone compensation profiles, Reversible Phase Invert -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 09:35 +07 | Đã xong: Pha D - Ambient Sound Mixer (Mưa & Lửa trại) kết hợp tổng hợp âm thanh thủ tục Web Audio API: pink noise buffer 7-stage Voss-McCartney, brown noise leaky integrator AR(1), campfire crackle Poisson impulses (~12 pulses/s, crest factor > 3.0); kiến trúc Audio Graph độc lập nối thẳng context.destination bảo toàn 100% Bit-perfect và giữ sạch visualizer; điều chế LFO 0.2 Hz không đảo pha (gain >= 0); headroom scaling 0.5 chống clipping; mở khóa AudioContext bằng cử chỉ ensureAudioContextRunning; UI tiếng Việt #ambient-panel với thanh trượt và toggle độc lập; lưu trữ localStorage bền vững; tích hợp làm mờ và cắt âm cùng sleep timer; kiểm chứng 80/80 test suite ambient-mixer.test.cjs PASS 100% | Lượt kế tiếp: Pha A - Tối ưu hóa bộ nhớ và AutoEQ profiles cho các dòng tai nghe phổ biến | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 12:15 +07 | Đã xong: Pha A & B - Roon Multi-Output Zone Controller & Roon Core Bridge (Phương án 3: Kết hợp cả hai): chuyển đổi vùng phát nội bộ (PWA DSP vs Direct DAC Bit-perfect bypass); cổng kết nối Roon Core Bridge giao thức MOO wire qua WebSocket (com.roonlabs.registry/info, com.roonlabs.transport/subscribe_zones); định dạng Roon 3-line metadata (formatRoonThreeLine) trong Phòng nghe; 4 tác vụ ngữ cảnh Roon kinh điển (triggerRoonAction: play_now, play_next, add_queue, start_radio); modal quản lý vùng và kết nối Roon (#zone-modal, #roon-bridge-input, #roon-bridge-badge); kiểm chứng 15/15 test roon-zone-bridge.test.cjs PASS 100%, 359/359 toàn bộ suite test PASS | Lượt kế tiếp: Pha C - Tối ưu hóa bộ nhớ và AutoEQ profiles cho các dòng tai nghe phổ biến | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 12:35 +07 | Đã xong: Pha B & C - Hoàn thiện trọn bộ Giao diện Roon Luxe UI: Roon Focus Engine bar (#roon-focus-bar) lọc tức thì DSD/Hi-Res/CD Lossless/Cloud/Favorite; Roon Signal Path Popover (#signal-path-popover) đèn LED phát sáng 5 sao Bit-Perfect & biểu đồ 4 trạm xử lý; Chế độ Roon Immersive Fullscreen Now Playing (#roon-fullscreen-view) toàn màn hình phím tắt F với Waveform seekbar & Karaoke lyrics; kiểm chứng 18/18 test roon-luxe-ui.test.cjs PASS 100%, 377/377 toàn bộ suite test PASS | Lượt kế tiếp: Pha D - AutoEQ headphone compensation profiles cho các dòng tai nghe audiophile | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
 </body>
 </html>
