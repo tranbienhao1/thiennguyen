@@ -2,6 +2,30 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 04:45 +07] — [Pha B - Audio Engine & Visualizer] Đồng Hồ Độ Động Âm Thanh Dynamic Range Meter (Crest Factor) & Giám Sát Bộ Đệm Âm Thanh Lookahead Buffer
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP (Web Audio API)** & **2. UI/UX & Visualizer Hiện Đại**.
+- **Tính năng triển khai:**
+  1. **Đồng hồ đo độ động âm thanh chuẩn quốc tế Dynamic Range Meter (Crest Factor):**
+     - Xây dựng tiện ích thuần `calculateDynamicRange(peakDb, rmsDb)`: tính toán chính xác hệ số đỉnh Crest Factor theo dB (`Peak_dB - RMS_dB`), xử lý an toàn mức -96 dB và các trường hợp im lặng.
+     - Hàm `formatDynamicRange(drScore)`: phân cấp đánh giá độ động chuyên nghiệp:
+       + `DR >= 14`: **Audiophile Ref** (xanh ngọc lục bảo `emerald`, độ động cực cao của bản thu giao hưởng/jazz cổ điển nguyên bản).
+       + `DR >= 10`: **Tự nhiên** (tím audiophile `violet`, dải động tự nhiên chuẩn hi-fi).
+       + `DR >= 7`: **Tiêu chuẩn** (vàng hổ phách `amber`, bản thu hiện đại tiêu chuẩn).
+       + `DR < 7`: **Nén mạnh** (đỏ cam `rose`, bản thu chịu ảnh hưởng của cuộc chiến âm lượng Loudness War).
+     - Hiển thị huy hiệu thời gian thực `#room-dr-badge` và chi tiết đỉnh `#room-crest-detail` trong Phòng nghe, cùng nhãn `#footer-dr-badge` ở thanh điều khiển footer dưới chân trang.
+  2. **Bộ Giám Sát Bộ Đệm Nạp Trước & Chuyển Bài Liền Mạch (Lookahead Audio Buffer Monitor):**
+     - Hàm `calculateBufferLookahead(currentTime, bufferedRanges)`: tính toán chính xác số giây dữ liệu âm thanh đã nạp sẵn trong bộ nhớ đệm trình duyệt phía trước điểm phát hiện tại.
+     - Hàm `formatBufferLookahead(lookaheadSec, isGaplessReady)`: hiển thị trạng thái đệm trực quan (ví dụ: `Đệm 15.2s (Sẵn sàng Gapless)`, `Đang phát (4.5s đệm)`, `Đang nạp (1.8s)`).
+     - Tích hợp đèn tín hiệu `#room-buffer-dot` (xanh lá khi đệm an toàn >= 5s, vàng khi đệm nhẹ, xám khi đang nạp luồng).
+  3. **Kiểm thử tự động & Bảo toàn cấu trúc:**
+     - Bộ kiểm thử mới `dynamic-range-buffer.test.cjs` gồm 5 bài kiểm tra chuyên sâu PASS 100%.
+     - Bảo toàn tuyệt đối đường định tuyến Web Audio `state.crossfeedNodes.output.connect(state.context.destination)`.
+     - Toàn bộ hệ thống kiểm chứng: 467/467 ca kiểm thử PASS 100% (57 test suites, 0 fail).
+
+---
+
 ## [Chu Kỳ 2026-11-14 03:30 +07] — [Swarm Orynivo Integration] Tích Hợp CUE Sheet Parser, Smart Playlists Engine & Đánh Giá 5 Sao Audiophile từ Orynivo (bschlaack/Orynivo)
 
 ### 🎯 Hạng Mục Nâng Cấp:

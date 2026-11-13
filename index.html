@@ -579,6 +579,7 @@
         <div class="hidden w-[25%] items-center justify-end gap-3 lg:flex">
           <canvas id="visualizer" class="h-8 w-28 opacity-80"></canvas>
           <span id="level-readout" class="w-40 text-right text-[10px] tabular-nums text-zinc-500" title="Mức đỉnh / RMS thực từ AnalyserNode · Lim = mức limiter đã giảm khi EQ bật">—</span>
+          <span id="footer-dr-badge" class="hidden sm:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400" title="Dynamic Range (Crest Factor)">DR --</span>
           <span id="quality-badge" class="rounded-md border border-white/10 px-2 py-1 text-[9px] font-medium uppercase tracking-wider text-zinc-500">READY</span>
           <button id="eq-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white">EQ</button>
           <button id="queue-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Hàng đợi phát" title="Phát tiếp theo">☰</button>
@@ -768,6 +769,16 @@
           </div>
           <section class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
           <canvas id="waveform-canvas" class="w-full h-16 cursor-pointer rounded-sm mb-1" aria-label="Dạng sóng bài hát - nhấn để tua"></canvas>
+          <div class="mt-1 flex items-center justify-between text-[10px] text-zinc-500">
+            <div class="flex items-center gap-2">
+              <span id="room-dr-badge" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400" title="Dynamic Range (Crest Factor: chênh lệch giữa Peak dB và RMS dB)">DR -- · Chờ tín hiệu</span>
+              <span id="room-crest-detail" class="hidden sm:inline text-zinc-600">Pk -96 · RMS -96 dB</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="inline-block h-1.5 w-1.5 rounded-full bg-zinc-600" id="room-buffer-dot"></span>
+              <span id="room-buffer-status" title="Bộ đệm âm thanh nạp trước (Lookahead Audio Buffer)">Đang chờ luồng...</span>
+            </div>
+          </div>
           <div class="mt-8 flex items-center gap-3"><span id="room-current-time" class="w-10 text-right text-[10px] tabular-nums text-zinc-500">0:00</span><input id="room-seek" class="seek-range flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="room-duration" class="w-10 text-[10px] tabular-nums text-zinc-500">0:00</span><span id="room-remaining" class="w-12 text-[10px] tabular-nums text-zinc-500" title="Thời gian còn lại">-0:00</span></div>
           <div class="mt-5 flex items-center justify-center gap-7"><button id="room-previous" type="button" class="text-xl text-zinc-300 hover:text-white" aria-label="Bài trước">‹</button><button id="room-play" type="button" class="grid h-14 w-14 place-items-center rounded-full bg-white text-xl text-zinc-950 transition hover:scale-105" aria-label="Phát">▶</button><button id="room-next" type="button" class="text-xl text-zinc-300 hover:text-white" aria-label="Bài tiếp">›</button></div>
           <p class="mt-6 text-center text-[10px] text-zinc-600">Phím tắt: Space phát/tạm dừng · ←/→ hoặc [ ] lùi/tiến 10 giây · N/P bài tiếp/trước · Q hàng đợi</p>
@@ -2894,7 +2905,35 @@
       const draw = () => {
         if (generation !== visualizerGeneration || document.hidden || audio.paused || !audio.src) { visualizerFrame = 0; return; }
         visualizerFrame = requestAnimationFrame(draw); analyser.getByteFrequencyData(data); context.clearRect(0,0,width,height);
-        if (++frame % 30 === 0) { analyser.getByteTimeDomainData(timeData); const level = library.peakRmsFromTimeDomain(timeData); let readout = `Pk ${level.peakDb.toFixed(1)} · RMS ${level.rmsDb.toFixed(1)} dB`; if (preTimeData && $('eq-enabled').checked) { state.preLimiterAnalyser.getByteTimeDomainData(preTimeData); readout += limiterReductionText(library.peakRmsFromTimeDomain(preTimeData).peakDb, level.peakDb); } $('level-readout').textContent = readout; }
+        if (++frame % 30 === 0) {
+          analyser.getByteTimeDomainData(timeData);
+          const level = library.peakRmsFromTimeDomain(timeData);
+          let readout = `Pk ${level.peakDb.toFixed(1)} · RMS ${level.rmsDb.toFixed(1)} dB`;
+          if (preTimeData && $('eq-enabled').checked) {
+            state.preLimiterAnalyser.getByteTimeDomainData(preTimeData);
+            readout += limiterReductionText(library.peakRmsFromTimeDomain(preTimeData).peakDb, level.peakDb);
+          }
+          $('level-readout').textContent = readout;
+
+          if (typeof library.calculateDynamicRange === 'function') {
+            const drScore = library.calculateDynamicRange(level.peakDb, level.rmsDb);
+            const drInfo = library.formatDynamicRange(drScore);
+            const roomDr = $('room-dr-badge');
+            if (roomDr) {
+              roomDr.textContent = `${drInfo.label} · ${drInfo.grade}`;
+              roomDr.className = `rounded border px-2 py-0.5 text-[9px] font-medium ${drInfo.badgeClass}`;
+            }
+            const roomCrest = $('room-crest-detail');
+            if (roomCrest) {
+              roomCrest.textContent = `Pk ${level.peakDb.toFixed(1)} · RMS ${level.rmsDb.toFixed(1)} dB`;
+            }
+            const footerDr = $('footer-dr-badge');
+            if (footerDr) {
+              footerDr.textContent = drInfo.label;
+              footerDr.className = `hidden sm:inline-block rounded border px-1.5 py-0.5 text-[9px] font-medium ${drInfo.badgeClass}`;
+            }
+          }
+        }
         for (let i = 0; i < bars; i++) { const value = data[Math.floor(i * data.length / bars)] / 255, barHeight = Math.max(2, value * height); context.fillStyle = `rgba(167,139,250,${.35 + value * .65})`; context.beginPath(); context.roundRect(i * (barWidth + gap), (height - barHeight) / 2, barWidth, barHeight, 2); context.fill(); }
       };
       if (!visualizerFrame) visualizerFrame = requestAnimationFrame(draw);
@@ -3417,6 +3456,17 @@
       const roomCover = $('room-cover'); roomCover.hidden = !track.cover; roomCover.src = track.cover || ''; $('room-cover-empty').classList.toggle('hidden', !!track.cover);
       $('favorite-button').classList.remove('hidden'); $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').classList.toggle('text-pink-300', isFavorite(track));
       updateRoomRating(track);
+      if ($('room-dr-badge')) {
+        $('room-dr-badge').textContent = 'DR -- · Chờ tín hiệu';
+        $('room-dr-badge').className = 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400';
+      }
+      if ($('room-crest-detail')) $('room-crest-detail').textContent = 'Pk -96 · RMS -96 dB';
+      if ($('room-buffer-status')) $('room-buffer-status').textContent = 'Đang chờ luồng...';
+      if ($('room-buffer-dot')) $('room-buffer-dot').className = 'inline-block h-1.5 w-1.5 rounded-full bg-zinc-600';
+      if ($('footer-dr-badge')) {
+        $('footer-dr-badge').textContent = 'DR --';
+        $('footer-dr-badge').className = 'hidden sm:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400';
+      }
       renderQueueCurrent(track); syncAutoplayButton(); updateSleepStatus();
       $('room-play').textContent = !audio.src || audio.paused ? '▶' : 'Ⅱ';
       renderLyrics(track.lyricsText || '');
@@ -5900,6 +5950,17 @@
           if (!state.isSeeking && Number.isFinite(curTrack.duration) && curTrack.duration > 0) syncSeek(Math.round(trackCurrentTime / curTrack.duration * 1000));
           if (!$('room-seek').matches(':active')) { const roomPosition = Number.isFinite(curTrack.duration) && curTrack.duration ? Math.round(trackCurrentTime / curTrack.duration * 1000) : 0; $('room-seek').value = String(roomPosition); paintSeek($('room-seek'), roomPosition); }
           if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+          if (typeof library.calculateBufferLookahead === 'function') {
+            const lookaheadSec = library.calculateBufferLookahead(element.currentTime, element.buffered);
+            const isGaplessReady = Boolean(standbyAudio && standbyAudio.src && state.preloadReadyUrl);
+            const bufText = library.formatBufferLookahead(lookaheadSec, isGaplessReady);
+            const roomBuf = $('room-buffer-status');
+            if (roomBuf) roomBuf.textContent = bufText;
+            const roomBufDot = $('room-buffer-dot');
+            if (roomBufDot) {
+              roomBufDot.className = `inline-block h-1.5 w-1.5 rounded-full ${lookaheadSec >= 5 ? 'bg-emerald-400' : (lookaheadSec > 0 ? 'bg-amber-400' : 'bg-zinc-600')}`;
+            }
+          }
           updatePositionState();
           updateLyricsHighlight();
           if (library.shouldPreloadNext(curTrack.duration, trackCurrentTime, standbyAudio.src, state.preloadReadyUrl, library.PRELOAD_LEAD_SECONDS, location.href)) preloadNext();
@@ -5927,6 +5988,17 @@
         if (!state.isSeeking && Number.isFinite(element.duration)) syncSeek(Math.round(element.currentTime / element.duration * 1000));
         if (!$('room-seek').matches(':active')) { const roomPosition = Number.isFinite(element.duration) && element.duration ? Math.round(element.currentTime / element.duration * 1000) : 0; $('room-seek').value = String(roomPosition); paintSeek($('room-seek'), roomPosition); }
         if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+        if (typeof library.calculateBufferLookahead === 'function') {
+          const lookaheadSec = library.calculateBufferLookahead(element.currentTime, element.buffered);
+          const isGaplessReady = Boolean(standbyAudio && standbyAudio.src && state.preloadReadyUrl);
+          const bufText = library.formatBufferLookahead(lookaheadSec, isGaplessReady);
+          const roomBuf = $('room-buffer-status');
+          if (roomBuf) roomBuf.textContent = bufText;
+          const roomBufDot = $('room-buffer-dot');
+          if (roomBufDot) {
+            roomBufDot.className = `inline-block h-1.5 w-1.5 rounded-full ${lookaheadSec >= 5 ? 'bg-emerald-400' : (lookaheadSec > 0 ? 'bg-amber-400' : 'bg-zinc-600')}`;
+          }
+        }
         updatePositionState();
         updateLyricsHighlight();
         if (library.shouldPreloadNext(element.duration, element.currentTime, standbyAudio.src, state.preloadReadyUrl, library.PRELOAD_LEAD_SECONDS, location.href)) preloadNext();
@@ -6473,5 +6545,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 23:25 +07 | Đã xong: Pha A - Reversible Phase Invert (Đảo pha tuyệt đối 180° / Absolute Polarity Inversion Ø qua hệ số pha GainNode không gây tiếng click/pop; UI #phase-invert-toggle & #phase-invert-badge trong #eq-panel; tích hợp Roon Signal Path DSP Stage; lưu localStorage bền vững); kiểm chứng 9/9 test phase-invert.test.cjs PASS 100%, 430/430 toàn bộ suite test PASS | Lượt kế tiếp: Pha B - Gapless audio transitions & Audio buffer lookahead monitor | Backlog: Gapless audio transitions, Dynamic Range Meter (EBU R128) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 00:55 +07 | Đã xong: Fix & Nâng cấp 2 Phân mục Lời bài hát & Dạng sóng theo phản hồi người dùng: (1) Tự động tìm & nạp lời đồng bộ (.lrc) trực tuyến qua LRCLIB API với cleanSearchQuery, lưu cache localStorage, hỗ trợ nút tìm lại và dán lời .lrc thủ công; (2) High-DPI Waveform Seekbar: syncCanvasDimensions theo DPR, thuật toán generateDeterministicWaveform tạo hình bao sóng sống động theo seed bài hát khi không thể decode PCM thô, sửa click-to-seek trên cả waveform-canvas & fullscreen-waveform bắt chuẩn activeDeck, tua mượt mà kèm toast thông báo; kiểm chứng 5/5 test lyrics-waveform.test.cjs PASS 100%, 440/440 toàn bộ test suite PASS | Lượt kế tiếp: Pha B - Gapless audio transitions & Audio buffer lookahead monitor -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 03:30 +07 | Đã xong: Swarm Orynivo Integration - (1) Hỗ trợ file CUE sheet (.cue) qua parseCueSheet, đọc tiêu đề/nghệ sĩ/khung hình mm:ss:ff, tự động tách track ảo và phát mượt với cue offset start/end; (2) Danh sách phát thông minh (Smart Playlists Engine) theo tiêu chí chất lượng DSD, Hi-Res, Yêu thích > 4m qua evaluateSmartPlaylist; (3) Hệ thống đánh giá 5 sao audiophile (1-5 ★) trong Phòng nghe và danh sách bài hát, lưu trữ không can thiệp file gốc; kiểm chứng 21/21 test orynivo-features.test.cjs và 6/6 test cue-smart-playlist.test.cjs PASS 100%, toàn bộ 462/462 test PASS | Lượt kế tiếp: Pha B - Gapless audio transitions & Audio buffer lookahead monitor -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 04:45 +07 | Đã xong: Pha B - Dynamic Range Meter (DR Score / Crest Factor = Peak - RMS) & Realtime Audio Buffer Lookahead Monitor: (1) Tiện ích library.calculateDynamicRange + formatDynamicRange phân cấp tiêu chuẩn quốc tế (Audiophile Ref >= 14, Tự nhiên >= 10, Tiêu chuẩn >= 7, Nén mạnh < 7); (2) library.calculateBufferLookahead + formatBufferLookahead đo lường thời gian đệm nạp trước (sẵn sàng Gapless playback); (3) UI #room-dr-badge, #room-crest-detail, #room-buffer-status, #room-buffer-dot và #footer-dr-badge cập nhật thời gian thực; kiểm chứng 5/5 test dynamic-range-buffer.test.cjs PASS 100%, toàn bộ 467/467 test PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh (Intelligent Sleep Fade-out & Ambient Sleep Scene) -->
 </body>
 </html>
