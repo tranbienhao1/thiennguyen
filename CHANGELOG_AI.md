@@ -2,6 +2,27 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 12:55 +07] — [Swarm UI] Hoàn Thiện Từng Mục Giao Diện Web Chuẩn Roon Labs (Sidebar, Home Stats, Album Format Badges, Artist Glow)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. Giao Diện Người Dùng & Trực Quan Hóa Audiophile (UI/UX & Visualizer)**.
+- **Tính năng triển khai qua Swarm Teamwork (`@qa` & `@designer`):**
+  1. **Thanh điều hướng Sidebar chuẩn Roon:**
+     - Thiết lập chỉ báo viền sáng tím `box-shadow: inset 3px 0 var(--roon-active)` kết hợp nền pill `rgba(255,255,255,0.06)` cho mục đang chọn (`.nav-link.is-active`).
+     - Tối ưu hóa phân nhóm phân cấp danh mục rõ ràng giữa *BROWSE* (Home, Thể loại, Live Radio, Listen Later, Tag, History) và *MY LIBRARY* (Album, Nghệ sĩ, Bài hát, Compositions).
+  2. **Trang chủ Home Dashboard (Roon Overview):**
+     - Thẻ thống kê 3 phân khu (`.roon-stat`) bo góc tròn 10px (`border-radius: 10px`) kèm hiệu ứng gradient tối mờ `linear-gradient(135deg,#24262b 0%,#1a1b1e 100%)`.
+     - Phân định tab *Recent Activity* rõ rệt giữa hai chế độ `PLAYED` và `ĐÃ THÊM`.
+  3. **Bộ sưu tập Thẻ Album & Nghệ Sĩ (Collection Cards):**
+     - Thẻ Album tự động gắn huy hiệu chất lượng cao nhất (`.album-format-badge`: `DSD`, `HI-RES`, `LOSSLESS`) tính toán từ `summarizeAlbum`.
+     - Thẻ Nghệ sĩ dạng avatar tròn (`.is-artist`) tích hợp hiệu ứng ánh sáng tím lan tỏa khi di chuột (`box-shadow: 0 0 20px rgba(118,117,237,0.38)`).
+  4. **Kiểm thử tự động & Bảo toàn cấu trúc:**
+     - Thêm test suite `roon-sections.test.cjs` gồm 18 ca kiểm thử TDD phủ kín 4 mục giao diện và đồ thị âm thanh.
+     - Bảo toàn tuyệt đối đường định tuyến Web Audio `state.crossfeedNodes.output.connect(state.context.destination)`.
+     - Toàn bộ hệ thống kiểm chứng: 395/395 test cases PASS (47 test suites, 0 fail).
+
+---
+
 ## [Chu Kỳ 2026-11-13 12:35 +07] — [Pha B & C] Hoàn Thiện Trọn Bộ Giao Diện Roon Luxe UI (Focus Engine, Signal Path LED Popover, Immersive Fullscreen Now Playing)
 
 ### 🎯 Hạng Mục Nâng Cấp:
