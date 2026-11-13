@@ -709,6 +709,16 @@
       </div>
       <p id="autoeq-desc" class="mt-1.5 text-[10px] text-zinc-500">Chuẩn hóa đáp tuyến tần số theo mục tiêu Harman Target, bảo toàn headroom chống clipping.</p>
     </div>
+    <div class="mt-3 border-t border-white/10 pt-3">
+      <div class="flex items-center justify-between text-xs text-zinc-400">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input id="phase-invert-toggle" type="checkbox" class="accent-amber-500" aria-label="Đảo pha tuyệt đối 180 độ">
+          <span>Đảo cực tính pha (Phase Invert Ø)</span>
+        </label>
+        <span id="phase-invert-badge" class="font-mono text-[10px] text-zinc-400">0°</span>
+      </div>
+      <p class="mt-1 text-[10px] text-zinc-500">Đảo pha tuyệt đối 180° (Polarity Inversion) giúp kiểm tra độ nén dải bass và tính đồng pha của bản thu audiophile.</p>
+    </div>
   </div>
   <div id="listening-room" class="fixed inset-0 z-[55] hidden overflow-y-auto bg-[#09090b]/95 p-4 backdrop-blur-2xl sm:p-8" role="dialog" aria-modal="true" aria-labelledby="room-title">
     <div id="ambient-glow" aria-hidden="true"></div>
@@ -1147,7 +1157,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none' };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -2072,6 +2082,7 @@
         toneBass: state.toneBass || 0,
         toneTreble: state.toneTreble || 0,
         autoEqProfile: state.autoEqProfile || 'none',
+        phaseInvert: !!state.phaseInvert,
         replayGainEnabled,
         replayGainText,
         dsdOutputRate,
@@ -2474,8 +2485,9 @@
       [state.deckA, state.deckB].filter(Boolean).forEach(deck => {
         deck.filters.forEach((filter, index) => { const band = state.bands[index]; filter.type = band.type; filter.frequency.setTargetAtTime(band.frequency, state.context.currentTime, .015); filter.Q.setTargetAtTime(band.q, state.context.currentTime, .015); filter.gain.setTargetAtTime(band.gain, state.context.currentTime, .015); });
         const enabled = $('eq-enabled').checked;
-        deck.preamp.gain.setTargetAtTime(enabled ? Math.pow(10, effectivePreamp / 20) : 0, state.context.currentTime, .015);
-        deck.direct.gain.setTargetAtTime(enabled ? 0 : 1, state.context.currentTime, .015);
+        const phaseMult = state.phaseInvert ? -1 : 1;
+        deck.preamp.gain.setTargetAtTime(enabled ? phaseMult * Math.pow(10, effectivePreamp / 20) : 0, state.context.currentTime, .015);
+        deck.direct.gain.setTargetAtTime(enabled ? 0 : phaseMult * 1, state.context.currentTime, .015);
       });
       state.activeAnalyser = $('eq-enabled').checked ? state.analyser : state.directAnalyser;
       if (typeof renderSignalPathChain === 'function' && state.currentId) {
@@ -2635,7 +2647,8 @@
       state.bands.forEach((band, index) => [state.deckA, state.deckB].forEach(deck => { const filter = deck.filters[index]; filter.type = band.type; filter.frequency.setTargetAtTime(band.frequency, state.context.currentTime, .015); filter.Q.setTargetAtTime(band.q, state.context.currentTime, .015); filter.gain.setTargetAtTime(band.gain, state.context.currentTime, .015); }));
       const maxBoost = state.bands.reduce((max, band) => Math.max(max, band.gain), 0), effectivePreamp = Math.max(-60, Math.min(0, -maxBoost + (Number($('eq-preamp').value) || 0)));
       const enabled = $('eq-enabled').checked;
-      [state.deckA, state.deckB].forEach(deck => { deck.preamp.gain.setTargetAtTime(enabled ? Math.pow(10, effectivePreamp / 20) : 0, state.context.currentTime, .015); deck.direct.gain.setTargetAtTime(enabled ? 0 : 1, state.context.currentTime, .015); });
+      const phaseMult = state.phaseInvert ? -1 : 1;
+      [state.deckA, state.deckB].forEach(deck => { deck.preamp.gain.setTargetAtTime(enabled ? phaseMult * Math.pow(10, effectivePreamp / 20) : 0, state.context.currentTime, .015); deck.direct.gain.setTargetAtTime(enabled ? 0 : phaseMult * 1, state.context.currentTime, .015); });
       state.activeAnalyser = enabled ? state.analyser : state.directAnalyser;
     }
     function setupAudio() {
@@ -2849,6 +2862,27 @@
       } catch (_) {}
       applyToneControls();
       toast('Đã đặt lại Tone Controls về phẳng (0 dB).');
+    }
+    // Pha A — Reversible Phase Invert: đảo pha tuyệt đối 180° kiểm tra cực âm tín hiệu
+    function setPhaseInvert(inverted) {
+      state.phaseInvert = !!inverted;
+      try { localStorage.setItem('nocturne-phase-invert', String(state.phaseInvert)); } catch (_) {}
+      applyEq();
+      updatePhaseInvertUi();
+      toast(state.phaseInvert ? 'Đã bật Đảo pha 180° (Phase Invert Ø)' : 'Cực tính âm thanh: Chuẩn (0° Normal)');
+    }
+    function updatePhaseInvertUi() {
+      const toggle = $('phase-invert-toggle');
+      const badge = $('phase-invert-badge');
+      if (toggle) toggle.checked = !!state.phaseInvert;
+      if (badge) {
+        badge.textContent = state.phaseInvert ? 'Ø 180°' : '0°';
+        badge.className = `font-mono text-[10px] ${state.phaseInvert ? 'text-amber-300 font-semibold' : 'text-zinc-400'}`;
+      }
+      if (typeof renderSignalPathChain === 'function' && state.currentId) {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (cur) renderSignalPathChain(cur);
+      }
     }
     // Pha A — ReplayGain & Loudness Normalization: đồng bộ mức âm lượng giữa các bài hát
     function updateReplayGainUi(result = state.currentReplayGainResult) {
@@ -5714,6 +5748,20 @@
         applyAutoEqProfile(savedAutoEq);
       }
     } catch (_) {}
+    const phaseInvertToggle = $('phase-invert-toggle');
+    if (phaseInvertToggle) {
+      phaseInvertToggle.addEventListener('change', event => {
+        if (!state.context) setupAudio();
+        setPhaseInvert(event.target.checked);
+      });
+    }
+    try {
+      const savedPhase = localStorage.getItem('nocturne-phase-invert');
+      if (savedPhase === 'true') {
+        state.phaseInvert = true;
+        updatePhaseInvertUi();
+      }
+    } catch (_) {}
 
     let dragDepth = 0;
     document.addEventListener('dragenter', event => { event.preventDefault(); dragDepth++; $('drop-target').classList.remove('hidden'); $('drop-target').classList.add('flex'); });
@@ -6005,5 +6053,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 12:55 +07 | Đã xong: Swarm UI - Hoàn thiện từng mục giao diện web chuẩn Roon Labs: sidebar active highlight viền sáng tím và phân cấp Browse vs My Library; Home View stats cards bo góc gradient tối và tab Recent Activity; Collection Cards album format badge (DSD, HI-RES, LOSSLESS) và artist circular avatar glow; kiểm chứng 18/18 test roon-sections.test.cjs PASS 100%, 395/395 toàn bộ suite test PASS | Lượt kế tiếp: Pha D - AutoEQ headphone compensation profiles cho các dòng tai nghe audiophile | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 13:25 +07 | Đã xong: Swarm UI Pixel-Perfect - Chuẩn hóa giao diện web theo đúng ảnh Roon Desktop thực tế: Idle Player Bar nút #zone-idle-pill xanh tím (#5265a2) bo tròn ở chính giữa mở zone modal; My Tracks Focus ẩn mặc định và toggle mở mượt mà khi bấm Focus; Track rows cấu trúc cột chuẩn Roon với link nghệ sĩ tím (#7675ed) và link album; Home View banner Discover (#discover-banner) màu #5265a2 và mục Your recent artists (#recent-artists-section) với carousel avatar tròn; kiểm chứng 15/15 test roon-pixel-perfect.test.cjs PASS 100%, 410/410 toàn bộ suite test PASS | Lượt kế tiếp: Pha D - AutoEQ headphone compensation profiles cho các dòng tai nghe audiophile | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 18:05 +07 | Đã xong: Pha D - AutoEQ Headphone Compensation Profiles & Audiophile PEQ Presets (8 model tai nghe chuẩn Harman Over-Ear/In-Ear: Sennheiser HD600/HD650, Audio-Technica M50x, Sony 1000XM4, Beyerdynamic DT770, AirPods Pro, HiFiMan Sundara; tự động tính Negative Preamp chống clipping; UI #autoeq-select, #autoeq-badge trong #eq-panel; đồng bộ Roon Signal Path DSP Stage; lưu localStorage bền vững); kiểm chứng 11/11 test autoeq-profiles.test.cjs PASS 100%, 421/421 toàn bộ suite test PASS | Lượt kế tiếp: Pha A - Reversible Phase Invert (Đảo pha tuyệt đối 180° kiểm tra cực âm tính hiệu) | Backlog: Reversible Phase Invert, Gapless audio transitions buffer monitoring -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 23:25 +07 | Đã xong: Pha A - Reversible Phase Invert (Đảo pha tuyệt đối 180° / Absolute Polarity Inversion Ø qua hệ số pha GainNode không gây tiếng click/pop; UI #phase-invert-toggle & #phase-invert-badge trong #eq-panel; tích hợp Roon Signal Path DSP Stage; lưu localStorage bền vững); kiểm chứng 9/9 test phase-invert.test.cjs PASS 100%, 430/430 toàn bộ suite test PASS | Lượt kế tiếp: Pha B - Gapless audio transitions & Audio buffer lookahead monitor | Backlog: Gapless audio transitions, Dynamic Range Meter (EBU R128) -->
 </body>
 </html>

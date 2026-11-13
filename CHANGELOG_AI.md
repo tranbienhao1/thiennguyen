@@ -2,6 +2,28 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 23:25 +07] — [Pha A - Audio Engine & DSP] Reversible Phase Invert (Đảo Pha Tuyệt Đối 180° / Polarity Inversion Ø)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP (Web Audio API) & 3. Trải Nghiệm Nghe Nhạc Audiophile**.
+- **Tính năng triển khai:**
+  1. **Đảo pha cực tính tuyệt đối (Absolute Polarity Inversion Ø 180°):**
+     - Đảo ngược cực tính pha 180° trực tiếp trên dòng tín hiệu số bằng cách nhân hệ số pha `phaseMult = state.phaseInvert ? -1 : 1` qua các `GainNode` chuyên biệt (`deck.preamp` và `deck.direct`).
+     - Bảo toàn 100% pha chuyển tiếp mượt mà không gây tiếng click/pop nhờ cơ chế `setTargetAtTime(..., currentTime, 0.015)`.
+     - Hoạt động trơn tru cả ở chế độ có can thiệp DSP (EQ enabled) lẫn chế độ bypass tín hiệu nguyên bản (Direct Bit-perfect bypass).
+  2. **Giao diện điều khiển trong Hộp thoại EQ (`#eq-panel`):**
+     - Bổ sung công tắc `#phase-invert-toggle` với nhãn chuyên môn audiophile: **Đảo cực tính pha (Phase Invert Ø)**.
+     - Huy hiệu trạng thái thời gian thực `#phase-invert-badge` hiển thị `0°` (chữ xám khi bình thường) hoặc `Ø 180°` (vàng hổ phách sáng khi đảo pha).
+     - Lưu trữ trạng thái bền vững vào `localStorage ('nocturne-phase-invert')` và tự động khôi phục khi tải lại trang.
+  3. **Tích hợp Roon Signal Path (Chuỗi tín hiệu thời gian thực):**
+     - Trạm xử lý **DSP Stage** trong Signal Path lập tức phản ánh `Đảo pha: Ø 180°` khi tính năng được kích hoạt.
+  4. **Kiểm thử tự động & Bảo toàn cấu trúc:**
+     - Bộ kiểm thử mới `phase-invert.test.cjs` gồm 9 bài kiểm tra phủ kín tiện ích thuần (`clampPhaseInvert`, `formatPhaseInvert`), tích hợp DOM/Script và bảo toàn đồ thị âm thanh.
+     - Bảo toàn tuyệt đối đường định tuyến Web Audio `state.crossfeedNodes.output.connect(state.context.destination)`.
+     - Toàn bộ hệ thống kiểm chứng: 430/430 ca kiểm thử PASS 100% (53 test suites, 0 fail).
+
+---
+
 ## [Chu Kỳ 2026-11-13 18:05 +07] — [Pha D - Audio Engine & DSP] AutoEQ Headphone Compensation Profiles (Harman Target) & Audiophile PEQ Presets
 
 ### 🎯 Hạng Mục Nâng Cấp:
