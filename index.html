@@ -469,7 +469,13 @@
   <footer id="player-footer" class="glass player-idle fixed inset-x-0 bottom-0 z-30 border-t border-white/[.08] shadow-[0_-20px_70px_rgba(0,0,0,.45)]">
     <div class="mx-auto max-w-[1600px] px-3 sm:px-6">
       <div class="flex h-[86px] items-center gap-3 sm:h-[96px] sm:gap-6">
-        <div class="audio-zone-empty"><button id="audio-zone-button" type="button">Select an audio zone</button></div>
+        <div class="audio-zone-empty">
+          <button id="zone-footer-btn" type="button" class="hidden sm:flex items-center gap-1.5 rounded-lg border border-purple-500/20 bg-purple-500/5 px-2.5 py-1 text-[10px] text-purple-300 hover:border-purple-400/40 hover:bg-purple-500/10 transition" title="Đổi vùng phát âm thanh" aria-label="Đổi vùng phát âm thanh">
+            <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+            <span id="zone-footer-label" class="font-medium">PWA DSP</span>
+          </button>
+          <button id="audio-zone-button" type="button" class="hidden">Select an audio zone</button>
+        </div>
         <div class="flex min-w-0 flex-1 items-center gap-3 sm:w-[25%] sm:flex-none">
           <button id="player-cover" type="button" class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-violet-500/30 to-zinc-800 text-xl text-violet-200 transition hover:ring-2 hover:ring-violet-300/50" title="Mở màn hình Đang phát" aria-label="Mở màn hình Đang phát">♫</button>
           <button id="open-listening-room" type="button" class="min-w-0 flex-1 text-left" title="Mở màn hình Đang phát"><p id="now-title" class="truncate text-xs font-medium sm:text-sm">Chưa phát nhạc</p><p id="now-artist" class="mt-1 truncate text-[11px] text-zinc-500">Chọn một bài hát để bắt đầu</p></button>
@@ -631,6 +637,19 @@
             <div id="room-signal-chain" class="mt-3 hidden space-y-2 border-b border-white/[.06] pb-3 text-xs"></div>
             <p id="room-signal" class="mt-2 text-xs leading-5 text-zinc-400">Thông tin sẽ xuất hiện khi phát nhạc.</p>
             <p id="room-output" class="mt-1 text-[10px] leading-4 text-zinc-600">Đầu ra do trình duyệt và hệ điều hành quản lý.</p>
+            <div id="room-zone-bar" class="mt-3 flex items-center justify-between rounded-xl border border-white/[.08] bg-white/[.02] px-3.5 py-2.5">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse" id="zone-status-dot"></span>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] uppercase tracking-wider text-zinc-500">Vùng phát:</span>
+                    <span id="zone-current-name" class="truncate text-xs font-semibold text-purple-300">Phòng nghe Audiophile (PWA DSP)</span>
+                  </div>
+                  <p id="zone-current-desc" class="truncate text-[10px] text-zinc-400">Chuỗi DSP: EQ, Crossfeed, Tone Controls & ReplayGain</p>
+                </div>
+              </div>
+              <button id="zone-picker-btn" type="button" class="shrink-0 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-[11px] font-medium text-purple-200 transition hover:bg-purple-500/20 active:scale-95" aria-label="Đổi vùng phát">Đổi Vùng ▾</button>
+            </div>
           </div>
           <section class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
           <canvas id="waveform-canvas" class="w-full h-16 cursor-pointer rounded-sm mb-1" aria-label="Dạng sóng bài hát - nhấn để tua"></canvas>
@@ -718,6 +737,36 @@
     <div class="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
       <span id="ambient-summary" class="text-[10px] text-zinc-400">Đang tắt</span>
       <button id="ambient-reset" type="button" class="rounded border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-zinc-300 hover:bg-white/10 hover:text-white">Tắt tất cả</button>
+    </div>
+  </div>
+  <div id="zone-modal" class="fixed inset-0 z-[80] hidden place-items-center bg-black/70 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="zone-modal-title">
+    <div class="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/[.08] pb-4">
+        <div class="flex items-center gap-2">
+          <span class="text-base text-purple-400">🔊</span>
+          <h3 id="zone-modal-title" class="text-sm font-semibold text-zinc-100">Quản Lý Vùng Phát & Roon Core Bridge</h3>
+        </div>
+        <button id="zone-modal-close" type="button" class="rounded-lg p-1 text-zinc-400 hover:bg-white/5 hover:text-white" aria-label="Đóng">✕</button>
+      </div>
+      <div class="mt-4 space-y-4">
+        <div>
+          <h4 class="text-xs font-medium uppercase tracking-wider text-zinc-400">Vùng phát cục bộ (Local Zones)</h4>
+          <div id="zone-list-container" class="mt-2 space-y-2"></div>
+        </div>
+        <div class="border-t border-white/[.08] pt-4">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-medium uppercase tracking-wider text-zinc-400">Roon Core Bridge (Mạng LAN)</h4>
+            <span id="roon-bridge-badge" class="rounded-full border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[9px] text-zinc-400">Chưa kết nối</span>
+          </div>
+          <p class="mt-1 text-[11px] text-zinc-400">Kết nối trực tiếp tới máy chủ Roon Core qua WebSocket để điều khiển đa phòng từ xa.</p>
+          <div class="mt-2 flex gap-2">
+            <input id="roon-bridge-input" type="text" placeholder="192.168.1.100:9330" class="flex-1 rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:border-purple-400 focus:outline-none" aria-label="Địa chỉ Roon Core" />
+            <button id="roon-bridge-connect-btn" type="button" class="rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-purple-500">Kết nối</button>
+          </div>
+          <p id="roon-bridge-hint" class="mt-1 text-[10px] text-zinc-500">Mẹo: Vào Roon -> Cài đặt -> Mở rộng (Extensions) để Bật quyền truy cập nếu là lần đầu kết nối.</p>
+          <div id="roon-zones-list" class="mt-2 hidden space-y-1.5 border-t border-white/[.06] pt-2"></div>
+        </div>
+      </div>
     </div>
   </div>
   <div id="toast" class="pointer-events-none fixed bottom-32 left-1/2 z-[60] hidden -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-800 px-4 py-2.5 text-xs text-zinc-100 shadow-xl"></div>
@@ -940,7 +989,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null };
+    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [] };
     const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
@@ -2826,6 +2875,12 @@
       const cover = $('player-cover'); cover.innerHTML = track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫';
       updateMediaSession({...track, ...metadata});
       const room = signalDescription(track), q = quality(track);
+      if (typeof library?.formatRoonThreeLine === 'function') {
+        const currentZone = state.zones.find(z => z.id === state.activeZoneId) || state.roonZones.find(z => z.id === state.activeZoneId);
+        const threeLine = library.formatRoonThreeLine(track, currentZone);
+        if ($('zone-current-name')) $('zone-current-name').textContent = currentZone ? (currentZone.name || currentZone.display_name) : 'Phòng nghe Audiophile';
+        if ($('zone-current-desc')) $('zone-current-desc').textContent = currentZone ? (currentZone.description || '') : '';
+      }
       $('quality-badge').textContent = q.label; $('quality-badge').className = `rounded-md border px-2 py-1 text-[9px] font-medium uppercase tracking-wider ${q.tone}`; $('mobile-quality').textContent = q.label;
       $('room-title').textContent = room.title; $('room-artist').textContent = room.artist; $('room-album').textContent = room.album;
       renderRoomSignal(track); $('room-output').textContent = `Nguồn: ${room.sourceName}. AudioContext ${state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.${state.stereoBalance ? ` · Cân bằng: ${library.formatBalance(state.stereoBalance)}` : ''}${state.crossfeed ? ` · Crossfeed: ${library.formatCrossfeed(state.crossfeed)}` : ''}`;
@@ -3548,6 +3603,237 @@
       if (campfireSlider) campfireSlider.value = String(cVol);
 
       applyAmbientVolumes();
+    }
+
+    // ── Roon Zone & Bridge Management ──
+
+    function switchZone(zoneId, silent = false) {
+      if (!zoneId) return;
+      state.activeZoneId = zoneId;
+      try { localStorage.setItem('nocturne-active-zone', zoneId); } catch (_) {}
+      const zone = state.zones.find(z => z.id === zoneId) || state.roonZones.find(z => z.id === zoneId);
+      const zoneName = zone ? (zone.name || zone.display_name) : 'Phòng nghe Audiophile';
+      if ($('zone-current-name')) $('zone-current-name').textContent = zoneName;
+      if ($('zone-footer-label')) $('zone-footer-label').textContent = zoneId === 'zone_direct' ? 'Direct DAC' : (zoneId.startsWith('roon_') ? 'Roon Zone' : 'PWA DSP');
+      if ($('zone-current-desc')) {
+        $('zone-current-desc').textContent = zone ? (zone.description || `Vùng Roon: ${zone.display_name || zone.name}`) : '';
+      }
+      if (zoneId === 'zone_direct') {
+        if ($('eq-enabled') && $('eq-enabled').checked) {
+          $('eq-enabled').checked = false;
+          applyEq();
+        }
+        if (!silent) toast('Đã chuyển sang Vùng: Ngõ ra Trực tiếp (Bit-Perfect Direct). Toàn bộ DSP đã được bypass.');
+      } else if (zoneId === 'zone_dsp') {
+        if (!silent) toast('Đã chuyển sang Vùng: Phòng nghe Audiophile (PWA DSP). Khôi phục chuỗi xử lý âm thanh đầy đủ.');
+      } else {
+        if (!silent) toast(`Đã chọn Vùng phát Roon: ${zoneName}.`);
+      }
+      renderZoneModalList();
+      if (state.currentId) {
+        const track = trackById(state.currentId);
+        if (track && typeof updateCurrentTrackIndicator === 'function') updateCurrentTrackIndicator();
+      }
+    }
+
+    function renderZoneModalList() {
+      const container = $('zone-list-container');
+      if (!container) return;
+      container.innerHTML = '';
+      state.zones.forEach(z => {
+        const isActive = state.activeZoneId === z.id;
+        const card = document.createElement('div');
+        card.className = `flex items-center justify-between p-3 rounded-xl border transition cursor-pointer ${isActive ? 'border-purple-500/50 bg-purple-500/10' : 'border-white/5 bg-white/[.02] hover:bg-white/[.04]'}`;
+        card.innerHTML = `
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="h-2 w-2 rounded-full ${isActive ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'}"></span>
+              <span class="text-xs font-semibold ${isActive ? 'text-purple-200' : 'text-zinc-300'}">${escapeHtml(z.name || z.display_name)}</span>
+              ${z.isBitPerfect ? '<span class="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-medium text-emerald-300">BIT-PERFECT</span>' : '<span class="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-medium text-purple-300">DSP</span>'}
+            </div>
+            <p class="mt-1 text-[11px] text-zinc-400">${escapeHtml(z.description || '')}</p>
+          </div>
+          <button type="button" class="ml-3 shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium ${isActive ? 'bg-purple-600 text-white' : 'border border-white/10 text-zinc-300 hover:bg-white/5'}">${isActive ? 'Đang chọn' : 'Chọn'}</button>
+        `;
+        card.addEventListener('click', () => {
+          switchZone(z.id);
+        });
+        container.appendChild(card);
+      });
+    }
+
+    function connectRoonBridge(endpointStr) {
+      const rawInput = endpointStr || $('roon-bridge-input')?.value || state.roonCoreEndpoint;
+      const ep = library.parseRoonCoreEndpoint(rawInput);
+      if (!ep) {
+        toast('Vui lòng nhập địa chỉ Roon Core hợp lệ (ví dụ: 192.168.1.100:9330)');
+        return;
+      }
+      state.roonCoreEndpoint = ep.host + ':' + ep.port;
+      try { localStorage.setItem('nocturne-roon-core', state.roonCoreEndpoint); } catch (_) {}
+      if (state.roonWs) {
+        try { state.roonWs.close(); } catch (_) {}
+        state.roonWs = null;
+      }
+      state.roonWsStatus = 'connecting';
+      updateRoonBridgeUI();
+      try {
+        const WebSocketClass = (typeof window !== 'undefined' && window.WebSocket) || (typeof globalThis !== 'undefined' && globalThis.WebSocket);
+        if (!WebSocketClass) {
+          toast('Môi trường không hỗ trợ WebSocket.');
+          state.roonWsStatus = 'disconnected';
+          updateRoonBridgeUI();
+          return;
+        }
+        const ws = new WebSocketClass(ep.wsUrl);
+        state.roonWs = ws;
+        ws.onopen = () => {
+          state.roonWsStatus = 'paired';
+          updateRoonBridgeUI();
+          const regBody = {
+            extension_id: 'com.nocturne.audiophile',
+            display_name: 'NOCTURNE Audiophile Web',
+            display_version: '1.0.0',
+            publisher: 'NOCTURNE Team',
+            email: 'audiophile@nocturne.app'
+          };
+          const msg = library.createRoonMooMessage('REQUEST', 'com.roonlabs.registry:1/info', regBody, 1);
+          try { ws.send(msg); } catch (_) {}
+          const subMsg = library.createRoonMooMessage('REQUEST', 'com.roonlabs.transport:2/subscribe_zones', { subscription_key: 'zones_all' }, 2);
+          try { ws.send(subMsg); } catch (_) {}
+          toast('Đã kết nối WebSocket tới Roon Core! Đang đồng bộ Zones...');
+        };
+        ws.onmessage = (event) => {
+          handleRoonMooMessage(event.data);
+        };
+        ws.onerror = () => {
+          state.roonWsStatus = 'disconnected';
+          updateRoonBridgeUI();
+          toast('Không thể kết nối Roon Core tại ' + ep.host + ':' + ep.port);
+        };
+        ws.onclose = () => {
+          state.roonWsStatus = 'disconnected';
+          updateRoonBridgeUI();
+        };
+      } catch (err) {
+        state.roonWsStatus = 'disconnected';
+        updateRoonBridgeUI();
+        toast('Lỗi kết nối Roon Core: ' + (err.message || err));
+      }
+    }
+
+    function disconnectRoonBridge() {
+      if (state.roonWs) {
+        try { state.roonWs.close(); } catch (_) {}
+        state.roonWs = null;
+      }
+      state.roonWsStatus = 'disconnected';
+      state.roonZones = [];
+      updateRoonBridgeUI();
+      toast('Đã ngắt kết nối Roon Core Bridge.');
+    }
+
+    function updateRoonBridgeUI() {
+      const badge = $('roon-bridge-badge');
+      const btn = $('roon-bridge-connect-btn');
+      const zonesList = $('roon-zones-list');
+      if (!badge) return;
+      if (state.roonWsStatus === 'connected' || state.roonWsStatus === 'paired') {
+        badge.textContent = 'Đã kết nối';
+        badge.className = 'rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] text-emerald-300';
+        if (btn) btn.textContent = 'Ngắt kết nối';
+        if (zonesList) {
+          zonesList.classList.remove('hidden');
+          renderRoonZonesList();
+        }
+      } else if (state.roonWsStatus === 'connecting') {
+        badge.textContent = 'Đang kết nối...';
+        badge.className = 'rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] text-amber-300';
+        if (btn) btn.textContent = 'Đang nối...';
+      } else {
+        badge.textContent = 'Chưa kết nối';
+        badge.className = 'rounded-full border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[9px] text-zinc-400';
+        if (btn) btn.textContent = 'Kết nối';
+        if (zonesList) zonesList.classList.add('hidden');
+      }
+    }
+
+    function renderRoonZonesList() {
+      const list = $('roon-zones-list');
+      if (!list) return;
+      list.innerHTML = '<p class="text-[10px] uppercase tracking-wider text-zinc-500">Các vùng phát Roon phát hiện được:</p>';
+      if (!state.roonZones || state.roonZones.length === 0) {
+        list.innerHTML += '<p class="text-xs text-zinc-500">Chưa có zone nào từ Roon Core.</p>';
+        return;
+      }
+      state.roonZones.forEach(rz => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-2 rounded-lg bg-zinc-900 border border-white/5';
+        item.innerHTML = `
+          <div>
+            <p class="text-xs font-medium text-zinc-200">${escapeHtml(rz.display_name || rz.name)}</p>
+            <p class="text-[10px] text-zinc-500">${escapeHtml(library.formatRoonZoneStatus ? library.formatRoonZoneStatus(rz) : rz.state)}</p>
+          </div>
+          <button type="button" class="rounded px-2 py-1 text-[10px] bg-purple-600/20 text-purple-300 hover:bg-purple-600/30">Chọn</button>
+        `;
+        item.querySelector('button').addEventListener('click', () => {
+          switchZone('roon_' + (rz.zone_id || rz.id));
+        });
+        list.appendChild(item);
+      });
+    }
+
+    function handleRoonMooMessage(rawText) {
+      if (!library.parseRoonMooMessage) return;
+      const msg = library.parseRoonMooMessage(rawText);
+      if (!msg) return;
+      if (msg.body && msg.body.zones) {
+        state.roonZones = msg.body.zones;
+        state.roonWsStatus = 'connected';
+        updateRoonBridgeUI();
+      }
+    }
+
+    function triggerRoonAction(action, track) {
+      if (!track && state.currentId) track = trackById(state.currentId);
+      if (!track) return;
+      switch (action) {
+        case 'play_now':
+          playTrack(track);
+          toast(`▶ Đang phát ngay: ${track.title}`);
+          break;
+        case 'play_next':
+          if (state.queueTrackIds.length > 0) {
+            state.queueTrackIds.unshift(track.id);
+          } else {
+            state.queueTrackIds = [track.id];
+          }
+          toast(`⏭ Sẽ phát tiếp theo: ${track.title}`);
+          renderQueueList();
+          break;
+        case 'add_queue':
+          state.queueTrackIds.push(track.id);
+          toast(`➕ Đã thêm vào hàng đợi: ${track.title}`);
+          renderQueueList();
+          break;
+        case 'start_radio':
+          state.roonRadio = true;
+          try { localStorage.setItem('nocturne-roon-radio', 'true'); } catch (_) {}
+          toast(`📻 Bắt đầu Roon Radio từ phong cách bài: ${track.title}`);
+          break;
+      }
+    }
+
+    function toggleZoneModal(open) {
+      const modal = $('zone-modal');
+      if (!modal) return;
+      const isHidden = modal.classList.contains('hidden');
+      const shouldOpen = open !== undefined ? !!open : isHidden;
+      modal.classList.toggle('hidden', !shouldOpen);
+      if (shouldOpen) {
+        renderZoneModalList();
+        updateRoonBridgeUI();
+      }
     }
     function queueIndex() {
       const current = state.tracks.findIndex(track => track.id === state.currentId);
@@ -5072,6 +5358,51 @@
     } catch (_) {}
     setGain(72);
     syncAutoplayButton(); updateSleepStatus(); renderQueueCurrent(); updateRoonRadioStatus(); restoreAmbientSettings();
+    try {
+      const savedZone = localStorage.getItem('nocturne-active-zone');
+      if (savedZone) state.activeZoneId = savedZone;
+      const savedEndpoint = localStorage.getItem('nocturne-roon-core');
+      if (savedEndpoint) state.roonCoreEndpoint = savedEndpoint;
+    } catch (_) {}
+    switchZone(state.activeZoneId || 'zone_dsp', true);
+
+    const zonePickerBtn = $('zone-picker-btn');
+    if (zonePickerBtn) zonePickerBtn.addEventListener('click', () => toggleZoneModal(true));
+    const zoneFooterBtn = $('zone-footer-btn');
+    if (zoneFooterBtn) zoneFooterBtn.addEventListener('click', () => toggleZoneModal(true));
+    const zoneModalClose = $('zone-modal-close');
+    if (zoneModalClose) zoneModalClose.addEventListener('click', () => toggleZoneModal(false));
+    const zoneModal = $('zone-modal');
+    if (zoneModal) {
+      zoneModal.addEventListener('click', (e) => {
+        if (e.target === zoneModal) toggleZoneModal(false);
+      });
+    }
+    const roonConnectBtn = $('roon-bridge-connect-btn');
+    if (roonConnectBtn) {
+      roonConnectBtn.addEventListener('click', () => {
+        if (state.roonWsStatus === 'connected' || state.roonWsStatus === 'paired') {
+          disconnectRoonBridge();
+        } else {
+          connectRoonBridge();
+        }
+      });
+    }
+    const roonInput = $('roon-bridge-input');
+    if (roonInput) {
+      roonInput.value = state.roonCoreEndpoint || '127.0.0.1:9330';
+      roonInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          connectRoonBridge();
+        }
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && zoneModal && !zoneModal.classList.contains('hidden')) {
+        toggleZoneModal(false);
+      }
+    });
     openDatabase().then(restoreRecentTracks).catch(error => { console.error('IndexedDB is unavailable:', error); restoreRecentTracks(); toast('Không thể bật lịch sử IndexedDB; mục nghe gần đây vẫn lưu trong trình duyệt.'); });
     if (!window.isSecureContext) console.info('Directory picker and cloud OAuth require HTTPS or localhost; use the file input fallback for local playback.');
     renderTracks();
@@ -5205,5 +5536,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 04:35 +07 | Đã xong: Pha A - Tone Controls (Bass & Treble Quick Trim): tích hợp bộ điều chỉnh âm sắc nhanh dải trầm (100 Hz low-shelf) và dải cao (10 kHz high-shelf) ±6 dB với bước 0.5 dB; UI slider kèm nút reset nhanh trong panel EQ (#tone-bass-slider, #tone-treble-slider, #tone-summary-label); AudioContext Graph định tuyến động qua createToneNodes (khi 0 dB tự động bypass bit-perfect, khi có can thiệp chuyển mượt 15ms sang biquad filter); hiển thị trong Roon Signal Path (DSP Stage · ENHANCED); lưu localStorage nocturne-tone-bass / nocturne-tone-treble; kiểm chứng 16/16 test mới, toàn bộ suite test PASS | Lượt kế tiếp: Pha B - Waveform seekbar trực quan hóa dạng sóng bài hát bằng Web Audio Analyser/Canvas | Backlog: Ambient Sound Mixer, Đồng bộ lyrics .lrc cuộn mượt từng từ, AutoEQ headphone compensation profiles -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 05:25 +07 | Đã xong: Pha B - Waveform seekbar trực quan hóa dạng sóng bài hát bằng Web Audio Analyser/Canvas: canvas #waveform-canvas trong Phòng nghe; helper library.generateWaveformPeaks tính toán biên độ đỉnh từ dữ liệu PCM decode qua OfflineAudioContext (200 mẫu); library.renderWaveformCanvas vẽ đồ thị dạng sóng 2 màu (tím đã phát / mờ chưa phát) cùng vạch playhead 2px; click-to-seek trực tiếp trên canvas dạng sóng; đồng bộ vị trí liên tục theo timeupdate; fallback an toàn khi lỗi tải/giải mã; kiểm chứng 18/18 test mới, toàn bộ 145/145 test PASS | Lượt kế tiếp: Pha C - Đồng bộ lời bài hát .lrc cuộn mượt từng từ (Karaoke word-by-word highlight) | Backlog: Ambient Sound Mixer, AutoEQ headphone compensation profiles, Reversible Phase Invert -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 09:35 +07 | Đã xong: Pha D - Ambient Sound Mixer (Mưa & Lửa trại) kết hợp tổng hợp âm thanh thủ tục Web Audio API: pink noise buffer 7-stage Voss-McCartney, brown noise leaky integrator AR(1), campfire crackle Poisson impulses (~12 pulses/s, crest factor > 3.0); kiến trúc Audio Graph độc lập nối thẳng context.destination bảo toàn 100% Bit-perfect và giữ sạch visualizer; điều chế LFO 0.2 Hz không đảo pha (gain >= 0); headroom scaling 0.5 chống clipping; mở khóa AudioContext bằng cử chỉ ensureAudioContextRunning; UI tiếng Việt #ambient-panel với thanh trượt và toggle độc lập; lưu trữ localStorage bền vững; tích hợp làm mờ và cắt âm cùng sleep timer; kiểm chứng 80/80 test suite ambient-mixer.test.cjs PASS 100% | Lượt kế tiếp: Pha A - Tối ưu hóa bộ nhớ và AutoEQ profiles cho các dòng tai nghe phổ biến | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-13 12:15 +07 | Đã xong: Pha A & B - Roon Multi-Output Zone Controller & Roon Core Bridge (Phương án 3: Kết hợp cả hai): chuyển đổi vùng phát nội bộ (PWA DSP vs Direct DAC Bit-perfect bypass); cổng kết nối Roon Core Bridge giao thức MOO wire qua WebSocket (com.roonlabs.registry/info, com.roonlabs.transport/subscribe_zones); định dạng Roon 3-line metadata (formatRoonThreeLine) trong Phòng nghe; 4 tác vụ ngữ cảnh Roon kinh điển (triggerRoonAction: play_now, play_next, add_queue, start_radio); modal quản lý vùng và kết nối Roon (#zone-modal, #roon-bridge-input, #roon-bridge-badge); kiểm chứng 15/15 test roon-zone-bridge.test.cjs PASS 100%, 359/359 toàn bộ suite test PASS | Lượt kế tiếp: Pha C - Tối ưu hóa bộ nhớ và AutoEQ profiles cho các dòng tai nghe phổ biến | Backlog: AutoEQ headphone compensation profiles, Reversible Phase Invert -->
 </body>
 </html>

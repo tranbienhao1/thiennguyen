@@ -1569,5 +1569,124 @@
     return rOn ? rText : cText;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary};
+  // ── Roon Zone & Bridge Helpers ──
+
+  function createZoneModel() {
+    return [
+      {
+        id: 'zone_dsp',
+        name: 'Phòng nghe Audiophile (PWA DSP)',
+        type: 'local_dsp',
+        isBitPerfect: false,
+        state: 'stopped',
+        description: 'Toàn bộ chuỗi xử lý DSP: EQ, Crossfeed, Tone Controls, ReplayGain & Ambient Mixer'
+      },
+      {
+        id: 'zone_direct',
+        name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)',
+        type: 'local_direct',
+        isBitPerfect: true,
+        state: 'stopped',
+        description: 'Bypass toàn bộ DSP, xuất âm thanh trực tiếp bit-transparent tới DAC'
+      }
+    ];
+  }
+
+  function formatRoonThreeLine(track, zone, signalPath) {
+    if (!track) {
+      return {
+        line1: 'Chưa phát nhạc',
+        line2: 'Sẵn sàng phát nhạc chất lượng cao',
+        line3: zone ? (zone.name || zone.display_name || 'Phòng nghe Audiophile') : 'Phòng nghe Audiophile'
+      };
+    }
+    const title = track.title || 'Không có tiêu đề';
+    const artist = track.artist || 'Nghệ sĩ không xác định';
+    const album = track.album || 'Không rõ album';
+    let qualityStr = '';
+    if (track.sampleRate || track.bits) {
+      const rateKhz = track.sampleRate ? (track.sampleRate / 1000).toFixed(1) + ' kHz' : '';
+      const bitsStr = track.bits ? track.bits + '-bit' : '';
+      qualityStr = [bitsStr, rateKhz].filter(Boolean).join(' / ');
+    } else if (track.isDsd) {
+      qualityStr = 'DSD';
+    } else {
+      qualityStr = 'Lossless';
+    }
+    const bitPerfectTag = (zone && zone.isBitPerfect) ? ' · Bit-perfect' : '';
+    const line3 = `${album} · ${qualityStr}${bitPerfectTag}`;
+    return {
+      line1: title,
+      line2: artist,
+      line3: line3
+    };
+  }
+
+  function parseRoonCoreEndpoint(endpointStr) {
+    if (!endpointStr || typeof endpointStr !== 'string') return null;
+    const cleaned = endpointStr.trim().replace(/^ws:\/\/|^http:\/\//i, '').replace(/\/.*$/, '');
+    if (!cleaned) return null;
+    const parts = cleaned.split(':');
+    const host = parts[0].trim();
+    if (!host) return null;
+    const port = parts[1] ? parseInt(parts[1], 10) : 9330;
+    if (!Number.isFinite(port) || port <= 0 || port > 65535) return null;
+    return {
+      host,
+      port,
+      wsUrl: `ws://${host}:${port}/api`
+    };
+  }
+
+  function createRoonMooMessage(verb, name, body, requestId) {
+    const reqId = requestId !== undefined ? requestId : 1;
+    const v = verb ? String(verb).toUpperCase() : 'REQUEST';
+    const service = name || 'com.roonlabs.ping:1/ping';
+    const jsonBody = typeof body === 'string' ? body : (body ? JSON.stringify(body) : '{}');
+    return `MOO/1 ${v} ${service}\nRequest-Id: ${reqId}\nContent-Type: application/json\n\n${jsonBody}`;
+  }
+
+  function parseRoonMooMessage(rawText) {
+    if (!rawText || typeof rawText !== 'string') return null;
+    const headerEnd = rawText.indexOf('\n\n');
+    const headersPart = headerEnd >= 0 ? rawText.substring(0, headerEnd) : rawText;
+    const bodyPart = headerEnd >= 0 ? rawText.substring(headerEnd + 2) : '';
+    const lines = headersPart.split('\n');
+    const firstLine = lines[0] || '';
+    const match = firstLine.match(/^MOO\/1\s+([A-Z]+)(?:\s+(.*))?$/);
+    if (!match) return null;
+    const verb = match[1];
+    const name = match[2] || '';
+    let requestId = null;
+    let contentType = 'application/json';
+    for (let i = 1; i < lines.length; i++) {
+      const l = lines[i];
+      const colon = l.indexOf(':');
+      if (colon > 0) {
+        const k = l.substring(0, colon).trim().toLowerCase();
+        const val = l.substring(colon + 1).trim();
+        if (k === 'request-id') requestId = val;
+        if (k === 'content-type') contentType = val;
+      }
+    }
+    let body = null;
+    if (bodyPart) {
+      if (contentType.includes('application/json')) {
+        try { body = JSON.parse(bodyPart); } catch (_) { body = bodyPart; }
+      } else {
+        body = bodyPart;
+      }
+    }
+    return { verb, name, requestId, contentType, body };
+  }
+
+  function formatRoonZoneStatus(zone) {
+    if (!zone) return 'Không rõ';
+    if (zone.is_paused || zone.state === 'paused') return 'Tạm dừng';
+    if (zone.is_playing || zone.state === 'playing') return 'Đang phát';
+    if (zone.state === 'loading') return 'Đang nạp';
+    return 'Sẵn sàng';
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus};
 });

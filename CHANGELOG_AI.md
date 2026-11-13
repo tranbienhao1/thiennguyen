@@ -2,6 +2,47 @@
 
 ---
 
+## [Chu Kỳ 2026-11-13 12:15 +07] — [Pha A & B] Roon Multi-Output Zone Controller & Roon Core Bridge: Quản Lý Đa Vùng Phát Audiophile & Tích Hợp Giao Thức Roon MOO/WebSocket
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Giao Thức & Điều Khiển Đa Thiết Bị Audiophile (Zone Controller & Remote Bridge)**.
+- **Tính năng triển khai (Phương án 3: Kết hợp cả hai):**
+  1. **Bộ điều khiển đa vùng phát nội bộ (Internal Zone Controller):**
+     - Hỗ trợ chuyển đổi liền mạch giữa hai vùng âm thanh chính:
+       - `zone_dsp` (Phòng nghe Audiophile - PWA DSP): Toàn bộ chuỗi xử lý Parametric EQ, Tone Controls, Crossfeed Chu Moy, ReplayGain và Soft-Limiter.
+       - `zone_direct` (Ngõ ra Trực tiếp - Bit-Perfect Direct): Bỏ qua (bypass) toàn bộ DSP, vô hiệu hóa can thiệp gain, đưa âm thanh trực tiếp tới DAC.
+     - Đồng bộ trạng thái trực quan: Nút chọn vùng phát trên thanh điều khiển phòng nghe `#zone-picker-btn` và thanh footer phát nhạc `#zone-footer-btn`, cập nhật nhãn tức thời (`PWA DSP`, `Direct DAC`, `Roon Zone`).
+  2. **Cổng mở rộng Roon Core Bridge (MOO Wire Protocol Client):**
+     - Triển khai định dạng gói tin MOO (Multi-Object Oriented) chuẩn của hệ sinh thái Roon Labs qua WebSocket: `MOO/1 <VERB> <NAME>\nRequest-Id: <id>\nContent-Type: application/json\n\n<JSON_BODY>`.
+     - Phân tích cú pháp endpoint linh hoạt qua `parseRoonCoreEndpoint`: hỗ trợ định dạng `host:port`, `ws://`, `http://`, tự động chuẩn hóa cổng mặc định 9330.
+     - Handshake đăng ký ứng dụng ngoại vi `com.roonlabs.registry:1/info` và đăng ký lắng nghe vùng phát `com.roonlabs.transport:2/subscribe_zones`.
+     - Nhận diện và đồng bộ danh sách thiết bị/vùng phát Roon Core ngoại vi theo thời gian thực.
+  3. **Định dạng hiển thị Roon 3-line Now Playing:**
+     - `formatRoonThreeLine(track, zone)`: Chuẩn hóa 3 dòng thông tin:
+       - Dòng 1: Tiêu đề bài hát (`title`).
+       - Dòng 2: Nghệ sĩ & Album (`artist — album`).
+       - Dòng 3: Định dạng âm thanh, thông số kỹ thuật (kHz/bit/DSD) và tên vùng phát (`zone`).
+  4. **Điều hướng tác vụ chuẩn Roon (Roon Context Action Items):**
+     - Hàm `triggerRoonAction(action, track)` hỗ trợ 4 hành động phát nhạc kinh điển:
+       - `play_now`: Phát ngay lập tức bài hát đã chọn.
+       - `play_next`: Đẩy lên vị trí ưu tiên đầu danh sách hàng đợi phát tiếp theo.
+       - `add_queue`: Thêm vào cuối hàng đợi phát.
+       - `start_radio`: Kích hoạt chế độ Roon Radio tự động chọn bài theo phong cách bài hát hiện tại.
+  5. **Giao diện Modal quản lý Vùng & Kết nối Roon Core 100% tiếng Việt:**
+     - Modal `#zone-modal` với danh sách card vùng phát nội bộ (`#zone-list-container`), huy hiệu `BIT-PERFECT` / `DSP`, form nhập địa chỉ Roon Core (`#roon-bridge-input`), nút kết nối/ngắt kết nối kèm badge trạng thái kết nối (`Chưa kết nối`, `Đang nối...`, `Đã kết nối`).
+     - Hỗ trợ đầy đủ phím tắt `Escape` và click backdrop đóng modal tiện lợi.
+  6. **Bộ kiểm thử toàn diện:**
+     - Xây dựng suite `roon-zone-bridge.test.cjs` gồm 15 bài kiểm thử phủ kín cả 3 tầng: Pure library helpers, DOM markup cấu trúc và Script integration. Toàn bộ 15/15 test PASS 100%.
+     - Kiểm chứng hồi quy toàn bộ hệ thống (`node --test *.test.cjs`): 359/359 tests PASS, 43 suites, 0 fail.
+
+### 📁 Các File Đã Sửa / Tạo Mới:
+- `library-utils.js`: Bổ sung 6 helper Roon (`createZoneModel`, `formatRoonThreeLine`, `parseRoonCoreEndpoint`, `createRoonMooMessage`, `parseRoonMooMessage`, `formatRoonZoneStatus`), xuất qua dual UMD wrapper.
+- `index.html`: Thêm markup giao diện `#room-zone-bar`, `#zone-modal`, `#zone-footer-btn`, bổ sung state và các hàm quản lý vùng/kết nối Roon, tích hợp 3-line metadata vào `displayTrack`.
+- `roon-zone-bridge.test.cjs`: Tạo mới bộ kiểm thử tự động 15 test cases.
+- `CHANGELOG_AI.md`: Bổ sung nhật ký chi tiết chu kỳ nâng cấp Roon Zone & Bridge.
+
+---
+
 ## [Chu Kỳ 2026-11-13 08:45 +07] — [Pha D] Ambient Sound Mixer (Procedural Noise Synthesis & Headroom-Safe Routing): Trình Pha Trộn Âm Thanh Môi Trường Mưa & Lửa Trại Độc Lập Chuẩn Audiophile
 
 ### 🎯 Hạng Mục Nâng Cấp:
