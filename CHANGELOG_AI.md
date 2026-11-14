@@ -2,6 +2,39 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 15:00 +07] — [Pha B: UI/UX & Visualizer] Sân Khấu Ánh Sáng Âm Nhạc Thời Gian Thực (Audio-Reactive Ambient Stage Lighting & Bass/Vocal Frequency Pulse)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. UI/UX & Visualizer Hiện Đại** & **1. Audio Engine & DSP (Web Audio API)**.
+- **Chi tiết triển khai:**
+  1. **Bộ Phân Tích Năng Lượng Âm Học Đa Dải Tần Số (`calculateAudioEnergyBands`):**
+     - Đọc dữ liệu FFT Byte Frequency trực tiếp từ `AnalyserNode` và tính toán năng lượng chuẩn hóa $[0, 1]$ qua các dải tần số âm thanh chuyên biệt:
+       - **Dải Trầm (Sub-bass & Bass: 20 Hz – 260 Hz)**: Đo lường xung nhịp của trống bass (kick drum) và nốt trầm.
+       - **Dải Trung / Giọng Hát (Vocal / Mid: 260 Hz – 4000 Hz)**: Đo độ mở và năng lượng giai điệu của ca sĩ.
+       - **Dải Cao (Treble / Air: > 4000 Hz)**: Đo độ chi tiết của chũm chọe (hi-hat) và không gian âm nhạc.
+       - **Cờ Xung Nhịp (`isBeatPulse`)**: Kích hoạt khi năng lượng bass đạt mức áp đảo so với năng lượng tổng thể, dùng để tạo nhịp đập ánh sáng sống động.
+  2. **Bộ 4 Chế Độ Ánh Sáng Sân Khấu (`AMBIENT_STAGE_MODES`):**
+     - `reactive`: Vũ trường Ánh sáng (Audio-Reactive 60fps) — Hào quang phập phồng và chuyển động mượt mà đồng bộ theo nhịp đập Bass và năng lượng Vocal.
+     - `subtle`: Phòng nghe Tinh tế (Audiophile Lounge) — Chuyển động êm dịu, dải sáng dịu mắt, mang lại cảm giác thư thái không phân tâm.
+     - `static`: Tĩnh từ Bìa Album (Album Art Glow) — Cố định màu nền gradient trích xuất từ ảnh bìa mà không rung động theo âm thanh.
+     - `off`: Tắt hiệu ứng — Tắt hoàn toàn hào quang nền, tối giản giao diện theo phong cách Black Dark Mode.
+  3. **Thuật Toán Điều Tiết Phép Biến Hình Ánh Sáng (`calculateAmbientPulseTransform`):**
+     - Tính toán tỷ lệ phóng to (`scale`), độ trong suốt (`opacity`), bán kính làm mờ (`blur`) và độ sáng (`brightness`) thích ứng theo từng khung hình 60fps của `requestAnimationFrame`.
+     - `formatAmbientStageSummary`: Định dạng tóm tắt trực quan trạng thái đồng bộ ánh sáng cho UI.
+  4. **Phông Nền Ánh Sáng Toàn Trang (`#app-ambient-backdrop`):**
+     - Thêm lớp nền phát sáng toàn trang mềm mại, hòa quyện màu sắc bìa album của bài hát đang phát với giao diện nền tối Audiophile Glassmorphism.
+     - Tự động điều chỉnh kích thước và độ sáng song song giữa `#app-ambient-backdrop` và `#ambient-glow` trong Phòng nghe.
+  5. **Tích Hợp Giao Diện Cài Đặt & Audio Engine Graph:**
+     - Thêm dropdown `#ambient-stage-mode-select` và nhãn mô tả `#ambient-stage-mode-desc` trong phần Cài đặt.
+     - Khôi phục và lưu trữ bền vững trạng thái qua `localStorage.getItem('nocturne-ambient-stage-mode')`.
+     - Tự động hoàn trả trạng thái tĩnh khi tạm dừng hoặc chuyển bài.
+  6. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `ambient-stage-lighting.test.cjs` (**13/13 tests PASS 100%**).
+     - Đạt mốc **102/102 Test Suites PASS 100%** toàn bộ dự án, 0 fail, 0 regression.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 14:30 +07] — [Pha A: Audio Engine & DSP] Đa Tuyến Hòa Âm Chuyển Bài (Crossfade Curve Profiles) & Giám Sát Độ Sẵn Sàng Phát Liền Mạch (Gapless Buffer Lead Monitor)
 
 ### 🎯 Hạng Mục Nâng Cấp:
