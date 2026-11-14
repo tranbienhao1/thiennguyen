@@ -2,6 +2,30 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 13:00 +07] — [Pha B: UI/UX & Visualizer Hiện Đại] Thanh Sóng Dạng Sóng Tương Tác Sống Động (Interactive Waveform Scrubbing), Tooltip Xem Trước Thời Gian (Hover Time Preview) & Vạch Kim Mờ (Ghost Playhead)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. UI/UX & Visualizer Hiện Đại** & **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)**.
+- **Chi tiết triển khai:**
+  1. **Bộ Tiện Ích Đo Lường & Định Dạng Vị Trí Tua (`calculateHoverSeekFraction`, `calculateHoverSeekTime`, `formatHoverTime`):**
+     - Tính toán tỷ lệ vị trí chuột tương đối trên canvas dạng sóng (`0.0` đến `1.0`), kẹp an toàn giới hạn biên.
+     - Quy đổi tức thời ra số giây tua nhạc chính xác theo thời lượng bản thu (`duration`).
+     - Định dạng thời gian xem trước `m:ss` tinh gọn và thanh lịch.
+  2. **Vạch Kim Mờ Theo Chuột Trên Canvas Dạng Sóng (Ghost Playhead Line):**
+     - Nâng cấp `renderWaveformCanvas` tiếp nhận `options.hoverFraction` và `options.colorGhostPlayhead`.
+     - Hiển thị một đường kim mờ 1.5px bán trong suốt (`rgba(255, 255, 255, 0.45)` hoặc `rgba(239, 68, 68, 0.55)`) tại vị trí con trỏ chuột, giúp người nghe nhạc ngắm điểm cần tua cực kỳ chính xác.
+  3. **Tooltip Nổi Xem Trước Thời Gian (Floating Hover Tooltip):**
+     - Bổ sung `#waveform-hover-tooltip` trong Phòng nghe (`#listening-room`) và `#fullscreen-waveform-hover-tooltip` trong Toàn màn hình Roon (`#roon-fullscreen-view`).
+     - Tooltip bám theo chuyển động chuột mượt mà, tự động giới hạn biên không bị tràn ra ngoài canvas và ẩn đi khi chuột rời khỏi vùng sóng.
+  4. **Kéo Trượt Tua Nhạc Trực Tiếp (Continuous Drag-to-Seek / Scrubbing):**
+     - Cho phép người dùng giữ chuột trái (`e.buttons === 1`) và kéo rê dọc theo dạng sóng để tua nhạc mượt mà theo thời gian thực (tự động bật `state.isSeeking = true` để chống giật timeupdate).
+  5. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `waveform-hover-scrub.test.cjs` (**11/11 tests PASS 100%**).
+     - Toàn bộ 98 test suites (**700+ tests PASS 100%**, 0 fail, 0 regression).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 12:45 +07] — [Pha A: Audio Engine & DSP + Tinh Hoa UI/UX] Chuẩn Mực Âm Học Audiophile (Target Curves & Sound Signatures) & Tái Cấu Trúc Toàn Màn Hình Roon Chuẩn Mockup
 
 ### 🎯 Hạng Mục Nâng Cấp:

@@ -945,7 +945,10 @@
             </div>
           </div>
           <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
-          <canvas id="waveform-canvas" class="w-full h-16 cursor-pointer rounded-sm mb-1" aria-label="Dạng sóng bài hát - nhấn để tua"></canvas>
+          <div class="relative w-full group">
+            <canvas id="waveform-canvas" class="w-full h-16 cursor-pointer rounded-sm mb-1" aria-label="Dạng sóng bài hát - nhấn để tua"></canvas>
+            <div id="waveform-hover-tooltip" class="pointer-events-none absolute bottom-full mb-1 hidden -translate-x-1/2 rounded-md bg-zinc-800/95 border border-white/10 px-2 py-0.5 text-[10px] font-mono text-zinc-100 shadow-xl backdrop-blur-sm z-30 transition-opacity">0:00</div>
+          </div>
           <div class="mt-1 flex items-center justify-between text-[10px] text-zinc-500">
             <div class="flex items-center gap-2">
               <span id="room-dr-badge" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400" title="Dynamic Range (Crest Factor: chênh lệch giữa Peak dB và RMS dB)">DR -- · Chờ tín hiệu</span>
@@ -1204,8 +1207,9 @@
       <div class="mt-2.5 flex items-center gap-2 sm:gap-4 text-xs text-zinc-400">
         <button id="fullscreen-collapse-btn" type="button" class="text-zinc-400 hover:text-white p-1 text-sm transition shrink-0" aria-label="Thu nhỏ">⌵</button>
         <span id="fullscreen-time-cur" class="w-9 sm:w-10 text-right text-[11px] tabular-nums text-zinc-400 font-mono shrink-0">0:00</span>
-        <div class="flex-1 relative flex items-center h-8 min-w-0">
+        <div class="flex-1 relative flex items-center h-8 min-w-0 group">
           <canvas id="fullscreen-waveform" class="h-6 w-full cursor-pointer rounded" aria-label="Dạng sóng toàn màn hình"></canvas>
+          <div id="fullscreen-waveform-hover-tooltip" class="pointer-events-none absolute bottom-full mb-1 hidden -translate-x-1/2 rounded-md bg-zinc-900/95 border border-white/15 px-2 py-0.5 text-[10px] font-mono text-rose-300 shadow-xl backdrop-blur-md z-30 transition-opacity">0:00</div>
         </div>
         <span id="fullscreen-time-dur" class="w-9 sm:w-10 text-left text-[11px] tabular-nums text-zinc-400 font-mono shrink-0">0:00</span>
         <div class="hidden sm:flex items-center gap-4 shrink-0 pl-1">
@@ -1466,7 +1470,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber' };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -4039,7 +4043,9 @@
       const canvas = document.getElementById('waveform-canvas');
       if (canvas && state.waveformPeaks && lib && typeof lib.renderWaveformCanvas === 'function') {
         syncCanvasDimensions(canvas);
-        lib.renderWaveformCanvas(canvas, state.waveformPeaks, fraction);
+        lib.renderWaveformCanvas(canvas, state.waveformPeaks, fraction, {
+          hoverFraction: state.waveformHoverFraction
+        });
       }
       const fsCanvas = document.getElementById('fullscreen-waveform');
       if (fsCanvas && state.waveformPeaks && state.isFullscreen && lib && typeof lib.renderWaveformCanvas === 'function') {
@@ -4047,7 +4053,9 @@
         lib.renderWaveformCanvas(fsCanvas, state.waveformPeaks, fraction, {
           colorPlayed: 'rgba(228, 228, 231, 0.85)',
           colorUnplayed: 'rgba(113, 113, 122, 0.4)',
-          colorPlayhead: '#ef4444'
+          colorPlayhead: '#ef4444',
+          colorGhostPlayhead: 'rgba(239, 68, 68, 0.55)',
+          hoverFraction: state.fullscreenWaveformHoverFraction
         });
       }
       const miniCanvas = document.getElementById('mini-waveform');
@@ -5208,7 +5216,9 @@
         library.renderWaveformCanvas(fsCanvas, state.waveformPeaks, progress, {
           colorPlayed: 'rgba(215, 215, 225, 0.75)',
           colorUnplayed: 'rgba(95, 95, 105, 0.38)',
-          colorPlayhead: '#e11d48'
+          colorPlayhead: '#ef4444',
+          colorGhostPlayhead: 'rgba(239, 68, 68, 0.55)',
+          hoverFraction: state.fullscreenWaveformHoverFraction
         });
       }
 
@@ -7061,23 +7071,63 @@
       }
       updatePositionState();
     });
-    document.getElementById('waveform-canvas')?.addEventListener('click', function(e) {
-      const rect = this.getBoundingClientRect();
-      if (!rect.width) return;
-      const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
-      const curTrack = state.tracks.find(t => t.id === state.currentId);
-      const isCue = curTrack && curTrack.cueStart !== undefined && curTrack.duration;
-      const dur = isCue ? curTrack.duration : ((currentAudio && Number.isFinite(currentAudio.duration) && currentAudio.duration > 0) ? currentAudio.duration : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0));
-      if (currentAudio && dur > 0) {
-        let targetTime = Math.max(0, Math.min(fraction * dur, dur));
-        if (isCue) targetTime += curTrack.cueStart;
-        currentAudio.currentTime = targetTime;
-        updatePositionState(true);
+    const wfCanvas = document.getElementById('waveform-canvas');
+    const wfTooltip = document.getElementById('waveform-hover-tooltip');
+    if (wfCanvas) {
+      wfCanvas.addEventListener('mousemove', function(e) {
+        const rect = wfCanvas.getBoundingClientRect();
+        if (!rect.width) return;
+        const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+        const fraction = lib?.calculateHoverSeekFraction ? lib.calculateHoverSeekFraction(e.clientX, rect) : Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        state.waveformHoverFraction = fraction;
+
+        const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+        const curTrack = state.tracks.find(t => t.id === state.currentId);
+        const isCue = curTrack && curTrack.cueStart !== undefined && curTrack.duration;
+        const dur = isCue ? curTrack.duration : ((currentAudio && Number.isFinite(currentAudio.duration) && currentAudio.duration > 0) ? currentAudio.duration : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0));
+
+        if (wfTooltip && dur > 0) {
+          const hoverSec = dur * fraction;
+          wfTooltip.textContent = lib?.formatHoverTime ? lib.formatHoverTime(hoverSec) : formatTime(hoverSec);
+          const xOffset = Math.max(16, Math.min(rect.width - 16, e.clientX - rect.left));
+          wfTooltip.style.left = `${xOffset}px`;
+          wfTooltip.classList.remove('hidden');
+        }
+
+        if (e.buttons === 1 && dur > 0 && currentAudio) {
+          state.isSeeking = true;
+          let targetTime = Math.max(0, Math.min(fraction * dur, dur));
+          if (isCue) targetTime += curTrack.cueStart;
+          currentAudio.currentTime = targetTime;
+          updatePositionState(true);
+        }
         renderWaveformSeekbar();
-        toast(`Đã tua dạng sóng tới ${formatTime(isCue ? (targetTime - curTrack.cueStart) : targetTime)} / ${formatTime(dur)}`);
-      }
-    });
+      });
+      wfCanvas.addEventListener('mouseleave', function() {
+        state.waveformHoverFraction = null;
+        if (wfTooltip) wfTooltip.classList.add('hidden');
+        state.isSeeking = false;
+        renderWaveformSeekbar();
+      });
+      wfCanvas.addEventListener('click', function(e) {
+        state.isSeeking = false;
+        const rect = this.getBoundingClientRect();
+        if (!rect.width) return;
+        const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+        const curTrack = state.tracks.find(t => t.id === state.currentId);
+        const isCue = curTrack && curTrack.cueStart !== undefined && curTrack.duration;
+        const dur = isCue ? curTrack.duration : ((currentAudio && Number.isFinite(currentAudio.duration) && currentAudio.duration > 0) ? currentAudio.duration : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0));
+        if (currentAudio && dur > 0) {
+          let targetTime = Math.max(0, Math.min(fraction * dur, dur));
+          if (isCue) targetTime += curTrack.cueStart;
+          currentAudio.currentTime = targetTime;
+          updatePositionState(true);
+          renderWaveformSeekbar();
+          toast(`Đã tua dạng sóng tới ${formatTime(isCue ? (targetTime - curTrack.cueStart) : targetTime)} / ${formatTime(dur)}`);
+        }
+      });
+    }
     const seekByStep = delta => { if (!Number.isFinite(audio.duration)) return; const next = library.clampSeekTime(audio.currentTime, audio.duration, delta); audio.currentTime = next; updatePositionState(); toast(`Đã tua tới ${formatTime(next)} / ${formatTime(audio.duration)}.`); };
     document.addEventListener('keydown', event => {
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
@@ -7905,8 +7955,44 @@
     const fsNextBtn = $('fullscreen-next-btn');
     if (fsNextBtn) fsNextBtn.addEventListener('click', () => playNext(1));
     const fsWaveform = $('fullscreen-waveform');
+    const fsTooltip = $('fullscreen-waveform-hover-tooltip');
     if (fsWaveform) {
+      fsWaveform.addEventListener('mousemove', (e) => {
+        const rect = fsWaveform.getBoundingClientRect();
+        if (!rect.width) return;
+        const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+        const ratio = lib?.calculateHoverSeekFraction ? lib.calculateHoverSeekFraction(e.clientX, rect) : Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        state.fullscreenWaveformHoverFraction = ratio;
+
+        const track = trackById(state.currentId);
+        const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+        const dur = (currentAudio && Number.isFinite(currentAudio.duration) && currentAudio.duration > 0)
+          ? currentAudio.duration
+          : (track && Number.isFinite(track.duration) ? track.duration : 0);
+
+        if (fsTooltip && dur > 0) {
+          const hoverSec = dur * ratio;
+          fsTooltip.textContent = lib?.formatHoverTime ? lib.formatHoverTime(hoverSec) : formatTime(hoverSec);
+          const xOffset = Math.max(16, Math.min(rect.width - 16, e.clientX - rect.left));
+          fsTooltip.style.left = `${xOffset}px`;
+          fsTooltip.classList.remove('hidden');
+        }
+
+        if (e.buttons === 1 && dur > 0 && currentAudio) {
+          state.isSeeking = true;
+          currentAudio.currentTime = ratio * dur;
+          updatePositionState(true);
+        }
+        renderWaveformSeekbar();
+      });
+      fsWaveform.addEventListener('mouseleave', () => {
+        state.fullscreenWaveformHoverFraction = null;
+        if (fsTooltip) fsTooltip.classList.add('hidden');
+        state.isSeeking = false;
+        renderWaveformSeekbar();
+      });
       fsWaveform.addEventListener('click', (e) => {
+        state.isSeeking = false;
         const rect = fsWaveform.getBoundingClientRect();
         if (!rect.width) return;
         const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
@@ -8092,5 +8178,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 12:05 +07 | Đã xong: Pha C - Tìm kiếm mờ thông minh (Fuzzy Instant Search) với làm nổi bật từ khóa (Search Keyword Highlighting) & Lịch sử tìm kiếm bền vững: (1) Thuật toán matchSearchQuery phân tích đa từ khóa không phân biệt thứ tự (multi-token out-of-order) và không dấu tiếng Việt; (2) Thuật toán scoreSearchMatch xếp hạng độ phù hợp (tiêu đề khớp > bắt đầu > chứa từ khóa > nghệ sĩ/album); (3) highlightSearchMatch làm nổi bật các đoạn khớp trong tiêu đề/nghệ sĩ/album bằng thẻ mark tím audiophile mà bảo toàn 100% dấu tiếng Việt và chữ hoa/thường gốc, an toàn XSS; (4) Lịch sử tìm kiếm getSearchHistory, addSearchHistory, clearSearchHistory lưu localStorage nocturne-search-history kèm dropdown #search-history-dropdown và #search-history-mobile-dropdown; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 23/23 test smart-search.test.cjs PASS 100%, toàn bộ 95 test suites PASS 100% | Lượt kế tiếp: Pha D - Tối ưu hóa Service Worker Caching & Offline Storage -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 12:25 +07 | Đã xong: Pha D - Giám sát hạn ngạch bộ nhớ PWA (Storage Quota Monitor), Dọn dẹp bộ đệm & Bộ lọc nghe nhạc ngoại tuyến (Offline Focus Mode): (1) Bộ tiện ích formatStorageBytes & getStorageEstimate truy vấn navigator.storage.estimate() hiển thị chính xác dung lượng đã dùng / hạn ngạch và cờ cảnh báo isLowSpace; (2) auditOfflineStorage kiểm toán tỷ lệ bài hát sẵn sàng phát ngoại tuyến trong thư viện; (3) Tích hợp bộ lọc Ngoại tuyến trên Roon Focus Bar (data-focus="offline", #focus-count-offline) qua filterTracksByFocus; (4) Phân mục quản trị bộ nhớ #storage-quota-section trong Cài đặt với thanh tiến trình trực quan #storage-progress-bar, nút kiểm tra #refresh-storage-btn và nút dọn dẹp bộ đệm lát #prune-cache-btn; (5) Banner #offline-banner hỗ trợ click chuyển đổi nhanh chế độ lọc bài ngoại tuyến; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 20/20 test storage-quota-offline.test.cjs PASS 100%, 96/96 test suites PASS 100% | Lượt kế tiếp: Pha A - DSP Audio Engine: Parametric EQ Presets & Tối ưu hóa chuỗi xử lý âm thanh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 12:45 +07 | Đã xong: Pha A & UI Polish - Chuẩn mực âm học Audiophile (Target Curves & Sound Signatures) & Tái cấu trúc Toàn màn hình Roon chuẩn Mockup: (1) Mở rộng AUTOEQ_PROFILES với 5 chuẩn âm học đỉnh cao: Harman Target 2019, Diffuse Field Studio Reference, Vocal Warmth & Intimacy, Basshead Club Impact, Acoustic Air & Soundstage; tính toán bù trừ Preamp <= 0 dB chống clipping; tích hợp Roon Signal Path nhận diện chuẩn âm học trong chuỗi DSP; (2) Nâng cấp #autoeq-select với các <optgroup> phân nhóm trực quan; (3) Tái cấu trúc thanh dock điều khiển của #roon-fullscreen-view thành một hàng ngang duy nhất: [Thu nhỏ ⌵] + [Thời gian] + [Waveform Seekbar với vạch kim đỏ #ef4444] + [Thời lượng] + [System Output] + [Âm lượng 100] khớp 100% mockup người dùng; (4) Tối ưu clearance chống va chạm giao diện: đặt bottom-[140px] cho mini-player-hud, eq-panel, sleep-panel, ambient-panel và nâng vị trí toast lên bottom-40 sm:bottom-44 z-[120]; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 10/10 test target-curves.test.cjs PASS 100%, toàn bộ 97 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Ambient Sound Stage Animation hoặc Tinh chỉnh Waveform Seekbar Roon Immersive Live Playhead Polish -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 13:00 +07 | Đã xong: Pha B - Interactive Waveform Scrubbing with Hover Time Tooltip & Ghost Playhead: (1) Bộ tiện ích calculateHoverSeekFraction, calculateHoverSeekTime và formatHoverTime đo lường và hiển thị vị trí tua chính xác theo chuột; (2) renderWaveformCanvas hỗ trợ opts.hoverFraction vẽ vạch kim ghost playhead 1.5px bán trong suốt; (3) Tooltip xem trước thời gian dạng nổi (#waveform-hover-tooltip và #fullscreen-waveform-hover-tooltip) bám chuột mượt mà; (4) Tua nhạc trực tiếp bằng thao tác kéo chuột liên tục (drag-to-seek scrubbing khi e.buttons === 1) trên cả #waveform-canvas và #fullscreen-waveform; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 11/11 test waveform-hover-scrub.test.cjs PASS 100%, 98/98 test suites PASS 100% | Lượt kế tiếp: Pha C - Tính Năng: Đồng bộ hóa lyrics đa nguồn (LRCLIB fallback + nhãn đồng bộ thời gian thực theo câu & từ) hoặc Quản lý Playlist thông minh kéo thả -->
 </body>
 </html>
