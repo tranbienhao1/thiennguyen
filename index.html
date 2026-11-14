@@ -511,6 +511,10 @@
             <span>☁ Cloud</span>
             <span id="focus-count-cloud" class="ml-1 rounded-full bg-white/10 px-1.5 py-0.2 text-[10px] text-zinc-400">0</span>
           </button>
+          <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="offline" title="Chỉ phát bài hát nội bộ và các bản nhạc đã lưu trữ trong bộ đệm">
+            <span class="text-cyan-300">⚡ Ngoại tuyến</span>
+            <span id="focus-count-offline" class="ml-1 rounded-full bg-white/10 px-1.5 py-0.2 text-[10px] text-zinc-400">0</span>
+          </button>
           <div class="decade-focus flex items-center gap-1.5 border-l border-white/10 pl-2 ml-1">
             <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Thập niên:</span>
             <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="decade-1980s">1980s</button>
@@ -729,6 +733,24 @@
         <h3 class="text-sm font-medium text-rose-100">Làm mới thư viện Cloud</h3>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Xóa danh mục Google Drive/OneDrive đã lưu trên trình duyệt để đồng bộ lại từ đầu. Không xóa file gốc, Client ID, lịch sử nghe hoặc yêu thích. Trang sẽ tải lại; nhạc nội bộ đã thêm trong phiên hiện tại cần chọn lại.</p>
         <button id="reset-cloud-catalog" type="button" class="mt-3 w-full rounded-lg border border-rose-300/30 px-3 py-2.5 text-xs font-medium text-rose-200 hover:bg-rose-300/10">Xóa danh mục Cloud đã lưu</button>
+      </section>
+      <section id="storage-quota-section" class="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-400/[.03] p-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-medium text-cyan-100">Bộ nhớ lưu trữ &amp; Ngoại tuyến PWA</h3>
+          <span id="storage-quota-badge" class="rounded border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-medium text-cyan-200">SẴN SÀNG</span>
+        </div>
+        <p class="mt-1 text-[10px] leading-4 text-zinc-400">Giám sát dung lượng bộ nhớ Cache Storage, IndexedDB (lát audio FLAC/DSD và metadata) được cấp phát cho ứng dụng nghe nhạc.</p>
+        <div class="mt-3 flex items-center justify-between text-xs text-zinc-300">
+          <span>Đã sử dụng: <strong id="storage-usage-val" class="font-mono text-cyan-200">—</strong> / <span id="storage-quota-val" class="font-mono text-zinc-400">—</span></span>
+          <span id="storage-percent-val" class="text-[10px] text-zinc-400">0%</span>
+        </div>
+        <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+          <div id="storage-progress-bar" class="h-full rounded-full bg-cyan-400 transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button id="refresh-storage-btn" type="button" class="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-zinc-300 transition hover:bg-white/10">Kiểm tra dung lượng</button>
+          <button id="prune-cache-btn" type="button" class="flex-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-[11px] font-medium text-cyan-200 transition hover:bg-cyan-400/20">Dọn dẹp bộ đệm lát</button>
+        </div>
       </section>
       <div class="mt-5 rounded-2xl border border-white/10 p-4">
         <h3 class="text-sm font-medium">Phát URL trực tiếp / WebDAV</h3><p class="mt-1 text-[10px] leading-4 text-zinc-500">Dùng URL truy cập trực tiếp tới file âm thanh. Máy chủ cần cho phép CORS để trình duyệt đọc metadata và phân tích âm thanh; hỗ trợ Range tùy cấu hình máy chủ.</p>
@@ -1545,6 +1567,11 @@
         banner.classList.add('flex');
       }
     }
+    $('offline-banner')?.addEventListener('click', () => {
+      state.activeFocus = state.activeFocus === 'offline' ? 'all' : 'offline';
+      renderTracks();
+      toast(state.activeFocus === 'offline' ? 'Đã lọc danh sách: Chỉ phát bài hát Ngoại tuyến.' : 'Đã hiển thị tất cả bài hát.');
+    });
     function savePlaybackSession(force = false) {
       if (!state.currentId) return;
       const now = Date.now();
@@ -4995,7 +5022,7 @@
       const bar = $('roon-focus-bar');
       if (!bar) return;
       const counts = library.countFocusCategories ? library.countFocusCategories(state.tracks, state.favorites) : { all: state.tracks.length };
-      ['all', 'dsd', 'hires', 'lossless', 'favorite', 'cloud'].forEach(cat => {
+      ['all', 'dsd', 'hires', 'lossless', 'favorite', 'cloud', 'offline'].forEach(cat => {
         const cntEl = $(`focus-count-${cat}`);
         if (cntEl && counts[cat] !== undefined) cntEl.textContent = String(counts[cat]);
       });
@@ -6035,6 +6062,36 @@
       if (clearError) $('settings-error').classList.add('hidden');
       if (!modal.open) modal.showModal();
       document.body.classList.add('settings-open');
+      if (typeof updateStorageQuotaDisplay === 'function') updateStorageQuotaDisplay();
+    }
+    async function updateStorageQuotaDisplay() {
+      if (typeof library !== 'undefined' && typeof library.getStorageEstimate === 'function') {
+        const est = await library.getStorageEstimate();
+        const usageEl = $('storage-usage-val');
+        const quotaEl = $('storage-quota-val');
+        const percentEl = $('storage-percent-val');
+        const progressEl = $('storage-progress-bar');
+        const badgeEl = $('storage-quota-badge');
+        if (usageEl) usageEl.textContent = est.formattedUsage;
+        if (quotaEl) quotaEl.textContent = est.formattedQuota;
+        if (percentEl) percentEl.textContent = `${est.percent}%`;
+        if (progressEl) {
+          progressEl.style.width = `${Math.min(100, Math.max(0, est.percent))}%`;
+          if (est.isLowSpace) {
+            progressEl.className = 'h-full rounded-full bg-rose-500 transition-all duration-300';
+            if (badgeEl) {
+              badgeEl.textContent = 'SẮP ĐẦY';
+              badgeEl.className = 'rounded border border-rose-400/30 bg-rose-400/10 px-2 py-0.5 text-[9px] font-medium text-rose-200';
+            }
+          } else {
+            progressEl.className = 'h-full rounded-full bg-cyan-400 transition-all duration-300';
+            if (badgeEl) {
+              badgeEl.textContent = 'SẴN SÀNG';
+              badgeEl.className = 'rounded border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-medium text-cyan-200';
+            }
+          }
+        }
+      }
     }
     function hideSettings() {
       const modal = $('settings-modal');
@@ -6098,6 +6155,23 @@
         button.disabled = false;
         button.textContent = 'Xóa danh mục Cloud đã lưu';
         settingsError(new Error(`Không thể xóa danh mục Cloud: ${error.message || error}`));
+      }
+    });
+    $('refresh-storage-btn')?.addEventListener('click', async () => {
+      await updateStorageQuotaDisplay();
+      toast('Đã cập nhật số liệu bộ nhớ lưu trữ.');
+    });
+    $('prune-cache-btn')?.addEventListener('click', async () => {
+      try {
+        if (state.db) {
+          const tx = state.db.transaction('firstSliceCache', 'readwrite');
+          tx.objectStore('firstSliceCache').clear();
+          await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+        }
+        await updateStorageQuotaDisplay();
+        toast('Đã dọn dẹp các lát audio đệm thành công.');
+      } catch (err) {
+        toast(`Không thể dọn dẹp bộ đệm: ${err.message || err}`);
       }
     });
     async function runCloudLogin(connect) {
@@ -8004,5 +8078,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 11:22 +07 | Đã xong: Pha A - DSP Audio Engine: Peak Limiter đa chế độ chống clipping khi bật ReplayGain Preamp cao (Audiophile Brickwall / Soft-Knee / Bypass): (1) Bộ 3 cấu hình chuẩn LIMITER_PROFILES (transparent -0.5 dBFS ratio 20:1 attack 1ms; soft -3.0 dBFS knee 6 dB ratio 12:1; off bypass tuyến tính); (2) applyLimiterParams điều tiết mượt mà trên AudioParam của DynamicsCompressorNode; (3) UI #limiter-mode-select, #limiter-badge, #limiter-desc trong #eq-panel, lưu localStorage bền vững nocturne-limiter-mode; (4) Tích hợp Roon Signal Path (hiển thị Peak Limiter trong DSP Stage khi bật, giữ Bit-Perfect khi tắt); (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 15/15 test limiter-profiles.test.cjs PASS 100%, 84/84 test suites PASS | Lượt kế tiếp: Pha B - UI/UX: Hiệu ứng chuyển động Spectrum FFT đa màu sắc sống động trên thanh điều khiển footer và mini-player -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 11:55 +07 | Đã xong: Pha B - UI/UX & Visualizer: Hệ thống FFT Spectrum Analyzer đa bảng màu thời gian thực kèm vật lý giữ đỉnh và phân rã rơi chậm (Audiophile Multi-Theme Spectrum with Peak Hold & Decay Physics): (1) Bộ 4 theme màu VISUALIZER_THEMES (cyber neon, sunset glow, aurora borealis, monochrome audiophile); (2) Thuật toán updateVisualizerPeaks mô phỏng vật lý giữ đỉnh 6 frames và phân rã tốc độ 0.025; (3) renderVisualizerSpectrum kết xuất phổ tần số 32 cột đối xứng gương mượt mà với gradient và vạch đỉnh; (4) Tương tác click trên #visualizer để xoay vòng cycleVisualizerTheme, lưu localStorage bền vững nocturne-visualizer-theme; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 19/19 test visualizer-spectrum.test.cjs PASS 100%, 94/94 test suites (626/626 tests) PASS 100% | Lượt kế tiếp: Pha C - Tìm kiếm mờ thông minh (Fuzzy Instant Search) với làm nổi bật từ khóa (Search Keyword Highlighting) & Lọc nhanh theo nhãn -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 12:05 +07 | Đã xong: Pha C - Tìm kiếm mờ thông minh (Fuzzy Instant Search) với làm nổi bật từ khóa (Search Keyword Highlighting) & Lịch sử tìm kiếm bền vững: (1) Thuật toán matchSearchQuery phân tích đa từ khóa không phân biệt thứ tự (multi-token out-of-order) và không dấu tiếng Việt; (2) Thuật toán scoreSearchMatch xếp hạng độ phù hợp (tiêu đề khớp > bắt đầu > chứa từ khóa > nghệ sĩ/album); (3) highlightSearchMatch làm nổi bật các đoạn khớp trong tiêu đề/nghệ sĩ/album bằng thẻ mark tím audiophile mà bảo toàn 100% dấu tiếng Việt và chữ hoa/thường gốc, an toàn XSS; (4) Lịch sử tìm kiếm getSearchHistory, addSearchHistory, clearSearchHistory lưu localStorage nocturne-search-history kèm dropdown #search-history-dropdown và #search-history-mobile-dropdown; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 23/23 test smart-search.test.cjs PASS 100%, toàn bộ 95 test suites PASS 100% | Lượt kế tiếp: Pha D - Tối ưu hóa Service Worker Caching & Offline Storage -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 12:25 +07 | Đã xong: Pha D - Giám sát hạn ngạch bộ nhớ PWA (Storage Quota Monitor), Dọn dẹp bộ đệm & Bộ lọc nghe nhạc ngoại tuyến (Offline Focus Mode): (1) Bộ tiện ích formatStorageBytes & getStorageEstimate truy vấn navigator.storage.estimate() hiển thị chính xác dung lượng đã dùng / hạn ngạch và cờ cảnh báo isLowSpace; (2) auditOfflineStorage kiểm toán tỷ lệ bài hát sẵn sàng phát ngoại tuyến trong thư viện; (3) Tích hợp bộ lọc Ngoại tuyến trên Roon Focus Bar (data-focus="offline", #focus-count-offline) qua filterTracksByFocus; (4) Phân mục quản trị bộ nhớ #storage-quota-section trong Cài đặt với thanh tiến trình trực quan #storage-progress-bar, nút kiểm tra #refresh-storage-btn và nút dọn dẹp bộ đệm lát #prune-cache-btn; (5) Banner #offline-banner hỗ trợ click chuyển đổi nhanh chế độ lọc bài ngoại tuyến; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 20/20 test storage-quota-offline.test.cjs PASS 100%, 96/96 test suites PASS 100% | Lượt kế tiếp: Pha A - DSP Audio Engine: Parametric EQ Presets & Tối ưu hóa chuỗi xử lý âm thanh -->
 </body>
 </html>

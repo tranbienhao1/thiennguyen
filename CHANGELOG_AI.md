@@ -2,6 +2,31 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 12:25 +07] — [Pha D: Hiệu Năng, Kiến Trúc & PWA] Giám Sát Hạn Ngạch Bộ Nhớ PWA (Storage Quota Monitor), Dọn Dẹp Bộ Đệm & Bộ Lọc Nghe Nhạc Ngoại Tuyến (Offline Focus Mode)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **4. Hiệu Năng, Kiến Trúc & Độ Bền Hệ Thống (Architecture & PWA)** & **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)**.
+- **Chi tiết triển khai:**
+  1. **Bộ Tiện Ích Giám Sát Dung Lượng Bộ Nhớ PWA (`formatStorageBytes` & `getStorageEstimate`):**
+     - Truy vấn API `navigator.storage.estimate()` để đo lường chính xác dung lượng thực tế (`usage`) và trần hạn ngạch trình duyệt cấp phát (`quota`).
+     - Tự động phát hiện và kích hoạt cờ cảnh báo dung lượng sắp đầy (`isLowSpace: true`) khi bộ nhớ còn lại dưới 100MB hoặc tỷ lệ dùng vượt quá 90%.
+     - Định dạng trực quan các mức dung lượng `B`, `KB`, `MB`, `GB` chuẩn xác.
+  2. **Kiểm Toán Tài Nguyên Ngoại Tuyến (`auditOfflineStorage`):**
+     - Thống kê tỷ lệ và số lượng bài hát có thể phát ngoại tuyến ngay lập tức (phân loại rõ ràng bài local trên máy, bài cloud đã cache toàn bộ file trong bộ nhớ, và bài cloud đã lưu lát audio đầu).
+  3. **Bộ Lọc Ngoại Tuyến Trên Roon Focus Bar (`filterTracksByFocus: 'offline'`):**
+     - Bổ sung nút lọc `⚡ Ngoại tuyến` (`#focus-count-offline`) trên thanh `#roon-focus-bar`, tự động đếm và lọc danh sách thư viện chỉ còn những bài có thể nghe khi mất mạng hoặc trên máy bay.
+     - Khi mất mạng, thanh thông báo `#offline-banner` cho phép click trực tiếp để kích hoạt nhanh chế độ lọc ngoại tuyến.
+  4. **Giao Diện Quản Lý Bộ Nhớ & Dọn Dẹp Bộ Đệm Trong Cài Đặt (`#storage-quota-section`):**
+     - Thêm phân mục quản trị bộ nhớ PWA trong hộp thoại Cài đặt: hiển thị số đo dung lượng đã dùng (`#storage-usage-val`), tổng hạn ngạch (`#storage-quota-val`), phần trăm (`#storage-percent-val`), huy hiệu trạng thái (`#storage-quota-badge`) và thanh tiến trình trực quan (`#storage-progress-bar`).
+     - Nút **[Kiểm tra dung lượng]** (`#refresh-storage-btn`): Cập nhật tức thời số liệu từ StorageManager.
+     - Nút **[Dọn dẹp bộ đệm lát]** (`#prune-cache-btn`): Giải phóng an toàn các lát audio đệm FLAC/DSD trong IndexedDB `firstSliceCache` khi người dùng muốn giải phóng bộ nhớ máy.
+  5. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `storage-quota-offline.test.cjs` (**20/20 tests PASS 100%**).
+     - Toàn bộ 96 test suites (**669/669 tests PASS 100%**, 0 fail, 0 regression).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 12:05 +07] — [Pha C: Tính Năng & Trải Nghiệm Người Dùng] Tìm Kiếm Mờ Đa Từ Khóa Thông Minh (Smart Fuzzy Multi-Token Search), Xếp Hạng Phù Hợp, Làm Nổi Bật Từ Khóa (Keyword Highlighting) & Lịch Sử Tìm Kiếm Bền Vững
 
 ### 🎯 Hạng Mục Nâng Cấp:
