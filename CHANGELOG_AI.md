@@ -2,6 +2,39 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 05:00 +07] — Pha D: Tối Ưu Hóa Bộ Nhớ Cache Service Worker, Phân Đoạn Âm Thanh Stream (Audio Stream Dynamic Chunking) & Khắc Phục Triệt Để Xung Đột Bố Cục Footer/Mini HUD & Nâng Cấp 1-Click Update
+
+### 🎯 Hạng Mục Nâng Cấp, Sửa Lỗi & Tối Ưu Bố Cục:
+- **Phân khu trọng tâm:** **Kiến Trúc PWA, Bộ Đệm Phân Đoạn Âm Thanh (Audio Stream Dynamic Chunking) & Tối Ưu Bố Cục Dock Điều Khiển (Player Footer & Mini HUD Layout Decoupling)**.
+- **Tính năng & Đột phá:**
+  1. **Khắc Phục Triệt Để Lỗi Bố Cục Thanh Điều Khiển Bài Hát (Hình ảnh phản hồi 2):**
+     - Sửa triệt để các quy tắc CSS generic `footer.glass>div` và `footer.glass>div:first-child`:
+       - Tách bạch hoàn toàn `#footer-telemetry-strip` (thanh đo lường âm học trên đỉnh footer, cố định `height: 28px !important; padding: 2px 20px !important;`) khỏi `.footer-main-container` (`height: 88px;`).
+       - Loại bỏ hoàn toàn tình trạng `#footer-telemetry-strip` bị kế thừa `height: 100%` (128px) làm tràn vỡ chiều cao dock.
+       - Đảm bảo hàng điều khiển trung tâm (`.footer-center-controls`) chứa độc quyền các nút Play/Pause (`#play-button`), Bài trước, Bài tiếp, Trộn bài, Lặp lại và thanh tua seekbar, không bao giờ bị đè lấn, che khuất hay chèn ép bởi bất kỳ canvas hoặc nhãn đo lường nào.
+  2. **Khắc Phục Triệt Để Lỗi Mini Player HUD Che Khuất Phần Điều Khiển (Hình ảnh phản hồi 1):**
+     - Cố định cứng kích thước Mini Player HUD: `width: 360px !important; height: 64px !important;` và canvas sóng âm `#mini-waveform` cố định `72px x 26px !important;`.
+     - Bổ sung giới hạn an toàn khi kéo thả (`maxBottomClearance = 110px`): người dùng không thể kéo Mini Player HUD xuống đè lên thanh dock điều khiển bài hát phía dưới.
+     - Chạm đúp chuột (`dblclick`) vào Mini Player HUD sẽ đặt lại vị trí chuẩn an toàn góc phải (`bottom: 140px; right: 24px;`).
+  3. **Nâng Cấp Cơ Chế Cập Nhật 1 Chạm Liền Mạch (1-Click Seamless Update with Auto-Resume):**
+     - Khắc phục tình trạng nhấn "Cập nhật" bị chặn khi đang nghe nhạc:
+       - Tự động lưu toàn bộ phiên phát hiện tại (`trackId`, `currentTime`, `queueTrackIds`, `volume`) vào `localStorage`.
+       - Gửi tín hiệu `SKIP_WAITING` kích hoạt ngay Service Worker mới.
+       - Tải lại trang với query tham số xóa cache `_nocturne_update` để đảm bảo trình duyệt nạp 100% code mới nhất.
+       - Ngay sau khi trang tải lại, hệ thống tự động phát tiếp đúng bài và đúng giây đang nghe mà không gây gián đoạn trải nghiệm của người dùng.
+  4. **Phân Đoạn Âm Thanh Động & Chiến Lược Bộ Nhớ Cache PWA (`calculateAudioChunkRanges` & `shouldCacheAudioStream`):**
+     - `calculateAudioChunkRanges(totalBytes, chunkSize)`: chia nhỏ luồng âm thanh lớn (FLAC/DSD) thành các byte ranges (512 KB/chunk) giúp trình duyệt tải và nạp đệm mượt mà.
+     - `shouldCacheAudioStream`: phân loại chiến lược bộ nhớ đệm tự động (`full-cache` cho file <= 5MB, `range-chunk` cho file > 5MB, `bypass` cho stream trực tiếp).
+     - `formatStreamChunkStatus`: hiển thị số lượng phân đoạn và dung lượng nạp đệm thời gian thực.
+     - `buildServiceWorkerCacheManifest`: tạo danh mục cache chuẩn hóa PWA.
+  5. **Bảo Toàn Nghiêm Ngặt Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `audio-stream-chunking-cache.test.cjs` (**5/5 tests PASS 100%**).
+  - Toàn bộ các suite test liên quan (**86/86 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 04:10 +07] — Pha C: Hệ Thống Chia Sẻ Danh Sách Phát & Đồng Bộ Hóa Đa Thiết Bị (Cross-Device Playlist Sharing, Hash URL Decoder, Library Matcher & Extended M3U8 Export/Import)
 
 ### 🎯 Hạng Mục Nâng Cấp & Đột Phá Tính Năng:

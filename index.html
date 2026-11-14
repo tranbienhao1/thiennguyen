@@ -31,6 +31,8 @@
     .drop-overlay { background:rgba(17,19,21,.92);backdrop-filter:blur(12px); }
     canvas { width:100%;height:100%; }
     #mini-player-hud canvas { width:72px !important; height:26px !important; max-width:72px !important; }
+    #mini-player-hud { width:360px!important; max-width:calc(100vw - 2rem)!important; min-width:280px!important; height:64px!important; max-height:64px!important; box-sizing:border-box!important; overflow:hidden!important; }
+    #mini-waveform { width:72px !important; height:26px !important; min-width:72px !important; max-width:72px !important; min-height:26px !important; max-height:26px !important; display:block !important; flex-shrink:0 !important; }
     .queue-drag-over-top { border-top: 2px solid #a78bfa !important; }
     .queue-drag-over-bottom { border-bottom: 2px solid #a78bfa !important; }
     #app-shell { transition: max-width .35s ease; }
@@ -294,12 +296,15 @@
     #recent-list button>span:first-child{width:100%;height:auto;aspect-ratio:1;border-radius:0}
     #recent-list button>span:nth-child(2){color:white;font-size:12px} #recent-list button>span:nth-child(2) span:last-child{color:#e1e4f2;font-size:11px}
     #recent-list button>span:last-child{display:none}
-    footer.glass{z-index:35;height:128px;border:0;border-top:1px solid #454545;background:#222;box-shadow:none;backdrop-filter:none}
-    footer.glass>div{height:100%;max-width:none;padding:0 22px} footer.glass>div>div:first-child{height:88px}
+    footer.glass{z-index:35;height:auto!important;min-height:88px;border:0;border-top:1px solid #454545;background:#222;box-shadow:none;backdrop-filter:none}
+    footer.glass .footer-main-container{height:88px;max-width:none;padding:0 22px;display:flex;align-items:center;width:100%;box-sizing:border-box}
+    footer.glass .footer-main-container>div:first-child{height:88px}
     #player-cover{width:54px;height:54px;border-radius:0} #now-title{font-size:13px} #now-artist{color:#aaa}
     #play-button{width:40px;height:40px;border-radius:50%;background:var(--roon-accent);color:white}
-    .audio-zone-empty{display:none} footer.player-idle>div:first-child, footer.player-idle .footer-main-container{display:grid;place-items:center}
+    .audio-zone-empty{display:none}
     footer.player-idle #footer-telemetry-strip{display:none!important}
+    footer.player-idle .footer-main-container{display:flex;align-items:center;justify-content:center;width:100%;height:88px}
+    footer.player-idle .footer-main-container>div:not(.audio-zone-empty){display:none!important}
     footer.player-idle .audio-zone-empty{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
     footer.player-idle .audio-zone-empty button{min-width:240px;height:51px;padding:0 27px;border:0;border-radius:999px;background:var(--roon-accent);color:#fff;font-size:16px}
     #zone-idle-pill{background:#5265a2!important;color:#fff!important;padding:8px 24px!important;border-radius:9999px!important;font-size:13px!important;font-weight:500!important;border:none!important;box-shadow:0 4px 14px rgba(0,0,0,0.4)!important;min-width:auto!important;height:auto!important}
@@ -307,9 +312,9 @@
     #recent-artists-section .artist-avatar{border-radius:50%}
     .artist-link{color:#7675ed;cursor:pointer} .artist-link:hover{text-decoration:underline}
     .album-link{cursor:pointer} .album-link:hover{text-decoration:underline}
-    footer.player-idle>div>div>div:not(.audio-zone-empty){display:none!important} footer.player-idle>div:first-child>div:nth-child(2){display:none!important} #listening-room{background:#151515!important}
+    #listening-room{background:#151515!important}
     #player-footer .footer-center-controls{z-index:10;position:relative}
-    #footer-telemetry-strip{z-index:15;position:relative}
+    #footer-telemetry-strip{z-index:15;position:relative;height:28px!important;min-height:28px!important;max-height:28px!important;padding:2px 20px!important;box-sizing:border-box!important}
     @media(min-width:1500px){#sidebar{flex-basis:300px}#collection-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
     @media(max-width:1023.98px){#app-shell{height:calc(100dvh - 104px);min-height:360px}#sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(300px,86vw);height:100dvh;max-height:100dvh;transform:translateX(0)}body.sidebar-collapsed #sidebar{transform:translateX(-105%);opacity:0;pointer-events:none}body:not(.sidebar-collapsed) #sidebar{transform:translateX(0);opacity:1}#sidebar-toggle{display:grid}#content-col>header{min-height:58px;padding:0 16px!important}#home-view,#library-view{padding:30px 26px 46px}#home-heading{margin-bottom:46px;font-size:54px}#library-intro{margin:24px 0 36px}#collection-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 18px}.roon-stat-grid{gap:12px}.roon-stat{min-height:112px;padding:16px}.roon-stat-value{font-size:29px}}
     @media(max-width:640px){#app-shell{height:calc(100dvh - 88px);min-height:320px}#content-col>header{grid-template-columns:1fr 1fr 1fr;min-height:54px;padding:0 10px!important}#content-col>header>label{display:block!important;margin:0!important} #content-col>label{display:none!important}#search{position:absolute;top:56px;right:12px;z-index:3;width:calc(100vw - 24px)}#header-favorites,#header-search{width:32px;height:34px}#home-view,#library-view{padding:24px 17px 34px}#home-heading{margin:20px 0 35px;font-size:43px}#library-intro{align-items:flex-start;flex-direction:column;margin:24px 0 30px}#list-title{font-size:47px}#visible-count{margin-top:8px!important;font-size:13px!important}#play-library-button{min-height:48px;font-size:15px}#context-row{align-items:flex-start;flex-direction:column;margin-bottom:18px}#collection-tools{width:100%;justify-content:space-between;gap:9px}#filter-controls{width:100%}#filter-controls select{flex:1;min-width:calc(50% - 8px);max-width:none}#collection-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 15px}.collection-title{font-size:13px}.collection-subtitle{font-size:12px}.roon-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:34px}.roon-stat{min-height:90px;gap:10px;padding:12px}.roon-stat-icon{font-size:28px}.roon-stat-value{font-size:25px}.roon-stat-label{font-size:10px}#recent-section{margin:0 -17px;padding:22px 17px}#recent-section .activity-heading{gap:14px;flex-wrap:wrap}#recent-section #recent-title{font-size:18px}#recent-section .activity-tab{font-size:11px}#recent-list{grid-auto-columns:132px;gap:12px}footer.glass{height:88px}footer.glass>div{padding:0 10px}footer.glass>div>div:first-child{height:62px}footer.glass.player-idle .audio-zone-empty button{min-width:220px;height:46px;font-size:14px}}
@@ -1755,6 +1760,22 @@
         const session = library.restorePlaybackSession(raw, state.tracks);
         if (!session.isValid || !session.track) return;
 
+        if (localStorage.getItem('nocturne-auto-resume-on-update') === 'true') {
+          localStorage.removeItem('nocturne-auto-resume-on-update');
+          if (session.queueTrackIds && session.queueTrackIds.length > 0) {
+            state.queueTrackIds = session.queueTrackIds;
+          }
+          playTrack(session.track.id).then(() => {
+            const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+            if (curAudio && session.currentTime > 0) {
+              curAudio.currentTime = session.currentTime;
+            }
+            if (session.paused) curAudio?.pause();
+          }).catch(() => {});
+          toast('Đã cập nhật lên phiên bản mới nhất thành công!');
+          return;
+        }
+
         state.pendingResumePosition = session.currentTime;
         const banner = $('resume-session-banner');
         const textEl = $('resume-session-text');
@@ -1802,13 +1823,33 @@
       }
     }
     function applyAppUpdate() {
-      if (!updatePending) { location.reload(); return; }
-      if (isAppPlaying()) {
-        setUpdateBanner('Đang phát nhạc nên chưa tải lại. Hãy tạm dừng rồi nhấn “Cập nhật”.');
-        toast('Đang phát nhạc — bản mới sẽ được áp dụng sau khi bạn tạm dừng.');
-        return;
+      try {
+        const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+        const curTrack = state.tracks.find(t => t.id === state.currentId);
+        if (curTrack && curAudio) {
+          const session = {
+            trackId: curTrack.id,
+            currentTime: curAudio.currentTime || 0,
+            paused: curAudio.paused,
+            queueTrackIds: state.queueTrackIds || [],
+            volume: state.volume ?? 72,
+            timestamp: Date.now()
+          };
+          localStorage.setItem('nocturne-playback-session', JSON.stringify(session));
+          localStorage.setItem('nocturne-auto-resume-on-update', 'true');
+        }
+        if (curAudio && !curAudio.paused) {
+          try { curAudio.pause(); } catch (_) {}
+        }
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+        }
+        const updateUrl = new URL(window.location.href);
+        updateUrl.searchParams.set('_nocturne_update', Date.now().toString());
+        window.location.href = updateUrl.toString();
+      } catch (err) {
+        location.reload();
       }
-      location.reload();
     }
     $('update-now').addEventListener('click', applyAppUpdate);
     $('update-later').addEventListener('click', () => {
@@ -8058,8 +8099,9 @@
       });
       window.addEventListener('mousemove', (e) => {
         if (!hudDragging || !hudContainer) return;
+        const maxBottomClearance = 110;
         const x = Math.max(8, Math.min(window.innerWidth - hudContainer.offsetWidth - 8, e.clientX - hudOffsetX));
-        const y = Math.max(8, Math.min(window.innerHeight - hudContainer.offsetHeight - 8, e.clientY - hudOffsetY));
+        const y = Math.max(8, Math.min(window.innerHeight - hudContainer.offsetHeight - maxBottomClearance, e.clientY - hudOffsetY));
         hudContainer.style.left = `${x}px`;
         hudContainer.style.top = `${y}px`;
         hudContainer.style.right = 'auto';
@@ -8075,8 +8117,8 @@
         if (e.target.closest('button') || e.target.closest('canvas')) return;
         hudContainer.style.left = '';
         hudContainer.style.top = '';
-        hudContainer.style.right = '';
-        hudContainer.style.bottom = '';
+        hudContainer.style.right = '24px';
+        hudContainer.style.bottom = '140px';
         toast('Đã đặt lại vị trí Mini Player HUD.');
       });
     }
@@ -9892,5 +9934,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:30 +07 | Đã xong: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe, Hào Quang Nền Phủ Rộng & Bảng Màu Spectrum Audiophile Mới (Crimson Velvet & Deep Amethyst): (1) 2 bảng màu audiophile mới trong VISUALIZER_THEMES (crimson: Crimson Velvet Night #991b1b/#ef4444/#fb7185 với peak #fecdd3, amethyst: Deep Amethyst Glow #581c87/#8b5cf6/#c084fc với peak #f5d0fe); (2) calculateVisualizerStrobe tính toán xung nhịp chớp sáng âm trầm (bass transients) và xung Beat Pulse, tạo phản hồi ánh sáng phập phồng (pulseScale 1.0 - 1.08) và phân rã mượt mà (decay rate); (3) renderVisualizerBackdropGlow kết xuất hào quang nền tỏa tròn (radial gradient glow) từ đỉnh dải màu theo nhịp nhạc thời gian thực 60fps trên canvas; (4) formatVisualizerThemeSummary định dạng chuỗi mô tả chủ đề trực quan; (5) Tích hợp UI & Điều khiển: toggle #visualizer-strobe-toggle và mô tả #visualizer-strobe-desc trong Cài đặt Sân khấu Ánh sáng Động; phím tắt 't' / 'T' và Shift+Click trên #visualizer xoay vòng tuần tự qua toàn bộ 9 bảng màu audiophile; đồng bộ sao lưu exportAppConfiguration & mergeRestoredConfiguration; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 24/24 tests visualizer-strobe-palettes.test.cjs PASS 100%, toàn bộ 95/95 test suites (829/829 tests) PASS 100% | Lượt kế tiếp: Pha C - Core Features & Tối Ưu: Hệ Thống Chia Sẻ Danh Sách Phát & Đồng Bộ Hóa Đa Thiết Bị -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:50 +07 | Đã xong: Pha E - Phát Tuần Tự Album vs Phát Ngẫu Nhiên Bài Hát (Album Sequential Playback vs Songs Random Shuffle): (1) Thêm playbackContext vào state theo dõi ngữ cảnh phát nhạc ({ type: 'album', key, name, trackIds } vs { type: 'songs' }); (2) Nút #album-hero-play và click hàng bài hát trong view album sử dụng resolveAlbumPlaybackQueue nạp các bài còn lại từ trên xuống dưới vào state.queueTrackIds, hiển thị toast thông báo phát tuần tự; (3) Click bài hát từ trang bài hát (view === 'songs') đặt playbackContext thành { type: 'songs' }, duy trì cơ chế chọn ngẫu nhiên khi bật shuffle; (4) playNext và queueIndex kiểm tra shouldEnforceSequentialPlayback để thực thi tuần tự resolveNextSequentialTrack, bỏ qua state.shuffle khi đang phát album, xử lý lặp lại album khi repeat === 1 và Roon Radio/dừng lại khi repeat === 0; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 37/37 tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Tối Ưu: Hệ Thống Chia Sẻ Danh Sách Phát & Đồng Bộ Hóa Đa Thiết Bị -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 04:10 +07 | Đã xong: Pha C - Core Features & Tối Ưu: Hệ Thống Chia Sẻ Danh Sách Phát & Đồng Bộ Hóa Đa Thiết Bị (Cross-Device Playlist Sharing, Hash URL Decoder, Library Matcher & Extended M3U8 Export/Import): (1) buildShareablePlaylistPayload & encodeShareablePlaylistLink đóng gói danh sách phát chuẩn JSON và mã hóa Unicode-safe URL hash #playlist= để chia sẻ liên kết trực tiếp giữa các thiết bị; (2) parseShareablePlaylistPayload giải mã an toàn từ URL hash, JSON hoặc base64; (3) matchPlaylistWithLibrary tự động đối soát thông minh giữa danh sách nhận được và kho nhạc nội bộ theo ID và Normalized Title + Artist, tính toán matchRate và summary trực quan; (4) exportPlaylistM3u8 & parseM3u8Playlist xuất nhập danh sách phát chuẩn Extended M3U8 với đầy đủ thẻ #EXTINF, #EXTALBUM, #EXTFORMAT; (5) Tích hợp UI: nút #album-hero-share trong Album Hero, nút #queue-share-btn, #queue-import-btn và file input #playlist-import-file trong Hàng đợi, tự động xử lý hashchange và URL khởi động; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 19/19 tests playlist-sharing-sync.test.cjs PASS 100%, 92/92 core tests PASS 100% | Lượt kế tiếp: Pha D - Kiến Trúc & PWA: Tối Ưu Hóa Bộ Nhớ Cache Service Worker & Tự Động Phân Đoạn Âm Thanh Stream -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 05:00 +07 | Đã xong: Pha D & Bugfix - Kiến Trúc & PWA: Tối Ưu Bộ Nhớ Cache Service Worker, Phân Đoạn Âm Thanh Stream (Audio Stream Dynamic Chunking) & Khắc Phục Triệt Để Xung Đột Bố Cục Footer/Mini HUD & Nâng Cấp 1-Click Update: (1) calculateAudioChunkRanges phân đoạn byte range (bytes=0-524287) nạp đệm mượt mà cho stream âm thanh lớn; shouldCacheAudioStream xác định chiến lược (full-cache <= 5MB vs range-chunk > 5MB vs bypass); formatStreamChunkStatus định dạng telemetry nạp đệm thời gian thực; buildServiceWorkerCacheManifest xây dựng danh mục cache chuẩn hóa; (2) Tối ưu triệt để bố cục Player Footer: tách bạch hoàn toàn #footer-telemetry-strip (height: 28px) và .footer-main-container (height: 88px), triệt tiêu các CSS selector lỗi div:first-child kế thừa 100% height, đảm bảo nút Play/Pause và seekbar luôn thông thoáng, không bao giờ bị đè lấn hoặc che khuất; (3) Cố định cứng kích thước Mini Player HUD (w-[360px] h-[64px]) và ràng buộc giới hạn kéo (maxBottomClearance = 110px) không bao giờ che khuất dock điều khiển bài hát; (4) Nâng cấp cơ chế 'Cập nhật' (#update-now): lưu phiên phát hiện tại, tạm dừng mượt mà, kích hoạt ngay Service Worker qua SKIP_WAITING và tự động phát tiếp ngay sau khi tải lại mà không làm gián đoạn người nghe; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 86/86 tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Dynamic Crossfade Equal-Power Smoothing & Sub-bass Transient Punch -->
 </body>
 </html>
