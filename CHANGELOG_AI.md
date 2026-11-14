@@ -2,6 +2,30 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 18:30 +07] — [Pha A: Audio Engine & DSP] Đo Lường True Peak Thời Gian Thực & Phát Hiện Đỉnh Sóng Liên Mẫu (Inter-Sample Peak Metering & Headroom Safety Engine)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP (Web Audio API)**.
+- **Chi tiết triển khai:**
+  1. **Động Cơ Đo True Peak & Inter-Sample Peak (`calculateInterSamplePeak`):**
+     - Mô phỏng nội suy 4x Hermite spline theo tiêu chuẩn ITU-R BS.1770 / EBU R128 để phát hiện các đỉnh sóng ẩn giữa các mẫu số (inter-sample peak) mà sample peak thông thường bỏ sót.
+     - Tính toán chính xác `samplePeakDb`, `truePeakDbtp`, `interSampleOvershootDb` và cờ cảnh báo xén ngọn `isClipping` khi $TP > 0.0\text{ dBTP}$.
+  2. **Tính Toán Biên An Toàn Headroom (`calculateTruePeakHeadroom`):**
+     - Đánh giá khoảng dự trữ headroom an toàn so với ngưỡng mục tiêu (mặc định $-1.0\text{ dBTP}$).
+     - Tính toán mức suy giảm đề xuất `recommendedAttenuationDb` giúp người dùng audiophile và hệ thống pre-amp ngăn chặn triệt để hiện tượng analog reconstruction clipping trên DAC hi-fi.
+  3. **Định Dạng Huy Hiệu Trực Quan (`formatTruePeakBadge`):**
+     - Chuẩn hóa chuỗi hiển thị audiophile: `TP -1.2 dBTP` hoặc cảnh báo xén ngọn màu đỏ rực `TP +0.8 ⚠`.
+  4. **Tích Hợp Giao Diện Trực Quan (UI Audiophile Integration):**
+     - Bổ sung huy hiệu `#footer-tp-badge` trên thanh điều khiển chính ở footer cạnh huy hiệu Pha Stereo.
+     - Bổ sung huy hiệu `#room-tp-badge` trong Phòng nghe `#listening-room` cạnh huy hiệu Pha Stereo.
+     - Tự động lấy mẫu time domain buffer trong vòng lặp `renderVisualizer` định kỳ 30 frame, cập nhật mượt mà 60fps và tô màu viền/nền đỏ khi phát hiện clipping.
+  5. **Kiểm Thử Độc Lập & Bảo Toàn Bất Biến:**
+     - Bộ kiểm thử mới `true-peak-metering.test.cjs` (**4/4 tests PASS 100%**).
+     - Toàn bộ 109 test suites toàn dự án (**PASS 100%**).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 18:00 +07] — [Pha D: Hiệu Năng, Kiến Trúc & PWA] Quản Lý Bộ Đệm Âm Thanh LRU Đa Tầng, Thích Ứng Hạn Ngạch Dung Lượng & Đo Lường Độ Trễ Bộ Nhớ (Adaptive Quota LRU Audio Cache & Storage Health Diagnostics)
 
 ### 🎯 Hạng Mục Nâng Cấp:

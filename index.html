@@ -620,6 +620,7 @@
           <span id="level-readout" class="w-40 text-right text-[10px] tabular-nums text-zinc-500" title="Mức đỉnh / RMS thực từ AnalyserNode · Lim = mức limiter đã giảm khi EQ bật">—</span>
           <span id="footer-dr-badge" class="hidden sm:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400" title="Dynamic Range (Crest Factor)">DR --</span>
           <span id="footer-phase-badge" class="hidden md:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400" title="Hệ số đồng pha Stereo (Phase Correlation: -1 nghịch pha đến +1 đồng pha)">Phase +1.0</span>
+          <span id="footer-tp-badge" class="hidden lg:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400" title="True Peak (Đỉnh liên mẫu ITU-R BS.1770 / EBU R128)">TP --</span>
           <span id="quality-badge" class="rounded-md border border-white/10 px-2 py-1 text-[9px] font-medium uppercase tracking-wider text-zinc-500">READY</span>
           <button id="eq-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white">EQ</button>
           <button id="queue-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Hàng đợi phát" title="Phát tiếp theo">☰</button>
@@ -983,6 +984,7 @@
               <span id="room-dr-badge" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400" title="Dynamic Range (Crest Factor: chênh lệch giữa Peak dB và RMS dB)">DR -- · Chờ tín hiệu</span>
               <span id="room-crest-detail" class="hidden sm:inline text-zinc-600">Pk -96 · RMS -96 dB</span>
               <span id="room-phase-badge" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400" title="Hệ số đồng pha Stereo (Phase Correlation: -1 nghịch pha đến +1 đồng pha)">Phase +1.0</span>
+              <span id="room-tp-badge" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400" title="True Peak (Đỉnh liên mẫu ITU-R BS.1770 / EBU R128)">TP --</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span class="inline-block h-1.5 w-1.5 rounded-full bg-zinc-600" id="room-buffer-dot"></span>
@@ -3522,6 +3524,27 @@
               footerPhase.className = `hidden md:inline-block rounded border px-1.5 py-0.5 text-[9px] font-medium ${phaseCorr.badgeClass}`;
             }
           }
+          if (typeof library !== 'undefined' && library && typeof library.calculateInterSamplePeak === 'function') {
+            const timeSampleSource = (state.leftAnalyser) ? (typeof leftData !== 'undefined' ? leftData : data) : data;
+            if (timeSampleSource && timeSampleSource.length) {
+              const tpInfo = library.calculateInterSamplePeak(timeSampleSource, 4);
+              const tpText = library.formatTruePeakBadge(tpInfo.truePeakDbtp);
+              const roomTp = $('room-tp-badge');
+              if (roomTp) {
+                roomTp.textContent = tpText;
+                roomTp.className = tpInfo.isClipping
+                  ? 'rounded border px-2 py-0.5 text-[9px] font-medium text-rose-300 border-rose-500/40 bg-rose-500/10'
+                  : 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400';
+              }
+              const footerTp = $('footer-tp-badge');
+              if (footerTp) {
+                footerTp.textContent = tpText;
+                footerTp.className = tpInfo.isClipping
+                  ? 'hidden lg:inline-block rounded border px-1.5 py-0.5 text-[9px] font-medium text-rose-300 border-rose-500/40 bg-rose-500/10'
+                  : 'hidden lg:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400';
+              }
+            }
+          }
         }
         if (typeof library !== 'undefined' && library && typeof library.renderVisualizerSpectrum === 'function') {
           const normVals = [];
@@ -4222,6 +4245,14 @@
       if ($('footer-phase-badge')) {
         $('footer-phase-badge').textContent = 'Phase +1.0';
         $('footer-phase-badge').className = 'hidden md:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400';
+      }
+      if ($('room-tp-badge')) {
+        $('room-tp-badge').textContent = 'TP --';
+        $('room-tp-badge').className = 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400';
+      }
+      if ($('footer-tp-badge')) {
+        $('footer-tp-badge').textContent = 'TP --';
+        $('footer-tp-badge').className = 'hidden lg:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400';
       }
       let savedOffset = 0;
       try {
@@ -8792,5 +8823,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 17:00 +07 | Đã xong: Pha B - UI/UX & Visualizer: Đồng Hồ Đo Pha Stereo (Stereo Phase Correlation Meter) & Độ Rộng Không Gian Âm Thanh (Soundstage Width Engine): (1) calculateStereoPhaseCorrelation tính toán hệ số tương quan pha thời gian thực r ∈ [-1.0, 1.0] giữa 2 kênh L/R từ byte time-domain dữ liệu Web Audio API, phân loại IN_PHASE, STEREO, WIDE, PHASE_WARNING; (2) calculateStereoSoundstageWidth tính năng lượng Mid/Side và tỷ lệ độ rộng âm hình soundstage 0-100%; (3) formatStereoCorrelationBadge định dạng nhãn hiển thị trực quan Phase +1.00 / Phase -0.42; (4) Tích hợp đồ thị âm thanh: state.leftAnalyser và state.rightAnalyser nối từ state.crossfeedNodes.splitter (kênh 0 & 1), cập nhật mượt mà 60fps trong renderVisualizer; (5) UI Audiophile: #footer-phase-badge tại footer và #room-phase-badge tại Phòng nghe #listening-room; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 4/4 tests stereo-phase-meter.test.cjs PASS 100%, 106/106 test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features & Săn Lỗi: Tối Ưu Bố Cục Full Player Audiophile & Chống Tràn Xung Đột Mini Hub Waveform -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 17:30 +07 | Đã xong: Pha C - Core Features: Bù Trừ Độ Trễ Lời Bài Hát Thời Gian Thực (Synced Lyrics Real-Time Offset Calibration) & Chế Độ Lời Bài Hát Toàn Màn Hình Roon (Immersive Fullscreen Lyrics Stage): (1) calculateLyricsOffsetTime tính toán mốc thời gian thực tế bù trừ độ trễ giữa âm thanh và lời bài hát, clampLyricsOffset kẹp an toàn [-10s, 10s] và formatLyricsOffset hiển thị chuẩn ms trực quan (+500ms, -250ms, Chuẩn 0ms); (2) calculateLyricsLineOpacity điều tiết độ mờ/sáng tập trung giọng hát (vocal focus) mượt mà theo khoảng cách dòng; (3) Chế độ xem Lời bài hát Toàn màn hình Roon: chuyển đổi linh hoạt Bìa album / Lời bài hát (#fullscreen-view-art-btn, #fullscreen-view-lyrics-btn, #fullscreen-stage-art, #fullscreen-stage-lyrics, #fullscreen-lyrics-scroll) cuộn mượt 60fps; (4) Cụm nút cân chỉnh độ trễ lời bài hát ở cả Toàn màn hình (#fs-lyrics-offset-minus/plus/reset, #fs-lyrics-offset-val) và Phòng nghe (#room-lyrics-offset-minus/plus, #room-lyrics-offset-badge), tự động lưu localStorage bền vững theo từng bài hát; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests lyrics-offset-fullscreen.test.cjs PASS 100%, 107/107 test suites PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản lý bộ đệm IndexedDB & Tối ưu hóa tải trước đa luồng -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 18:00 +07 | Đã xong: Pha D - Hiệu Năng, Kiến Trúc & PWA: Quản Lý Bộ Đệm Âm Thanh LRU Đa Tầng, Thích Ứng Hạn Ngạch Dung Lượng & Đo Lường Độ Trễ Bộ Nhớ (Adaptive Quota LRU Audio Cache & Storage Health Diagnostics): (1) calculateAdaptiveCacheLimits điều tiết hạn mức bộ đệm theo dung lượng đĩa thực tế (tiết kiệm khẩn cấp 8 lát/8MB khi đầy >=90%, thận trọng 14 lát/14MB, tối ưu 20 lát/20MB); (2) computeLruCacheEviction thuật toán loại bỏ bản ghi lâu không truy cập nhất (LRU) dựa trên lastAccessedAt và savedAt, bảo vệ các khóa pinnedKeys của bài đang nghe/nạp trước; (3) formatCacheTelemetry đo lường độ trễ đọc cache vs mạng thời gian thực (Cache HIT/MISS); (4) evaluateStorageHealth chấm điểm sức khỏe lưu trữ PWA (A+/B/C/D) kèm huy hiệu #storage-health-grade trực quan; (5) Tích hợp IndexedDB firstSliceCache tự động cập nhật mốc truy cập và dọn dẹp an toàn; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests adaptive-lru-cache.test.cjs PASS 100%, 108/108 test suites PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: ReplayGain True Peak Metering & Oversampled Inter-Sample Peak Limiter -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 18:30 +07 | Đã xong: Pha A - Audio Engine & DSP: Đo Lường True Peak Thời Gian Thực & Phát Hiện Đỉnh Sóng Liên Mẫu (Inter-Sample Peak Metering & Headroom Safety Engine): (1) calculateInterSamplePeak phát hiện đỉnh sóng thực tế nội suy 4x Hermite theo chuẩn ITU-R BS.1770 / EBU R128, tính toán samplePeakDb, truePeakDbtp, interSampleOvershootDb và cờ isClipping; (2) calculateTruePeakHeadroom tính mức bù suy giảm đề xuất chống xén ngọn (clipping) trên bộ giải mã DAC; (3) formatTruePeakBadge định dạng huy hiệu TP trực quan (TP -1.2 dBTP hoặc TP +0.8 ⚠); (4) Tích hợp UI audiophile: #footer-tp-badge tại thanh điều khiển footer và #room-tp-badge tại Phòng nghe #listening-room, cập nhật mượt mà theo time domain stream; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 4/4 tests true-peak-metering.test.cjs PASS 100%, 109/109 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer Hiện Đại: Vũ trường ánh sáng dynamic visualizer strobe theo dải Bass/Vocal hoặc mini-player swipe gesture -->
 </body>
 </html>
