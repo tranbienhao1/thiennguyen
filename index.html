@@ -1188,6 +1188,16 @@
     <span class="inline-block h-2 w-2 rounded-full bg-amber-400 animate-pulse"></span>
     <span id="offline-banner-text" class="text-[11px] font-medium">Ngoại tuyến · Chỉ phát nhạc cục bộ & bộ nhớ đệm</span>
   </div>
+  <div id="resume-session-banner" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-[55] hidden items-center gap-3 rounded-2xl border border-violet-500/30 bg-zinc-950/95 px-4 py-2 text-xs text-white shadow-2xl backdrop-blur-2xl transition max-w-[calc(100vw-2rem)] select-none" role="dialog" aria-live="polite">
+    <span class="grid h-7 w-7 shrink-0 place-items-center rounded-xl bg-violet-500/20 text-xs font-bold text-violet-300 border border-violet-500/30">♫</span>
+    <div class="min-w-0 flex-1">
+      <p id="resume-session-text" class="truncate text-xs font-medium text-zinc-200">Tiếp tục bài nghe trước đó?</p>
+    </div>
+    <div class="flex items-center gap-1.5 shrink-0">
+      <button id="resume-session-play" type="button" class="rounded-lg bg-violet-600 hover:bg-violet-500 px-3 py-1 text-[11px] font-semibold text-white shadow transition active:scale-95">Tiếp tục</button>
+      <button id="resume-session-dismiss" type="button" class="grid h-6 w-6 place-items-center rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 text-xs transition" aria-label="Đóng">✕</button>
+    </div>
+  </div>
 
   <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
@@ -1392,7 +1402,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -1498,6 +1508,47 @@
         banner.classList.add('flex');
       }
     }
+    function savePlaybackSession(force = false) {
+      if (!state.currentId) return;
+      const now = Date.now();
+      if (!force && now - (state.lastSessionSaveTime || 0) < 3000) return;
+      state.lastSessionSaveTime = now;
+      const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      const pos = curAudio && Number.isFinite(curAudio.currentTime) ? curAudio.currentTime : 0;
+      const isPaused = !curAudio.src || curAudio.paused;
+      if (typeof library?.savePlaybackSession === 'function') {
+        const raw = library.savePlaybackSession(state.currentId, pos, state.queueTrackIds, {
+          wasPlaying: !isPaused,
+          volume: audio.volume,
+          updatedAt: now
+        });
+        if (raw) {
+          try { localStorage.setItem('nocturne-playback-session', raw); } catch (_) {}
+        }
+      }
+    }
+    function checkAndPromptResumeSession() {
+      if (state.currentId || !state.tracks || state.tracks.length === 0) return;
+      try {
+        const raw = localStorage.getItem('nocturne-playback-session');
+        if (!raw || typeof library?.restorePlaybackSession !== 'function') return;
+        const session = library.restorePlaybackSession(raw, state.tracks);
+        if (!session.isValid || !session.track) return;
+
+        state.pendingResumePosition = session.currentTime;
+        const banner = $('resume-session-banner');
+        const textEl = $('resume-session-text');
+        if (banner && textEl) {
+          textEl.textContent = (typeof library.formatResumePrompt === 'function')
+            ? library.formatResumePrompt(session.track, session.currentTime)
+            : `Tiếp tục nghe "${session.track.title}"?`;
+          banner.classList.remove('hidden');
+          banner.classList.add('flex');
+        }
+      } catch (err) {
+        console.warn('Could not restore playback session:', err);
+      }
+    }
     const isAppPlaying = () => {
       try { return !!audio && !audio.paused && !audio.ended; }
       catch (error) { return false; }
@@ -1545,6 +1596,37 @@
       updatePending = false;
       pendingUpdateFingerprint = '';
       hideUpdateBanner();
+    });
+    $('resume-session-play')?.addEventListener('click', async () => {
+      const banner = $('resume-session-banner');
+      if (banner) {
+        banner.classList.add('hidden');
+        banner.classList.remove('flex');
+      }
+      try {
+        const raw = localStorage.getItem('nocturne-playback-session');
+        if (!raw || typeof library?.restorePlaybackSession !== 'function') return;
+        const session = library.restorePlaybackSession(raw, state.tracks);
+        if (!session.isValid || !session.track) return;
+        if (session.queueTrackIds && session.queueTrackIds.length > 0) {
+          state.queueTrackIds = session.queueTrackIds;
+        }
+        await playTrack(session.track.id);
+        const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+        if (curAudio && session.currentTime > 0) {
+          curAudio.currentTime = session.currentTime;
+        }
+        toast(`Đang phát tiếp từ ${formatTime(session.currentTime)}.`);
+      } catch (err) {
+        console.error('Failed to resume playback session:', err);
+      }
+    });
+    $('resume-session-dismiss')?.addEventListener('click', () => {
+      const banner = $('resume-session-banner');
+      if (banner) {
+        banner.classList.add('hidden');
+        banner.classList.remove('flex');
+      }
     });
     audio.addEventListener('play', () => {
       if (updatePending) setUpdateBanner('Bản mới đã sẵn sàng. Nhạc vẫn phát bình thường; tạm dừng rồi nhấn “Cập nhật”.');
@@ -1630,7 +1712,7 @@
       ++state.preloadGeneration; state.preloadTrackId = null; state.preloadReadyUrl = null; state.preloadBusyId = null; standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load();
       releaseUnusedCloudUrl(oldPreload);
     }
-    window.addEventListener('beforeunload', () => { for (const url of state.objectUrls) URL.revokeObjectURL(url); state.objectUrls.clear(); });
+    window.addEventListener('beforeunload', () => { if (typeof savePlaybackSession === 'function') savePlaybackSession(true); for (const url of state.objectUrls) URL.revokeObjectURL(url); state.objectUrls.clear(); });
     function normalizeCoverImage(cover) {
       return new Promise(resolve => {
         if (typeof cover !== 'string' || !cover.startsWith('data:image')) return resolve(cover || null);
@@ -2870,6 +2952,7 @@
       $('focus-heart').textContent = state.focusOnly ? '♥' : '♡';
       $('sort-button').textContent = state.activeView === 'songs' ? `Title ${state.sortAsc ? '↑' : '↓'}` : `${state.collectionSort === 'artist' ? 'By artist' : state.collectionSort === 'title' ? 'By title' : state.collectionSort === 'tracks' ? 'By tracks' : 'By artist'} ${state.collectionAscending ? '⌄' : '⌃'}`;
       renderQueue();
+      if (typeof checkAndPromptResumeSession === 'function') checkAndPromptResumeSession();
     }
 
     function renderEqBands() {
@@ -5205,6 +5288,11 @@
     async function playTrack(trackId) {
       const track = state.tracks.find(item => item.id === trackId);
       if (!track) return;
+      const resumeBanner = $('resume-session-banner');
+      if (resumeBanner) {
+        resumeBanner.classList.add('hidden');
+        resumeBanner.classList.remove('flex');
+      }
       // Pha D — mốc bắt đầu đo time-to-first-audio (từ lúc nhấn phát tới
       // khi nghe thấy tiếng); xóa lần đo cũ của bài này để không hiện
       // số đo của lần phát trước trong lúc đang tải bài mới.
@@ -7082,6 +7170,7 @@
         const activeTrack = state.tracks.find(item => item.id === state.currentId);
         if (typeof checkScrobbleEligibility === 'function' && activeTrack) checkScrobbleEligibility(activeTrack, element.currentTime, activeTrack.duration || element.duration);
         if (library.shouldPreloadNext(element.duration, element.currentTime, standbyAudio.src, state.preloadReadyUrl, library.PRELOAD_LEAD_SECONDS, location.href)) preloadNext();
+        if (typeof savePlaybackSession === 'function') savePlaybackSession();
       });
       element.addEventListener('canplay', () => {
         if (element !== standbyAudio) return;
@@ -7104,6 +7193,7 @@
         if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'playing'; } catch (error) {} }
         updatePositionState();
+        if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
       });
       element.addEventListener('pause', () => {
         if (element === audio && !standbyAudio.paused) return;
@@ -7112,6 +7202,7 @@
         if ($('mini-play')) $('mini-play').textContent = '▶';
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'paused'; } catch (error) {} }
         setVisualizerRunning(false);
+        if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
       });
       element.addEventListener('ended', () => {
         if (element !== audio) return;
@@ -7597,6 +7688,7 @@
     // Persist cloud catalog metadata locally; MSAL independently manages its own token cache.
     restoreCloudCatalog().then(restored => {
       if (restored) toast(`Đã khôi phục ${restored} bài cloud đã đồng bộ trước đó.`);
+      if (typeof checkAndPromptResumeSession === 'function') checkAndPromptResumeSession();
       const refresh = async () => {
         if (cloudSyncPromise) return cloudSyncPromise;
         cloudSyncPromise = (async () => {
@@ -7739,5 +7831,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 07:55 +07 | Đã xong: Swarm Self-Hosted Music (Finamp / Feishin / Tauon / Symfonium) - (1) Jellyfin Server REST API client (#jellyfin-endpoint, #jellyfin-token, #jellyfin-user-id, #jellyfin-connect-btn) truy vấn /Users/${userId}/Items, parse via library.parseJellyfinItem, phân loại nguồn 'Jellyfin' trong #source-filter và lưu trữ localStorage 'nocturne-jellyfin-config'; (2) Tauon Compact Mini Player HUD Mode (#mini-player-hud, #mini-cover, #mini-title, #mini-artist, #mini-waveform, #mini-play, #mini-next, #mini-expand, #mini-player-toggle, phím tắt 'm'); (3) Điều khiển tốc độ phát / tempo (#playback-rate-select: 0.75x–1.5x) bảo toàn cao độ qua library.calculatePlaybackRate; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh crossfeed destination state.crossfeedNodes.output.connect(state.context.destination) | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 08:30 +07 | Đã xong: Swarm Black Candy Integration (blackcandy-org/blackcandy) - (1) Black Candy Server REST API client (#blackcandy-endpoint, #blackcandy-token, #blackcandy-connect-btn, #blackcandy-sync-btn, #blackcandy-transcode-mode: Direct Lossless vs Transcoded MP3) stream nhạc, cover và lyrics; (2) Hàng đợi thông minh Smart Up Next Queue (smartQueuePlayNext, smartQueueAppend, smartQueueReorder, các nút 'play_next' và 'append' trên từng bài và menu ngữ cảnh chuột phải); (3) Bộ phân tích LRC nâng cao parseLrcWithOffsetAndTags hỗ trợ [offset: +/-ms], lọc bỏ karaoke word tags <mm:ss.xx> và metadata headers; (4) Lyrics auto-scroll suspension & 4-second resume delay (suspendLyricsAutoScroll & resumeLyricsAutoScroll); (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 31/31 test blackcandy-integration.test.cjs PASS 100%, toàn bộ 562/562 test PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 10:30 +07 | Đã xong: Pha C - Hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh (Intelligent Multi-Stage Sleep Timer & Adaptive Fade-Out Ambient Scene): (1) Đa dạng thời lượng hẹn giờ (5, 15, 30, 45, 60, 90 phút, Dừng khi hết bài #sleep-track-end, và Dừng khi hết album hiện tại #sleep-album-end qua calculateAlbumRemainingSeconds); (2) Cụm nút gia hạn nhanh thời gian (+5m, +15m qua extendSleepTimer) và ô nhập tùy chỉnh số phút (#sleep-custom-input); (3) Tùy chọn thời lượng làm mờ Fade-out (15s, 30s, 60s, 120s qua #sleep-fade-duration) kết hợp đường cong equal-power sine calculateSleepFadeGain; (4) Chế độ ru ngủ âm thanh môi trường thông minh (#sleep-ambient-scene qua calculateAdaptiveSleepStage: tự động hòa âm tiếng mưa thiên nhiên nhẹ nhàng trong giai đoạn chuyển tiếp và mờ dần cùng nhạc); (5) Huy hiệu đếm ngược thời gian thực trên footer (#sleep-badge qua formatSleepCountdownCompact); (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 16/16 test intelligent-sleep-timer.test.cjs PASS 100%, 82/82 test suites PASS | Lượt kế tiếp: Pha D - Service Worker Caching chiến lược Cache-First cho Audio Blobs & Progressive Web App Offline Storage -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 11:05 +07 | Đã xong: Pha D - Lưu trữ trạng thái bền vững & Khôi phục phiên phát nhạc (Persistent Playback Session & Position Restoration): (1) Tự động lưu bài đang nghe, vị trí phát chính xác (currentTime), hàng đợi đang phát và trạng thái playing vào localStorage qua savePlaybackSession (throttled 3s chống quá tải disk I/O, lưu tức thì khi pause/ended/beforeunload); (2) restorePlaybackSession phân tích và xác thực an toàn, kẹp thời gian hợp lệ theo duration bài hát và tự động đưa về 0s nếu bài trước đó đã nghe gần hết (<2s); (3) Banner khôi phục phiên phát mượt mà (#resume-session-banner: #resume-session-text, #resume-session-play, #resume-session-dismiss) với nhãn trực quan formatResumePrompt; (4) Tự động giải phóng bộ nhớ (Memory Leak prevention) với URL.revokeObjectURL trên beforeunload và playTrack; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 14/14 test persistent-session.test.cjs PASS 100%, 83/83 test suites PASS | Lượt kế tiếp: Pha A - DSP Audio Engine: Compressor / Peak Limiter chống clipping khi bật ReplayGain Preamp cao -->
 </body>
 </html>

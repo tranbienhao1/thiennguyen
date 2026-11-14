@@ -2,6 +2,31 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 11:05 +07] — [Pha D: Kiến Trúc & PWA] Lưu Trữ Trạng Thái Bền Vững & Khôi Phục Phiên Phát Nhạc (Persistent Playback Session & Position Restoration)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **4. Hiệu Năng, Kiến Trúc & Độ Bền Hệ Thống (Architecture & PWA)** & **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)**.
+- **Chi tiết triển khai:**
+  1. **Tự Động Lưu Phiên Phát Nhạc Bền Vững (Persistent Playback Session):**
+     - Tiện ích thuần `savePlaybackSession(trackId, currentTime, queueTrackIds, extra)`: Ghi nhớ bài hát đang nghe, vị trí phát chính xác (giây thứ bao nhiêu), danh sách hàng đợi phát nhạc và trạng thái đang phát (`wasPlaying`).
+     - Tối ưu hóa I/O: Cơ chế tự động điều tiết (throttling 3 giây) trong sự kiện `timeupdate` để không gây quá tải ghi đĩa, đồng thời lưu tức thì khi có sự kiện `pause`, `play`, `ended` hoặc khi đóng/tải lại trang (`beforeunload`).
+  2. **Khôi Phục Trạng Thái & Tự Động Chuẩn Hóa Vị Trí:**
+     - Tiện ích thuần `restorePlaybackSession(rawSession, tracks)`: Đọc và giải mã an toàn từ `localStorage['nocturne-playback-session']`, đối chiếu và xác thực trackId với kho nhạc.
+     - Cơ chế kẹp biên an toàn: Kẹp `currentTime` trong khoảng `[0, track.duration]`. Đặc biệt, nếu người dùng đã nghe đến sát cuối bài (còn dưới 2 giây), hệ thống tự động đưa vị trí về 0 giây để tránh lỗi tự động nhảy bài khi vừa khôi phục.
+     - Lọc bỏ các bài không còn tồn tại trong thư viện khỏi hàng đợi được khôi phục.
+  3. **Giao Diện Khôi Phục Phiên Nghe Nhạc Mượt Mà (#resume-session-banner):**
+     - Banner Glassmorphism tinh tế hiển thị phía trên thanh điều khiển: `#resume-session-banner`, nhãn thông báo thân thiện được tạo bởi `formatResumePrompt(track, position)`: `"Tiếp tục nghe 'Tên bài hát' tại mm:ss?"`.
+     - Nút **[Tiếp tục]** (`#resume-session-play`): Kích hoạt phát lại đúng bài và tua ngay đến vị trí giây dở dang kèm thông báo toast.
+     - Nút **[✕]** (`#resume-session-dismiss`): Đóng banner nhanh, hoặc tự động ẩn khi người dùng chọn phát bài hát khác.
+  4. **Tối Ưu Hóa Bộ Nhớ & Ngăn Chặn Rò Rỉ (Memory Leak Prevention):**
+     - Tự động thu hồi `URL.revokeObjectURL` cho toàn bộ các ObjectURL đã tạo khi đóng hoặc tải lại trang trong sự kiện `beforeunload`.
+  5. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `persistent-session.test.cjs` (**14/14 tests PASS 100%**).
+     - Toàn bộ 83 test suites PASS 100% (0 fail, 0 regression).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 10:30 +07] — [Pha C: Tính Năng & Trải Nghiệm Người Dùng] Hẹn Giờ Ngủ Đa Tầng Kết Hợp Làm Mờ Thông Minh & Ru Ngủ Môi Trường (Intelligent Multi-Stage Sleep Timer & Adaptive Fade-Out Ambient Scene)
 
 ### 🎯 Hạng Mục Nâng Cấp:

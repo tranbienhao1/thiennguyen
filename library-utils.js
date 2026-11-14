@@ -2994,5 +2994,84 @@
     return list;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder};
+  // ── Pha D — PWA Architecture: Persistent Playback Session & Position Restoration ──
+  function savePlaybackSession(trackId, currentTime, queueTrackIds = [], extra = {}) {
+    if (!trackId && trackId !== 0) return null;
+    const session = {
+      trackId: String(trackId),
+      currentTime: Math.max(0, Math.round((Number(currentTime) || 0) * 100) / 100),
+      queueTrackIds: Array.isArray(queueTrackIds) ? queueTrackIds.map(String) : [],
+      updatedAt: Number(extra.updatedAt) || Date.now(),
+      wasPlaying: Boolean(extra.wasPlaying)
+    };
+    if (extra.volume !== undefined && Number.isFinite(Number(extra.volume))) {
+      session.volume = Math.max(0, Math.min(1, Number(extra.volume)));
+    }
+    return JSON.stringify(session);
+  }
+
+  function restorePlaybackSession(rawSession, tracks = []) {
+    if (!rawSession) return { isValid: false, track: null, trackId: null, currentTime: 0, queueTrackIds: [] };
+    let data = rawSession;
+    if (typeof rawSession === 'string') {
+      try {
+        data = JSON.parse(rawSession);
+      } catch (_) {
+        return { isValid: false, track: null, trackId: null, currentTime: 0, queueTrackIds: [] };
+      }
+    }
+    if (!data || typeof data !== 'object') {
+      return { isValid: false, track: null, trackId: null, currentTime: 0, queueTrackIds: [] };
+    }
+    const trackId = data.trackId != null ? String(data.trackId) : null;
+    if (!trackId) {
+      return { isValid: false, track: null, trackId: null, currentTime: 0, queueTrackIds: [] };
+    }
+
+    const trackList = Array.isArray(tracks) ? tracks : [];
+    const foundTrack = trackList.find(t => t && String(t.id) === trackId);
+    if (!foundTrack) {
+      return { isValid: false, track: null, trackId, currentTime: 0, queueTrackIds: [] };
+    }
+
+    let pos = Math.max(0, Number(data.currentTime) || 0);
+    if (foundTrack.duration && Number.isFinite(foundTrack.duration) && foundTrack.duration > 2) {
+      if (pos >= foundTrack.duration - 2) {
+        pos = 0;
+      } else {
+        pos = Math.min(pos, foundTrack.duration);
+      }
+    }
+
+    const validQueueIds = Array.isArray(data.queueTrackIds)
+      ? data.queueTrackIds.map(String).filter(id => trackList.some(t => t && String(t.id) === id))
+      : [];
+
+    return {
+      isValid: true,
+      track: foundTrack,
+      trackId,
+      currentTime: pos,
+      queueTrackIds: validQueueIds,
+      updatedAt: Number(data.updatedAt) || 0,
+      wasPlaying: Boolean(data.wasPlaying),
+      volume: data.volume !== undefined ? Number(data.volume) : undefined
+    };
+  }
+
+  function formatResumePrompt(track, positionSeconds) {
+    if (!track || typeof track !== 'object') return '';
+    const title = track.title || 'bài hát';
+    const totalSecs = Math.max(0, Math.floor(Number(positionSeconds) || 0));
+    const m = Math.floor(totalSecs / 60);
+    const s = totalSecs % 60;
+    const sStr = s < 10 ? '0' + s : String(s);
+    const timeStr = `${m}:${sStr}`;
+    if (totalSecs > 0) {
+      return `Tiếp tục nghe "${title}" tại ${timeStr}?`;
+    }
+    return `Tiếp tục phát "${title}"?`;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, savePlaybackSession, restorePlaybackSession, formatResumePrompt};
 });
