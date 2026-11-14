@@ -3149,5 +3149,147 @@
     return `${profile.name} (${profile.threshold} dBFS)`;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary};
+  // ── Pha B — UI/UX: Audiophile FFT Spectrum Visualizer & Peak Hold Decay ──
+  const VISUALIZER_THEMES = {
+    cyber: {
+      id: 'cyber',
+      name: 'Neon Cyber',
+      stops: [
+        { offset: 0, color: '#38bdf8' },
+        { offset: 0.5, color: '#818cf8' },
+        { offset: 1, color: '#c084fc' }
+      ],
+      peakColor: '#f43f5e'
+    },
+    sunset: {
+      id: 'sunset',
+      name: 'Sunset Glow',
+      stops: [
+        { offset: 0, color: '#fbbf24' },
+        { offset: 0.5, color: '#fb7185' },
+        { offset: 1, color: '#e11d48' }
+      ],
+      peakColor: '#fde047'
+    },
+    aurora: {
+      id: 'aurora',
+      name: 'Aurora Borealis',
+      stops: [
+        { offset: 0, color: '#34d399' },
+        { offset: 0.5, color: '#22d3ee' },
+        { offset: 1, color: '#818cf8' }
+      ],
+      peakColor: '#a7f3d0'
+    },
+    monochrome: {
+      id: 'monochrome',
+      name: 'Classic Audiophile',
+      stops: [
+        { offset: 0, color: '#7c3aed' },
+        { offset: 0.5, color: '#a78bfa' },
+        { offset: 1, color: '#c4b5fd' }
+      ],
+      peakColor: '#ddd6fe'
+    }
+  };
+
+  function getVisualizerTheme(themeId) {
+    if (!themeId || typeof themeId !== 'string') return VISUALIZER_THEMES.cyber;
+    return VISUALIZER_THEMES[themeId.toLowerCase()] || VISUALIZER_THEMES.cyber;
+  }
+
+  function cycleVisualizerTheme(currentId) {
+    const keys = Object.keys(VISUALIZER_THEMES);
+    const curIndex = keys.indexOf(String(currentId || '').toLowerCase());
+    const nextIndex = (curIndex + 1) % keys.length;
+    return keys[nextIndex];
+  }
+
+  function updateVisualizerPeaks(currentValues, previousPeaks, options = {}) {
+    if (!Array.isArray(currentValues)) return [];
+    const decayRate = Number(options.decayRate) || 0.025;
+    const holdFrames = Number(options.holdFrames) || 6;
+    const result = new Array(currentValues.length);
+
+    for (let i = 0; i < currentValues.length; i++) {
+      const val = Math.max(0, Math.min(1, Number(currentValues[i]) || 0));
+      const prev = (Array.isArray(previousPeaks) && previousPeaks[i] && typeof previousPeaks[i] === 'object')
+        ? previousPeaks[i]
+        : { val: 0, hold: 0 };
+
+      let peakVal = prev.val;
+      let hold = prev.hold;
+
+      if (val >= peakVal) {
+        peakVal = val;
+        hold = holdFrames;
+      } else if (hold > 0) {
+        hold--;
+      } else {
+        peakVal = Math.max(0, peakVal - decayRate);
+      }
+
+      result[i] = { val: peakVal, hold };
+    }
+    return result;
+  }
+
+  function renderVisualizerSpectrum(context, options = {}) {
+    if (!context || !options) return false;
+    const width = Number(options.width) || 0;
+    const height = Number(options.height) || 0;
+    if (width <= 0 || height <= 0) return false;
+
+    const bars = Math.max(4, Number(options.bars) || 32);
+    const gap = Math.max(0, Number(options.gap) || 2);
+    const data = options.data;
+    const peaks = options.peaks || [];
+    const theme = getVisualizerTheme(options.theme);
+    const isMirror = options.mode === 'mirror';
+
+    const barWidth = Math.max(1, (width - gap * (bars - 1)) / bars);
+
+    let grad;
+    try {
+      grad = context.createLinearGradient(0, isMirror ? 0 : height, 0, isMirror ? height : 0);
+      for (const stop of theme.stops) {
+        grad.addColorStop(stop.offset, stop.color);
+      }
+    } catch (_) {
+      grad = '#a78bfa';
+    }
+
+    context.fillStyle = grad;
+
+    for (let i = 0; i < bars; i++) {
+      let normVal = 0;
+      if (data && data.length > 0) {
+        const dataIndex = Math.min(data.length - 1, Math.floor(i * data.length / bars));
+        normVal = Math.max(0, Math.min(1, (data[dataIndex] || 0) / 255));
+      }
+
+      const barHeight = Math.max(2, normVal * (isMirror ? height * 0.9 : height));
+      const x = i * (barWidth + gap);
+      const y = isMirror ? (height - barHeight) / 2 : (height - barHeight);
+
+      if (typeof context.roundRect === 'function' && typeof context.fill === 'function') {
+        if (typeof context.beginPath === 'function') context.beginPath();
+        context.roundRect(x, y, barWidth, barHeight, 1.5);
+        context.fill();
+      } else if (typeof context.fillRect === 'function') {
+        context.fillRect(x, y, barWidth, barHeight);
+      }
+
+      if (peaks && peaks[i] && Number.isFinite(peaks[i].val) && peaks[i].val > 0.05) {
+        const peakHeight = peaks[i].val * (isMirror ? height * 0.9 : height);
+        const peakY = isMirror ? (height - peakHeight) / 2 : (height - peakHeight);
+        context.fillStyle = theme.peakColor;
+        context.fillRect(x, Math.max(0, peakY - 1.5), barWidth, 1.5);
+        context.fillStyle = grad;
+      }
+    }
+    return true;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum};
 });

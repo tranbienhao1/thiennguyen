@@ -2,6 +2,33 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 11:55 +07] — [Pha B: UI/UX & Visualizer Hiện Đại] Hệ Thống FFT Spectrum Analyzer Thời Gian Thực Đa Bảng Màu (Audiophile Multi-Theme Spectrum with Peak Hold & Decay Physics)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. UI/UX & Visualizer Hiện Đại** & **1. Audio Engine & DSP (Web Audio API)**.
+- **Chi tiết triển khai:**
+  1. **Bộ 4 Bảng Màu Spectrum Audiophile Đa Sắc (`VISUALIZER_THEMES`):**
+     - **Cyber Neon (`cyber` — Mặc định):** Gradient tím - lam neon (`#8b5cf6 -> #38bdf8`), vạch đỉnh ngọc bích `#a7f3d0`. Mang lại phong cách cyberpunk hiện đại và chiều sâu thị giác.
+     - **Sunset Glow (`sunset`):** Gradient cam hoàng hôn - hồng cánh sen (`#f97316 -> #ec4899`), vạch đỉnh vàng hổ phách `#fde047`.
+     - **Aurora Borealis (`aurora`):** Gradient xanh lục cực quang - ngọc lam ngọc lam (`#10b981 -> #06b6d4`), vạch đỉnh lục nhạt `#6ee7b7`.
+     - **Monochrome Audiophile (`monochrome`):** Dải xám bạc studio tinh tế (`#e4e4e7 -> #71717a`), vạch đỉnh trắng thuần khiết `#ffffff`.
+  2. **Mô Phỏng Vật Lý Giữ Đỉnh & Rơi Chậm (`updateVisualizerPeaks`):**
+     - Thuật toán Peak Hold & Decay: Khi biên độ tức thời vượt đỉnh cũ, vạch đỉnh nhảy lên tức thì và giữ nguyên trong 6 frames (`holdFrames: 6`); khi hết thời gian giữ đỉnh, vạch đỉnh từ từ rơi xuống với tốc độ phân rã mượt mà (`decayRate: 0.025`).
+     - Tái hiện chính xác chuyển động cơ học của các máy đo phổ tần chuyên dụng trong phòng thu âm (Hardware Studio Spectrum Analyzers).
+  3. **Vẽ Phổ Tần Số Thời Gian Thực Đỉnh Cao (`renderVisualizerSpectrum`):**
+     - Tự động tạo `LinearGradient` theo dải tần, hỗ trợ chế độ đối xứng gương (`mode: 'mirror'`) cho thanh điều khiển footer và bo góc cột mềm mại (`roundRect`).
+     - Vẽ vạch đỉnh lơ lửng phía trên mỗi cột phổ tần số.
+  4. **Tương Tác Chạm & Đồng Bộ Bền Vững:**
+     - Cho phép người dùng chạm/click trực tiếp vào canvas `#visualizer` để chuyển đổi vòng tròn qua các chủ đề màu sắc (`cycleVisualizerTheme`).
+     - Lưu trữ sở thích hiển thị vào `localStorage['nocturne-visualizer-theme']`.
+     - Hiển thị toast thông báo tên theme trực quan khi đổi bảng màu.
+  5. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `visualizer-spectrum.test.cjs` (**19/19 tests PASS 100%**).
+     - Toàn bộ 94 test suites (**626/626 tests PASS 100%**, 0 fail, 0 regression).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 11:22 +07] — [Pha A: Audio Engine & DSP] Peak Limiter Đa Chế Độ Chống Clipping & Bảo Vệ Thiết Bị Âm Thanh (Audiophile Brickwall / Soft-Knee / Bypass)
 
 ### 🎯 Hạng Mục Nâng Cấp:
