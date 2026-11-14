@@ -2,6 +2,33 @@
 
 ---
 
+## [Sửa Lỗi Khẩn Cấp 2026-11-14 23:55 +07] — Khắc Phục Triệt Để Lỗi Văng/Crash Khi Bấm Vào Các Album (Safe Title Resolution, Fallback Boundaries & Instant Album/Artist Navigation)
+
+### 🎯 Hạng Mục Sửa Lỗi & Tối Ưu:
+- **Phân khu trọng tâm:** **Khắc phục lỗi ứng dụng & Trải nghiệm thư viện (Bugfix & Library UX)**.
+- **Nguyên nhân gốc rễ (Root Cause):**
+  - Tại hàm `renderTrackRows` (`index.html:3034`), dòng mã `a.title.localeCompare(b.title)` truy cập trực tiếp thuộc tính `title` của track mà không qua helper metadata. Khi bài hát từ file local, CUE sheet hoặc đồng bộ cloud/server thiếu trường `title` (`track.title === undefined` hoặc `null`), JavaScript ném ngoại lệ nghiêm trọng: `TypeError: Cannot read properties of undefined (reading 'localeCompare')`. Lỗi này làm gãy hoàn toàn tiến trình render danh sách bài hát của album khi bấm vào thẻ card album, khiến giao diện biến mất và ứng dụng bị "văng / đơ".
+  - Tại `renderCollectionCards`, việc gọi `first.localeCompare(second, 'vi')` và `entry.name.trim()` thiếu kiểm tra an toàn kiểu chuỗi khi `entry.name` hoặc `entry.artist` là `undefined` hoặc `null`.
+  - Tại `showAlbumHero`, thiếu fallback cho thuộc tính `summary.highestQuality` và `entry.tracks` khi album chưa hoàn tất tải thông tin.
+- **Chi tiết triển khai khắc phục:**
+  1. **Chuẩn Hóa Sắp Xếp Bài Hát An Toàn (`renderTrackRows`):**
+     - Xây dựng helper `getTitle(t)` giải quyết tiêu đề qua `library.trackMetadata(t).title || t.title || t.name || ''`.
+     - Chuyển đổi sang `String(...)` an toàn với chuẩn tiếng Việt `localeCompare(..., 'vi')`, loại bỏ 100% nguy cơ crash `TypeError`.
+  2. **Tăng Cường Phòng Vệ & Fallback Cho Lưới Album (`renderCollectionCards` & `showAlbumHero`):**
+     - Ép kiểu `String(first || '').localeCompare(String(second || ''), 'vi')`.
+     - Fallback tạo chữ viết tắt an toàn `String(entry.name || 'Unknown').trim()`.
+     - Fallback `qualityInfo = summary?.highestQuality || { label: 'LOSSLESS', tier: 'lossless' }` và `summary?.trackCount ?? (entry.tracks || []).length` tránh lỗi undefined.
+  3. **Error Boundary & Điều Hướng Album/Nghệ Sĩ Tức Thì (`openAlbum` & `openArtist`):**
+     - Bọc `try ... catch` an toàn tại click listener của thẻ card album, bắt lỗi và xuất thông báo `toast` thân thiện thay vì làm đơ ứng dụng.
+     - Xây dựng cặp hàm `openAlbum(albumName, artistName)` và `openArtist(artistName)` cho phép mở và hiển thị album/nghệ sĩ chuẩn xác từ bất kỳ đâu.
+     - Gắn click listener cho các liên kết `.album-link` và `.artist-link` trong danh sách hàng bài hát để người dùng có thể nhấp vào tên album trên bất kỳ bài hát nào để mở ngay album đó.
+  4. **Kiểm Thử Độc Lập & Xác Minh:**
+     - Bộ kiểm thử mới `album-click-crash-fix.test.cjs` (**7/7 tests PASS 100%**).
+     - Toàn bộ **89/89 test suites toàn dự án (hơn 650+ tests) PASS 100%**.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 20:00 +07] — [Pha D: Hiệu Năng, Kiến Trúc & PWA] Sao Lưu & Khôi Phục Cấu Hình Toàn Diện (Full Audiophile Config Backup, Export & Safe Restore) & Đánh Giá Tải RAM Âm Thanh (Audio Memory Footprint Diagnostics)
 
 ### 🎯 Hạng Mục Nâng Cấp:
