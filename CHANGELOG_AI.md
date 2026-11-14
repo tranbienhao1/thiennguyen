@@ -2,6 +2,29 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 07:00 +07] — [UI/UX Roon Pixel-Perfect] Thiết Kế Lại Giao Diện Khi Mở Toàn Màn Hình Bài Hát (Roon Immersive Now Playing View) Chuẩn Xác Theo Ảnh Mẫu
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. UI/UX & Visualizer Hiện Đại** & **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)**.
+- **Tính năng triển khai:**
+  1. **Nền Ambient Blur & Thanh Điều Hướng Đỉnh:**
+     - Ảnh bìa album phóng to mờ sâu toàn màn hình (`#fullscreen-bg-cover`) kết hợp lớp gradient tối (`#fullscreen-ambient-glow`) tạo không gian chiều sâu audiophile.
+     - Nút đóng `✕` tối giản ở góc trên cùng bên trái và nút bánh răng cài đặt `⚙` ở góc trên cùng bên phải.
+  2. **Khu Vực Trung Tâm (Center Stage):**
+     - Bìa Album Art lớn hình vuông nằm chính giữa với bóng đổ sâu (`shadow-2xl shadow-black/90`).
+     - Dòng thông số định dạng kỹ thuật âm thanh (`#fullscreen-format-detail`) đặt ngay dưới ảnh bìa: ví dụ `FLAC 44.1kHz 16bit 2ch` hoặc `DSD64 2.8MHz 1bit 2ch`.
+  3. **Thanh Dock Điều Khiển Dưới Chân (Bottom Control Dock):**
+     - Bố cục nền tối `#131316` hiệu ứng kính mờ (Backdrop blur) viền mảnh sang trọng.
+     - Hàng thông tin bài hát: Tiêu đề lớn in đậm (`#fullscreen-title`), icon trái tim yêu thích (`#fullscreen-favorite-btn`), tên album (`#fullscreen-album`), dòng credit nghệ sĩ (`Performed by ...` — `#fullscreen-performer`), và nút tùy chọn ba chấm dọc `⋮`.
+     - Cụm phím điều khiển trung tâm: Nút xáo trộn `🔀`, bài trước `⏮`, phát/tạm dừng `▶`/`⏸`, bài kế `⏭`, và nút danh sách hàng đợi `≣`.
+     - Thanh dạng sóng Waveform Seekbar: Nằm ngang giữa mốc thời gian đã phát `0:01` và tổng thời lượng `5:28`, với vạch playhead màu đỏ hồng mận `#e11d48` chuẩn thiết kế Roon thực tế.
+     - Góc dưới: Nút thu nhỏ `⌵` góc trái; biểu tượng loa thiết bị đầu ra (`System Output` / `Direct DAC`) và nút âm lượng (`🔊 100`) ở góc phải.
+  4. **Kiểm thử tự động & Bảo toàn cấu trúc:**
+     - Bộ kiểm thử mới `roon-fullscreen-redesign.test.cjs` PASS 100%.
+     - Bảo toàn tuyệt đối đường định tuyến Web Audio `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 04:45 +07] — [Pha B - Audio Engine & Visualizer] Đồng Hồ Độ Động Âm Thanh Dynamic Range Meter (Crest Factor) & Giám Sát Bộ Đệm Âm Thanh Lookahead Buffer
 
 ### 🎯 Hạng Mục Nâng Cấp:

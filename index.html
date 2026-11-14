@@ -921,45 +921,83 @@
   </div>
 
   <!-- Roon Immersive Fullscreen Now Playing View -->
-  <div id="roon-fullscreen-view" class="fixed inset-0 z-[100] hidden flex-col justify-between bg-zinc-950 p-6 sm:p-10 transition-opacity duration-300">
-    <div id="fullscreen-ambient-glow" class="pointer-events-none absolute inset-0 opacity-40 blur-3xl" aria-hidden="true"></div>
-    <div class="relative z-10 flex items-center justify-between">
+  <div id="roon-fullscreen-view" class="fixed inset-0 z-[100] hidden flex-col justify-between bg-zinc-950 overflow-hidden select-none transition-opacity duration-300">
+    <!-- Ambient Blur Cover Backdrop -->
+    <img id="fullscreen-bg-cover" class="pointer-events-none absolute inset-0 h-full w-full object-cover scale-125 filter blur-3xl opacity-35 brightness-50 hidden" alt="" aria-hidden="true">
+    <div id="fullscreen-ambient-glow" class="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-black/90" aria-hidden="true"></div>
+
+    <!-- Top Navigation Bar -->
+    <div class="relative z-20 flex items-center justify-between px-6 pt-5 sm:px-10">
+      <button id="fullscreen-exit-btn" type="button" class="text-zinc-400 hover:text-white text-2xl transition p-2 -ml-2" aria-label="Thoát toàn màn hình">✕</button>
       <div class="flex items-center gap-3">
-        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-purple-400">ROON NOW PLAYING</span>
-        <span id="fullscreen-signal-led" class="h-2.5 w-2.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span>
+        <span id="fullscreen-signal-led" class="hidden h-2.5 w-2.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span>
+        <button id="fullscreen-settings-btn" type="button" class="text-zinc-400 hover:text-white text-xl transition p-2 -mr-2" aria-label="Cài đặt">⚙</button>
       </div>
-      <button id="fullscreen-exit-btn" type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10 hover:text-white transition" aria-label="Thoát toàn màn hình">
-        <span>Thu nhỏ ✕ (Esc)</span>
-      </button>
     </div>
-    <div class="relative z-10 mx-auto my-auto grid w-full max-w-5xl grid-cols-1 items-center gap-8 md:grid-cols-2">
-      <div class="relative mx-auto aspect-square w-64 sm:w-80 md:w-96 overflow-hidden rounded-2xl border border-white/15 bg-zinc-900 shadow-2xl shadow-black/80">
+
+    <!-- Center Stage (Album Art & Audio Format Specification) -->
+    <div class="relative z-10 flex flex-1 flex-col items-center justify-center p-4 min-h-0">
+      <div class="relative aspect-square w-[min(72vw,46vh,420px)] shadow-2xl shadow-black/90 overflow-hidden bg-zinc-900 border border-white/10">
         <img id="fullscreen-cover-img" class="h-full w-full object-cover hidden" alt="Bìa album">
         <div id="fullscreen-cover-empty" class="grid h-full w-full place-items-center text-6xl text-zinc-600">♫</div>
       </div>
-      <div class="flex flex-col justify-center space-y-4">
-        <div>
-          <span id="fullscreen-quality-badge" class="rounded-md border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-purple-300">BIT-PERFECT</span>
-          <h1 id="fullscreen-title" class="mt-2 text-2xl sm:text-3xl font-extrabold text-white tracking-tight line-clamp-2">Chưa phát bài nào</h1>
-          <p id="fullscreen-artist" class="mt-1 text-sm sm:text-base font-medium text-zinc-300">Nghệ sĩ</p>
-          <p id="fullscreen-album" class="text-xs sm:text-sm text-zinc-500">Album</p>
-        </div>
-        <div class="w-full">
-          <canvas id="fullscreen-waveform" class="h-16 w-full cursor-pointer rounded-lg bg-white/[0.02]" aria-label="Dạng sóng toàn màn hình"></canvas>
-          <div class="mt-1 flex items-center justify-between text-xs text-zinc-400 font-mono">
-            <span id="fullscreen-time-cur">0:00</span>
-            <span id="fullscreen-time-dur">0:00</span>
-          </div>
-        </div>
-        <div id="fullscreen-lyrics-box" class="h-20 overflow-hidden rounded-xl border border-white/5 bg-white/[0.02] p-3 text-center text-sm font-medium text-purple-200">
-          <p id="fullscreen-lyric-line" class="italic">...</p>
-        </div>
+      <div class="mt-3 text-center">
+        <span id="fullscreen-format-detail" class="text-xs sm:text-[13px] font-mono tracking-wide text-zinc-300/90">FLAC 44.1kHz 16bit 2ch</span>
+        <span id="fullscreen-quality-badge" class="hidden">BIT-PERFECT</span>
       </div>
     </div>
-    <div class="relative z-10 mx-auto flex items-center gap-6">
-      <button id="fullscreen-prev-btn" type="button" class="text-zinc-400 hover:text-white text-xl" aria-label="Bài trước">⏮</button>
-      <button id="fullscreen-play-btn" type="button" class="h-12 w-12 rounded-full bg-purple-600 text-white grid place-items-center text-xl shadow-lg shadow-purple-600/40 hover:scale-105 transition" aria-label="Phát hoặc tạm dừng">▶</button>
-      <button id="fullscreen-next-btn" type="button" class="text-zinc-400 hover:text-white text-xl" aria-label="Bài kế tiếp">⏭</button>
+
+    <!-- Bottom Control Dock (Song Metadata, Controls, Waveform & Zone/Volume) -->
+    <div class="relative z-20 w-full bg-[#131316]/95 backdrop-blur-xl border-t border-white/[0.06] px-6 sm:px-12 pt-3 pb-3">
+      <!-- Top Row: Track Meta & More Options -->
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-3">
+            <h1 id="fullscreen-title" class="text-xl sm:text-2xl font-bold text-white tracking-tight truncate">Chưa phát bài nào</h1>
+            <button id="fullscreen-favorite-btn" type="button" class="text-zinc-400 hover:text-rose-400 text-lg transition shrink-0" aria-label="Yêu thích">♡</button>
+          </div>
+          <p id="fullscreen-album" class="mt-0.5 text-xs sm:text-sm text-zinc-300 truncate">Album</p>
+          <p id="fullscreen-performer" class="text-xs text-zinc-400 truncate">Performed by Nghệ sĩ</p>
+          <span id="fullscreen-artist" class="hidden">Nghệ sĩ</span>
+        </div>
+        <button id="fullscreen-more-btn" type="button" class="text-zinc-400 hover:text-white text-xl p-1 shrink-0" aria-label="Tùy chọn">⋮</button>
+      </div>
+
+      <!-- Center Controls Row -->
+      <div class="mt-1 flex items-center justify-center gap-7 sm:gap-9 text-zinc-300">
+        <button id="fullscreen-shuffle-btn" type="button" class="text-sm text-zinc-500 hover:text-zinc-300 transition" aria-label="Xáo trộn">🔀</button>
+        <button id="fullscreen-prev-btn" type="button" class="text-xl text-zinc-300 hover:text-white transition" aria-label="Bài trước">⏮</button>
+        <button id="fullscreen-play-btn" type="button" class="text-2xl sm:text-3xl text-white hover:scale-110 transition p-1" aria-label="Phát hoặc tạm dừng">▶</button>
+        <button id="fullscreen-next-btn" type="button" class="text-xl text-zinc-300 hover:text-white transition" aria-label="Bài kế tiếp">⏭</button>
+        <button id="fullscreen-queue-btn" type="button" class="text-lg text-zinc-400 hover:text-white transition" aria-label="Hàng đợi">≣</button>
+      </div>
+
+      <!-- Waveform & Time Seekbar Row -->
+      <div class="mt-2 flex items-center gap-3 sm:gap-4">
+        <span id="fullscreen-time-cur" class="w-10 text-right text-[11px] tabular-nums text-zinc-400 font-mono">0:00</span>
+        <div class="flex-1 relative flex items-center h-8">
+          <canvas id="fullscreen-waveform" class="h-6 w-full cursor-pointer rounded" aria-label="Dạng sóng toàn màn hình"></canvas>
+        </div>
+        <span id="fullscreen-time-dur" class="w-10 text-left text-[11px] tabular-nums text-zinc-400 font-mono">0:00</span>
+      </div>
+
+      <!-- Bottom Bar: Collapse Arrow & Output Zone / Volume -->
+      <div class="mt-1 flex items-center justify-between text-xs text-zinc-400">
+        <button id="fullscreen-collapse-btn" type="button" class="text-zinc-400 hover:text-white p-1 text-sm transition" aria-label="Thu nhỏ">⌵</button>
+        <div class="flex items-center gap-5">
+          <button id="fullscreen-zone-btn" type="button" class="flex items-center gap-1.5 text-[11px] text-zinc-300 hover:text-white transition" aria-label="Thiết bị đầu ra">
+            <span class="border border-zinc-600/70 rounded px-1 py-0.5 text-[9px]">🎛</span>
+            <span id="fullscreen-zone-name">System Output</span>
+          </button>
+          <button id="fullscreen-volume-btn" type="button" class="flex items-center gap-1 text-[11px] text-zinc-300 hover:text-white transition" aria-label="Âm lượng">
+            <span>🔊</span>
+            <span id="fullscreen-volume-readout">100</span>
+          </button>
+        </div>
+      </div>
+      <div id="fullscreen-lyrics-box" class="hidden">
+        <p id="fullscreen-lyric-line"></p>
+      </div>
     </div>
   </div>
   <div id="toast" class="pointer-events-none fixed bottom-32 left-1/2 z-[60] hidden -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-800 px-4 py-2.5 text-xs text-zinc-100 shadow-xl"></div>
@@ -4584,42 +4622,80 @@
       if (!track) return;
 
       const meta = library.trackMetadata ? library.trackMetadata(track) : track;
-      if ($('fullscreen-title')) $('fullscreen-title').textContent = meta.title || track.title;
-      if ($('fullscreen-artist')) $('fullscreen-artist').textContent = meta.artist || track.artist;
-      if ($('fullscreen-album')) $('fullscreen-album').textContent = meta.album || track.album || '';
+      const title = meta.title || track.title || 'Chưa phát bài nào';
+      const artist = meta.artist || track.artist || 'Nghệ sĩ';
+      const album = meta.album || track.album || '';
+
+      if ($('fullscreen-title')) $('fullscreen-title').textContent = title;
+      if ($('fullscreen-artist')) $('fullscreen-artist').textContent = artist;
+      if ($('fullscreen-album')) $('fullscreen-album').textContent = album;
+      if ($('fullscreen-performer')) $('fullscreen-performer').textContent = `Performed by ${artist}`;
+
+      // Format detail (e.g. FLAC 44.1kHz 16bit 2ch)
+      let formatDetail = '';
+      if (track.format && track.format.length > 5) {
+        formatDetail = track.format;
+      } else {
+        const ext = (track.format || track.ext || (track.src ? track.src.split('.').pop() : 'FLAC')).toUpperCase();
+        const sr = track.sampleRate ? (track.sampleRate >= 1000 ? `${(track.sampleRate / 1000).toFixed(1)}kHz` : `${track.sampleRate}Hz`) : '44.1kHz';
+        const bd = track.bitDepth ? `${track.bitDepth}bit` : '16bit';
+        formatDetail = `${ext} ${sr} ${bd} 2ch`;
+      }
+      if ($('fullscreen-format-detail')) $('fullscreen-format-detail').textContent = formatDetail;
 
       const q = quality(track);
       if ($('fullscreen-quality-badge')) {
         $('fullscreen-quality-badge').textContent = q.label;
-        $('fullscreen-quality-badge').className = `rounded-md border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${q.tone}`;
       }
 
       const img = $('fullscreen-cover-img');
       const empty = $('fullscreen-cover-empty');
-      if (img && empty) {
-        if (track.cover) {
-          img.src = track.cover;
-          img.classList.remove('hidden');
-          empty.classList.add('hidden');
-        } else {
-          img.classList.add('hidden');
-          empty.classList.remove('hidden');
-        }
+      const bgCover = $('fullscreen-bg-cover');
+      if (track.cover) {
+        if (img) { img.src = track.cover; img.classList.remove('hidden'); }
+        if (empty) empty.classList.add('hidden');
+        if (bgCover) { bgCover.src = track.cover; bgCover.classList.remove('hidden'); }
+      } else {
+        if (img) img.classList.add('hidden');
+        if (empty) empty.classList.remove('hidden');
+        if (bgCover) bgCover.classList.add('hidden');
       }
 
+      const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
       if ($('fullscreen-play-btn')) {
-        $('fullscreen-play-btn').textContent = (!audio.src || audio.paused) ? '▶' : 'Ⅱ';
+        $('fullscreen-play-btn').textContent = (!curAudio || !curAudio.src || curAudio.paused) ? '▶' : '⏸';
       }
 
-      const curSec = audio?.currentTime || 0;
-      const durSec = track.duration || audio?.duration || 0;
+      const favBtn = $('fullscreen-favorite-btn');
+      if (favBtn) {
+        favBtn.textContent = isFavorite(track) ? '♥' : '♡';
+        favBtn.className = isFavorite(track) ? 'text-rose-400 text-lg transition shrink-0' : 'text-zinc-400 hover:text-white text-lg transition shrink-0';
+      }
+
+      const currentZone = state.zones ? state.zones.find(z => z.id === state.activeZoneId) : null;
+      if ($('fullscreen-zone-name')) {
+        $('fullscreen-zone-name').textContent = currentZone ? (currentZone.name || currentZone.display_name) : 'System Output';
+      }
+      if ($('fullscreen-volume-readout')) {
+        $('fullscreen-volume-readout').textContent = $('volume') ? $('volume').value : '100';
+      }
+
+      const curSec = (curAudio && Number.isFinite(curAudio.currentTime)) ? curAudio.currentTime : 0;
+      const durSec = (curAudio && Number.isFinite(curAudio.duration) && curAudio.duration > 0)
+        ? curAudio.duration
+        : (track.duration || 0);
       if ($('fullscreen-time-cur')) $('fullscreen-time-cur').textContent = formatTime(curSec);
       if ($('fullscreen-time-dur')) $('fullscreen-time-dur').textContent = formatTime(durSec);
 
       const fsCanvas = $('fullscreen-waveform');
       if (fsCanvas && state.waveformPeaks && typeof library?.renderWaveformCanvas === 'function') {
         const progress = durSec > 0 ? (curSec / durSec) : 0;
-        library.renderWaveformCanvas(fsCanvas, state.waveformPeaks, progress);
+        syncCanvasDimensions(fsCanvas);
+        library.renderWaveformCanvas(fsCanvas, state.waveformPeaks, progress, {
+          colorPlayed: 'rgba(215, 215, 225, 0.75)',
+          colorUnplayed: 'rgba(95, 95, 105, 0.38)',
+          colorPlayhead: '#e11d48'
+        });
       }
 
       if (state.lyrics && state.lyrics.length > 0 && typeof library?.lyricLineAt === 'function') {
@@ -6361,12 +6437,49 @@
     if (fsToggleBtn) fsToggleBtn.addEventListener('click', () => toggleRoonFullscreen(true));
     const fsExitBtn = $('fullscreen-exit-btn');
     if (fsExitBtn) fsExitBtn.addEventListener('click', () => toggleRoonFullscreen(false));
+    const fsCollapseBtn = $('fullscreen-collapse-btn');
+    if (fsCollapseBtn) fsCollapseBtn.addEventListener('click', () => toggleRoonFullscreen(false));
+    const fsSettingsBtn = $('fullscreen-settings-btn');
+    if (fsSettingsBtn) fsSettingsBtn.addEventListener('click', () => { if (typeof showSettings === 'function') showSettings(); });
+    const fsFavBtn = $('fullscreen-favorite-btn');
+    if (fsFavBtn) fsFavBtn.addEventListener('click', () => {
+      const cur = state.tracks.find(t => t.id === state.currentId);
+      if (cur) {
+        toggleFavorite(cur);
+        updateRoonFullscreenUI();
+      }
+    });
+    const fsShuffleBtn = $('fullscreen-shuffle-btn');
+    if (fsShuffleBtn) fsShuffleBtn.addEventListener('click', () => {
+      state.shuffle = !state.shuffle;
+      updateRoonFullscreenUI();
+      toast(state.shuffle ? 'Xáo trộn đã bật' : 'Xáo trộn đã tắt');
+    });
+    const fsQueueBtn = $('fullscreen-queue-btn');
+    if (fsQueueBtn) fsQueueBtn.addEventListener('click', () => {
+      toggleRoonFullscreen(false);
+      openQueue();
+    });
+    const fsZoneBtn = $('fullscreen-zone-btn');
+    if (fsZoneBtn) fsZoneBtn.addEventListener('click', () => {
+      if (typeof toggleZoneModal === 'function') toggleZoneModal();
+    });
+    const fsVolBtn = $('fullscreen-volume-btn');
+    if (fsVolBtn) fsVolBtn.addEventListener('click', () => {
+      toggleMute();
+      updateRoonFullscreenUI();
+    });
+    const fsMoreBtn = $('fullscreen-more-btn');
+    if (fsMoreBtn) fsMoreBtn.addEventListener('click', () => {
+      toast('Tùy chọn bài hát Roon');
+    });
     const fsPlayBtn = $('fullscreen-play-btn');
     if (fsPlayBtn) {
       fsPlayBtn.addEventListener('click', () => {
-        if (audio && audio.src) {
-          if (audio.paused) audio.play();
-          else audio.pause();
+        const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+        if (curAudio && curAudio.src) {
+          if (curAudio.paused) curAudio.play();
+          else curAudio.pause();
         }
       });
     }
@@ -6546,5 +6659,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 00:55 +07 | Đã xong: Fix & Nâng cấp 2 Phân mục Lời bài hát & Dạng sóng theo phản hồi người dùng: (1) Tự động tìm & nạp lời đồng bộ (.lrc) trực tuyến qua LRCLIB API với cleanSearchQuery, lưu cache localStorage, hỗ trợ nút tìm lại và dán lời .lrc thủ công; (2) High-DPI Waveform Seekbar: syncCanvasDimensions theo DPR, thuật toán generateDeterministicWaveform tạo hình bao sóng sống động theo seed bài hát khi không thể decode PCM thô, sửa click-to-seek trên cả waveform-canvas & fullscreen-waveform bắt chuẩn activeDeck, tua mượt mà kèm toast thông báo; kiểm chứng 5/5 test lyrics-waveform.test.cjs PASS 100%, 440/440 toàn bộ test suite PASS | Lượt kế tiếp: Pha B - Gapless audio transitions & Audio buffer lookahead monitor -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 03:30 +07 | Đã xong: Swarm Orynivo Integration - (1) Hỗ trợ file CUE sheet (.cue) qua parseCueSheet, đọc tiêu đề/nghệ sĩ/khung hình mm:ss:ff, tự động tách track ảo và phát mượt với cue offset start/end; (2) Danh sách phát thông minh (Smart Playlists Engine) theo tiêu chí chất lượng DSD, Hi-Res, Yêu thích > 4m qua evaluateSmartPlaylist; (3) Hệ thống đánh giá 5 sao audiophile (1-5 ★) trong Phòng nghe và danh sách bài hát, lưu trữ không can thiệp file gốc; kiểm chứng 21/21 test orynivo-features.test.cjs và 6/6 test cue-smart-playlist.test.cjs PASS 100%, toàn bộ 462/462 test PASS | Lượt kế tiếp: Pha B - Gapless audio transitions & Audio buffer lookahead monitor -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 04:45 +07 | Đã xong: Pha B - Dynamic Range Meter (DR Score / Crest Factor = Peak - RMS) & Realtime Audio Buffer Lookahead Monitor: (1) Tiện ích library.calculateDynamicRange + formatDynamicRange phân cấp tiêu chuẩn quốc tế (Audiophile Ref >= 14, Tự nhiên >= 10, Tiêu chuẩn >= 7, Nén mạnh < 7); (2) library.calculateBufferLookahead + formatBufferLookahead đo lường thời gian đệm nạp trước (sẵn sàng Gapless playback); (3) UI #room-dr-badge, #room-crest-detail, #room-buffer-status, #room-buffer-dot và #footer-dr-badge cập nhật thời gian thực; kiểm chứng 5/5 test dynamic-range-buffer.test.cjs PASS 100%, toàn bộ 467/467 test PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh (Intelligent Sleep Fade-out & Ambient Sleep Scene) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 07:00 +07 | Đã xong: Thiết kế lại toàn bộ Giao diện Toàn màn hình khi mở full bài hát (Roon Immersive Now Playing View) chuẩn xác 100% theo ảnh Roon Desktop thực tế: (1) Ảnh bìa mờ toàn cảnh background (#fullscreen-bg-cover), nút đóng ✕ và bánh răng cài đặt ⚙; (2) Album art lớn chính giữa, dòng thông số định dạng âm thanh (FLAC 44.1kHz 16bit 2ch) ngay dưới ảnh bìa; (3) Thanh dock điều khiển dưới chân với tiêu đề lớn, nút tim yêu thích, tên album & dòng Performed by, nút tùy chọn ⋮, cụm điều khiển trung tâm xáo trộn/bài trước/phát/bài sau/hàng đợi, thanh sóng waveform với vạch playhead đỏ #e11d48, thời gian 0:01 / 5:28, nút thu nhỏ ⌵ cùng cụm zone đầu ra System Output và âm lượng 🔊 100; kiểm chứng roon-fullscreen-redesign.test.cjs PASS 100% | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
 </body>
 </html>
