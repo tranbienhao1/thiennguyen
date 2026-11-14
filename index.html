@@ -762,9 +762,15 @@
         <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
           <div id="storage-progress-bar" class="h-full rounded-full bg-cyan-400 transition-all duration-300" style="width: 0%"></div>
         </div>
-        <div class="mt-3 flex gap-2">
-          <button id="refresh-storage-btn" type="button" class="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-zinc-300 transition hover:bg-white/10">Kiểm tra dung lượng</button>
-          <button id="prune-cache-btn" type="button" class="flex-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-[11px] font-medium text-cyan-200 transition hover:bg-cyan-400/20">Dọn dẹp bộ đệm lát</button>
+        <div class="mt-2.5 flex flex-wrap gap-1.5 text-[9px]">
+          <span class="rounded bg-white/5 px-2 py-0.5 text-zinc-300 border border-white/5">Tier 1: Trạng thái &amp; Cài đặt</span>
+          <span class="rounded bg-cyan-400/10 px-2 py-0.5 text-cyan-300 border border-cyan-400/20">Tier 2: Đệm FLAC/DSD</span>
+          <span class="rounded bg-violet-400/10 px-2 py-0.5 text-violet-300 border border-violet-400/20">Tier 3: Bìa &amp; LRC</span>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button id="refresh-storage-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-zinc-300 transition hover:bg-white/10">Kiểm tra dung lượng</button>
+          <button id="prune-cache-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-[11px] font-medium text-cyan-200 transition hover:bg-cyan-400/20">Dọn dẹp bộ đệm lát</button>
+          <button id="prune-object-urls-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-400/20">Giải phóng RAM</button>
         </div>
       </section>
       <div class="mt-5 rounded-2xl border border-white/10 p-4">
@@ -6402,6 +6408,26 @@
         toast(`Không thể dọn dẹp bộ đệm: ${err.message || err}`);
       }
     });
+    $('prune-object-urls-btn')?.addEventListener('click', () => {
+      const activeDeckUrls = [];
+      if (state.activeDeck && state.activeDeck.element && state.activeDeck.element.src) activeDeckUrls.push(state.activeDeck.element.src);
+      if (state.standbyDeck && state.standbyDeck.element && state.standbyDeck.element.src) activeDeckUrls.push(state.standbyDeck.element.src);
+      const queueUrls = (state.queue || []).map(t => t.url).filter(Boolean);
+      const curTrack = state.tracks.find(t => t.id === state.currentId);
+      const activeRefs = {
+        currentTrackUrl: (curTrack && curTrack.url) || audio.src,
+        standbyTrackUrl: standbyAudio.src,
+        queueUrls,
+        activeDeckUrls
+      };
+      const res = (typeof library !== 'undefined' && library && typeof library.pruneUnreferencedObjectUrls === 'function')
+        ? library.pruneUnreferencedObjectUrls(state.objectUrls, activeRefs)
+        : { revokedCount: 0, remainingCount: state.objectUrls.size };
+      const msg = (typeof library !== 'undefined' && library && typeof library.formatMemoryAuditSummary === 'function')
+        ? library.formatMemoryAuditSummary(res)
+        : `Đã giải phóng ${res.revokedCount} URL.`;
+      toast(msg);
+    });
     async function runCloudLogin(connect) {
       $('settings-error').classList.add('hidden');
       try {
@@ -8505,5 +8531,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 14:30 +07 | Đã xong: Pha A - Audio Engine & DSP: Đa Tuyến Hòa Âm Chuyển Bài (Crossfade Curve Profiles) & Giám Sát Độ Sẵn Sàng Phát Liền Mạch (Gapless Buffer Lead Monitor): (1) Bộ 4 đặc tuyến hòa âm chuyên nghiệp CROSSFADE_CURVE_PROFILES (equal-power cos/sin, linear 1-t/t, exponential sqrt, smoothstep s-curve) trong library-utils.js; (2) calculateCrossfadeGains tính toán chính xác hệ số suy hao và bảo toàn năng lượng âm thanh; (3) formatCrossfadeSummary hiển thị tóm tắt trực quan; (4) calculateGaplessReadiness giám sát dung lượng đệm nạp trước của standbyAudio đảm bảo chuyển bài không ngắt quãng; (5) UI Cài đặt #crossfade-curve-select và #crossfade-curve-desc, đồng bộ state.crossfadeCurve và lưu trữ localStorage; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests crossfade-curves.test.cjs PASS 100%, 101/101 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Âm Thanh Nổi Động (Ambient Sound Stage Dynamic Animation) & Đổi Bảng Màu Sóng Âm -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 15:00 +07 | Đã xong: Pha B - UI/UX & Visualizer: Sân Khấu Ánh Sáng Âm Nhạc Thời Gian Thực (Audio-Reactive Ambient Stage Lighting & Bass/Vocal Frequency Pulse): (1) Bộ tiện ích calculateAudioEnergyBands phân tích năng lượng âm học thời gian thực qua FFT (dải Bass 20–260 Hz, Vocal 260–4000 Hz, Treble >4000 Hz và xung nhịp isBeatPulse); (2) 4 chế độ AMBIENT_STAGE_MODES (reactive 60fps, subtle lounge, static album glow, off); (3) calculateAmbientPulseTransform tính toán tỷ lệ scale, opacity, blur và brightness thích nghi theo nhịp nhạc; (4) formatAmbientStageSummary hiển thị trạng thái phát; (5) Phông nền phát sáng động toàn trang #app-ambient-backdrop kết hợp #ambient-glow trong Phòng nghe; (6) UI Cài đặt #ambient-stage-mode-select, #ambient-stage-mode-desc, lưu trữ bền vững localStorage; (7) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 13/13 tests ambient-stage-lighting.test.cjs PASS 100%, 102/102 test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features: Bộ chọn danh sách phát theo tâm trạng (Mood & Genre Dynamic Filters) hoặc Lyrics LRC đa nguồn có độ trễ tự thích nghi -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 15:30 +07 | Đã xong: Pha C - Core Features & Bug Hunting: Universal Audiophile Audio Seeker, Media Session CUE Sync & Mood/Genre Smart Filter Engine: (1) calculateTrackPlaybackPosition chuẩn hóa vị trí và thời lượng cho cả track thường và virtual track từ file CUE sheet (.cue), kẹp an toàn không vượt quá cueEnd; (2) calculateSeekTargetTime tính toán vị trí tua tuyệt đối chính xác cho file gốc theo delta/fraction/seconds, kẹp trần an toàn cueEnd - 0.15 chống văng sang bài kế tiếp; (3) resolveMediaSessionPositionState cấp dữ liệu duration/position/playbackRate chuẩn xác cho navigator.mediaSession.setPositionState trên màn hình khóa và thiết bị đeo; (4) GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre và groupTracksByGenreMood tự động phân loại thể loại & tâm trạng (Acoustic, Ballad, Pop, Rock, Electronic, Classical, Jazz, Vocal Audiophile) và gom nhóm bộ sưu tập; (5) Tích hợp hoàn hảo giao diện Thể loại (#genres-view, setLibraryView, renderCollectionCards) và điều khiển MediaSession (seekto, seekbackward, seekforward, stop); (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests audio-seeker-genres.test.cjs PASS 100%, 103/103 test suites PASS 100% | Lượt kế tiếp: Pha D - Kiến Trúc & PWA: IndexedDB Storage Tiering & Tối ưu hóa giải phóng bộ nhớ Blob URL -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 16:00 +07 | Đã xong: Pha D - Kiến Trúc & PWA: Chống Rò Rỉ Bộ Nhớ (Memory Leak Prevention) & Quản Lý Phân Tầng Lưu Trữ Đa Cấp (Multi-Tier Storage Quota Manager): (1) Bộ tiện ích auditMemoryLeaks và pruneUnreferencedObjectUrls trong library-utils.js phát hiện và tự động giải phóng URL.revokeObjectURL các Blob URL rác không còn tham chiếu; (2) Định nghĩa STORAGE_TIERS với 3 cấp độ (Tier 1 Thiết yếu/Trạng thái, Tier 2 Đệm âm thanh lát FLAC/DSD, Tier 3 Siêu dữ liệu/Ảnh bìa base64/LRC); (3) calculateStorageTierMetrics tính toán dung lượng phân tầng và chấm điểm sức khỏe lưu trữ; (4) formatMemoryAuditSummary định dạng thông báo tiếng Việt trực quan; (5) UI Cài đặt: cụm huy hiệu phân tầng lưu trữ (Tier 1/2/3) và nút #prune-object-urls-btn Giải phóng RAM; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests memory-storage-tiers.test.cjs PASS 100%, 104/104 test suites PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Parametric EQ Target Curve Optimization hoặc Biquad Filter Coherence -->
 </body>
 </html>

@@ -2,6 +2,32 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 16:00 +07] — [Pha D: Hiệu Năng, Kiến Trúc & PWA] Chống Rò Rỉ Bộ Nhớ RAM (Memory Leak Prevention) & Quản Lý Phân Tầng Lưu Trữ Đa Cấp (Multi-Tier Storage Quota Manager)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **4. Hiệu Năng, Kiến Trúc & Độ Bền Hệ Thống (Architecture & PWA)**.
+- **Chi tiết triển khai:**
+  1. **Bộ Thu Gom & Kiểm Toán Rò Rỉ ObjectURL (`auditMemoryLeaks`, `pruneUnreferencedObjectUrls`):**
+     - Quản lý vòng đời tất cả các `blob:` Object URLs sinh ra trong quá trình nạp file âm thanh, giải mã DSD, nạp đệm phân đoạn (audio slices) và ảnh bìa.
+     - `auditMemoryLeaks`: Phân tích và đối chiếu danh sách URL đang lưu trữ (`state.objectUrls`) với các tham chiếu sống thực tế (`currentTrackUrl`, `standbyTrackUrl`, `queueUrls`, `activeDeckUrls`). Nhận diện chính xác các zombie blob URL đã mất liên kết khi chuyển bài hoặc dọn hàng đợi.
+     - `pruneUnreferencedObjectUrls`: Tự động gọi `URL.revokeObjectURL` để trả lại bộ nhớ RAM cho hệ điều hành và loại bỏ URL khỏi bộ theo dõi, trả về số lượng URL đã giải phóng và dung lượng RAM được dọn dẹp.
+  2. **Chiến Lược Phân Tầng Bộ Nhớ Lưu Trữ Đa Cấp (`STORAGE_TIERS`, `categorizeStorageItem`, `calculateStorageTierMetrics`):**
+     - Thiết lập chuẩn phân tầng bộ nhớ 3 cấp độ chuyên biệt:
+       - **Tier 1 (Thiết Yếu & Trạng Thái - Critical State)**: Lịch sử nghe nhạc, danh sách bài hát yêu thích, phiên phát đang nghe và cấu hình DSP/EQ. Chính sách thu hồi: *Không bao giờ tự động xóa*.
+       - **Tier 2 (Đệm Âm Thanh Lát Đầu - Media Cache)**: Lát âm thanh FLAC/DSD 1 MB trong IndexedDB phục vụ phát tức thì (0 ms latency). Chính sách thu hồi: *LRU (Ít sử dụng nhất xóa trước)* khi chạm ngưỡng ngân sách.
+       - **Tier 3 (Siêu Dữ Liệu & Làm Giàu - Metadata & Enrichment)**: Lời bài hát đồng bộ LRCLIB, ảnh bìa album base64. Chính sách thu hồi: *Dễ bay hơi (Volatile)*, ưu tiên dọn dẹp khi bộ nhớ thiết bị sắp đầy.
+     - `calculateStorageTierMetrics`: Tính toán chi tiết số lượng mục, dung lượng từng phân tầng và chỉ số sức khỏe lưu trữ (`healthScore: 0-100%`).
+     - `formatMemoryAuditSummary`: Định dạng tóm tắt trạng thái dọn dẹp bộ nhớ trực quan bằng tiếng Việt cho thông báo Toast.
+  3. **Tích Hợp Giao Diện Cài Đặt & Nút Giải Phóng RAM Tức Thì:**
+     - Bổ sung cụm huy hiệu nhận diện phân tầng lưu trữ (Tier 1 / Tier 2 / Tier 3) trong phần **Bộ nhớ lưu trữ & Ngoại tuyến PWA** (`#storage-quota-section`).
+     - Bổ sung nút **Giải phóng RAM** (`#prune-object-urls-btn`), cho phép người dùng chủ động dọn dẹp các Blob URL rác mà không gây gián đoạn bài hát đang phát.
+  4. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `memory-storage-tiers.test.cjs` (**5/5 tests PASS 100%**).
+     - Đạt mốc **104/104 Test Suites PASS 100%** toàn bộ dự án, 0 fail, 0 regression.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 15:30 +07] — [Pha C: Core Features & Bug Hunting] Bộ Tua Nhạc Toàn Năng Audiophile, Đồng Bộ CUE Media Session & Lọc Thông Minh Thể Loại/Tâm Trạng (Universal Audio Seeker, CUE Media Session Sync & Mood/Genre Smart Filter Engine)
 
 ### 🎯 Hạng Mục Nâng Cấp:
