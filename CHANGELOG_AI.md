@@ -2,6 +2,33 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 14:30 +07] — [Pha A: Audio Engine & DSP] Đa Tuyến Hòa Âm Chuyển Bài (Crossfade Curve Profiles) & Giám Sát Độ Sẵn Sàng Phát Liền Mạch (Gapless Buffer Lead Monitor)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP (Web Audio API)**.
+- **Chi tiết triển khai:**
+  1. **Bộ 4 Đặc Tuyến Hòa Âm Chuẩn Phòng Thu (`CROSSFADE_CURVE_PROFILES` & `calculateCrossfadeGains`):**
+     - `equal-power`: Duy trì tổng công suất âm học không đổi qua hàm lượng giác cos/sin ($out = \cos(t \cdot \pi/2), in = \sin(t \cdot \pi/2)$), bảo toàn $out^2 + in^2 = 1$, triệt tiêu hiện tượng hụt âm lượng ở giữa đoạn chuyển giao, lý tưởng cho đa số thể loại Pop, Rock, Jazz.
+     - `linear`: Giảm và tăng âm lượng tuyến tính theo biên độ ($1-t$ và $t$), duy trì $out + in = 1$, phù hợp với nhạc giao hưởng, nhạc thính phòng acoustic và ambient.
+     - `exponential`: Nâng cao áp lực âm thanh bản thu cũ và bùng nổ chuyển sang bản thu mới ($\sqrt{1-t}$ và $\sqrt{t}$), tối ưu hóa trải nghiệm các dòng nhạc EDM, Club, Dance và Hip-hop.
+     - `s-curve`: Đường cong bậc ba Hermite Smoothstep ($s = t^2(3 - 2t)$) với đạo hàm bằng 0 ở hai đầu mút, loại bỏ hoàn toàn cảm giác giật âm khi bắt đầu hoặc kết thúc hòa âm.
+  2. **Tương Thích Ngược Tuyệt Đối (`crossfadeGains` & `formatCrossfadeSummary`):**
+     - Duy trì hàm cũ `crossfadeGains(progress)` trỏ thẳng về `calculateCrossfadeGains(progress, 'equal-power')` với độ chính xác số học bảo toàn hoàn hảo.
+     - `formatCrossfadeSummary(seconds, curveId)`: Định dạng thông tin ngắn gọn hiển thị thời lượng và tên đặc tuyến trực quan.
+  3. **Bộ Giám Sát Độ Sẵn Sàng Phát Liền Mạch (`calculateGaplessReadiness`):**
+     - Kiểm toán thời gian đệm nạp trước (`bufferLeadSeconds`) và `readyState` của boong chờ (`standbyAudio`) cùng thông tin tệp đã lưu trong bộ đệm `IndexedDB`.
+     - Đánh giá chất lượng sẵn sàng chuyển bài không ngắt quãng (`isReady: boolean`, `qualityPercent: number`, `label: string`) và đồng bộ lên giao diện tooltip của `#room-buffer-status` và `#room-buffer-dot`.
+  4. **Tích Hợp Giao Diện Cài Đặt & Audio Engine Graph:**
+     - Bổ sung `<select id="crossfade-curve-select">` với 4 đặc tuyến trong phần Cài đặt và nhãn mô tả `#crossfade-curve-desc`.
+     - Phục hồi và lưu trữ bền vững đặc tuyến người dùng đã chọn qua `localStorage.getItem('nocturne-crossfade-curve')`.
+     - Nâng cấp `applyCrossfade` áp dụng linh hoạt mảng 33 điểm cong `setValueCurveAtTime` theo đúng profile đã chọn.
+  5. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `crossfade-curves.test.cjs` (**6/6 tests PASS 100%**).
+     - Đạt mốc **101/101 Test Suites PASS 100%** toàn bộ dự án, 0 fail, 0 regression.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 14:00 +07] — [Pha D: Kiến Trúc & PWA] Bảo Vệ Phát Nhạc Ngoại Tuyến Thông Minh (Intelligent Offline Autoplay & Resilient Playback Protection)
 
 ### 🎯 Hạng Mục Nâng Cấp:
