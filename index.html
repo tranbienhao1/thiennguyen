@@ -459,7 +459,7 @@
           <div id="collection-tools"><button id="sort-button" type="button">By artist&nbsp;⌄</button><button id="filter-toggle" type="button" aria-expanded="false">⌕&nbsp; Filter</button></div>
         </div>
         <div id="filter-controls" hidden>
-          <select id="source-filter" aria-label="Lọc theo nguồn"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option><option value="Subsonic">Subsonic</option><option value="Jellyfin">Jellyfin</option></select>
+          <select id="source-filter" aria-label="Lọc theo nguồn"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option><option value="Subsonic">Subsonic</option><option value="Jellyfin">Jellyfin</option><option value="Black Candy">Black Candy</option></select>
           <select id="artist-filter" aria-label="Lọc theo nghệ sĩ"><option value="*">Mọi nghệ sĩ</option></select>
           <select id="album-filter" aria-label="Lọc theo album"><option value="*">Mọi album</option></select>
           <select id="group-by" aria-label="Nhóm bài hát"><option value="none">Không nhóm</option><option value="artist">Nhóm nghệ sĩ</option><option value="album">Nhóm album</option></select>
@@ -657,6 +657,34 @@
           </div>
           <button id="jellyfin-connect-btn" type="button" class="mt-3 w-full rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-medium text-white hover:bg-indigo-500 transition">Kết nối Jellyfin</button>
         </section>
+        <section id="blackcandy-config-card" class="rounded-2xl border border-rose-500/20 bg-rose-500/[.03] p-4 md:col-span-2">
+          <div class="flex items-center justify-between"><h3 class="text-sm font-medium text-rose-200">Black Candy Music Server</h3><span id="blackcandy-status" class="text-[10px] text-zinc-500">Chưa kết nối</span></div>
+          <p class="mt-1 text-[10px] leading-4 text-zinc-400">Kết nối máy chủ nhạc cá nhân Black Candy (Ruby on Rails). Hỗ trợ phát nhạc Lossless, chuyển mã tiết kiệm băng thông và lời bài hát đồng bộ.</p>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <label class="block text-[10px] text-zinc-400">Địa chỉ máy chủ (URL)
+              <input id="blackcandy-endpoint" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-rose-400/50" placeholder="http://localhost:3000">
+            </label>
+            <label class="block text-[10px] text-zinc-400">API Token (Hoặc dùng Email &amp; Mật khẩu bên dưới)
+              <input id="blackcandy-token" type="password" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-rose-400/50" placeholder="API Token (Bearer)">
+            </label>
+            <label class="block text-[10px] text-zinc-400">Email tài khoản
+              <input id="blackcandy-email" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-rose-400/50" placeholder="user@example.com">
+            </label>
+            <label class="block text-[10px] text-zinc-400">Mật khẩu
+              <input id="blackcandy-password" type="password" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-rose-400/50" placeholder="••••••••">
+            </label>
+            <label class="block text-[10px] text-zinc-400 sm:col-span-2">Chế độ truyền phát (Streaming Mode)
+              <select id="blackcandy-transcode-mode" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-xs outline-none focus:border-rose-400/50 text-zinc-200">
+                <option value="direct">Direct Stream (Lossless)</option>
+                <option value="transcode">Transcoded MP3 (Tiết kiệm băng thông 4G)</option>
+              </select>
+            </label>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-3">
+            <button id="blackcandy-connect-btn" type="button" class="w-full rounded-lg bg-rose-600 px-3 py-2.5 text-xs font-medium text-white hover:bg-rose-500 transition">Kết nối Black Candy</button>
+            <button id="blackcandy-sync-btn" type="button" class="w-full rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2.5 text-xs font-medium text-rose-200 hover:bg-rose-500/20 transition">Đồng bộ thư viện</button>
+          </div>
+        </section>
         <section class="rounded-2xl border border-white/10 bg-white/[.025] p-4 md:col-span-2">
           <div class="flex items-center justify-between"><h3 class="text-sm font-medium text-zinc-200">ListenBrainz Scrobbling</h3><span id="listenbrainz-state" class="text-[10px] text-zinc-500">Chưa kích hoạt</span></div>
           <p class="mt-1 text-[10px] leading-4 text-zinc-400">Ghi nhận nhật ký nghe nhạc phi tập trung (scrobble) lên ListenBrainz theo chuẩn cộng đồng mở.</p>
@@ -845,7 +873,7 @@
               <button id="zone-picker-btn" type="button" class="shrink-0 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-[11px] font-medium text-purple-200 transition hover:bg-purple-500/20 active:scale-95" aria-label="Đổi vùng phát">Đổi Vùng ▾</button>
             </div>
           </div>
-          <section class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
+          <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
           <canvas id="waveform-canvas" class="w-full h-16 cursor-pointer rounded-sm mb-1" aria-label="Dạng sóng bài hát - nhấn để tua"></canvas>
           <div class="mt-1 flex items-center justify-between text-[10px] text-zinc-500">
             <div class="flex items-center gap-2">
@@ -1074,9 +1102,21 @@
         </div>
       </div>
       <div id="fullscreen-lyrics-box" class="hidden">
-        <p id="fullscreen-lyric-line"></p>
+        <div id="fullscreen-lyrics">
+          <p id="fullscreen-lyric-line"></p>
+        </div>
       </div>
     </div>
+  </div>
+    <div id="context-menu" class="fixed z-[99] hidden min-w-[180px] rounded-xl border border-white/10 bg-zinc-900/95 p-1.5 shadow-2xl backdrop-blur-md text-xs">
+    <button type="button" id="context-menu-play-next" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-zinc-200 hover:bg-violet-500/20 hover:text-violet-200 transition">
+      <span>⏭</span>
+      <span>Phát tiếp theo</span>
+    </button>
+    <button type="button" id="context-menu-append-queue" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-zinc-200 hover:bg-violet-500/20 hover:text-violet-200 transition">
+      <span>➕</span>
+      <span>Thêm vào cuối</span>
+    </button>
   </div>
   <div id="toast" class="pointer-events-none fixed bottom-32 left-1/2 z-[60] hidden -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-800 px-4 py-2.5 text-xs text-zinc-100 shadow-xl"></div>
   <div id="update-banner" class="fixed left-1/2 top-4 z-[70] hidden w-[min(92vw,480px)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-violet-300/25 bg-[#181422]/95 px-4 py-3 shadow-2xl shadow-black/50 backdrop-blur-xl" role="status" aria-live="polite">
@@ -1298,7 +1338,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepOriginalVolume: null, sleepDeadline: 0, sleepAtTrackEnd: false, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -2699,7 +2739,7 @@
           // huy hiệu chất lượng thành pill, thời lượng text-xs.
           return `<div role="button" tabindex="0" class="track-row${versionInfo.versionIndex > 0 ? ' track-version-row' : ''} ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[.06] ${versionInfo.versionIndex > 0 ? 'py-2 pl-10 pr-4' : 'px-4 py-2'} text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]" aria-label="Phát ${escapeHtml(metadata.title)} — ${escapeHtml(metadata.artist)}" data-track-index="${trackIndex + 1}" data-track-id="${escapeHtml(track.id)}">
             <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${escapeHtml(metadata.title)}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${escapeHtml(metadata.artist)}</span> <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
-            <span class="hidden truncate text-xs text-zinc-500 sm:block"><span class="album-link hover:underline cursor-pointer">${escapeHtml(metadata.album)}</span></span><span class="hidden sm:block"><span class="rounded-full border px-2 py-0.5 text-[9px] font-medium tracking-wide ${q.tone}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${q.label}</span></span><span class="flex items-center justify-end gap-1"><span class="track-rating hidden sm:inline-block mr-1 text-[11px] text-amber-400 cursor-pointer select-none hover:opacity-80" data-rating-track-id="${escapeHtml(track.id)}" title="Đánh giá: ${trRating}/5 sao">${trStars}</span>${versionInfo.versionIndex === 0 && versionInfo.versionGroup.versions.length > 1 ? `<button type="button" data-version-action="toggle" data-version-key="${escapeHtml(versionInfo.versionGroup.key)}" class="shrink-0 rounded-full border border-violet-400/40 px-2 py-0.5 text-[10px] font-medium text-violet-200 hover:bg-violet-400/10" aria-expanded="${expandedVersions.has(versionInfo.versionGroup.key)}" aria-label="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn' : 'Mở rộng'} ${versionInfo.versionGroup.versions.length} phiên bản của ${escapeHtml(metadata.title)}" title="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn các phiên bản' : 'Xem các phiên bản khác'}">${versionInfo.versionGroup.versions.length} phiên bản ${expandedVersions.has(versionInfo.versionGroup.key) ? '▴' : '▾'}</button>` : ''}<span class="text-right text-xs tabular-nums text-zinc-400">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
+            <span class="hidden truncate text-xs text-zinc-500 sm:block"><span class="album-link hover:underline cursor-pointer">${escapeHtml(metadata.album)}</span></span><span class="hidden sm:block"><span class="rounded-full border px-2 py-0.5 text-[9px] font-medium tracking-wide ${q.tone}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${q.label}</span></span><span class="flex items-center justify-end gap-1"><span class="track-rating hidden sm:inline-block mr-1 text-[11px] text-amber-400 cursor-pointer select-none hover:opacity-80" data-rating-track-id="${escapeHtml(track.id)}" title="Đánh giá: ${trRating}/5 sao">${trStars}</span>${versionInfo.versionIndex === 0 && versionInfo.versionGroup.versions.length > 1 ? `<button type="button" data-version-action="toggle" data-version-key="${escapeHtml(versionInfo.versionGroup.key)}" class="shrink-0 rounded-full border border-violet-400/40 px-2 py-0.5 text-[10px] font-medium text-violet-200 hover:bg-violet-400/10" aria-expanded="${expandedVersions.has(versionInfo.versionGroup.key)}" aria-label="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn' : 'Mở rộng'} ${versionInfo.versionGroup.versions.length} phiên bản của ${escapeHtml(metadata.title)}" title="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn các phiên bản' : 'Xem các phiên bản khác'}">${versionInfo.versionGroup.versions.length} phiên bản ${expandedVersions.has(versionInfo.versionGroup.key) ? '▴' : '▾'}</button>` : ''}<span class="text-right text-xs tabular-nums text-zinc-400">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button><button type="button" data-queue-action="play_next" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Phát tiếp theo" title="Phát tiếp theo">⏭</button><button type="button" data-queue-action="append" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Thêm vào cuối" title="Thêm vào cuối">➕</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
           </div>`;
         }).join('');
         return heading + rows;
@@ -2713,6 +2753,8 @@
         if (typeof setTrackRating === 'function') setTrackRating(t, next);
       }));
       list.querySelectorAll('[data-metadata-action="open"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); metadataUI.open(trackById(button.dataset.metadataTrackId)); }));
+      list.querySelectorAll('[data-queue-action="play_next"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); handlePlayNext(button.dataset.trackId); }));
+      list.querySelectorAll('[data-queue-action="append"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); handleAppendQueue(button.dataset.trackId); }));
       list.querySelectorAll('[data-queue-action="add"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); addToQueue(button.dataset.trackId); }));
       // Pha B — Versions: bấm huy hiệu "N phiên bản" thì mở rộng/thu gọn
       // các bản còn lại ngay dưới hàng chính (không phát nhạc).
@@ -2735,7 +2777,7 @@
           if (event.target !== row || (event.key !== 'Enter' && event.key !== ' ')) return;
           event.preventDefault(); playTrack(row.dataset.trackId);
         });
-        row.addEventListener('contextmenu', event => { event.preventDefault(); addToQueue(row.dataset.trackId); });
+        row.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); showTrackContextMenu(event.clientX, event.clientY, row.dataset.trackId); });
       });
       list.dataset.trackRowsSignature = signature;
       renderQueue();
@@ -3367,10 +3409,51 @@
     // các dòng có mốc thời gian (bấm để tua), lời thuần (USLT, không mốc)
     // hiện nguyên văn không tua được; dòng đang hát tô sáng + tự cuộn giữa
     // khi ra ngoài khung nhìn (đang hiện đủ thì giữ vị trí cuộn của người dùng).
+    let lyricsAutoScrollSuspended = false;
+    let lyricsAutoScrollResumeTimer = null;
+    let isProgrammaticLyricsScroll = false;
+
+    function suspendLyricsAutoScroll() {
+      if (isProgrammaticLyricsScroll) return;
+      lyricsAutoScrollSuspended = true;
+      if (typeof state !== 'undefined' && state) state.lyricsAutoScrollSuspended = true;
+      if (lyricsAutoScrollResumeTimer) clearTimeout(lyricsAutoScrollResumeTimer);
+      lyricsAutoScrollResumeTimer = setTimeout(() => {
+        resumeLyricsAutoScroll();
+      }, 4000);
+    }
+
+    function resumeLyricsAutoScroll() {
+      lyricsAutoScrollSuspended = false;
+      if (typeof state !== 'undefined' && state) state.lyricsAutoScrollSuspended = false;
+      const container = $('room-lyrics');
+      if (!container || !state || !state.lyrics || !state.lyrics.length) return;
+      const index = (typeof state.lyricIndex === 'number' && state.lyricIndex >= 0)
+        ? state.lyricIndex
+        : (typeof library?.lyricLineAt === 'function' && typeof audio !== 'undefined' && audio ? library.lyricLineAt(state.lyrics, audio.currentTime) : -1);
+      if (index >= 0) {
+        const rows = container.querySelectorAll('.lyric-line');
+        const activeRow = rows[index];
+        if (activeRow && typeof activeRow.scrollIntoView === 'function') {
+          if (typeof isProgrammaticLyricsScroll !== 'undefined') isProgrammaticLyricsScroll = true;
+          activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (typeof setTimeout === 'function') {
+            setTimeout(() => {
+              if (typeof isProgrammaticLyricsScroll !== 'undefined') isProgrammaticLyricsScroll = false;
+            }, 300);
+          } else if (typeof isProgrammaticLyricsScroll !== 'undefined') {
+            isProgrammaticLyricsScroll = false;
+          }
+        }
+      }
+    }
+    window.suspendLyricsAutoScroll = suspendLyricsAutoScroll;
+    window.resumeLyricsAutoScroll = resumeLyricsAutoScroll;
+
     function renderLyrics(lrcText) {
       const container = $('room-lyrics');
       if (!container) return;
-      state.lyrics = library.parseLyrics(lrcText);
+      state.lyrics = (typeof library.parseLrcWithOffsetAndTags === 'function' && typeof lrcText === 'string' && /\[offset:/i.test(lrcText)) ? library.parseLrcWithOffsetAndTags(lrcText) : library.parseLyrics(lrcText);
       state.lyricIndex = -1;
       container.innerHTML = '';
       const lines = state.lyrics.length ? state.lyrics : (typeof lrcText === 'string' ? lrcText.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/).map(text => text.trim()).filter(text => text && !text.startsWith('[')).map(text => ({time: NaN, text})) : []);
@@ -3528,7 +3611,18 @@
           }
         });
         const activeRow = index >= 0 ? rows[index] : null;
-        if (activeRow && typeof activeRow.scrollIntoView === 'function' && library.shouldScrollLyricIntoView(container.getBoundingClientRect(), activeRow.getBoundingClientRect())) activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const isAutoScrollSuspended = (typeof lyricsAutoScrollSuspended !== 'undefined' && lyricsAutoScrollSuspended) || Boolean(typeof state !== 'undefined' && state && state.lyricsAutoScrollSuspended);
+        if (activeRow && typeof activeRow.scrollIntoView === 'function' && !isAutoScrollSuspended && library.shouldScrollLyricIntoView(container.getBoundingClientRect(), activeRow.getBoundingClientRect())) {
+          if (typeof isProgrammaticLyricsScroll !== 'undefined') isProgrammaticLyricsScroll = true;
+          activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (typeof setTimeout === 'function') {
+            setTimeout(() => {
+              if (typeof isProgrammaticLyricsScroll !== 'undefined') isProgrammaticLyricsScroll = false;
+            }, 300);
+          } else if (typeof isProgrammaticLyricsScroll !== 'undefined') {
+            isProgrammaticLyricsScroll = false;
+          }
+        }
       }
       if (index >= 0 && index < state.lyrics.length) {
         const activeLine = state.lyrics[index];
@@ -6025,6 +6119,267 @@
 
     const jellyfinBtn = $('jellyfin-connect-btn');
     if (jellyfinBtn) jellyfinBtn.addEventListener('click', connectJellyfinServer);
+
+    // ── Black Candy Server & Smart Queue Integration ──
+
+    let activeContextMenuTrackId = null;
+    function showTrackContextMenu(clientX, clientY, trackId) {
+      const menu = $('context-menu');
+      if (!menu) return;
+      activeContextMenuTrackId = trackId;
+      const x = Number(clientX) || 100;
+      const y = Number(clientY) || 100;
+      menu.style.left = `${Math.max(10, Math.min(x, (window.innerWidth || 1000) - 200))}px`;
+      menu.style.top = `${Math.max(10, Math.min(y, (window.innerHeight || 800) - 120))}px`;
+      menu.classList.remove('hidden');
+    }
+
+    function hideTrackContextMenu() {
+      const menu = $('context-menu');
+      if (menu) menu.classList.add('hidden');
+      activeContextMenuTrackId = null;
+    }
+    window.showTrackContextMenu = showTrackContextMenu;
+    window.hideTrackContextMenu = hideTrackContextMenu;
+
+    document.addEventListener('click', () => hideTrackContextMenu());
+    document.addEventListener('contextmenu', e => {
+      if (!e.target.closest('[data-track-id]')) hideTrackContextMenu();
+    });
+
+    const ctxPlayNext = $('context-menu-play-next');
+    if (ctxPlayNext) {
+      ctxPlayNext.addEventListener('click', () => {
+        if (activeContextMenuTrackId) handlePlayNext(activeContextMenuTrackId);
+        hideTrackContextMenu();
+      });
+    }
+
+    const ctxAppend = $('context-menu-append-queue');
+    if (ctxAppend) {
+      ctxAppend.addEventListener('click', () => {
+        if (activeContextMenuTrackId) handleAppendQueue(activeContextMenuTrackId);
+        hideTrackContextMenu();
+      });
+    }
+
+    function handlePlayNext(trackId) {
+      const track = (typeof trackId === 'object' && trackId !== null)
+        ? trackId
+        : (trackById(trackId) || state.tracks.find(t => t.id === trackId));
+      if (!track) return;
+
+      if (!Array.isArray(state.queue)) {
+        state.queue = (state.queueTrackIds || []).map(id => trackById(id) || { id });
+      }
+
+      const currentIndex = state.queue.findIndex(item => (item && item.id ? item.id : item) === state.currentId);
+
+      if (typeof library?.smartQueuePlayNext === 'function') {
+        state.queue = library.smartQueuePlayNext(state.queue, currentIndex, track);
+      } else {
+        state.queue = state.queue.filter(item => (item && item.id ? item.id : item) !== track.id);
+        const targetIdx = currentIndex >= 0 ? currentIndex + 1 : 0;
+        state.queue.splice(targetIdx, 0, track);
+      }
+
+      state.queueTrackIds = state.queue.map(item => (item && item.id ? item.id : item));
+      refreshQueueRows();
+      renderQueue();
+      toast(`⏭ Sẽ phát tiếp theo: ${library.trackMetadata ? library.trackMetadata(track).title : track.title}`);
+      if (state.currentId && audio.src) preloadNext(true);
+    }
+    window.handlePlayNext = handlePlayNext;
+
+    function handleAppendQueue(trackId) {
+      const track = (typeof trackId === 'object' && trackId !== null)
+        ? trackId
+        : (trackById(trackId) || state.tracks.find(t => t.id === trackId));
+      if (!track) return;
+
+      if (!Array.isArray(state.queue)) {
+        state.queue = (state.queueTrackIds || []).map(id => trackById(id) || { id });
+      }
+
+      if (typeof library?.smartQueueAppend === 'function') {
+        state.queue = library.smartQueueAppend(state.queue, track);
+      } else {
+        const exists = state.queue.some(item => (item && item.id ? item.id : item) === track.id);
+        if (!exists) {
+          state.queue.push(track);
+        }
+      }
+
+      state.queueTrackIds = state.queue.map(item => (item && item.id ? item.id : item));
+      refreshQueueRows();
+      renderQueue();
+      toast(`➕ Đã thêm vào cuối hàng đợi: ${library.trackMetadata ? library.trackMetadata(track).title : track.title}`);
+      if (state.currentId && audio.src) preloadNext(true);
+    }
+    window.handleAppendQueue = handleAppendQueue;
+
+    async function syncBlackCandySongs() {
+      const endpoint = ($('blackcandy-endpoint') && $('blackcandy-endpoint').value || '').trim() || 'http://localhost:3000';
+      const email = ($('blackcandy-email') && $('blackcandy-email').value || '').trim();
+      const password = ($('blackcandy-password') && $('blackcandy-password').value || '').trim();
+      let token = ($('blackcandy-token') && $('blackcandy-token').value || '').trim();
+      const transcodeMode = ($('blackcandy-transcode-mode') && $('blackcandy-transcode-mode').value) || 'direct';
+      const isTranscode = transcodeMode === 'transcode' || transcodeMode === 'transcoded';
+      const statusEl = $('blackcandy-status');
+
+      if (statusEl) {
+        statusEl.textContent = 'Đang đồng bộ...';
+        statusEl.className = 'text-[10px] text-amber-300';
+      }
+
+      try {
+        let headers = { 'Accept': 'application/json' };
+        if (typeof library?.buildBlackCandyAuthHeader === 'function' && token) {
+          headers = library.buildBlackCandyAuthHeader(token);
+        } else if (token) {
+          headers['Authorization'] = `Token token=${token}`;
+        } else if (email && password) {
+          try {
+            headers['Authorization'] = `Basic ${btoa(email + ':' + password)}`;
+          } catch (_) {
+            headers['Authorization'] = `Basic ${Buffer.from(email + ':' + password).toString('base64')}`;
+          }
+        }
+
+        const songsUrl = typeof library?.buildBlackCandyUrl === 'function'
+          ? library.buildBlackCandyUrl(endpoint, '/api/v1/songs')
+          : `${endpoint.replace(/\/+$/, '')}/api/v1/songs`;
+
+        const res = await fetch(songsUrl, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json().catch(() => null);
+
+        let rawSongs = [];
+        if (Array.isArray(data)) {
+          rawSongs = data;
+        } else if (data && Array.isArray(data.songs)) {
+          rawSongs = data.songs;
+        }
+
+        const newTracks = [];
+        for (const song of rawSongs) {
+          const parsed = typeof library?.parseBlackCandySong === 'function'
+            ? library.parseBlackCandySong(song, endpoint, { transcode: isTranscode })
+            : {
+                id: `blackcandy-${song.id}`,
+                title: song.name || 'Unknown Title',
+                artist: song.artist_name || library.UNKNOWN_ARTIST,
+                album: song.album_name || library.UNKNOWN_ALBUM,
+                duration: Number(song.duration) || 0,
+                format: (isTranscode ? (song.format || 'mp3') : (song.format || 'FLAC')).toUpperCase(),
+                src: `${endpoint.replace(/\/+$/, '')}/${isTranscode ? 'transcoded_stream' : 'stream'}/new?song_id=${song.id}`,
+                cover: song.album_image_urls?.large || song.album_image_urls?.medium || song.album_image_urls?.small || '',
+                isFavorited: Boolean(song.is_favorited),
+                lyricsUrl: song.lyrics_url,
+                source: 'Black Candy'
+              };
+          if (parsed) {
+            newTracks.push(parsed);
+          }
+        }
+
+        for (const t of newTracks) {
+          const existingIdx = state.tracks.findIndex(item => item.id === t.id);
+          if (existingIdx >= 0) {
+            state.tracks[existingIdx] = { ...state.tracks[existingIdx], ...t };
+          } else {
+            state.tracks.push(t);
+          }
+        }
+
+        if (statusEl) {
+          statusEl.textContent = `Đã kết nối (${newTracks.length} bài)`;
+          statusEl.className = 'text-[10px] text-emerald-400';
+        }
+        toast(`Kết nối Black Candy thành công: đã nạp ${newTracks.length} bài`);
+
+        updateMetadataFilters();
+        renderTracks();
+        if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks);
+        if (typeof renderFocusBar === 'function') renderFocusBar();
+      } catch (err) {
+        if (statusEl) {
+          statusEl.textContent = `Lỗi: ${err.message || 'Không thể kết nối'}`;
+          statusEl.className = 'text-[10px] text-rose-400';
+        }
+        toast(`Lỗi kết nối Black Candy: ${err.message || 'Mạng không khả dụng'}`);
+      }
+    }
+    window.syncBlackCandySongs = syncBlackCandySongs;
+
+    async function connectBlackCandyServer() {
+      const endpoint = ($('blackcandy-endpoint') && $('blackcandy-endpoint').value || '').trim() || 'http://localhost:3000';
+      const email = ($('blackcandy-email') && $('blackcandy-email').value || '').trim();
+      const password = ($('blackcandy-password') && $('blackcandy-password').value || '').trim();
+      let token = ($('blackcandy-token') && $('blackcandy-token').value || '').trim();
+      const transcodeMode = ($('blackcandy-transcode-mode') && $('blackcandy-transcode-mode').value) || 'direct';
+      const statusEl = $('blackcandy-status');
+
+      if (!endpoint || (!token && (!email || !password))) {
+        if (statusEl) {
+          statusEl.textContent = 'Vui lòng nhập Endpoint và Token hoặc Email/Mật khẩu';
+          statusEl.className = 'text-[10px] text-rose-400';
+        }
+        toast('Vui lòng nhập địa chỉ máy chủ và thông tin đăng nhập Black Candy');
+        return;
+      }
+
+      try {
+        localStorage.setItem('nocturne-blackcandy-config', JSON.stringify({ endpoint, email, password, token, transcodeMode }));
+      } catch (e) {
+        console.warn('Could not save blackcandy config to localStorage:', e);
+      }
+
+      if (statusEl) {
+        statusEl.textContent = 'Đang kết nối...';
+        statusEl.className = 'text-[10px] text-amber-300';
+      }
+
+      if (!token && email && password) {
+        try {
+          const authUrl = typeof library?.buildBlackCandyUrl === 'function'
+            ? library.buildBlackCandyUrl(endpoint, '/api/v1/authentication')
+            : `${endpoint.replace(/\/+$/, '')}/api/v1/authentication`;
+          const authRes = await fetch(authUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ email, password })
+          });
+          if (authRes.ok) {
+            const authData = await authRes.json().catch(() => null);
+            if (authData && authData.token) {
+              token = authData.token;
+              if ($('blackcandy-token')) $('blackcandy-token').value = token;
+              try {
+                localStorage.setItem('nocturne-blackcandy-config', JSON.stringify({ endpoint, email, password, token, transcodeMode }));
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+      }
+
+      await syncBlackCandySongs();
+    }
+    window.connectBlackCandyServer = connectBlackCandyServer;
+
+    function setupLyricsAutoScrollSuspension() {
+      const ids = ['lyrics-card', 'room-lyrics', 'fullscreen-lyrics', 'fullscreen-lyrics-box'];
+      ids.forEach(id => {
+        const el = $(id);
+        if (!el) return;
+        el.addEventListener('wheel', () => suspendLyricsAutoScroll(), { passive: true });
+        el.addEventListener('touchstart', () => suspendLyricsAutoScroll(), { passive: true });
+        el.addEventListener('touchmove', () => suspendLyricsAutoScroll(), { passive: true });
+        el.addEventListener('scroll', () => {
+          if (!isProgrammaticLyricsScroll) suspendLyricsAutoScroll();
+        }, { passive: true });
+      });
+    }
     $('play-button').addEventListener('click', async () => { if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; state.playGeneration++; stopDsdWorker(false); $('play-button').textContent = '▶'; toast('Đã dừng giải mã DSD.'); return; } if (!audio.src) { const current = state.tracks.find(track => track.id === state.currentId); const next = current || state.tracks[0]; if (next) playTrack(next.id); return; } if (audio.paused) { try { if (state.context && state.context.state === 'suspended') await state.context.resume(); await audio.play(); } catch (error) { toast(error.message); } } else audio.pause(); });
     $('previous-button').addEventListener('click', () => playNext(-1));
     $('next-button').addEventListener('click', () => playNext(1));
@@ -6813,6 +7168,30 @@
       }
     } catch (error) { console.warn('Could not load saved Jellyfin configuration:', error); }
     try {
+      const savedBlackCandy = localStorage.getItem('nocturne-blackcandy-config');
+      if (savedBlackCandy) {
+        const parsed = JSON.parse(savedBlackCandy);
+        if (parsed) {
+          if ($('blackcandy-endpoint') && parsed.endpoint) $('blackcandy-endpoint').value = parsed.endpoint;
+          if ($('blackcandy-token') && parsed.token) $('blackcandy-token').value = parsed.token;
+          if ($('blackcandy-email') && parsed.email) $('blackcandy-email').value = parsed.email;
+          if ($('blackcandy-password') && parsed.password) $('blackcandy-password').value = parsed.password;
+          if ($('blackcandy-transcode-mode') && parsed.transcodeMode) $('blackcandy-transcode-mode').value = parsed.transcodeMode;
+          if ($('blackcandy-status')) {
+            $('blackcandy-status').textContent = 'Đã lưu cấu hình';
+            $('blackcandy-status').className = 'text-[10px] text-zinc-400';
+          }
+        }
+      }
+    } catch (error) { console.warn('Could not load saved Black Candy configuration:', error); }
+
+    const bcConnectBtn = $('blackcandy-connect-btn');
+    if (bcConnectBtn) bcConnectBtn.addEventListener('click', connectBlackCandyServer);
+    const bcSyncBtn = $('blackcandy-sync-btn');
+    if (bcSyncBtn) bcSyncBtn.addEventListener('click', syncBlackCandySongs);
+
+    setupLyricsAutoScrollSuspension();
+    try {
       const savedLbToken = localStorage.getItem('nocturne-listenbrainz-token');
       if (savedLbToken) {
         if ($('listenbrainz-token')) $('listenbrainz-token').value = savedLbToken;
@@ -7140,5 +7519,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 07:30 +07 | Đã xong: Swarm Self-Hosted Music Overview Integration - (1) Chuẩn kết nối Subsonic / OpenSubsonic API client (#subsonic-endpoint, #subsonic-user, #subsonic-pass, ping.view, getRandomSongs.view, stream.view, getCoverArt.view) cho phép stream từ Navidrome/Airsonic/Gonic; (2) Bộ lọc Decade View theo thập niên (1980s, 1990s, 2000s, 2010s, 2020s) trên Roon Focus Bar; (3) Giao thức scrobble mã nguồn mở ListenBrainz (playing_now và single_listen) theo chuẩn 50% thời lượng hoặc 240s; kiểm chứng 19/19 test selfhosted-overview-features.test.cjs PASS 100%, 511/511 toàn bộ test suite PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 08:00 +07 | Đã xong: Khai thác sâu hệ sinh thái Self-Hosted Music Apps (Finamp, Feishin, Tauon, Symfonium): (1) Kết nối máy chủ Jellyfin REST API (#jellyfin-endpoint, #jellyfin-token, #jellyfin-user-id, /Users/{id}/Items, stream, images) stream nhạc và ảnh bìa từ Jellyfin; (2) Chế độ Mini Player HUD Mode nổi góc màn hình (#mini-player-hud, #mini-waveform, #mini-player-toggle, phím tắt M); (3) Tách bạch Album Artist vs Track Artist (groupTracksByAlbumArtist) chống phân mảnh thư viện; (4) Điều chỉnh tốc độ phát / Tempo Pitch Control (#playback-rate-select, 0.75x–1.5x); kiểm chứng 20/20 test selfhosted-ecosystem.test.cjs PASS 100%, 531/531 toàn bộ test suite PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 07:55 +07 | Đã xong: Swarm Self-Hosted Music (Finamp / Feishin / Tauon / Symfonium) - (1) Jellyfin Server REST API client (#jellyfin-endpoint, #jellyfin-token, #jellyfin-user-id, #jellyfin-connect-btn) truy vấn /Users/${userId}/Items, parse via library.parseJellyfinItem, phân loại nguồn 'Jellyfin' trong #source-filter và lưu trữ localStorage 'nocturne-jellyfin-config'; (2) Tauon Compact Mini Player HUD Mode (#mini-player-hud, #mini-cover, #mini-title, #mini-artist, #mini-waveform, #mini-play, #mini-next, #mini-expand, #mini-player-toggle, phím tắt 'm'); (3) Điều khiển tốc độ phát / tempo (#playback-rate-select: 0.75x–1.5x) bảo toàn cao độ qua library.calculatePlaybackRate; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh crossfeed destination state.crossfeedNodes.output.connect(state.context.destination) | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 08:30 +07 | Đã xong: Swarm Black Candy Integration (blackcandy-org/blackcandy) - (1) Black Candy Server REST API client (#blackcandy-endpoint, #blackcandy-token, #blackcandy-connect-btn, #blackcandy-sync-btn, #blackcandy-transcode-mode: Direct Lossless vs Transcoded MP3) stream nhạc, cover và lyrics; (2) Hàng đợi thông minh Smart Up Next Queue (smartQueuePlayNext, smartQueueAppend, smartQueueReorder, các nút 'play_next' và 'append' trên từng bài và menu ngữ cảnh chuột phải); (3) Bộ phân tích LRC nâng cao parseLrcWithOffsetAndTags hỗ trợ [offset: +/-ms], lọc bỏ karaoke word tags <mm:ss.xx> và metadata headers; (4) Lyrics auto-scroll suspension & 4-second resume delay (suspendLyricsAutoScroll & resumeLyricsAutoScroll); (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 31/31 test blackcandy-integration.test.cjs PASS 100%, toàn bộ 562/562 test PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
 </body>
 </html>

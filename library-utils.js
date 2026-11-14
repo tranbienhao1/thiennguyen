@@ -2738,5 +2738,203 @@
     return Math.round(r * 100) / 100;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate};
+  // ── Black Candy Self-Hosted Music Server & Smart Queue Helpers ──
+
+  function buildBlackCandyAuthHeader(token) {
+    const cleanToken = token != null ? String(token).trim() : '';
+    return {
+      'Authorization': `Token token=${cleanToken}`,
+      'Accept': 'application/json'
+    };
+  }
+
+  function buildBlackCandyUrl(endpoint, path = '', params = {}) {
+    if (!endpoint) return '';
+    let base = String(endpoint).trim();
+    if (!base) return '';
+    if (!/^https?:\/\//i.test(base)) {
+      base = 'http://' + base;
+    }
+    base = base.replace(/\/+$/, '');
+
+    let cleanPath = String(path || '').trim();
+    if (cleanPath && !cleanPath.startsWith('/')) {
+      cleanPath = '/' + cleanPath;
+    }
+
+    try {
+      const url = new URL(base + cleanPath);
+      url.pathname = url.pathname.replace(/\/+/g, '/');
+
+      if (params && typeof params === 'object') {
+        for (const [key, val] of Object.entries(params)) {
+          if (val !== undefined && val !== null) {
+            url.searchParams.set(key, String(val));
+          }
+        }
+      }
+
+      return url.toString();
+    } catch {
+      return '';
+    }
+  }
+
+  function parseBlackCandySong(rawSong, endpoint, options = { transcode: false }) {
+    if (!rawSong || typeof rawSong !== 'object') return null;
+
+    const isTranscode = Boolean(options && options.transcode);
+    const streamPath = isTranscode ? '/transcoded_stream/new' : '/stream/new';
+    const songId = rawSong.id != null ? rawSong.id : '';
+
+    const src = (endpoint && songId !== '')
+      ? buildBlackCandyUrl(endpoint, streamPath, { song_id: songId })
+      : '';
+
+    const format = String(
+      options && options.transcode ? (rawSong.format || 'mp3') : (rawSong.format || 'FLAC')
+    ).toUpperCase();
+
+    const cover = rawSong.album_image_urls?.large || rawSong.album_image_urls?.medium || rawSong.album_image_urls?.small;
+
+    return {
+      id: `blackcandy-${songId}`,
+      title: rawSong.name != null ? String(rawSong.name) : 'Unknown Title',
+      artist: rawSong.artist_name || 'Unknown Artist',
+      album: rawSong.album_name || 'Unknown Album',
+      duration: Number(rawSong.duration) || 0,
+      format,
+      src,
+      cover,
+      isFavorited: Boolean(rawSong.is_favorited),
+      lyricsUrl: rawSong.lyrics_url,
+      source: 'Black Candy',
+      raw: rawSong
+    };
+  }
+
+  function parseLrcWithOffsetAndTags(lrcText) {
+    if (typeof lrcText !== 'string') return [];
+
+    const offsetMatch = lrcText.match(/\[offset:\s*([+-]?\d+)\s*\]/i);
+    const offsetMs = offsetMatch ? Number(offsetMatch[1]) : 0;
+    const offsetSec = offsetMs / 1000;
+
+    const entries = [];
+    const lines = lrcText.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/);
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+
+      const timestampRegex = /\[(\d{1,3}):(\d{2})(?:[.:](\d+))?\]/g;
+      const timeMatches = [...line.matchAll(timestampRegex)];
+      if (!timeMatches.length) {
+        continue;
+      }
+
+      const cleanLyric = line
+        .replace(/\[\d{1,3}:\d{2}(?:[.:]\d+)?\]/g, '')
+        .replace(/\[[a-zA-Z_]+:[^\]]*\]/g, '')
+        .replace(/<\d{1,3}:\d{2}(?:[.:]\d+)?>/g, '')
+        .replace(/<[^>]+>/g, '')
+        .trim();
+
+      if (!cleanLyric) continue;
+
+      let firstTimeMs = null;
+      for (const match of timeMatches) {
+        const minutes = Number(match[1]);
+        const seconds = Number(match[2]);
+        if (seconds >= 60) continue;
+        const fractionSec = match[3] ? Number('0.' + match[3]) : 0;
+        const rawSec = minutes * 60 + seconds + fractionSec + offsetSec;
+        const totalSec = Math.max(0, Math.round(rawSec * 1000) / 1000);
+        const timeMs = Math.max(0, totalSec * 1000);
+        if (firstTimeMs === null) firstTimeMs = timeMs;
+
+        const entry = { time: totalSec, text: cleanLyric };
+        const words = parseKaraokeWords(line, timeMs, offsetMs, (timeMs - firstTimeMs) / 1000, false);
+        Object.defineProperty(entry, 'words', {
+          value: words,
+          enumerable: false,
+          writable: true,
+          configurable: true
+        });
+        entries.push(entry);
+      }
+    }
+
+    return entries.sort((a, b) => a.time - b.time);
+  }
+
+  function smartQueuePlayNext(queue, currentIndex, song) {
+    if (!song) return Array.isArray(queue) ? queue.slice() : [];
+    const list = Array.isArray(queue) ? (Object.isFrozen(queue) ? queue.slice() : queue) : [];
+
+    const songId = (song && typeof song === 'object' && song.id != null) ? song.id : song;
+    const existingIndex = list.findIndex(item => {
+      if (item === song) return true;
+      if (item && typeof item === 'object' && item.id != null) {
+        return item.id === songId;
+      }
+      return item === song;
+    });
+
+    let targetIndex = Math.max(0, (Number.isInteger(currentIndex) ? currentIndex : 0) + 1);
+
+    if (existingIndex !== -1) {
+      const [removed] = list.splice(existingIndex, 1);
+      if (existingIndex < targetIndex) {
+        targetIndex = Math.max(0, targetIndex - 1);
+      }
+      if (targetIndex > list.length) targetIndex = list.length;
+      list.splice(targetIndex, 0, removed);
+    } else {
+      if (targetIndex > list.length) targetIndex = list.length;
+      list.splice(targetIndex, 0, song);
+    }
+
+    return list;
+  }
+
+  function smartQueueAppend(queue, song) {
+    if (!song) return Array.isArray(queue) ? queue.slice() : [];
+    const list = Array.isArray(queue) ? (Object.isFrozen(queue) ? queue.slice() : queue) : [];
+
+    const songId = (song && typeof song === 'object' && song.id != null) ? song.id : song;
+    const exists = list.some(item => {
+      if (item === song) return true;
+      if (item && typeof item === 'object' && item.id != null) {
+        return item.id === songId;
+      }
+      return item === song;
+    });
+
+    if (!exists) {
+      list.push(song);
+    }
+
+    return list;
+  }
+
+  function smartQueueReorder(queue, fromIndex, toIndex) {
+    if (!Array.isArray(queue)) return [];
+    const list = Object.isFrozen(queue) ? queue.slice() : queue;
+    if (list.length <= 1) return list;
+
+    const from = Number(fromIndex);
+    const to = Number(toIndex);
+    if (!Number.isInteger(from) || !Number.isInteger(to)) return list;
+    if (from < 0 || from >= list.length) return list;
+
+    const clampedTo = Math.max(0, Math.min(list.length - 1, to));
+    if (from === clampedTo) return list;
+
+    const [item] = list.splice(from, 1);
+    list.splice(clampedTo, 0, item);
+    return list;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder};
 });

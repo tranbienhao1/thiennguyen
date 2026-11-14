@@ -2,6 +2,38 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 08:30 +07] — [Tích Hợp Tinh Hoa Black Candy] Kết Nối Máy Chủ Black Candy REST API, Hàng Đợi Thông Minh (Play Next / Add to End) & Bộ Phân Tích LRC Offset & Karaoke (blackcandy-org/blackcandy)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & Multi-Server Streaming**, **2. UI/UX Hiện Đại** & **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)**.
+- **Tính năng tiếp thu từ kiến trúc mã nguồn mở Black Candy (https://github.com/blackcandy-org/blackcandy):**
+  1. **Kết Nối Máy Chủ Tự Lưu Trữ Black Candy REST API Client:**
+     - Xây dựng tiện ích `buildBlackCandyAuthHeader(token)`: Tạo header chuẩn `Authorization: Token token=<api_token>` và `Accept: application/json`.
+     - Tiện ích `buildBlackCandyUrl(endpoint, path, params)`: Chuẩn hóa endpoint, hỗ trợ các API `/sessions`, `/songs`, `/stream/new`, `/transcoded_stream/new`, `/current_playlist/songs`, `/favorite_playlist/songs`.
+     - Tiện ích `parseBlackCandySong(rawSong, endpoint, options)`: Ánh xạ chuẩn bài hát từ Black Candy sang đối tượng track audiophile của Nocturne, hỗ trợ linh hoạt cả luồng trực tiếp **Direct Stream (Lossless)** lẫn luồng chuyển mã **Transcoded MP3 Stream** (giúp nghe mượt mà khi dùng mạng di động 4G hạn chế băng thông).
+     - Giao diện kết nối trong Cài đặt (`#blackcandy-config-card`): URL endpoint (`#blackcandy-endpoint`), API token / tài khoản (`#blackcandy-token`), chế độ chuyển mã (`#blackcandy-transcode-mode`), nút kết nối (`#blackcandy-connect-btn`), nút đồng bộ (`#blackcandy-sync-btn`) và lưu trữ bền vững vào `localStorage ('nocturne-blackcandy-config')`.
+     - Bổ sung tùy chọn `Black Candy` vào bộ lọc nguồn `#source-filter`.
+  2. **Hệ Thống Hàng Đợi Thông Minh (Smart Up Next Queue):**
+     - Kế thừa mô hình xử lý hàng đợi từ `CurrentPlaylist::SongsController` và `songs_controller.js` của Black Candy:
+       - **Phát tiếp theo (Play Next)**: `smartQueuePlayNext(queue, currentIndex, song)` chèn bài ngay sau bài đang nghe (`currentIndex + 1`), nếu bài đã có trong hàng đợi thì tự động dời lên vị trí kế tiếp mà không sinh bản sao trùng lặp.
+       - **Thêm vào cuối (Add to End)**: `smartQueueAppend(queue, song)` thêm bài vào cuối danh sách phát.
+       - **Sắp xếp thứ tự**: `smartQueueReorder(queue, fromIndex, toIndex)` di chuyển bài linh hoạt.
+     - Tích hợp các nút thao tác nhanh trên từng hàng bài hát (`play_next`, `append`) và menu chuột phải ngữ cảnh (`#context-menu-play-next`, `#context-menu-append-queue`).
+  3. **Bộ Phân Tích Lời Bài Hát Nâng Cao (LRC Offset & Karaoke Tag Stripping):**
+     - Kế thừa thuật toán từ `Song::Lyrics::Parser` của Black Candy: `parseLrcWithOffsetAndTags(lrcText)`.
+     - Hỗ trợ thẻ bù trễ âm thanh `[offset: +/-ms]` trong file `.lrc` (tự động dịch chuyển thời gian của các dòng lời để đồng bộ chuẩn xác với bản thu âm).
+     - Lọc sạch các thẻ karaoke theo từng từ `<mm:ss.xx>` để lời hiển thị sắc nét, mượt mà.
+     - Bỏ qua các thẻ metadata header `[ar:]`, `[ti:]`, `[al:]`, `[by:]`, `[offset:]`, `[length:]` và tự động nhân bản các dòng có nhiều mốc thời gian `[00:10.00][00:25.00]`.
+  4. **Cơ Chế Tự Động Phục Hồi Cuộn Lời (Lyrics Auto-Scroll Suspension & Resume Delay):**
+     - Kế thừa cơ chế từ `lyrics_controller.js` của Black Candy: khi người dùng chủ động chạm/cuộn danh sách lời để đọc trước, hệ thống tạm hoãn bám sát dòng trong 4 giây (`RESUME_FOLLOWING_DELAY = 4000`).
+     - Sau 4 giây không có thao tác cuộn, hệ thống tự động kích hoạt bám sát và cuộn mượt dòng đang hát vào chính giữa màn hình.
+  5. **Kiểm thử tự động & Bảo toàn kiến trúc:**
+     - Bộ kiểm thử mới `blackcandy-integration.test.cjs` (31/31 tests PASS 100%).
+     - Toàn bộ 562/562 ca kiểm thử PASS 100% trên 81 test suites (0 fail, 0 regression).
+     - Bảo toàn tuyệt đối đường định tuyến Web Audio `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 08:00 +07] — [Khai Thác Hệ Sinh Thái Self-Hosted Music Apps] Kết Nối Máy Chủ Jellyfin (Finamp/Feishin), Mini Player HUD Nổi (Tauon), Phân Tách Album Artist (Symfonium) & Điều Chỉnh Tốc Độ Phát
 
 ### 🎯 Hạng Mục Nâng Cấp:
