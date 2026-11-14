@@ -2876,6 +2876,201 @@
     return `${profile.name} · Đang phát`;
   }
 
+  // ── Universal Audiophile Audio Seeker & Media Session CUE Sync ──
+
+  function calculateTrackPlaybackPosition(elementCurrentTime, track, elementDuration) {
+    const rawTime = Number(elementCurrentTime) || 0;
+    const rawDur = Number(elementDuration) || 0;
+    if (!track) {
+      const fraction = rawDur > 0 ? Math.min(1, Math.max(0, rawTime / rawDur)) : 0;
+      return {
+        trackCurrentTime: Math.max(0, rawTime),
+        trackDuration: Math.max(0, rawDur),
+        progressFraction: Math.round(fraction * 1000) / 1000,
+        isCue: false,
+        cueStart: 0,
+        cueEnd: null
+      };
+    }
+
+    const isCue = track.cueStart !== undefined && track.cueStart !== null;
+    const cueStart = isCue ? Math.max(0, Number(track.cueStart) || 0) : 0;
+    const cueEnd = (isCue && track.cueEnd != null) ? Number(track.cueEnd) : null;
+    const trackDur = isCue
+      ? (Number(track.duration) > 0 ? Number(track.duration) : (cueEnd ? Math.max(0, cueEnd - cueStart) : Math.max(0, rawDur - cueStart)))
+      : (Number(track.duration) > 0 ? Number(track.duration) : rawDur);
+
+    const trackCurrentTime = isCue
+      ? Math.max(0, Math.min(trackDur, rawTime - cueStart))
+      : Math.max(0, Math.min(trackDur || rawDur, rawTime));
+
+    const progressFraction = trackDur > 0 ? Math.min(1, Math.max(0, trackCurrentTime / trackDur)) : 0;
+
+    return {
+      trackCurrentTime: Math.round(trackCurrentTime * 100) / 100,
+      trackDuration: Math.round(trackDur * 100) / 100,
+      progressFraction: Math.round(progressFraction * 1000) / 1000,
+      isCue,
+      cueStart,
+      cueEnd
+    };
+  }
+
+  function calculateSeekTargetTime(targetSecondsOrFraction, track, elementDuration, options = {}) {
+    const isFraction = Boolean(options.isFraction);
+    const delta = Number(options.delta) || 0;
+    const currentRaw = Number(options.currentRawTime) || 0;
+    const rawDur = Number(elementDuration) || 0;
+
+    const isCue = Boolean(track && track.cueStart !== undefined && track.cueStart !== null);
+    const cueStart = isCue ? Math.max(0, Number(track.cueStart) || 0) : 0;
+    const trackDur = isCue
+      ? (Number(track.duration) > 0 ? Number(track.duration) : Math.max(0, rawDur - cueStart))
+      : (Number(track?.duration) > 0 ? Number(track.duration) : rawDur);
+    const cueEnd = isCue ? (track.cueEnd != null ? Number(track.cueEnd) : cueStart + trackDur) : rawDur;
+
+    let targetWithinTrack = 0;
+    if (delta !== 0) {
+      const currentTrackTime = isCue ? Math.max(0, currentRaw - cueStart) : currentRaw;
+      targetWithinTrack = Math.min(trackDur, Math.max(0, currentTrackTime + delta));
+    } else if (isFraction) {
+      const fraction = Math.min(1, Math.max(0, Number(targetSecondsOrFraction) || 0));
+      targetWithinTrack = fraction * trackDur;
+    } else {
+      targetWithinTrack = Math.min(trackDur, Math.max(0, Number(targetSecondsOrFraction) || 0));
+    }
+
+    const absoluteTarget = isCue
+      ? Math.min(Math.max(cueStart, cueStart + targetWithinTrack), Math.max(cueStart, cueEnd - 0.15))
+      : Math.min(Math.max(0, targetWithinTrack), rawDur > 0 ? Math.max(0, rawDur - 0.15) : targetWithinTrack);
+
+    return {
+      targetAbsoluteTime: Math.round(absoluteTarget * 100) / 100,
+      targetTrackTime: Math.round(targetWithinTrack * 100) / 100,
+      isCue
+    };
+  }
+
+  function resolveMediaSessionPositionState(element, track) {
+    if (!element) return null;
+    const rawTime = Number(element.currentTime) || 0;
+    const rawDur = Number(element.duration) || 0;
+    const pos = calculateTrackPlaybackPosition(rawTime, track, rawDur);
+    if (!Number.isFinite(pos.trackDuration) || pos.trackDuration <= 0) return null;
+
+    return {
+      duration: pos.trackDuration,
+      playbackRate: Number(element.playbackRate) || 1,
+      position: Math.min(pos.trackCurrentTime, pos.trackDuration)
+    };
+  }
+
+  // ── Mood & Genre Smart Filter Engine ──
+
+  const GENRE_MOOD_DEFINITIONS = {
+    genres: {
+      'acoustic': { id: 'acoustic', name: 'Acoustic & Folk', keywords: ['acoustic', 'folk', 'guitar', 'unplugged', 'piano', 'mộc'] },
+      'ballad': { id: 'ballad', name: 'Ballad & Trữ tình', keywords: ['ballad', 'trữ tình', 'nhạc nhẹ', 'slow', 'tình ca'] },
+      'pop': { id: 'pop', name: 'Pop & Modern', keywords: ['pop', 'indie pop', 'synthpop', 'dance pop'] },
+      'rock': { id: 'rock', name: 'Rock & Alternative', keywords: ['rock', 'metal', 'alternative', 'punk', 'indie rock'] },
+      'electronic': { id: 'electronic', name: 'EDM & Electronic', keywords: ['edm', 'electronic', 'house', 'techno', 'synthwave', 'dance', 'remix'] },
+      'classical': { id: 'classical', name: 'Classical & Symphony', keywords: ['classical', 'symphony', 'orchestra', 'cổ điển', 'instrumental', 'không lời'] },
+      'jazz': { id: 'jazz', name: 'Jazz & Blues', keywords: ['jazz', 'blues', 'soul', 'r&b', 'bossa nova'] },
+      'vocal': { id: 'vocal', name: 'Audiophile Vocal', keywords: ['vocal', 'audiophile', 'hi-end', 'giọng ca', 'singer'] }
+    },
+    moods: {
+      'relax': { id: 'relax', name: 'Thư giãn & Êm dịu', description: 'Giai điệu nhẹ nhàng, sâu lắng để xả stress' },
+      'energy': { id: 'energy', name: 'Tràn đầy Năng lượng', description: 'Tiết tấu sôi động, bùng nổ nhịp điệu' },
+      'focus': { id: 'focus', name: 'Tập trung Làm việc', description: 'Không gian tĩnh lặng, tăng sự chú ý' },
+      'midnight': { id: 'midnight', name: 'Đêm muộn & Trầm tư', description: 'Không gian đêm yên ắng, chất giọng ấm áp' }
+    }
+  };
+
+  function detectTrackMoodAndGenre(track) {
+    if (!track) return { genres: ['Pop & Modern'], moods: ['relax'] };
+    const textToMatch = `${track.genre || ''} ${track.title || ''} ${track.album || ''} ${track.artist || ''}`.toLowerCase();
+    
+    const matchedGenres = [];
+    for (const [id, def] of Object.entries(GENRE_MOOD_DEFINITIONS.genres)) {
+      if (def.keywords.some(kw => textToMatch.includes(kw))) {
+        matchedGenres.push(def.name);
+      }
+    }
+    if (matchedGenres.length === 0) {
+      if (track.isDsd || (track.sampleRate && track.sampleRate > 48000)) {
+        matchedGenres.push('Audiophile Vocal');
+      } else {
+        matchedGenres.push('Pop & Modern');
+      }
+    }
+
+    const matchedMoods = [];
+    const dur = Number(track.duration) || 0;
+    if (dur >= 240 || matchedGenres.some(g => g.includes('Classical') || g.includes('Jazz') || g.includes('Acoustic'))) {
+      matchedMoods.push('relax');
+    }
+    if (matchedGenres.some(g => g.includes('Electronic') || g.includes('Rock') || g.includes('Pop'))) {
+      matchedMoods.push('energy');
+    }
+    if (matchedMoods.length === 0) {
+      matchedMoods.push('relax');
+    }
+
+    return {
+      genres: matchedGenres,
+      moods: matchedMoods
+    };
+  }
+
+  function groupTracksByGenreMood(tracks) {
+    if (!Array.isArray(tracks)) return [];
+    const groupMap = new Map();
+
+    for (const def of Object.values(GENRE_MOOD_DEFINITIONS.genres)) {
+      groupMap.set(def.name, {
+        key: `genre:${def.id}`,
+        name: def.name,
+        type: 'genre',
+        tracks: [],
+        cover: ''
+      });
+    }
+
+    for (const [id, def] of Object.entries(GENRE_MOOD_DEFINITIONS.moods)) {
+      groupMap.set(def.name, {
+        key: `mood:${id}`,
+        name: def.name,
+        type: 'mood',
+        tracks: [],
+        cover: ''
+      });
+    }
+
+    for (const track of tracks) {
+      if (!track) continue;
+      const detected = detectTrackMoodAndGenre(track);
+      for (const gName of detected.genres) {
+        const group = groupMap.get(gName);
+        if (group) {
+          group.tracks.push(track);
+          if (!group.cover && track.cover) group.cover = track.cover;
+        }
+      }
+      for (const mId of detected.moods) {
+        const moodDef = GENRE_MOOD_DEFINITIONS.moods[mId];
+        if (moodDef) {
+          const group = groupMap.get(moodDef.name);
+          if (group) {
+            group.tracks.push(track);
+            if (!group.cover && track.cover) group.cover = track.cover;
+          }
+        }
+      }
+    }
+
+    return [...groupMap.values()].filter(g => g.tracks.length > 0);
+  }
+
   // ── Subsonic / OpenSubsonic REST API & Self-Hosted Helpers ──
 
   function buildSubsonicUrl(endpoint, action, params = {}, authConfig = {}) {
@@ -4018,5 +4213,5 @@
     return { track: tracks[nextIdx], index: nextIdx, wasFiltered: false };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood};
 });

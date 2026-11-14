@@ -2,6 +2,35 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 15:30 +07] — [Pha C: Core Features & Bug Hunting] Bộ Tua Nhạc Toàn Năng Audiophile, Đồng Bộ CUE Media Session & Lọc Thông Minh Thể Loại/Tâm Trạng (Universal Audio Seeker, CUE Media Session Sync & Mood/Genre Smart Filter Engine)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)** & **1. Audio Engine & DSP (Web Audio API)**.
+- **Chi tiết triển khai:**
+  1. **Bộ Chuẩn Hóa Vị Trí Phát Bài Hát Toàn Năng (`calculateTrackPlaybackPosition`):**
+     - Chuẩn hóa vị trí thời gian thực (`trackCurrentTime`), thời lượng bài hát (`trackDuration`) và tỷ lệ tiến độ (`progressFraction`) cho cả bài hát đơn lẻ và các track ảo được cắt từ file CUE Sheet lớn (CD Rip nguyên đĩa FLAC/WAV/APE 60 phút).
+     - Phân định ranh giới `cueStart` và `cueEnd` chính xác, ngăn chặn triệt để tình trạng hiển thị sai lệch thời lượng cả đĩa trên thanh tiến trình và màn hình khóa.
+  2. **Bộ Tính Toán Vị Trí Tua Tuyệt Đối An Toàn (`calculateSeekTargetTime`):**
+     - Tính toán vị trí tua an toàn cho audio element theo cả 3 chế độ: Tua theo bước nhảy thời gian (`delta: +/-10s`), Tua theo tỷ lệ phần trăm (`isFraction: true`), hoặc Tua tới giây tuyệt đối trong bài.
+     - Cơ chế kẹp trần an toàn (`cueEnd - 0.15s`) đối với CUE virtual tracks, loại bỏ hoàn toàn lỗi tua vượt biên sang bài tiếp theo trên file âm thanh gốc.
+  3. **Đồng Bộ Hoàn Hảo Media Session API Cho Màn Hình Khóa & Thiết Bị Đeo (`resolveMediaSessionPositionState`):**
+     - Cung cấp dữ liệu `duration`, `position`, `playbackRate` chuẩn xác cho `navigator.mediaSession.setPositionState`.
+     - Xử lý mượt mà các thao tác điều khiển từ xa: `seekto`, `seekbackward`, `seekforward`, `stop`.
+  4. **Hệ Thống Phân Loại Thể Loại & Tâm Trạng Âm Nhạc (`GENRE_MOOD_DEFINITIONS`, `detectTrackMoodAndGenre`, `groupTracksByGenreMood`):**
+     - Tự động nhận diện thể loại dựa trên tag metadata hoặc phân tích tiêu đề/nghệ sĩ/định dạng: *Acoustic & Folk*, *Ballad & Trữ tình*, *Pop & Modern*, *Rock & Alternative*, *EDM & Electronic*, *Classical & Symphony*, *Jazz & Blues*, *Audiophile Vocal*.
+     - Phân loại tâm trạng (Moods): *Thư giãn & Êm dịu (Relax)*, *Tràn đầy Năng lượng (Energy)*, *Tập trung Làm việc (Focus)*, *Đêm muộn & Trầm tư (Midnight)*.
+     - Gom nhóm thư viện bài hát theo các thẻ thể loại và tâm trạng trực quan.
+  5. **Tích Hợp Giao Diện Thể Loại & Cử Chỉ Tua Nhạc:**
+     - Kích hoạt phân mục **Thể loại** trên Sidebar (`#genres-view`), hiển thị bộ sưu tập thẻ Genre/Mood với số lượng bài hát và ảnh bìa đại diện qua `renderCollectionCards`.
+     - Hỗ trợ click vào thẻ Thể loại để lọc danh sách bài hát nhanh chóng.
+     - Nâng cấp cử chỉ rê chuột và kéo tua trên Waveform (`#waveform-canvas` và `#fullscreen-waveform`) dùng `calculateSeekTargetTime`.
+  6. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `audio-seeker-genres.test.cjs` (**6/6 tests PASS 100%**).
+     - Đạt mốc **103/103 Test Suites PASS 100%** toàn bộ dự án, 0 fail, 0 regression.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 15:00 +07] — [Pha B: UI/UX & Visualizer] Sân Khấu Ánh Sáng Âm Nhạc Thời Gian Thực (Audio-Reactive Ambient Stage Lighting & Bass/Vocal Frequency Pulse)
 
 ### 🎯 Hạng Mục Nâng Cấp:

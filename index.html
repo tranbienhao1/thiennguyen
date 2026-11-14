@@ -2856,14 +2856,29 @@
         if (!albums.get(albumKey).cover && track.cover) albums.get(albumKey).cover = track.cover;
         if (!artists.get(artistKey).cover && track.cover) artists.get(artistKey).cover = track.cover;
       }
-      const isArtistView = ['artists','composers'].includes(view), isSongView = view === 'songs';
-      let entries = (isArtistView ? [...artists.values()] : [...albums.values()]).filter(entry => {
-        if (state.focusOnly && !entry.tracks.some(isFavorite)) return false;
-        if (state.artist !== '*' && !entry.tracks.some(track => library.normalizeSearchKey(metadata(track).artist) === state.artist)) return false;
-        if (state.album !== '*' && !entry.tracks.some(track => `${library.normalizeSearchKey(metadata(track).album)}\t${library.normalizeSearchKey(metadata(track).artist)}` === state.album)) return false;
-        if (state.query && !library.normalizeSearchKey(`${entry.name} ${entry.artist || ''}`).includes(library.normalizeSearchKey(state.query))) return false;
-        return true;
-      });
+      const isArtistView = ['artists','composers'].includes(view), isSongView = view === 'songs', isGenreView = view === 'genres';
+      let entries = [];
+      if (isGenreView && typeof library?.groupTracksByGenreMood === 'function') {
+        entries = library.groupTracksByGenreMood(tracks).map(g => ({
+          key: g.key,
+          name: g.name,
+          tracks: g.tracks,
+          cover: g.cover,
+          subtitle: `${g.tracks.length} bài hát`,
+          action: 'genre'
+        })).filter(entry => {
+          if (state.query && !library.normalizeSearchKey(entry.name).includes(library.normalizeSearchKey(state.query))) return false;
+          return true;
+        });
+      } else {
+        entries = (isArtistView ? [...artists.values()] : [...albums.values()]).filter(entry => {
+          if (state.focusOnly && !entry.tracks.some(isFavorite)) return false;
+          if (state.artist !== '*' && !entry.tracks.some(track => library.normalizeSearchKey(metadata(track).artist) === state.artist)) return false;
+          if (state.album !== '*' && !entry.tracks.some(track => `${library.normalizeSearchKey(metadata(track).album)}\t${library.normalizeSearchKey(metadata(track).artist)}` === state.album)) return false;
+          if (state.query && !library.normalizeSearchKey(`${entry.name} ${entry.artist || ''}`).includes(library.normalizeSearchKey(state.query))) return false;
+          return true;
+        });
+      }
       if (isSongView) entries = [];
       entries.sort((a,b) => {
         const first = state.collectionSort === 'artist' ? (a.artist || a.name) : a.name;
@@ -2873,10 +2888,10 @@
       const cards = entries.map(entry => {
         const initials = entry.name.trim().split(/\s+/u).slice(0,2).map(word => [...word][0] || '').join('').toLocaleUpperCase('vi');
         const image = entry.cover ? `<img src="${escapeHtml(entry.cover)}" alt="">` : `<span class="collection-initials">${escapeHtml(initials || '♫')}</span>`;
-        const subtitle = isArtistView ? `${entry.tracks.length} bài` : escapeHtml(entry.artist);
-        const action = isArtistView ? 'artist' : 'album';
-        const albumSummary = !isArtistView ? library.summarizeAlbum(entry.tracks) : null;
-        const formatBadge = (!isArtistView && albumSummary && albumSummary.highestQuality && albumSummary.highestQuality.label) ? `<span class="album-format-badge format-badge format-${albumSummary.highestQuality.tier}">${albumSummary.highestQuality.label}</span>` : '';
+        const subtitle = entry.subtitle || (isArtistView ? `${entry.tracks.length} bài` : escapeHtml(entry.artist));
+        const action = entry.action || (isArtistView ? 'artist' : 'album');
+        const albumSummary = (!isArtistView && !isGenreView) ? library.summarizeAlbum(entry.tracks) : null;
+        const formatBadge = (!isArtistView && !isGenreView && albumSummary && albumSummary.highestQuality && albumSummary.highestQuality.label) ? `<span class="album-format-badge format-badge format-${albumSummary.highestQuality.tier}">${albumSummary.highestQuality.label}</span>` : '';
         return `<button type="button" class="collection-card" data-collection-action="${action}" data-collection-key="${escapeHtml(entry.key)}" aria-label="${escapeHtml(entry.name)}${entry.artist ? ` — ${escapeHtml(entry.artist)}` : ''}"><span class="collection-art ${isArtistView || !entry.cover ? 'is-artist' : ''}">${image}${formatBadge}</span><span class="collection-title">${escapeHtml(entry.name)}</span><span class="collection-subtitle">${subtitle}</span></button>`;
       }).join('');
       const empty = $('empty-state');
@@ -2890,17 +2905,20 @@
       $('artist-total').textContent = artists.size;
       $('album-total').textContent = albums.size;
       $('song-total').textContent = tracks.length;
-      $('visible-count').textContent = `${isArtistView ? artists.size : isSongView ? tracks.length : albums.size} ${isArtistView ? 'artists' : isSongView ? 'songs' : 'albums'}`;
-      $('list-title').textContent = view === 'artists' ? 'My Artists' : view === 'songs' ? 'My Songs' : view === 'composers' ? 'My Composers' : view === 'compositions' ? 'My Compositions' : view === 'folders' ? 'My Folders' : view === 'history' ? 'History' : 'My Albums';
+      $('visible-count').textContent = `${isGenreView ? entries.length : (isArtistView ? artists.size : isSongView ? tracks.length : albums.size)} ${isGenreView ? 'genres' : (isArtistView ? 'artists' : isSongView ? 'songs' : 'albums')}`;
+      $('list-title').textContent = view === 'genres' ? 'Genres & Moods' : (view === 'artists' ? 'My Artists' : view === 'songs' ? 'My Songs' : view === 'composers' ? 'My Composers' : view === 'compositions' ? 'My Compositions' : view === 'folders' ? 'My Folders' : view === 'history' ? 'History' : 'My Albums');
       grid.querySelectorAll('[data-collection-action]').forEach(card => card.addEventListener('click', () => {
-        const entry = (card.dataset.collectionAction === 'artist' ? [...artists.values()] : [...albums.values()]).find(item => item.key === card.dataset.collectionKey);
+        const action = card.dataset.collectionAction;
+        const entry = action === 'genre'
+          ? entries.find(item => item.key === card.dataset.collectionKey)
+          : (action === 'artist' ? [...artists.values()] : [...albums.values()]).find(item => item.key === card.dataset.collectionKey);
         if (!entry) return;
         $('list-title').textContent = entry.name;
         $('visible-count').textContent = `${entry.tracks.length} songs`;
         grid.classList.add('hidden'); $('track-list').classList.remove('hidden'); $('track-list-header').classList.remove('hidden');
         $('back-button').setAttribute('aria-label', 'Quay lại danh sách bộ sưu tập');
         state.trackScope = entry.tracks.map(track => track.id);
-        showAlbumHero(entry, card.dataset.collectionAction);
+        if (action !== 'genre') showAlbumHero(entry, action);
         renderTrackRows(entry.tracks);
       }));
       return {showRows, tracks};
@@ -3716,13 +3734,17 @@
     let lastPositionStateSecond = -1;
     function updatePositionState(force = false) {
       if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
-      const positionSecond = Math.floor(audio.currentTime || 0);
+      const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      const curTrack = state.tracks.find(t => t.id === state.currentId);
+      const sessionState = (typeof library !== 'undefined' && library && typeof library.resolveMediaSessionPositionState === 'function')
+        ? library.resolveMediaSessionPositionState(curAudio, curTrack)
+        : (Number.isFinite(curAudio.duration) && curAudio.duration > 0 ? { duration: curAudio.duration, playbackRate: curAudio.playbackRate || 1, position: Math.min(curAudio.currentTime || 0, curAudio.duration) } : null);
+      if (!sessionState) return;
+      const positionSecond = Math.floor(sessionState.position);
       if (!force && positionSecond === lastPositionStateSecond) return;
       lastPositionStateSecond = positionSecond;
       try {
-        if (Number.isFinite(audio.duration) && audio.duration > 0) {
-          navigator.mediaSession.setPositionState({duration: audio.duration, playbackRate: audio.playbackRate || 1, position: Math.min(audio.currentTime || 0, audio.duration)});
-        }
+        navigator.mediaSession.setPositionState(sessionState);
       } catch (error) {}
     }
     let trackRenderTimer = null;
@@ -7353,7 +7375,23 @@
         }
       });
     }
-    const seekByStep = delta => { if (!Number.isFinite(audio.duration)) return; const next = library.clampSeekTime(audio.currentTime, audio.duration, delta); audio.currentTime = next; updatePositionState(); toast(`Đã tua tới ${formatTime(next)} / ${formatTime(audio.duration)}.`); };
+    const seekByStep = delta => {
+      const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      const curTrack = state.tracks.find(t => t.id === state.currentId);
+      if (!Number.isFinite(curAudio.duration)) return;
+      const isCue = Boolean(curTrack && curTrack.cueStart !== undefined && curTrack.duration);
+      const next = library.clampSeekTime(audio.currentTime, audio.duration, delta);
+      if (isCue && typeof library?.calculateSeekTargetTime === 'function') {
+        const res = library.calculateSeekTargetTime(0, curTrack, curAudio.duration, { delta, currentRawTime: curAudio.currentTime });
+        curAudio.currentTime = res.targetAbsoluteTime;
+        updatePositionState(true);
+        toast(`Đã tua tới ${formatTime(res.targetTrackTime)} / ${formatTime(curTrack.duration)}.`);
+        return;
+      }
+      curAudio.currentTime = next;
+      updatePositionState(true);
+      toast(`Đã tua tới ${formatTime(next)} / ${formatTime(audio.duration)}.`);
+    };
     document.addEventListener('keydown', event => {
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
       const target = event.target, tag = target && target.tagName;
@@ -7456,7 +7494,7 @@
     function setLibraryView(view) {
       if (view === 'folders') { pickFolder(); return; }
       saveViewScroll();
-      const supported = ['home','albums','artists','songs','history'];
+      const supported = ['home','albums','artists','songs','genres','history'];
       state.activeView = supported.includes(view) ? view : 'albums';
       state.trackScope = null;
       $('album-hero')?.classList.add('hidden');
@@ -7794,10 +7832,44 @@
         action('pause', () => audio.pause());
         action('previoustrack', () => playNext(-1));
         action('nexttrack', () => playNext(1));
-        action('seekbackward', event => { audio.currentTime = Math.max(0, (audio.currentTime || 0) - (event.seekOffset || 10)); });
-        action('seekforward', event => { if (Number.isFinite(audio.duration)) audio.currentTime = Math.min(audio.duration, (audio.currentTime || 0) + (event.seekOffset || 10)); });
-        action('seekto', event => { if (event.seekTime != null && Number.isFinite(audio.duration)) audio.currentTime = Math.min(Math.max(0, event.seekTime), audio.duration || 0); });
-        action('stop', () => { audio.pause(); audio.currentTime = 0; });
+        action('seekbackward', event => {
+          const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+          const curTrack = state.tracks.find(t => t.id === state.currentId);
+          const delta = -(event.seekOffset || 10);
+          const res = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
+            ? library.calculateSeekTargetTime(0, curTrack, curAudio.duration, { delta, currentRawTime: curAudio.currentTime })
+            : { targetAbsoluteTime: Math.max(0, (curAudio.currentTime || 0) + delta) };
+          curAudio.currentTime = res.targetAbsoluteTime;
+          updatePositionState(true);
+        });
+        action('seekforward', event => {
+          const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+          const curTrack = state.tracks.find(t => t.id === state.currentId);
+          const delta = event.seekOffset || 10;
+          const res = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
+            ? library.calculateSeekTargetTime(0, curTrack, curAudio.duration, { delta, currentRawTime: curAudio.currentTime })
+            : { targetAbsoluteTime: Math.min(curAudio.duration || 0, (curAudio.currentTime || 0) + delta) };
+          curAudio.currentTime = res.targetAbsoluteTime;
+          updatePositionState(true);
+        });
+        action('seekto', event => {
+          if (event.seekTime != null) {
+            const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+            const curTrack = state.tracks.find(t => t.id === state.currentId);
+            const res = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
+              ? library.calculateSeekTargetTime(event.seekTime, curTrack, curAudio.duration)
+              : { targetAbsoluteTime: Math.min(Math.max(0, event.seekTime), curAudio.duration || 0) };
+            curAudio.currentTime = res.targetAbsoluteTime;
+            updatePositionState(true);
+          }
+        });
+        action('stop', () => {
+          const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+          curAudio.pause();
+          const curTrack = state.tracks.find(t => t.id === state.currentId);
+          curAudio.currentTime = (curTrack && curTrack.cueStart !== undefined) ? curTrack.cueStart : 0;
+          updatePositionState(true);
+        });
       } catch (error) { console.warn('Could not register media session actions:', error); }
     }
     $('eq-button').addEventListener('click', () => $('eq-panel').classList.toggle('hidden'));
@@ -8226,7 +8298,10 @@
 
         if (e.buttons === 1 && dur > 0 && currentAudio) {
           state.isSeeking = true;
-          currentAudio.currentTime = ratio * dur;
+          const seekRes = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
+            ? library.calculateSeekTargetTime(ratio, track, dur, { isFraction: true })
+            : { targetAbsoluteTime: ratio * dur };
+          currentAudio.currentTime = seekRes.targetAbsoluteTime;
           updatePositionState(true);
         }
         renderWaveformSeekbar();
@@ -8248,7 +8323,10 @@
           ? currentAudio.duration
           : (track && Number.isFinite(track.duration) ? track.duration : 0);
         if (dur > 0 && currentAudio) {
-          currentAudio.currentTime = ratio * dur;
+          const seekRes = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
+            ? library.calculateSeekTargetTime(ratio, track, dur, { isFraction: true })
+            : { targetAbsoluteTime: ratio * dur };
+          currentAudio.currentTime = seekRes.targetAbsoluteTime;
           updatePositionState(true);
           updateRoonFullscreenUI();
         }
@@ -8426,5 +8504,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 14:00 +07 | Đã xong: Pha D - Kiến Trúc & PWA: Bảo Vệ Phát Nhạc Ngoại Tuyến Thông Minh (Intelligent Offline Autoplay & Resilient Playback Protection): (1) Bộ tiện ích getNextPlayableTrack, getOfflineTrackList, shouldPreloadTrack trong library-utils.js lọc bài khả dụng ngoại tuyến (canPlayOffline); (2) playNext và queueIndex tự động bỏ qua các bài cloud chưa nạp đệm khi mất mạng mà không gây vòng lặp lỗi mạng; (3) selectRoonRadioTrack tôn trọng cờ isOffline chỉ đề xuất bài phát được ngoại tuyến; (4) preloadNext chặn tải ngầm vô ích khi offline; (5) Toast tự động dịch chuyển vị trí (top-14) khi #offline-banner hiển thị; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 8/8 tests offline-resilience.test.cjs PASS 100%, 100/100 test suites PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Dynamic Crossfade Curve Optimization & Gapless Buffer Lead Monitor -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 14:30 +07 | Đã xong: Pha A - Audio Engine & DSP: Đa Tuyến Hòa Âm Chuyển Bài (Crossfade Curve Profiles) & Giám Sát Độ Sẵn Sàng Phát Liền Mạch (Gapless Buffer Lead Monitor): (1) Bộ 4 đặc tuyến hòa âm chuyên nghiệp CROSSFADE_CURVE_PROFILES (equal-power cos/sin, linear 1-t/t, exponential sqrt, smoothstep s-curve) trong library-utils.js; (2) calculateCrossfadeGains tính toán chính xác hệ số suy hao và bảo toàn năng lượng âm thanh; (3) formatCrossfadeSummary hiển thị tóm tắt trực quan; (4) calculateGaplessReadiness giám sát dung lượng đệm nạp trước của standbyAudio đảm bảo chuyển bài không ngắt quãng; (5) UI Cài đặt #crossfade-curve-select và #crossfade-curve-desc, đồng bộ state.crossfadeCurve và lưu trữ localStorage; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests crossfade-curves.test.cjs PASS 100%, 101/101 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Âm Thanh Nổi Động (Ambient Sound Stage Dynamic Animation) & Đổi Bảng Màu Sóng Âm -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 15:00 +07 | Đã xong: Pha B - UI/UX & Visualizer: Sân Khấu Ánh Sáng Âm Nhạc Thời Gian Thực (Audio-Reactive Ambient Stage Lighting & Bass/Vocal Frequency Pulse): (1) Bộ tiện ích calculateAudioEnergyBands phân tích năng lượng âm học thời gian thực qua FFT (dải Bass 20–260 Hz, Vocal 260–4000 Hz, Treble >4000 Hz và xung nhịp isBeatPulse); (2) 4 chế độ AMBIENT_STAGE_MODES (reactive 60fps, subtle lounge, static album glow, off); (3) calculateAmbientPulseTransform tính toán tỷ lệ scale, opacity, blur và brightness thích nghi theo nhịp nhạc; (4) formatAmbientStageSummary hiển thị trạng thái phát; (5) Phông nền phát sáng động toàn trang #app-ambient-backdrop kết hợp #ambient-glow trong Phòng nghe; (6) UI Cài đặt #ambient-stage-mode-select, #ambient-stage-mode-desc, lưu trữ bền vững localStorage; (7) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 13/13 tests ambient-stage-lighting.test.cjs PASS 100%, 102/102 test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features: Bộ chọn danh sách phát theo tâm trạng (Mood & Genre Dynamic Filters) hoặc Lyrics LRC đa nguồn có độ trễ tự thích nghi -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 15:30 +07 | Đã xong: Pha C - Core Features & Bug Hunting: Universal Audiophile Audio Seeker, Media Session CUE Sync & Mood/Genre Smart Filter Engine: (1) calculateTrackPlaybackPosition chuẩn hóa vị trí và thời lượng cho cả track thường và virtual track từ file CUE sheet (.cue), kẹp an toàn không vượt quá cueEnd; (2) calculateSeekTargetTime tính toán vị trí tua tuyệt đối chính xác cho file gốc theo delta/fraction/seconds, kẹp trần an toàn cueEnd - 0.15 chống văng sang bài kế tiếp; (3) resolveMediaSessionPositionState cấp dữ liệu duration/position/playbackRate chuẩn xác cho navigator.mediaSession.setPositionState trên màn hình khóa và thiết bị đeo; (4) GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre và groupTracksByGenreMood tự động phân loại thể loại & tâm trạng (Acoustic, Ballad, Pop, Rock, Electronic, Classical, Jazz, Vocal Audiophile) và gom nhóm bộ sưu tập; (5) Tích hợp hoàn hảo giao diện Thể loại (#genres-view, setLibraryView, renderCollectionCards) và điều khiển MediaSession (seekto, seekbackward, seekforward, stop); (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests audio-seeker-genres.test.cjs PASS 100%, 103/103 test suites PASS 100% | Lượt kế tiếp: Pha D - Kiến Trúc & PWA: IndexedDB Storage Tiering & Tối ưu hóa giải phóng bộ nhớ Blob URL -->
 </body>
 </html>
