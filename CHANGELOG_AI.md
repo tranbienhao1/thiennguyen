@@ -2,6 +2,32 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 03:00 +07] — Pha A: Đa Tuyến Parametric EQ Presets Audiophile & Tối Ưu Headroom Preamp Tự Động (Audiophile Parametric EQ Presets, Negative Preamp & Biquad Filter Coherence)
+
+### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:
+- **Phân khu trọng tâm:** **Bộ Xử Lý Tín Hiệu Âm Thanh Số & Cân Chỉnh Âm Học (Audio Engine & DSP)**.
+- **Tính năng & Đột phá:**
+  1. **Hệ Thống 6 Trường Phái Âm Học Chuyên Sâu (`PARAMETRIC_EQ_PRESETS`):**
+     - Xây dựng hệ thống cấu hình Parametric EQ chuẩn Audiophile với các đặc tuyến:
+       - **Sub-Bass Slam & Depth (`peq-sub-bass-slam`):** Gia cố dải siêu trầm 35Hz (+4.0 dB) và 80Hz (+2.5 dB), cắt gọt dải 250Hz (-1.5 dB) triệt tiêu tiếng ù rền của phòng nghe.
+       - **Vocal Clarity & Air (`peq-vocal-clarity`):** Đẩy giọng hát lên phía trước, dải cao 12kHz thoáng đãng và tự nhiên, mang lại cảm giác ca sĩ đang hát trực tiếp trước mặt.
+       - **Acoustic Guitar & Piano (`peq-acoustic-intimate`):** Tôn vinh tiếng đàn mộc, độ ngân vang phím đàn và chi tiết dải cao mượt mà không chói gắt.
+       - **Vintage Tube Warmth (`peq-analog-tube`):** Mô phỏng chất âm ampli đèn analog ấm áp, mid mộc và treble dịu êm, thư giãn khi nghe lâu.
+       - **Sibilance De-Esser (`peq-de-esser`):** Bộ lọc khuyết hẹp (notch/peaking Q=3.5) triệt tiêu dải tần chói gắt 6-8.5kHz xé tai, bảo vệ thính giác.
+       - **Orchestral Grandeur (`peq-orchestral`):** Mở rộng dải động cho dàn nhạc giao hưởng, phân tách rõ ràng bè trầm và bè bổng.
+  2. **Tự Động Tính Bù Headroom Preamp Âm Học Chống Méo Tiếng (`calculatePresetAutoPreamp`):**
+     - Tự động quét mức boost đỉnh của từng preset và tính mức suy giảm âm lượng Preamp `<= 0 dB` an toàn, ngăn ngừa tuyệt đối 100% hiện tượng xén ngọn méo tiếng (digital inter-sample clipping) trên chip DAC cao cấp.
+  3. **Tích Hợp Giao Diện Trực Quan (`#autoeq-select` & Panel EQ):**
+     - Bổ sung nhóm `<optgroup label="── Trường phái âm học PEQ (Parametric EQ Presets) ──">` trong menu chọn EQ.
+     - Tự động nạp các dải tần số vào giao diện tùy chỉnh và đồng bộ chuỗi xử lý tín hiệu Roon Signal Path (DSP Stage).
+  4. **Bảo Toàn Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `parametric-eq-presets.test.cjs` (**5/5 tests PASS 100%**).
+  - Toàn bộ các test suite cốt lõi (**48/48 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 02:50 +07] — Pha D: Quản Lý Bộ Đệm IndexedDB, Thu Hồi Lát Âm Thanh Mồ Côi & Đường Ống Tải Trước Đa Tầng (Multi-Track Pipeline Preloader, IndexedDB Defragmentation & Gapless Readiness Score)
 
 ### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:

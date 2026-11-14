@@ -2223,6 +2223,130 @@
     }
   };
 
+  const PARAMETRIC_EQ_PRESETS = {
+    'peq-sub-bass-slam': {
+      id: 'peq-sub-bass-slam',
+      name: 'Sub-Bass Slam & Depth',
+      category: 'Parametric Preset',
+      description: 'Gia cố dải siêu trầm 35Hz uy lực và cắt bỏ dải 250Hz chống đục âm',
+      preamp: -4.0,
+      bands: [
+        { type: 'lowshelf', frequency: 35, gain: 4.0, q: 0.71 },
+        { type: 'peaking', frequency: 80, gain: 2.5, q: 1.0 },
+        { type: 'peaking', frequency: 250, gain: -1.5, q: 1.4 },
+        { type: 'highshelf', frequency: 10000, gain: 0.5, q: 0.71 }
+      ]
+    },
+    'peq-vocal-clarity': {
+      id: 'peq-vocal-clarity',
+      name: 'Vocal Clarity & Air',
+      category: 'Parametric Preset',
+      description: 'Đẩy giọng hát lên phía trước, dải cao 12kHz thoáng đãng và tự nhiên',
+      preamp: -3.0,
+      bands: [
+        { type: 'lowshelf', frequency: 120, gain: -1.0, q: 0.71 },
+        { type: 'peaking', frequency: 2800, gain: 2.5, q: 1.8 },
+        { type: 'peaking', frequency: 5200, gain: 2.0, q: 2.0 },
+        { type: 'highshelf', frequency: 12000, gain: 2.5, q: 0.71 }
+      ]
+    },
+    'peq-acoustic-intimate': {
+      id: 'peq-acoustic-intimate',
+      name: 'Acoustic Guitar & Piano',
+      category: 'Parametric Preset',
+      description: 'Tôn vinh tiếng đàn mộc, độ ngân vang phím đàn và chi tiết dải cao mượt mà',
+      preamp: -2.5,
+      bands: [
+        { type: 'lowshelf', frequency: 65, gain: 1.5, q: 0.71 },
+        { type: 'peaking', frequency: 750, gain: -1.5, q: 1.5 },
+        { type: 'peaking', frequency: 4200, gain: 2.2, q: 2.0 },
+        { type: 'highshelf', frequency: 15000, gain: 2.5, q: 0.71 }
+      ]
+    },
+    'peq-analog-tube': {
+      id: 'peq-analog-tube',
+      name: 'Vintage Tube Warmth',
+      category: 'Parametric Preset',
+      description: 'Mô phỏng chất âm ampli đèn analog ấm áp, mid mộc và treble dịu êm',
+      preamp: -2.5,
+      bands: [
+        { type: 'lowshelf', frequency: 180, gain: 2.5, q: 0.71 },
+        { type: 'peaking', frequency: 1200, gain: 1.2, q: 1.4 },
+        { type: 'peaking', frequency: 3800, gain: -1.8, q: 2.0 },
+        { type: 'highshelf', frequency: 8500, gain: -2.0, q: 0.71 }
+      ]
+    },
+    'peq-de-esser': {
+      id: 'peq-de-esser',
+      name: 'Sibilance De-Esser',
+      category: 'Parametric Preset',
+      description: 'Triệt tiêu dải tần chói gắt 6-8.5kHz, giảm mỏi tai khi nghe lâu',
+      preamp: 0.0,
+      bands: [
+        { type: 'peaking', frequency: 6200, gain: -4.0, q: 3.5 },
+        { type: 'peaking', frequency: 8500, gain: -2.5, q: 3.0 }
+      ]
+    },
+    'peq-orchestral': {
+      id: 'peq-orchestral',
+      name: 'Orchestral Grandeur',
+      category: 'Parametric Preset',
+      description: 'Mở rộng dải động cho dàn nhạc giao hưởng, phân tách bè trầm và bè bổng',
+      preamp: -2.5,
+      bands: [
+        { type: 'lowshelf', frequency: 40, gain: 2.5, q: 0.71 },
+        { type: 'peaking', frequency: 350, gain: -1.2, q: 1.5 },
+        { type: 'peaking', frequency: 3000, gain: 1.5, q: 1.8 },
+        { type: 'highshelf', frequency: 11000, gain: 2.0, q: 0.71 }
+      ]
+    }
+  };
+
+  Object.assign(AUTOEQ_PROFILES, PARAMETRIC_EQ_PRESETS);
+
+  function getParametricEqPreset(id) {
+    if (typeof id !== 'string') return null;
+    const cleanId = id.startsWith('peq-') ? id : `peq-${id}`;
+    const preset = PARAMETRIC_EQ_PRESETS[cleanId] || PARAMETRIC_EQ_PRESETS[id];
+    if (!preset) return null;
+    return {
+      id: preset.id,
+      name: preset.name,
+      category: preset.category,
+      description: preset.description,
+      preamp: Number(preset.preamp) || 0,
+      bands: preset.bands.map(b => ({
+        type: b.type || 'peaking',
+        frequency: Math.max(20, Math.min(20000, Number(b.frequency) || 1000)),
+        gain: Math.max(-24, Math.min(24, Number(b.gain) || 0)),
+        q: Math.max(0.1, Math.min(18, Number(b.q) || 1))
+      }))
+    };
+  }
+
+  function listParametricEqPresets() {
+    return Object.keys(PARAMETRIC_EQ_PRESETS).map(key => ({
+      id: PARAMETRIC_EQ_PRESETS[key].id,
+      name: PARAMETRIC_EQ_PRESETS[key].name,
+      category: PARAMETRIC_EQ_PRESETS[key].category,
+      description: PARAMETRIC_EQ_PRESETS[key].description,
+      preamp: PARAMETRIC_EQ_PRESETS[key].preamp,
+      bandCount: PARAMETRIC_EQ_PRESETS[key].bands.length
+    }));
+  }
+
+  function calculatePresetAutoPreamp(bands = []) {
+    return calculateAutoEqPreamp(bands);
+  }
+
+  function formatParametricEqSummary(preset) {
+    if (!preset || typeof preset !== 'object') return 'Không có cấu hình';
+    const name = preset.name || preset.id || 'Preset';
+    const bandCount = Array.isArray(preset.bands) ? preset.bands.length : 0;
+    const preamp = Number(preset.preamp) || 0;
+    return `${name} · ${bandCount} dải · Preamp ${preamp > 0 ? '+' : ''}${preamp.toFixed(1)} dB`;
+  }
+
   function getAutoEqProfile(id) {
     if (typeof id !== 'string' || !AUTOEQ_PROFILES[id]) return null;
     const profile = AUTOEQ_PROFILES[id];
@@ -6034,5 +6158,5 @@
     }
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary};
 });
