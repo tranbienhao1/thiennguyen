@@ -2,6 +2,33 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 10:30 +07] — [Pha C: Tính Năng & Trải Nghiệm Người Dùng] Hẹn Giờ Ngủ Đa Tầng Kết Hợp Làm Mờ Thông Minh & Ru Ngủ Môi Trường (Intelligent Multi-Stage Sleep Timer & Adaptive Fade-Out Ambient Scene)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)** & **1. Audio Engine & DSP (Web Audio API)**.
+- **Chi tiết triển khai:**
+  1. **Hẹn Giờ Đa Tầng Thông Minh (Multi-Stage Sleep Timer):**
+     - Đa dạng các mốc thời gian cố định: `5`, `15`, `30`, `45`, `60`, `90` phút.
+     - **Dừng khi hết bài (`#sleep-track-end`)**: Dừng phát tự nhiên ngay khi kết thúc bài hát đang phát.
+     - **Dừng khi phát hết album hiện tại (`#sleep-album-end`)**: Tiện ích `calculateAlbumRemainingSeconds(tracks, currentTrackId, currentTrackPlaybackSec)` tự động tính chính xác thời lượng còn lại của toàn bộ album (thời gian bài đang phát còn lại + tổng thời lượng các bài tiếp theo trong album).
+  2. **Gia Hạn Nhanh & Nhập Số Phút Tùy Chỉnh:**
+     - Cụm nút gia hạn nhanh `+5 phút` (`#sleep-add-5m`) và `+15 phút` (`#sleep-add-15m`) qua tiện ích `extendSleepTimer(currentRemainingMs, addMinutes)`, an toàn kẹp trần tối đa 360 phút (6 giờ).
+     - Ô nhập tùy chỉnh số phút linh hoạt (`#sleep-custom-input`, `#sleep-custom-btn`) cho phép hẹn giờ chính xác theo mong muốn người dùng.
+  3. **Làm Mờ Âm Lượng Thích Ứng (Adaptive Fade-Out Duration):**
+     - Bộ chọn thời lượng làm mờ `#sleep-fade-duration` với các mức `15s`, `30s`, `60s`, `120s`.
+     - Áp dụng hàm tính độ khuếch đại mượt mà theo đường cong equal-power sine `calculateSleepFadeGain(remainingMs, fadeDurationMs)` giúp bài hát êm dịu dần trước khi tắt mà không gây giật mình.
+  4. **Chế Độ Ru Ngủ Âm Thanh Thiên Nhiên (Sleep Ambient Scene):**
+     - Tùy chọn `#sleep-ambient-scene` ("Sleep Scene: Kèm tiếng mưa"): Thuật toán `calculateAdaptiveSleepStage(remainingMs, totalDurationMs, fadeDurationMs, options)` tự động kích hoạt hòa âm tiếng mưa thiên nhiên nhẹ nhàng trong giai đoạn chuyển tiếp ru ngủ (`ambient_transition`), và sau đó mờ dần cùng điệu nhạc trong giai đoạn kết thúc (`fadeout`).
+  5. **Huy Hiệu Đếm Ngược Thời Gian Thực (Live Countdown Badge):**
+     - Tiện ích `formatSleepCountdownCompact(remainingMs)` hiển thị thời gian còn lại trực tiếp dưới dạng `mm:ss` hoặc `h:mm:ss`.
+     - Tự động hiển thị huy hiệu đếm ngược `#sleep-badge` trong hộp thoại hẹn giờ và trên nút hẹn giờ ở thanh điều khiển footer (`#sleep-button`).
+  6. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `intelligent-sleep-timer.test.cjs` (16/16 tests PASS 100%).
+     - Toàn bộ hệ thống kiểm chứng: 82/82 test suites PASS 100% (0 fail, 0 regression).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 08:30 +07] — [Tích Hợp Tinh Hoa Black Candy] Kết Nối Máy Chủ Black Candy REST API, Hàng Đợi Thông Minh (Play Next / Add to End) & Bộ Phân Tích LRC Offset & Karaoke (blackcandy-org/blackcandy)
 
 ### 🎯 Hạng Mục Nâng Cấp:
