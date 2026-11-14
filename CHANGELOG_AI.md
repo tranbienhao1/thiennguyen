@@ -2,6 +2,28 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 20:00 +07] — [Pha D: Hiệu Năng, Kiến Trúc & PWA] Sao Lưu & Khôi Phục Cấu Hình Toàn Diện (Full Audiophile Config Backup, Export & Safe Restore) & Đánh Giá Tải RAM Âm Thanh (Audio Memory Footprint Diagnostics)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **4. Hiệu Năng, Kiến Trúc & Độ Bền Hệ Thống (Architecture & PWA)**.
+- **Chi tiết triển khai:**
+  1. **Động Cơ Xuất Sao Lưu Toàn Diện (`exportAppConfiguration`):**
+     - Đóng gói toàn bộ thông tin cá nhân hóa của người dùng thành cấu trúc JSON chuẩn: Danh sách yêu thích (`favorites`), Smart Playlists, lịch sử nghe nhạc gần đây (`recentHistory`), và toàn bộ cấu hình âm học audiophile (`settings`: Crossfade, EQ, AutoEQ, Tone Controls, Balance, Stereo Crossfeed, True Peak, Limiter, Visualizer Theme & Mode, Ambient Stage Mode).
+  2. **Trình Phân Tích & Xác Thực Tính Toàn Vẹn (`validateAndParseConfiguration`):**
+     - Kiểm tra nghiêm ngặt chữ ký cấu trúc `Nocturne`, cấu trúc mảng và đối tượng, lọc bỏ dữ liệu độc hại hoặc cấu trúc hỏng tránh làm crash ứng dụng khi người dùng tải file từ bên ngoài.
+  3. **Hợp Nhất Khôi Phục An Toàn (`mergeRestoredConfiguration`):**
+     - Đồng bộ hóa các mục yêu thích vào `Set` hiện tại mà không làm mất bài hát đang có, áp dụng các thiết lập âm học đã được kiểm duyệt và tự động lưu bền vững vào `localStorage`.
+  4. **Giám Sát & Dự Toán Tải RAM Âm Thanh (`calculateAudioMemoryFootprint`):**
+     - Đánh giá tổng dung lượng bộ nhớ tạm thời của các track audio trong phiên và các lát giải mã IndexedDB, phân loại 3 mức áp lực (`optimal`, `elevated`, `critical`) để đưa ra khuyến nghị giải phóng bộ nhớ.
+  5. **Tích Hợp Giao Diện Trực Quan (UI Backup & Restore Integration):**
+     - Bổ sung phân mục `#config-backup-section` trong panel Cài đặt với nút xuất file `[💾 Sao lưu cấu hình (.json)]` (`#export-config-btn`) và nút nạp `[📂 Khôi phục cấu hình]` (`#import-config-btn`) kèm input file ẩn `#import-config-file`.
+  6. **Kiểm Thử Độc Lập & Bảo Toàn Bất Biến:**
+     - Bộ kiểm thử mới `pwa-backup-restore.test.cjs` (**5/5 tests PASS 100%**).
+     - Toàn bộ 112 test suites toàn dự án (**PASS 100%**).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 19:30 +07] — [Pha C: Tính Năng & Trải Nghiệm Người Dùng] Thống Kê Hàng Đợi Thông Minh (Smart Queue Preload & Hi-Res Analytics), Tiến Trình Karaoke Từng Từ & Xuất Lời .LRC Chuẩn (Standard LRC Exporter)
 
 ### 🎯 Hạng Mục Nâng Cấp:

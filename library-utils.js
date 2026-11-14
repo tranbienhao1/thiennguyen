@@ -5196,5 +5196,145 @@
     return lines.join('\n');
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent};
+  // Pha D — Bộ Sao Lưu & Phục Hồi Toàn Diện Cấu Hình Thư Viện PWA (Full Config Backup & Safe Restore)
+  function exportAppConfiguration(configSource = {}) {
+    const favorites = Array.isArray(configSource.favorites)
+      ? configSource.favorites
+      : (configSource.favorites instanceof Set ? Array.from(configSource.favorites) : []);
+
+    const playlists = Array.isArray(configSource.playlists) ? configSource.playlists : [];
+    const recentHistory = Array.isArray(configSource.recentHistory) ? configSource.recentHistory.slice(0, 50) : [];
+
+    const settings = {
+      crossfadeSeconds: Number(configSource.crossfadeSeconds) || 0,
+      crossfadeCurve: configSource.crossfadeCurve || 'equal-power',
+      autoEqProfile: configSource.autoEqProfile || 'none',
+      visualizerTheme: configSource.visualizerTheme || 'cyber',
+      visualizerMode: configSource.visualizerMode || 'spectrum',
+      ambientStageMode: configSource.ambientStageMode || 'reactive',
+      limiterMode: configSource.limiterMode || 'transparent',
+      toneBass: Number(configSource.toneBass) || 0,
+      toneTreble: Number(configSource.toneTreble) || 0,
+      stereoBalance: Number(configSource.stereoBalance) || 0,
+      crossfeed: Number(configSource.crossfeed) || 0,
+      replayGainEnabled: Boolean(configSource.replayGainEnabled)
+    };
+
+    return {
+      appName: 'Nocturne',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      favorites,
+      playlists,
+      recentHistory,
+      settings
+    };
+  }
+
+  function validateAndParseConfiguration(jsonText) {
+    if (typeof jsonText !== 'string' || !jsonText.trim()) {
+      return { isValid: false, config: null, error: 'Dữ liệu sao lưu trống hoặc không hợp lệ.' };
+    }
+
+    try {
+      const parsed = JSON.parse(jsonText);
+      if (!parsed || typeof parsed !== 'object') {
+        return { isValid: false, config: null, error: 'Định dạng JSON không phải là một đối tượng hợp lệ.' };
+      }
+
+      const hasApp = parsed.appName === 'Nocturne';
+      const hasCore = Array.isArray(parsed.favorites) || Array.isArray(parsed.playlists) || (parsed.settings && typeof parsed.settings === 'object');
+
+      if (!hasApp && !hasCore) {
+        return { isValid: false, config: null, error: 'File không chứa cấu hình hợp lệ của ứng dụng Nocturne.' };
+      }
+
+      const sanitized = {
+        appName: 'Nocturne',
+        version: Number(parsed.version) || 1,
+        exportedAt: parsed.exportedAt || new Date().toISOString(),
+        favorites: Array.isArray(parsed.favorites) ? parsed.favorites.filter(id => typeof id === 'string' || typeof id === 'number') : [],
+        playlists: Array.isArray(parsed.playlists) ? parsed.playlists : [],
+        recentHistory: Array.isArray(parsed.recentHistory) ? parsed.recentHistory : [],
+        settings: (parsed.settings && typeof parsed.settings === 'object') ? parsed.settings : {}
+      };
+
+      return { isValid: true, config: sanitized, error: null };
+    } catch (e) {
+      return { isValid: false, config: null, error: `Lỗi phân tích cú pháp JSON: ${e.message}` };
+    }
+  }
+
+  function mergeRestoredConfiguration(currentState, importedConfig, options = {}) {
+    if (!currentState || !importedConfig || typeof importedConfig !== 'object') {
+      return { restoredFavoritesCount: 0, restoredPlaylistsCount: 0, appliedSettingsCount: 0 };
+    }
+
+    let restoredFavoritesCount = 0;
+    if (Array.isArray(importedConfig.favorites)) {
+      if (currentState.favorites instanceof Set) {
+        for (const fav of importedConfig.favorites) {
+          if (!currentState.favorites.has(fav)) {
+            currentState.favorites.add(fav);
+            restoredFavoritesCount++;
+          }
+        }
+      }
+    }
+
+    let restoredPlaylistsCount = 0;
+    if (Array.isArray(importedConfig.playlists)) {
+      restoredPlaylistsCount = importedConfig.playlists.length;
+    }
+
+    let appliedSettingsCount = 0;
+    if (importedConfig.settings && typeof importedConfig.settings === 'object') {
+      const s = importedConfig.settings;
+      if (s.crossfadeSeconds !== undefined) { currentState.crossfadeSeconds = Number(s.crossfadeSeconds); appliedSettingsCount++; }
+      if (s.crossfadeCurve !== undefined) { currentState.crossfadeCurve = s.crossfadeCurve; appliedSettingsCount++; }
+      if (s.autoEqProfile !== undefined) { currentState.autoEqProfile = s.autoEqProfile; appliedSettingsCount++; }
+      if (s.visualizerTheme !== undefined) { currentState.visualizerTheme = s.visualizerTheme; appliedSettingsCount++; }
+      if (s.visualizerMode !== undefined) { currentState.visualizerMode = s.visualizerMode; appliedSettingsCount++; }
+      if (s.ambientStageMode !== undefined) { currentState.ambientStageMode = s.ambientStageMode; appliedSettingsCount++; }
+      if (s.limiterMode !== undefined) { currentState.limiterMode = s.limiterMode; appliedSettingsCount++; }
+      if (s.toneBass !== undefined) { currentState.toneBass = Number(s.toneBass); appliedSettingsCount++; }
+      if (s.toneTreble !== undefined) { currentState.toneTreble = Number(s.toneTreble); appliedSettingsCount++; }
+      if (s.stereoBalance !== undefined) { currentState.stereoBalance = Number(s.stereoBalance); appliedSettingsCount++; }
+      if (s.crossfeed !== undefined) { currentState.crossfeed = Number(s.crossfeed); appliedSettingsCount++; }
+      if (s.replayGainEnabled !== undefined) { currentState.replayGainEnabled = Boolean(s.replayGainEnabled); appliedSettingsCount++; }
+    }
+
+    return {
+      restoredFavoritesCount,
+      restoredPlaylistsCount,
+      appliedSettingsCount
+    };
+  }
+
+  function calculateAudioMemoryFootprint(activeTracksCount, cachedSlicesCount, options = {}) {
+    const tCount = Math.max(0, Number(activeTracksCount) || 0);
+    const cCount = Math.max(0, Number(cachedSlicesCount) || 0);
+    const avgTrackBytes = Number(options.avgTrackBytes) || (10 * 1024 * 1024); // 10MB approx
+    const sliceBytes = Number(options.sliceBytes) || (1024 * 1024); // 1MB per slice
+
+    const totalEstimatedBytes = (tCount * avgTrackBytes) + (cCount * sliceBytes);
+    const totalMb = Math.round((totalEstimatedBytes / (1024 * 1024)) * 10) / 10;
+
+    let pressureTier = 'optimal';
+    if (totalMb > 160) {
+      pressureTier = 'critical';
+    } else if (totalMb > 70) {
+      pressureTier = 'elevated';
+    }
+
+    return {
+      activeTracksCount: tCount,
+      cachedSlicesCount: cCount,
+      totalMb,
+      pressureTier,
+      isLowPressure: pressureTier === 'optimal'
+    };
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint};
 });
