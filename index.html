@@ -828,17 +828,20 @@
       <p class="mt-1 text-[10px] text-zinc-500">Điều chỉnh tốc độ / tempo phát nhạc (0.75x – 1.5x) bảo toàn cao độ.</p>
     </div>
   </div>
-  <div id="mini-player-hud" class="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#16161a]/95 p-3 shadow-2xl backdrop-blur-xl hidden">
-    <div id="mini-cover" class="h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-violet-500/20 grid place-items-center text-sm font-bold text-violet-200">♫</div>
-    <div class="min-w-0 max-w-[140px]">
-      <p id="mini-title" class="truncate text-xs font-semibold text-white">Chưa phát nhạc</p>
-      <p id="mini-artist" class="truncate text-[10px] text-zinc-400">Chọn bài hát</p>
+  <div id="mini-player-hud" class="fixed bottom-24 right-6 z-50 flex items-center gap-3 w-[360px] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/15 bg-[#14161a]/95 p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl hidden select-none transition-all duration-200">
+    <div id="mini-cover" class="h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-violet-500/20 grid place-items-center text-sm font-bold text-violet-200 border border-white/10 shadow-inner">♫</div>
+    <div class="min-w-0 flex-1 flex flex-col justify-center">
+      <p id="mini-title" class="truncate text-xs font-semibold text-white leading-tight">Chưa phát nhạc</p>
+      <p id="mini-artist" class="truncate text-[10px] text-zinc-400 leading-tight mt-0.5">Chọn bài hát</p>
     </div>
-    <canvas id="mini-waveform" width="60" height="24" class="h-6 w-15 shrink-0 opacity-80 cursor-pointer"></canvas>
-    <div class="flex items-center gap-1">
-      <button id="mini-play" type="button" class="grid h-7 w-7 place-items-center rounded-full bg-white text-zinc-950 transition hover:scale-105" aria-label="Phát">▶</button>
-      <button id="mini-next" type="button" class="grid h-7 w-7 place-items-center rounded-lg text-zinc-400 hover:text-white" aria-label="Bài tiếp">›</button>
-      <button id="mini-expand" type="button" class="grid h-7 w-7 place-items-center rounded-lg text-zinc-400 hover:text-white" aria-label="Mở rộng" title="Mở rộng">⛶</button>
+    <div class="shrink-0 flex items-center justify-center overflow-hidden rounded bg-black/30 p-0.5 border border-white/5" style="width: 72px; height: 26px; min-width: 72px; max-width: 72px;">
+      <canvas id="mini-waveform" width="72" height="26" class="block opacity-90 cursor-pointer" style="width: 72px !important; height: 26px !important; min-width: 72px !important; max-width: 72px !important;"></canvas>
+    </div>
+    <div class="shrink-0 flex items-center gap-1">
+      <button id="mini-play" type="button" class="grid h-7 w-7 place-items-center rounded-full bg-white text-zinc-950 font-bold text-[11px] shadow-sm transition hover:scale-105 active:scale-95" aria-label="Phát">▶</button>
+      <button id="mini-next" type="button" class="grid h-7 w-7 place-items-center rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 text-xs transition" aria-label="Bài tiếp">›</button>
+      <button id="mini-expand" type="button" class="grid h-7 w-7 place-items-center rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 text-xs transition" aria-label="Mở rộng" title="Mở rộng">⛶</button>
+      <button id="mini-close" type="button" class="grid h-7 w-7 place-items-center rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/10 text-xs transition" aria-label="Đóng Mini HUD" title="Đóng Mini HUD">×</button>
     </div>
   </div>
   <div id="listening-room" class="fixed inset-0 z-[55] hidden overflow-y-auto bg-[#09090b]/95 p-4 backdrop-blur-2xl sm:p-8" role="dialog" aria-modal="true" aria-labelledby="room-title">
@@ -6413,9 +6416,12 @@
     }
     window.toggleMiniPlayerHud = toggleMiniPlayerHud;
 
-    function updateMiniPlayerHud(track = state.tracks.find(t => t.id === state.currentId)) {
+    function updateMiniPlayerHud(track) {
       const hud = $('mini-player-hud');
       if (!hud) return;
+      const curTrack = track
+        || (typeof trackById === 'function' && state.currentId ? trackById(state.currentId) : null)
+        || state.tracks.find(t => t.id === state.currentId);
       const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
       const isPaused = !curAudio.src || curAudio.paused;
       const playBtn = $('mini-play');
@@ -6426,17 +6432,20 @@
       const titleEl = $('mini-title');
       const artistEl = $('mini-artist');
       const coverEl = $('mini-cover');
-      if (track) {
-        const metadata = library.trackMetadata ? library.trackMetadata(track) : { title: track.title, artist: track.artist };
-        if (titleEl) titleEl.textContent = metadata.title || track.title || 'Chưa phát nhạc';
-        if (artistEl) artistEl.textContent = metadata.artist || track.artist || '—';
+      if (curTrack) {
+        const metadata = library?.trackMetadata ? library.trackMetadata(curTrack) : { title: curTrack.title, artist: curTrack.artist };
+        if (titleEl) titleEl.textContent = metadata.title || curTrack.title || 'Chưa phát nhạc';
+        if (artistEl) artistEl.textContent = metadata.artist || curTrack.artist || '—';
         if (coverEl) {
-          coverEl.innerHTML = track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-cover" alt="">` : '♫';
+          coverEl.innerHTML = curTrack.cover ? `<img src="${escapeHtml(curTrack.cover)}" class="h-full w-full object-cover" alt="">` : '♫';
         }
       } else {
-        if (titleEl) titleEl.textContent = 'Chưa phát nhạc';
-        if (artistEl) artistEl.textContent = 'Chọn bài hát';
-        if (coverEl) coverEl.innerHTML = '♫';
+        const nowTitle = $('now-title')?.textContent;
+        const nowArtist = $('now-artist')?.textContent;
+        const nowCover = $('player-cover')?.innerHTML;
+        if (titleEl) titleEl.textContent = (nowTitle && nowTitle !== 'Chưa phát nhạc') ? nowTitle : 'Chưa phát nhạc';
+        if (artistEl) artistEl.textContent = (nowArtist && nowArtist !== 'Chọn một bài hát để bắt đầu') ? nowArtist : 'Chọn bài hát';
+        if (coverEl && nowCover) coverEl.innerHTML = nowCover;
       }
       if (typeof renderWaveformSeekbar === 'function') {
         renderWaveformSeekbar();
@@ -6451,12 +6460,20 @@
     const miniNext = $('mini-next');
     if (miniNext) miniNext.addEventListener('click', () => $('next-button').click());
     const miniExpand = $('mini-expand');
-    if (miniExpand) miniExpand.addEventListener('click', () => openListeningRoom());
+    if (miniExpand) miniExpand.addEventListener('click', () => {
+      if (typeof toggleRoonFullscreen === 'function') {
+        toggleRoonFullscreen(true);
+      } else {
+        openListeningRoom();
+      }
+    });
+    const miniClose = $('mini-close');
+    if (miniClose) miniClose.addEventListener('click', () => toggleMiniPlayerHud(false));
     const miniWf = $('mini-waveform');
     if (miniWf) {
       miniWf.addEventListener('click', (e) => {
         const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
-        const curTrack = state.tracks.find(t => t.id === state.currentId);
+        const curTrack = (typeof trackById === 'function' && state.currentId ? trackById(state.currentId) : null) || state.tracks.find(t => t.id === state.currentId);
         const dur = (curAudio && Number.isFinite(curAudio.duration) && curAudio.duration > 0)
           ? curAudio.duration
           : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0);
@@ -6467,6 +6484,37 @@
           curAudio.currentTime = ratio * dur;
           updatePositionState();
           renderWaveformSeekbar();
+        }
+      });
+    }
+
+    // Draggable Mini Player HUD
+    let hudDragging = false;
+    let hudOffsetX = 0;
+    let hudOffsetY = 0;
+    const hudContainer = $('mini-player-hud');
+    if (hudContainer) {
+      hudContainer.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button') || e.target.closest('canvas')) return;
+        hudDragging = true;
+        const rect = hudContainer.getBoundingClientRect();
+        hudOffsetX = e.clientX - rect.left;
+        hudOffsetY = e.clientY - rect.top;
+        hudContainer.style.cursor = 'grabbing';
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!hudDragging || !hudContainer) return;
+        const x = Math.max(8, Math.min(window.innerWidth - hudContainer.offsetWidth - 8, e.clientX - hudOffsetX));
+        const y = Math.max(8, Math.min(window.innerHeight - hudContainer.offsetHeight - 8, e.clientY - hudOffsetY));
+        hudContainer.style.left = `${x}px`;
+        hudContainer.style.top = `${y}px`;
+        hudContainer.style.right = 'auto';
+        hudContainer.style.bottom = 'auto';
+      });
+      window.addEventListener('mouseup', () => {
+        if (hudDragging && hudContainer) {
+          hudDragging = false;
+          hudContainer.style.cursor = '';
         }
       });
     }

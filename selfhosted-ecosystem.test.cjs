@@ -263,6 +263,8 @@ describe('index.html DOM & Self-Hosted Ecosystem Integration', () => {
     assert.ok(html.includes('id="mini-play"'), '#mini-play control must exist inside HUD');
     assert.ok(html.includes('id="mini-next"'), '#mini-next control must exist inside HUD');
     assert.ok(html.includes('id="mini-expand"'), '#mini-expand control must exist inside HUD');
+    assert.ok(html.includes('id="mini-close"'), '#mini-close button must exist inside HUD');
+    assert.ok(html.includes('width: 72px'), '#mini-waveform must have explicit width constraint');
   });
 
   it('contains Playback Rate selector in EQ / audio settings panel', () => {
