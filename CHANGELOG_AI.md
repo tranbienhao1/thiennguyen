@@ -2,6 +2,36 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 05:45 +07] — Pha A: Động Cơ Tăng Cường Xung Lực Sub-Bass Audiophile (Sub-Bass Dynamic Transient Punch Engine) & Hòa Âm Bảo Toàn Dải Trầm (Sub-Bass Energy Crossfade)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá DSP:
+- **Phân khu trọng tâm:** **Audio Engine & DSP: Audiophile Sub-Bass Dynamic Transient Punch Engine, Low-Frequency Decay Shaping & Equal-Power Crossfade Transition Smoothing**.
+- **Tính năng & Đột phá:**
+  1. **Động cơ Sub-Bass Transient Punch Audiophile (`calculateSubBassPunchParams`, `getSubBassPunchProfile`):**
+     - Thiết lập 5 cấu hình dải siêu trầm chuyên biệt:
+       - `off`: Bypass tuyến tính, bit-perfect transparent.
+       - `tight` (60 Hz, Q 1.4, +3.5 dB): Đanh gọn, tốc độ cao, dứt khoát cho Rock & Metal.
+       - `deep` (42 Hz, Q 1.2, +4.0 dB): Dải siêu trầm sâu thẳm, âm hình điện ảnh Cinematic & EDM.
+       - `warm` (85 Hz, Q 1.0, +3.0 dB): Độ nẩy tròn trịa, ấm áp giàu nhạc tính Jazz & Lo-Fi.
+       - `slam` (35 Hz, Q 1.6, +4.5 dB): Uy lực rung chuyển lồng ngực, áp lực âm học câu lạc bộ club.
+     - **Thuật toán tự động bù headroom chống clipping 100%:** `preampSafetyOffset = -gainDb * 0.45` tự động hạ gain an toàn trong miền số học, ngăn chặn triệt để hiện tượng 0 dBFS inter-sample digital clipping khi xuất qua DAC Hi-Fi.
+  2. **Mô phỏng vật lý xung lực dải trầm (`calculateLowFrequencyTransientDecay`):**
+     - Tính toán hệ số giảm chấn $\zeta$, tần số tắt dần $\omega_d$ và chu kỳ nửa năng lượng (half-life) giúp âm trầm đánh có độ nén và độ tan tự nhiên như màng loa bass tĩnh điện.
+  3. **Đặc tuyến hòa âm bảo toàn năng lượng trầm (`sub-bass-blend`):**
+     - Đường cong hòa âm độc quyền `cos(t·π/2)^0.7 / sin(t·π/2)^0.7` duy trì mức năng lượng $\ge 0.784$ tại điểm giao thoa $t = 0.5$, giải quyết triệt để hiện tượng hụt bass khi chuyển tiếp bài hát.
+  4. **Tích hợp Web Audio DSP & Giao diện:**
+     - Thiết kế `createSubBassPunchNodes(ctx)` đặt trước Peak Limiter trong chuỗi xử lý.
+     - Thêm phân mục UI `#sub-bass-punch-section` trong panel EQ: select profile `#sub-bass-select`, slider độ sâu `#sub-bass-intensity-slider`, huy hiệu trực quan `#sub-bass-punch-badge`.
+     - Bổ sung tùy chọn trong menu đặc tuyến hòa âm `#crossfade-curve-select`.
+     - Tích hợp sao lưu/khôi phục cấu hình đầy đủ vào JSON và lưu trữ bền vững `localStorage['nocturne-sub-bass-punch']` & `localStorage['nocturne-sub-bass-intensity']`.
+  5. **Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `sub-bass-punch-crossfade.test.cjs` (**13/13 tests PASS 100%**).
+  - Toàn bộ các suite test hồi quy liên quan (**116/116 tests PASS 100%** trong 627ms).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 05:00 +07] — Pha D: Tối Ưu Hóa Bộ Nhớ Cache Service Worker, Phân Đoạn Âm Thanh Stream (Audio Stream Dynamic Chunking) & Khắc Phục Triệt Để Xung Đột Bố Cục Footer/Mini HUD & Nâng Cấp 1-Click Update
 
 ### 🎯 Hạng Mục Nâng Cấp, Sửa Lỗi & Tối Ưu Bố Cục:

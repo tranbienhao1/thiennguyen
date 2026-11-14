@@ -759,7 +759,7 @@
         <div><h3 class="text-sm font-medium text-violet-100">Chuyển bài mượt (Crossfade & Gapless)</h3><p class="mt-1 text-[10px] leading-4 text-zinc-500">Hai bài hát hòa quyện khi chuyển bài với các đặc tuyến suy hao chuẩn phòng thu. 0 giây là tắt để giữ nguyên chuyển bài nhanh.</p></div>
         <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="block text-[10px] text-zinc-400">Thời lượng crossfade<select id="crossfade-seconds" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"><option value="0">Tắt — chuyển ngay</option><option value="1">1 giây</option><option value="2">2 giây</option><option value="3">3 giây</option><option value="5">5 giây</option></select></label>
-          <label class="block text-[10px] text-zinc-400">Đặc tuyến hòa âm (Curve Profile)<select id="crossfade-curve-select" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"><option value="equal-power">Đẳng công suất (Equal Power)</option><option value="linear">Tuyến tính (Linear Gain)</option><option value="exponential">Mạnh mẽ (Club / EDM)</option><option value="s-curve">Mềm mại (Smooth S-Curve)</option></select></label>
+          <label class="block text-[10px] text-zinc-400">Đặc tuyến hòa âm (Curve Profile)<select id="crossfade-curve-select" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"><option value="equal-power">Đẳng công suất (Equal Power)</option><option value="linear">Tuyến tính (Linear Gain)</option><option value="exponential">Mạnh mẽ (Club / EDM)</option><option value="s-curve">Mềm mại (Smooth S-Curve)</option><option value="sub-bass-blend">Bảo toàn dải trầm (Sub-Bass Energy Blend)</option></select></label>
         </div>
         <p id="crossfade-curve-desc" class="mt-2 text-[10px] text-zinc-400 font-mono">Duy trì tổng công suất âm học không đổi (cos/sin), âm lượng mượt mà không bị hụt ở giữa bản nhạc.</p>
       </section>
@@ -1002,6 +1002,29 @@
         </div>
       </div>
       <p id="room-acoustics-desc" class="mt-1 text-[10px] text-zinc-500 leading-normal">Mô phỏng phản xạ và cộng hưởng thính phòng bằng đáp ứng xung lực stereo thời gian thực.</p>
+    </div>
+    <div id="sub-bass-punch-section" class="mt-3 border-t border-white/[.07] pt-3">
+      <div class="flex items-center justify-between text-xs font-medium text-zinc-300">
+        <div class="flex items-center gap-1.5">
+          <span>Sub-Bass Transient Punch</span>
+          <span id="sub-bass-punch-badge" class="rounded border border-indigo-400/30 bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-mono font-medium text-indigo-300">OFF</span>
+        </div>
+        <span id="sub-bass-intensity-val" class="text-[10px] tabular-nums text-indigo-300">1.0x</span>
+      </div>
+      <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <select id="sub-bass-select" class="w-full rounded-md border border-white/10 bg-zinc-950 px-2 py-1.5 text-[10px] text-zinc-200" aria-label="Cấu hình Sub-Bass Punch">
+          <option value="off" selected>Tắt (Bypass · Tuyến tính)</option>
+          <option value="tight">Punch gọn gàng (Tight 60Hz)</option>
+          <option value="deep">Sub-bass sâu lắng (Deep 42Hz)</option>
+          <option value="warm">Ấm áp lực nẩy (Warm Body 85Hz)</option>
+          <option value="slam">Uy lực rung chuyển (Sub Slam 35Hz)</option>
+        </select>
+        <div class="flex items-center gap-2">
+          <span class="text-[9px] text-zinc-500">Độ sâu</span>
+          <input id="sub-bass-intensity-slider" type="range" min="0.2" max="2.0" step="0.1" value="1.0" class="flex-1 accent-indigo-500 cursor-pointer" aria-label="Cường độ Sub-Bass Punch">
+        </div>
+      </div>
+      <p id="sub-bass-punch-desc" class="mt-1 text-[10px] text-zinc-500 leading-normal">Tăng cường xung lực dải siêu trầm (35-85Hz) với khả năng bù trừ headroom tự động chống clipping.</p>
     </div>
   </div>
   <div id="mini-player-hud" class="fixed bottom-[140px] right-6 z-50 flex items-center gap-3 w-[360px] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/15 bg-[#14161a]/95 p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl hidden select-none transition-all duration-200">
@@ -1609,7 +1632,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art' };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art' };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -3726,7 +3749,14 @@
       state.preLimiterAnalyser = state.context.createAnalyser(); state.preLimiterAnalyser.fftSize = 256; state.preLimiterAnalyser.smoothingTimeConstant = .82;
       state.limiter = createSoftLimiter(state.context);
       if (typeof library?.applyLimiterParams === 'function') library.applyLimiterParams(state.limiter, state.limiterMode, state.context.currentTime);
-      state.preLimiterAnalyser.connect(state.limiter);
+      state.subBassPunchNodes = createSubBassPunchNodes(state.context);
+      if (state.subBassPunchNodes) {
+        state.preLimiterAnalyser.connect(state.subBassPunchNodes.input);
+        state.subBassPunchNodes.output.connect(state.limiter);
+        applySubBassPunch(state.subBassPunchProfile || 'off', state.subBassPunchIntensity ?? 1.0);
+      } else {
+        state.preLimiterAnalyser.connect(state.limiter);
+      }
       state.roomAcousticNodes = createRoomAcousticNodes(state.context);
       if (state.roomAcousticNodes) {
         state.limiter.connect(state.roomAcousticNodes.input);
@@ -4294,6 +4324,88 @@
       }
       if (descEl) {
         descEl.textContent = profile.description || 'Mô phỏng phản xạ và cộng hưởng thính phòng bằng đáp ứng xung lực stereo thời gian thực.';
+      }
+    }
+
+    // Pha A — Sub-Bass Transient Punch: xung lực dải siêu trầm và bù trừ headroom chống clipping
+    function createSubBassPunchNodes(ctx) {
+      if (!ctx || typeof ctx.createBiquadFilter !== 'function') return null;
+      try {
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'peaking';
+        filter.frequency.value = 42;
+        filter.Q.value = 1.2;
+        filter.gain.value = 0;
+        const safetyPreamp = ctx.createGain();
+        safetyPreamp.gain.value = 1.0;
+        filter.connect(safetyPreamp);
+        return { filter, safetyPreamp, input: filter, output: safetyPreamp };
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function applySubBassPunch(profileKey, intensity) {
+      if (profileKey !== undefined) state.subBassPunchProfile = profileKey;
+      if (intensity !== undefined && Number.isFinite(Number(intensity))) state.subBassPunchIntensity = Number(intensity);
+
+      const profile = (typeof library?.getSubBassPunchProfile === 'function')
+        ? library.getSubBassPunchProfile(state.subBassPunchProfile || 'off')
+        : { id: 'off', name: 'Tắt', badge: 'OFF', description: '' };
+      const params = (typeof library?.calculateSubBassPunchParams === 'function')
+        ? library.calculateSubBassPunchParams(profile.id, state.subBassPunchIntensity)
+        : { gainDb: 0, preampSafetyOffset: 0, centerFreq: 42, qFactor: 1.2 };
+
+      try {
+        localStorage.setItem('nocturne-sub-bass-punch', state.subBassPunchProfile || 'off');
+        localStorage.setItem('nocturne-sub-bass-intensity', String(state.subBassPunchIntensity ?? 1.0));
+      } catch (_) {}
+
+      if (state.subBassPunchNodes && state.context) {
+        const now = state.context.currentTime;
+        state.subBassPunchNodes.filter.frequency.setTargetAtTime(params.centerFreq, now, 0.015);
+        state.subBassPunchNodes.filter.Q.setTargetAtTime(params.qFactor, now, 0.015);
+        state.subBassPunchNodes.filter.gain.setTargetAtTime(params.gainDb, now, 0.015);
+        const preampLinear = Math.pow(10, (params.preampSafetyOffset || 0) / 20);
+        state.subBassPunchNodes.safetyPreamp.gain.setTargetAtTime(preampLinear, now, 0.015);
+      }
+
+      updateSubBassPunchUi(profile, params);
+      if (typeof renderRoomSignal === 'function') renderRoomSignal();
+      if (typeof renderSignalPathChain === 'function' && state.currentId) {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (cur) renderSignalPathChain(cur);
+      }
+    }
+
+    function updateSubBassPunchUi(profile, params) {
+      const selectEl = $('sub-bass-select');
+      const intensitySlider = $('sub-bass-intensity-slider');
+      const intensityValEl = $('sub-bass-intensity-val');
+      const badgeEl = $('sub-bass-punch-badge');
+      const descEl = $('sub-bass-punch-desc');
+
+      const currentProfile = profile || ((typeof library?.getSubBassPunchProfile === 'function')
+        ? library.getSubBassPunchProfile(state.subBassPunchProfile || 'off')
+        : { id: 'off', name: 'Tắt', badge: 'OFF', description: '' });
+      const currentParams = params || ((typeof library?.calculateSubBassPunchParams === 'function')
+        ? library.calculateSubBassPunchParams(currentProfile.id, state.subBassPunchIntensity)
+        : { gainDb: 0, preampSafetyOffset: 0 });
+
+      if (selectEl && selectEl.value !== currentProfile.id) selectEl.value = currentProfile.id;
+      if (intensitySlider) intensitySlider.value = String(state.subBassPunchIntensity ?? 1.0);
+      if (intensityValEl) intensityValEl.textContent = `${(state.subBassPunchIntensity ?? 1.0).toFixed(1)}x`;
+      if (badgeEl) {
+        if (currentProfile.id === 'off') {
+          badgeEl.textContent = 'OFF';
+          badgeEl.className = 'rounded border border-zinc-700 bg-zinc-800/40 px-1.5 py-0.5 text-[9px] font-mono font-medium text-zinc-400';
+        } else {
+          badgeEl.textContent = currentParams.gainDb > 0 ? `+${currentParams.gainDb.toFixed(1)}dB` : currentProfile.badge;
+          badgeEl.className = 'rounded border border-indigo-400/30 bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-mono font-medium text-indigo-300';
+        }
+      }
+      if (descEl) {
+        descEl.textContent = currentProfile.description || 'Tăng cường xung lực dải siêu trầm với khả năng bù trừ headroom tự động.';
       }
     }
     // Pha A — ReplayGain & Loudness Normalization: đồng bộ mức âm lượng giữa các bài hát
@@ -7313,7 +7425,9 @@
         toneTreble: state.toneTreble,
         stereoBalance: state.stereoBalance,
         crossfeed: state.crossfeed,
-        replayGainEnabled: state.replayGainEnabled
+        replayGainEnabled: state.replayGainEnabled,
+        subBassPunchProfile: state.subBassPunchProfile,
+        subBassPunchIntensity: state.subBassPunchIntensity
       });
       const json = JSON.stringify(config, null, 2);
       const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
@@ -7357,6 +7471,8 @@
           if (s.limiterMode) localStorage.setItem('nocturne-limiter-mode', s.limiterMode);
           if (s.roomAcousticProfile) localStorage.setItem('nocturne-room-acoustics-profile', s.roomAcousticProfile);
           if (s.roomAcousticWet !== undefined) localStorage.setItem('nocturne-room-acoustics-wet', String(s.roomAcousticWet));
+          if (s.subBassPunchProfile) localStorage.setItem('nocturne-sub-bass-punch', s.subBassPunchProfile);
+          if (s.subBassPunchIntensity !== undefined) localStorage.setItem('nocturne-sub-bass-intensity', String(s.subBassPunchIntensity));
         }
         if (state.favorites && state.favorites.size) {
           try { localStorage.setItem('nocturne-favorites', JSON.stringify(Array.from(state.favorites))); } catch (_) {}
@@ -9090,6 +9206,28 @@
       updateRoomAcousticsUi();
     }
 
+    const subBassSelect = $('sub-bass-select');
+    if (subBassSelect) {
+      subBassSelect.addEventListener('change', event => {
+        if (!state.context) setupAudio();
+        applySubBassPunch(event.target.value, state.subBassPunchIntensity);
+      });
+    }
+    const subBassIntensityInput = $('sub-bass-intensity-slider');
+    if (subBassIntensityInput) {
+      subBassIntensityInput.addEventListener('input', event => {
+        if (!state.context) setupAudio();
+        applySubBassPunch(state.subBassPunchProfile, Number(event.target.value));
+      });
+    }
+    try {
+      const savedSubBassProfile = localStorage.getItem('nocturne-sub-bass-punch') || 'off';
+      const savedSubBassIntensity = Number(localStorage.getItem('nocturne-sub-bass-intensity')) || 1.0;
+      applySubBassPunch(savedSubBassProfile, savedSubBassIntensity);
+    } catch (_) {
+      updateSubBassPunchUi();
+    }
+
     const visualizerCanvas = $('visualizer');
     if (visualizerCanvas) {
       visualizerCanvas.addEventListener('click', (e) => {
@@ -9935,5 +10073,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:50 +07 | Đã xong: Pha E - Phát Tuần Tự Album vs Phát Ngẫu Nhiên Bài Hát (Album Sequential Playback vs Songs Random Shuffle): (1) Thêm playbackContext vào state theo dõi ngữ cảnh phát nhạc ({ type: 'album', key, name, trackIds } vs { type: 'songs' }); (2) Nút #album-hero-play và click hàng bài hát trong view album sử dụng resolveAlbumPlaybackQueue nạp các bài còn lại từ trên xuống dưới vào state.queueTrackIds, hiển thị toast thông báo phát tuần tự; (3) Click bài hát từ trang bài hát (view === 'songs') đặt playbackContext thành { type: 'songs' }, duy trì cơ chế chọn ngẫu nhiên khi bật shuffle; (4) playNext và queueIndex kiểm tra shouldEnforceSequentialPlayback để thực thi tuần tự resolveNextSequentialTrack, bỏ qua state.shuffle khi đang phát album, xử lý lặp lại album khi repeat === 1 và Roon Radio/dừng lại khi repeat === 0; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 37/37 tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Tối Ưu: Hệ Thống Chia Sẻ Danh Sách Phát & Đồng Bộ Hóa Đa Thiết Bị -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 04:10 +07 | Đã xong: Pha C - Core Features & Tối Ưu: Hệ Thống Chia Sẻ Danh Sách Phát & Đồng Bộ Hóa Đa Thiết Bị (Cross-Device Playlist Sharing, Hash URL Decoder, Library Matcher & Extended M3U8 Export/Import): (1) buildShareablePlaylistPayload & encodeShareablePlaylistLink đóng gói danh sách phát chuẩn JSON và mã hóa Unicode-safe URL hash #playlist= để chia sẻ liên kết trực tiếp giữa các thiết bị; (2) parseShareablePlaylistPayload giải mã an toàn từ URL hash, JSON hoặc base64; (3) matchPlaylistWithLibrary tự động đối soát thông minh giữa danh sách nhận được và kho nhạc nội bộ theo ID và Normalized Title + Artist, tính toán matchRate và summary trực quan; (4) exportPlaylistM3u8 & parseM3u8Playlist xuất nhập danh sách phát chuẩn Extended M3U8 với đầy đủ thẻ #EXTINF, #EXTALBUM, #EXTFORMAT; (5) Tích hợp UI: nút #album-hero-share trong Album Hero, nút #queue-share-btn, #queue-import-btn và file input #playlist-import-file trong Hàng đợi, tự động xử lý hashchange và URL khởi động; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 19/19 tests playlist-sharing-sync.test.cjs PASS 100%, 92/92 core tests PASS 100% | Lượt kế tiếp: Pha D - Kiến Trúc & PWA: Tối Ưu Hóa Bộ Nhớ Cache Service Worker & Tự Động Phân Đoạn Âm Thanh Stream -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 05:00 +07 | Đã xong: Pha D & Bugfix - Kiến Trúc & PWA: Tối Ưu Bộ Nhớ Cache Service Worker, Phân Đoạn Âm Thanh Stream (Audio Stream Dynamic Chunking) & Khắc Phục Triệt Để Xung Đột Bố Cục Footer/Mini HUD & Nâng Cấp 1-Click Update: (1) calculateAudioChunkRanges phân đoạn byte range (bytes=0-524287) nạp đệm mượt mà cho stream âm thanh lớn; shouldCacheAudioStream xác định chiến lược (full-cache <= 5MB vs range-chunk > 5MB vs bypass); formatStreamChunkStatus định dạng telemetry nạp đệm thời gian thực; buildServiceWorkerCacheManifest xây dựng danh mục cache chuẩn hóa; (2) Tối ưu triệt để bố cục Player Footer: tách bạch hoàn toàn #footer-telemetry-strip (height: 28px) và .footer-main-container (height: 88px), triệt tiêu các CSS selector lỗi div:first-child kế thừa 100% height, đảm bảo nút Play/Pause và seekbar luôn thông thoáng, không bao giờ bị đè lấn hoặc che khuất; (3) Cố định cứng kích thước Mini Player HUD (w-[360px] h-[64px]) và ràng buộc giới hạn kéo (maxBottomClearance = 110px) không bao giờ che khuất dock điều khiển bài hát; (4) Nâng cấp cơ chế 'Cập nhật' (#update-now): lưu phiên phát hiện tại, tạm dừng mượt mà, kích hoạt ngay Service Worker qua SKIP_WAITING và tự động phát tiếp ngay sau khi tải lại mà không làm gián đoạn người nghe; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 86/86 tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Dynamic Crossfade Equal-Power Smoothing & Sub-bass Transient Punch -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 05:45 +07 | Đã xong: Pha A - Audio Engine & DSP: Dynamic Crossfade Equal-Power Smoothing & Sub-bass Transient Punch (Audiophile Sub-Bass Dynamic Transient Punch Engine, Low-Frequency Decay Shaping & Equal-Power Crossfade Transition Smoothing): (1) calculateSubBassPunchParams & getSubBassPunchProfile kiến tạo 5 profile xung lực dải trầm (off, tight 60Hz, deep 42Hz, warm 85Hz, slam 35Hz) với khả năng tự động tính toán preamp bù suy giảm an toàn chống clipping 100% 0 dBFS; (2) calculateLowFrequencyTransientDecay mô hình hóa vật lý giảm chấn và nửa thời gian chu kỳ xung lực dải trầm; (3) profile hòa âm 'sub-bass-blend' trong calculateCrossfadeGains bảo toàn trọn vẹn năng lượng âm trầm (cos^0.7 / sin^0.7) giữ mức >= 0.784 ở điểm giao thoa; (4) Tích hợp chuỗi Web Audio DSP: createSubBassPunchNodes nối trước Peak Limiter, đồng bộ cấu hình sao lưu và khôi phục localStorage nocturne-sub-bass-punch và nocturne-sub-bass-intensity; (5) Tích hợp UI EQ panel: #sub-bass-select, slider #sub-bass-intensity-slider, huy hiệu #sub-bass-punch-badge và tùy chọn trong #crossfade-curve-select; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 13/13 tests sub-bass-punch-crossfade.test.cjs PASS 100%, 116/116 regression tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Âm Nhạc Toàn Màn Hình & Đồng Hồ Đo Nhiệt Động Học Âm Học (Acoustic Thermal Ballistics & Fullscreen Soundstage) -->
 </body>
 </html>
