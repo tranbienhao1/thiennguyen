@@ -940,6 +940,13 @@
       const limProfile = getLimiterProfile(options.limiterMode);
       dspActive.push(`Peak Limiter: ${limProfile.name}`);
     }
+    if (options.roomAcousticProfile && options.roomAcousticProfile !== 'bypass') {
+      const roomProfile = getRoomAcousticProfile(options.roomAcousticProfile);
+      if (roomProfile && roomProfile.id !== 'bypass') {
+        const wetPct = Math.round((Number.isFinite(options.roomAcousticWet) ? options.roomAcousticWet : 0.2) * 100);
+        dspActive.push(`Không gian phòng: ${roomProfile.name} (${wetPct}% wet)`);
+      }
+    }
 
     let dspStep;
     if (dspActive.length > 0) {
@@ -947,7 +954,7 @@
         stage: 'dsp',
         title: 'Xử lý DSP (Digital Signal Processing)',
         description: dspActive.join(' · '),
-        detail: 'Xử lý chuỗi BiquadFilter / Panner / Crossfeed / ReplayGain qua Web Audio Graph',
+        detail: 'Xử lý chuỗi BiquadFilter / Convolver / Panner / Crossfeed / ReplayGain qua Web Audio Graph',
         badge: 'DSP Active',
         isEnhanced: true,
         icon: 'dsp'
@@ -5213,6 +5220,8 @@
       visualizerMode: configSource.visualizerMode || 'spectrum',
       ambientStageMode: configSource.ambientStageMode || 'reactive',
       limiterMode: configSource.limiterMode || 'transparent',
+      roomAcousticProfile: configSource.roomAcousticProfile || 'bypass',
+      roomAcousticWet: Number.isFinite(Number(configSource.roomAcousticWet)) ? Number(configSource.roomAcousticWet) : 0.2,
       toneBass: Number(configSource.toneBass) || 0,
       toneTreble: Number(configSource.toneTreble) || 0,
       stereoBalance: Number(configSource.stereoBalance) || 0,
@@ -5297,6 +5306,8 @@
       if (s.visualizerMode !== undefined) { currentState.visualizerMode = s.visualizerMode; appliedSettingsCount++; }
       if (s.ambientStageMode !== undefined) { currentState.ambientStageMode = s.ambientStageMode; appliedSettingsCount++; }
       if (s.limiterMode !== undefined) { currentState.limiterMode = s.limiterMode; appliedSettingsCount++; }
+      if (s.roomAcousticProfile !== undefined) { currentState.roomAcousticProfile = s.roomAcousticProfile; appliedSettingsCount++; }
+      if (s.roomAcousticWet !== undefined) { currentState.roomAcousticWet = Number(s.roomAcousticWet); appliedSettingsCount++; }
       if (s.toneBass !== undefined) { currentState.toneBass = Number(s.toneBass); appliedSettingsCount++; }
       if (s.toneTreble !== undefined) { currentState.toneTreble = Number(s.toneTreble); appliedSettingsCount++; }
       if (s.stereoBalance !== undefined) { currentState.stereoBalance = Number(s.stereoBalance); appliedSettingsCount++; }
@@ -5336,5 +5347,166 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint};
+  // Pha A — Động Cơ Mô Phỏng Không Gian Phòng & Xung Lực Tai Nghe Audiophile (Room Acoustics & IR Convolver Engine)
+  const ROOM_ACOUSTIC_PROFILES = {
+    bypass: {
+      id: 'bypass',
+      name: 'Bypass (Trực tiếp)',
+      badge: 'BIT-PERFECT',
+      rt60: 0,
+      preDelayMs: 0,
+      damping: 1.0,
+      description: 'Âm thanh nguyên bản không gian phòng, giữ nguyên Bit-Perfect'
+    },
+    studio: {
+      id: 'studio',
+      name: 'Studio Control Room',
+      badge: 'STUDIO',
+      rt60: 0.28,
+      preDelayMs: 8,
+      damping: 0.75,
+      description: 'Phòng thu tiêu âm chuẩn studio, âm hình cận cảnh sắc nét và kiểm soát phân rã chặt chẽ'
+    },
+    jazz_club: {
+      id: 'jazz_club',
+      name: 'Jazz Club Intimate',
+      badge: 'JAZZ CLUB',
+      rt60: 0.72,
+      preDelayMs: 14,
+      damping: 0.55,
+      description: 'Không gian ấm cúng câu lạc bộ nhạc Jazz, âm thanh mộc mạc giàu nhạc tính'
+    },
+    concert_hall: {
+      id: 'concert_hall',
+      name: 'Symphony Concert Hall',
+      badge: 'HALL',
+      rt60: 1.85,
+      preDelayMs: 24,
+      damping: 0.35,
+      description: 'Thính phòng giao hưởng tráng lệ, không gian âm thanh 3D sâu thẳm và âm hình mở rộng'
+    },
+    cathedral: {
+      id: 'cathedral',
+      name: 'Sacred Cathedral',
+      badge: 'CATHEDRAL',
+      rt60: 3.20,
+      preDelayMs: 36,
+      damping: 0.20,
+      description: 'Đại giáo đường nguy nga, trường phản xạ âm thanh dày đặc vang vọng đa tầng'
+    }
+  };
+
+  function getRoomAcousticProfile(key) {
+    if (!key || typeof key !== 'string') return ROOM_ACOUSTIC_PROFILES.bypass;
+    return ROOM_ACOUSTIC_PROFILES[key] || ROOM_ACOUSTIC_PROFILES.bypass;
+  }
+
+  function listRoomAcousticProfiles() {
+    return Object.values(ROOM_ACOUSTIC_PROFILES);
+  }
+
+  function clampAcousticWet(value, fallback = 0.2) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return fallback;
+    return Math.max(0, Math.min(1, num));
+  }
+
+  function calculateAcousticWetDry(profileKeyOrWet, wetLevel) {
+    let profileKey = 'studio';
+    let wet = 0.2;
+    if (typeof profileKeyOrWet === 'string') {
+      profileKey = profileKeyOrWet;
+      wet = clampAcousticWet(wetLevel, 0.2);
+    } else {
+      wet = clampAcousticWet(profileKeyOrWet, 0.2);
+    }
+    if (profileKey === 'bypass') {
+      return { dryGain: 1, wetGain: 0, wetLevel: 0 };
+    }
+    const angle = wet * (Math.PI / 2);
+    const dryGain = Math.cos(angle);
+    const wetGain = Math.sin(angle);
+    return { dryGain, wetGain, wetLevel: wet };
+  }
+
+  function formatAcousticSummary(profileKey, wetLevel) {
+    const profile = getRoomAcousticProfile(profileKey);
+    if (profile.id === 'bypass') return 'Trực tiếp (Bit-Perfect)';
+    const wetPct = Math.round(clampAcousticWet(wetLevel, 0.2) * 100);
+    return `${profile.name} · ${wetPct}% Ướt · RT60 ${profile.rt60}s`;
+  }
+
+  function generateImpulseResponse(profileKey, sampleRate = 44100, options = {}) {
+    const profile = getRoomAcousticProfile(profileKey);
+    if (profile.id === 'bypass') return null;
+
+    const rate = Math.max(8000, Math.min(192000, Number(sampleRate) || 44100));
+    const rt60 = profile.rt60 || 0.5;
+    const preDelaySamples = Math.round(((profile.preDelayMs || 10) / 1000) * rate);
+    const lengthSamples = Math.min(Math.round(rt60 * rate * 1.2), rate * 5);
+    const totalSamples = preDelaySamples + lengthSamples;
+
+    const left = new Float32Array(totalSamples);
+    const right = new Float32Array(totalSamples);
+
+    const tauSamples = (rt60 * rate) / 6.907755;
+    const damping = profile.damping || 0.5;
+
+    const earlyReflEnd = Math.min(lengthSamples, Math.round(0.08 * rate));
+    const seed = Number(options.seed) || 1337;
+    let rnd = seed;
+    const nextRandom = () => {
+      rnd = (rnd * 1664525 + 1013904223) % 4294967296;
+      return rnd / 4294967296;
+    };
+
+    let leftLp = 0;
+    let rightLp = 0;
+    const lpAlpha = Math.max(0.1, Math.min(0.95, 1 - damping * 0.7));
+
+    for (let i = 0; i < lengthSamples; i++) {
+      const idx = preDelaySamples + i;
+      const decay = Math.exp(-i / tauSamples);
+
+      const rawLeft = (nextRandom() * 2 - 1) * decay;
+      const rawRight = (nextRandom() * 2 - 1) * decay;
+
+      leftLp = leftLp + lpAlpha * (rawLeft - leftLp);
+      rightLp = rightLp + lpAlpha * (rawRight - rightLp);
+
+      let earlyBoostL = 1.0;
+      let earlyBoostR = 1.0;
+      if (i < earlyReflEnd && i % 47 === 0) earlyBoostL += 2.2;
+      if (i < earlyReflEnd && i % 53 === 0) earlyBoostR += 2.2;
+
+      left[idx] = leftLp * earlyBoostL;
+      right[idx] = rightLp * earlyBoostR;
+    }
+
+    let maxPeak = 0;
+    for (let i = 0; i < totalSamples; i++) {
+      const absL = Math.abs(left[i]);
+      const absR = Math.abs(right[i]);
+      if (absL > maxPeak) maxPeak = absL;
+      if (absR > maxPeak) maxPeak = absR;
+    }
+    if (maxPeak > 0) {
+      const scale = 0.7 / maxPeak;
+      for (let i = 0; i < totalSamples; i++) {
+        left[i] *= scale;
+        right[i] *= scale;
+      }
+    }
+
+    return {
+      sampleRate: rate,
+      channels: 2,
+      length: totalSamples,
+      duration: totalSamples / rate,
+      left,
+      right
+    };
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse};
 });

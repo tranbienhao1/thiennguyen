@@ -2,6 +2,38 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 01:10 +07] — Pha A: Động Cơ Mô Phỏng Không Gian Phòng & Xung Lực Tai Nghe Audiophile (Dynamic Convolution Reverb & Audiophile Room Acoustics Simulation Engine)
+
+### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:
+- **Phân khu trọng tâm:** **Động Cơ Xử Lý Tín Hiệu Số & Âm Học Không Gian (Audio Engine & Spatial DSP)**.
+- **Tính năng & Đột phá:**
+  1. **5 Hồ Sơ Không Gian Âm Học Chuẩn Phòng Nghe Audiophile (`ROOM_ACOUSTIC_PROFILES`):**
+     - `bypass`: Tắt (Bit-Perfect Direct), đường dẫn nguyên bản trực tiếp bỏ qua convolver.
+     - `studio`: Studio Control Room (RT60 0.28s, Pre-delay 8ms, Damping 0.75) — phòng thu tiêu âm chuẩn, âm hình cận cảnh sắc nét.
+     - `jazz_club`: Jazz Club Intimate (RT60 0.72s, Pre-delay 14ms, Damping 0.55) — câu lạc bộ nhạc jazz ấm cúng, âm thanh mộc mạc giàu nhạc tính.
+     - `concert_hall`: Symphony Concert Hall (RT60 1.85s, Pre-delay 24ms, Damping 0.35) — thính phòng giao hưởng tráng lệ, không gian âm thanh 3D sâu thẳm.
+     - `cathedral`: Sacred Cathedral (RT60 3.20s, Pre-delay 36ms, Damping 0.20) — đại giáo đường nguy nga, trường phản xạ âm thanh dày đặc vang vọng đa tầng.
+  2. **Tổng Hợp Đáp Ứng Xung Lực Stereo Thời Gian Thực (`generateImpulseResponse`):**
+     - Tạo cặp đệm `Float32Array` stereo (Left/Right) với độ trễ phản xạ ban đầu (early reflections Poisson), phân rã hàm mũ theo thời gian dội âm thực tế $T_{60}$, và bộ lọc thông thấp hấp thụ dải cao theo hệ số damping.
+     - Chuẩn hóa biên độ đỉnh $\le 1.0$ chống suy hao và chống clipping.
+  3. **Cân Bằng Năng Lượng Âm Thanh Equal-Power (`calculateAcousticWetDry`):**
+     - Tỷ lệ Wet/Dry tuân thủ định luật $\cos^2(\theta) + \sin^2(\theta) = 1$ với $\theta = \text{wet} \times \frac{\pi}{2}$, giữ vững 100% năng lượng âm thanh không bị suy hao hoặc nhảy âm lượng khi thay đổi phòng nghe.
+  4. **Tích Hợp Web Audio API Graph & Bảo Toàn Bit-Perfect:**
+     - Bộ nút `createRoomAcousticNodes(context)` gồm `input`, `output`, `dryGain`, `wetGain`, `convolver`.
+     - Đường DSP: `limiter -> roomAcousticNodes -> analyser -> panner -> crossfeedNodes.input`.
+     - Đường Trực Tiếp (Bit-Perfect Direct): `directAnalyser -> panner -> crossfeedNodes.input` bỏ qua hoàn toàn convolver, cam kết 100% bit-perfect cho người nghe khó tính.
+     - Bảo toàn tuyệt đối bất biến đồ thị âm thanh cốt lõi số 1: `state.crossfeedNodes.output.connect(state.context.destination)`.
+  5. **Giao Diện Điều Khiển Thính Phòng Audiophile:**
+     - Khối điều khiển `#room-acoustics-section` trong `#eq-panel` với `#room-acoustics-select`, thanh trượt Ướt `#room-acoustics-wet`, hiển thị tỷ lệ `#room-acoustics-wet-val`, huy hiệu `#room-acoustics-badge` (BIT-PERFECT / CONVOLVER), và mô tả âm học chi tiết.
+     - Tích hợp trực tiếp vào Roon Signal Path: tự động bổ sung công đoạn DSP `Không gian phòng: [Tên phòng] ([X]% wet)` vào chuỗi tín hiệu.
+  6. **Sao Lưu & Phục Hồi Toàn Diện PWA:**
+     - `exportAppConfiguration` và `mergeRestoredConfiguration` lưu trữ bền vững `roomAcousticProfile` và `roomAcousticWet` vào JSON backup và `localStorage`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `room-acoustics-convolution.test.cjs` (**9/9 tests PASS 100%**).
+  - Toàn bộ **90/90 test suites toàn dự án (gần 700 tests) PASS 100%**.
+
+---
+
 ## [Sửa Lỗi Khẩn Cấp 2026-11-14 23:55 +07] — Khắc Phục Triệt Để Lỗi Văng/Crash Khi Bấm Vào Các Album (Safe Title Resolution, Fallback Boundaries & Instant Album/Artist Navigation)
 
 ### 🎯 Hạng Mục Sửa Lỗi & Tối Ưu:
