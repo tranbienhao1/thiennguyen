@@ -2,6 +2,38 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 04:10 +07] — Pha C: Hệ Thống Chia Sẻ Danh Sách Phát & Đồng Bộ Hóa Đa Thiết Bị (Cross-Device Playlist Sharing, Hash URL Decoder, Library Matcher & Extended M3U8 Export/Import)
+
+### 🎯 Hạng Mục Nâng Cấp & Đột Phá Tính Năng:
+- **Phân khu trọng tâm:** **Tính Năng Cốt Lõi, Quản Lý Danh Sách Phát & Chia Sẻ Đa Thiết Bị (Core Features, Playlist Sharing & Sync Engine)**.
+- **Tính năng & Đột phá:**
+  1. **Đóng Gói & Mã Hóa Liên Kết Chia Sẻ (`buildShareablePlaylistPayload` & `encodeShareablePlaylistLink`):**
+     - Đóng gói toàn bộ metadata bài hát (tiêu đề, nghệ sĩ, album, thời lượng, định dạng FLAC/DSD/MP3, sample rate, bit depth) thành cấu trúc JSON chuẩn (`type: 'playlist'`).
+     - Tự động mã hóa Base64 an toàn với Unicode tiếng Việt thành chuỗi liên kết URL hash dạng `#playlist=...` giúp người dùng chia sẻ trực tiếp qua Zalo, Messenger, email hoặc mở trên thiết bị khác.
+  2. **Trình Giải Mã An Toàn Đa Định Dạng (`parseShareablePlaylistPayload`):**
+     - Hỗ trợ giải mã linh hoạt từ liên kết URL đầy đủ (`https://...#playlist=...`), chuỗi Base64 hoặc chuỗi JSON thuần túy.
+     - Xác thực cấu trúc dữ liệu nghiêm ngặt, xử lý an toàn các trường hợp dữ liệu bị thiếu hoặc sai lệch.
+  3. **Bộ Đối Soát Thư Viện Thông Minh (`matchPlaylistWithLibrary`):**
+     - Khi mở liên kết playlist trên thiết bị khác, hệ thống tự động quét và đối soát kho nhạc nội bộ của máy nhận:
+       - Khớp theo định danh ID.
+       - Khớp theo tiêu đề bài hát và tên nghệ sĩ (đã chuẩn hóa Unicode tiếng Việt).
+       - Khớp theo tiêu đề bài hát và tên album.
+     - Tính toán tỷ lệ phần trăm khớp (`matchRate`) và tạo chuỗi tóm tắt trực quan (ví dụ: `Đã khớp 8/10 bài (80%) trong thư viện của bạn`).
+  4. **Xuất & Nhập Chuẩn Extended M3U8 (`exportPlaylistM3u8` & `parseM3u8Playlist`):**
+     - Xuất danh sách phát thành file `.m3u8` chuẩn UTF-8 tương thích 100% với các phần mềm nghe nhạc audiophile (Roon, Foobar2000, VLC) với đầy đủ thẻ `#EXTINF:`, `#EXTALBUM:`, `#EXTFORMAT:`, `#EXTID:`.
+     - Nhập và phân tích tệp `.m3u8` từ máy tính hoặc điện thoại đưa vào hàng đợi phát nhạc.
+  5. **Tích Hợp Giao Diện Người Dùng & URL Hash Listener:**
+     - Bổ sung nút **`🔗 Chia sẻ`** (`#album-hero-share`) trong Album Hero cho phép chia sẻ nhanh toàn bộ album.
+     - Bổ sung các nút **`🔗 Chia sẻ`** (`#queue-share-btn`) và **`📥 Nhập`** (`#queue-import-btn`) kèm input chọn file ẩn (`#playlist-import-file`) trong bảng Hàng đợi (`#queue-panel`).
+     - Tự động bắt sự kiện `hashchange` và phân tích URL khi khởi chạy ứng dụng để nạp danh sách phát được chia sẻ vào hàng đợi.
+  6. **Bảo Toàn Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `playlist-sharing-sync.test.cjs` (**19/19 tests PASS 100%**).
+  - Toàn bộ các bộ test cốt lõi (**92/92 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 03:50 +07] — Phát Tuần Tự Theo Thứ Tự Album vs Chọn Ngẫu Nhiên Khi Chọn Bài Lẻ (Album Sequential Playback vs Songs Random Shuffle)
 
 ### 🎯 Hạng Mục Nâng Cấp & Xử Lý Yêu Cầu:
