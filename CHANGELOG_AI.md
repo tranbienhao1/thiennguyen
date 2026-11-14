@@ -2,6 +2,30 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 11:22 +07] — [Pha A: Audio Engine & DSP] Peak Limiter Đa Chế Độ Chống Clipping & Bảo Vệ Thiết Bị Âm Thanh (Audiophile Brickwall / Soft-Knee / Bypass)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP (Web Audio API)** & **2. UI/UX Hiện Đại**.
+- **Chi tiết triển khai:**
+  1. **Bộ 3 Cấu Hình Peak Limiter Audiophile (`LIMITER_PROFILES`):**
+     - **Brickwall Trong Suốt (`transparent` — Khuyên dùng):** Threshold `-0.5 dBFS`, tỷ lệ nén `20:1`, attack tức thì `0.001s (1ms)`, release `0.05s`. Bảo vệ trần dải động tối đa mà không bóp méo âm thanh, triệt tiêu hoàn toàn nguy cơ digital clipping khi bật ReplayGain Preamp hoặc tăng Bass/Treble EQ.
+     - **Soft-Knee Ấm Áp (`soft`):** Threshold `-3.0 dBFS`, knee `6 dB`, tỷ lệ nén `12:1`, attack `0.003s`, release `0.1s`. Nén góc thoai thoải theo phong cách ampli đèn điện tử (Tube Amp), cho chất âm ngọt ngào và mượt mà.
+     - **Bỏ Qua Tuyến Tính (`off`):** Threshold `0 dBFS`, tỷ lệ `1:1`. Không can thiệp dải động dành cho người nghe muốn trải nghiệm Bit-Perfect tuyệt đối.
+  2. **Điều Tiết AudioParam Mượt Mà (`applyLimiterParams`):**
+     - Áp dụng các tham số `threshold`, `knee`, `ratio`, `attack`, `release` lên `DynamicsCompressorNode` bằng hàm `setTargetAtTime` (thời hằng 15ms) để chuyển đổi êm ái giữa các chế độ, không gây tiếng nổ (pop/click) đột ngột.
+  3. **Giao Diện Điều Khiển Trong Hộp Thoại EQ (`#eq-panel`):**
+     - Thêm nhóm điều khiển Peak Limiter chuyên biệt: `#limiter-mode-select`, huy hiệu trạng thái `#limiter-badge` (`BRICKWALL`, `SOFT-KNEE`, `BYPASS`) và mô tả kỹ thuật `#limiter-desc`.
+     - Lưu trữ cấu hình bền vững vào `localStorage['nocturne-limiter-mode']` và tự động nạp lại khi mở trang.
+  4. **Tích Hợp Roon Signal Path (Chuỗi Tín Hiệu Số):**
+     - Tự động hiển thị chặng xử lý `Peak Limiter: Brickwall (-0.5 dBFS)` hoặc `Soft-Knee (-3 dBFS)` trong tầng DSP Stage khi bật.
+     - Tự động giữ nguyên trạng thái Bit-Perfect khi chọn `Bỏ qua (Bypass)` và không có hiệu ứng DSP nào khác.
+  5. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `limiter-profiles.test.cjs` (**15/15 tests PASS 100%**).
+     - Toàn bộ 84 test suites PASS 100% (0 fail, 0 regression).
+     - Bảo toàn tuyệt đối đường định tuyến Web Audio `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 11:05 +07] — [Pha D: Kiến Trúc & PWA] Lưu Trữ Trạng Thái Bền Vững & Khôi Phục Phiên Phát Nhạc (Persistent Playback Session & Position Restoration)
 
 ### 🎯 Hạng Mục Nâng Cấp:

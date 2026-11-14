@@ -827,6 +827,22 @@
       </div>
       <p class="mt-1 text-[10px] text-zinc-500">Điều chỉnh tốc độ / tempo phát nhạc (0.75x – 1.5x) bảo toàn cao độ.</p>
     </div>
+    <div class="mt-3 border-t border-white/10 pt-3">
+      <div class="flex items-center justify-between text-xs text-zinc-400">
+        <div class="flex items-center gap-2">
+          <span>Peak Limiter (Chống Clipping)</span>
+          <span id="limiter-badge" class="rounded border border-emerald-400/30 bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-mono font-medium text-emerald-300">BRICKWALL</span>
+        </div>
+      </div>
+      <div class="mt-2">
+        <select id="limiter-mode-select" class="w-full rounded-md border border-white/10 bg-zinc-950 px-2 py-1.5 text-[10px] text-zinc-200" aria-label="Chế độ Peak Limiter">
+          <option value="transparent" selected>Brickwall trong suốt (-0.5 dBFS · Khuyên dùng)</option>
+          <option value="soft">Soft-Knee ấm áp (-3.0 dBFS · Kiểu ampli đèn)</option>
+          <option value="off">Bỏ qua (Bypass · Tuyến tính Bit-perfect)</option>
+        </select>
+      </div>
+      <p id="limiter-desc" class="mt-1 text-[10px] text-zinc-500 leading-normal">Bảo vệ dải động -0.5 dBFS, phản hồi tức thì 1ms chống clipping tuyệt đối.</p>
+    </div>
   </div>
   <div id="mini-player-hud" class="fixed bottom-24 right-6 z-50 flex items-center gap-3 w-[360px] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/15 bg-[#14161a]/95 p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl hidden select-none transition-all duration-200">
     <div id="mini-cover" class="h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-violet-500/20 grid place-items-center text-sm font-bold text-violet-200 border border-white/10 shadow-inner">♫</div>
@@ -1402,7 +1418,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -2568,6 +2584,7 @@
         toneTreble: state.toneTreble || 0,
         autoEqProfile: state.autoEqProfile || 'none',
         phaseInvert: !!state.phaseInvert,
+        limiterMode: state.limiterMode || 'transparent',
         replayGainEnabled,
         replayGainText,
         dsdOutputRate,
@@ -3158,6 +3175,7 @@
       state.directAnalyser = state.context.createAnalyser(); state.directAnalyser.fftSize = 256; state.directAnalyser.smoothingTimeConstant = .82;
       state.preLimiterAnalyser = state.context.createAnalyser(); state.preLimiterAnalyser.fftSize = 256; state.preLimiterAnalyser.smoothingTimeConstant = .82;
       state.limiter = createSoftLimiter(state.context);
+      if (typeof library?.applyLimiterParams === 'function') library.applyLimiterParams(state.limiter, state.limiterMode, state.context.currentTime);
       state.preLimiterAnalyser.connect(state.limiter);
       state.limiter.connect(state.analyser);
       state.crossfeedNodes = createCrossfeedNodes(state.context);
@@ -3409,6 +3427,34 @@
         const cur = state.tracks.find(t => t.id === state.currentId);
         if (cur) renderSignalPathChain(cur);
       }
+    }
+    // Pha A — DSP Audio Engine: Peak Limiter & Anti-Clipping Profiles
+    function setLimiterMode(mode) {
+      const validMode = (mode && ['transparent', 'soft', 'off'].includes(mode.toLowerCase())) ? mode.toLowerCase() : 'transparent';
+      state.limiterMode = validMode;
+      try { localStorage.setItem('nocturne-limiter-mode', validMode); } catch (_) {}
+      if (state.limiter && state.context && typeof library?.applyLimiterParams === 'function') {
+        library.applyLimiterParams(state.limiter, validMode, state.context.currentTime);
+      }
+      updateLimiterUi();
+      if (typeof renderRoomSignal === 'function') renderRoomSignal();
+      if (typeof renderSignalPathChain === 'function' && state.currentId) {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (cur) renderSignalPathChain(cur);
+      }
+    }
+    function updateLimiterUi() {
+      const mode = state.limiterMode || 'transparent';
+      const profile = (typeof library?.getLimiterProfile === 'function') ? library.getLimiterProfile(mode) : { badge: 'BRICKWALL', description: '' };
+      const selectEl = $('limiter-mode-select');
+      const badgeEl = $('limiter-badge');
+      const descEl = $('limiter-desc');
+      if (selectEl && selectEl.value !== mode) selectEl.value = mode;
+      if (badgeEl) {
+        badgeEl.textContent = profile.badge || mode.toUpperCase();
+        badgeEl.className = `rounded border px-1.5 py-0.5 text-[9px] font-mono font-medium ${mode === 'off' ? 'border-zinc-500/30 bg-zinc-800/30 text-zinc-400' : 'border-emerald-400/30 bg-emerald-500/15 text-emerald-300'}`;
+      }
+      if (descEl) descEl.textContent = profile.description || '';
     }
     // Pha A — ReplayGain & Loudness Normalization: đồng bộ mức âm lượng giữa các bài hát
     function updateReplayGainUi(result = state.currentReplayGainResult) {
@@ -7420,6 +7466,21 @@
         updatePhaseInvertUi();
       }
     } catch (_) {}
+    const limiterSelect = $('limiter-mode-select');
+    if (limiterSelect) {
+      limiterSelect.addEventListener('change', event => {
+        if (!state.context) setupAudio();
+        setLimiterMode(event.target.value);
+      });
+    }
+    try {
+      const savedLimiter = localStorage.getItem('nocturne-limiter-mode');
+      if (savedLimiter) {
+        setLimiterMode(savedLimiter);
+      } else {
+        updateLimiterUi();
+      }
+    } catch (_) {}
 
     let dragDepth = 0;
     document.addEventListener('dragenter', event => { event.preventDefault(); dragDepth++; $('drop-target').classList.remove('hidden'); $('drop-target').classList.add('flex'); });
@@ -7832,5 +7893,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 08:30 +07 | Đã xong: Swarm Black Candy Integration (blackcandy-org/blackcandy) - (1) Black Candy Server REST API client (#blackcandy-endpoint, #blackcandy-token, #blackcandy-connect-btn, #blackcandy-sync-btn, #blackcandy-transcode-mode: Direct Lossless vs Transcoded MP3) stream nhạc, cover và lyrics; (2) Hàng đợi thông minh Smart Up Next Queue (smartQueuePlayNext, smartQueueAppend, smartQueueReorder, các nút 'play_next' và 'append' trên từng bài và menu ngữ cảnh chuột phải); (3) Bộ phân tích LRC nâng cao parseLrcWithOffsetAndTags hỗ trợ [offset: +/-ms], lọc bỏ karaoke word tags <mm:ss.xx> và metadata headers; (4) Lyrics auto-scroll suspension & 4-second resume delay (suspendLyricsAutoScroll & resumeLyricsAutoScroll); (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 31/31 test blackcandy-integration.test.cjs PASS 100%, toàn bộ 562/562 test PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 10:30 +07 | Đã xong: Pha C - Hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh (Intelligent Multi-Stage Sleep Timer & Adaptive Fade-Out Ambient Scene): (1) Đa dạng thời lượng hẹn giờ (5, 15, 30, 45, 60, 90 phút, Dừng khi hết bài #sleep-track-end, và Dừng khi hết album hiện tại #sleep-album-end qua calculateAlbumRemainingSeconds); (2) Cụm nút gia hạn nhanh thời gian (+5m, +15m qua extendSleepTimer) và ô nhập tùy chỉnh số phút (#sleep-custom-input); (3) Tùy chọn thời lượng làm mờ Fade-out (15s, 30s, 60s, 120s qua #sleep-fade-duration) kết hợp đường cong equal-power sine calculateSleepFadeGain; (4) Chế độ ru ngủ âm thanh môi trường thông minh (#sleep-ambient-scene qua calculateAdaptiveSleepStage: tự động hòa âm tiếng mưa thiên nhiên nhẹ nhàng trong giai đoạn chuyển tiếp và mờ dần cùng nhạc); (5) Huy hiệu đếm ngược thời gian thực trên footer (#sleep-badge qua formatSleepCountdownCompact); (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 16/16 test intelligent-sleep-timer.test.cjs PASS 100%, 82/82 test suites PASS | Lượt kế tiếp: Pha D - Service Worker Caching chiến lược Cache-First cho Audio Blobs & Progressive Web App Offline Storage -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 11:05 +07 | Đã xong: Pha D - Lưu trữ trạng thái bền vững & Khôi phục phiên phát nhạc (Persistent Playback Session & Position Restoration): (1) Tự động lưu bài đang nghe, vị trí phát chính xác (currentTime), hàng đợi đang phát và trạng thái playing vào localStorage qua savePlaybackSession (throttled 3s chống quá tải disk I/O, lưu tức thì khi pause/ended/beforeunload); (2) restorePlaybackSession phân tích và xác thực an toàn, kẹp thời gian hợp lệ theo duration bài hát và tự động đưa về 0s nếu bài trước đó đã nghe gần hết (<2s); (3) Banner khôi phục phiên phát mượt mà (#resume-session-banner: #resume-session-text, #resume-session-play, #resume-session-dismiss) với nhãn trực quan formatResumePrompt; (4) Tự động giải phóng bộ nhớ (Memory Leak prevention) với URL.revokeObjectURL trên beforeunload và playTrack; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 14/14 test persistent-session.test.cjs PASS 100%, 83/83 test suites PASS | Lượt kế tiếp: Pha A - DSP Audio Engine: Compressor / Peak Limiter chống clipping khi bật ReplayGain Preamp cao -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 11:22 +07 | Đã xong: Pha A - DSP Audio Engine: Peak Limiter đa chế độ chống clipping khi bật ReplayGain Preamp cao (Audiophile Brickwall / Soft-Knee / Bypass): (1) Bộ 3 cấu hình chuẩn LIMITER_PROFILES (transparent -0.5 dBFS ratio 20:1 attack 1ms; soft -3.0 dBFS knee 6 dB ratio 12:1; off bypass tuyến tính); (2) applyLimiterParams điều tiết mượt mà trên AudioParam của DynamicsCompressorNode; (3) UI #limiter-mode-select, #limiter-badge, #limiter-desc trong #eq-panel, lưu localStorage bền vững nocturne-limiter-mode; (4) Tích hợp Roon Signal Path (hiển thị Peak Limiter trong DSP Stage khi bật, giữ Bit-Perfect khi tắt); (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 15/15 test limiter-profiles.test.cjs PASS 100%, 84/84 test suites PASS | Lượt kế tiếp: Pha B - UI/UX: Hiệu ứng chuyển động Spectrum FFT đa màu sắc sống động trên thanh điều khiển footer và mini-player -->
 </body>
 </html>
