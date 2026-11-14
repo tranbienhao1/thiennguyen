@@ -2,6 +2,30 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 08:00 +07] — [Khai Thác Hệ Sinh Thái Self-Hosted Music Apps] Kết Nối Máy Chủ Jellyfin (Finamp/Feishin), Mini Player HUD Nổi (Tauon), Phân Tách Album Artist (Symfonium) & Điều Chỉnh Tốc Độ Phát
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP**, **2. UI/UX Hiện Đại** & **4. Kết Nối Máy Chủ Tự Lưu Trữ (Multi-Server Streaming)**.
+- **Tính năng khai thác từ các ứng dụng mã nguồn mở tiêu biểu trong ma trận:**
+  1. **Kết Nối Máy Chủ Media Jellyfin REST API (từ Finamp & Feishin):**
+     - Tiện ích thuần `buildJellyfinUrl(endpoint, path, params, apiKey)` và `parseJellyfinItem(item, endpoint, apiKey)`.
+     - Chuyển đổi toàn diện các mục Audio từ Jellyfin sang cấu trúc track của Nocturne (đọc `RunTimeTicks`, `Container`, `BitDepth`, `SampleRate`, link stream `/Audio/{id}/stream`, link ảnh bìa `/Items/{id}/Images/Primary`, gắn nhãn nguồn `source: 'Jellyfin'`).
+     - Giao diện kết nối trong Cài đặt (`#jellyfin-endpoint`, `#jellyfin-token`, `#jellyfin-user-id`, `#jellyfin-connect-btn`), lưu trữ cấu hình `localStorage ('nocturne-jellyfin-config')` và bổ sung tùy chọn Jellyfin trong bộ lọc nguồn.
+  2. **Chế Độ Mini Player HUD Nổi Góc Màn Hình (từ Tauon Music Box):**
+     - Tiện ích thu gọn nổi (`#mini-player-hud`): hiển thị ở góc phải màn hình gồm ảnh bìa mini (`#mini-cover`), tên bài hát & nghệ sĩ (`#mini-title`, `#mini-artist`), dạng sóng mini thời gian thực (`#mini-waveform`), nút phát/dừng (`#mini-play`), bài kế tiếp (`#mini-next`) và nút phóng to mở rộng (`#mini-expand`).
+     - Bật/tắt nhanh bằng nút `#mini-player-toggle` ở footer hoặc phím tắt **`M`**.
+  3. **Phân Tách Rạch Ròi Album Artist vs Track Artist (từ Symfonium & Navidrome):**
+     - Hàm `groupTracksByAlbumArtist(tracks)`: gom nhóm album theo `albumArtist` (dành cho nghệ sĩ chính của album) thay vì phân mảnh khi có nghệ sĩ phụ (`feat.`) tham gia biểu diễn.
+  4. **Bộ Điều Khiển Tốc Độ Phát Âm Thanh / Tempo Pitch Control (từ Tauon & Symfonium):**
+     - Hàm `calculatePlaybackRate(rate)`: giới hạn và làm tròn an toàn trong dải `[0.5x, 2.0x]`.
+     - Bộ chọn tốc độ `#playback-rate-select` trong Hộp thoại EQ (`0.75x`, `0.9x`, `1.0x`, `1.1x`, `1.25x`, `1.5x`), đồng bộ ngay trên cả 2 deck âm thanh (`audio` và `standbyAudio`).
+  5. **Kiểm thử tự động & Bảo toàn cấu trúc:**
+     - Bộ kiểm thử mới `selfhosted-ecosystem.test.cjs` (20/20 tests PASS 100%).
+     - Toàn bộ hệ thống kiểm chứng: 531/531 ca kiểm thử PASS 100% (74 test suites, 0 fail).
+     - Bảo toàn tuyệt đối đường định tuyến Web Audio `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 07:30 +07] — [Swarm Selfhosted Music Overview Integration] Tích Hợp Subsonic / OpenSubsonic API Client, Decade View & ListenBrainz Scrobbling (basings/selfhosted-music-overview)
 
 ### 🎯 Hạng Mục Nâng Cấp:

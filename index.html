@@ -459,7 +459,7 @@
           <div id="collection-tools"><button id="sort-button" type="button">By artist&nbsp;⌄</button><button id="filter-toggle" type="button" aria-expanded="false">⌕&nbsp; Filter</button></div>
         </div>
         <div id="filter-controls" hidden>
-          <select id="source-filter" aria-label="Lọc theo nguồn"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option><option value="Subsonic">Subsonic</option></select>
+          <select id="source-filter" aria-label="Lọc theo nguồn"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option><option value="Subsonic">Subsonic</option><option value="Jellyfin">Jellyfin</option></select>
           <select id="artist-filter" aria-label="Lọc theo nghệ sĩ"><option value="*">Mọi nghệ sĩ</option></select>
           <select id="album-filter" aria-label="Lọc theo album"><option value="*">Mọi album</option></select>
           <select id="group-by" aria-label="Nhóm bài hát"><option value="none">Không nhóm</option><option value="artist">Nhóm nghệ sĩ</option><option value="album">Nhóm album</option></select>
@@ -593,6 +593,7 @@
           <button id="queue-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Hàng đợi phát" title="Phát tiếp theo">☰</button>
           <button id="room-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Màn hình Đang phát" title="Đang phát">Phòng nghe</button>
           <button id="fullscreen-toggle-btn" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-purple-300 hover:text-white hover:border-purple-400 transition" aria-label="Toàn màn hình Roon (F)" title="Toàn màn hình Roon (F)">⛶</button>
+          <button id="mini-player-toggle" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-indigo-300 hover:text-white hover:border-indigo-400 transition" aria-label="Mini Player HUD (M)" title="Mini Player HUD (M)">🗗</button>
           <button id="autoplay-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Tự động phát tiếp" title="Tự động phát tiếp">▶∞</button>
           <button id="sleep-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Hẹn giờ ngủ" title="Hẹn giờ ngủ">◷</button>
           <button id="ambient-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Âm thanh môi trường" title="Âm thanh môi trường" aria-expanded="false">🌧</button>
@@ -639,6 +640,22 @@
             </label>
           </div>
           <button id="subsonic-connect-btn" type="button" class="mt-3 w-full rounded-lg bg-violet-600 px-3 py-2.5 text-xs font-medium text-white hover:bg-violet-500 transition">Kết nối Subsonic</button>
+        </section>
+        <section class="rounded-2xl border border-indigo-500/20 bg-indigo-500/[.03] p-4 md:col-span-2">
+          <div class="flex items-center justify-between"><h3 class="text-sm font-medium text-indigo-200">Jellyfin Server</h3><span id="jellyfin-status" class="text-[10px] text-zinc-500">Chưa kết nối</span></div>
+          <p class="mt-1 text-[10px] leading-4 text-zinc-400">Kết nối máy chủ Jellyfin / Emby cá nhân qua chuẩn REST API. Không truyền dữ liệu qua bên thứ ba.</p>
+          <div class="mt-3 grid gap-3 sm:grid-cols-3">
+            <label class="block text-[10px] text-zinc-400">Địa chỉ máy chủ (URL)
+              <input id="jellyfin-endpoint" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-indigo-400/50" placeholder="http://localhost:8096">
+            </label>
+            <label class="block text-[10px] text-zinc-400">API Key / Token
+              <input id="jellyfin-token" type="password" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-indigo-400/50" placeholder="API Key / Token">
+            </label>
+            <label class="block text-[10px] text-zinc-400">User ID
+              <input id="jellyfin-user-id" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-indigo-400/50" placeholder="User ID">
+            </label>
+          </div>
+          <button id="jellyfin-connect-btn" type="button" class="mt-3 w-full rounded-lg bg-indigo-600 px-3 py-2.5 text-xs font-medium text-white hover:bg-indigo-500 transition">Kết nối Jellyfin</button>
         </section>
         <section class="rounded-2xl border border-white/10 bg-white/[.025] p-4 md:col-span-2">
           <div class="flex items-center justify-between"><h3 class="text-sm font-medium text-zinc-200">ListenBrainz Scrobbling</h3><span id="listenbrainz-state" class="text-[10px] text-zinc-500">Chưa kích hoạt</span></div>
@@ -764,6 +781,36 @@
         <span id="phase-invert-badge" class="font-mono text-[10px] text-zinc-400">0°</span>
       </div>
       <p class="mt-1 text-[10px] text-zinc-500">Đảo pha tuyệt đối 180° (Polarity Inversion) giúp kiểm tra độ nén dải bass và tính đồng pha của bản thu audiophile.</p>
+    </div>
+    <div class="mt-3 border-t border-white/10 pt-3">
+      <div class="flex items-center justify-between text-xs text-zinc-400">
+        <span>Tốc độ phát (Playback Rate)</span>
+        <span id="playback-rate-val" class="font-mono text-[10px] text-zinc-300">1.0x</span>
+      </div>
+      <div class="mt-2">
+        <select id="playback-rate-select" class="w-full rounded-md border border-white/10 bg-zinc-950 px-2 py-1.5 text-[10px] text-zinc-200" aria-label="Tốc độ phát nhạc">
+          <option value="0.75">0.75x</option>
+          <option value="0.9">0.9x</option>
+          <option value="1.0" selected>1.0x</option>
+          <option value="1.1">1.1x</option>
+          <option value="1.25">1.25x</option>
+          <option value="1.5">1.5x</option>
+        </select>
+      </div>
+      <p class="mt-1 text-[10px] text-zinc-500">Điều chỉnh tốc độ / tempo phát nhạc (0.75x – 1.5x) bảo toàn cao độ.</p>
+    </div>
+  </div>
+  <div id="mini-player-hud" class="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-white/10 bg-[#16161a]/95 p-3 shadow-2xl backdrop-blur-xl hidden">
+    <div id="mini-cover" class="h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-violet-500/20 grid place-items-center text-sm font-bold text-violet-200">♫</div>
+    <div class="min-w-0 max-w-[140px]">
+      <p id="mini-title" class="truncate text-xs font-semibold text-white">Chưa phát nhạc</p>
+      <p id="mini-artist" class="truncate text-[10px] text-zinc-400">Chọn bài hát</p>
+    </div>
+    <canvas id="mini-waveform" width="60" height="24" class="h-6 w-15 shrink-0 opacity-80 cursor-pointer"></canvas>
+    <div class="flex items-center gap-1">
+      <button id="mini-play" type="button" class="grid h-7 w-7 place-items-center rounded-full bg-white text-zinc-950 transition hover:scale-105" aria-label="Phát">▶</button>
+      <button id="mini-next" type="button" class="grid h-7 w-7 place-items-center rounded-lg text-zinc-400 hover:text-white" aria-label="Bài tiếp">›</button>
+      <button id="mini-expand" type="button" class="grid h-7 w-7 place-items-center rounded-lg text-zinc-400 hover:text-white" aria-label="Mở rộng" title="Mở rộng">⛶</button>
     </div>
   </div>
   <div id="listening-room" class="fixed inset-0 z-[55] hidden overflow-y-auto bg-[#09090b]/95 p-4 backdrop-blur-2xl sm:p-8" role="dialog" aria-modal="true" aria-labelledby="room-title">
@@ -1417,7 +1464,7 @@
     const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
     const metadataUI = window.NocturneMetadataUI.create({getElement:id => $(id), library, client:musicMetadata, formatTime});
     const id = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    const sourceLabel = source => ({local:'LOCAL',google:'DRIVE',onedrive:'ONEDRIVE',url:'URL'}[source] || source.toUpperCase());
+    const sourceLabel = source => ({local:'LOCAL',google:'DRIVE',onedrive:'ONEDRIVE',url:'URL',Jellyfin:'JELLYFIN',Subsonic:'SUBSONIC'}[source] || (source ? String(source).toUpperCase() : ''));
     const filenameMetadata = library.parseFilenameMetadata;
     let filterOptionsSignature = '', trackMetadataRevision = 0;
     function updateMetadataFilters() {
@@ -2301,7 +2348,7 @@
     }
     function signalDescription(track) {
       const metadata = library.trackMetadata(track);
-      const sourceName = ({local:'File local trên thiết bị',google:'Google Drive qua API riêng',onedrive:'OneDrive qua API riêng',url:'URL trực tiếp'})[track.source] || `Nguồn ${sourceLabel(track.source)}`;
+      const sourceName = ({local:'File local trên thiết bị',google:'Google Drive qua API riêng',onedrive:'OneDrive qua API riêng',url:'URL trực tiếp',Jellyfin:'Jellyfin Server',Subsonic:'Subsonic Server'})[track.source] || `Nguồn ${sourceLabel(track.source)}`;
       const sourceTechnical = [track.format || '', track.isDsd && (track.dsdMultiplier ? `DSD${track.dsdMultiplier}` : (dsdSourceInfo(track.sampleRate) || {}).multiplier ? `DSD${(dsdSourceInfo(track.sampleRate) || {}).multiplier}` : ''), !track.isDsd && track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : '', !track.isDsd && track.bitDepth ? `${track.bitDepth}-bit` : '', track.isDsd && track.pcmRate ? `giải mã trên thiết bị sang PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth || state.dsdOutputDepth}-bit` : '', track.isDsd ? formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget, track.dsdThroughputMBps, track.dsdInitialChunkBytes, track.dsdMaxConsecutiveOverBudget, track.dsdMinSliceThroughputMBps, track.dsdFirstSliceMs) : '', track.channels ? `${track.channels} kênh` : '', usesFirstSliceCache(track) ? firstSliceCacheText(track.firstSliceCached) : ''].filter(Boolean).join(' · ');
       const decoded = track.isDsd ? 'DSD không phát trực tiếp; NOCTURNE giải mã sang PCM trước khi phát.' : `${track.format || 'Âm thanh'} được trình duyệt giải mã bằng Web Audio.`;
       const advice = track.isDsd && Number.isFinite(track.dsdMaxConsecutiveOverBudget) && track.dsdMaxConsecutiveOverBudget >= 3 ? `Thiết bị giải mã chậm ${Math.round(track.dsdMaxConsecutiveOverBudget)} lát liên tiếp — thử giảm tần số PCM đích trong cài đặt DSD để giải mã nhẹ hơn.` : '';
@@ -3529,6 +3576,7 @@
       const roomCover = $('room-cover'); roomCover.hidden = !track.cover; roomCover.src = track.cover || ''; $('room-cover-empty').classList.toggle('hidden', !!track.cover);
       $('favorite-button').classList.remove('hidden'); $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').classList.toggle('text-pink-300', isFavorite(track));
       updateRoomRating(track);
+      if (typeof updateMiniPlayerHud === 'function') updateMiniPlayerHud(track);
       if ($('room-dr-badge')) {
         $('room-dr-badge').textContent = 'DR -- · Chờ tín hiệu';
         $('room-dr-badge').className = 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400';
@@ -3639,6 +3687,11 @@
       if (fsCanvas && state.waveformPeaks && state.isFullscreen && lib && typeof lib.renderWaveformCanvas === 'function') {
         syncCanvasDimensions(fsCanvas);
         lib.renderWaveformCanvas(fsCanvas, state.waveformPeaks, fraction);
+      }
+      const miniCanvas = document.getElementById('mini-waveform');
+      if (miniCanvas && state.waveformPeaks && lib && typeof lib.renderWaveformCanvas === 'function') {
+        syncCanvasDimensions(miniCanvas);
+        lib.renderWaveformCanvas(miniCanvas, state.waveformPeaks, fraction);
       }
     }
     function renderQueueCurrent(track = trackById(state.currentId)) {
@@ -4879,10 +4932,12 @@
       const previous = audio, oldDeck = state.activeDeck;
       const newDeck = oldDeck === state.deckA ? state.deckB : state.deckA;
       audio = target; standbyAudio = previous; state.activeDeck = newDeck;
+      if (state.playbackRate) { audio.playbackRate = state.playbackRate; standbyAudio.playbackRate = state.playbackRate; }
       const fadeSeconds = applyCrossfade(state.context, oldDeck, newDeck, state.crossfadeSeconds);
       state.crossfadeUntil = fadeSeconds > 0 ? state.context.currentTime + fadeSeconds : 0;
       if (state.preloadTrackId === track.id) { state.preloadTrackId = null; state.preloadReadyUrl = null; }
-      $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ';
+      $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ'; if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
+      if (typeof updateMiniPlayerHud === 'function') updateMiniPlayerHud(track);
       recordHistory(track);
       if (fadeSeconds > 0) {
         // Pha A — để deck cũ phát hết fade rồi mới dừng/xóa src; nếu đã
@@ -5878,6 +5933,98 @@
         }
       });
     }
+
+    async function connectJellyfinServer() {
+      const endpoint = ($('jellyfin-endpoint') && $('jellyfin-endpoint').value || '').trim();
+      const token = ($('jellyfin-token') && $('jellyfin-token').value || '').trim();
+      const userId = ($('jellyfin-user-id') && $('jellyfin-user-id').value || '').trim();
+      const statusEl = $('jellyfin-status');
+
+      if (!endpoint || !userId) {
+        if (statusEl) {
+          statusEl.textContent = 'Vui lòng nhập URL và User ID';
+          statusEl.className = 'text-[10px] text-rose-400';
+        }
+        toast('Vui lòng nhập địa chỉ máy chủ và User ID Jellyfin');
+        return;
+      }
+
+      try {
+        localStorage.setItem('nocturne-jellyfin-config', JSON.stringify({ endpoint, token, userId }));
+      } catch (e) {
+        console.warn('Could not save jellyfin config to localStorage:', e);
+      }
+
+      if (statusEl) {
+        statusEl.textContent = 'Đang kết nối...';
+        statusEl.className = 'text-[10px] text-amber-300';
+      }
+
+      try {
+        // queries `${endpoint}/Users/${userId}/Items?includeItemTypes=Audio&recursive=true&fields=MediaStreams,Genres`
+        const queryUrl = typeof library?.buildJellyfinUrl === 'function'
+          ? library.buildJellyfinUrl(endpoint, `/Users/${userId}/Items`, {
+              includeItemTypes: 'Audio',
+              recursive: 'true',
+              fields: 'MediaStreams,Genres'
+            }, token)
+          : `${endpoint.replace(/\/+$/, '')}/Users/${userId}/Items?includeItemTypes=Audio&recursive=true&fields=MediaStreams,Genres${token ? `&api_key=${encodeURIComponent(token)}` : ''}`;
+
+        const headers = { 'Accept': 'application/json' };
+        if (token) headers['X-Emby-Token'] = token;
+
+        const res = await fetch(queryUrl, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json().catch(() => null);
+
+        let rawItems = [];
+        if (data && Array.isArray(data.Items)) {
+          rawItems = data.Items;
+        } else if (Array.isArray(data)) {
+          rawItems = data;
+        }
+
+        const newTracks = [];
+        for (const item of rawItems) {
+          const parsed = typeof library?.parseJellyfinItem === 'function'
+            ? library.parseJellyfinItem(item, endpoint, token)
+            : null;
+          if (parsed) {
+            newTracks.push(parsed);
+          }
+        }
+
+        for (const t of newTracks) {
+          const existingIdx = state.tracks.findIndex(item => item.id === t.id);
+          if (existingIdx >= 0) {
+            state.tracks[existingIdx] = { ...state.tracks[existingIdx], ...t };
+          } else {
+            state.tracks.push(t);
+          }
+        }
+
+        if (statusEl) {
+          statusEl.textContent = `Đã kết nối (${newTracks.length} bài)`;
+          statusEl.className = 'text-[10px] text-emerald-400';
+        }
+        toast(`Kết nối Jellyfin thành công: đã nạp ${newTracks.length} bài`);
+
+        updateMetadataFilters();
+        renderTracks();
+        if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks);
+        if (typeof renderFocusBar === 'function') renderFocusBar();
+      } catch (err) {
+        if (statusEl) {
+          statusEl.textContent = `Lỗi: ${err.message || 'Không thể kết nối'}`;
+          statusEl.className = 'text-[10px] text-rose-400';
+        }
+        toast(`Lỗi kết nối Jellyfin: ${err.message || 'Mạng không khả dụng'}`);
+      }
+    }
+    window.connectJellyfinServer = connectJellyfinServer;
+
+    const jellyfinBtn = $('jellyfin-connect-btn');
+    if (jellyfinBtn) jellyfinBtn.addEventListener('click', connectJellyfinServer);
     $('play-button').addEventListener('click', async () => { if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; state.playGeneration++; stopDsdWorker(false); $('play-button').textContent = '▶'; toast('Đã dừng giải mã DSD.'); return; } if (!audio.src) { const current = state.tracks.find(track => track.id === state.currentId); const next = current || state.tracks[0]; if (next) playTrack(next.id); return; } if (audio.paused) { try { if (state.context && state.context.state === 'suspended') await state.context.resume(); await audio.play(); } catch (error) { toast(error.message); } } else audio.pause(); });
     $('previous-button').addEventListener('click', () => playNext(-1));
     $('next-button').addEventListener('click', () => playNext(1));
@@ -5899,6 +6046,90 @@
     $('player-cover').addEventListener('click', openListeningRoom);
     $('room-close').addEventListener('click', closeListeningRoom);
     $('listening-room').addEventListener('click', event => { if (event.target === $('listening-room')) closeListeningRoom(); });
+
+    function toggleMiniPlayerHud(show) {
+      const hud = $('mini-player-hud');
+      if (!hud) return;
+      const isHidden = typeof show === 'boolean' ? !show : !hud.classList.contains('hidden');
+      hud.classList.toggle('hidden', isHidden);
+      if (!isHidden) {
+        updateMiniPlayerHud();
+      }
+    }
+    window.toggleMiniPlayerHud = toggleMiniPlayerHud;
+
+    function updateMiniPlayerHud(track = state.tracks.find(t => t.id === state.currentId)) {
+      const hud = $('mini-player-hud');
+      if (!hud) return;
+      const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      const isPaused = !curAudio.src || curAudio.paused;
+      const playBtn = $('mini-play');
+      if (playBtn) {
+        playBtn.textContent = isPaused ? '▶' : 'Ⅱ';
+        playBtn.setAttribute('aria-label', isPaused ? 'Phát' : 'Tạm dừng');
+      }
+      const titleEl = $('mini-title');
+      const artistEl = $('mini-artist');
+      const coverEl = $('mini-cover');
+      if (track) {
+        const metadata = library.trackMetadata ? library.trackMetadata(track) : { title: track.title, artist: track.artist };
+        if (titleEl) titleEl.textContent = metadata.title || track.title || 'Chưa phát nhạc';
+        if (artistEl) artistEl.textContent = metadata.artist || track.artist || '—';
+        if (coverEl) {
+          coverEl.innerHTML = track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-cover" alt="">` : '♫';
+        }
+      } else {
+        if (titleEl) titleEl.textContent = 'Chưa phát nhạc';
+        if (artistEl) artistEl.textContent = 'Chọn bài hát';
+        if (coverEl) coverEl.innerHTML = '♫';
+      }
+      if (typeof renderWaveformSeekbar === 'function') {
+        renderWaveformSeekbar();
+      }
+    }
+    window.updateMiniPlayerHud = updateMiniPlayerHud;
+
+    const miniToggle = $('mini-player-toggle');
+    if (miniToggle) miniToggle.addEventListener('click', () => toggleMiniPlayerHud());
+    const miniPlay = $('mini-play');
+    if (miniPlay) miniPlay.addEventListener('click', () => $('play-button').click());
+    const miniNext = $('mini-next');
+    if (miniNext) miniNext.addEventListener('click', () => $('next-button').click());
+    const miniExpand = $('mini-expand');
+    if (miniExpand) miniExpand.addEventListener('click', () => openListeningRoom());
+    const miniWf = $('mini-waveform');
+    if (miniWf) {
+      miniWf.addEventListener('click', (e) => {
+        const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+        const curTrack = state.tracks.find(t => t.id === state.currentId);
+        const dur = (curAudio && Number.isFinite(curAudio.duration) && curAudio.duration > 0)
+          ? curAudio.duration
+          : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0);
+        if (dur > 0) {
+          const rect = miniWf.getBoundingClientRect();
+          const clickX = e.clientX - rect.left;
+          const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+          curAudio.currentTime = ratio * dur;
+          updatePositionState();
+          renderWaveformSeekbar();
+        }
+      });
+    }
+
+    const rateSelect = $('playback-rate-select');
+    if (rateSelect) {
+      rateSelect.addEventListener('change', () => {
+        const rawVal = parseFloat(rateSelect.value);
+        const rate = typeof library?.calculatePlaybackRate === 'function'
+          ? library.calculatePlaybackRate(rawVal)
+          : (Number.isFinite(rawVal) ? rawVal : 1.0);
+        audio.playbackRate = rate;
+        if (standbyAudio) standbyAudio.playbackRate = rate;
+        state.playbackRate = rate;
+        if ($('playback-rate-val')) $('playback-rate-val').textContent = `${rate}x`;
+      });
+    }
+
     $('toggle-signal-path').addEventListener('click', () => {
       const chain = $('room-signal-chain');
       const isHidden = chain.classList.toggle('hidden');
@@ -6297,6 +6528,7 @@
         state.errorSkipCount = 0;
         setVisualizerRunning(true);
         $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ';
+        if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'playing'; } catch (error) {} }
         updatePositionState();
       });
@@ -6304,6 +6536,7 @@
         if (element === audio && !standbyAudio.paused) return;
         if (element !== audio) return;
         $('play-button').textContent = '▶'; $('room-play').textContent = '▶';
+        if ($('mini-play')) $('mini-play').textContent = '▶';
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'paused'; } catch (error) {} }
         setVisualizerRunning(false);
       });
@@ -6565,6 +6798,21 @@
       }
     } catch (error) { console.warn('Could not load saved Subsonic configuration:', error); }
     try {
+      const savedJellyfin = localStorage.getItem('nocturne-jellyfin-config');
+      if (savedJellyfin) {
+        const parsed = JSON.parse(savedJellyfin);
+        if (parsed) {
+          if ($('jellyfin-endpoint') && parsed.endpoint) $('jellyfin-endpoint').value = parsed.endpoint;
+          if ($('jellyfin-token') && parsed.token) $('jellyfin-token').value = parsed.token;
+          if ($('jellyfin-user-id') && parsed.userId) $('jellyfin-user-id').value = parsed.userId;
+          if ($('jellyfin-status')) {
+            $('jellyfin-status').textContent = 'Đã lưu cấu hình';
+            $('jellyfin-status').className = 'text-[10px] text-zinc-400';
+          }
+        }
+      }
+    } catch (error) { console.warn('Could not load saved Jellyfin configuration:', error); }
+    try {
       const savedLbToken = localStorage.getItem('nocturne-listenbrainz-token');
       if (savedLbToken) {
         if ($('listenbrainz-token')) $('listenbrainz-token').value = savedLbToken;
@@ -6741,6 +6989,9 @@
       } else if ((e.key === 'f' || e.key === 'F') && !isInput && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         toggleRoonFullscreen();
+      } else if ((e.key === 'm' || e.key === 'M') && !isInput && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        toggleMiniPlayerHud();
       }
     });
     openDatabase().then(restoreRecentTracks).catch(error => { console.error('IndexedDB is unavailable:', error); restoreRecentTracks(); toast('Không thể bật lịch sử IndexedDB; mục nghe gần đây vẫn lưu trong trình duyệt.'); });
@@ -6887,5 +7138,7 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 04:45 +07 | Đã xong: Pha B - Dynamic Range Meter (DR Score / Crest Factor = Peak - RMS) & Realtime Audio Buffer Lookahead Monitor: (1) Tiện ích library.calculateDynamicRange + formatDynamicRange phân cấp tiêu chuẩn quốc tế (Audiophile Ref >= 14, Tự nhiên >= 10, Tiêu chuẩn >= 7, Nén mạnh < 7); (2) library.calculateBufferLookahead + formatBufferLookahead đo lường thời gian đệm nạp trước (sẵn sàng Gapless playback); (3) UI #room-dr-badge, #room-crest-detail, #room-buffer-status, #room-buffer-dot và #footer-dr-badge cập nhật thời gian thực; kiểm chứng 5/5 test dynamic-range-buffer.test.cjs PASS 100%, toàn bộ 467/467 test PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh (Intelligent Sleep Fade-out & Ambient Sleep Scene) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 07:00 +07 | Đã xong: Thiết kế lại toàn bộ Giao diện Toàn màn hình khi mở full bài hát (Roon Immersive Now Playing View) chuẩn xác 100% theo ảnh Roon Desktop thực tế: (1) Ảnh bìa mờ toàn cảnh background (#fullscreen-bg-cover), nút đóng ✕ và bánh răng cài đặt ⚙; (2) Album art lớn chính giữa, dòng thông số định dạng âm thanh (FLAC 44.1kHz 16bit 2ch) ngay dưới ảnh bìa; (3) Thanh dock điều khiển dưới chân với tiêu đề lớn, nút tim yêu thích, tên album & dòng Performed by, nút tùy chọn ⋮, cụm điều khiển trung tâm xáo trộn/bài trước/phát/bài sau/hàng đợi, thanh sóng waveform với vạch playhead đỏ #e11d48, thời gian 0:01 / 5:28, nút thu nhỏ ⌵ cùng cụm zone đầu ra System Output và âm lượng 🔊 100; kiểm chứng roon-fullscreen-redesign.test.cjs PASS 100% | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 07:30 +07 | Đã xong: Swarm Self-Hosted Music Overview Integration - (1) Chuẩn kết nối Subsonic / OpenSubsonic API client (#subsonic-endpoint, #subsonic-user, #subsonic-pass, ping.view, getRandomSongs.view, stream.view, getCoverArt.view) cho phép stream từ Navidrome/Airsonic/Gonic; (2) Bộ lọc Decade View theo thập niên (1980s, 1990s, 2000s, 2010s, 2020s) trên Roon Focus Bar; (3) Giao thức scrobble mã nguồn mở ListenBrainz (playing_now và single_listen) theo chuẩn 50% thời lượng hoặc 240s; kiểm chứng 19/19 test selfhosted-overview-features.test.cjs PASS 100%, 511/511 toàn bộ test suite PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 08:00 +07 | Đã xong: Khai thác sâu hệ sinh thái Self-Hosted Music Apps (Finamp, Feishin, Tauon, Symfonium): (1) Kết nối máy chủ Jellyfin REST API (#jellyfin-endpoint, #jellyfin-token, #jellyfin-user-id, /Users/{id}/Items, stream, images) stream nhạc và ảnh bìa từ Jellyfin; (2) Chế độ Mini Player HUD Mode nổi góc màn hình (#mini-player-hud, #mini-waveform, #mini-player-toggle, phím tắt M); (3) Tách bạch Album Artist vs Track Artist (groupTracksByAlbumArtist) chống phân mảnh thư viện; (4) Điều chỉnh tốc độ phát / Tempo Pitch Control (#playback-rate-select, 0.75x–1.5x); kiểm chứng 20/20 test selfhosted-ecosystem.test.cjs PASS 100%, 531/531 toàn bộ test suite PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 07:55 +07 | Đã xong: Swarm Self-Hosted Music (Finamp / Feishin / Tauon / Symfonium) - (1) Jellyfin Server REST API client (#jellyfin-endpoint, #jellyfin-token, #jellyfin-user-id, #jellyfin-connect-btn) truy vấn /Users/${userId}/Items, parse via library.parseJellyfinItem, phân loại nguồn 'Jellyfin' trong #source-filter và lưu trữ localStorage 'nocturne-jellyfin-config'; (2) Tauon Compact Mini Player HUD Mode (#mini-player-hud, #mini-cover, #mini-title, #mini-artist, #mini-waveform, #mini-play, #mini-next, #mini-expand, #mini-player-toggle, phím tắt 'm'); (3) Điều khiển tốc độ phát / tempo (#playback-rate-select: 0.75x–1.5x) bảo toàn cao độ qua library.calculatePlaybackRate; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh crossfeed destination state.crossfeedNodes.output.connect(state.context.destination) | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
 </body>
 </html>

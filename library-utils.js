@@ -2582,5 +2582,161 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload};
+  // ── Jellyfin REST API & Self-Hosted Helpers (Finamp, Feishin, Tauon, Symfonium) ──
+
+  function buildJellyfinUrl(endpoint, path = '', params = {}, apiKey = '') {
+    if (!endpoint) return '';
+    let base = String(endpoint).trim();
+    if (!base) return '';
+    if (!/^https?:\/\//i.test(base)) {
+      base = 'http://' + base;
+    }
+    base = base.replace(/\/+$/, '');
+
+    let cleanPath = String(path || '').trim();
+    if (cleanPath && !cleanPath.startsWith('/')) {
+      cleanPath = '/' + cleanPath;
+    }
+
+    try {
+      const url = new URL(base + cleanPath);
+      url.pathname = url.pathname.replace(/\/+/g, '/');
+
+      if (params && typeof params === 'object') {
+        for (const [key, val] of Object.entries(params)) {
+          if (val !== undefined && val !== null) {
+            url.searchParams.set(key, String(val));
+          }
+        }
+      }
+
+      const effectiveApiKey = (apiKey != null && apiKey !== '')
+        ? String(apiKey)
+        : (params && (params.api_key || params.apiKey || params.token || ''));
+      if (effectiveApiKey) {
+        url.searchParams.set('api_key', String(effectiveApiKey));
+      }
+
+      return url.toString();
+    } catch {
+      return '';
+    }
+  }
+
+  function parseJellyfinItem(item, endpoint, apiKey) {
+    if (!item || typeof item !== 'object') return null;
+
+    const itemId = item.Id != null ? item.Id : (item.id != null ? item.id : '');
+    const albumId = item.AlbumId != null ? item.AlbumId : (item.albumId != null ? item.albumId : itemId);
+
+    const artistsList = Array.isArray(item.Artists) ? item.Artists : (Array.isArray(item.artists) ? item.artists : null);
+    const artistsStr = artistsList && artistsList.length > 0 ? artistsList.join(', ') : null;
+    const albumArtistFallback = item.AlbumArtist || item.albumArtist || (artistsList && artistsList[0]) || 'Unknown Artist';
+    const artist = artistsStr || albumArtistFallback;
+    const albumArtist = item.AlbumArtist || item.albumArtist || (artistsList && artistsList[0]) || 'Unknown Artist';
+
+    const album = item.Album != null ? String(item.Album) : (item.album != null ? String(item.album) : '');
+    const ticks = item.RunTimeTicks != null ? item.RunTimeTicks : item.runTimeTicks;
+    const duration = ticks ? Math.round(Number(ticks) / 10000000) : 0;
+    const container = item.Container || item.container || 'FLAC';
+
+    const streams = item.MediaStreams || item.mediaStreams;
+    const stream = Array.isArray(streams) ? streams[0] : null;
+    const bitDepth = Number(stream?.BitDepth ?? stream?.bitDepth) || 16;
+    const sampleRate = Number(stream?.SampleRate ?? stream?.sampleRate) || 44100;
+
+    const src = endpoint && itemId ? buildJellyfinUrl(endpoint, '/Audio/' + itemId + '/stream', { static: true }, apiKey) : '';
+    const cover = endpoint && (albumId || itemId) ? buildJellyfinUrl(endpoint, '/Items/' + (albumId || itemId) + '/Images/Primary', { maxWidth: 500, quality: 90 }, apiKey) : '';
+
+    const year = item.ProductionYear != null ? Number(item.ProductionYear) : (item.productionYear != null ? Number(item.productionYear) : undefined);
+    const genres = item.Genres || item.genres;
+    const genre = (Array.isArray(genres) && genres[0]) ? String(genres[0]) : '';
+
+    return {
+      id: 'jellyfin-' + itemId,
+      title: item.Name != null ? String(item.Name) : (item.name != null ? String(item.name) : 'Unknown Title'),
+      artist,
+      albumArtist,
+      album,
+      duration,
+      format: String(container).toUpperCase(),
+      bitDepth,
+      sampleRate,
+      src,
+      cover,
+      year,
+      genre,
+      source: 'Jellyfin',
+      trackNumber: item.IndexNumber != null ? Number(item.IndexNumber) : (item.indexNumber != null ? Number(item.indexNumber) : undefined),
+      discNumber: item.ParentIndexNumber != null ? Number(item.ParentIndexNumber) : (item.parentIndexNumber != null ? Number(item.parentIndexNumber) : undefined),
+      raw: item
+    };
+  }
+
+  function groupTracksByAlbumArtist(tracks) {
+    if (!Array.isArray(tracks)) return [];
+    const map = new Map();
+    for (const track of tracks) {
+      if (!track || typeof track !== 'object') continue;
+      const albumArtist = (track.albumArtist && String(track.albumArtist).trim())
+        || (track.artist && String(track.artist).trim())
+        || 'Unknown Artist';
+      if (!map.has(albumArtist)) {
+        map.set(albumArtist, []);
+      }
+      map.get(albumArtist).push(track);
+    }
+
+    const list = [];
+    for (const [artist, groupTracks] of map.entries()) {
+      const group = {
+        albumArtist: artist,
+        artist: artist,
+        label: artist,
+        tracks: groupTracks
+      };
+      list.push(group);
+      Object.defineProperty(list, artist, {
+        value: groupTracks,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      });
+    }
+
+    Object.defineProperty(list, 'get', {
+      value: function (artist) {
+        return list[artist];
+      },
+      enumerable: false,
+      writable: true,
+      configurable: true
+    });
+
+    Object.defineProperty(list, 'has', {
+      value: function (artist) {
+        return Boolean(list[artist]);
+      },
+      enumerable: false,
+      writable: true,
+      configurable: true
+    });
+
+    return list;
+  }
+
+  function calculatePlaybackRate(rate) {
+    if (rate === null || rate === undefined || rate === '') {
+      return 1.0;
+    }
+    let r = Number(rate);
+    if (!Number.isFinite(r)) {
+      return 1.0;
+    }
+    if (r < 0.5) r = 0.5;
+    if (r > 2.0) r = 2.0;
+    return Math.round(r * 100) / 100;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate};
 });
