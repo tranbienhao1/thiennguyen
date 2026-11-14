@@ -796,6 +796,10 @@
     <label class="mt-3 flex items-center justify-between text-xs text-zinc-400">Preset EQ <select id="eq-preset" class="rounded-md border border-white/10 bg-zinc-950 px-2 py-1.5 text-[10px] text-zinc-200"><option value="flat">Phẳng</option><option value="bass">Bass mạnh</option><option value="treble">Treble sáng</option><option value="vocal">Giọng hát</option><option value="rock">Rock</option><option value="jazz">Jazz</option><option value="custom">Tùy chỉnh</option></select></label>
     <div id="eq-bands" class="mt-3 space-y-2"></div>
     <div class="mt-3 flex items-center justify-between gap-3"><button id="eq-add-band" class="rounded-lg border border-white/10 px-3 py-2 text-[10px] text-violet-200 hover:bg-white/5">＋ Thêm band</button><span id="eq-headroom" class="text-[10px] tabular-nums text-emerald-300">Preamp 0 dB</span></div>
+    <div id="eq-curve-summary" class="mt-2 flex items-center justify-between rounded-lg border border-white/5 bg-black/20 px-2.5 py-1.5 text-[10px] text-zinc-400">
+      <span>Đặc tuyến tổng hợp</span>
+      <span id="eq-curve-detail" class="font-mono text-zinc-300">Phẳng (0 dB)</span>
+    </div>
     <label class="mt-3 flex items-center justify-between text-xs text-zinc-400">Preamp trim <input id="eq-preamp" class="range w-32" type="range" min="-12" max="0" step="0.5" value="0"></label>
     <div class="mt-3 border-t border-white/10 pt-3">
       <div class="flex items-center justify-between text-xs text-zinc-400">
@@ -3122,14 +3126,31 @@
       });
     }
     function applyEq() {
+      const sampleRate = state.context ? state.context.sampleRate : 44100;
+      const combinedCurve = (typeof library !== 'undefined' && library && typeof library.calculateCombinedEqCurve === 'function')
+        ? library.calculateCombinedEqCurve(state.bands, undefined, sampleRate)
+        : null;
       const maxBoost = state.bands.reduce((max, band) => Math.max(max, band.gain), 0);
       const effectivePreamp = Math.max(-60, Math.min(0, -maxBoost + (Number($('eq-preamp').value) || 0)));
       $('eq-headroom').textContent = `Preamp ${effectivePreamp.toFixed(1)} dB (boost max ${maxBoost.toFixed(1)} dB)`;
       $('eq-headroom').className = `text-[10px] tabular-nums ${effectivePreamp < 0 ? 'text-amber-300' : 'text-emerald-300'}`;
+      const curveEl = $('eq-curve-detail');
+      if (curveEl && combinedCurve && typeof library.formatEqCurveSummary === 'function') {
+        curveEl.textContent = library.formatEqCurveSummary(combinedCurve);
+      }
       if (!state.context) return;
       if (state.deckA && state.deckA.filters.length !== state.bands.length) rebuildAudioRoutes();
       [state.deckA, state.deckB].filter(Boolean).forEach(deck => {
-        deck.filters.forEach((filter, index) => { const band = state.bands[index]; filter.type = band.type; filter.frequency.setTargetAtTime(band.frequency, state.context.currentTime, .015); filter.Q.setTargetAtTime(band.q, state.context.currentTime, .015); filter.gain.setTargetAtTime(band.gain, state.context.currentTime, .015); });
+        deck.filters.forEach((filter, index) => {
+          const band = state.bands[index];
+          const sanitized = (typeof library !== 'undefined' && library && typeof library.sanitizeBiquadFilterParams === 'function')
+            ? library.sanitizeBiquadFilterParams(band, sampleRate)
+            : band;
+          filter.type = sanitized.type;
+          filter.frequency.setTargetAtTime(sanitized.frequency, state.context.currentTime, .015);
+          filter.Q.setTargetAtTime(sanitized.q, state.context.currentTime, .015);
+          filter.gain.setTargetAtTime(sanitized.gain, state.context.currentTime, .015);
+        });
         const enabled = $('eq-enabled').checked;
         const phaseMult = state.phaseInvert ? -1 : 1;
         deck.preamp.gain.setTargetAtTime(enabled ? phaseMult * Math.pow(10, effectivePreamp / 20) : 0, state.context.currentTime, .015);
@@ -3234,7 +3255,14 @@
       toast(`Đã áp dụng ${kindLabel}`);
       return true;
     }
-    function addEqBand(values = {}) { state.bands.push({id:++state.bandSerial, type:values.type || 'peaking', frequency:Math.max(20, Math.min(values.frequency ?? 1000, state.context ? state.context.sampleRate / 2 : 20000)), gain:values.gain ?? 0, q:values.q ?? 1}); renderEqBands(); applyEq(); }
+    function addEqBand(values = {}) {
+      const sanitized = (typeof library !== 'undefined' && library && typeof library.sanitizeBiquadFilterParams === 'function')
+        ? library.sanitizeBiquadFilterParams({ type: values.type, frequency: values.frequency ?? 1000, gain: values.gain ?? 0, q: values.q ?? 1 }, state.context ? state.context.sampleRate : 44100)
+        : { type: values.type || 'peaking', frequency: Math.max(20, Math.min(values.frequency ?? 1000, state.context ? state.context.sampleRate / 2 : 20000)), gain: values.gain ?? 0, q: values.q ?? 1 };
+      state.bands.push({ id: ++state.bandSerial, ...sanitized });
+      renderEqBands();
+      applyEq();
+    }
     function attachAudioElement(element) {
       const source = state.context.createMediaElementSource(element), router = state.context.createGain();
       const preamp = state.context.createGain(), direct = state.context.createGain();
@@ -8532,5 +8560,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 15:00 +07 | Đã xong: Pha B - UI/UX & Visualizer: Sân Khấu Ánh Sáng Âm Nhạc Thời Gian Thực (Audio-Reactive Ambient Stage Lighting & Bass/Vocal Frequency Pulse): (1) Bộ tiện ích calculateAudioEnergyBands phân tích năng lượng âm học thời gian thực qua FFT (dải Bass 20–260 Hz, Vocal 260–4000 Hz, Treble >4000 Hz và xung nhịp isBeatPulse); (2) 4 chế độ AMBIENT_STAGE_MODES (reactive 60fps, subtle lounge, static album glow, off); (3) calculateAmbientPulseTransform tính toán tỷ lệ scale, opacity, blur và brightness thích nghi theo nhịp nhạc; (4) formatAmbientStageSummary hiển thị trạng thái phát; (5) Phông nền phát sáng động toàn trang #app-ambient-backdrop kết hợp #ambient-glow trong Phòng nghe; (6) UI Cài đặt #ambient-stage-mode-select, #ambient-stage-mode-desc, lưu trữ bền vững localStorage; (7) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 13/13 tests ambient-stage-lighting.test.cjs PASS 100%, 102/102 test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features: Bộ chọn danh sách phát theo tâm trạng (Mood & Genre Dynamic Filters) hoặc Lyrics LRC đa nguồn có độ trễ tự thích nghi -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 15:30 +07 | Đã xong: Pha C - Core Features & Bug Hunting: Universal Audiophile Audio Seeker, Media Session CUE Sync & Mood/Genre Smart Filter Engine: (1) calculateTrackPlaybackPosition chuẩn hóa vị trí và thời lượng cho cả track thường và virtual track từ file CUE sheet (.cue), kẹp an toàn không vượt quá cueEnd; (2) calculateSeekTargetTime tính toán vị trí tua tuyệt đối chính xác cho file gốc theo delta/fraction/seconds, kẹp trần an toàn cueEnd - 0.15 chống văng sang bài kế tiếp; (3) resolveMediaSessionPositionState cấp dữ liệu duration/position/playbackRate chuẩn xác cho navigator.mediaSession.setPositionState trên màn hình khóa và thiết bị đeo; (4) GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre và groupTracksByGenreMood tự động phân loại thể loại & tâm trạng (Acoustic, Ballad, Pop, Rock, Electronic, Classical, Jazz, Vocal Audiophile) và gom nhóm bộ sưu tập; (5) Tích hợp hoàn hảo giao diện Thể loại (#genres-view, setLibraryView, renderCollectionCards) và điều khiển MediaSession (seekto, seekbackward, seekforward, stop); (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests audio-seeker-genres.test.cjs PASS 100%, 103/103 test suites PASS 100% | Lượt kế tiếp: Pha D - Kiến Trúc & PWA: IndexedDB Storage Tiering & Tối ưu hóa giải phóng bộ nhớ Blob URL -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 16:00 +07 | Đã xong: Pha D - Kiến Trúc & PWA: Chống Rò Rỉ Bộ Nhớ (Memory Leak Prevention) & Quản Lý Phân Tầng Lưu Trữ Đa Cấp (Multi-Tier Storage Quota Manager): (1) Bộ tiện ích auditMemoryLeaks và pruneUnreferencedObjectUrls trong library-utils.js phát hiện và tự động giải phóng URL.revokeObjectURL các Blob URL rác không còn tham chiếu; (2) Định nghĩa STORAGE_TIERS với 3 cấp độ (Tier 1 Thiết yếu/Trạng thái, Tier 2 Đệm âm thanh lát FLAC/DSD, Tier 3 Siêu dữ liệu/Ảnh bìa base64/LRC); (3) calculateStorageTierMetrics tính toán dung lượng phân tầng và chấm điểm sức khỏe lưu trữ; (4) formatMemoryAuditSummary định dạng thông báo tiếng Việt trực quan; (5) UI Cài đặt: cụm huy hiệu phân tầng lưu trữ (Tier 1/2/3) và nút #prune-object-urls-btn Giải phóng RAM; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests memory-storage-tiers.test.cjs PASS 100%, 104/104 test suites PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Parametric EQ Target Curve Optimization hoặc Biquad Filter Coherence -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 16:30 +07 | Đã xong: Pha A - Audio Engine & DSP: Parametric EQ Filter Coherence, Nyquist Limit Protection & Multi-Band Cumulative Curve Engine: (1) STANDARD_EQ_FREQUENCIES với 31 dải chuẩn ISO 1/3-octave (20 Hz - 20 kHz); (2) sanitizeBiquadFilterParams bảo vệ chống nổ hệ số số học vượt ngưỡng tần số Nyquist (sampleRate/2 - 50 Hz), kẹp an toàn Gain [-24, 24] dB và Q-Factor [0.1, 18]; (3) calculateBiquadFrequencyResponse mô hình hóa chính xác hàm truyền đạt phức số miền số học Audio EQ Cookbook cho Peaking, Low-shelf, High-shelf, Low-pass, High-pass; (4) calculateCombinedEqCurve tính toán tổng hợp đặc tuyến nhiều bộ lọc cộng dồn và phát hiện điểm boost đỉnh thực tế để tối ưu headroom preamp; (5) formatEqCurveSummary hiển thị trực quan mức đỉnh/trũng; (6) UI panel EQ #eq-curve-summary và #eq-curve-detail; (7) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests parametric-eq-coherence.test.cjs PASS 100%, 105/105 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe & Bảng Màu Spectrum Mới -->
 </body>
 </html>

@@ -2,6 +2,34 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 16:30 +07] — [Pha A: Audio Engine & DSP] Tính Nhất Quán Bộ Lọc Parametric EQ, Bảo Vệ Giới Hạn Tần Số Nyquist & Động Cơ Tính Toán Đường Cong Cộng Dồn Đa Băng Tần (Parametric EQ Filter Coherence, Nyquist Protection & Multi-Band Cumulative Curve Engine)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP (Web Audio API)**.
+- **Chi tiết triển khai:**
+  1. **Tập Hợp Tần Số Chuẩn ISO 1/3-Octave (`STANDARD_EQ_FREQUENCIES`):**
+     - Thiết lập mảng 31 dải tần số chuẩn quốc tế từ 20 Hz tới 20.000 Hz phục vụ phân tích đáp tuyến biên độ thời gian thực.
+  2. **Bộ Khử Lỗi & Bảo Vệ Giới Hạn Nyquist BiquadFilter (`sanitizeBiquadFilterParams`):**
+     - Ngăn chặn triệt để hiện tượng vỡ hệ số bộ lọc số học khi đặt tần số vượt ngưỡng Nyquist ($\text{sampleRate} / 2$). Tự động kẹp an toàn tần số cắt: $\text{freq} \le \min(20000, \text{sampleRate} / 2 - 50\text{ Hz})$.
+     - Kẹp an toàn dải tăng/giảm âm học Gain $[-24, 24]\text{ dB}$ và hệ số phẩm chất cộng hưởng Q-Factor $[0.1, 18]$.
+     - Xác thực các kiểu bộ lọc Web Audio API: `peaking`, `lowshelf`, `highshelf`, `lowpass`, `highpass`, `bandpass`, `notch`, `allpass`.
+  3. **Động Cơ Tính Toán Hàm Truyền Đạt Số Học Chuẩn Audio EQ Cookbook (`calculateBiquadFrequencyResponse`):**
+     - Mô hình hóa toán học chính xác hàm truyền $H(z)$ trên miền số phức của Robert Bristow-Johnson cho từng cấu hình bộ lọc Biquad.
+     - Tính toán đáp tuyến biên độ $|H(f)|$ theo đơn vị dB tại mọi điểm tần số trong dải nghe được.
+  4. **Tính Toán Đặc Tuyến Cộng Dồn Đa Băng Tần & Headroom Preamp Thực Tế (`calculateCombinedEqCurve`):**
+     - Khắc phục lỗ hổng âm học khi nhiều dải EQ peaking/shelf đặt gần nhau gây hiện tượng cộng hưởng khuếch đại vượt ngưỡng `maxBoost` đơn lẻ.
+     - Tính toán chính xác độ tăng âm cực đại thực tế (`peakBoostDb`) và độ suy giảm cực đại (`peakCutDb`), từ đó đưa ra mức bù Preamp tối ưu (`recommendedPreampDb = -peakBoostDb`) giúp loại bỏ hoàn toàn nguy cơ xén ngọn âm thanh (clipping).
+  5. **Tích Hợp Giao Diện Parametric Equalizer:**
+     - Bổ sung khối hiển thị đặc tuyến tổng hợp `#eq-curve-summary` và nhãn chi tiết `#eq-curve-detail` trong panel Parametric Equalizer (`#eq-panel`).
+     - Tự động hiển thị tóm tắt mức đỉnh và mức trũng (ví dụ: `Đỉnh: +6.0 dB · Trũng: -2.5 dB`) thời gian thực mỗi khi tinh chỉnh thanh trượt hoặc chuyển đổi preset.
+     - Tích hợp `sanitizeBiquadFilterParams` vào `addEqBand` và `applyEq` để bảo vệ chuỗi âm thanh `AudioContext` 2 boong (deckA & deckB).
+  6. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `parametric-eq-coherence.test.cjs` (**5/5 tests PASS 100%**).
+     - Đạt mốc **105/105 Test Suites PASS 100%** toàn bộ dự án, 0 fail, 0 regression.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 16:00 +07] — [Pha D: Hiệu Năng, Kiến Trúc & PWA] Chống Rò Rỉ Bộ Nhớ RAM (Memory Leak Prevention) & Quản Lý Phân Tầng Lưu Trữ Đa Cấp (Multi-Tier Storage Quota Manager)
 
 ### 🎯 Hạng Mục Nâng Cấp:

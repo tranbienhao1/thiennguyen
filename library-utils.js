@@ -4343,5 +4343,182 @@
     return `Phát hiện ${auditOrPruneResult.leakedCount} Blob URL không dùng có thể giải phóng.`;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary};
+  // ── Pha A — Parametric EQ Filter Coherence & Nyquist-Safe Audio Engine ──
+
+  const STANDARD_EQ_FREQUENCIES = [
+    20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160,
+    200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600,
+    2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500, 16000, 20000
+  ];
+
+  function sanitizeBiquadFilterParams(band, sampleRate = 44100) {
+    if (!band || typeof band !== 'object') {
+      return { type: 'peaking', frequency: 1000, gain: 0, q: 1 };
+    }
+    const supportedTypes = ['peaking', 'lowshelf', 'highshelf', 'lowpass', 'highpass', 'bandpass', 'notch', 'allpass'];
+    const type = supportedTypes.includes(band.type) ? band.type : 'peaking';
+
+    const sr = Number.isFinite(sampleRate) && sampleRate > 0 ? sampleRate : 44100;
+    const maxSafeFreq = Math.min(20000, Math.floor((sr / 2) - 50));
+    const frequency = Math.max(20, Math.min(maxSafeFreq, Number(band.frequency) || 1000));
+    const gain = Math.max(-24, Math.min(24, Number(band.gain) || 0));
+    const q = Math.max(0.1, Math.min(18, Number(band.q) || 1));
+
+    return { type, frequency, gain, q };
+  }
+
+  function calculateBiquadFrequencyResponse(band, frequencies = STANDARD_EQ_FREQUENCIES, sampleRate = 44100) {
+    const sanitized = sanitizeBiquadFilterParams(band, sampleRate);
+    const Fs = Number.isFinite(sampleRate) && sampleRate > 0 ? sampleRate : 44100;
+    const f0 = sanitized.frequency;
+    const gain = sanitized.gain;
+    const Q = sanitized.q;
+    const type = sanitized.type;
+
+    const A = Math.pow(10, gain / 40);
+    const w0 = (2 * Math.PI * f0) / Fs;
+    const alpha = Math.sin(w0) / (2 * Q);
+    const cosw0 = Math.cos(w0);
+
+    let b0 = 1, b1 = 0, b2 = 0, a0 = 1, a1 = 0, a2 = 0;
+
+    switch (type) {
+      case 'lowshelf': {
+        const sqrtA2 = 2 * Math.sqrt(A) * alpha;
+        b0 = A * ((A + 1) - (A - 1) * cosw0 + sqrtA2);
+        b1 = 2 * A * ((A - 1) - (A + 1) * cosw0);
+        b2 = A * ((A + 1) - (A - 1) * cosw0 - sqrtA2);
+        a0 = (A + 1) + (A - 1) * cosw0 + sqrtA2;
+        a1 = -2 * ((A - 1) + (A + 1) * cosw0);
+        a2 = (A + 1) + (A - 1) * cosw0 - sqrtA2;
+        break;
+      }
+      case 'highshelf': {
+        const sqrtA2 = 2 * Math.sqrt(A) * alpha;
+        b0 = A * ((A + 1) + (A - 1) * cosw0 + sqrtA2);
+        b1 = -2 * A * ((A - 1) + (A + 1) * cosw0);
+        b2 = A * ((A + 1) - (A - 1) * cosw0 - sqrtA2);
+        a0 = (A + 1) - (A - 1) * cosw0 + sqrtA2;
+        a1 = 2 * ((A - 1) - (A + 1) * cosw0);
+        a2 = (A + 1) - (A - 1) * cosw0 - sqrtA2;
+        break;
+      }
+      case 'lowpass': {
+        b0 = (1 - cosw0) / 2;
+        b1 = 1 - cosw0;
+        b2 = (1 - cosw0) / 2;
+        a0 = 1 + alpha;
+        a1 = -2 * cosw0;
+        a2 = 1 - alpha;
+        break;
+      }
+      case 'highpass': {
+        b0 = (1 + cosw0) / 2;
+        b1 = -(1 + cosw0);
+        b2 = (1 + cosw0) / 2;
+        a0 = 1 + alpha;
+        a1 = -2 * cosw0;
+        a2 = 1 - alpha;
+        break;
+      }
+      case 'peaking':
+      default: {
+        b0 = 1 + alpha * A;
+        b1 = -2 * cosw0;
+        b2 = 1 - alpha * A;
+        a0 = 1 + alpha / A;
+        a1 = -2 * cosw0;
+        a2 = 1 - alpha / A;
+        break;
+      }
+    }
+
+    const b0_ = b0 / a0, b1_ = b1 / a0, b2_ = b2 / a0;
+    const a1_ = a1 / a0, a2_ = a2 / a0;
+
+    const freqs = Array.isArray(frequencies) && frequencies.length > 0 ? frequencies : STANDARD_EQ_FREQUENCIES;
+    const response = [];
+
+    for (const f of freqs) {
+      const freqNum = Number(f) || 1000;
+      const w = (2 * Math.PI * freqNum) / Fs;
+      const c1 = Math.cos(w), s1 = Math.sin(w);
+      const c2 = Math.cos(2 * w), s2 = Math.sin(2 * w);
+
+      const nr = b0_ + b1_ * c1 + b2_ * c2;
+      const ni = -b1_ * s1 - b2_ * s2;
+      const dr = 1 + a1_ * c1 + a2_ * c2;
+      const di = -a1_ * s1 - a2_ * s2;
+
+      const numMag2 = nr * nr + ni * ni;
+      const denMag2 = dr * dr + di * di;
+      const mag2 = denMag2 > 0 ? numMag2 / denMag2 : 1;
+      const gainDb = mag2 > 0 ? 10 * Math.log10(mag2) : -100;
+
+      response.push({
+        frequency: freqNum,
+        gainDb: Math.round(gainDb * 100) / 100
+      });
+    }
+
+    return response;
+  }
+
+  function calculateCombinedEqCurve(bands = [], frequencies = STANDARD_EQ_FREQUENCIES, sampleRate = 44100) {
+    const freqs = Array.isArray(frequencies) && frequencies.length > 0 ? frequencies : STANDARD_EQ_FREQUENCIES;
+    const safeBands = Array.isArray(bands) ? bands.filter(b => b && (b.gain !== 0 || b.type === 'lowpass' || b.type === 'highpass')) : [];
+
+    if (safeBands.length === 0) {
+      return {
+        frequencies: freqs,
+        curve: freqs.map(f => ({ frequency: f, gainDb: 0 })),
+        peakBoostDb: 0,
+        peakCutDb: 0,
+        recommendedPreampDb: 0
+      };
+    }
+
+    const summedGains = new Float64Array(freqs.length);
+
+    for (const band of safeBands) {
+      const resp = calculateBiquadFrequencyResponse(band, freqs, sampleRate);
+      for (let i = 0; i < freqs.length; i++) {
+        summedGains[i] += resp[i].gainDb;
+      }
+    }
+
+    let peakBoost = 0;
+    let peakCut = 0;
+    const curve = [];
+
+    for (let i = 0; i < freqs.length; i++) {
+      const g = Math.round(summedGains[i] * 100) / 100;
+      curve.push({ frequency: freqs[i], gainDb: g });
+      if (g > peakBoost) peakBoost = g;
+      if (g < peakCut) peakCut = g;
+    }
+
+    peakBoost = Math.max(0, Math.round(peakBoost * 10) / 10);
+    peakCut = Math.min(0, Math.round(peakCut * 10) / 10);
+    const recommendedPreampDb = -peakBoost;
+
+    return {
+      frequencies: freqs,
+      curve,
+      peakBoostDb: peakBoost,
+      peakCutDb: peakCut,
+      recommendedPreampDb
+    };
+  }
+
+  function formatEqCurveSummary(combinedCurve) {
+    if (!combinedCurve || (!combinedCurve.peakBoostDb && !combinedCurve.peakCutDb)) {
+      return 'Phẳng (0 dB)';
+    }
+    const boostStr = combinedCurve.peakBoostDb > 0 ? `+${combinedCurve.peakBoostDb.toFixed(1)} dB` : '0 dB';
+    const cutStr = combinedCurve.peakCutDb < 0 ? `${combinedCurve.peakCutDb.toFixed(1)} dB` : '0 dB';
+    return `Đỉnh: ${boostStr} · Trũng: ${cutStr}`;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary};
 });
