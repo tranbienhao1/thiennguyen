@@ -3586,6 +3586,7 @@
     }
     let visualizerFrame = 0, visualizerGeneration = 0;
     let visualizerPeaks = [];
+    let vuLevelL = null, vuLevelR = null;
     function setVisualizerRunning(running) {
       visualizerGeneration++;
       if (!running) {
@@ -3709,6 +3710,38 @@
             theme: state.visualizerTheme || 'cyber',
             showCenterLine: true,
             strokeWidth: 2
+          });
+        } else if (state.visualizerMode === 'vumeter' && typeof library !== 'undefined' && library && typeof library.renderVisualizerVuMeter === 'function') {
+          const leftBuf = (state.leftAnalyser) ? new Uint8Array(state.leftAnalyser.frequencyBinCount) : data;
+          const rightBuf = (state.rightAnalyser) ? new Uint8Array(state.rightAnalyser.frequencyBinCount) : data;
+          if (state.leftAnalyser) state.leftAnalyser.getByteFrequencyData(leftBuf);
+          if (state.rightAnalyser) state.rightAnalyser.getByteFrequencyData(rightBuf);
+
+          let maxL = 0, maxR = 0;
+          for (let i = 0; i < leftBuf.length; i++) {
+            if (leftBuf[i] > maxL) maxL = leftBuf[i];
+          }
+          for (let i = 0; i < rightBuf.length; i++) {
+            if (rightBuf[i] > maxR) maxR = rightBuf[i];
+          }
+          const normL = maxL / 255;
+          const normR = maxR / 255;
+
+          vuLevelL = (typeof library.calculateVuBallistics === 'function')
+            ? library.calculateVuBallistics(normL, vuLevelL ? vuLevelL.level : 0)
+            : { needleAngle: -45 + normL * 90, isOverload: normL >= 0.95 };
+          vuLevelR = (typeof library.calculateVuBallistics === 'function')
+            ? library.calculateVuBallistics(normR, vuLevelR ? vuLevelR.level : 0)
+            : { needleAngle: -45 + normR * 90, isOverload: normR >= 0.95 };
+
+          library.renderVisualizerVuMeter(context, {
+            width,
+            height,
+            leftAngle: vuLevelL.needleAngle,
+            rightAngle: vuLevelR.needleAngle,
+            isOverloadLeft: vuLevelL.isOverload,
+            isOverloadRight: vuLevelR.isOverload,
+            theme: state.visualizerTheme || 'cyber'
           });
         } else if (typeof library !== 'undefined' && library && typeof library.renderVisualizerSpectrum === 'function') {
           const normVals = [];
@@ -8648,9 +8681,14 @@
       });
       const toggleVisualizerMode = (e) => {
         if (e) e.preventDefault();
-        state.visualizerMode = state.visualizerMode === 'oscilloscope' ? 'spectrum' : 'oscilloscope';
+        state.visualizerMode = (typeof library !== 'undefined' && library && typeof library.cycleVisualizerMode === 'function')
+          ? library.cycleVisualizerMode(state.visualizerMode)
+          : (state.visualizerMode === 'oscilloscope' ? 'vumeter' : state.visualizerMode === 'vumeter' ? 'spectrum' : 'oscilloscope');
         try { localStorage.setItem('nocturne-visualizer-mode', state.visualizerMode); } catch (_) {}
-        toast(state.visualizerMode === 'oscilloscope' ? 'Chế độ: Dao động ký thời gian thực (Oscilloscope)' : 'Chế độ: Phổ tần số FFT (Spectrum)');
+        const modeLabel = (typeof library !== 'undefined' && library && typeof library.formatVisualizerMode === 'function')
+          ? library.formatVisualizerMode(state.visualizerMode)
+          : state.visualizerMode;
+        toast(`Chế độ: ${modeLabel}`);
       };
       visualizerCanvas.addEventListener('contextmenu', toggleVisualizerMode);
       visualizerCanvas.addEventListener('dblclick', toggleVisualizerMode);
@@ -9200,6 +9238,16 @@
       } else if ((e.key === 'f' || e.key === 'F') && !isInput && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         toggleRoonFullscreen();
+      } else if ((e.key === 'v' || e.key === 'V') && !isInput && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        state.visualizerMode = (typeof library !== 'undefined' && library && typeof library.cycleVisualizerMode === 'function')
+          ? library.cycleVisualizerMode(state.visualizerMode)
+          : (state.visualizerMode === 'oscilloscope' ? 'vumeter' : state.visualizerMode === 'vumeter' ? 'spectrum' : 'oscilloscope');
+        try { localStorage.setItem('nocturne-visualizer-mode', state.visualizerMode); } catch (_) {}
+        const modeLabel = (typeof library !== 'undefined' && library && typeof library.formatVisualizerMode === 'function')
+          ? library.formatVisualizerMode(state.visualizerMode)
+          : state.visualizerMode;
+        toast(`Chế độ: ${modeLabel}`);
       }
     });
     openDatabase().then(restoreRecentTracks).catch(error => { console.error('IndexedDB is unavailable:', error); restoreRecentTracks(); toast('Không thể bật lịch sử IndexedDB; mục nghe gần đây vẫn lưu trong trình duyệt.'); });
@@ -9374,5 +9422,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 20:00 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Sao Lưu & Khôi Phục Cấu Hình Toàn Diện (Full Audiophile Config Backup, Export & Safe Restore) & Đánh Giá Tải RAM Âm Thanh: (1) exportAppConfiguration xuất toàn bộ cấu hình (Yêu thích, Smart Playlists, Lịch sử, EQ, Crossfeed, Tone, Visualizer, Limiter) thành file JSON chuẩn; (2) validateAndParseConfiguration kiểm tra tính toàn vẹn và chống tấn công payload lỗi; (3) mergeRestoredConfiguration khôi phục và đồng bộ an toàn dữ liệu vào state và localStorage; (4) calculateAudioMemoryFootprint ước tính áp lực bộ nhớ RAM và khuyến nghị giải phóng tài nguyên; (5) Tích hợp UI: phân mục #config-backup-section trong Cài đặt với nút xuất #export-config-btn và nút nạp #import-config-btn; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests pwa-backup-restore.test.cjs PASS 100%, 112/112 test suites PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Dynamic Convolution Reverb & Headphone Impulse Response Engine -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 23:55 +07 | Đã xong: Bugfix Triệt Để - Khắc Phục Lỗi Văng/Crash Khi Bấm Vào Các Album (Safe Title Resolution, Fallback Boundaries & Instant Album/Artist Navigation): (1) Xử lý an toàn tuyệt đối việc sắp xếp bài hát trong renderTrackRows bằng helper getTitle lấy từ library.trackMetadata(t).title || t.title || t.name, triệt tiêu lỗi TypeError: Cannot read properties of undefined (reading 'localeCompare'); (2) Bổ sung fallback String(entry.name || 'Unknown').trim() trong renderCollectionCards và an toàn summary?.highestQuality trong showAlbumHero; (3) Thêm cặp hàm openAlbum & openArtist cho phép mở chi tiết album/nghệ sĩ tức thì từ bất kỳ đâu (lưới album, .album-link, .artist-link trong hàng bài hát) kèm try-catch error boundary và toast cảnh báo nếu dữ liệu hỏng; (4) Khắc phục an toàn các hàm renderFullscreenLyrics và pruneSliceCache trong môi trường test sandbox; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests album-click-crash-fix.test.cjs PASS 100%, toàn bộ 89/89 test suites PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Dynamic Convolution Reverb & Headphone Impulse Response Engine -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 01:10 +07 | Đã xong: Pha A - Audio Engine & DSP: Động Cơ Mô Phỏng Không Gian Phòng & Xung Lực Tai Nghe Audiophile (Dynamic Convolution Reverb & Audiophile Room Acoustics Simulation Engine): (1) ROOM_ACOUSTIC_PROFILES với 5 không gian âm học chuẩn (Bypass Bit-Perfect, Studio Control Room RT60 0.28s, Jazz Club Intimate RT60 0.72s, Symphony Concert Hall RT60 1.85s, Sacred Cathedral RT60 3.20s); (2) generateImpulseResponse tổng hợp đáp ứng xung lực stereo Float32Array thời gian thực với phân rã hàm mũ chính xác theo RT60, phản xạ sớm Poisson ngẫu nhiên và hấp thụ tần số cao damping; (3) calculateAcousticWetDry áp dụng định luật cân bằng năng lượng equal-power cosine/sine bảo toàn tuyệt đối âm lượng khi chuyển đổi phòng; (4) Web Audio Graph ConvolverNode & GainNodes tích hợp liền mạch giữa Limiter và Analyser trong đường DSP; (5) Đường Ngõ ra Trực tiếp (Bit-Perfect Direct) và chế độ Bypass bỏ qua hoàn toàn convolver, bảo đảm 100% bit-perfect; (6) UI điều khiển chuyên nghiệp #room-acoustics-section trong #eq-panel gồm #room-acoustics-select, thanh trượt Ướt #room-acoustics-wet, huy hiệu #room-acoustics-badge, và mô tả âm học chi tiết; (7) Tích hợp sao lưu & khôi phục tự động trong backup JSON; (8) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 9/9 tests room-acoustics-convolution.test.cjs PASS 100%, toàn bộ 90/90 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe & Bảng Màu Spectrum Mới -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 01:20 +07 | Đã xong: Pha B - UI/UX & Visualizer: Đồng Hồ VU Analog Kép (Dual Stereophonic Analog VU Meter with Dynamic Ballistics) & Mở Rộng Bảng Màu Audiophile Mới (McIntosh Green, Tube Amber, Pacific Blue): (1) 3 bảng màu audiophile mới trong VISUALIZER_THEMES (emerald McIntosh Vintage Green, amber Vacuum Tube Warmth, ocean Pacific Hi-Res Blue); (2) calculateVuBallistics tính toán đà chuyển động kim (needle ballistics attack 0.35, decay 0.05), thang đo decibel -40dB đến +3dB, góc quét kim -45° đến +45°, và cảnh báo quá tải peak isOverload; (3) renderVisualizerVuMeter kết xuất đồng hồ VU stereo analog 2 kênh L/R độc lập (hoặc đơn tâm trên màn hình nhỏ) với mặt đồng hồ cong, vạch chia decibel, vùng quá tải đỏ rực, kim quét mượt mà và đèn LED đỏ cảnh báo clipping thời gian thực; (4) cycleVisualizerMode & formatVisualizerMode xoay vòng 3 chế độ hiển thị: Spectrum (Phổ tần số FFT) ↔ Oscilloscope (Dao động ký) ↔ VU Meter (Đồng hồ VU Analog); (5) Tương tác click chuột phải / nhấp đúp trên #visualizer và phím tắt 'v' / 'V' chuyển đổi chế độ tức thì kèm thông báo toast; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests audiophile-vu-meter-visualizer.test.cjs PASS 100%, toàn bộ 91/91 test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features & Săn Lỗi: Tối Ưu Bố Cục Thư Viện Album Lưới, Đồng Bộ Thẻ Nhãn & Tránh Xung Đột Popover -->
 </body>
 </html>

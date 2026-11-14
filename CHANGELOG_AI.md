@@ -2,6 +2,34 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 01:20 +07] — Pha B: Đồng Hồ VU Analog Kép (Dual Stereophonic Analog VU Meter with Dynamic Ballistics) & Mở Rộng Bảng Màu Audiophile Mới (McIntosh Green, Tube Amber, Pacific Blue)
+
+### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:
+- **Phân khu trọng tâm:** **Giao Diện Người Dùng & Trực Quan Hóa Âm Thanh Audiophile (UI/UX & Visualizer Engine)**.
+- **Tính năng & Đột phá:**
+  1. **3 Bảng Màu Audiophile Mới Trong `VISUALIZER_THEMES`:**
+     - `emerald`: McIntosh Vintage Green (`#059669`, `#10b981`, `#34d399`, peak `#6ee7b7`) — sắc xanh ngọc kinh điển phong cách ampli hi-end McIntosh.
+     - `amber`: Vacuum Tube Warmth (`#d97706`, `#f59e0b`, `#fbbf24`, peak `#fef08a`) — ánh sáng cam vàng ấm áp của đèn điện tử chân không vintage.
+     - `ocean`: Pacific Hi-Res Blue (`#0284c7`, `#0ea5e9`, `#38bdf8`, peak `#bae6fd`) — sắc xanh đại dương chuẩn studio tham chiếu Sony / Hi-Res.
+  2. **Động Học Kim Đồng Hồ Ballistics Chuẩn ANSI C16.5 (`calculateVuBallistics`):**
+     - Mô phỏng quán tính vật lý kim đồng hồ cơ: thời gian phản hồi nhạy bén (attack 0.35) và thời gian phân rã rơi chậm êm ái (decay 0.05).
+     - Quy đổi năng lượng sang thang đo decibel thực tế $-40\text{ dB}$ đến $+3\text{ dB}$, chuyển thành góc quét kim $-45^\circ$ đến $+45^\circ$.
+     - Nhận diện ngưỡng tín hiệu vượt đỉnh $(\ge -0.5\text{ dBFS})$ và kích hoạt cờ cảnh báo quá tải `isOverload`.
+  3. **Đồng Hồ VU Analog Kép Stereo Thời Gian Thực (`renderVisualizerVuMeter`):**
+     - Kết xuất 2 mặt đồng hồ kim độc lập cho kênh Trái (L) và Phải (R) khi màn hình rộng, hoặc đồng hồ đơn tâm khi màn hình hẹp.
+     - Vẽ mặt cung tròn, vạch chia decibel $(-40, -20, -10, -5, 0, +3)$, phân vùng cảnh báo quá tải màu đỏ nổi bật $(0\text{ đến }+3\text{ dB})$.
+     - Kim đo quét mượt mà 60fps và đèn LED đỏ Overload phát sáng khi có tín hiệu chạm ngưỡng clipping.
+  4. **Chuyển Đổi Linh Hoạt 3 Chế Độ Hiển Thị (`cycleVisualizerMode` & `formatVisualizerMode`):**
+     - Xoay vòng mượt mà: `Phổ tần số FFT (Spectrum) ↔ Dao động ký thời gian thực (Oscilloscope) ↔ Đồng hồ VU Analog kép (Dual VU Meter)`.
+     - Hỗ trợ thao tác trực quan: Nhấp đúp / Chuột phải lên `#visualizer` hoặc bấm phím tắt **`V` / `v`** để đổi chế độ tức thì kèm thông báo toast.
+  5. **Bảo Toàn Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `audiophile-vu-meter-visualizer.test.cjs` (**5/5 tests PASS 100%**).
+  - Toàn bộ **91/91 test suites toàn dự án (gần 700 tests) PASS 100%**.
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 01:10 +07] — Pha A: Động Cơ Mô Phỏng Không Gian Phòng & Xung Lực Tai Nghe Audiophile (Dynamic Convolution Reverb & Audiophile Room Acoustics Simulation Engine)
 
 ### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:
