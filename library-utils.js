@@ -5496,6 +5496,290 @@
     return true;
   }
 
+  // Pha B — Acoustic Thermal Ballistics & 3D Soundstage Vector Constellation
+  function calculateThermalBallistics(currentLevel, previousState = {}, options = {}) {
+    const raw = Math.max(0, Math.min(1, Number(currentLevel) || 0));
+    const prevLevel = Math.max(0, Math.min(1, Number(previousState.level) || 0));
+    const prevTemp = Number.isFinite(previousState.temperatureC) ? previousState.temperatureC : 25;
+    const prevThermalLoad = Math.max(0, Math.min(1, Number(previousState.thermalLoad) || 0));
+    const prevPeakHold = Number.isFinite(previousState.peakHoldDb) ? previousState.peakHoldDb : -40;
+
+    // Ballistics constants (DIN / IEC 60268-10 VU standard with thermal inertia)
+    const attackRate = Number.isFinite(options.attack) ? Math.max(0.05, Math.min(1, options.attack)) : 0.38;
+    const decayRate = Number.isFinite(options.decay) ? Math.max(0.01, Math.min(0.5, options.decay)) : 0.045;
+    const thermalInertia = Number.isFinite(options.thermalInertia) ? Math.max(0.005, Math.min(0.2, options.thermalInertia)) : 0.025;
+    const coolingRate = Number.isFinite(options.coolingRate) ? Math.max(0.002, Math.min(0.1, options.coolingRate)) : 0.012;
+
+    let level;
+    if (raw > prevLevel) {
+      level = prevLevel + (raw - prevLevel) * attackRate;
+    } else {
+      level = Math.max(0, prevLevel - decayRate);
+    }
+
+    const db = level > 0.0005 ? Math.max(-40, Math.min(3, 20 * Math.log10(level))) : -40;
+    const isOverload = db >= -0.2;
+    const norm = Math.min(1, Math.max(0, (db + 40) / 43));
+    const needleAngle = Math.round((-45 + norm * 90) * 10) / 10;
+
+    // Thermal simulation: Power dissipation = level^2
+    const instantaneousPower = raw * raw;
+    let thermalLoad;
+    if (instantaneousPower > prevThermalLoad) {
+      thermalLoad = prevThermalLoad + (instantaneousPower - prevThermalLoad) * thermalInertia;
+    } else {
+      thermalLoad = Math.max(0, prevThermalLoad - coolingRate);
+    }
+    thermalLoad = Math.min(1, Math.max(0, thermalLoad));
+
+    // Temperature in °C: ambient (25°C) to peak rated (85°C)
+    const temperatureC = Math.round((25 + thermalLoad * 60) * 10) / 10;
+
+    let thermalRating = 'cool';
+    if (temperatureC >= 75) {
+      thermalRating = 'hot';
+    } else if (temperatureC >= 60) {
+      thermalRating = 'warm';
+    } else if (temperatureC >= 38) {
+      thermalRating = 'optimal';
+    }
+
+    const isThermalWarning = temperatureC >= 75 || thermalLoad >= 0.85;
+
+    // Peak hold calculation
+    let peakHoldDb;
+    if (db > prevPeakHold) {
+      peakHoldDb = db;
+    } else {
+      peakHoldDb = Math.max(-40, prevPeakHold - 0.25);
+    }
+
+    return {
+      level: Math.round(level * 1000) / 1000,
+      db: Math.round(db * 10) / 10,
+      needleAngle,
+      thermalLoad: Math.round(thermalLoad * 1000) / 1000,
+      temperatureC,
+      thermalRating,
+      isOverload,
+      isThermalWarning,
+      peakHoldDb: Math.round(peakHoldDb * 10) / 10
+    };
+  }
+
+  function formatThermalBallisticsBadge(thermal) {
+    if (!thermal) return '25°C · Tĩnh';
+    const temp = Number.isFinite(thermal.temperatureC) ? thermal.temperatureC : 25;
+    const rating = thermal.thermalRating || 'cool';
+    const warning = thermal.isThermalWarning ? ' ⚠️' : '';
+    switch (rating) {
+      case 'hot':
+        return `${temp.toFixed(0)}°C · Quá tải${warning}`;
+      case 'warm':
+        return `${temp.toFixed(0)}°C · Ấm`;
+      case 'optimal':
+        return `${temp.toFixed(0)}°C · Tối ưu`;
+      case 'cool':
+      default:
+        return `${temp.toFixed(0)}°C · Mát mẻ`;
+    }
+  }
+
+  function calculateSoundstageAcousticVectors(leftData, rightData, sampleRate = 44100) {
+    if (!leftData || !rightData || leftData.length === 0 || rightData.length === 0) {
+      return {
+        azimuth: 0,
+        depth: 0.5,
+        spread: 50,
+        airiness: 0.5,
+        soundstageType: 'balanced',
+        summary: 'Âm hình Cân bằng (Rộng 50%)'
+      };
+    }
+
+    const len = Math.min(leftData.length, rightData.length);
+    const isByteLeft = leftData instanceof Uint8Array || (typeof leftData[0] === 'number' && leftData[0] >= 0 && leftData[0] <= 255 && !Array.from(leftData.slice(0, 10)).some(v => v < 0));
+    const isByteRight = rightData instanceof Uint8Array || (typeof rightData[0] === 'number' && rightData[0] >= 0 && rightData[0] <= 255 && !Array.from(rightData.slice(0, 10)).some(v => v < 0));
+
+    let sumL2 = 0, sumR2 = 0, sumMid2 = 0, sumSide2 = 0;
+    let highFreqEnergy = 0, totalEnergy = 0;
+
+    for (let i = 0; i < len; i++) {
+      const l = isByteLeft ? (leftData[i] - 128) / 128 : Number(leftData[i]) || 0;
+      const r = isByteRight ? (rightData[i] - 128) / 128 : Number(rightData[i]) || 0;
+
+      const mid = (l + r) * 0.5;
+      const side = (l - r) * 0.5;
+
+      sumL2 += l * l;
+      sumR2 += r * r;
+      sumMid2 += mid * mid;
+      sumSide2 += side * side;
+
+      if (i > 0) {
+        const prevL = isByteLeft ? (leftData[i-1] - 128) / 128 : Number(leftData[i-1]) || 0;
+        const diff = l - prevL;
+        highFreqEnergy += diff * diff;
+      }
+      totalEnergy += (l * l + r * r) * 0.5;
+    }
+
+    const totalLR = sumL2 + sumR2;
+    let azimuth = 0;
+    if (totalLR > 1e-9) {
+      const panRatio = (sumR2 - sumL2) / totalLR;
+      azimuth = Math.round(panRatio * 45 * 10) / 10;
+    }
+
+    const totalMS = sumMid2 + sumSide2;
+    const spreadRatio = totalMS > 1e-9 ? sumSide2 / totalMS : 0.5;
+    const spread = Math.max(0, Math.min(100, Math.round(spreadRatio * 200)));
+    const depth = Math.max(0.1, Math.min(1.0, Math.round((0.3 + spreadRatio * 0.7) * 100) / 100));
+    const airRatio = totalEnergy > 1e-9 ? highFreqEnergy / totalEnergy : 0.3;
+    const airiness = Math.max(0, Math.min(1, Math.round(Math.min(1, airRatio * 2.5) * 100) / 100));
+
+    let soundstageType = 'balanced';
+    if (spread < 20) {
+      soundstageType = 'intimate';
+    } else if (spread > 75) {
+      soundstageType = 'holographic';
+    } else if (spread > 55) {
+      soundstageType = 'wide';
+    }
+
+    const summary = formatSoundstageVectorsSummary({ azimuth, depth, spread, airiness, soundstageType });
+
+    return {
+      azimuth,
+      depth,
+      spread,
+      airiness,
+      soundstageType,
+      summary
+    };
+  }
+
+  function formatSoundstageVectorsSummary(vectors) {
+    if (!vectors) return 'Âm hình Cân bằng';
+    const type = vectors.soundstageType || 'balanced';
+    const spread = vectors.spread !== undefined ? vectors.spread : 50;
+    const az = Number.isFinite(vectors.azimuth) ? vectors.azimuth : 0;
+    const azDir = Math.abs(az) < 3 ? 'Giữa' : (az > 0 ? `Lệch Phải ${az.toFixed(0)}°` : `Lệch Trái ${Math.abs(az).toFixed(0)}°`);
+
+    switch (type) {
+      case 'holographic':
+        return `Không gian Holographic 3D (Rộng ${spread}% · ${azDir})`;
+      case 'wide':
+        return `Âm trường Rộng Mở (Rộng ${spread}% · ${azDir})`;
+      case 'intimate':
+        return `Âm hình Gần Gũi / Mono (Rộng ${spread}% · ${azDir})`;
+      case 'balanced':
+      default:
+        return `Âm hình Stereo Chuẩn (Rộng ${spread}% · ${azDir})`;
+    }
+  }
+
+  function renderAcousticSoundstageCanvas(context, vectors, options = {}) {
+    if (!context) return false;
+    const width = Number(options.width) || (context.canvas ? context.canvas.width : 0);
+    const height = Number(options.height) || (context.canvas ? context.canvas.height : 0);
+    if (width <= 0 || height <= 0) return false;
+
+    const theme = getVisualizerTheme(options.theme || 'cyber');
+    const primaryColor = (theme.stops && theme.stops[0]) ? theme.stops[0].color : '#a855f7';
+    const secondaryColor = (theme.stops && theme.stops[1]) ? theme.stops[1].color : '#ec4899';
+    const peakColor = theme.peakColor || '#c084fc';
+
+    context.clearRect(0, 0, width, height);
+
+    const cx = width * 0.5;
+    const cy = height * 0.65;
+    const maxR = Math.min(width * 0.42, height * 0.55);
+
+    // Draw polar grid rings
+    const rings = [0.25, 0.5, 0.75, 1.0];
+    for (const rFraction of rings) {
+      context.beginPath();
+      context.arc(cx, cy, maxR * rFraction, Math.PI, Math.PI * 2);
+      context.strokeStyle = rFraction === 1.0 ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.06)';
+      context.lineWidth = 1;
+      context.stroke();
+    }
+
+    // Radial spokes (-45°, -30°, -15°, 0°, +15°, +30°, +45°)
+    const angles = [-45, -30, -15, 0, 15, 30, 45];
+    for (const deg of angles) {
+      const rad = (deg - 90) * (Math.PI / 180);
+      context.beginPath();
+      context.moveTo(cx, cy);
+      context.lineTo(cx + Math.cos(rad) * maxR, cy + Math.sin(rad) * maxR);
+      context.strokeStyle = deg === 0 ? 'rgba(255, 255, 255, 0.22)' : 'rgba(255, 255, 255, 0.05)';
+      context.lineWidth = deg === 0 ? 1.5 : 1;
+      context.stroke();
+
+      if (Math.abs(deg) === 45 || deg === 0) {
+        const lx = cx + Math.cos(rad) * (maxR + 14);
+        const ly = cy + Math.sin(rad) * (maxR + 14);
+        context.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        context.font = '9px monospace';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(deg === 0 ? 'C' : (deg < 0 ? 'L' : 'R'), lx, ly);
+      }
+    }
+
+    // Sweet Spot / Listener position
+    context.beginPath();
+    context.arc(cx, cy, 4, 0, Math.PI * 2);
+    context.fillStyle = '#94a3b8';
+    context.fill();
+
+    const safeVectors = vectors || { azimuth: 0, depth: 0.5, spread: 50, airiness: 0.5 };
+    const az = Number.isFinite(safeVectors.azimuth) ? safeVectors.azimuth : 0;
+    const depth = Number.isFinite(safeVectors.depth) ? safeVectors.depth : 0.5;
+    const spread = Number.isFinite(safeVectors.spread) ? safeVectors.spread : 50;
+
+    const vectorRad = (az - 90) * (Math.PI / 180);
+    const vectorR = maxR * Math.min(1.0, Math.max(0.15, depth));
+    const vx = cx + Math.cos(vectorRad) * vectorR;
+    const vy = cy + Math.sin(vectorRad) * vectorR;
+
+    const spreadRadius = (spread / 100) * (maxR * 0.45);
+    if (typeof context.save === 'function') context.save();
+    context.beginPath();
+    if (typeof context.ellipse === 'function') {
+      context.ellipse(vx, vy, spreadRadius + 10, spreadRadius * 0.6 + 6, 0, 0, Math.PI * 2);
+    } else {
+      context.arc(vx, vy, spreadRadius + 10, 0, Math.PI * 2);
+    }
+    if (typeof context.createRadialGradient === 'function') {
+      const grad = context.createRadialGradient(vx, vy, 0, vx, vy, spreadRadius + 12);
+      grad.addColorStop(0, primaryColor + '66');
+      grad.addColorStop(0.6, secondaryColor + '33');
+      grad.addColorStop(1, 'transparent');
+      context.fillStyle = grad;
+      context.fill();
+    }
+    context.strokeStyle = peakColor + '88';
+    context.lineWidth = 1.5;
+    context.stroke();
+    if (typeof context.restore === 'function') context.restore();
+
+    context.beginPath();
+    context.moveTo(cx, cy);
+    context.lineTo(vx, vy);
+    context.strokeStyle = peakColor;
+    context.lineWidth = 2;
+    context.stroke();
+
+    context.beginPath();
+    context.arc(vx, vy, 5, 0, Math.PI * 2);
+    context.fillStyle = '#ffffff';
+    context.fill();
+
+    return true;
+  }
+
   // Pha C — Thống Kê Hàng Đợi Thông Minh & Phân Tích Định Dạng Audio
   function calculateQueueMetrics(queueTracks) {
     if (!Array.isArray(queueTracks) || queueTracks.length === 0) {
@@ -7058,5 +7342,5 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas};
 });

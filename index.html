@@ -1085,6 +1085,7 @@
               <span id="room-dr-badge" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400" title="Dynamic Range (Crest Factor: chênh lệch giữa Peak dB và RMS dB)">DR -- · Chờ tín hiệu</span>
               <span id="room-crest-detail" class="hidden sm:inline text-zinc-600">Pk -96 · RMS -96 dB</span>
               <span id="room-phase-badge" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400" title="Hệ số đồng pha Stereo (Phase Correlation: -1 nghịch pha đến +1 đồng pha)">Phase +1.0</span>
+              <span id="room-thermal-badge" class="rounded border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-mono text-emerald-300" title="Nhiệt động học công suất & tiêu tán âm học (Thermal Ballistics)">25°C · Tĩnh</span>
               <span id="room-tp-badge" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400" title="True Peak (Đỉnh liên mẫu ITU-R BS.1770 / EBU R128)">TP --</span>
             </div>
             <div class="flex items-center gap-1.5">
@@ -1307,6 +1308,7 @@
       <div class="flex items-center gap-1 rounded-full border border-white/10 bg-black/40 p-1 backdrop-blur-md">
         <button id="fullscreen-view-art-btn" type="button" class="rounded-full px-3 py-1 text-xs font-medium text-white bg-white/15 transition" aria-label="Xem bìa album">Bìa album</button>
         <button id="fullscreen-view-lyrics-btn" type="button" class="rounded-full px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white transition" aria-label="Xem lời bài hát">Lời bài hát</button>
+        <button id="fullscreen-view-stage-btn" type="button" class="rounded-full px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white transition" aria-label="Sân khấu âm thanh">Sân khấu 3D</button>
       </div>
       <div class="flex items-center gap-3">
         <span id="fullscreen-signal-led" class="hidden h-2.5 w-2.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span>
@@ -1338,6 +1340,25 @@
       <div id="fullscreen-lyrics-scroll" class="w-full flex-1 overflow-y-auto space-y-4 py-8 text-center scroll-smooth pr-2 select-none">
         <p class="text-sm text-zinc-500">Chưa có lời đồng bộ (.lrc) cho bài này.</p>
       </div>
+    </div>
+
+    <!-- Center Stage 3D Visualizer & Soundstage Radar Mode -->
+    <div id="fullscreen-stage-visualizer" class="relative z-10 hidden flex-1 flex-col items-center justify-between p-4 max-w-4xl mx-auto w-full min-h-0">
+      <div class="flex flex-wrap items-center justify-between gap-3 w-full mb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] uppercase tracking-wider text-zinc-500">Chế độ hiển thị:</span>
+          <button id="fs-stage-mode-radar" type="button" class="rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200">Radar 3D</button>
+          <button id="fs-stage-mode-vu" type="button" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white">VU Meter</button>
+        </div>
+        <div class="flex items-center gap-2 text-[10px] font-mono">
+          <span id="fs-soundstage-badge" class="rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-indigo-300">Âm hình Cân bằng</span>
+          <span id="fs-thermal-badge" class="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">25°C · Tĩnh</span>
+        </div>
+      </div>
+      <div class="relative w-full flex-1 flex items-center justify-center min-h-[220px]">
+        <canvas id="fullscreen-stage-canvas" width="600" height="340" class="max-h-full max-w-full rounded-2xl shadow-2xl bg-black/40 border border-white/10 select-none"></canvas>
+      </div>
+      <p id="fs-stage-telemetry-desc" class="mt-2 text-center text-[10px] font-mono text-zinc-500">Mô phỏng trường âm học 3D, hướng âm hình (Azimuth) và quán tính nhiệt động học ampli</p>
     </div>
 
     <!-- Bottom Control Dock (Song Metadata, Controls, Waveform & Zone/Volume) -->
@@ -1632,7 +1653,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art' };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -3927,6 +3948,29 @@
               }
             }
           }
+          if (typeof library !== 'undefined' && library && typeof library.calculateThermalBallistics === 'function') {
+            const rawLevel = Math.pow(10, Math.max(-40, level.rmsDb) / 20);
+            state.thermalBallistics = library.calculateThermalBallistics(rawLevel, state.thermalBallistics || {});
+            const thermalBadgeText = library.formatThermalBallisticsBadge(state.thermalBallistics);
+            const roomThermal = $('room-thermal-badge');
+            if (roomThermal) {
+              roomThermal.textContent = thermalBadgeText;
+              if (state.thermalBallistics.thermalRating === 'hot') {
+                roomThermal.className = 'rounded border px-2 py-0.5 text-[9px] font-medium text-rose-300 border-rose-500/40 bg-rose-500/10';
+              } else if (state.thermalBallistics.thermalRating === 'warm') {
+                roomThermal.className = 'rounded border px-2 py-0.5 text-[9px] font-medium text-amber-300 border-amber-500/40 bg-amber-500/10';
+              } else {
+                roomThermal.className = 'rounded border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-mono text-emerald-300';
+              }
+            }
+            const fsThermal = $('fs-thermal-badge');
+            if (fsThermal) {
+              fsThermal.textContent = thermalBadgeText;
+              fsThermal.className = state.thermalBallistics.thermalRating === 'hot'
+                ? 'rounded border px-2 py-0.5 text-rose-300 border-rose-500/40 bg-rose-500/10'
+                : 'rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-300';
+            }
+          }
         }
         if (state.visualizerStrobeEnabled && visualizerStrobeState && visualizerStrobeState.intensity > 0.02 && typeof library !== 'undefined' && library && typeof library.renderVisualizerBackdropGlow === 'function') {
           library.renderVisualizerBackdropGlow(context, {
@@ -4000,6 +4044,48 @@
           });
         } else {
           for (let i = 0; i < bars; i++) { const value = data[Math.floor(i * data.length / bars)] / 255, barHeight = Math.max(2, value * height); context.fillStyle = `rgba(167,139,250,${.35 + value * .65})`; context.beginPath(); context.roundRect(i * (barWidth + gap), (height - barHeight) / 2, barWidth, barHeight, 2); context.fill(); }
+        }
+
+        if (state.isFullscreen && state.fullscreenViewMode === 'stage') {
+          const fsCanvas = $('fullscreen-stage-canvas');
+          if (fsCanvas) {
+            const fsCtx = fsCanvas.getContext('2d');
+            const fsW = fsCanvas.width;
+            const fsH = fsCanvas.height;
+            if (state.fullscreenStageMode === 'vu' && typeof library.renderVisualizerVuMeter === 'function') {
+              const needle = state.thermalBallistics ? state.thermalBallistics.needleAngle : (vuLevelL ? vuLevelL.needleAngle : -45);
+              const overload = state.thermalBallistics ? state.thermalBallistics.isOverload : false;
+              library.renderVisualizerVuMeter(fsCtx, {
+                width: fsW,
+                height: fsH,
+                theme: state.visualizerTheme || 'cyber',
+                leftAngle: needle,
+                rightAngle: needle,
+                isOverloadLeft: overload,
+                isOverloadRight: overload
+              });
+            } else if (typeof library.renderAcousticSoundstageCanvas === 'function') {
+              let leftBuf = data, rightBuf = data;
+              if (state.leftAnalyser && state.rightAnalyser) {
+                leftBuf = new Uint8Array(state.leftAnalyser.fftSize);
+                rightBuf = new Uint8Array(state.rightAnalyser.fftSize);
+                state.leftAnalyser.getByteTimeDomainData(leftBuf);
+                state.rightAnalyser.getByteTimeDomainData(rightBuf);
+              }
+              const vectors = (typeof library.calculateSoundstageAcousticVectors === 'function')
+                ? library.calculateSoundstageAcousticVectors(leftBuf, rightBuf)
+                : { azimuth: 0, depth: 0.5, spread: 50 };
+              library.renderAcousticSoundstageCanvas(fsCtx, vectors, {
+                width: fsW,
+                height: fsH,
+                theme: state.visualizerTheme || 'cyber'
+              });
+              const fsSoundstage = $('fs-soundstage-badge');
+              if (fsSoundstage) {
+                fsSoundstage.textContent = vectors.summary || 'Âm hình Cân bằng';
+              }
+            }
+          }
         }
       };
       if (!visualizerFrame) visualizerFrame = requestAnimationFrame(draw);
@@ -9750,28 +9836,36 @@
     window.setLyricsOffset = setLyricsOffset;
 
     function setFullscreenViewMode(mode) {
-      state.fullscreenViewMode = mode === 'lyrics' ? 'lyrics' : 'art';
-      const isLyrics = state.fullscreenViewMode === 'lyrics';
+      if (mode === 'lyrics') state.fullscreenViewMode = 'lyrics';
+      else if (mode === 'stage') state.fullscreenViewMode = 'stage';
+      else state.fullscreenViewMode = 'art';
+
+      const curMode = state.fullscreenViewMode;
       const stageArt = $('fullscreen-stage-art');
       const stageLyrics = $('fullscreen-stage-lyrics');
+      const stageVisualizer = $('fullscreen-stage-visualizer');
       const btnArt = $('fullscreen-view-art-btn');
       const btnLyrics = $('fullscreen-view-lyrics-btn');
+      const btnStage = $('fullscreen-view-stage-btn');
 
-      if (stageArt) stageArt.classList.toggle('hidden', isLyrics);
-      if (stageLyrics) stageLyrics.classList.toggle('hidden', !isLyrics);
-      if (stageLyrics) stageLyrics.classList.toggle('flex', isLyrics);
+      if (stageArt) stageArt.classList.toggle('hidden', curMode !== 'art');
+      if (stageLyrics) {
+        stageLyrics.classList.toggle('hidden', curMode !== 'lyrics');
+        stageLyrics.classList.toggle('flex', curMode === 'lyrics');
+      }
+      if (stageVisualizer) {
+        stageVisualizer.classList.toggle('hidden', curMode !== 'stage');
+        stageVisualizer.classList.toggle('flex', curMode === 'stage');
+      }
 
-      if (btnArt) {
-        btnArt.className = !isLyrics
-          ? 'rounded-full px-3 py-1 text-xs font-medium text-white bg-white/15 transition'
-          : 'rounded-full px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white transition';
-      }
-      if (btnLyrics) {
-        btnLyrics.className = isLyrics
-          ? 'rounded-full px-3 py-1 text-xs font-medium text-white bg-white/15 transition'
-          : 'rounded-full px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white transition';
-      }
-      if (isLyrics) {
+      const activeClass = 'rounded-full px-3 py-1 text-xs font-medium text-white bg-white/15 transition';
+      const inactiveClass = 'rounded-full px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white transition';
+
+      if (btnArt) btnArt.className = curMode === 'art' ? activeClass : inactiveClass;
+      if (btnLyrics) btnLyrics.className = curMode === 'lyrics' ? activeClass : inactiveClass;
+      if (btnStage) btnStage.className = curMode === 'stage' ? activeClass : inactiveClass;
+
+      if (curMode === 'lyrics') {
         if (typeof renderFullscreenLyrics === 'function') renderFullscreenLyrics();
         updateLyricsHighlight();
       }
@@ -9782,6 +9876,25 @@
     if (fsViewArtBtn) fsViewArtBtn.addEventListener('click', () => setFullscreenViewMode('art'));
     const fsViewLyricsBtn = $('fullscreen-view-lyrics-btn');
     if (fsViewLyricsBtn) fsViewLyricsBtn.addEventListener('click', () => setFullscreenViewMode('lyrics'));
+    const fsViewStageBtn = $('fullscreen-view-stage-btn');
+    if (fsViewStageBtn) fsViewStageBtn.addEventListener('click', () => setFullscreenViewMode('stage'));
+
+    const fsStageRadarBtn = $('fs-stage-mode-radar');
+    const fsStageVuBtn = $('fs-stage-mode-vu');
+    if (fsStageRadarBtn) {
+      fsStageRadarBtn.addEventListener('click', () => {
+        state.fullscreenStageMode = 'radar';
+        fsStageRadarBtn.className = 'rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200';
+        if (fsStageVuBtn) fsStageVuBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
+      });
+    }
+    if (fsStageVuBtn) {
+      fsStageVuBtn.addEventListener('click', () => {
+        state.fullscreenStageMode = 'vu';
+        fsStageVuBtn.className = 'rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200';
+        if (fsStageRadarBtn) fsStageRadarBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
+      });
+    }
 
     const fsOffsetMinus = $('fs-lyrics-offset-minus');
     if (fsOffsetMinus) fsOffsetMinus.addEventListener('click', () => setLyricsOffset(-0.5));
@@ -10074,5 +10187,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 04:10 +07 | Đã xong: Pha C - Core Features & Tối Ưu: Hệ Thống Chia Sẻ Danh Sách Phát & Đồng Bộ Hóa Đa Thiết Bị (Cross-Device Playlist Sharing, Hash URL Decoder, Library Matcher & Extended M3U8 Export/Import): (1) buildShareablePlaylistPayload & encodeShareablePlaylistLink đóng gói danh sách phát chuẩn JSON và mã hóa Unicode-safe URL hash #playlist= để chia sẻ liên kết trực tiếp giữa các thiết bị; (2) parseShareablePlaylistPayload giải mã an toàn từ URL hash, JSON hoặc base64; (3) matchPlaylistWithLibrary tự động đối soát thông minh giữa danh sách nhận được và kho nhạc nội bộ theo ID và Normalized Title + Artist, tính toán matchRate và summary trực quan; (4) exportPlaylistM3u8 & parseM3u8Playlist xuất nhập danh sách phát chuẩn Extended M3U8 với đầy đủ thẻ #EXTINF, #EXTALBUM, #EXTFORMAT; (5) Tích hợp UI: nút #album-hero-share trong Album Hero, nút #queue-share-btn, #queue-import-btn và file input #playlist-import-file trong Hàng đợi, tự động xử lý hashchange và URL khởi động; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 19/19 tests playlist-sharing-sync.test.cjs PASS 100%, 92/92 core tests PASS 100% | Lượt kế tiếp: Pha D - Kiến Trúc & PWA: Tối Ưu Hóa Bộ Nhớ Cache Service Worker & Tự Động Phân Đoạn Âm Thanh Stream -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 05:00 +07 | Đã xong: Pha D & Bugfix - Kiến Trúc & PWA: Tối Ưu Bộ Nhớ Cache Service Worker, Phân Đoạn Âm Thanh Stream (Audio Stream Dynamic Chunking) & Khắc Phục Triệt Để Xung Đột Bố Cục Footer/Mini HUD & Nâng Cấp 1-Click Update: (1) calculateAudioChunkRanges phân đoạn byte range (bytes=0-524287) nạp đệm mượt mà cho stream âm thanh lớn; shouldCacheAudioStream xác định chiến lược (full-cache <= 5MB vs range-chunk > 5MB vs bypass); formatStreamChunkStatus định dạng telemetry nạp đệm thời gian thực; buildServiceWorkerCacheManifest xây dựng danh mục cache chuẩn hóa; (2) Tối ưu triệt để bố cục Player Footer: tách bạch hoàn toàn #footer-telemetry-strip (height: 28px) và .footer-main-container (height: 88px), triệt tiêu các CSS selector lỗi div:first-child kế thừa 100% height, đảm bảo nút Play/Pause và seekbar luôn thông thoáng, không bao giờ bị đè lấn hoặc che khuất; (3) Cố định cứng kích thước Mini Player HUD (w-[360px] h-[64px]) và ràng buộc giới hạn kéo (maxBottomClearance = 110px) không bao giờ che khuất dock điều khiển bài hát; (4) Nâng cấp cơ chế 'Cập nhật' (#update-now): lưu phiên phát hiện tại, tạm dừng mượt mà, kích hoạt ngay Service Worker qua SKIP_WAITING và tự động phát tiếp ngay sau khi tải lại mà không làm gián đoạn người nghe; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 86/86 tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Dynamic Crossfade Equal-Power Smoothing & Sub-bass Transient Punch -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 05:45 +07 | Đã xong: Pha A - Audio Engine & DSP: Dynamic Crossfade Equal-Power Smoothing & Sub-bass Transient Punch (Audiophile Sub-Bass Dynamic Transient Punch Engine, Low-Frequency Decay Shaping & Equal-Power Crossfade Transition Smoothing): (1) calculateSubBassPunchParams & getSubBassPunchProfile kiến tạo 5 profile xung lực dải trầm (off, tight 60Hz, deep 42Hz, warm 85Hz, slam 35Hz) với khả năng tự động tính toán preamp bù suy giảm an toàn chống clipping 100% 0 dBFS; (2) calculateLowFrequencyTransientDecay mô hình hóa vật lý giảm chấn và nửa thời gian chu kỳ xung lực dải trầm; (3) profile hòa âm 'sub-bass-blend' trong calculateCrossfadeGains bảo toàn trọn vẹn năng lượng âm trầm (cos^0.7 / sin^0.7) giữ mức >= 0.784 ở điểm giao thoa; (4) Tích hợp chuỗi Web Audio DSP: createSubBassPunchNodes nối trước Peak Limiter, đồng bộ cấu hình sao lưu và khôi phục localStorage nocturne-sub-bass-punch và nocturne-sub-bass-intensity; (5) Tích hợp UI EQ panel: #sub-bass-select, slider #sub-bass-intensity-slider, huy hiệu #sub-bass-punch-badge và tùy chọn trong #crossfade-curve-select; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 13/13 tests sub-bass-punch-crossfade.test.cjs PASS 100%, 116/116 regression tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Âm Nhạc Toàn Màn Hình & Đồng Hồ Đo Nhiệt Động Học Âm Học (Acoustic Thermal Ballistics & Fullscreen Soundstage) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 06:25 +07 | Đã xong: Pha B - UI/UX & Visualizer: Sân Khấu Âm Nhạc Toàn Màn Hình & Đồng Hồ Đo Nhiệt Động Học Âm Học (Acoustic Thermal Ballistics & Fullscreen Soundstage 3D): (1) calculateThermalBallistics mô phỏng quán tính nhiệt động học ampli (Power dissipation = RMS^2), nhiệt độ vận hành 25°C–85°C và cảnh báo quá tải nhiệt; formatThermalBallisticsBadge xuất huy hiệu trực quan; (2) calculateSoundstageAcousticVectors & formatSoundstageVectorsSummary phân tích vector âm hình 3D (hướng Azimuth [-45°, +45°], độ sâu Depth [0.1, 1.0], độ mở Spread [0, 100%], độ thoáng Airiness); (3) renderAcousticSoundstageCanvas kết xuất radar chòm sao âm học 3D (Polar Soundstage Radar) với vị trí điểm ngọt sweet spot và hào quang vector phát sáng 60fps; (4) Tích hợp chế độ Sân khấu Toàn màn hình (#fullscreen-stage-visualizer, #fullscreen-view-stage-btn, canvas #fullscreen-stage-canvas, nút chuyển đổi Radar 3D / VU Meter, huy hiệu #fs-soundstage-badge & #fs-thermal-badge) và phím tắt chuyển đổi; (5) Bổ sung huy hiệu nhiệt động học #room-thermal-badge trong Phòng nghe; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 10/10 tests acoustic-thermal-ballistics-stage.test.cjs PASS 100%, 126/126 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Tối Ưu: Hệ Thống Gợi Ý Danh Sách Phát Ngữ Cảnh Tự Động (Smart Contextual Playlist Engine & Acoustic Metadata Auto-Tagging) -->
 </body>
 </html>

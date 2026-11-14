@@ -2,6 +2,34 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 06:25 +07] — Pha B: Sân Khấu Âm Nhạc Toàn Màn Hình 3D & Đồng Hồ Đo Nhiệt Động Học Âm Học (Acoustic Thermal Ballistics & Fullscreen Soundstage 3D)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá UI/UX & Visualizer:
+- **Phân khu trọng tâm:** **Visualizer & Sân khấu Âm học 3D (3D Soundstage Vector Constellation, Polar Acoustic Radar, Acoustic Thermal Ballistics & Fullscreen Mode Expansion)**.
+- **Tính năng & Đột phá:**
+  1. **Đồng hồ nhiệt động học âm học (`calculateThermalBallistics`, `formatThermalBallisticsBadge`):**
+     - Mô phỏng quán tính nhiệt động học theo chuẩn DIN / IEC 60268-10 VU meter (năng lượng tiêu tán nhiệt $P \propto \text{RMS}^2$, tỷ lệ tản nhiệt và làm mát tự nhiên theo định luật Newton).
+     - Đo lường nhiệt độ vận hành ảo $25^\circ\text{C}$ đến $85^\circ\text{C}$ và đánh giá trạng thái (`cool`, `optimal`, `warm`, `hot`), tự động kích hoạt cờ cảnh báo quá nhiệt khi có méo tiếng liên tục.
+     - Cải tiến kim đo VU analog với độ vọt lố (overshoot $\le 1.5\%$) và dao động tắt dần tự nhiên.
+  2. **Định vị trường vector âm hình 3D (`calculateSoundstageAcousticVectors`, `formatSoundstageVectorsSummary`):**
+     - Đo lường góc hướng âm hình stereo (Azimuth $[-45^\circ, +45^\circ]$) phát hiện độ lệch kênh trái/phải thời gian thực.
+     - Tính toán độ sâu trường âm Depth $[0.1, 1.0]$, độ rộng âm hình Spread $[0, 100\%]$ và độ thoáng âm Airiness $[0, 1.0]$.
+     - Phân loại trực quan: `Holographic 3D`, `Âm trường Rộng Mở`, `Âm hình Stereo Chuẩn`, `Âm hình Gần Gũi / Mono`.
+  3. **Kết xuất Radar trường âm học 3D thời gian thực (`renderAcousticSoundstageCanvas`):**
+     - Vẽ biểu đồ cực (Polar Acoustic Radar) hiển thị các vòng đồng tâm khoảng cách âm học, các nan quạt hướng tính (-45° đến +45°), vị trí điểm ngọt người nghe (Sweet Spot), và đám mây năng lượng âm hình phát sáng theo bảng màu Visualizer.
+  4. **Tích hợp chế độ Sân khấu Toàn màn hình (#fullscreen-stage-visualizer):**
+     - Bổ sung nút chuyển chế độ thứ 3 `#fullscreen-view-stage-btn` (Sân khấu 3D) trên thanh điều hướng top của giao diện Fullscreen Roon.
+     - Chuyển đổi linh hoạt giữa `Radar 3D` và `VU Meter` ngay trên sân khấu toàn màn hình.
+     - Cụm telemetry chuyên sâu thời gian thực: `#fs-soundstage-badge` và `#fs-thermal-badge`.
+     - Bổ sung huy hiệu nhiệt động học `#room-thermal-badge` trong Phòng nghe `#listening-room`.
+  5. **Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `acoustic-thermal-ballistics-stage.test.cjs` (**10/10 tests PASS 100%**).
+  - Toàn bộ các suite test hồi quy liên quan (**126/126 tests PASS 100%** trong 684ms).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 05:45 +07] — Pha A: Động Cơ Tăng Cường Xung Lực Sub-Bass Audiophile (Sub-Bass Dynamic Transient Punch Engine) & Hòa Âm Bảo Toàn Dải Trầm (Sub-Bass Energy Crossfade)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá DSP:
