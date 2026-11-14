@@ -2,6 +2,37 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 02:10 +07] — Pha C: Tái Cấu Trúc Bố Cục Footer & Di Chuyển Cụm Đo Lường Telemetry Khỏi Khu Vực Điều Khiển Nhạc (Footer Telemetry Relocation & Player Controls Decoupling)
+
+### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:
+- **Phân khu trọng tâm:** **Giao Diện Người Dùng & Trực Quan Hóa Âm Thanh Audiophile (UI/UX & Visualizer Engine)**.
+- **Tính năng & Đột phá:**
+  1. **Tách Rời Độc Lập Cụm Đo Lường Khỏi Thanh Điều Khiển (`#footer-telemetry-strip`):**
+     - Di chuyển toàn bộ các thành phần hiển thị đo lường âm học:
+       - `<canvas id="visualizer">` (Spectrum FFT / Oscilloscope / VU Meter)
+       - `<span id="level-readout">` (Mức Peak/RMS thời gian thực)
+       - `<span id="footer-dr-badge">` (Dynamic Range / Crest Factor)
+       - `<span id="footer-phase-badge">` (Hệ số đồng pha Stereo)
+       - `<span id="footer-tp-badge">` (True Peak liên mẫu)
+     - Rời khỏi hàng nút điều khiển dưới chân (`flex h-[86px]`), đưa lên một dải đo lường chuyên dụng `#footer-telemetry-strip` nằm riêng biệt ở đỉnh footer với nền bán trong suốt `bg-black/40 border-b border-white/[.05]`.
+  2. **Giải Phóng Hoàn Toàn Khu Vực Điều Khiển Bài Hát (`.footer-center-controls`):**
+     - Cụm điều khiển bài hát trung tâm gồm nút Phát/Tạm dừng (`#play-button`), Bài trước (`#previous-button`), Bài tiếp (`#next-button`), Trộn bài (`#shuffle-button`), Lặp lại (`#repeat-button`) và thanh tua seekbar (`#seek`) được thiết lập `min-w-[280px] sm:min-w-[360px] max-w-[560px] mx-auto relative z-10 shrink-0`.
+     - Tuyệt đối loại bỏ 100% tình trạng các vạch sóng visualizer hay chữ đo Pk/RMS tràn lấn, đè lên hoặc che lấp các nút bấm phát nhạc.
+  3. **Cơ Chế Bật/Tắt Linh Hoạt & Ghi Nhớ Tùy Chọn:**
+     - Bổ sung nút đóng nhanh `✕` (`#footer-telemetry-close`) ở góc phải dải đo để người dùng dễ dàng chuyển sang chế độ giao diện tối giản (minimalist).
+     - Cho phép bấm trực tiếp vào huy hiệu chất lượng `#quality-badge` (`READY` / `LOSSLESS` / `DSD`) để bật/tắt dải đo lường tùy ý kèm thông báo toast trực quan.
+     - Tự động lưu và khôi phục trạng thái hiển thị qua `localStorage ('nocturne-hide-telemetry-strip')`.
+  4. **Tối Ưu Khung Nút Tiện Ích Bên Phải Tránh Tràn Dòng:**
+     - Thiết lập giới hạn kích thước nghiêm ngặt `max-w-[380px] shrink-0` cho cụm nút bên phải.
+     - Ẩn thích ứng các nút phụ trợ (`#autoplay-button`, `#sleep-button`, `#ambient-button`) trên màn hình có chiều rộng hạn chế (`< 1280px`) để thanh trượt âm lượng và các chức năng quan trọng (EQ, Queue, Phòng nghe, Toàn màn hình) luôn hiển thị hoàn hảo.
+  5. **Bảo Toàn Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `footer-telemetry-relocation.test.cjs` (**PASS 100%**).
+  - Toàn bộ **92/92 test suites toàn dự án PASS 100%**.
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 01:20 +07] — Pha B: Đồng Hồ VU Analog Kép (Dual Stereophonic Analog VU Meter with Dynamic Ballistics) & Mở Rộng Bảng Màu Audiophile Mới (McIntosh Green, Tube Amber, Pacific Blue)
 
 ### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:
