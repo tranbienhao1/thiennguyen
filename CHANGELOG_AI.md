@@ -2,6 +2,35 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 17:00 +07] — [Pha B: UI/UX & Visualizer] Đồng Hồ Đo Pha Stereo (Stereo Phase Correlation Meter) & Độ Rộng Không Gian Âm Thanh (Soundstage Width Engine)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. UI/UX & Visualizer Hiện Đại**.
+- **Chi tiết triển khai:**
+  1. **Động Cơ Đo Tương Quan Pha Stereo Thời Gian Thực (`calculateStereoPhaseCorrelation`):**
+     - Đo lường hệ số tương quan Pearson giữa kênh trái (L) và kênh phải (R) từ dữ liệu miền thời gian (time-domain waveform):
+       $$r = \frac{\sum (L_i \cdot R_i)}{\sqrt{\sum L_i^2 \cdot \sum R_i^2}}$$
+     - Giá trị chuẩn hóa $r \in [-1.0, +1.0]$: $+1.0$ (Đơn âm hoàn hảo / Mono in-phase), $[+0.3, +0.9]$ (Stereo chuẩn), $[0.0, +0.3]$ (Âm hình mở rộng cực đại / Wide soundstage), $< 0.0$ (Cảnh báo lệch/nghịch pha / Out-of-phase / Comb filtering).
+  2. **Động Cơ Đo Năng Lượng Mid/Side & Độ Rộng Không Gian Âm Thanh (`calculateStereoSoundstageWidth`):**
+     - Phân tích tín hiệu $\text{Mid} = \frac{L + R}{2}$ và $\text{Side} = \frac{L - R}{2}$.
+     - Tính toán tỷ lệ phần trăm độ rộng không gian âm hình (Soundstage Width Percentage $0\% - 100\%$) và gắn nhãn trực quan: `Đơn âm (Mono)`, `Stereo (X%)`, `Không gian 3D`.
+  3. **Định Dạng Huy Hiệu Audiophile Trực Quan (`formatStereoCorrelationBadge`):**
+     - Sinh chuỗi hiển thị gọn gàng, tinh tế: `Phase +1.00`, `Phase +0.85`, `Phase -0.42`.
+  4. **Tích Hợp Chuỗi Xử Lý Web Audio API:**
+     - Mở rộng cấu trúc `state`: `leftAnalyser` và `rightAnalyser` (FFT size 512, time-domain smoothing 0.8).
+     - Trong `setupAudio()`: tách 2 kênh L và R từ `state.crossfeedNodes.splitter` (kênh 0 & kênh 1) đưa vào 2 Analyser riêng biệt để giám sát liên tục mà không tạo thêm tải xử lý không cần thiết.
+     - Cập nhật định kỳ 30 frame (2 lần/giây) trong vòng lặp render `renderVisualizer()` để đảm bảo hiệu năng 60fps mượt mà tuyệt đối.
+  5. **Tích Hợp Giao Diện Audiophile Tinh Tế:**
+     - Bổ sung huy hiệu `#footer-phase-badge` tại thanh điều khiển footer bên cạnh `#footer-dr-badge`.
+     - Bổ sung huy hiệu `#room-phase-badge` tại Phòng nghe `#listening-room` bên cạnh `#room-dr-badge` và tín hiệu luồng Roon.
+     - Tự động reset về `Phase +1.0` khi chuyển bài mới (`displayTrack`).
+  6. **Kiểm Thử Độc Lập & Bảo Toàn Bất Biến:**
+     - Bộ kiểm thử mới `stereo-phase-meter.test.cjs` (**4/4 tests PASS 100%**).
+     - Toàn bộ test suite hồi quy `index-script.test.cjs` (**PASS 100%**).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 16:30 +07] — [Pha A: Audio Engine & DSP] Tính Nhất Quán Bộ Lọc Parametric EQ, Bảo Vệ Giới Hạn Tần Số Nyquist & Động Cơ Tính Toán Đường Cong Cộng Dồn Đa Băng Tần (Parametric EQ Filter Coherence, Nyquist Protection & Multi-Band Cumulative Curve Engine)
 
 ### 🎯 Hạng Mục Nâng Cấp:

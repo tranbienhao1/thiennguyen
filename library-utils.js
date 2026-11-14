@@ -4520,5 +4520,116 @@
     return `Đỉnh: ${boostStr} · Trũng: ${cutStr}`;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary};
+  // ── Pha B — Stereo Phase Correlation Meter & Soundstage Width Engine ──
+
+  function calculateStereoPhaseCorrelation(leftData, rightData) {
+    if (!leftData || !rightData || leftData.length === 0 || rightData.length === 0) {
+      return {
+        correlation: 1.0,
+        phaseCategory: 'IN_PHASE',
+        label: 'Đồng pha (In-Phase)',
+        badgeClass: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
+      };
+    }
+
+    const len = Math.min(leftData.length, rightData.length);
+    const isByteLeft = leftData instanceof Uint8Array || (typeof leftData[0] === 'number' && leftData[0] >= 0 && leftData[0] <= 255 && !Array.from(leftData.slice(0, 10)).some(v => v < 0));
+    const isByteRight = rightData instanceof Uint8Array || (typeof rightData[0] === 'number' && rightData[0] >= 0 && rightData[0] <= 255 && !Array.from(rightData.slice(0, 10)).some(v => v < 0));
+
+    let sumLR = 0;
+    let sumL2 = 0;
+    let sumR2 = 0;
+
+    for (let i = 0; i < len; i++) {
+      const l = isByteLeft ? (leftData[i] - 128) / 128 : Number(leftData[i]) || 0;
+      const r = isByteRight ? (rightData[i] - 128) / 128 : Number(rightData[i]) || 0;
+
+      sumLR += l * r;
+      sumL2 += l * l;
+      sumR2 += r * r;
+    }
+
+    const denominator = Math.sqrt(sumL2 * sumR2);
+    let correlation = 1.0;
+
+    if (denominator > 1e-9) {
+      correlation = sumLR / denominator;
+      correlation = Math.max(-1.0, Math.min(1.0, Math.round(correlation * 100) / 100));
+    } else {
+      correlation = 1.0;
+    }
+
+    let phaseCategory = 'IN_PHASE';
+    let label = 'Đồng pha (In-Phase)';
+    let badgeClass = 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300';
+
+    if (correlation >= 0.5) {
+      phaseCategory = 'IN_PHASE';
+      label = 'Đồng pha (In-Phase)';
+      badgeClass = 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300';
+    } else if (correlation >= 0.1) {
+      phaseCategory = 'STEREO';
+      label = 'Stereo mở rộng';
+      badgeClass = 'border-cyan-400/30 bg-cyan-400/10 text-cyan-300';
+    } else if (correlation >= -0.1) {
+      phaseCategory = 'WIDE';
+      label = 'Không gian rộng (Wide)';
+      badgeClass = 'border-indigo-400/30 bg-indigo-400/10 text-indigo-300';
+    } else {
+      phaseCategory = 'PHASE_WARNING';
+      label = 'Lệch pha (Anti-Phase)';
+      badgeClass = 'border-rose-400/30 bg-rose-400/10 text-rose-300';
+    }
+
+    return {
+      correlation,
+      phaseCategory,
+      label,
+      badgeClass
+    };
+  }
+
+  function calculateStereoSoundstageWidth(leftData, rightData) {
+    if (!leftData || !rightData || leftData.length === 0 || rightData.length === 0) {
+      return { widthPercent: 50, midEnergy: 0, sideEnergy: 0, label: 'Stereo chuẩn (50%)' };
+    }
+
+    const len = Math.min(leftData.length, rightData.length);
+    const isByteLeft = leftData instanceof Uint8Array || (typeof leftData[0] === 'number' && leftData[0] >= 0 && leftData[0] <= 255 && !Array.from(leftData.slice(0, 10)).some(v => v < 0));
+    const isByteRight = rightData instanceof Uint8Array || (typeof rightData[0] === 'number' && rightData[0] >= 0 && rightData[0] <= 255 && !Array.from(rightData.slice(0, 10)).some(v => v < 0));
+
+    let sumMid2 = 0;
+    let sumSide2 = 0;
+
+    for (let i = 0; i < len; i++) {
+      const l = isByteLeft ? (leftData[i] - 128) / 128 : Number(leftData[i]) || 0;
+      const r = isByteRight ? (rightData[i] - 128) / 128 : Number(rightData[i]) || 0;
+
+      const mid = (l + r) * 0.5;
+      const side = (l - r) * 0.5;
+
+      sumMid2 += mid * mid;
+      sumSide2 += side * side;
+    }
+
+    const total = sumMid2 + sumSide2;
+    const ratio = total > 1e-9 ? sumSide2 / total : 0.5;
+    const widthPercent = Math.max(0, Math.min(100, Math.round(ratio * 200)));
+
+    return {
+      widthPercent,
+      midEnergy: Math.round(sumMid2 * 100) / 100,
+      sideEnergy: Math.round(sumSide2 * 100) / 100,
+      label: widthPercent < 15 ? 'Đơn âm (Mono)' : (widthPercent > 70 ? 'Không gian 3D' : `Stereo (${widthPercent}%)`)
+    };
+  }
+
+  function formatStereoCorrelationBadge(corr) {
+    if (!corr) return 'Phase +1.0';
+    const val = Number.isFinite(corr.correlation) ? corr.correlation : 1.0;
+    const sign = val > 0 ? '+' : '';
+    return `Phase ${sign}${val.toFixed(2)}`;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge};
 });
