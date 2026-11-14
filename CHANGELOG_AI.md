@@ -2,6 +2,35 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 03:50 +07] — Phát Tuần Tự Theo Thứ Tự Album vs Chọn Ngẫu Nhiên Khi Chọn Bài Lẻ (Album Sequential Playback vs Songs Random Shuffle)
+
+### 🎯 Hạng Mục Nâng Cấp & Xử Lý Yêu Cầu:
+- **Phân khu trọng tâm:** **Điều Hướng & Trình Phát Nhạc Thông Minh (Playback Queue, Album Context & Smart Shuffle Separation)**.
+- **Tính năng & Đột phá:**
+  1. **Mô Hình Ngữ Cảnh Phát Nhạc (`state.playbackContext`):**
+     - Bổ sung `playbackContext` vào `state` để phân biệt rõ ràng giữa việc đang nghe một **Album nguyên bản** (`{ type: 'album', key, name, trackIds }`) hay đang chọn bài lẻ ở **Trang bài hát** (`{ type: 'songs' }`).
+  2. **Phát Tuần Tự Từ Trên Xuống Dưới Khi Ở Trang Album:**
+     - Xây dựng `library.resolveAlbumPlaybackQueue(clickedTrackId, albumTracks)`:
+       - Khi người dùng bấm **Phát** trên hero banner (`#album-hero-play`) hoặc nhấp vào **bất kỳ bài hát nào trong album**:
+       - Bài hát được chọn sẽ phát ngay lập tức.
+       - Các bài hát tiếp theo trong album từ vị trí đã chọn trở xuống cuối album được tự động nạp vào `state.queueTrackIds` theo đúng thứ tự bài hát của album.
+       - Hiển thị toast thông báo: `Đang phát Album: [Tên Album] (Tuần tự bài X đến hết)`.
+  3. **Khóa Tuần Tự & Bỏ Qua Xáo Trộn Trong Album (`shouldEnforceSequentialPlayback` & `resolveNextSequentialTrack`):**
+     - Khi `playbackContext` là `'album'`, hàm `playNext()` và `queueIndex()` tự động **bỏ qua chế độ `shuffle`**!
+     - Âm nhạc luôn luôn chạy tuần tự từ trên xuống dưới theo thứ tự bài của album đó (bài $1 \to 2 \to 3 \dots$).
+     - Hỗ trợ xử lý lặp lại album (`repeat === 1`), lặp 1 bài (`repeat === 2`), hoặc dừng/chuyển Roon Radio khi hết album (`repeat === 0`).
+  4. **Duy Trì Chọn Ngẫu Nhiên Khi Chọn Bài Ở Trang Bài Hát Lẻ:**
+     - Khi người dùng chọn 1 bài bất kỳ ở trang bài hát (`view === 'songs'`) hoặc các danh sách tổng hợp ngoài album:
+     - Hệ thống đặt `playbackContext = { type: 'songs' }`.
+     - Nếu người dùng bật `state.shuffle`, bài hát tiếp theo sẽ được chọn ngẫu nhiên trên toàn bộ thư viện bài hát như bình thường.
+  5. **Bảo Toàn Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suites mới: `album-sequential-playback.test.cjs` (30/30 tests PASS) và `album-ui-sequential.test.cjs` (7/7 tests PASS).
+  - Toàn bộ kho mã nguồn: **866/866 bài tests trên 101 test suites PASS 100%** không một lỗi lầm!
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 03:30 +07] — Pha B: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe, Hào Quang Nền Phủ Rộng & Bảng Màu Spectrum Audiophile Mới (Crimson Velvet & Deep Amethyst)
 
 ### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:

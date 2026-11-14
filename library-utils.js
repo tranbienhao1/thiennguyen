@@ -6283,5 +6283,276 @@
     }
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary};
+  // ── Pha E — Album Sequential Playback vs Songs Random Shuffle ──
+
+  /**
+   * Resolves the album playback queue when a track inside an album is clicked.
+   * Returns currentTrack, clickedIndex, and remainingTracks strictly after clickedIndex
+   * in order from top to bottom.
+   *
+   * @param {string|number|object} clickedTrackId - Identifier or track object of the clicked track
+   * @param {Array<object>} albumTracks - Array of album tracks in sequential order
+   * @param {object} [options={}] - Optional configurations
+   * @returns {{ currentTrack: object|null, clickedIndex: number, remainingTracks: Array<object>, remainingTrackIds: Array<string|number> }}
+   */
+  function resolveAlbumPlaybackQueue(clickedTrackId, albumTracks, options = {}) {
+    const list = Array.isArray(albumTracks) ? albumTracks : [];
+    if (!list.length) {
+      return {
+        currentTrack: null,
+        clickedIndex: -1,
+        remainingTracks: [],
+        remainingTrackIds: []
+      };
+    }
+
+    const targetId = clickedTrackId && typeof clickedTrackId === 'object'
+      ? (clickedTrackId.id ?? clickedTrackId._id ?? clickedTrackId.trackId ?? clickedTrackId)
+      : clickedTrackId;
+
+    const clickedIndex = list.findIndex(track => {
+      if (!track) return false;
+      const tid = typeof track === 'object'
+        ? (track.id ?? track._id ?? track.trackId ?? track)
+        : track;
+      return tid != null && targetId != null && String(tid) === String(targetId);
+    });
+
+    if (clickedIndex < 0) {
+      return {
+        currentTrack: null,
+        clickedIndex: -1,
+        remainingTracks: [],
+        remainingTrackIds: []
+      };
+    }
+
+    const currentTrack = list[clickedIndex] || null;
+    const remainingTracks = list.slice(clickedIndex + 1);
+    const remainingTrackIds = remainingTracks.map(t => {
+      if (!t) return null;
+      return typeof t === 'object' ? (t.id ?? t._id ?? t.trackId ?? t) : t;
+    });
+
+    return {
+      currentTrack,
+      clickedIndex,
+      remainingTracks,
+      remainingTrackIds
+    };
+  }
+
+  /**
+   * Enforces sequential progression in album track order.
+   * direction > 0 moves downwards (forward), direction < 0 moves upwards (backward).
+   * Handles boundaries and repeat:
+   *   repeat: 0 (stops at end)
+   *   repeat: 1 (loops album)
+   *   repeat: 2 (repeats current)
+   *
+   * @param {string|number|object} currentTrackId - Current track ID or object
+   * @param {Array<object>} tracks - Sequential album tracks
+   * @param {number} [direction=1] - Direction (+1 forward, -1 backward)
+   * @param {object|number} [options={}] - Options object or repeat number
+   * @returns {{ track: object|null, index: number, isEnd: boolean, isStart: boolean }}
+   */
+  function resolveNextSequentialTrack(currentTrackId, tracks, direction = 1, options = {}) {
+    const list = Array.isArray(tracks) ? tracks : [];
+    if (!list.length) {
+      return {
+        track: null,
+        index: -1,
+        isEnd: true,
+        isStart: true
+      };
+    }
+
+    const repeatMode = typeof options === 'number'
+      ? options
+      : Number(options?.repeat ?? 0);
+    const repeat = Number.isFinite(repeatMode) ? repeatMode : 0;
+    const dir = Number(direction) >= 0 ? 1 : -1;
+    const clamp = Boolean(options && typeof options === 'object' && options.clamp);
+
+    const targetId = currentTrackId && typeof currentTrackId === 'object'
+      ? (currentTrackId.id ?? currentTrackId._id ?? currentTrackId.trackId ?? currentTrackId)
+      : currentTrackId;
+
+    const currentIndex = list.findIndex(track => {
+      if (!track) return false;
+      const tid = typeof track === 'object'
+        ? (track.id ?? track._id ?? track.trackId ?? track)
+        : track;
+      return tid != null && targetId != null && String(tid) === String(targetId);
+    });
+
+    // repeat: 2 -> repeats current track
+    if (repeat === 2) {
+      const idx = currentIndex >= 0 ? currentIndex : 0;
+      return {
+        track: list[idx] || null,
+        index: idx,
+        isEnd: false,
+        isStart: false
+      };
+    }
+
+    // Current track not found in album tracks list
+    if (currentIndex < 0) {
+      const fallbackIdx = dir > 0 ? 0 : list.length - 1;
+      return {
+        track: list[fallbackIdx] || null,
+        index: fallbackIdx,
+        isEnd: dir > 0 ? list.length <= 1 : false,
+        isStart: dir < 0 ? list.length <= 1 : true
+      };
+    }
+
+    const nextIndex = currentIndex + dir;
+
+    // Moving forward past end
+    if (dir > 0 && nextIndex >= list.length) {
+      if (repeat === 1) {
+        // repeat: 1 -> loops album
+        return {
+          track: list[0] || null,
+          index: 0,
+          isEnd: false,
+          isStart: false
+        };
+      }
+      // repeat: 0 -> stops at end
+      return {
+        track: clamp ? list[list.length - 1] : null,
+        index: clamp ? list.length - 1 : -1,
+        isEnd: true,
+        isStart: false
+      };
+    }
+
+    // Moving backward past start
+    if (dir < 0 && nextIndex < 0) {
+      if (repeat === 1) {
+        // repeat: 1 -> loops album
+        const lastIdx = list.length - 1;
+        return {
+          track: list[lastIdx] || null,
+          index: lastIdx,
+          isEnd: false,
+          isStart: false
+        };
+      }
+      // repeat: 0 -> stops at start
+      return {
+        track: clamp ? list[0] : null,
+        index: clamp ? 0 : -1,
+        isEnd: false,
+        isStart: true
+      };
+    }
+
+    // Normal progression within bounds
+    return {
+      track: list[nextIndex] || null,
+      index: nextIndex,
+      isEnd: nextIndex === list.length - 1,
+      isStart: nextIndex === 0
+    };
+  }
+
+  /**
+   * Returns true if playbackContext indicates sequential album playback should be enforced,
+   * false otherwise (e.g. for songs list, playlist, or random shuffle).
+   *
+   * @param {object|null} playbackContext - Current playback context
+   * @returns {boolean}
+   */
+  function shouldEnforceSequentialPlayback(playbackContext) {
+    if (!playbackContext || typeof playbackContext !== 'object') return false;
+    const type = String(playbackContext.type || '').trim().toLowerCase();
+    return type === 'album';
+  }
+
+  /**
+   * Formats playback context summary string.
+   * e.g. "Album [Name] · Phát tuần tự bài 2/10" or "Danh sách bài hát · Tự do"
+   *
+   * @param {object|null} playbackContext - Current playback context
+   * @param {object|null} [currentTrack=null] - Currently playing track
+   * @param {object} [options={}] - Options (e.g. useBrackets)
+   * @returns {string}
+   */
+  function formatPlaybackContextSummary(playbackContext, currentTrack = null, options = {}) {
+    if (!playbackContext || typeof playbackContext !== 'object' || !shouldEnforceSequentialPlayback(playbackContext)) {
+      if (playbackContext && typeof playbackContext === 'object' && playbackContext.name && playbackContext.type && playbackContext.type !== 'songs') {
+        return `${playbackContext.name} · Tự do`;
+      }
+      return 'Danh sách bài hát · Tự do';
+    }
+
+    // Context is an album
+    const rawName = playbackContext.name || playbackContext.album || (currentTrack && (currentTrack.album || currentTrack.albumName)) || '';
+    const albumName = String(rawName).trim();
+    let nameLabel = 'Album';
+    if (albumName) {
+      if (options.useBrackets || playbackContext.useBrackets) {
+        nameLabel = albumName.startsWith('[') && albumName.endsWith(']') ? `Album ${albumName}` : `Album [${albumName}]`;
+      } else {
+        nameLabel = `Album ${albumName}`;
+      }
+    }
+
+    // Determine total tracks
+    let totalTracks = 0;
+    if (Array.isArray(playbackContext.tracks)) {
+      totalTracks = playbackContext.tracks.length;
+    } else if (playbackContext.totalTracks != null && Number.isFinite(Number(playbackContext.totalTracks))) {
+      totalTracks = Number(playbackContext.totalTracks);
+    } else if (playbackContext.trackCount != null && Number.isFinite(Number(playbackContext.trackCount))) {
+      totalTracks = Number(playbackContext.trackCount);
+    } else if (currentTrack && currentTrack.totalTracks != null && Number.isFinite(Number(currentTrack.totalTracks))) {
+      totalTracks = Number(currentTrack.totalTracks);
+    }
+
+    // Determine 1-based current track sequence number
+    let currentNum = 0;
+    if (playbackContext.currentIndex != null && Number.isFinite(Number(playbackContext.currentIndex)) && Number(playbackContext.currentIndex) >= 0) {
+      currentNum = Number(playbackContext.currentIndex) + 1;
+    } else if (playbackContext.index != null && Number.isFinite(Number(playbackContext.index)) && Number(playbackContext.index) >= 0) {
+      currentNum = Number(playbackContext.index) + 1;
+    } else if (currentTrack) {
+      if (Array.isArray(playbackContext.tracks) && playbackContext.tracks.length) {
+        const targetId = typeof currentTrack === 'object'
+          ? (currentTrack.id ?? currentTrack._id ?? currentTrack.trackId ?? currentTrack)
+          : currentTrack;
+        const idx = playbackContext.tracks.findIndex(t => {
+          if (!t) return false;
+          const tid = typeof t === 'object' ? (t.id ?? t._id ?? t.trackId ?? t) : t;
+          return tid != null && targetId != null && String(tid) === String(targetId);
+        });
+        if (idx >= 0) {
+          currentNum = idx + 1;
+        }
+      }
+      if (!currentNum) {
+        const trackNo = currentTrack.trackNumber ?? currentTrack.track_no ?? currentTrack.track;
+        if (trackNo != null && Number.isFinite(Number(trackNo)) && Number(trackNo) > 0) {
+          currentNum = Number(trackNo);
+        }
+      }
+    }
+
+    if (currentNum > 0 && totalTracks > 0) {
+      return `${nameLabel} · Phát tuần tự bài ${currentNum}/${totalTracks}`;
+    }
+    if (currentNum > 0) {
+      return `${nameLabel} · Phát tuần tự bài ${currentNum}`;
+    }
+    if (totalTracks > 0) {
+      return `${nameLabel} · Phát tuần tự (${totalTracks} bài)`;
+    }
+    return `${nameLabel} · Phát tuần tự`;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary};
 });

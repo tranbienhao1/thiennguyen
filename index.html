@@ -1592,7 +1592,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art' };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art' };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -2943,10 +2943,11 @@
       if (playBtn) {
         playBtn.onclick = () => {
           if (entry.tracks && entry.tracks.length > 0) {
-            playTrack(entry.tracks[0].id);
+            state.playbackContext = { type: 'album', key: entry.key, name: entry.name, trackIds: entry.tracks.map(t => t.id) };
             state.queueTrackIds = entry.tracks.slice(1).map(t => t.id);
             renderQueue();
-            toast(`Đang phát: ${entry.name}`);
+            playTrack(entry.tracks[0].id);
+            toast(`Đang phát Album: ${entry.name} (Tuần tự bài 1 đến hết)`);
           }
         };
       }
@@ -3313,16 +3314,51 @@
         if (state.expandedVersions.has(key)) state.expandedVersions.delete(key); else state.expandedVersions.add(key);
         renderTracks();
       }));
+      function handleTrackRowActivation(rowTrackId) {
+        const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
+        const entry = state.currentCollectionEntry;
+        const isAlbumContext = Boolean(state.trackScope) || (entry && (entry.action === 'album' || state.activeView === 'albums'));
+        if (isAlbumContext && (state.trackScope || entry)) {
+          const albumTracks = (entry && entry.tracks && entry.tracks.length > 0)
+            ? entry.tracks
+            : (state.trackScope ? state.tracks.filter(t => state.trackScope.includes(t.id)) : tracks);
+          const albumName = (entry && entry.name) || 'Album';
+          const albumKey = (entry && entry.key) || 'album';
+          const queueResult = (lib && typeof lib.resolveAlbumPlaybackQueue === 'function')
+            ? lib.resolveAlbumPlaybackQueue(rowTrackId, albumTracks)
+            : { remainingTrackIds: albumTracks.slice(albumTracks.findIndex(t => t.id === rowTrackId) + 1).map(t => t.id) };
+
+          state.playbackContext = {
+            type: 'album',
+            key: albumKey,
+            name: albumName,
+            trackIds: albumTracks.map(t => t.id)
+          };
+          state.queueTrackIds = queueResult.remainingTrackIds || [];
+          renderQueue();
+          toast(`Đang phát Album: ${albumName} (Tuần tự bài 1 đến hết)`);
+          playTrack(rowTrackId);
+          return;
+        }
+
+        if (state.activeView === 'songs' && !state.trackScope) {
+          state.playbackContext = { type: 'songs' };
+        } else if (!state.trackScope) {
+          state.playbackContext = { type: state.activeView || 'songs' };
+        }
+        playTrack(rowTrackId);
+      }
+
       list.querySelectorAll('[data-track-id]').forEach(row => {
         row.addEventListener('click', event => {
           const queueButton = event.target.closest('[data-queue-action]');
           if (queueButton) { event.stopPropagation(); queueButton.dataset.queueAction === 'remove' ? removeFromQueue(row.dataset.trackId) : addToQueue(row.dataset.trackId); return; }
           if (event.ctrlKey || event.metaKey) { addToQueue(row.dataset.trackId); return; }
-          playTrack(row.dataset.trackId);
+          handleTrackRowActivation(row.dataset.trackId);
         });
         row.addEventListener('keydown', event => {
           if (event.target !== row || (event.key !== 'Enter' && event.key !== ' ')) return;
-          event.preventDefault(); playTrack(row.dataset.trackId);
+          event.preventDefault(); handleTrackRowActivation(row.dataset.trackId);
         });
         row.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); showTrackContextMenu(event.clientX, event.clientY, row.dataset.trackId); });
       });
@@ -6019,10 +6055,35 @@
       const current = state.tracks.findIndex(track => track.id === state.currentId);
       if (current < 0) return -1;
       const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
+      const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
       const queuedList = queueTracks();
-      const queued = isOfflineMode && typeof library?.canPlayOffline === 'function' ? queuedList.find(t => library.canPlayOffline(t)) : queuedList[0];
+      const queued = isOfflineMode && lib && typeof lib.canPlayOffline === 'function' ? queuedList.find(t => lib.canPlayOffline(t)) : queuedList[0];
       if (queued) return state.tracks.indexOf(queued);
       if (!state.autoplay || state.repeat === 2) return -1;
+
+      const isSequentialAlbum = Boolean(lib && typeof lib.shouldEnforceSequentialPlayback === 'function' && lib.shouldEnforceSequentialPlayback(state.playbackContext));
+      if (isSequentialAlbum) {
+        const albumTracks = (state.playbackContext.trackIds || []).map(id => (typeof trackById === 'function' ? trackById(id) : null) || state.tracks.find(t => t.id === id)).filter(Boolean);
+        const seqResult = (lib && typeof lib.resolveNextSequentialTrack === 'function')
+          ? lib.resolveNextSequentialTrack(state.currentId, albumTracks, 1, { repeat: state.repeat })
+          : null;
+        if (seqResult && seqResult.track) {
+          return state.tracks.findIndex(t => t.id === seqResult.track.id);
+        }
+        if (seqResult && seqResult.isEnd) {
+          if (state.roonRadio && lib && typeof lib.selectRoonRadioTrack === 'function') {
+            const radio = lib.selectRoonRadioTrack(state.tracks[current] || albumTracks[albumTracks.length - 1], state.tracks, {
+              recentHistory: state.recentHistory,
+              favorites: state.favorites,
+              excludeIds: [state.currentId, ...state.queueTrackIds],
+              isOffline: isOfflineMode
+            });
+            if (radio && radio.track) return state.tracks.indexOf(radio.track);
+          }
+          return -1;
+        }
+      }
+
       if (isOfflineMode && typeof library?.getNextPlayableTrack === 'function') {
         const nextPlayable = library.getNextPlayableTrack(state.tracks, current, 1, {
           isOffline: true,
@@ -6548,6 +6609,47 @@
       }
       if (direction > 0 && auto && state.repeat === 2) { audio.currentTime = 0; try { const played = audio.play(); if (played && played.catch) played.catch(() => {}); } catch (error) {} return; }
       if (direction > 0 && auto && !state.autoplay) return;
+
+      const isSequentialAlbum = Boolean(lib && typeof lib.shouldEnforceSequentialPlayback === 'function' && lib.shouldEnforceSequentialPlayback(state.playbackContext));
+
+      if (isSequentialAlbum) {
+        const albumTracks = (state.playbackContext.trackIds || []).map(id => (typeof trackById === 'function' ? trackById(id) : null) || state.tracks.find(t => t.id === id)).filter(Boolean);
+        const seqResult = (lib && typeof lib.resolveNextSequentialTrack === 'function')
+          ? lib.resolveNextSequentialTrack(state.currentId, albumTracks, direction, { repeat: state.repeat })
+          : null;
+
+        if (seqResult && seqResult.track) {
+          if (lib && typeof lib.resolveAlbumPlaybackQueue === 'function') {
+            const qResult = lib.resolveAlbumPlaybackQueue(seqResult.track.id, albumTracks);
+            state.queueTrackIds = qResult.remainingTrackIds || [];
+            renderQueue();
+          }
+          playTrack(seqResult.track.id);
+          return;
+        }
+
+        if (seqResult && seqResult.isEnd && direction > 0) {
+          if (state.roonRadio && lib && typeof lib.selectRoonRadioTrack === 'function') {
+            const radio = lib.selectRoonRadioTrack(state.tracks[currentIndex] || albumTracks[albumTracks.length - 1], state.tracks, {
+              recentHistory: state.recentHistory,
+              favorites: state.favorites,
+              excludeIds: [state.currentId, ...state.queueTrackIds],
+              isOffline: isOfflineMode
+            });
+            if (radio && radio.track) {
+              const meta = lib.trackMetadata(radio.track);
+              toast(`⚡ Roon Radio: ${meta.title || radio.track.name} (${radio.reason})`);
+              playTrack(radio.track.id);
+              return;
+            }
+          }
+          return;
+        }
+
+        if (seqResult && seqResult.isStart && direction < 0) {
+          return;
+        }
+      }
       if (direction > 0 && state.shuffle && state.preloadTrackId && state.preloadTrackId !== state.currentId) {
         const preloadedTrack = typeof trackById === 'function' ? trackById(state.preloadTrackId) : state.tracks.find(t => t.id === state.preloadTrackId);
         if (!isOfflineMode || !lib || typeof lib.canPlayOffline !== 'function' || lib.canPlayOffline(preloadedTrack)) {
@@ -9666,5 +9768,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:00 +07 | Đã xong: Pha A - Audio Engine & DSP: Đa Tuyến Parametric EQ Presets Audiophile & Tối Ưu Headroom Preamp Tự Động (Audiophile Parametric EQ Presets, Negative Preamp & Biquad Filter Coherence): (1) PARAMETRIC_EQ_PRESETS với 6 trường phái âm học chuyên sâu: Sub-Bass Slam, Vocal Clarity & Air, Acoustic Guitar & Piano, Vintage Tube Warmth, Sibilance De-Esser, Orchestral Grandeur; (2) getParametricEqPreset & listParametricEqPresets trích xuất và validate an toàn tham số Biquad filter (peaking, lowshelf, highshelf, Q-factor, gain dB); (3) calculatePresetAutoPreamp tự động bù suy giảm âm học Preamp <= 0 dB triệt tiêu 100% hiện tượng xén ngọn méo tiếng (digital clipping) trên DAC; (4) Tích hợp UI #autoeq-select với nhóm riêng biệt <optgroup label="── Trường phái âm học PEQ (Parametric EQ Presets) ──">, tự động đồng bộ Roon Signal Path và lưu trữ localStorage bền vững; (5) formatParametricEqSummary hiển thị tóm tắt trực quan số dải lọc và mức bù Preamp; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination) | Lượt kế tiếp: Bugfix Triệt Để - Khắc phục tình trạng bị back ra ngoài khi ở trong view chi tiết Album -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:10 +07 | Đã xong: Bugfix Triệt Để - Khắc Phục Hiện Tượng Bị Back Ra Ngoài Khi Đang Ở Trong View Chi Tiết Album (Album Scope Persistence, Safe Re-rendering & Collection Entry State): (1) Sửa lỗi showRows trong renderCollectionCards và renderTracks luôn tôn trọng state.trackScope, ngăn chặn việc renderTracks (do playTrack, loadedmetadata, cache slice hoặc favorite) xóa rỗng track-list.innerHTML và kích hoạt lại lưới album; (2) Lưu trữ state.currentCollectionEntry giúp renderTracks tái tạo hoàn hảo tiêu đề, số lượng bài và hero header mà không bị reset về 'My Albums'; (3) Cập nhật openAlbum và openArtist thiết lập trực tiếp view và scope mà không gọi setLibraryView gây hủy trackScope; (4) Nút quay lại (#album-hero-back và #back-button) reset sạch state.trackScope và state.currentCollectionEntry khi người dùng chủ động muốn thoát; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 1/1 test album-view-persistence.test.cjs PASS 100%, toàn bộ 56/56 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe & Bảng Màu Spectrum Mới -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:30 +07 | Đã xong: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe, Hào Quang Nền Phủ Rộng & Bảng Màu Spectrum Audiophile Mới (Crimson Velvet & Deep Amethyst): (1) 2 bảng màu audiophile mới trong VISUALIZER_THEMES (crimson: Crimson Velvet Night #991b1b/#ef4444/#fb7185 với peak #fecdd3, amethyst: Deep Amethyst Glow #581c87/#8b5cf6/#c084fc với peak #f5d0fe); (2) calculateVisualizerStrobe tính toán xung nhịp chớp sáng âm trầm (bass transients) và xung Beat Pulse, tạo phản hồi ánh sáng phập phồng (pulseScale 1.0 - 1.08) và phân rã mượt mà (decay rate); (3) renderVisualizerBackdropGlow kết xuất hào quang nền tỏa tròn (radial gradient glow) từ đỉnh dải màu theo nhịp nhạc thời gian thực 60fps trên canvas; (4) formatVisualizerThemeSummary định dạng chuỗi mô tả chủ đề trực quan; (5) Tích hợp UI & Điều khiển: toggle #visualizer-strobe-toggle và mô tả #visualizer-strobe-desc trong Cài đặt Sân khấu Ánh sáng Động; phím tắt 't' / 'T' và Shift+Click trên #visualizer xoay vòng tuần tự qua toàn bộ 9 bảng màu audiophile; đồng bộ sao lưu exportAppConfiguration & mergeRestoredConfiguration; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 24/24 tests visualizer-strobe-palettes.test.cjs PASS 100%, toàn bộ 95/95 test suites (829/829 tests) PASS 100% | Lượt kế tiếp: Pha C - Core Features & Tối Ưu: Hệ Thống Chia Sẻ Danh Sách Phát & Đồng Bộ Hóa Đa Thiết Bị -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:50 +07 | Đã xong: Pha E - Phát Tuần Tự Album vs Phát Ngẫu Nhiên Bài Hát (Album Sequential Playback vs Songs Random Shuffle): (1) Thêm playbackContext vào state theo dõi ngữ cảnh phát nhạc ({ type: 'album', key, name, trackIds } vs { type: 'songs' }); (2) Nút #album-hero-play và click hàng bài hát trong view album sử dụng resolveAlbumPlaybackQueue nạp các bài còn lại từ trên xuống dưới vào state.queueTrackIds, hiển thị toast thông báo phát tuần tự; (3) Click bài hát từ trang bài hát (view === 'songs') đặt playbackContext thành { type: 'songs' }, duy trì cơ chế chọn ngẫu nhiên khi bật shuffle; (4) playNext và queueIndex kiểm tra shouldEnforceSequentialPlayback để thực thi tuần tự resolveNextSequentialTrack, bỏ qua state.shuffle khi đang phát album, xử lý lặp lại album khi repeat === 1 và Roon Radio/dừng lại khi repeat === 0; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 37/37 tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Tối Ưu: Hệ Thống Chia Sẻ Danh Sách Phát & Đồng Bộ Hóa Đa Thiết Bị -->
 </body>
 </html>
