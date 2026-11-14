@@ -2,6 +2,33 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 18:00 +07] — [Pha D: Hiệu Năng, Kiến Trúc & PWA] Quản Lý Bộ Đệm Âm Thanh LRU Đa Tầng, Thích Ứng Hạn Ngạch Dung Lượng & Đo Lường Độ Trễ Bộ Nhớ (Adaptive Quota LRU Audio Cache & Storage Health Diagnostics)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **4. Hiệu Năng, Kiến Trúc & Độ Bền Hệ Thống (Architecture & PWA)**.
+- **Chi tiết triển khai:**
+  1. **Điều Tiết Hạn Mức Bộ Đệm Thích Ứng Dung Lượng Đĩa (`calculateAdaptiveCacheLimits`):**
+     - Giám sát trạng thái dung lượng thực tế của thiết bị (`storageEstimate.percent` và cờ `isLowSpace`).
+     - Tự động co cụm ngân sách lưu trữ:
+       + Khi đĩa sắp đầy ($\ge 90\%$ hoặc `isLowSpace`): kích hoạt chế độ khẩn cấp `emergency_compaction` giới hạn tối đa 8 lát / 8 MB để chống bị hệ điều hành xóa toàn bộ IndexedDB.
+       + Khi dung lượng trung bình ($\ge 75\%$): chế độ thận trọng `conservative` giới hạn 14 lát / 14 MB.
+       + Trạng thái tối ưu ($< 75\%$): 20 lát / 20 MB.
+  2. **Thuật Toán Loại Bỏ Bản Ghi Ít Truy Cập Nhất LRU (`computeLruCacheEviction`):**
+     - Quản lý mốc thời gian truy cập `lastAccessedAt` thực tế thay vì chỉ `savedAt`. Khi người dùng nghe lại bài cũ (cache hit), mốc thời gian được làm mới ngay lập tức.
+     - Cơ chế bảo vệ khóa ghim (`pinnedKeys`): ưu tiên giữ lại các bài đang nghe (`state.currentId`) hoặc bài đang nạp trước (`state.preloadTrackId`), chỉ loại bỏ các bài ít nghe nhất trước.
+  3. **Đo Lường Độ Trễ & Băng Thông Lưu Trữ Thời Gian Thực (`formatCacheTelemetry`):**
+     - Đo lường thời gian đọc lát âm thanh từ IndexedDB qua `performance.now()`.
+     - Phân định rõ ràng: `Cache HIT · 1.2 MB · 0.8ms (Sẵn sàng tức thì)` vs `Cache MISS · Mạng (145.2ms)`.
+  4. **Chấm Điểm & Giám Sát Sức Khỏe Lưu Trữ PWA (`evaluateStorageHealth`):**
+     - Đánh giá xếp hạng sức khỏe phân tầng lưu trữ (Hạng A+, B, C, D) dựa trên điểm số phân tầng và tỷ lệ dung lượng đĩa.
+     - Bổ sung huy hiệu trực quan `#storage-health-grade` trong panel Cài đặt `#storage-quota-section`.
+  5. **Kiểm Thử Độc Lập & Bảo Toàn Bất Biến:**
+     - Bộ kiểm thử mới `adaptive-lru-cache.test.cjs` (**5/5 tests PASS 100%**).
+     - Toàn bộ 108 test suites toàn dự án (**PASS 100%**).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 17:30 +07] — [Pha C: Core Features] Bù Trừ Độ Trễ Lời Bài Hát Thời Gian Thực (Synced Lyrics Real-Time Offset Calibration) & Chế Độ Lời Bài Hát Toàn Màn Hình Roon (Immersive Fullscreen Lyrics Stage)
 
 ### 🎯 Hạng Mục Nâng Cấp:

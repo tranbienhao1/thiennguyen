@@ -4666,5 +4666,130 @@
     return 0.25;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity};
+  // Pha D — Quản Lý Bộ Đệm Âm Thanh LRU & Thích Ứng Hạn Ngạch Lưu Trữ (Adaptive Quota & LRU Audio Cache)
+  function calculateAdaptiveCacheLimits(storageEstimate, isLowSpace = false) {
+    const est = storageEstimate || {};
+    const percent = Number(est.percent) || 0;
+    const lowSpace = Boolean(isLowSpace || est.isLowSpace);
+
+    if (lowSpace || percent >= 90) {
+      return {
+        maxEntries: 8,
+        maxBytes: 8 * 1024 * 1024,
+        mode: 'emergency_compaction',
+        description: 'Chế độ tiết kiệm khẩn cấp: Đĩa sắp đầy (giới hạn 8 lát / 8 MB)'
+      };
+    }
+    if (percent >= 75) {
+      return {
+        maxEntries: 14,
+        maxBytes: 14 * 1024 * 1024,
+        mode: 'conservative',
+        description: 'Chế độ thận trọng: Dung lượng trung bình (giới hạn 14 lát / 14 MB)'
+      };
+    }
+    return {
+      maxEntries: FIRST_SLICE_CACHE_MAX_ENTRIES, // 20
+      maxBytes: FIRST_SLICE_CACHE_MAX_BYTES,     // 20 MB
+      mode: 'optimal',
+      description: 'Chế độ tối ưu: Dung lượng dồi dào (giới hạn 20 lát / 20 MB)'
+    };
+  }
+
+  function computeLruCacheEviction(entries, maxEntries = FIRST_SLICE_CACHE_MAX_ENTRIES, maxBytes = FIRST_SLICE_CACHE_MAX_BYTES, options = {}) {
+    if (!Array.isArray(entries)) return { keysToEvict: [], freedBytes: 0, remainingCount: 0, remainingBytes: 0 };
+    const limitCount = Number.isFinite(maxEntries) && maxEntries >= 0 ? Math.floor(maxEntries) : FIRST_SLICE_CACHE_MAX_ENTRIES;
+    const limitTotal = Number.isFinite(maxBytes) && maxBytes >= 0 ? Math.floor(maxBytes) : FIRST_SLICE_CACHE_MAX_BYTES;
+    const pinnedKeys = new Set(Array.isArray(options.pinnedKeys) ? options.pinnedKeys : (options.pinnedKeys ? [options.pinnedKeys] : []));
+
+    const validEntries = entries.filter(e => e && typeof e.key === 'string' && e.key);
+    if (!validEntries.length) return { keysToEvict: [], freedBytes: 0, remainingCount: 0, remainingBytes: 0 };
+
+    const mapped = validEntries.map((e, index) => {
+      const accessTime = Number.isFinite(e.lastAccessedAt) ? e.lastAccessedAt : (Number.isFinite(e.savedAt) ? e.savedAt : 0);
+      const size = Number.isFinite(e.size) && e.size > 0 ? e.size : 0;
+      const isPinned = pinnedKeys.has(e.key);
+      return {
+        key: e.key,
+        size,
+        accessTime,
+        isPinned,
+        index
+      };
+    });
+
+    mapped.sort((a, b) => {
+      if (a.isPinned !== b.isPinned) return a.isPinned ? 1 : -1;
+      return (a.accessTime - b.accessTime) || (a.index - b.index);
+    });
+
+    let currentTotalBytes = mapped.reduce((sum, item) => sum + item.size, 0);
+    let currentCount = mapped.length;
+    const keysToEvict = [];
+    let freedBytes = 0;
+
+    for (let i = 0; i < mapped.length; i++) {
+      if (currentCount <= limitCount && currentTotalBytes <= limitTotal) break;
+      const candidate = mapped[i];
+      if (candidate.isPinned && (mapped.length - i) <= pinnedKeys.size && currentCount > pinnedKeys.size) {
+        continue;
+      }
+      keysToEvict.push(candidate.key);
+      freedBytes += candidate.size;
+      currentTotalBytes -= candidate.size;
+      currentCount--;
+    }
+
+    return {
+      keysToEvict,
+      freedBytes,
+      remainingCount: currentCount,
+      remainingBytes: Math.max(0, currentTotalBytes)
+    };
+  }
+
+  function formatCacheTelemetry(isHit, latencyMs = 0, sizeBytes = 0) {
+    const lat = Number(latencyMs) || 0;
+    const bytes = Number(sizeBytes) || 0;
+    if (isHit) {
+      const sizeStr = bytes > 0 ? ` · ${formatStorageBytes(bytes)}` : '';
+      return `Cache HIT${sizeStr} · ${lat < 1 ? '<1' : lat.toFixed(1)}ms`;
+    }
+    return `Cache MISS · Mạng (${lat > 0 ? lat.toFixed(1) + 'ms' : 'đang tải'})`;
+  }
+
+  function evaluateStorageHealth(storageMetrics, storageEstimate) {
+    const est = storageEstimate || {};
+    const percent = Number(est.percent) || 0;
+    const isLowSpace = Boolean(est.isLowSpace);
+    const score = storageMetrics && Number.isFinite(storageMetrics.healthScore) ? storageMetrics.healthScore : 90;
+
+    let grade = 'A+';
+    let statusLabel = 'Tối ưu';
+    let badgeColor = 'text-emerald-400 border-emerald-400/30 bg-emerald-400/10';
+
+    if (isLowSpace || percent >= 90 || score < 40) {
+      grade = 'D';
+      statusLabel = 'Nguy cơ đầy đĩa';
+      badgeColor = 'text-rose-400 border-rose-400/30 bg-rose-400/10';
+    } else if (percent >= 80 || score < 60) {
+      grade = 'C';
+      statusLabel = 'Cần dọn dẹp';
+      badgeColor = 'text-amber-400 border-amber-400/30 bg-amber-400/10';
+    } else if (percent >= 60 || score < 80) {
+      grade = 'B';
+      statusLabel = 'Khá';
+      badgeColor = 'text-cyan-400 border-cyan-400/30 bg-cyan-400/10';
+    }
+
+    return {
+      grade,
+      score,
+      statusLabel,
+      badgeColor,
+      summary: `Hạng ${grade} (${statusLabel}) · Bộ đệm dùng ${est.formattedUsage || '0 B'}`
+    };
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth};
 });
