@@ -2,6 +2,30 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 07:30 +07] — [Swarm Selfhosted Music Overview Integration] Tích Hợp Subsonic / OpenSubsonic API Client, Decade View & ListenBrainz Scrobbling (basings/selfhosted-music-overview)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)** & **4. Kiến Trúc & Kết Nối Đa Nguồn (Architecture & Integration)**.
+- **Tính năng tiếp thu từ ma trận so sánh hệ thống tự lưu trữ (https://github.com/basings/selfhosted-music-overview):**
+  1. **Chuẩn Kết Nối Máy Chủ Tự Lưu Trữ Subsonic / OpenSubsonic REST API Client:**
+     - Xây dựng tiện ích thuần `buildSubsonicUrl(endpoint, action, params, authConfig)`: Chuẩn hóa URL, xử lý tiền tố giao thức, hỗ trợ cả mật khẩu thô và chuẩn token/salt hash `t`/`s` của OpenSubsonic, tự động thêm `v=1.16.1`, `c=nocturne`, `f=json`.
+     - Hàm `parseSubsonicSong(entry, serverUrl, authConfig)`: Chuyển đổi định dạng bài hát từ Subsonic sang cấu trúc track chuẩn của Nocturne (đọc `samplingRate`, `bitDepth`, link stream `stream.view`, link ảnh bìa `getCoverArt.view`, năm phát hành, thể loại, gắn nhãn nguồn `source: 'Subsonic'`).
+     - Giao diện trong Cài đặt (`#settings-panel`): Cấu hình URL máy chủ (`#subsonic-endpoint`), tài khoản (`#subsonic-user`), mật khẩu (`#subsonic-pass`), nút kết nối (`#subsonic-connect-btn`), lưu trữ bền vững vào `localStorage ('nocturne-subsonic-config')`. Cho phép stream trực tiếp kho nhạc từ các máy chủ Navidrome, Airsonic, Gonic, Ampache về Nocturne.
+  2. **Duyệt & Lọc Theo Thập Niên (Decade View & Year Browsing):**
+     - Tiện ích thuần `extractDecade(year)`: Quy đổi năm phát hành (ví dụ: `1984` -> `'1980s'`, `2023` -> `'2020s'`).
+     - Hàm `filterTracksByDecade(tracks, decade)`: Lọc toàn bộ thư viện bài hát theo thập niên.
+     - Tích hợp cụm nút lọc Thập niên trên thanh Roon Focus Bar: `1980s`, `1990s`, `2000s`, `2010s`, `2020s` kèm huy hiệu hiển thị tiếng Việt.
+  3. **Giao Thức Scrobble Mã Nguồn Mở ListenBrainz:**
+     - Hàm `isScrobbleEligible(playedSeconds, totalDuration)`: Kiểm tra tiêu chuẩn bài nghe hợp lệ (nghe >= 50% thời lượng hoặc trên 240 giây).
+     - Hàm `buildListenBrainzPayload(track, listenType, listenedAt)`: Đóng gói payload JSON chuẩn gửi lên API ListenBrainz cho sự kiện `playing_now` và `single_listen`.
+     - Cấu hình mã token ListenBrainz trong Cài đặt (`#listenbrainz-token`), tự động scrobble khi nghe nhạc.
+  4. **Kiểm thử tự động & Bảo toàn cấu trúc:**
+     - Bộ kiểm thử mới `subsonic-library.test.cjs` (23 tests) và `selfhosted-overview-features.test.cjs` (19 tests) PASS 100%.
+     - Bảo toàn tuyệt đối đường định tuyến Web Audio `state.crossfeedNodes.output.connect(state.context.destination)`.
+     - Toàn bộ hệ thống kiểm chứng: 511/511 ca kiểm thử PASS 100% (68 test suites, 0 fail).
+
+---
+
 ## [Chu Kỳ 2026-11-14 07:00 +07] — [UI/UX Roon Pixel-Perfect] Thiết Kế Lại Giao Diện Khi Mở Toàn Màn Hình Bài Hát (Roon Immersive Now Playing View) Chuẩn Xác Theo Ảnh Mẫu
 
 ### 🎯 Hạng Mục Nâng Cấp:

@@ -2401,5 +2401,186 @@
     return `Đang nạp (${sec.toFixed(1)}s)`;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead};
+  // ── Subsonic / OpenSubsonic REST API & Self-Hosted Helpers ──
+
+  function buildSubsonicUrl(endpoint, action, params = {}, authConfig = {}) {
+    if (!endpoint) return '';
+    let base = String(endpoint).trim();
+    if (!/^https?:\/\//i.test(base)) {
+      base = 'http://' + base;
+    }
+    base = base.replace(/\/+$/, '');
+
+    let act = String(action || '').trim().replace(/^\/+/, '');
+    let fullPath = '';
+    if (base.endsWith('/rest')) {
+      fullPath = base + '/' + (act.startsWith('rest/') ? act.slice(5) : act);
+    } else if (act.startsWith('rest/')) {
+      fullPath = base + '/' + act;
+    } else {
+      fullPath = base + '/rest/' + act;
+    }
+
+    const url = new URL(fullPath);
+    url.pathname = url.pathname.replace(/\/+/g, '/');
+
+    const auth = authConfig || {};
+    const u = auth.u != null ? auth.u : (auth.user != null ? auth.user : auth.username);
+    const p = auth.p != null ? auth.p : (auth.pass != null ? auth.pass : auth.password);
+    const t = auth.t != null ? auth.t : auth.token;
+    const s = auth.s != null ? auth.s : auth.salt;
+    const v = auth.v || auth.version || '1.16.1';
+    const c = auth.c || auth.client || 'nocturne';
+    const f = auth.f || auth.format || 'json';
+
+    if (u != null && u !== '') url.searchParams.set('u', String(u));
+    if (t != null && t !== '') {
+      url.searchParams.set('t', String(t));
+      if (s != null && s !== '') url.searchParams.set('s', String(s));
+    } else if (p != null && p !== '') {
+      url.searchParams.set('p', String(p));
+    }
+    url.searchParams.set('v', String(v));
+    url.searchParams.set('c', String(c));
+    url.searchParams.set('f', String(f));
+
+    if (params && typeof params === 'object') {
+      for (const [key, val] of Object.entries(params)) {
+        if (val != null) {
+          url.searchParams.set(key, String(val));
+        }
+      }
+    }
+
+    return url.toString();
+  }
+
+  function parseSubsonicSong(entry, serverUrl, authConfig = {}) {
+    if (!entry || typeof entry !== 'object') return null;
+    const songId = entry.id != null ? String(entry.id) : '';
+    const coverId = entry.coverArt != null ? String(entry.coverArt) : songId;
+
+    const src = serverUrl && songId ? buildSubsonicUrl(serverUrl, 'stream.view', { id: songId }, authConfig) : '';
+    const cover = serverUrl && coverId ? buildSubsonicUrl(serverUrl, 'getCoverArt.view', { id: coverId }, authConfig) : '';
+
+    return {
+      id: 'subsonic-' + songId,
+      title: entry.title != null ? String(entry.title) : 'Unknown Title',
+      artist: entry.artist != null ? String(entry.artist) : UNKNOWN_ARTIST,
+      album: entry.album != null ? String(entry.album) : UNKNOWN_ALBUM,
+      duration: Number(entry.duration) || 0,
+      format: entry.suffix ? String(entry.suffix).toUpperCase() : 'FLAC',
+      bitDepth: Number(entry.bitDepth) || 16,
+      sampleRate: Number(entry.samplingRate || entry.sampleRate) || 44100,
+      src,
+      cover,
+      year: entry.year != null ? Number(entry.year) : undefined,
+      genre: entry.genre != null ? String(entry.genre) : '',
+      source: 'Subsonic',
+      trackNumber: entry.track != null ? Number(entry.track) : undefined,
+      discNumber: entry.discNumber != null ? Number(entry.discNumber) : undefined,
+      raw: entry
+    };
+  }
+
+  function extractDecade(year) {
+    if (year === null || year === undefined || year === '') return null;
+    let y = NaN;
+    if (typeof year === 'number') {
+      y = year;
+    } else if (typeof year === 'string') {
+      const match = year.match(/\b(\d{4})\b/);
+      if (match) {
+        y = parseInt(match[1], 10);
+      } else {
+        y = parseInt(year.trim(), 10);
+      }
+    }
+    if (!Number.isFinite(y) || y <= 0 || y < 1000 || y > 9999) {
+      return null;
+    }
+    const decade = Math.floor(y / 10) * 10;
+    return `${decade}s`;
+  }
+
+  function filterTracksByDecade(tracks, decade) {
+    if (!Array.isArray(tracks)) return [];
+    if (!decade || typeof decade !== 'string' || decade.trim() === '' || decade.trim().toLowerCase() === 'all') {
+      return tracks.slice();
+    }
+    const target = decade.trim().toLowerCase();
+    return tracks.filter(t => {
+      if (!t || typeof t !== 'object') return false;
+      if (t.decade && String(t.decade).trim().toLowerCase() === target) {
+        return true;
+      }
+      const trackYear = t.year != null ? t.year : t.date;
+      if (trackYear != null) {
+        const dec = extractDecade(trackYear);
+        if (dec && dec.toLowerCase() === target) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }
+
+  function isScrobbleEligible(playedSeconds, totalDuration) {
+    const played = Number(playedSeconds);
+    const total = Number(totalDuration);
+    if (!Number.isFinite(played) || !Number.isFinite(total)) return false;
+    if (total < 30) return false;
+    if (played <= 0) return false;
+    const threshold = Math.min(240, total * 0.5);
+    return played >= threshold;
+  }
+
+  function buildListenBrainzPayload(track, listenType = 'single_listen', listenedAt) {
+    const t = track || {};
+    const type = listenType === 'playing_now' ? 'playing_now' : 'single_listen';
+
+    const trackMetadata = {
+      artist_name: t.artist != null ? String(t.artist) : UNKNOWN_ARTIST,
+      track_name: t.title != null ? String(t.title) : 'Unknown Title',
+      release_name: t.album != null ? String(t.album) : UNKNOWN_ALBUM,
+      additional_info: {
+        submission_client: 'Nocturne',
+        submission_client_version: '1.0.0',
+        media_player: 'Nocturne'
+      }
+    };
+
+    if (Number.isFinite(Number(t.duration)) && Number(t.duration) > 0) {
+      trackMetadata.additional_info.duration_ms = Math.round(Number(t.duration) * 1000);
+    }
+    if (t.trackNumber != null || t.track != null) {
+      trackMetadata.additional_info.tracknumber = Number(t.trackNumber || t.track);
+    }
+    if (t.source) {
+      trackMetadata.additional_info.music_service = String(t.source);
+    }
+
+    const listenItem = {
+      track_metadata: trackMetadata
+    };
+
+    if (type !== 'playing_now') {
+      let timestamp = listenedAt;
+      if (timestamp instanceof Date) {
+        timestamp = Math.floor(timestamp.getTime() / 1000);
+      } else if (typeof timestamp === 'number' && Number.isFinite(timestamp)) {
+        timestamp = timestamp > 1e11 ? Math.floor(timestamp / 1000) : Math.floor(timestamp);
+      } else {
+        timestamp = Math.floor(Date.now() / 1000);
+      }
+      listenItem.listened_at = timestamp;
+    }
+
+    return {
+      listen_type: type,
+      payload: [listenItem]
+    };
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload};
 });

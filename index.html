@@ -459,7 +459,7 @@
           <div id="collection-tools"><button id="sort-button" type="button">By artist&nbsp;⌄</button><button id="filter-toggle" type="button" aria-expanded="false">⌕&nbsp; Filter</button></div>
         </div>
         <div id="filter-controls" hidden>
-          <select id="source-filter" aria-label="Lọc theo nguồn"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option></select>
+          <select id="source-filter" aria-label="Lọc theo nguồn"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option><option value="Subsonic">Subsonic</option></select>
           <select id="artist-filter" aria-label="Lọc theo nghệ sĩ"><option value="*">Mọi nghệ sĩ</option></select>
           <select id="album-filter" aria-label="Lọc theo album"><option value="*">Mọi album</option></select>
           <select id="group-by" aria-label="Nhóm bài hát"><option value="none">Không nhóm</option><option value="artist">Nhóm nghệ sĩ</option><option value="album">Nhóm album</option></select>
@@ -490,6 +490,14 @@
             <span>☁ Cloud</span>
             <span id="focus-count-cloud" class="ml-1 rounded-full bg-white/10 px-1.5 py-0.2 text-[10px] text-zinc-400">0</span>
           </button>
+          <div class="decade-focus flex items-center gap-1.5 border-l border-white/10 pl-2 ml-1">
+            <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Thập niên:</span>
+            <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="decade-1980s">1980s</button>
+            <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="decade-1990s">1990s</button>
+            <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="decade-2000s">2000s</button>
+            <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="decade-2010s">2010s</button>
+            <button type="button" class="focus-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:bg-white/[.08] hover:text-white" data-focus="decade-2020s">2020s</button>
+          </div>
           <div class="smart-playlists-focus flex items-center gap-1.5 border-l border-white/10 pl-2 ml-1">
             <span class="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">Smart:</span>
             <button type="button" class="focus-pill smart-playlist-pill rounded-lg border border-white/10 bg-white/[.04] px-2.5 py-1 text-xs font-medium text-amber-300 transition hover:bg-white/[.08]" data-smart-playlist="dsd">DSD Collection</button>
@@ -600,8 +608,8 @@
   <audio id="preload-audio" crossorigin="anonymous" preload="auto" muted class="hidden" aria-hidden="true"></audio>
 
   <dialog id="settings-modal" class="fixed inset-0 z-[80] items-center justify-center overflow-y-auto bg-transparent p-3 sm:p-4" aria-modal="true" aria-labelledby="settings-title">
-    <div class="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl sm:max-h-[90vh] sm:p-7">
-      <div class="flex items-start justify-between gap-4"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300">Account & streaming</p><h2 id="settings-title" class="mt-1 text-xl font-semibold">Cấu hình Cloud API</h2></div><button id="close-settings" type="button" class="rounded-lg px-2 py-1 text-zinc-500 hover:bg-white/5 hover:text-white" aria-label="Đóng cài đặt">×</button></div>
+    <div id="settings-panel" class="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl sm:max-h-[90vh] sm:p-7">
+      <div class="flex items-start justify-between gap-4"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300">Account & streaming</p><h2 id="settings-title" class="mt-1 text-xl font-semibold">Cấu hình Cloud & Máy chủ cá nhân</h2></div><button id="close-settings" type="button" class="rounded-lg px-2 py-1 text-zinc-500 hover:bg-white/5 hover:text-white" aria-label="Đóng cài đặt">×</button></div>
       <p class="mt-3 text-xs leading-5 text-zinc-400">Thông tin xác thực được lưu trong localStorage của trình duyệt này. Chỉ cấp quyền đọc file; không nhập secret key phía server hoặc mật khẩu tài khoản.</p>
       <div class="mt-4 grid gap-4 md:grid-cols-2">
         <section class="rounded-2xl border border-white/10 bg-white/[.025] p-4">
@@ -615,6 +623,29 @@
           <label class="mt-3 block text-[10px] text-zinc-400">Client ID <input id="microsoft-client-id" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></label>
           <button id="microsoft-connect" class="mt-3 w-full rounded-lg bg-sky-600 px-3 py-2.5 text-xs font-medium hover:bg-sky-500">Tiếp tục với Microsoft</button>
           <details class="mt-3"><summary class="cursor-pointer text-[10px] text-zinc-500">Thiết lập lần đầu (chỉ cần làm một lần)</summary><p class="mt-2 text-[10px] leading-4 text-zinc-500">Đăng ký app trong Microsoft Entra, thêm nền tảng SPA và địa chỉ website này làm redirect URI, rồi cấp quyền User.Read và Files.Read. Dán Application (client) ID vào ô trên.</p></details>
+        </section>
+        <section class="rounded-2xl border border-violet-500/20 bg-violet-500/[.03] p-4 md:col-span-2">
+          <div class="flex items-center justify-between"><h3 class="text-sm font-medium text-violet-200">Subsonic / Navidrome (OpenSubsonic)</h3><span id="subsonic-status" class="text-[10px] text-zinc-500">Chưa kết nối</span></div>
+          <p class="mt-1 text-[10px] leading-4 text-zinc-400">Kết nối máy chủ nhạc cá nhân (Navidrome, Gonic, LMS, Subsonic) qua chuẩn REST API. Không truyền dữ liệu qua bên thứ ba.</p>
+          <div class="mt-3 grid gap-3 sm:grid-cols-3">
+            <label class="block text-[10px] text-zinc-400">Địa chỉ máy chủ (URL)
+              <input id="subsonic-endpoint" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="http://localhost:4533">
+            </label>
+            <label class="block text-[10px] text-zinc-400">Tên người dùng
+              <input id="subsonic-user" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="admin">
+            </label>
+            <label class="block text-[10px] text-zinc-400">Mật khẩu
+              <input id="subsonic-pass" type="password" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="••••••••">
+            </label>
+          </div>
+          <button id="subsonic-connect-btn" type="button" class="mt-3 w-full rounded-lg bg-violet-600 px-3 py-2.5 text-xs font-medium text-white hover:bg-violet-500 transition">Kết nối Subsonic</button>
+        </section>
+        <section class="rounded-2xl border border-white/10 bg-white/[.025] p-4 md:col-span-2">
+          <div class="flex items-center justify-between"><h3 class="text-sm font-medium text-zinc-200">ListenBrainz Scrobbling</h3><span id="listenbrainz-state" class="text-[10px] text-zinc-500">Chưa kích hoạt</span></div>
+          <p class="mt-1 text-[10px] leading-4 text-zinc-400">Ghi nhận nhật ký nghe nhạc phi tập trung (scrobble) lên ListenBrainz theo chuẩn cộng đồng mở.</p>
+          <label class="mt-3 block text-[10px] text-zinc-400">ListenBrainz User Token
+            <input id="listenbrainz-token" type="password" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="Token từ listenbrainz.org">
+          </label>
         </section>
       </div>
       <section class="mt-4 rounded-2xl border border-fuchsia-300/15 bg-fuchsia-300/[.03] p-4">
@@ -1409,8 +1440,12 @@
     }
     function filteredTracks() {
       let list = library.filterTracks(state.tracks, {source:state.filter, artist:state.artist, album:state.album, query:state.query, favoritesOnly:state.focusOnly || state.favoritesOnly, isFavorite});
-      if (state.activeFocus && state.activeFocus !== 'all' && typeof library?.filterTracksByFocus === 'function') {
-        list = library.filterTracksByFocus(list, state.activeFocus, { favorites: state.favorites });
+      if (state.activeFocus && state.activeFocus !== 'all') {
+        if (state.activeFocus.startsWith('decade-') && typeof library?.filterTracksByDecade === 'function') {
+          list = library.filterTracksByDecade(list, state.activeFocus.slice(7));
+        } else if (typeof library?.filterTracksByFocus === 'function') {
+          list = library.filterTracksByFocus(list, state.activeFocus, { favorites: state.favorites });
+        }
       }
       if (state.activeSmartPlaylist) {
         list = list.filter(track => {
@@ -3519,6 +3554,10 @@
       if (typeof generateTrackWaveform === 'function') generateTrackWaveform(track);
       if (typeof updateRoonFullscreenUI === 'function') updateRoonFullscreenUI();
       if (typeof renderSignalPathPopover === 'function' && !$('signal-path-popover')?.classList.contains('hidden')) renderSignalPathPopover();
+      if (track) {
+        track._scrobbled = false;
+        if (typeof sendListenBrainzScrobble === 'function') sendListenBrainzScrobble(track, 'playing_now');
+      }
     }
     function syncCanvasDimensions(canvas) {
       if (!canvas || typeof canvas.getBoundingClientRect !== 'function') return;
@@ -4510,7 +4549,9 @@
       state.activeFocus = criterion || 'all';
       renderFocusBar();
       renderTracks();
-      const label = library.formatFocusBadge ? library.formatFocusBadge(criterion) : criterion;
+      const label = (criterion && criterion.startsWith('decade-'))
+        ? `Thập niên ${criterion.slice(7)}`
+        : (library.formatFocusBadge ? library.formatFocusBadge(criterion) : criterion);
       if (criterion !== 'all') {
         toast(`Bộ lọc Roon Focus: ${label}`);
       }
@@ -5681,6 +5722,162 @@
         state.tracks.unshift(track); renderTracks(); playTrack(track.id); $('settings-error').classList.add('hidden'); hideSettings();
       } catch (error) { settingsError(error); }
     });
+
+    async function sendListenBrainzScrobble(track, listenType = 'single_listen') {
+      if (!track) return;
+      const token = ($('listenbrainz-token') && $('listenbrainz-token').value || '').trim() ||
+        (typeof localStorage !== 'undefined' ? (localStorage.getItem('nocturne-listenbrainz-token') || '') : '');
+      if (!token) return;
+      if (typeof library?.buildListenBrainzPayload !== 'function') return;
+
+      try {
+        const payload = library.buildListenBrainzPayload(track, listenType);
+        await fetch('https://api.listenbrainz.org/1/submit-listens', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Token ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      } catch (_) {}
+    }
+
+    function checkScrobbleEligibility(track, currentTime, duration) {
+      if (!track || track._scrobbled) return;
+      if (typeof library?.isScrobbleEligible !== 'function') return;
+      const played = Number(currentTime);
+      const total = Number(duration);
+      if (library.isScrobbleEligible(played, total)) {
+        track._scrobbled = true;
+        sendListenBrainzScrobble(track, 'single_listen');
+      }
+    }
+
+    async function connectSubsonicServer() {
+      const endpoint = ($('subsonic-endpoint') && $('subsonic-endpoint').value || '').trim();
+      const user = ($('subsonic-user') && $('subsonic-user').value || '').trim();
+      const pass = ($('subsonic-pass') && $('subsonic-pass').value || '').trim();
+      const statusEl = $('subsonic-status');
+
+      if (!endpoint || !user) {
+        if (statusEl) {
+          statusEl.textContent = 'Vui lòng nhập URL và tên đăng nhập';
+          statusEl.className = 'text-[10px] text-rose-400';
+        }
+        toast('Vui lòng nhập địa chỉ máy chủ và tài khoản Subsonic');
+        return;
+      }
+
+      const authConfig = { user, pass };
+      try {
+        localStorage.setItem('nocturne-subsonic-config', JSON.stringify({ endpoint, user, pass }));
+      } catch (e) {
+        console.warn('Could not save subsonic config to localStorage:', e);
+      }
+
+      if (statusEl) {
+        statusEl.textContent = 'Đang kết nối...';
+        statusEl.className = 'text-[10px] text-amber-300';
+      }
+
+      try {
+        // 1. Ping server (ping.view)
+        const pingUrl = typeof library?.buildSubsonicUrl === 'function'
+          ? library.buildSubsonicUrl(endpoint, 'ping.view', {}, authConfig)
+          : `${endpoint}/rest/ping.view?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}&v=1.16.1&c=nocturne&f=json`;
+        const pingRes = await fetch(pingUrl);
+        if (!pingRes.ok) throw new Error(`HTTP ${pingRes.status}`);
+        const pingData = await pingRes.json().catch(() => null);
+        if (pingData && pingData['subsonic-response'] && pingData['subsonic-response'].status === 'failed') {
+          const err = pingData['subsonic-response'].error;
+          throw new Error(err ? err.message : 'Xác thực không thành công');
+        }
+
+        // 2. Fetch songs (getRandomSongs.view or getAlbumList.view)
+        const songsUrl = typeof library?.buildSubsonicUrl === 'function'
+          ? library.buildSubsonicUrl(endpoint, 'getRandomSongs.view', { size: 50 }, authConfig)
+          : `${endpoint}/rest/getRandomSongs.view?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}&v=1.16.1&c=nocturne&f=json&size=50`;
+        const songsRes = await fetch(songsUrl);
+        if (!songsRes.ok) throw new Error(`HTTP ${songsRes.status}`);
+        const songsData = await songsRes.json().catch(() => null);
+
+        let rawSongs = [];
+        if (songsData && songsData['subsonic-response']) {
+          const sub = songsData['subsonic-response'];
+          if (sub.randomSongs && Array.isArray(sub.randomSongs.song)) {
+            rawSongs = sub.randomSongs.song;
+          } else if (sub.songs && Array.isArray(sub.songs.song)) {
+            rawSongs = sub.songs.song;
+          }
+        }
+
+        const newTracks = [];
+        for (const song of rawSongs) {
+          const parsed = typeof library?.parseSubsonicSong === 'function'
+            ? library.parseSubsonicSong(song, endpoint, authConfig)
+            : {
+                id: 'subsonic-' + song.id,
+                title: song.title || 'Unknown Title',
+                artist: song.artist || library.UNKNOWN_ARTIST,
+                album: song.album || library.UNKNOWN_ALBUM,
+                duration: song.duration || 0,
+                format: (song.suffix || 'flac').toUpperCase(),
+                bitDepth: song.bitDepth || 16,
+                sampleRate: song.samplingRate || 44100,
+                src: typeof library?.buildSubsonicUrl === 'function' ? library.buildSubsonicUrl(endpoint, 'stream.view', { id: song.id }, authConfig) : '',
+                cover: typeof library?.buildSubsonicUrl === 'function' ? library.buildSubsonicUrl(endpoint, 'getCoverArt.view', { id: song.coverArt || song.id }, authConfig) : '',
+                year: song.year,
+                genre: song.genre,
+                source: 'Subsonic'
+              };
+          if (parsed) {
+            newTracks.push(parsed);
+          }
+        }
+
+        for (const t of newTracks) {
+          const existingIdx = state.tracks.findIndex(item => item.id === t.id);
+          if (existingIdx >= 0) {
+            state.tracks[existingIdx] = { ...state.tracks[existingIdx], ...t };
+          } else {
+            state.tracks.push(t);
+          }
+        }
+
+        if (statusEl) {
+          statusEl.textContent = `Đã kết nối (${newTracks.length} bài)`;
+          statusEl.className = 'text-[10px] text-emerald-400';
+        }
+        toast(`Kết nối Subsonic thành công: đã nạp ${newTracks.length} bài`);
+
+        updateMetadataFilters();
+        renderTracks();
+        if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks);
+        if (typeof renderFocusBar === 'function') renderFocusBar();
+      } catch (err) {
+        if (statusEl) {
+          statusEl.textContent = `Lỗi: ${err.message || 'Không thể kết nối'}`;
+          statusEl.className = 'text-[10px] text-rose-400';
+        }
+        toast(`Lỗi kết nối Subsonic: ${err.message || 'Mạng không khả dụng'}`);
+      }
+    }
+    window.connectSubsonicServer = connectSubsonicServer;
+
+    const subsonicBtn = $('subsonic-connect-btn');
+    if (subsonicBtn) subsonicBtn.addEventListener('click', connectSubsonicServer);
+    const lbInput = $('listenbrainz-token');
+    if (lbInput) {
+      lbInput.addEventListener('change', () => {
+        const val = (lbInput.value || '').trim();
+        try { localStorage.setItem('nocturne-listenbrainz-token', val); } catch (_) {}
+        if ($('listenbrainz-state')) {
+          $('listenbrainz-state').textContent = val ? 'Đã kích hoạt' : 'Chưa kích hoạt';
+          $('listenbrainz-state').className = `text-[10px] ${val ? 'text-emerald-400' : 'text-zinc-500'}`;
+        }
+      });
+    }
     $('play-button').addEventListener('click', async () => { if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; state.playGeneration++; stopDsdWorker(false); $('play-button').textContent = '▶'; toast('Đã dừng giải mã DSD.'); return; } if (!audio.src) { const current = state.tracks.find(track => track.id === state.currentId); const next = current || state.tracks[0]; if (next) playTrack(next.id); return; } if (audio.paused) { try { if (state.context && state.context.state === 'suspended') await state.context.resume(); await audio.play(); } catch (error) { toast(error.message); } } else audio.pause(); });
     $('previous-button').addEventListener('click', () => playNext(-1));
     $('next-button').addEventListener('click', () => playNext(1));
@@ -6039,6 +6236,7 @@
           }
           updatePositionState();
           updateLyricsHighlight();
+          if (typeof checkScrobbleEligibility === 'function') checkScrobbleEligibility(curTrack, trackCurrentTime, curTrack.duration);
           if (library.shouldPreloadNext(curTrack.duration, trackCurrentTime, standbyAudio.src, state.preloadReadyUrl, library.PRELOAD_LEAD_SECONDS, location.href)) preloadNext();
           return;
         }
@@ -6077,6 +6275,8 @@
         }
         updatePositionState();
         updateLyricsHighlight();
+        const activeTrack = state.tracks.find(item => item.id === state.currentId);
+        if (typeof checkScrobbleEligibility === 'function' && activeTrack) checkScrobbleEligibility(activeTrack, element.currentTime, activeTrack.duration || element.duration);
         if (library.shouldPreloadNext(element.duration, element.currentTime, standbyAudio.src, state.preloadReadyUrl, library.PRELOAD_LEAD_SECONDS, location.href)) preloadNext();
       });
       element.addEventListener('canplay', () => {
@@ -6110,6 +6310,7 @@
       element.addEventListener('ended', () => {
         if (element !== audio) return;
         const track = state.tracks.find(item => item.id === state.currentId);
+        if (typeof checkScrobbleEligibility === 'function' && track) checkScrobbleEligibility(track, track.duration || element.duration || element.currentTime, track.duration || element.duration);
         // Pha C — file đầy đủ đã tải xong nhưng swap bị bỏ lỡ (tải xong
         // trước khi deck đổi sau play() nên audio.src lúc đó chưa phải lát
         // đầu, fullAudioPromise đã null): deck vẫn kẹt ở lát đầu, lát hết
@@ -6348,6 +6549,31 @@
       if (googleConfig.clientId) { $('google-state').textContent = 'Sẵn sàng đăng nhập'; $('cloud-status').textContent = 'Google Drive · sẵn sàng'; }
       if (microsoftConfig.clientId) { $('microsoft-state').textContent = 'Sẵn sàng đăng nhập'; $('cloud-status').textContent = googleConfig.clientId ? 'Google Drive / OneDrive · sẵn sàng' : 'OneDrive · sẵn sàng'; }
     } catch (error) { console.warn('Could not load saved cloud configuration:', error); }
+    try {
+      const savedSubsonic = localStorage.getItem('nocturne-subsonic-config');
+      if (savedSubsonic) {
+        const parsed = JSON.parse(savedSubsonic);
+        if (parsed) {
+          if ($('subsonic-endpoint') && parsed.endpoint) $('subsonic-endpoint').value = parsed.endpoint;
+          if ($('subsonic-user') && parsed.user) $('subsonic-user').value = parsed.user;
+          if ($('subsonic-pass') && parsed.pass) $('subsonic-pass').value = parsed.pass;
+          if ($('subsonic-status')) {
+            $('subsonic-status').textContent = 'Đã lưu cấu hình';
+            $('subsonic-status').className = 'text-[10px] text-zinc-400';
+          }
+        }
+      }
+    } catch (error) { console.warn('Could not load saved Subsonic configuration:', error); }
+    try {
+      const savedLbToken = localStorage.getItem('nocturne-listenbrainz-token');
+      if (savedLbToken) {
+        if ($('listenbrainz-token')) $('listenbrainz-token').value = savedLbToken;
+        if ($('listenbrainz-state')) {
+          $('listenbrainz-state').textContent = 'Đã kích hoạt';
+          $('listenbrainz-state').className = 'text-[10px] text-emerald-400';
+        }
+      }
+    } catch (error) { console.warn('Could not load saved ListenBrainz token:', error); }
     try {
       const savedRate = Number(localStorage.getItem('nocturne-dsd-output-rate'));
       const savedDepth = Number(localStorage.getItem('nocturne-dsd-output-depth'));
@@ -6660,5 +6886,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 03:30 +07 | Đã xong: Swarm Orynivo Integration - (1) Hỗ trợ file CUE sheet (.cue) qua parseCueSheet, đọc tiêu đề/nghệ sĩ/khung hình mm:ss:ff, tự động tách track ảo và phát mượt với cue offset start/end; (2) Danh sách phát thông minh (Smart Playlists Engine) theo tiêu chí chất lượng DSD, Hi-Res, Yêu thích > 4m qua evaluateSmartPlaylist; (3) Hệ thống đánh giá 5 sao audiophile (1-5 ★) trong Phòng nghe và danh sách bài hát, lưu trữ không can thiệp file gốc; kiểm chứng 21/21 test orynivo-features.test.cjs và 6/6 test cue-smart-playlist.test.cjs PASS 100%, toàn bộ 462/462 test PASS | Lượt kế tiếp: Pha B - Gapless audio transitions & Audio buffer lookahead monitor -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 04:45 +07 | Đã xong: Pha B - Dynamic Range Meter (DR Score / Crest Factor = Peak - RMS) & Realtime Audio Buffer Lookahead Monitor: (1) Tiện ích library.calculateDynamicRange + formatDynamicRange phân cấp tiêu chuẩn quốc tế (Audiophile Ref >= 14, Tự nhiên >= 10, Tiêu chuẩn >= 7, Nén mạnh < 7); (2) library.calculateBufferLookahead + formatBufferLookahead đo lường thời gian đệm nạp trước (sẵn sàng Gapless playback); (3) UI #room-dr-badge, #room-crest-detail, #room-buffer-status, #room-buffer-dot và #footer-dr-badge cập nhật thời gian thực; kiểm chứng 5/5 test dynamic-range-buffer.test.cjs PASS 100%, toàn bộ 467/467 test PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh (Intelligent Sleep Fade-out & Ambient Sleep Scene) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 07:00 +07 | Đã xong: Thiết kế lại toàn bộ Giao diện Toàn màn hình khi mở full bài hát (Roon Immersive Now Playing View) chuẩn xác 100% theo ảnh Roon Desktop thực tế: (1) Ảnh bìa mờ toàn cảnh background (#fullscreen-bg-cover), nút đóng ✕ và bánh răng cài đặt ⚙; (2) Album art lớn chính giữa, dòng thông số định dạng âm thanh (FLAC 44.1kHz 16bit 2ch) ngay dưới ảnh bìa; (3) Thanh dock điều khiển dưới chân với tiêu đề lớn, nút tim yêu thích, tên album & dòng Performed by, nút tùy chọn ⋮, cụm điều khiển trung tâm xáo trộn/bài trước/phát/bài sau/hàng đợi, thanh sóng waveform với vạch playhead đỏ #e11d48, thời gian 0:01 / 5:28, nút thu nhỏ ⌵ cùng cụm zone đầu ra System Output và âm lượng 🔊 100; kiểm chứng roon-fullscreen-redesign.test.cjs PASS 100% | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 07:30 +07 | Đã xong: Swarm Self-Hosted Music Overview Integration - (1) Chuẩn kết nối Subsonic / OpenSubsonic API client (#subsonic-endpoint, #subsonic-user, #subsonic-pass, ping.view, getRandomSongs.view, stream.view, getCoverArt.view) cho phép stream từ Navidrome/Airsonic/Gonic; (2) Bộ lọc Decade View theo thập niên (1980s, 1990s, 2000s, 2010s, 2020s) trên Roon Focus Bar; (3) Giao thức scrobble mã nguồn mở ListenBrainz (playing_now và single_listen) theo chuẩn 50% thời lượng hoặc 240s; kiểm chứng 19/19 test selfhosted-overview-features.test.cjs PASS 100%, 511/511 toàn bộ test suite PASS | Lượt kế tiếp: Pha C - Chế độ hẹn giờ ngủ đa tầng kết hợp làm mờ thông minh -->
 </body>
 </html>
