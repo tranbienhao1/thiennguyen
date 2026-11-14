@@ -872,7 +872,8 @@
     if (options.autoEqProfile && options.autoEqProfile !== 'none') {
       const profile = getAutoEqProfile(options.autoEqProfile);
       if (profile) {
-        dspActive.push(`AutoEQ: ${profile.name}`);
+        const prefix = (profile.category === 'Target Curve') ? 'Target Curve' : (profile.category === 'Sound Signature' ? 'Sound Signature' : 'AutoEQ');
+        dspActive.push(`${prefix}: ${profile.name}`);
       }
     }
     if (options.phaseInvert) {
@@ -1966,6 +1967,69 @@
       description: 'Phẳng / Không can thiệp đường cong tai nghe',
       preamp: 0,
       bands: []
+    },
+    'target-harman-2019': {
+      id: 'target-harman-2019',
+      name: 'Harman Target 2019',
+      category: 'Target Curve',
+      description: 'Chuẩn âm học toàn cầu: Sub-bass ấm áp, Vocal trong trẻo, Treble tự nhiên',
+      preamp: -4.5,
+      bands: [
+        { type: 'lowshelf', frequency: 105, gain: 4.5, q: 0.71 },
+        { type: 'peaking', frequency: 3000, gain: 2.0, q: 2.0 },
+        { type: 'highshelf', frequency: 10000, gain: -0.5, q: 0.71 }
+      ]
+    },
+    'target-diffuse-field': {
+      id: 'target-diffuse-field',
+      name: 'Diffuse Field Studio Reference',
+      category: 'Target Curve',
+      description: 'Chuẩn kiểm âm phòng thu phẳng: Tách bạch chi tiết micro-dynamics và không gian acoustic',
+      preamp: -3.0,
+      bands: [
+        { type: 'lowshelf', frequency: 80, gain: -1.0, q: 0.71 },
+        { type: 'peaking', frequency: 2800, gain: 3.0, q: 1.8 },
+        { type: 'highshelf', frequency: 12000, gain: 1.5, q: 0.71 }
+      ]
+    },
+    'target-warm-vocal': {
+      id: 'target-warm-vocal',
+      name: 'Vocal Warmth & Intimacy',
+      category: 'Sound Signature',
+      description: 'Tôn vinh giọng ca ngọt ngào, mid-forward ấm áp, kiểm soát triệt để tiếng chói sibilance',
+      preamp: -3.0,
+      bands: [
+        { type: 'lowshelf', frequency: 150, gain: 1.5, q: 0.71 },
+        { type: 'peaking', frequency: 1200, gain: 2.0, q: 1.5 },
+        { type: 'peaking', frequency: 2500, gain: 2.5, q: 2.0 },
+        { type: 'peaking', frequency: 6500, gain: -2.5, q: 2.5 }
+      ]
+    },
+    'target-basshead-club': {
+      id: 'target-basshead-club',
+      name: 'Basshead Club Impact',
+      category: 'Sound Signature',
+      description: 'Dải trầm sub-bass sâu chắc khỏe cho EDM/Hip-hop, uy lực sàn diễn club',
+      preamp: -6.0,
+      bands: [
+        { type: 'lowshelf', frequency: 65, gain: 6.0, q: 0.71 },
+        { type: 'peaking', frequency: 140, gain: 2.5, q: 1.2 },
+        { type: 'peaking', frequency: 400, gain: -1.5, q: 1.5 },
+        { type: 'highshelf', frequency: 8000, gain: 1.0, q: 0.71 }
+      ]
+    },
+    'target-treble-air': {
+      id: 'target-treble-air',
+      name: 'Acoustic Air & Soundstage',
+      category: 'Sound Signature',
+      description: 'Mở rộng âm trường 3D thoáng đãng, lấp lánh dải treble cao (Air band)',
+      preamp: -3.0,
+      bands: [
+        { type: 'lowshelf', frequency: 120, gain: -1.0, q: 0.71 },
+        { type: 'peaking', frequency: 3500, gain: 1.2, q: 2.0 },
+        { type: 'highshelf', frequency: 10000, gain: 3.0, q: 0.71 },
+        { type: 'peaking', frequency: 14000, gain: 2.0, q: 1.8 }
+      ]
     },
     'sennheiser-hd600': {
       id: 'sennheiser-hd600',

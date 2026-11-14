@@ -2,6 +2,36 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 12:45 +07] — [Pha A: Audio Engine & DSP + Tinh Hoa UI/UX] Chuẩn Mực Âm Học Audiophile (Target Curves & Sound Signatures) & Tái Cấu Trúc Toàn Màn Hình Roon Chuẩn Mockup
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP (Web Audio API)** & **2. UI/UX & Visualizer Hiện Đại**.
+- **Chi tiết triển khai:**
+  1. **Hệ Thống Đường Cong Mục Tiêu Âm Học & Chữ Ký Âm Thanh (`AUTOEQ_PROFILES`):**
+     - Bổ sung 5 chuẩn âm học audiophile đỉnh cao vào bộ PEQ:
+       - `target-harman-2019`: **Harman Target Curve 2019** (Chuẩn mực toàn cầu, sub-bass ấm áp, mid trong trẻo, treble tự nhiên).
+       - `target-diffuse-field`: **Diffuse Field Studio Reference** (Chuẩn kiểm âm phòng thu phẳng, độ tách bạch micro-dynamics cực cao).
+       - `target-warm-vocal`: **Vocal Warmth & Intimacy** (Tôn vinh giọng ca ngọt ngào, mid-forward ấm áp, kiểm soát triệt để tiếng chói sibilance).
+       - `target-basshead-club`: **Basshead Club Impact** (Sub-bass sâu uy lực, chắc khỏe cho EDM/Hip-hop sàn diễn).
+       - `target-treble-air`: **Acoustic Air & Soundstage** (Mở rộng âm trường 3D thoáng đãng, lấp lánh dải treble cao Air band).
+     - Tất cả profiles đều tính toán bù trừ Preamp (`<= 0 dB`) ngăn chặn digital clipping tuyệt đối.
+     - Tích hợp nhận diện `Target Curve` và `Sound Signature` vào Roon Signal Path trực quan hóa chuỗi DSP.
+     - Nâng cấp `#autoeq-select` có `<optgroup>` phân nhóm trực quan giữa Chuẩn mực âm học và Tai nghe cụ thể.
+  2. **Tái Cấu Trúc Giao Diện Toàn Màn Hình Chuẩn Roon (`#roon-fullscreen-view`):**
+     - Thống nhất hàng dock dưới cùng của màn hình Now Playing thành một hàng ngang duy nhất:
+       `[⌵ Thu nhỏ]` + `[0:00 Thời gian]` + `[Dạng sóng Waveform Seekbar]` + `[0:00 Thời lượng]` + `[🎛 System Output]` + `[🔊 100 Âm lượng]`
+       Hoàn toàn ăn khớp với mockup người dùng yêu cầu, tối ưu chiều cao hiển thị ảnh bìa album trên cả Desktop và Tablet.
+     - Dạng sóng toàn màn hình render thanh kim scrubber màu đỏ (`#ef4444`) đặc trưng phong cách Roon Audiophile.
+  3. **Tối Ưu Vị Trí Tránh Va Chạm Giao Diện (Floating Panels Clearance):**
+     - Đặt khoảng cách `bottom-[140px]` cho `mini-player-hud`, `eq-panel`, `sleep-panel`, `ambient-panel` để không bao giờ bị đè hoặc che khuất bởi thanh phát nhạc 128px ở đáy màn hình.
+     - Nâng vị trí `#toast` lên `bottom-40 sm:bottom-44 z-[120]` tránh che waveform seekbar hoặc các nút bấm tương tác.
+  4. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `target-curves.test.cjs` (**10/10 tests PASS 100%**).
+     - Toàn bộ suite test chạy thành công không một lỗi nhỏ.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 12:25 +07] — [Pha D: Hiệu Năng, Kiến Trúc & PWA] Giám Sát Hạn Ngạch Bộ Nhớ PWA (Storage Quota Monitor), Dọn Dẹp Bộ Đệm & Bộ Lọc Nghe Nhạc Ngoại Tuyến (Offline Focus Mode)
 
 ### 🎯 Hạng Mục Nâng Cấp:
