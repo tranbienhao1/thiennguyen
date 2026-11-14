@@ -2959,8 +2959,10 @@
         };
       }
       if (backBtn) {
-        backBtn.onclick = () => {
+        backBtn.onclick = (e) => {
+          if (e) e.stopPropagation();
           state.trackScope = null;
+          state.currentCollectionEntry = null;
           hero.classList.add('hidden');
           renderTracks();
         };
@@ -2992,18 +2994,29 @@
         name: meta.album || albumName,
         artist: meta.artist || artistName || 'Unknown Artist',
         tracks: albumTracks,
-        cover: albumTracks.find(t => t.cover)?.cover || ''
+        cover: albumTracks.find(t => t.cover)?.cover || '',
+        action: 'album'
       };
       
-      setLibraryView('albums');
+      entry.action = 'album';
+      state.currentCollectionEntry = entry;
+      state.trackScope = entry.tracks.map(t => t.id);
+      state.activeView = 'albums';
+      saveViewScroll();
+      if (trackRenderTimer) { clearTimeout(trackRenderTimer); trackRenderTimer = null; }
+      $('home-view').hidden = true;
+      $('home-view').classList.add('hidden');
+      $('library-view').hidden = false;
+      $('library-view').classList.remove('hidden');
       const grid = $('collection-grid');
       if (grid) grid.classList.add('hidden');
       $('track-list')?.classList.remove('hidden');
       $('track-list-header')?.classList.remove('hidden');
       $('list-title').textContent = entry.name;
+      $('page-title').textContent = entry.name;
       $('visible-count').textContent = `${entry.tracks.length} songs`;
       $('back-button')?.setAttribute('aria-label', 'Quay lại danh sách bộ sưu tập');
-      state.trackScope = entry.tracks.map(t => t.id);
+      document.querySelectorAll('.nav-link[data-view]').forEach(button => button.classList.toggle('is-active', button.dataset.view === state.activeView));
       showAlbumHero(entry, 'album');
       renderTrackRows(entry.tracks);
     }
@@ -3024,18 +3037,29 @@
         name: meta.artist || artistName,
         artist: meta.artist || artistName,
         tracks: artistTracks,
-        cover: artistTracks.find(t => t.cover)?.cover || ''
+        cover: artistTracks.find(t => t.cover)?.cover || '',
+        action: 'artist'
       };
       
-      setLibraryView('artists');
+      entry.action = 'artist';
+      state.currentCollectionEntry = entry;
+      state.trackScope = entry.tracks.map(t => t.id);
+      state.activeView = 'artists';
+      saveViewScroll();
+      if (trackRenderTimer) { clearTimeout(trackRenderTimer); trackRenderTimer = null; }
+      $('home-view').hidden = true;
+      $('home-view').classList.add('hidden');
+      $('library-view').hidden = false;
+      $('library-view').classList.remove('hidden');
       const grid = $('collection-grid');
       if (grid) grid.classList.add('hidden');
       $('track-list')?.classList.remove('hidden');
       $('track-list-header')?.classList.remove('hidden');
       $('list-title').textContent = entry.name;
+      $('page-title').textContent = entry.name;
       $('visible-count').textContent = `${entry.tracks.length} songs`;
       $('back-button')?.setAttribute('aria-label', 'Quay lại danh sách bộ sưu tập');
-      state.trackScope = entry.tracks.map(t => t.id);
+      document.querySelectorAll('.nav-link[data-view]').forEach(button => button.classList.toggle('is-active', button.dataset.view === state.activeView));
       showAlbumHero(entry, 'artist');
       renderTrackRows(entry.tracks);
     }
@@ -3094,7 +3118,7 @@
         return `<button type="button" class="collection-card" data-collection-action="${action}" data-collection-key="${escapeHtml(entry.key)}" aria-label="${escapeHtml(entry.name)}${entry.artist ? ` — ${escapeHtml(entry.artist)}` : ''}"><span class="collection-art ${isArtistView || !entry.cover ? 'is-artist' : ''}">${image}${formatBadge}</span><span class="collection-title">${escapeHtml(entry.name)}</span><span class="collection-subtitle">${subtitle}</span></button>`;
       }).join('');
       const empty = $('empty-state');
-      const showRows = isSongView || view === 'history' || (view === 'albums' && state.collectionSort === 'tracks');
+      const showRows = isSongView || view === 'history' || (view === 'albums' && state.collectionSort === 'tracks') || Boolean(state.trackScope);
       if (!state.trackScope) $('album-hero')?.classList.add('hidden');
       grid.classList.toggle('hidden', showRows || !!state.trackScope);
       $('track-list').classList.toggle('hidden', !showRows && !state.trackScope);
@@ -3105,7 +3129,11 @@
       $('album-total').textContent = albums.size;
       $('song-total').textContent = tracks.length;
       $('visible-count').textContent = `${isGenreView ? entries.length : (isArtistView ? artists.size : isSongView ? tracks.length : albums.size)} ${isGenreView ? 'genres' : (isArtistView ? 'artists' : isSongView ? 'songs' : 'albums')}`;
-      $('list-title').textContent = view === 'genres' ? 'Genres & Moods' : (view === 'artists' ? 'My Artists' : view === 'songs' ? 'My Songs' : view === 'composers' ? 'My Composers' : view === 'compositions' ? 'My Compositions' : view === 'folders' ? 'My Folders' : view === 'history' ? 'History' : 'My Albums');
+      if (!state.trackScope) {
+        $('list-title').textContent = view === 'genres' ? 'Genres & Moods' : (view === 'artists' ? 'My Artists' : view === 'songs' ? 'My Songs' : view === 'composers' ? 'My Composers' : view === 'compositions' ? 'My Compositions' : view === 'folders' ? 'My Folders' : view === 'history' ? 'History' : 'My Albums');
+      } else if (state.currentCollectionEntry) {
+        $('list-title').textContent = state.currentCollectionEntry.name || 'Album';
+      }
       grid.querySelectorAll('[data-collection-action]').forEach(card => card.addEventListener('click', () => {
         try {
           const action = card.dataset.collectionAction;
@@ -3113,11 +3141,14 @@
             ? entries.find(item => item.key === card.dataset.collectionKey)
             : (action === 'artist' ? [...artists.values()] : [...albums.values()]).find(item => item.key === card.dataset.collectionKey);
           if (!entry) return;
+          entry.action = action;
+          state.currentCollectionEntry = entry;
+          state.trackScope = (entry.tracks || []).map(track => track.id);
           $('list-title').textContent = entry.name || 'Album';
+          $('page-title').textContent = entry.name || 'Album';
           $('visible-count').textContent = `${(entry.tracks || []).length} songs`;
           grid.classList.add('hidden'); $('track-list').classList.remove('hidden'); $('track-list-header').classList.remove('hidden');
           $('back-button').setAttribute('aria-label', 'Quay lại danh sách bộ sưu tập');
-          state.trackScope = (entry.tracks || []).map(track => track.id);
           if (action !== 'genre') showAlbumHero(entry, card.dataset.collectionAction);
           renderTrackRows(entry.tracks || []);
         } catch (err) {
@@ -3303,11 +3334,20 @@
       $('all-count').textContent = state.tracks.length;
       const result = renderCollectionCards(shown);
       updateCurrentTrackIndicator();
-      if (state.activeView === 'history') result.showRows = true;
+      if (state.activeView === 'history' || Boolean(state.trackScope)) result.showRows = true;
       if (result.showRows) {
-        const scope = state.activeView === 'history' ? state.recentHistory.map(entry => state.tracks.find(track => library.historyTrackKey(track) === entry.trackKey)).filter(Boolean) : state.trackScope ? shown.filter(track => state.trackScope.includes(track.id)) : shown;
+        const scope = state.activeView === 'history'
+          ? state.recentHistory.map(entry => state.tracks.find(track => library.historyTrackKey(track) === entry.trackKey)).filter(Boolean)
+          : state.trackScope
+            ? state.tracks.filter(track => state.trackScope.includes(track.id))
+            : shown;
         $('empty-state').classList.toggle('hidden', scope.length > 0);
         $('visible-count').textContent = `${scope.length} ${state.activeView === 'songs' ? 'songs' : 'tracks'}`;
+        if (state.trackScope && state.currentCollectionEntry) {
+          $('list-title').textContent = state.currentCollectionEntry.name || 'Album';
+          $('page-title').textContent = state.currentCollectionEntry.name || 'Album';
+          showAlbumHero(state.currentCollectionEntry, state.currentCollectionEntry.action || 'album');
+        }
         renderTrackRows(scope);
       } else {
         $('empty-state').classList.add('hidden');
@@ -3321,7 +3361,9 @@
       $('collection-grid').classList.toggle('hidden', state.activeView === 'home' || result.showRows);
       $('empty-state').classList.toggle('hidden', state.activeView === 'home' || shown.length > 0);
       $('recent-section').classList.toggle('hidden', state.activeView !== 'home' || !state.recentHistory.length);
-      $('page-title').textContent = ({home:'Home',albums:'My Albums',artists:'My Artists',songs:'My Songs',composers:'My Composers',compositions:'My Compositions',folders:'My Folders',genres:'Genres',radio:'My Live Radio',later:'Listen Later',tags:'My Tags',history:'History'})[state.activeView] || 'My Library';
+      if (!state.trackScope) {
+        $('page-title').textContent = ({home:'Home',albums:'My Albums',artists:'My Artists',songs:'My Songs',composers:'My Composers',compositions:'My Compositions',folders:'My Folders',genres:'Genres',radio:'My Live Radio',later:'Listen Later',tags:'My Tags',history:'History'})[state.activeView] || 'My Library';
+      }
       document.querySelectorAll('.nav-link[data-view]').forEach(button => button.classList.toggle('is-active', button.dataset.view === state.activeView));
       $('focus-button').setAttribute('aria-pressed',String(state.focusOnly));
       $('focus-heart').textContent = state.focusOnly ? '♥' : '♡';
@@ -8220,6 +8262,7 @@
       const supported = ['home','albums','artists','songs','genres','history'];
       state.activeView = supported.includes(view) ? view : 'albums';
       state.trackScope = null;
+      state.currentCollectionEntry = null;
       $('album-hero')?.classList.add('hidden');
       state.groupBy = 'none';
       if (state.activeView === 'history' && !state.recentHistory.length) readHistory();
@@ -8246,7 +8289,7 @@
         }
       });
     }
-    $('back-button').addEventListener('click', () => { if (state.trackScope) { state.trackScope = null; $('album-hero')?.classList.add('hidden'); $('back-button').setAttribute('aria-label','Quay lại'); renderTracks(); } else setLibraryView('albums'); });
+    $('back-button').addEventListener('click', () => { if (state.trackScope) { state.trackScope = null; state.currentCollectionEntry = null; $('album-hero')?.classList.add('hidden'); $('back-button').setAttribute('aria-label','Quay lại'); renderTracks(); } else setLibraryView('albums'); });
     $('open-settings-sidebar').addEventListener('click', showSettings);
     $('header-favorites').addEventListener('click', () => { state.focusOnly = !state.focusOnly; renderTracks(); });
     $('header-search').addEventListener('click', () => { const input = window.matchMedia('(max-width: 640px)').matches ? $('search-mobile') : $('search'); input.focus(); });
@@ -9576,6 +9619,7 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 01:20 +07 | Đã xong: Pha B - UI/UX & Visualizer: Đồng Hồ VU Analog Kép (Dual Stereophonic Analog VU Meter with Dynamic Ballistics) & Mở Rộng Bảng Màu Audiophile Mới (McIntosh Green, Tube Amber, Pacific Blue): (1) 3 bảng màu audiophile mới trong VISUALIZER_THEMES (emerald McIntosh Vintage Green, amber Vacuum Tube Warmth, ocean Pacific Hi-Res Blue); (2) calculateVuBallistics tính toán đà chuyển động kim (needle ballistics attack 0.35, decay 0.05), thang đo decibel -40dB đến +3dB, góc quét kim -45° đến +45°, và cảnh báo quá tải peak isOverload; (3) renderVisualizerVuMeter kết xuất đồng hồ VU stereo analog 2 kênh L/R độc lập (hoặc đơn tâm trên màn hình nhỏ) với mặt đồng hồ cong, vạch chia decibel, vùng quá tải đỏ rực, kim quét mượt mà và đèn LED đỏ cảnh báo clipping thời gian thực; (4) cycleVisualizerMode & formatVisualizerMode xoay vòng 3 chế độ hiển thị: Spectrum (Phổ tần số FFT) ↔ Oscilloscope (Dao động ký) ↔ VU Meter (Đồng hồ VU Analog); (5) Tương tác click chuột phải / nhấp đúp trên #visualizer và phím tắt 'v' / 'V' chuyển đổi chế độ tức thì kèm thông báo toast; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests audiophile-vu-meter-visualizer.test.cjs PASS 100%, toàn bộ 91/91 test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features & Săn Lỗi: Tối Ưu Bố Cục Thư Viện Album Lưới, Đồng Bộ Thẻ Nhãn & Tránh Xung Đột Popover -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 02:10 +07 | Đã xong: Pha C - Tái Cấu Trúc Bố Cục Footer & Di Chuyển Cụm Đo Lường Telemetry Khỏi Khu Vực Điều Khiển Nhạc (Footer Telemetry Relocation & Player Controls Decoupling): (1) Chuyển toàn bộ cụm hiển thị đo lường âm học (#visualizer, #level-readout, #footer-dr-badge, #footer-phase-badge, #footer-tp-badge) rời khỏi hàng điều khiển bài hát lên dải đo lường riêng biệt #footer-telemetry-strip ở đỉnh footer; (2) Giải phóng hoàn toàn không gian hàng điều khiển (.footer-center-controls), đảm bảo nút Play, Previous, Next, Shuffle, Repeat và thanh seekbar luôn được căn giữa hoàn hảo, không bao giờ bị che lấp hoặc đè chồng ở bất kỳ độ phân giải nào; (3) Bổ sung nút đóng #footer-telemetry-close (✕) và cơ chế bật/tắt dải đo linh hoạt khi nhấn vào huy hiệu #quality-badge, lưu trạng thái vào localStorage 'nocturne-hide-telemetry-strip'; (4) Giới hạn kích thước cột công cụ bên phải (max-w-[380px] shrink-0) và ẩn thích ứng các nút phụ trợ trên màn hình nhỏ tránh tràn dòng; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 1/1 test footer-telemetry-relocation.test.cjs PASS 100%, toàn bộ 92/92 test suites PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản lý bộ đệm IndexedDB & Tối ưu hóa tải trước đa luồng -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 02:50 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản Lý Bộ Đệm IndexedDB, Thu Hồi Lát Âm Thanh Mồ Côi & Đường Ống Tải Trước Đa Tầng (Multi-Track Pipeline Preloader, IndexedDB Defragmentation & Gapless Readiness Score): (1) scheduleMultiTrackPreload phân bổ đường ống nạp trước đa tầng (Track +1 Full/Slice, Track +2 First-Slice, Track +3 Metadata) thích ứng theo băng thông mạng (4G, 3G, 2G, SaveData, Offline) và điều tiết concurrency trần; (2) defragmentCacheDatabase quét và phát hiện các lát âm thanh mồ côi (orphaned keys) và slice hết hạn trong firstSliceCache IndexedDB, thu hồi dung lượng rác và tính điểm toàn vẹn cơ sở dữ liệu (integrity score 0-100%); (3) calculatePreloadReadiness & formatPreloadReadinessBadge đo lường mức độ sẵn sàng phát liền mạch Gapless 0ms theo trạng thái readyState và lookahead buffer seconds; (4) Tích hợp UI PWA: nút #defrag-cache-btn 'Chống phân mảnh & Thu hồi rác', hộp tóm tắt độ toàn vẹn #storage-defrag-summary trong #storage-quota-section, và huy hiệu thời gian thực #room-preload-readiness trong Phòng nghe; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination) | Lượt kế tiếp: Pha A - Audio Engine & DSP: Parametric EQ Presets & Tối ưu hóa chuỗi xử lý âm thanh -->
-    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:00 +07 | Đã xong: Pha A - Audio Engine & DSP: Đa Tuyến Parametric EQ Presets Audiophile & Tối Ưu Headroom Preamp Tự Động (Audiophile Parametric EQ Presets, Negative Preamp & Biquad Filter Coherence): (1) PARAMETRIC_EQ_PRESETS với 6 trường phái âm học chuyên sâu: Sub-Bass Slam, Vocal Clarity & Air, Acoustic Guitar & Piano, Vintage Tube Warmth, Sibilance De-Esser, Orchestral Grandeur; (2) getParametricEqPreset & listParametricEqPresets trích xuất và validate an toàn tham số Biquad filter (peaking, lowshelf, highshelf, Q-factor, gain dB); (3) calculatePresetAutoPreamp tự động bù suy giảm âm học Preamp <= 0 dB triệt tiêu 100% hiện tượng xén ngọn méo tiếng (digital clipping) trên DAC; (4) Tích hợp UI #autoeq-select với nhóm riêng biệt <optgroup label="── Trường phái âm học PEQ (Parametric EQ Presets) ──">, tự động đồng bộ Roon Signal Path và lưu trữ localStorage bền vững; (5) formatParametricEqSummary hiển thị tóm tắt trực quan số dải lọc và mức bù Preamp; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination) | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe & Bảng Màu Spectrum Mới -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:00 +07 | Đã xong: Pha A - Audio Engine & DSP: Đa Tuyến Parametric EQ Presets Audiophile & Tối Ưu Headroom Preamp Tự Động (Audiophile Parametric EQ Presets, Negative Preamp & Biquad Filter Coherence): (1) PARAMETRIC_EQ_PRESETS với 6 trường phái âm học chuyên sâu: Sub-Bass Slam, Vocal Clarity & Air, Acoustic Guitar & Piano, Vintage Tube Warmth, Sibilance De-Esser, Orchestral Grandeur; (2) getParametricEqPreset & listParametricEqPresets trích xuất và validate an toàn tham số Biquad filter (peaking, lowshelf, highshelf, Q-factor, gain dB); (3) calculatePresetAutoPreamp tự động bù suy giảm âm học Preamp <= 0 dB triệt tiêu 100% hiện tượng xén ngọn méo tiếng (digital clipping) trên DAC; (4) Tích hợp UI #autoeq-select với nhóm riêng biệt <optgroup label="── Trường phái âm học PEQ (Parametric EQ Presets) ──">, tự động đồng bộ Roon Signal Path và lưu trữ localStorage bền vững; (5) formatParametricEqSummary hiển thị tóm tắt trực quan số dải lọc và mức bù Preamp; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination) | Lượt kế tiếp: Bugfix Triệt Để - Khắc phục tình trạng bị back ra ngoài khi ở trong view chi tiết Album -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:10 +07 | Đã xong: Bugfix Triệt Để - Khắc Phục Hiện Tượng Bị Back Ra Ngoài Khi Đang Ở Trong View Chi Tiết Album (Album Scope Persistence, Safe Re-rendering & Collection Entry State): (1) Sửa lỗi showRows trong renderCollectionCards và renderTracks luôn tôn trọng state.trackScope, ngăn chặn việc renderTracks (do playTrack, loadedmetadata, cache slice hoặc favorite) xóa rỗng track-list.innerHTML và kích hoạt lại lưới album; (2) Lưu trữ state.currentCollectionEntry giúp renderTracks tái tạo hoàn hảo tiêu đề, số lượng bài và hero header mà không bị reset về 'My Albums'; (3) Cập nhật openAlbum và openArtist thiết lập trực tiếp view và scope mà không gọi setLibraryView gây hủy trackScope; (4) Nút quay lại (#album-hero-back và #back-button) reset sạch state.trackScope và state.currentCollectionEntry khi người dùng chủ động muốn thoát; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 1/1 test album-view-persistence.test.cjs PASS 100%, toàn bộ 56/56 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe & Bảng Màu Spectrum Mới -->
 </body>
 </html>

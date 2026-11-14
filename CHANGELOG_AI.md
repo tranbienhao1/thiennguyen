@@ -2,6 +2,33 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 03:10 +07] — Bugfix Triệt Để: Khắc Phục Hiện Tượng Bị Back Ra Ngoài Khi Đang Ở Trong View Chi Tiết Album (Album Scope Persistence & Safe Re-Rendering Engine)
+
+### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:
+- **Phân khu trọng tâm:** **Trải Nghiệm Thư Viện & Điều Hướng Bộ Sưu Tập (Library View, Album Detail & Scope Persistence)**.
+- **Nguyên nhân gốc rễ (Root Cause Analysis):**
+  - Khi người dùng đang ở trong view chi tiết một Album (`state.trackScope` đang chứa danh sách ID bài hát của album), bất kỳ thao tác hoặc tiến trình ngầm nào kích hoạt lại `renderTracks()` (như: người dùng bấm phát một bài trong album, trình duyệt bắn sự kiện `loadedmetadata` sau khi tải xong thời lượng, tiến trình ngầm lưu cache lát đầu DSD/PCM hoàn tất `scheduleTrackRender`, hoặc người dùng bấm thả tim Favorite):
+  - Hàm `renderCollectionCards()` trước đây tính toán `showRows` chỉ bằng `isSongView || view === 'history' || (view === 'albums' && state.collectionSort === 'tracks')`, hoàn toàn bỏ quên cờ `state.trackScope`!
+  - Kết quả: `result.showRows` trả về `false`, khiến `renderTracks()` thực hiện xóa rỗng `$('track-list').innerHTML = ''`, ẩn bảng danh sách bài hát và bật lại lưới toàn bộ album (`$('collection-grid').classList.remove('hidden')`), đồng thời ghi đè tiêu đề album thành `'My Albums'`. Người dùng ngay lập tức bị "văng" ngược trở lại danh sách ngoài.
+- **Giải pháp xử lý triệt để:**
+  1. **Duy Trì Trạng Thái Hiển Thị Bài Hát Bền Vững (`showRows & state.trackScope`):**
+     - Bổ sung `Boolean(state.trackScope)` vào công thức tính `showRows` trong `renderCollectionCards()` và bảo đảm `renderTracks()` luôn coi `result.showRows = true` khi đang có `state.trackScope`.
+     - Ngăn chặn hoàn toàn việc xóa rỗng `track-list.innerHTML` và giữ ẩn `collection-grid` trong suốt thời gian người dùng đang xem Album.
+  2. **Lưu Trữ & Khôi Phục Thông Tin Bộ Sưu Tập (`state.currentCollectionEntry`):**
+     - Lưu lại thực thể `entry` của Album đang xem vào `state.currentCollectionEntry` khi người dùng bấm vào card hoặc điều hướng qua `openAlbum`.
+     - `renderTracks()` tự động tái tạo và bảo toàn chính xác tên Album trên `#list-title` và `#page-title`, số lượng bài hát trên `#visible-count`, và các thông tin trên hero banner `#album-hero`.
+  3. **Tái Cấu Trúc Điều Hướng Trực Tiếp Trong `openAlbum` & `openArtist`:**
+     - Loại bỏ lời gọi `setLibraryView` gián tiếp (vốn gây reset `state.trackScope = null` và hủy timer). Chuyển sang kích hoạt trực tiếp view thư viện, gán scope và render danh sách bài hát một cách liền mạch.
+  4. **Chuẩn Hóa Cơ Chế Thoát / Back Rõ Ràng:**
+     - Chỉ khi người dùng chủ động nhấn nút **Quay lại** trên banner album (`#album-hero-back`) hoặc trên thanh tiêu đề (`#back-button`), hệ thống mới xóa `state.trackScope` và `state.currentCollectionEntry` để trở về lưới album `collection-grid`.
+  5. **Bảo Toàn Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `album-view-persistence.test.cjs` (**PASS 100%**).
+  - Toàn bộ các test suite hồi quy (**56/56 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 03:00 +07] — Pha A: Đa Tuyến Parametric EQ Presets Audiophile & Tối Ưu Headroom Preamp Tự Động (Audiophile Parametric EQ Presets, Negative Preamp & Biquad Filter Coherence)
 
 ### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:
