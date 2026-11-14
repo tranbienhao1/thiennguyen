@@ -2,6 +2,31 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 12:05 +07] — [Pha C: Tính Năng & Trải Nghiệm Người Dùng] Tìm Kiếm Mờ Đa Từ Khóa Thông Minh (Smart Fuzzy Multi-Token Search), Xếp Hạng Phù Hợp, Làm Nổi Bật Từ Khóa (Keyword Highlighting) & Lịch Sử Tìm Kiếm Bền Vững
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)** & **2. UI/UX Hiện Đại**.
+- **Chi tiết triển khai:**
+  1. **Bộ Phân Tích & Khớp Đa Từ Khóa Thông Minh (`matchSearchQuery`):**
+     - Cho phép tìm kiếm bằng cụm nhiều từ khóa không theo thứ tự cố định (Multi-token out-of-order matching). Ví dụ: gõ `"thang nguoi tinh"` hoặc `"buitruonglinh mot doi"` vẫn tìm thấy chính xác bài hát `"Người Tình Điên Loạn - Thắng"` hoặc `"Một đời - buitruonglinh"`.
+     - Tự động chuẩn hóa NFKC/NFD, loại bỏ dấu thanh tiếng Việt và chuyển đổi ký tự `đ/Đ -> d` tương thích hai chiều.
+  2. **Thuật Toán Tính Điểm & Xếp Hạng Độ Phù Hợp (`scoreSearchMatch` & `rankByRelevance`):**
+     - Đánh giá trọng số ưu tiên: Tiêu đề khớp tuyệt đối (`1000 điểm`) > Tiêu đề bắt đầu bằng từ khóa (`800 điểm`) > Tiêu đề chứa từ khóa (`600 điểm`) > Nghệ sĩ/Album chứa từ khóa (`400/300 điểm`).
+     - Tự động đẩy các bài hát có tiêu đề liên quan nhất lên đầu danh sách kết quả tìm kiếm khi người dùng nhập từ khóa.
+  3. **Làm Nổi Bật Từ Khóa Thông Minh (`highlightSearchMatch`):**
+     - Thuật toán quét và làm nổi bật các đoạn khớp trong tiêu đề, tên nghệ sĩ và album bằng thẻ `<mark class="bg-violet-500/25 text-violet-200 font-medium rounded px-0.5">...</mark>`.
+     - **Bảo toàn 100% nguyên vẹn dấu tiếng Việt và chữ hoa/chữ thường** của văn bản gốc (nhập không dấu vẫn highlight đúng chữ có dấu gốc).
+     - Thoát an toàn mã HTML (`escape: true`) chống tấn công XSS tuyệt đối.
+  4. **Lưu Trữ Lịch Sử Tìm Kiếm Bền Vững (Search History Dropdown):**
+     - Các hàm thuần `getSearchHistory`, `addSearchHistory`, `clearSearchHistory` lưu trữ tối đa 8 từ khóa tìm kiếm gần nhất vào `localStorage['nocturne-search-history']`.
+     - Dropdown giao diện Glassmorphism `#search-history-dropdown` và `#search-history-mobile-dropdown` hiển thị các thẻ chip tìm kiếm nhanh `🕒 <từ khóa>` kèm nút "Xóa hết".
+  5. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `smart-search.test.cjs` (**23/23 tests PASS 100%**).
+     - Toàn bộ 95 test suites (**649/649 tests PASS 100%**, 0 fail, 0 regression).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 11:55 +07] — [Pha B: UI/UX & Visualizer Hiện Đại] Hệ Thống FFT Spectrum Analyzer Thời Gian Thực Đa Bảng Màu (Audiophile Multi-Theme Spectrum with Peak Hold & Decay Physics)
 
 ### 🎯 Hạng Mục Nâng Cấp:

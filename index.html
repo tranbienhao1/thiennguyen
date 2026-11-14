@@ -401,9 +401,30 @@
       <header>
         <div class="flex min-w-0 items-center gap-2"><button id="sidebar-toggle" type="button" aria-label="Mở thanh điều hướng" aria-expanded="false" aria-controls="sidebar"><span id="sidebar-toggle-icon">☰</span></button><button id="back-button" type="button" aria-label="Quay lại" title="Quay lại">‹</button></div>
         <h1 id="page-title">My Albums</h1>
-        <div class="flex items-center gap-1"><label class="relative hidden sm:block"><input id="search" type="search" placeholder="Tìm bài hát, nghệ sĩ..." aria-label="Tìm trong thư viện"></label><button id="header-favorites" type="button" aria-label="Đánh dấu trang" title="Đánh dấu trang">♧</button><button id="header-search" type="button" aria-label="Tìm kiếm" title="Tìm kiếm">⌕</button><button id="header-profile" type="button" aria-label="Tài khoản" title="Tài khoản">R</button><button id="mobile-settings" type="button" aria-label="Cấu hình">⚙</button></div>
+        <div class="flex items-center gap-1">
+          <div class="relative hidden sm:block">
+            <label><input id="search" type="search" placeholder="Tìm bài hát, nghệ sĩ..." aria-label="Tìm trong thư viện"></label>
+            <div id="search-history-dropdown" class="hidden absolute top-full left-0 z-40 mt-1.5 w-72 rounded-xl border border-white/10 bg-zinc-900/95 p-3 shadow-2xl backdrop-blur-md text-xs">
+              <div class="flex items-center justify-between pb-1.5 border-b border-white/10 text-[10px] text-zinc-400 font-medium">
+                <span>LỊCH SỬ TÌM KIẾM</span>
+                <button id="clear-search-history-btn" type="button" class="text-zinc-500 hover:text-zinc-300">Xóa hết</button>
+              </div>
+              <div id="search-history-chips" class="mt-2 flex flex-wrap gap-1.5"></div>
+            </div>
+          </div>
+          <button id="header-favorites" type="button" aria-label="Đánh dấu trang" title="Đánh dấu trang">♧</button><button id="header-search" type="button" aria-label="Tìm kiếm" title="Tìm kiếm">⌕</button><button id="header-profile" type="button" aria-label="Tài khoản" title="Tài khoản">R</button><button id="mobile-settings" type="button" aria-label="Cấu hình">⚙</button>
+        </div>
       </header>
-      <label class="relative mt-4 block sm:hidden"><input id="search-mobile" type="search" placeholder="Tìm bài hát, nghệ sĩ..." aria-label="Tìm trong thư viện" class="w-full rounded-xl border border-white/10 bg-white/[.04] py-2.5 pl-3 pr-3 text-sm outline-none placeholder:text-zinc-600"></label>
+      <div class="relative mt-4 block sm:hidden">
+        <label><input id="search-mobile" type="search" placeholder="Tìm bài hát, nghệ sĩ..." aria-label="Tìm trong thư viện" class="w-full rounded-xl border border-white/10 bg-white/[.04] py-2.5 pl-3 pr-3 text-sm outline-none placeholder:text-zinc-600"></label>
+        <div id="search-history-mobile-dropdown" class="hidden absolute top-full left-0 right-0 z-40 mt-1.5 rounded-xl border border-white/10 bg-zinc-900/95 p-3 shadow-2xl backdrop-blur-md text-xs">
+          <div class="flex items-center justify-between pb-1.5 border-b border-white/10 text-[10px] text-zinc-400 font-medium">
+            <span>LỊCH SỬ TÌM KIẾM</span>
+            <button id="clear-search-history-mobile-btn" type="button" class="text-zinc-500 hover:text-zinc-300">Xóa hết</button>
+          </div>
+          <div id="search-history-mobile-chips" class="mt-2 flex flex-wrap gap-1.5"></div>
+        </div>
+      </div>
 
       <div id="home-view">
         <h1 id="home-heading">Hi, ROON</h1>
@@ -1678,7 +1699,7 @@
       URL.revokeObjectURL(url); state.objectUrls.delete(url);
     }
     function filteredTracks() {
-      let list = library.filterTracks(state.tracks, {source:state.filter, artist:state.artist, album:state.album, query:state.query, favoritesOnly:state.focusOnly || state.favoritesOnly, isFavorite});
+      let list = library.filterTracks(state.tracks, {source:state.filter, artist:state.artist, album:state.album, query:state.query, favoritesOnly:state.focusOnly || state.favoritesOnly, isFavorite, rankByRelevance: true});
       if (state.activeFocus && state.activeFocus !== 'all') {
         if (state.activeFocus.startsWith('decade-') && typeof library?.filterTracksByDecade === 'function') {
           list = library.filterTracksByDecade(list, state.activeFocus.slice(7));
@@ -2825,7 +2846,7 @@
         const sliceCache = track.firstSliceCached === true ? 'cached' : track.firstSliceCached === false ? 'nocache' : '';
         return [track.id, metadata.title, metadata.artist, metadata.album, track.cover ? '1' : '0', track.duration || 0, quality(track).label, queued ? '1' : '0', dsdAudit, sliceCache].join('~');
       }).join('|');
-      return `${state.sortAsc ? 'asc' : 'desc'}#${state.groupBy || ''}#${rows}`;
+      return `${state.sortAsc ? 'asc' : 'desc'}#${state.groupBy || ''}#${state.query || ''}#${rows}`;
     }
     // Pha D — đo hiệu năng render danh sách lớn sau bản sửa chữ ký hàng:
     // ghi lại lần render gần nhất (số hàng, mili-giây, có đi đường nhẹ
@@ -2886,13 +2907,16 @@
           const badgeTitle = [audit, sliceCache].filter(Boolean).join(' · ');
           const trRating = typeof getTrackRating === 'function' ? getTrackRating(track) : (track.rating || 0);
           const trStars = (typeof library !== 'undefined' && typeof library.formatRating === 'function') ? library.formatRating(trRating) : '☆☆☆☆☆';
+          const titleHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.title, state.query, {escape: true}) : escapeHtml(metadata.title);
+          const artistHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.artist, state.query, {escape: true}) : escapeHtml(metadata.artist);
+          const albumHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.album, state.query, {escape: true}) : escapeHtml(metadata.album);
           // Pha B — hàng bài hát kiểu Tidal (Melissa chọn 20:35): hàng phẳng
           // ngăn bằng hairline thay vì thẻ bo tròn, bìa 48px, số thứ tự
           // đổi thành ▶ khi hover, tiêu đề text-sm rõ hơn nghệ sĩ text-xs,
           // huy hiệu chất lượng thành pill, thời lượng text-xs.
           return `<div role="button" tabindex="0" class="track-row${versionInfo.versionIndex > 0 ? ' track-version-row' : ''} ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[.06] ${versionInfo.versionIndex > 0 ? 'py-2 pl-10 pr-4' : 'px-4 py-2'} text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]" aria-label="Phát ${escapeHtml(metadata.title)} — ${escapeHtml(metadata.artist)}" data-track-index="${trackIndex + 1}" data-track-id="${escapeHtml(track.id)}">
-            <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${escapeHtml(metadata.title)}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${escapeHtml(metadata.artist)}</span> <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
-            <span class="hidden truncate text-xs text-zinc-500 sm:block"><span class="album-link hover:underline cursor-pointer">${escapeHtml(metadata.album)}</span></span><span class="hidden sm:block"><span class="rounded-full border px-2 py-0.5 text-[9px] font-medium tracking-wide ${q.tone}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${q.label}</span></span><span class="flex items-center justify-end gap-1"><span class="track-rating hidden sm:inline-block mr-1 text-[11px] text-amber-400 cursor-pointer select-none hover:opacity-80" data-rating-track-id="${escapeHtml(track.id)}" title="Đánh giá: ${trRating}/5 sao">${trStars}</span>${versionInfo.versionIndex === 0 && versionInfo.versionGroup.versions.length > 1 ? `<button type="button" data-version-action="toggle" data-version-key="${escapeHtml(versionInfo.versionGroup.key)}" class="shrink-0 rounded-full border border-violet-400/40 px-2 py-0.5 text-[10px] font-medium text-violet-200 hover:bg-violet-400/10" aria-expanded="${expandedVersions.has(versionInfo.versionGroup.key)}" aria-label="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn' : 'Mở rộng'} ${versionInfo.versionGroup.versions.length} phiên bản của ${escapeHtml(metadata.title)}" title="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn các phiên bản' : 'Xem các phiên bản khác'}">${versionInfo.versionGroup.versions.length} phiên bản ${expandedVersions.has(versionInfo.versionGroup.key) ? '▴' : '▾'}</button>` : ''}<span class="text-right text-xs tabular-nums text-zinc-400">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button><button type="button" data-queue-action="play_next" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Phát tiếp theo" title="Phát tiếp theo">⏭</button><button type="button" data-queue-action="append" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Thêm vào cuối" title="Thêm vào cuối">➕</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
+            <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${titleHtml}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${artistHtml}</span> <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
+            <span class="hidden truncate text-xs text-zinc-500 sm:block"><span class="album-link hover:underline cursor-pointer">${albumHtml}</span></span><span class="hidden sm:block"><span class="rounded-full border px-2 py-0.5 text-[9px] font-medium tracking-wide ${q.tone}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${q.label}</span></span><span class="flex items-center justify-end gap-1"><span class="track-rating hidden sm:inline-block mr-1 text-[11px] text-amber-400 cursor-pointer select-none hover:opacity-80" data-rating-track-id="${escapeHtml(track.id)}" title="Đánh giá: ${trRating}/5 sao">${trStars}</span>${versionInfo.versionIndex === 0 && versionInfo.versionGroup.versions.length > 1 ? `<button type="button" data-version-action="toggle" data-version-key="${escapeHtml(versionInfo.versionGroup.key)}" class="shrink-0 rounded-full border border-violet-400/40 px-2 py-0.5 text-[10px] font-medium text-violet-200 hover:bg-violet-400/10" aria-expanded="${expandedVersions.has(versionInfo.versionGroup.key)}" aria-label="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn' : 'Mở rộng'} ${versionInfo.versionGroup.versions.length} phiên bản của ${escapeHtml(metadata.title)}" title="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn các phiên bản' : 'Xem các phiên bản khác'}">${versionInfo.versionGroup.versions.length} phiên bản ${expandedVersions.has(versionInfo.versionGroup.key) ? '▴' : '▾'}</button>` : ''}<span class="text-right text-xs tabular-nums text-zinc-400">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button><button type="button" data-queue-action="play_next" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Phát tiếp theo" title="Phát tiếp theo">⏭</button><button type="button" data-queue-action="append" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Thêm vào cuối" title="Thêm vào cuối">➕</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
           </div>`;
         }).join('');
         return heading + rows;
@@ -7006,7 +7030,57 @@
     $('favorites-filter').addEventListener('click', () => { state.favoritesOnly = !state.favoritesOnly; $('favorites-filter').classList.toggle('text-violet-300', state.favoritesOnly); $('favorites-filter').setAttribute('aria-pressed', String(state.favoritesOnly)); renderTracks(); });
     $('search').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search-mobile').value = event.target.value; renderTracks(); });
     $('search-mobile').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search').value = event.target.value; renderTracks(); });
-    $('search').addEventListener('focus', () => { $('search-mobile').value = $('search').value; });
+    function renderSearchHistoryDropdown(isMobile) {
+      const container = isMobile ? $('search-history-mobile-dropdown') : $('search-history-dropdown');
+      const chipsEl = isMobile ? $('search-history-mobile-chips') : $('search-history-chips');
+      if (!container || !chipsEl) return;
+      const history = (typeof library !== 'undefined' && typeof library.getSearchHistory === 'function') ? library.getSearchHistory() : [];
+      if (history.length === 0) {
+        container.classList.add('hidden');
+        return;
+      }
+      chipsEl.innerHTML = history.map(item => `
+        <button type="button" data-search-history-query="${escapeHtml(item)}" class="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-zinc-300 transition hover:border-violet-400/50 hover:bg-violet-500/10 hover:text-violet-200">
+          🕒 ${escapeHtml(item)}
+        </button>
+      `).join('');
+      chipsEl.querySelectorAll('[data-search-history-query]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const q = btn.dataset.searchHistoryQuery || '';
+          $('search').value = q;
+          $('search-mobile').value = q;
+          state.query = q.toLowerCase();
+          container.classList.add('hidden');
+          renderTracks();
+        });
+      });
+      container.classList.remove('hidden');
+    }
+    $('search').addEventListener('focus', () => { $('search-mobile').value = $('search').value; renderSearchHistoryDropdown(false); });
+    $('search-mobile').addEventListener('focus', () => { $('search').value = $('search-mobile').value; renderSearchHistoryDropdown(true); });
+    $('clear-search-history-btn')?.addEventListener('click', () => {
+      if (typeof library !== 'undefined' && typeof library.clearSearchHistory === 'function') library.clearSearchHistory();
+      $('search-history-dropdown')?.classList.add('hidden');
+      toast('Đã xóa toàn bộ lịch sử tìm kiếm.');
+    });
+    $('clear-search-history-mobile-btn')?.addEventListener('click', () => {
+      if (typeof library !== 'undefined' && typeof library.clearSearchHistory === 'function') library.clearSearchHistory();
+      $('search-history-mobile-dropdown')?.classList.add('hidden');
+      toast('Đã xóa toàn bộ lịch sử tìm kiếm.');
+    });
+    document.addEventListener('click', event => {
+      if (!event.target.closest('#search') && !event.target.closest('#search-history-dropdown')) $('search-history-dropdown')?.classList.add('hidden');
+      if (!event.target.closest('#search-mobile') && !event.target.closest('#search-history-mobile-dropdown')) $('search-history-mobile-dropdown')?.classList.add('hidden');
+    });
+    const handleSearchCommit = (q) => {
+      if (q && q.trim().length >= 2 && typeof library !== 'undefined' && typeof library.addSearchHistory === 'function') {
+        library.addSearchHistory(q.trim());
+      }
+      $('search-history-dropdown')?.classList.add('hidden');
+      $('search-history-mobile-dropdown')?.classList.add('hidden');
+    };
+    $('search').addEventListener('keydown', event => { if (event.key === 'Enter') handleSearchCommit(event.target.value); });
+    $('search-mobile').addEventListener('keydown', event => { if (event.key === 'Enter') handleSearchCommit(event.target.value); });
     function saveViewScroll() {
       const col = $('content-col');
       if (!col || !state.activeView) return;
@@ -7929,5 +8003,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 11:05 +07 | Đã xong: Pha D - Lưu trữ trạng thái bền vững & Khôi phục phiên phát nhạc (Persistent Playback Session & Position Restoration): (1) Tự động lưu bài đang nghe, vị trí phát chính xác (currentTime), hàng đợi đang phát và trạng thái playing vào localStorage qua savePlaybackSession (throttled 3s chống quá tải disk I/O, lưu tức thì khi pause/ended/beforeunload); (2) restorePlaybackSession phân tích và xác thực an toàn, kẹp thời gian hợp lệ theo duration bài hát và tự động đưa về 0s nếu bài trước đó đã nghe gần hết (<2s); (3) Banner khôi phục phiên phát mượt mà (#resume-session-banner: #resume-session-text, #resume-session-play, #resume-session-dismiss) với nhãn trực quan formatResumePrompt; (4) Tự động giải phóng bộ nhớ (Memory Leak prevention) với URL.revokeObjectURL trên beforeunload và playTrack; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 14/14 test persistent-session.test.cjs PASS 100%, 83/83 test suites PASS | Lượt kế tiếp: Pha A - DSP Audio Engine: Compressor / Peak Limiter chống clipping khi bật ReplayGain Preamp cao -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 11:22 +07 | Đã xong: Pha A - DSP Audio Engine: Peak Limiter đa chế độ chống clipping khi bật ReplayGain Preamp cao (Audiophile Brickwall / Soft-Knee / Bypass): (1) Bộ 3 cấu hình chuẩn LIMITER_PROFILES (transparent -0.5 dBFS ratio 20:1 attack 1ms; soft -3.0 dBFS knee 6 dB ratio 12:1; off bypass tuyến tính); (2) applyLimiterParams điều tiết mượt mà trên AudioParam của DynamicsCompressorNode; (3) UI #limiter-mode-select, #limiter-badge, #limiter-desc trong #eq-panel, lưu localStorage bền vững nocturne-limiter-mode; (4) Tích hợp Roon Signal Path (hiển thị Peak Limiter trong DSP Stage khi bật, giữ Bit-Perfect khi tắt); (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 15/15 test limiter-profiles.test.cjs PASS 100%, 84/84 test suites PASS | Lượt kế tiếp: Pha B - UI/UX: Hiệu ứng chuyển động Spectrum FFT đa màu sắc sống động trên thanh điều khiển footer và mini-player -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 11:55 +07 | Đã xong: Pha B - UI/UX & Visualizer: Hệ thống FFT Spectrum Analyzer đa bảng màu thời gian thực kèm vật lý giữ đỉnh và phân rã rơi chậm (Audiophile Multi-Theme Spectrum with Peak Hold & Decay Physics): (1) Bộ 4 theme màu VISUALIZER_THEMES (cyber neon, sunset glow, aurora borealis, monochrome audiophile); (2) Thuật toán updateVisualizerPeaks mô phỏng vật lý giữ đỉnh 6 frames và phân rã tốc độ 0.025; (3) renderVisualizerSpectrum kết xuất phổ tần số 32 cột đối xứng gương mượt mà với gradient và vạch đỉnh; (4) Tương tác click trên #visualizer để xoay vòng cycleVisualizerTheme, lưu localStorage bền vững nocturne-visualizer-theme; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 19/19 test visualizer-spectrum.test.cjs PASS 100%, 94/94 test suites (626/626 tests) PASS 100% | Lượt kế tiếp: Pha C - Tìm kiếm mờ thông minh (Fuzzy Instant Search) với làm nổi bật từ khóa (Search Keyword Highlighting) & Lọc nhanh theo nhãn -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 12:05 +07 | Đã xong: Pha C - Tìm kiếm mờ thông minh (Fuzzy Instant Search) với làm nổi bật từ khóa (Search Keyword Highlighting) & Lịch sử tìm kiếm bền vững: (1) Thuật toán matchSearchQuery phân tích đa từ khóa không phân biệt thứ tự (multi-token out-of-order) và không dấu tiếng Việt; (2) Thuật toán scoreSearchMatch xếp hạng độ phù hợp (tiêu đề khớp > bắt đầu > chứa từ khóa > nghệ sĩ/album); (3) highlightSearchMatch làm nổi bật các đoạn khớp trong tiêu đề/nghệ sĩ/album bằng thẻ mark tím audiophile mà bảo toàn 100% dấu tiếng Việt và chữ hoa/thường gốc, an toàn XSS; (4) Lịch sử tìm kiếm getSearchHistory, addSearchHistory, clearSearchHistory lưu localStorage nocturne-search-history kèm dropdown #search-history-dropdown và #search-history-mobile-dropdown; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 23/23 test smart-search.test.cjs PASS 100%, toàn bộ 95 test suites PASS 100% | Lượt kế tiếp: Pha D - Tối ưu hóa Service Worker Caching & Offline Storage -->
 </body>
 </html>

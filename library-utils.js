@@ -318,6 +318,43 @@
     return [...options.entries()].sort(([a], [b]) => a.localeCompare(b, 'vi')).map(([key, label]) => ({key, label}));
   }
 
+  function matchSearchQuery(searchStr, queryStr) {
+    if (!queryStr) return true;
+    if (!searchStr) return false;
+    if (searchStr.includes(queryStr)) return true;
+    const tokens = queryStr.split(/\s+/).filter(Boolean);
+    if (tokens.length <= 1) return false;
+    return tokens.every(token => searchStr.includes(token));
+  }
+
+  function scoreSearchMatch(track, query) {
+    const q = metadataKey(query);
+    if (!q) return 0;
+    const meta = normalizedTrackMetadata(track);
+    const title = meta.title || '';
+    const artist = meta.artist || '';
+    const album = meta.album || '';
+    const search = meta.search || '';
+
+    if (title === q) return 1000;
+    if (title.startsWith(q)) return 800;
+    if (title.includes(q)) return 600;
+
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const allInTitle = tokens.length > 1 && tokens.every(t => title.includes(t));
+    if (allInTitle) return 500;
+
+    if (artist === q || album === q) return 400;
+    if (artist.startsWith(q) || album.startsWith(q)) return 350;
+    if (artist.includes(q) || album.includes(q)) return 300;
+
+    const allInSearch = tokens.length > 1 && tokens.every(t => search.includes(t));
+    if (allInSearch) return 200;
+
+    if (search.includes(q)) return 150;
+    return 0;
+  }
+
   function filterTracks(tracks, filters = {}) {
     const query = metadataKey(filters.query);
     const artistKey = metadataKey(filters.artist);
@@ -327,15 +364,19 @@
     const hasArtist = !!filters.artist && filters.artist !== '*';
     const hasAlbum = !!filters.album && filters.album !== '*';
     const hasFavorites = !!filters.favoritesOnly;
-    return tracks.filter(track => {
+    const filtered = tracks.filter(track => {
       if (hasSource && track.source !== filters.source) return false;
       if (hasFavorites && (!filters.isFavorite || !filters.isFavorite(track))) return false;
       if (!hasArtist && !hasAlbum && !query) return true;
       const normalized = normalizedTrackMetadata(track);
       if (hasArtist && normalized.artist !== artistKey) return false;
       if (hasAlbum && (normalized.album !== selectedAlbumKey || (selectedAlbumArtistKey && normalized.artist !== selectedAlbumArtistKey))) return false;
-      return !query || normalized.search.includes(query);
+      return !query || matchSearchQuery(normalized.search, query);
     });
+    if (filters.rankByRelevance && query && filtered.length > 1) {
+      return [...filtered].sort((a, b) => scoreSearchMatch(b, query) - scoreSearchMatch(a, query));
+    }
+    return filtered;
   }
 
   function groupTracks(tracks, groupBy = 'none') {
@@ -3291,5 +3332,112 @@
     return true;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum};
+  function highlightSearchMatch(text, query, options = {}) {
+    const str = String(text || '');
+    if (!str) return '';
+    const q = String(query || '').trim();
+    const escape = options.escape !== false;
+    const escapeFn = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    if (!q) return escape ? escapeFn(str) : str;
+
+    const markClass = options.className || 'bg-violet-500/25 text-violet-200 font-medium rounded px-0.5';
+    const tag = options.tag || 'mark';
+
+    const chars = [...str];
+    const unaccented = chars.map(ch => ch.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').replace(/đ/gi, 'd').toLowerCase()).join('');
+    const queryUnaccented = q.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').replace(/đ/gi, 'd').toLowerCase();
+
+    const tokens = [queryUnaccented];
+    const words = queryUnaccented.split(/\s+/).filter(w => w.length >= 2);
+    for (const w of words) {
+      if (!tokens.includes(w)) tokens.push(w);
+    }
+
+    const intervals = [];
+    for (const token of tokens) {
+      let pos = 0;
+      while (pos < unaccented.length) {
+        const idx = unaccented.indexOf(token, pos);
+        if (idx === -1) break;
+        intervals.push([idx, idx + token.length]);
+        pos = idx + Math.max(1, token.length);
+      }
+    }
+
+    if (intervals.length === 0) {
+      return escape ? escapeFn(str) : str;
+    }
+
+    intervals.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+    const merged = [intervals[0]];
+    for (let i = 1; i < intervals.length; i++) {
+      const prev = merged[merged.length - 1];
+      const curr = intervals[i];
+      if (curr[0] <= prev[1]) {
+        prev[1] = Math.max(prev[1], curr[1]);
+      } else {
+        merged.push(curr);
+      }
+    }
+
+    let result = '';
+    let lastIndex = 0;
+    for (const [start, end] of merged) {
+      if (start > lastIndex) {
+        const plain = str.slice(lastIndex, start);
+        result += escape ? escapeFn(plain) : plain;
+      }
+      const matched = str.slice(start, end);
+      const escapedMatched = escape ? escapeFn(matched) : matched;
+      result += `<${tag} class="${markClass}">${escapedMatched}</${tag}>`;
+      lastIndex = end;
+    }
+    if (lastIndex < str.length) {
+      const remaining = str.slice(lastIndex);
+      result += escape ? escapeFn(remaining) : remaining;
+    }
+    return result;
+  }
+
+  const SEARCH_HISTORY_KEY = 'nocturne-search-history';
+  function getSearchHistory(storage = null, key = SEARCH_HISTORY_KEY) {
+    try {
+      const s = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+      if (!s) return [];
+      const raw = s.getItem(key);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter(item => typeof item === 'string' && item.trim().length > 0) : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function addSearchHistory(query, storage = null, key = SEARCH_HISTORY_KEY, max = 8) {
+    const q = String(query || '').trim();
+    if (!q || q.length < 2) return getSearchHistory(storage, key);
+    try {
+      const s = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+      if (!s) return [q];
+      const history = getSearchHistory(s, key);
+      const filtered = history.filter(item => item.toLowerCase() !== q.toLowerCase());
+      const next = [q, ...filtered].slice(0, Math.max(1, max));
+      s.setItem(key, JSON.stringify(next));
+      return next;
+    } catch (_) {
+      return [q];
+    }
+  }
+
+  function clearSearchHistory(storage = null, key = SEARCH_HISTORY_KEY) {
+    try {
+      const s = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+      if (s) s.removeItem(key);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory};
 });
