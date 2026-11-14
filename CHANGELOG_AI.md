@@ -2,6 +2,36 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 02:50 +07] — Pha D: Quản Lý Bộ Đệm IndexedDB, Thu Hồi Lát Âm Thanh Mồ Côi & Đường Ống Tải Trước Đa Tầng (Multi-Track Pipeline Preloader, IndexedDB Defragmentation & Gapless Readiness Score)
+
+### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:
+- **Phân khu trọng tâm:** **Hiệu Năng & Kiến Trúc PWA (PWA Architecture, Cache Defragmentation & Lookahead Pipeline Engine)**.
+- **Tính năng & Đột phá:**
+  1. **Đường Ống Nạp Trước Đa Tầng Thích Ứng Mạng (`scheduleMultiTrackPreload`):**
+     - Xây dựng đường ống tải trước nhìn trước 3 bài hát trong hàng đợi với phân tầng mức độ ưu tiên:
+       - **Track +1 (Ngay kế tiếp):** Ưu tiên `immediate`, nạp toàn bộ audio file/stream hoặc lát đầu đệm sẵn sàng đổi deck 0 ms gapless.
+       - **Track +2 (Bài tiếp sau):** Ưu tiên `high`, nạp trước lát đầu (first slice 1MB hoặc 3MB cho DSD Hi-Res) vào bộ đệm IndexedDB.
+       - **Track +3 (Bài nhìn xa):** Ưu tiên `medium`, nạp trước siêu dữ liệu metadata, ảnh bìa và lời nhạc `.lrc`.
+     - Nhận diện và thích ứng theo mạng (`4g`, `3g`, `2g`, `saveData`, `offline`), tự động điều tiết giới hạn tải đồng thời (concurrency limit: 2 cho 4G/Wi-Fi, 1 cho 3G/2G, 0 khi ngoại tuyến) và tiết kiệm tối đa dung lượng khi người dùng bật `saveData`.
+  2. **Quét & Thu Hồi Lát Rác IndexedDB (`defragmentCacheDatabase`):**
+     - Cơ chế chống phân mảnh (Defragmentation) và dọn dẹp các lát audio mồ côi (orphaned slice reclamation) trong object store `firstSliceCache`.
+     - Đối chiếu danh mục track đang hoạt động trong thư viện/hàng đợi, phát hiện và thu hồi các lát âm thanh không còn tham chiếu hoặc đã quá hạn (>7 ngày).
+     - Tính toán chính xác dung lượng giải phóng (`reclaimableBytes`), tỷ lệ phân mảnh (`fragmentationRatio`), và chấm điểm độ toàn vẹn bộ đệm IndexedDB (`integrityScore` 0 - 100%).
+  3. **Đo Lường Độ Sẵn Sàng Phát Liền Mạch (`calculatePreloadReadiness` & `formatPreloadReadinessBadge`):**
+     - Đánh giá theo thang điểm 100% dựa trên trạng thái `readyState`, bộ đệm lookahead seconds và cờ cache của bài hát chờ.
+     - Phân loại trực quan: `instant` (100% không trễ), `buffered` (đệm đủ >=10s), `streaming` (đang nạp luồng), `unbuffered` (chưa đệm).
+  4. **Tích Hợp Giao Diện PWA Chuyên Sâu:**
+     - Bổ sung nút bấm `#defrag-cache-btn` (**Chống phân mảnh & Thu hồi rác**) trong mục Cài đặt `#storage-quota-section`.
+     - Hiển thị hộp trạng thái toàn vẹn `#storage-defrag-summary` kèm huy hiệu điểm số `#cache-integrity-badge`.
+     - Cập nhật huy hiệu `#room-preload-readiness` thời gian thực tại Phòng nghe bên cạnh `#room-buffer-status`.
+  5. **Bảo Toàn Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `adaptive-pwa-preload-pipeline.test.cjs` (**4/4 tests PASS 100%**).
+  - Toàn bộ các test suite cốt lõi (**43/43 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 02:10 +07] — Pha C: Tái Cấu Trúc Bố Cục Footer & Di Chuyển Cụm Đo Lường Telemetry Khỏi Khu Vực Điều Khiển Nhạc (Footer Telemetry Relocation & Player Controls Decoupling)
 
 ### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:

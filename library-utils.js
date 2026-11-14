@@ -5677,5 +5677,362 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter};
+  function scheduleMultiTrackPreload(queue, currentIndex, options = {}) {
+    if (!Array.isArray(queue) || queue.length === 0 || typeof currentIndex !== 'number' || currentIndex < 0 || currentIndex >= queue.length) {
+      return {
+        pipeline: [],
+        totalEstimatedBytes: 0,
+        networkTier: 'offline',
+        allowedConcurrency: 0,
+        timestamp: Date.now()
+      };
+    }
+
+    const networkType = String(options.networkType || '4g').toLowerCase();
+    const isSaveData = Boolean(options.saveData);
+    const lookaheadCount = Math.max(1, Math.min(5, Number(options.lookaheadCount) || 3));
+    const defaultSliceBytes = Number(options.sliceBytes) || (1024 * 1024);
+    const dsdSliceBytes = Number(options.dsdSliceBytes) || (3 * 1024 * 1024);
+
+    let networkTier = 'high-bandwidth';
+    let allowedConcurrency = 2;
+
+    if (isSaveData) {
+      networkTier = 'constrained';
+      allowedConcurrency = 1;
+    } else if (networkType === 'slow-2g' || networkType === '2g') {
+      networkTier = 'low-bandwidth';
+      allowedConcurrency = 1;
+    } else if (networkType === '3g') {
+      networkTier = 'standard';
+      allowedConcurrency = 1;
+    } else if (networkType === 'offline') {
+      networkTier = 'offline';
+      allowedConcurrency = 0;
+    } else {
+      networkTier = 'high-bandwidth';
+      allowedConcurrency = 2;
+    }
+
+    const pipeline = [];
+    let totalEstimatedBytes = 0;
+
+    for (let offset = 1; offset <= lookaheadCount; offset++) {
+      const targetIndex = currentIndex + offset;
+      if (targetIndex >= queue.length) break;
+      const track = queue[targetIndex];
+      if (!track) continue;
+
+      const trackId = String(track.id || `track-${targetIndex}`);
+      const title = String(track.title || 'Unknown');
+      const artist = String(track.artist || UNKNOWN_ARTIST);
+      const isDsd = Boolean(track.isDsd || (track.name && /\.(dsf|dff)$/i.test(track.name)));
+
+      let priority = 'low';
+      let preloadType = 'metadata';
+      let estimatedBytes = 8192;
+      let reason = '';
+
+      if (networkTier === 'offline') {
+        preloadType = 'skip';
+        estimatedBytes = 0;
+        reason = 'Ngoại tuyến, không thể tải trước mạng';
+      } else if (isSaveData) {
+        if (offset === 1) {
+          priority = 'immediate';
+          preloadType = 'metadata';
+          estimatedBytes = 8192;
+          reason = 'Chế độ tiết kiệm dữ liệu: chỉ nạp trước siêu dữ liệu bài kế';
+        } else {
+          preloadType = 'skip';
+          estimatedBytes = 0;
+          reason = 'Chế độ tiết kiệm dữ liệu: bỏ qua bài xa hơn';
+        }
+      } else if (networkTier === 'low-bandwidth') {
+        if (offset === 1) {
+          priority = 'immediate';
+          preloadType = 'first-slice';
+          estimatedBytes = isDsd ? dsdSliceBytes : defaultSliceBytes;
+          reason = 'Băng thông 2G: chỉ nạp lát đầu bài kế tiếp';
+        } else if (offset === 2) {
+          priority = 'medium';
+          preloadType = 'metadata';
+          estimatedBytes = 8192;
+          reason = 'Băng thông 2G: nạp trước siêu dữ liệu bài +2';
+        } else {
+          preloadType = 'skip';
+          estimatedBytes = 0;
+          reason = 'Băng thông thấp: hạn chế tải trước';
+        }
+      } else if (networkTier === 'standard') {
+        if (offset === 1) {
+          priority = 'immediate';
+          preloadType = isDsd ? 'first-slice' : (track.file && track.file.size ? 'full' : 'first-slice');
+          estimatedBytes = isDsd ? dsdSliceBytes : (track.file && track.file.size ? track.file.size : defaultSliceBytes * 4);
+          reason = 'Băng thông 3G: nạp bài kế tiếp chuẩn bị chuyển deck';
+        } else if (offset === 2) {
+          priority = 'high';
+          preloadType = 'first-slice';
+          estimatedBytes = isDsd ? dsdSliceBytes : defaultSliceBytes;
+          reason = 'Băng thông 3G: nạp đệm lát đầu bài +2';
+        } else {
+          priority = 'medium';
+          preloadType = 'metadata';
+          estimatedBytes = 16384;
+          reason = 'Băng thông 3G: nạp siêu dữ liệu & bìa bài +3';
+        }
+      } else {
+        if (offset === 1) {
+          priority = 'immediate';
+          preloadType = isDsd ? 'first-slice' : 'full';
+          estimatedBytes = (track.file && track.file.size) || (isDsd ? dsdSliceBytes : 25 * 1024 * 1024);
+          reason = 'Băng thông cao: nạp đầy đủ bài kế tiếp cho gapless 0ms';
+        } else if (offset === 2) {
+          priority = 'high';
+          preloadType = 'first-slice';
+          estimatedBytes = isDsd ? dsdSliceBytes : defaultSliceBytes;
+          reason = 'Băng thông cao: nạp trước lát đầu bài +2 vào IndexedDB';
+        } else if (offset === 3) {
+          priority = 'medium';
+          preloadType = 'metadata';
+          estimatedBytes = 32768;
+          reason = 'Băng thông cao: nạp trước siêu dữ liệu & lời nhạc bài +3';
+        } else {
+          priority = 'low';
+          preloadType = 'metadata';
+          estimatedBytes = 8192;
+          reason = 'Nạp siêu dữ liệu nhìn trước';
+        }
+      }
+
+      totalEstimatedBytes += estimatedBytes;
+      pipeline.push({
+        trackIndex: targetIndex,
+        trackId,
+        title,
+        artist,
+        offset,
+        priority,
+        preloadType,
+        estimatedBytes,
+        reason
+      });
+    }
+
+    return {
+      pipeline,
+      totalEstimatedBytes,
+      networkTier,
+      allowedConcurrency,
+      timestamp: Date.now()
+    };
+  }
+
+  function defragmentCacheDatabase(entries, activeTracks, options = {}) {
+    const rawEntries = Array.isArray(entries) ? entries : [];
+    const tracks = Array.isArray(activeTracks) ? activeTracks : [];
+    const maxAgeMs = Number(options.maxAgeMs) || (7 * 24 * 60 * 60 * 1000);
+    const now = Number(options.now) || Date.now();
+
+    const activeTrackIds = new Set();
+    const activeUrls = new Set();
+    const activeTitles = new Set();
+
+    for (const t of tracks) {
+      if (!t) continue;
+      if (t.id) activeTrackIds.add(String(t.id));
+      if (t.url) activeUrls.add(String(t.url));
+      if (t.title) activeTitles.add(metadataKey(t.title));
+    }
+
+    const orphanedKeys = [];
+    const validEntries = [];
+    let reclaimableBytes = 0;
+    let validBytes = 0;
+
+    for (const entry of rawEntries) {
+      if (!entry) continue;
+      const key = String(entry.key || entry.id || '');
+      const size = Number(entry.size || entry.byteLength || (entry.blob && entry.blob.size) || 0);
+      const timestamp = Number(entry.timestamp || entry.cachedAt || 0);
+
+      const isExpired = timestamp > 0 && (now - timestamp > maxAgeMs);
+      let isReferenced = false;
+
+      if (entry.trackId && activeTrackIds.has(String(entry.trackId))) {
+        isReferenced = true;
+      } else if (entry.url && activeUrls.has(String(entry.url))) {
+        isReferenced = true;
+      } else if (key && (activeTrackIds.has(key) || activeUrls.has(key))) {
+        isReferenced = true;
+      } else if (entry.title && activeTitles.has(metadataKey(entry.title))) {
+        isReferenced = true;
+      }
+
+      if (!isReferenced || isExpired) {
+        orphanedKeys.push(key);
+        reclaimableBytes += size;
+      } else {
+        validEntries.push(entry);
+        validBytes += size;
+      }
+    }
+
+    const totalEntries = rawEntries.length;
+    const reclaimableCount = orphanedKeys.length;
+    const validCount = validEntries.length;
+    const fragmentationRatio = totalEntries > 0 ? Number((reclaimableCount / totalEntries).toFixed(4)) : 0;
+    const integrityScore = totalEntries > 0 ? Math.round((validCount / totalEntries) * 100) : 100;
+
+    const formattedReclaim = formatStorageBytes(reclaimableBytes);
+    let summary = '';
+    if (reclaimableCount > 0) {
+      summary = `Phát hiện ${reclaimableCount} lát rác (${formattedReclaim.formatted}), độ toàn vẹn ${integrityScore}%`;
+    } else {
+      summary = `Bộ đệm IndexedDB tối ưu (độ toàn vẹn ${integrityScore}%, ${validCount} mục hợp lệ)`;
+    }
+
+    return {
+      orphanedKeys,
+      reclaimableCount,
+      reclaimableBytes,
+      validCount,
+      validBytes,
+      totalEntries,
+      fragmentationRatio,
+      integrityScore,
+      summary
+    };
+  }
+
+  function calculatePreloadReadiness(nextTrack, standbyAudio, options = {}) {
+    if (!nextTrack) {
+      return {
+        readinessScore: 0,
+        status: 'unbuffered',
+        gaplessFeasible: false,
+        bufferedSeconds: 0,
+        label: 'Không có bài chờ'
+      };
+    }
+
+    let bufferedSeconds = 0;
+    try {
+      if (standbyAudio && standbyAudio.buffered && standbyAudio.buffered.length > 0) {
+        const end = standbyAudio.buffered.end(standbyAudio.buffered.length - 1);
+        const start = standbyAudio.buffered.start(0);
+        bufferedSeconds = Math.max(0, end - start);
+      }
+    } catch (_) {
+      bufferedSeconds = 0;
+    }
+    if (typeof options.lookaheadSeconds === 'number' && options.lookaheadSeconds > bufferedSeconds) {
+      bufferedSeconds = options.lookaheadSeconds;
+    }
+
+    const readyState = standbyAudio ? (Number(standbyAudio.readyState) || 0) : 0;
+    const hasCachedBlob = Boolean(nextTrack.file || nextTrack.blob || nextTrack.firstSliceCached || options.firstSliceCached);
+
+    let score = 0;
+    if (hasCachedBlob) score += 40;
+
+    if (readyState >= 4) {
+      score += 40;
+    } else if (readyState === 3) {
+      score += 30;
+    } else if (readyState === 2) {
+      score += 15;
+    } else if (readyState === 1) {
+      score += 5;
+    }
+
+    if (bufferedSeconds >= 15) {
+      score += 20;
+    } else if (bufferedSeconds >= 10) {
+      score += 15;
+    } else if (bufferedSeconds >= 5) {
+      score += 10;
+    } else if (bufferedSeconds > 0) {
+      score += 5;
+    }
+
+    if (options.isOffline && !hasCachedBlob) {
+      score = Math.max(0, score - 50);
+    }
+    if (options.networkType === '2g' || options.networkType === 'slow-2g') {
+      score = Math.max(0, score - 10);
+    }
+
+    score = Math.max(0, Math.min(100, Math.round(score)));
+
+    let status = 'unbuffered';
+    let label = 'Chưa nạp đệm';
+
+    if (score >= 85) {
+      status = 'instant';
+      label = `Sẵn sàng phát 0 ms (${score}%)`;
+    } else if (score >= 50) {
+      status = 'buffered';
+      label = `Đã đệm đủ (${bufferedSeconds.toFixed(1)}s)`;
+    } else if (score >= 20) {
+      status = 'streaming';
+      label = `Đang nạp luồng (${score}%)`;
+    } else {
+      status = 'unbuffered';
+      label = 'Chưa nạp đệm';
+    }
+
+    const gaplessFeasible = score >= 70;
+
+    return {
+      readinessScore: score,
+      status,
+      gaplessFeasible,
+      bufferedSeconds,
+      label
+    };
+  }
+
+  function formatPreloadReadinessBadge(readiness) {
+    if (!readiness || typeof readiness !== 'object') {
+      return {
+        text: 'Chưa đệm',
+        colorClass: 'text-zinc-400 bg-zinc-800/80 border-zinc-700',
+        isReady: false
+      };
+    }
+
+    const status = readiness.status || 'unbuffered';
+    const isReady = Boolean(readiness.gaplessFeasible || status === 'instant');
+
+    switch (status) {
+      case 'instant':
+        return {
+          text: `Gapless: ${readiness.label || 'Sẵn sàng 100%'}`,
+          colorClass: 'text-emerald-300 bg-emerald-400/10 border-emerald-400/30',
+          isReady: true
+        };
+      case 'buffered':
+        return {
+          text: `Đệm tốt: ${readiness.label || 'Đã nạp'}`,
+          colorClass: 'text-cyan-300 bg-cyan-400/10 border-cyan-400/30',
+          isReady: true
+        };
+      case 'streaming':
+        return {
+          text: `Đang nạp: ${readiness.label || 'Đang luồng'}`,
+          colorClass: 'text-amber-300 bg-amber-400/10 border-amber-400/30',
+          isReady: false
+        };
+      case 'unbuffered':
+      default:
+        return {
+          text: 'Chưa đệm',
+          colorClass: 'text-zinc-400 bg-zinc-800/80 border-zinc-700',
+          isReady: false
+        };
+    }
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge};
 });

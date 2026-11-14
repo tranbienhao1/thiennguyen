@@ -789,7 +789,15 @@
         <div class="mt-3 flex flex-wrap gap-2">
           <button id="refresh-storage-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-zinc-300 transition hover:bg-white/10">Kiểm tra dung lượng</button>
           <button id="prune-cache-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-[11px] font-medium text-cyan-200 transition hover:bg-cyan-400/20">Dọn dẹp bộ đệm lát</button>
+          <button id="defrag-cache-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-violet-400/30 bg-violet-400/10 px-3 py-2 text-[11px] font-medium text-violet-200 transition hover:bg-violet-400/20">Chống phân mảnh &amp; Thu hồi rác</button>
           <button id="prune-object-urls-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-400/20">Giải phóng RAM</button>
+        </div>
+        <div id="storage-defrag-summary" class="mt-2.5 hidden rounded-lg border border-violet-400/20 bg-violet-400/[.05] p-2 text-[10px] text-zinc-300">
+          <div class="flex items-center justify-between">
+            <span class="text-violet-200 font-medium">Toàn vẹn IndexedDB:</span>
+            <span id="cache-integrity-badge" class="font-mono text-emerald-300">100%</span>
+          </div>
+          <div id="cache-defrag-desc" class="mt-0.5 text-zinc-400">Chưa quét phân mảnh</div>
         </div>
       </section>
       <section id="config-backup-section" class="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/[.03] p-4">
@@ -1038,6 +1046,7 @@
             <div class="flex items-center gap-1.5">
               <span class="inline-block h-1.5 w-1.5 rounded-full bg-zinc-600" id="room-buffer-dot"></span>
               <span id="room-buffer-status" title="Bộ đệm âm thanh nạp trước (Lookahead Audio Buffer)">Đang chờ luồng...</span>
+              <span id="room-preload-readiness" class="hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[8px] font-medium text-zinc-400 sm:inline" title="Mức độ sẵn sàng nạp trước Gapless 0ms">Gapless 0ms</span>
             </div>
           </div>
           <div class="mt-8 flex items-center gap-3"><span id="room-current-time" class="w-10 text-right text-[10px] tabular-nums text-zinc-500">0:00</span><input id="room-seek" class="seek-range flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="room-duration" class="w-10 text-[10px] tabular-nums text-zinc-500">0:00</span><span id="room-remaining" class="w-12 text-[10px] tabular-nums text-zinc-500" title="Thời gian còn lại">-0:00</span></div>
@@ -6045,6 +6054,15 @@
         return;
       }
       if (next.isDsd) { await preloadDsdNext(next); return; }
+      if (typeof library?.scheduleMultiTrackPreload === 'function') {
+        const curIdx = state.tracks.findIndex(t => t.id === state.currentId);
+        const netType = (typeof navigator !== 'undefined' && navigator.connection && navigator.connection.effectiveType) || '4g';
+        const isSaveData = Boolean(typeof navigator !== 'undefined' && navigator.connection && navigator.connection.saveData);
+        state.preloadPipeline = library.scheduleMultiTrackPreload(state.tracks, curIdx >= 0 ? curIdx : 0, {
+          networkType: isOfflineMode ? 'offline' : netType,
+          saveData: isSaveData
+        });
+      }
       const preloadUrl = next.url ? new URL(next.url, location.href).href : '';
       if (!force && state.preloadTrackId === next.id && (state.preloadBusyId === next.id || (preloadUrl && standbyAudio.src === preloadUrl))) return;
       const oldPreload = state.tracks.find(track => track.id === state.preloadTrackId);
@@ -6953,6 +6971,55 @@
         toast('Đã dọn dẹp các lát audio đệm thành công.');
       } catch (err) {
         toast(`Không thể dọn dẹp bộ đệm: ${err.message || err}`);
+      }
+    });
+    $('defrag-cache-btn')?.addEventListener('click', async () => {
+      try {
+        if (!state.db) {
+          toast('Cơ sở dữ liệu IndexedDB chưa sẵn sàng.');
+          return;
+        }
+        const tx = state.db.transaction('firstSliceCache', 'readonly');
+        const store = tx.objectStore('firstSliceCache');
+        let entries = [];
+        if (store.getAll && store.getAllKeys) {
+          const getAllReq = store.getAll();
+          const getAllKeysReq = store.getAllKeys();
+          const [vals, keys] = await Promise.all([
+            new Promise((res, rej) => { getAllReq.onsuccess = () => res(getAllReq.result || []); getAllReq.onerror = rej; }),
+            new Promise((res, rej) => { getAllKeysReq.onsuccess = () => res(getAllKeysReq.result || []); getAllKeysReq.onerror = rej; })
+          ]);
+          entries = keys.map((k, idx) => ({ key: k, ...(vals[idx] || {}) }));
+        }
+
+        const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+        if (!lib || typeof lib.defragmentCacheDatabase !== 'function') {
+          toast('Bộ công cụ chống phân mảnh chưa sẵn sàng.');
+          return;
+        }
+
+        const result = library.defragmentCacheDatabase(entries, state.tracks);
+        if (result.orphanedKeys && result.orphanedKeys.length > 0) {
+          const deleteTx = state.db.transaction('firstSliceCache', 'readwrite');
+          const deleteStore = deleteTx.objectStore('firstSliceCache');
+          for (const key of result.orphanedKeys) {
+            deleteStore.delete(key);
+          }
+          await new Promise((res, rej) => { deleteTx.oncomplete = res; deleteTx.onerror = rej; });
+        }
+
+        const summaryBox = $('storage-defrag-summary');
+        if (summaryBox) {
+          summaryBox.classList.remove('hidden');
+          const badge = $('cache-integrity-badge');
+          if (badge) badge.textContent = `${result.integrityScore}%`;
+          const desc = $('cache-defrag-desc');
+          if (desc) desc.textContent = result.summary;
+        }
+        await updateStorageQuotaDisplay();
+        toast(result.summary);
+      } catch (err) {
+        toast(`Không thể chống phân mảnh bộ đệm: ${err.message || err}`);
       }
     });
     $('prune-object-urls-btn')?.addEventListener('click', () => {
@@ -8315,6 +8382,17 @@
             if (roomBufDot) {
               roomBufDot.className = `inline-block h-1.5 w-1.5 rounded-full ${lookaheadSec >= 5 ? 'bg-emerald-400' : (lookaheadSec > 0 ? 'bg-amber-400' : 'bg-zinc-600')}`;
             }
+            if (typeof library.calculatePreloadReadiness === 'function') {
+              const nextIdx = queueIndex();
+              const nextTrack = nextIdx >= 0 ? state.tracks[nextIdx] : null;
+              const readiness = library.calculatePreloadReadiness(nextTrack, standbyAudio, { lookaheadSeconds: lookaheadSec });
+              const badgeMeta = library.formatPreloadReadinessBadge(readiness);
+              const readinessEl = $('room-preload-readiness');
+              if (readinessEl) {
+                readinessEl.textContent = badgeMeta.text;
+                readinessEl.className = `rounded border px-1.5 py-0.5 text-[8px] font-medium hidden sm:inline ${badgeMeta.colorClass}`;
+              }
+            }
           }
           updatePositionState();
           updateLyricsHighlight();
@@ -8353,6 +8431,17 @@
           const roomBufDot = $('room-buffer-dot');
           if (roomBufDot) {
             roomBufDot.className = `inline-block h-1.5 w-1.5 rounded-full ${lookaheadSec >= 5 ? 'bg-emerald-400' : (lookaheadSec > 0 ? 'bg-amber-400' : 'bg-zinc-600')}`;
+          }
+          if (typeof library.calculatePreloadReadiness === 'function') {
+            const nextIdx = queueIndex();
+            const nextTrack = nextIdx >= 0 ? state.tracks[nextIdx] : null;
+            const readiness = library.calculatePreloadReadiness(nextTrack, standbyAudio, { lookaheadSeconds: lookaheadSec });
+            const badgeMeta = library.formatPreloadReadinessBadge(readiness);
+            const readinessEl = $('room-preload-readiness');
+            if (readinessEl) {
+              readinessEl.textContent = badgeMeta.text;
+              readinessEl.className = `rounded border px-1.5 py-0.5 text-[8px] font-medium hidden sm:inline ${badgeMeta.colorClass}`;
+            }
           }
         }
         updatePositionState();
@@ -9478,5 +9567,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 01:10 +07 | Đã xong: Pha A - Audio Engine & DSP: Động Cơ Mô Phỏng Không Gian Phòng & Xung Lực Tai Nghe Audiophile (Dynamic Convolution Reverb & Audiophile Room Acoustics Simulation Engine): (1) ROOM_ACOUSTIC_PROFILES với 5 không gian âm học chuẩn (Bypass Bit-Perfect, Studio Control Room RT60 0.28s, Jazz Club Intimate RT60 0.72s, Symphony Concert Hall RT60 1.85s, Sacred Cathedral RT60 3.20s); (2) generateImpulseResponse tổng hợp đáp ứng xung lực stereo Float32Array thời gian thực với phân rã hàm mũ chính xác theo RT60, phản xạ sớm Poisson ngẫu nhiên và hấp thụ tần số cao damping; (3) calculateAcousticWetDry áp dụng định luật cân bằng năng lượng equal-power cosine/sine bảo toàn tuyệt đối âm lượng khi chuyển đổi phòng; (4) Web Audio Graph ConvolverNode & GainNodes tích hợp liền mạch giữa Limiter và Analyser trong đường DSP; (5) Đường Ngõ ra Trực tiếp (Bit-Perfect Direct) và chế độ Bypass bỏ qua hoàn toàn convolver, bảo đảm 100% bit-perfect; (6) UI điều khiển chuyên nghiệp #room-acoustics-section trong #eq-panel gồm #room-acoustics-select, thanh trượt Ướt #room-acoustics-wet, huy hiệu #room-acoustics-badge, và mô tả âm học chi tiết; (7) Tích hợp sao lưu & khôi phục tự động trong backup JSON; (8) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 9/9 tests room-acoustics-convolution.test.cjs PASS 100%, toàn bộ 90/90 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe & Bảng Màu Spectrum Mới -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 01:20 +07 | Đã xong: Pha B - UI/UX & Visualizer: Đồng Hồ VU Analog Kép (Dual Stereophonic Analog VU Meter with Dynamic Ballistics) & Mở Rộng Bảng Màu Audiophile Mới (McIntosh Green, Tube Amber, Pacific Blue): (1) 3 bảng màu audiophile mới trong VISUALIZER_THEMES (emerald McIntosh Vintage Green, amber Vacuum Tube Warmth, ocean Pacific Hi-Res Blue); (2) calculateVuBallistics tính toán đà chuyển động kim (needle ballistics attack 0.35, decay 0.05), thang đo decibel -40dB đến +3dB, góc quét kim -45° đến +45°, và cảnh báo quá tải peak isOverload; (3) renderVisualizerVuMeter kết xuất đồng hồ VU stereo analog 2 kênh L/R độc lập (hoặc đơn tâm trên màn hình nhỏ) với mặt đồng hồ cong, vạch chia decibel, vùng quá tải đỏ rực, kim quét mượt mà và đèn LED đỏ cảnh báo clipping thời gian thực; (4) cycleVisualizerMode & formatVisualizerMode xoay vòng 3 chế độ hiển thị: Spectrum (Phổ tần số FFT) ↔ Oscilloscope (Dao động ký) ↔ VU Meter (Đồng hồ VU Analog); (5) Tương tác click chuột phải / nhấp đúp trên #visualizer và phím tắt 'v' / 'V' chuyển đổi chế độ tức thì kèm thông báo toast; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests audiophile-vu-meter-visualizer.test.cjs PASS 100%, toàn bộ 91/91 test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features & Săn Lỗi: Tối Ưu Bố Cục Thư Viện Album Lưới, Đồng Bộ Thẻ Nhãn & Tránh Xung Đột Popover -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 02:10 +07 | Đã xong: Pha C - Tái Cấu Trúc Bố Cục Footer & Di Chuyển Cụm Đo Lường Telemetry Khỏi Khu Vực Điều Khiển Nhạc (Footer Telemetry Relocation & Player Controls Decoupling): (1) Chuyển toàn bộ cụm hiển thị đo lường âm học (#visualizer, #level-readout, #footer-dr-badge, #footer-phase-badge, #footer-tp-badge) rời khỏi hàng điều khiển bài hát lên dải đo lường riêng biệt #footer-telemetry-strip ở đỉnh footer; (2) Giải phóng hoàn toàn không gian hàng điều khiển (.footer-center-controls), đảm bảo nút Play, Previous, Next, Shuffle, Repeat và thanh seekbar luôn được căn giữa hoàn hảo, không bao giờ bị che lấp hoặc đè chồng ở bất kỳ độ phân giải nào; (3) Bổ sung nút đóng #footer-telemetry-close (✕) và cơ chế bật/tắt dải đo linh hoạt khi nhấn vào huy hiệu #quality-badge, lưu trạng thái vào localStorage 'nocturne-hide-telemetry-strip'; (4) Giới hạn kích thước cột công cụ bên phải (max-w-[380px] shrink-0) và ẩn thích ứng các nút phụ trợ trên màn hình nhỏ tránh tràn dòng; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 1/1 test footer-telemetry-relocation.test.cjs PASS 100%, toàn bộ 92/92 test suites PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản lý bộ đệm IndexedDB & Tối ưu hóa tải trước đa luồng -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 02:50 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản Lý Bộ Đệm IndexedDB, Thu Hồi Lát Âm Thanh Mồ Côi & Đường Ống Tải Trước Đa Tầng (Multi-Track Pipeline Preloader, IndexedDB Defragmentation & Gapless Readiness Score): (1) scheduleMultiTrackPreload phân bổ đường ống nạp trước đa tầng (Track +1 Full/Slice, Track +2 First-Slice, Track +3 Metadata) thích ứng theo băng thông mạng (4G, 3G, 2G, SaveData, Offline) và điều tiết concurrency trần; (2) defragmentCacheDatabase quét và phát hiện các lát âm thanh mồ côi (orphaned keys) và slice hết hạn trong firstSliceCache IndexedDB, thu hồi dung lượng rác và tính điểm toàn vẹn cơ sở dữ liệu (integrity score 0-100%); (3) calculatePreloadReadiness & formatPreloadReadinessBadge đo lường mức độ sẵn sàng phát liền mạch Gapless 0ms theo trạng thái readyState và lookahead buffer seconds; (4) Tích hợp UI PWA: nút #defrag-cache-btn 'Chống phân mảnh & Thu hồi rác', hộp tóm tắt độ toàn vẹn #storage-defrag-summary trong #storage-quota-section, và huy hiệu thời gian thực #room-preload-readiness trong Phòng nghe; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination) | Lượt kế tiếp: Pha A - Audio Engine & DSP: Parametric EQ Presets & Tối ưu hóa chuỗi xử lý âm thanh -->
 </body>
 </html>
