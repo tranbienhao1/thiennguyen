@@ -970,7 +970,7 @@
               <button id="zone-picker-btn" type="button" class="shrink-0 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-[11px] font-medium text-purple-200 transition hover:bg-purple-500/20 active:scale-95" aria-label="Đổi vùng phát">Đổi Vùng ▾</button>
             </div>
           </div>
-          <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
+          <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div class="flex items-center gap-1 text-[10px] text-zinc-400"><button id="room-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Chậm hơn 0.5s">-0.5s</button><span id="room-lyrics-offset-badge" class="font-mono text-zinc-400 text-[10px] w-12 text-center" title="Bù trừ độ trễ lời bài hát">0ms</span><button id="room-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Nhanh hơn 0.5s">+0.5s</button></div></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
           <div class="relative w-full group">
             <canvas id="waveform-canvas" class="w-full h-16 cursor-pointer rounded-sm mb-1" aria-label="Dạng sóng bài hát - nhấn để tua"></canvas>
             <div id="waveform-hover-tooltip" class="pointer-events-none absolute bottom-full mb-1 hidden -translate-x-1/2 rounded-md bg-zinc-800/95 border border-white/10 px-2 py-0.5 text-[10px] font-mono text-zinc-100 shadow-xl backdrop-blur-sm z-30 transition-opacity">0:00</div>
@@ -1187,6 +1187,10 @@
     <!-- Top Navigation Bar -->
     <div class="relative z-20 flex items-center justify-between px-6 pt-5 sm:px-10">
       <button id="fullscreen-exit-btn" type="button" class="text-zinc-400 hover:text-white text-2xl transition p-2 -ml-2" aria-label="Thoát toàn màn hình">✕</button>
+      <div class="flex items-center gap-1 rounded-full border border-white/10 bg-black/40 p-1 backdrop-blur-md">
+        <button id="fullscreen-view-art-btn" type="button" class="rounded-full px-3 py-1 text-xs font-medium text-white bg-white/15 transition" aria-label="Xem bìa album">Bìa album</button>
+        <button id="fullscreen-view-lyrics-btn" type="button" class="rounded-full px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white transition" aria-label="Xem lời bài hát">Lời bài hát</button>
+      </div>
       <div class="flex items-center gap-3">
         <span id="fullscreen-signal-led" class="hidden h-2.5 w-2.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span>
         <button id="fullscreen-settings-btn" type="button" class="text-zinc-400 hover:text-white text-xl transition p-2 -mr-2" aria-label="Cài đặt">⚙</button>
@@ -1194,7 +1198,7 @@
     </div>
 
     <!-- Center Stage (Album Art & Audio Format Specification) -->
-    <div class="relative z-10 flex flex-1 flex-col items-center justify-center p-4 min-h-0">
+    <div id="fullscreen-stage-art" class="relative z-10 flex flex-1 flex-col items-center justify-center p-4 min-h-0">
       <div class="relative aspect-square w-[min(72vw,46vh,420px)] shadow-2xl shadow-black/90 overflow-hidden bg-zinc-900 border border-white/10">
         <img id="fullscreen-cover-img" class="h-full w-full object-cover hidden" alt="Bìa album">
         <div id="fullscreen-cover-empty" class="grid h-full w-full place-items-center text-6xl text-zinc-600">♫</div>
@@ -1202,6 +1206,20 @@
       <div class="mt-3 text-center">
         <span id="fullscreen-format-detail" class="text-xs sm:text-[13px] font-mono tracking-wide text-zinc-300/90">FLAC 44.1kHz 16bit 2ch</span>
         <span id="fullscreen-quality-badge" class="hidden">BIT-PERFECT</span>
+      </div>
+    </div>
+
+    <!-- Center Stage Lyrics Mode (Immersive Synced Lyrics with Offset Calibration) -->
+    <div id="fullscreen-stage-lyrics" class="relative z-10 hidden flex-1 flex-col items-center justify-between p-4 max-w-3xl mx-auto w-full min-h-0">
+      <div class="flex items-center gap-2 mb-2 text-xs text-zinc-400">
+        <span class="text-[11px] uppercase tracking-wider text-zinc-500">Bù trừ độ trễ:</span>
+        <button id="fs-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px]" title="Chậm hơn 0.5s">-0.5s</button>
+        <span id="fs-lyrics-offset-val" class="font-mono text-zinc-300 text-[11px] w-20 text-center">Chuẩn (0ms)</span>
+        <button id="fs-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px]" title="Nhanh hơn 0.5s">+0.5s</button>
+        <button id="fs-lyrics-offset-reset" type="button" class="text-zinc-500 hover:text-zinc-300 text-[11px] ml-1">Đặt lại</button>
+      </div>
+      <div id="fullscreen-lyrics-scroll" class="w-full flex-1 overflow-y-auto space-y-4 py-8 text-center scroll-smooth pr-2 select-none">
+        <p class="text-sm text-zinc-500">Chưa có lời đồng bộ (.lrc) cho bài này.</p>
       </div>
     </div>
 
@@ -1497,7 +1515,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art' };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -3918,6 +3936,7 @@
             }
           }
         });
+        renderFullscreenLyrics();
         return;
       }
       for (const line of lines) {
@@ -3960,6 +3979,32 @@
           });
         }
         container.appendChild(row);
+      }
+      renderFullscreenLyrics();
+    }
+    function renderFullscreenLyrics() {
+      const fsContainer = typeof $ === 'function' ? $('fullscreen-lyrics-scroll') : null;
+      if (!fsContainer) return;
+      fsContainer.innerHTML = '';
+      if (!state.lyrics || !state.lyrics.length) {
+        fsContainer.innerHTML = '<p class="text-sm text-zinc-500 py-12">Chưa có lời đồng bộ (.lrc) cho bài này.</p>';
+        return;
+      }
+      for (const line of state.lyrics) {
+        const row = document.createElement('p');
+        row.className = 'fs-lyric-line text-lg sm:text-xl font-medium text-zinc-400 py-1.5 transition-all duration-300 cursor-pointer hover:text-white rounded-lg px-3';
+        row.textContent = line.text;
+        if (Number.isFinite(line.time)) {
+          row.dataset.time = String(line.time);
+          row.addEventListener('click', () => {
+            const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+            if (currentAudio && Number.isFinite(currentAudio.duration)) {
+              currentAudio.currentTime = Math.min(Math.max(0, line.time), currentAudio.duration);
+              updatePositionState(true);
+            }
+          });
+        }
+        fsContainer.appendChild(row);
       }
     }
     async function triggerLyricsFetch(track) {
@@ -4024,7 +4069,11 @@
     function updateLyricsHighlight() {
       const container = $('room-lyrics');
       if (!container || !state.lyrics.length) return;
-      const index = library.lyricLineAt(state.lyrics, audio.currentTime);
+      const offsetSec = (state && Number.isFinite(state.lyricsOffset)) ? state.lyricsOffset : 0;
+      const effectiveTime = (library && typeof library.calculateLyricsOffsetTime === 'function')
+        ? library.calculateLyricsOffsetTime(audio.currentTime, offsetSec)
+        : (audio.currentTime + offsetSec);
+      const index = library.lyricLineAt(state.lyrics, effectiveTime);
       const lineChanged = (index !== state.lyricIndex);
       if (lineChanged) {
         state.lyricIndex = index;
@@ -4061,6 +4110,28 @@
             isProgrammaticLyricsScroll = false;
           }
         }
+
+        const fsScroll = typeof $ === 'function' ? $('fullscreen-lyrics-scroll') : null;
+        if (fsScroll) {
+          const fsRows = fsScroll.querySelectorAll('.fs-lyric-line');
+          if (fsRows && fsRows.length) {
+            fsRows.forEach((r, idx) => {
+              const isActive = (idx === index);
+              r.classList.toggle('text-white', isActive);
+              r.classList.toggle('font-bold', isActive);
+              r.classList.toggle('scale-105', isActive);
+              r.classList.toggle('bg-white/10', isActive);
+              r.classList.toggle('text-zinc-400', !isActive);
+              if (library && typeof library.calculateLyricsLineOpacity === 'function') {
+                r.style.opacity = String(library.calculateLyricsLineOpacity(idx, index));
+              }
+            });
+            const activeFsRow = fsRows[index];
+            if (activeFsRow && typeof activeFsRow.scrollIntoView === 'function') {
+              activeFsRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
+        }
       }
       if (index >= 0 && index < state.lyrics.length) {
         const activeLine = state.lyrics[index];
@@ -4073,7 +4144,7 @@
               : (activeRow.children && Array.isArray(activeRow.children) ? activeRow.children.filter(c => c.classList && c.classList.contains('lyric-word')) : []);
             const spans = Array.from(new Set(rawSpans));
             if (spans && spans.length) {
-              const wordIndex = library.lyricWordAt(activeLine.words, audio.currentTime);
+              const wordIndex = library.lyricWordAt(activeLine.words, effectiveTime);
               spans.forEach((span, w) => {
                 span.classList.toggle('lyric-word-sung', w < wordIndex);
                 span.classList.toggle('lyric-word-active', w === wordIndex);
@@ -4128,6 +4199,15 @@
         $('footer-phase-badge').textContent = 'Phase +1.0';
         $('footer-phase-badge').className = 'hidden md:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400';
       }
+      let savedOffset = 0;
+      try {
+        const stored = localStorage.getItem(`nocturne-lyrics-offset-${track.id}`);
+        if (stored !== null) savedOffset = Number(stored) || 0;
+      } catch (_) {}
+      state.lyricsOffset = (typeof library !== 'undefined' && typeof library.clampLyricsOffset === 'function')
+        ? library.clampLyricsOffset(savedOffset)
+        : savedOffset;
+      if (typeof updateLyricsOffsetDisplay === 'function') updateLyricsOffsetDisplay();
       renderQueueCurrent(track); syncAutoplayButton(); updateSleepStatus();
       $('room-play').textContent = !audio.src || audio.paused ? '▶' : 'Ⅱ';
       renderLyrics(track.lyricsText || '');
@@ -8425,6 +8505,85 @@
       });
     }
 
+    // Pha C — Quản lý Bù trừ Độ Trễ Lời Bài Hát & Chế Độ Xem Toàn Màn Hình
+    function updateLyricsOffsetDisplay() {
+      const formatted = (typeof library !== 'undefined' && typeof library.formatLyricsOffset === 'function')
+        ? library.formatLyricsOffset(state.lyricsOffset)
+        : `${state.lyricsOffset || 0}s`;
+      const roomBadge = $('room-lyrics-offset-badge');
+      if (roomBadge) roomBadge.textContent = formatted;
+      const fsBadge = $('fs-lyrics-offset-val');
+      if (fsBadge) fsBadge.textContent = formatted;
+    }
+    window.updateLyricsOffsetDisplay = updateLyricsOffsetDisplay;
+
+    function setLyricsOffset(delta, isAbsolute = false) {
+      const curTrack = state.tracks.find(t => t.id === state.currentId);
+      const prev = Number.isFinite(state.lyricsOffset) ? state.lyricsOffset : 0;
+      const target = isAbsolute ? Number(delta) : (prev + Number(delta));
+      state.lyricsOffset = (typeof library !== 'undefined' && typeof library.clampLyricsOffset === 'function')
+        ? library.clampLyricsOffset(target)
+        : target;
+      if (curTrack) {
+        try {
+          localStorage.setItem(`nocturne-lyrics-offset-${curTrack.id}`, String(state.lyricsOffset));
+        } catch (_) {}
+      }
+      updateLyricsOffsetDisplay();
+      updateLyricsHighlight();
+      const label = (typeof library !== 'undefined' && typeof library.formatLyricsOffset === 'function')
+        ? library.formatLyricsOffset(state.lyricsOffset)
+        : `${state.lyricsOffset}s`;
+      toast(`Độ trễ lời bài hát: ${label}`);
+    }
+    window.setLyricsOffset = setLyricsOffset;
+
+    function setFullscreenViewMode(mode) {
+      state.fullscreenViewMode = mode === 'lyrics' ? 'lyrics' : 'art';
+      const isLyrics = state.fullscreenViewMode === 'lyrics';
+      const stageArt = $('fullscreen-stage-art');
+      const stageLyrics = $('fullscreen-stage-lyrics');
+      const btnArt = $('fullscreen-view-art-btn');
+      const btnLyrics = $('fullscreen-view-lyrics-btn');
+
+      if (stageArt) stageArt.classList.toggle('hidden', isLyrics);
+      if (stageLyrics) stageLyrics.classList.toggle('hidden', !isLyrics);
+      if (stageLyrics) stageLyrics.classList.toggle('flex', isLyrics);
+
+      if (btnArt) {
+        btnArt.className = !isLyrics
+          ? 'rounded-full px-3 py-1 text-xs font-medium text-white bg-white/15 transition'
+          : 'rounded-full px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white transition';
+      }
+      if (btnLyrics) {
+        btnLyrics.className = isLyrics
+          ? 'rounded-full px-3 py-1 text-xs font-medium text-white bg-white/15 transition'
+          : 'rounded-full px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white transition';
+      }
+      if (isLyrics) {
+        renderFullscreenLyrics();
+        updateLyricsHighlight();
+      }
+    }
+    window.setFullscreenViewMode = setFullscreenViewMode;
+
+    const fsViewArtBtn = $('fullscreen-view-art-btn');
+    if (fsViewArtBtn) fsViewArtBtn.addEventListener('click', () => setFullscreenViewMode('art'));
+    const fsViewLyricsBtn = $('fullscreen-view-lyrics-btn');
+    if (fsViewLyricsBtn) fsViewLyricsBtn.addEventListener('click', () => setFullscreenViewMode('lyrics'));
+
+    const fsOffsetMinus = $('fs-lyrics-offset-minus');
+    if (fsOffsetMinus) fsOffsetMinus.addEventListener('click', () => setLyricsOffset(-0.5));
+    const fsOffsetPlus = $('fs-lyrics-offset-plus');
+    if (fsOffsetPlus) fsOffsetPlus.addEventListener('click', () => setLyricsOffset(0.5));
+    const fsOffsetReset = $('fs-lyrics-offset-reset');
+    if (fsOffsetReset) fsOffsetReset.addEventListener('click', () => setLyricsOffset(0, true));
+
+    const roomOffsetMinus = $('room-lyrics-offset-minus');
+    if (roomOffsetMinus) roomOffsetMinus.addEventListener('click', () => setLyricsOffset(-0.5));
+    const roomOffsetPlus = $('room-lyrics-offset-plus');
+    if (roomOffsetPlus) roomOffsetPlus.addEventListener('click', () => setLyricsOffset(0.5));
+
     document.addEventListener('keydown', (e) => {
       const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
       if (e.key === 'Escape') {
@@ -8600,5 +8759,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 16:00 +07 | Đã xong: Pha D - Kiến Trúc & PWA: Chống Rò Rỉ Bộ Nhớ (Memory Leak Prevention) & Quản Lý Phân Tầng Lưu Trữ Đa Cấp (Multi-Tier Storage Quota Manager): (1) Bộ tiện ích auditMemoryLeaks và pruneUnreferencedObjectUrls trong library-utils.js phát hiện và tự động giải phóng URL.revokeObjectURL các Blob URL rác không còn tham chiếu; (2) Định nghĩa STORAGE_TIERS với 3 cấp độ (Tier 1 Thiết yếu/Trạng thái, Tier 2 Đệm âm thanh lát FLAC/DSD, Tier 3 Siêu dữ liệu/Ảnh bìa base64/LRC); (3) calculateStorageTierMetrics tính toán dung lượng phân tầng và chấm điểm sức khỏe lưu trữ; (4) formatMemoryAuditSummary định dạng thông báo tiếng Việt trực quan; (5) UI Cài đặt: cụm huy hiệu phân tầng lưu trữ (Tier 1/2/3) và nút #prune-object-urls-btn Giải phóng RAM; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests memory-storage-tiers.test.cjs PASS 100%, 104/104 test suites PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Parametric EQ Target Curve Optimization hoặc Biquad Filter Coherence -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 16:30 +07 | Đã xong: Pha A - Audio Engine & DSP: Parametric EQ Filter Coherence, Nyquist Limit Protection & Multi-Band Cumulative Curve Engine: (1) STANDARD_EQ_FREQUENCIES với 31 dải chuẩn ISO 1/3-octave (20 Hz - 20 kHz); (2) sanitizeBiquadFilterParams bảo vệ chống nổ hệ số số học vượt ngưỡng tần số Nyquist (sampleRate/2 - 50 Hz), kẹp an toàn Gain [-24, 24] dB và Q-Factor [0.1, 18]; (3) calculateBiquadFrequencyResponse mô hình hóa chính xác hàm truyền đạt phức số miền số học Audio EQ Cookbook cho Peaking, Low-shelf, High-shelf, Low-pass, High-pass; (4) calculateCombinedEqCurve tính toán tổng hợp đặc tuyến nhiều bộ lọc cộng dồn và phát hiện điểm boost đỉnh thực tế để tối ưu headroom preamp; (5) formatEqCurveSummary hiển thị trực quan mức đỉnh/trũng; (6) UI panel EQ #eq-curve-summary và #eq-curve-detail; (7) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests parametric-eq-coherence.test.cjs PASS 100%, 105/105 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe & Bảng Màu Spectrum Mới -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 17:00 +07 | Đã xong: Pha B - UI/UX & Visualizer: Đồng Hồ Đo Pha Stereo (Stereo Phase Correlation Meter) & Độ Rộng Không Gian Âm Thanh (Soundstage Width Engine): (1) calculateStereoPhaseCorrelation tính toán hệ số tương quan pha thời gian thực r ∈ [-1.0, 1.0] giữa 2 kênh L/R từ byte time-domain dữ liệu Web Audio API, phân loại IN_PHASE, STEREO, WIDE, PHASE_WARNING; (2) calculateStereoSoundstageWidth tính năng lượng Mid/Side và tỷ lệ độ rộng âm hình soundstage 0-100%; (3) formatStereoCorrelationBadge định dạng nhãn hiển thị trực quan Phase +1.00 / Phase -0.42; (4) Tích hợp đồ thị âm thanh: state.leftAnalyser và state.rightAnalyser nối từ state.crossfeedNodes.splitter (kênh 0 & 1), cập nhật mượt mà 60fps trong renderVisualizer; (5) UI Audiophile: #footer-phase-badge tại footer và #room-phase-badge tại Phòng nghe #listening-room; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 4/4 tests stereo-phase-meter.test.cjs PASS 100%, 106/106 test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features & Săn Lỗi: Tối Ưu Bố Cục Full Player Audiophile & Chống Tràn Xung Đột Mini Hub Waveform -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 17:30 +07 | Đã xong: Pha C - Core Features: Bù Trừ Độ Trễ Lời Bài Hát Thời Gian Thực (Synced Lyrics Real-Time Offset Calibration) & Chế Độ Lời Bài Hát Toàn Màn Hình Roon (Immersive Fullscreen Lyrics Stage): (1) calculateLyricsOffsetTime tính toán mốc thời gian thực tế bù trừ độ trễ giữa âm thanh và lời bài hát, clampLyricsOffset kẹp an toàn [-10s, 10s] và formatLyricsOffset hiển thị chuẩn ms trực quan (+500ms, -250ms, Chuẩn 0ms); (2) calculateLyricsLineOpacity điều tiết độ mờ/sáng tập trung giọng hát (vocal focus) mượt mà theo khoảng cách dòng; (3) Chế độ xem Lời bài hát Toàn màn hình Roon: chuyển đổi linh hoạt Bìa album / Lời bài hát (#fullscreen-view-art-btn, #fullscreen-view-lyrics-btn, #fullscreen-stage-art, #fullscreen-stage-lyrics, #fullscreen-lyrics-scroll) cuộn mượt 60fps; (4) Cụm nút cân chỉnh độ trễ lời bài hát ở cả Toàn màn hình (#fs-lyrics-offset-minus/plus/reset, #fs-lyrics-offset-val) và Phòng nghe (#room-lyrics-offset-minus/plus, #room-lyrics-offset-badge), tự động lưu localStorage bền vững theo từng bài hát; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests lyrics-offset-fullscreen.test.cjs PASS 100%, 107/107 test suites PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản lý bộ đệm IndexedDB & Tối ưu hóa tải trước đa luồng -->
 </body>
 </html>

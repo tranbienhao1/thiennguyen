@@ -2,6 +2,32 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 17:30 +07] — [Pha C: Core Features] Bù Trừ Độ Trễ Lời Bài Hát Thời Gian Thực (Synced Lyrics Real-Time Offset Calibration) & Chế Độ Lời Bài Hát Toàn Màn Hình Roon (Immersive Fullscreen Lyrics Stage)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)**.
+- **Chi tiết triển khai:**
+  1. **Động Cơ Bù Trừ Độ Trễ Lời Bài Hát Thời Gian Thực (`calculateLyricsOffsetTime`, `clampLyricsOffset`, `formatLyricsOffset`):**
+     - Cho phép người nghe linh hoạt cân chỉnh độ lệch đồng bộ thời gian (offset) giữa file âm thanh và lời bài hát LRC với bước nhảy $\pm 0.5\text{s}$ hoặc nhập tùy chỉnh.
+     - Hàm `calculateLyricsOffsetTime(currentTime, offsetSec)` tính toán chính xác mốc thời gian hữu hiệu `effectiveTime = Math.max(0, currentTime + offsetSec)` để đối chiếu với câu và từ bài hát.
+     - Hàm `clampLyricsOffset` kẹp an toàn khoảng lệch $[-10\text{s}, 10\text{s}]$, làm tròn chính xác $0.05\text{s}$ (50ms).
+     - Hàm `formatLyricsOffset` định dạng chuỗi hiển thị gọn: `Chuẩn (0ms)`, `+500ms`, `-250ms`.
+  2. **Điều Tiết Độ Mờ Dòng Hát Tập Trung Giọng Ca (`calculateLyricsLineOpacity`):**
+     - Dòng đang hát: độ sáng cực đại ($1.0$), in đậm, hiệu ứng scale $1.05$.
+     - Dòng liền kề trước/sau 1 dòng: $0.65$; cách 2 dòng: $0.45$; các dòng xa: $0.25$, tạo hiệu ứng chiều sâu vocal focus cao cấp như Apple Music & Roon.
+  3. **Chế Độ Xem Lời Bài Hát Toàn Màn Hình Roon (`#roon-fullscreen-view`):**
+     - Bổ sung thanh tab chuyển đổi linh hoạt trên Top Bar: `Bìa album` (`#fullscreen-view-art-btn`) ⇄ `Lời bài hát` (`#fullscreen-view-lyrics-btn`).
+     - Tích hợp sân khấu lời bài hát toàn màn hình `#fullscreen-stage-lyrics` với vùng cuộn mượt mà `#fullscreen-lyrics-scroll`, tự động scroll mượt giữa màn hình khi chuyển câu hát và hỗ trợ bấm dòng để tua ngay lập tức.
+  4. **Cụm Nút Cân Chỉnh Độ Trễ Tiện Dụng:**
+     - Tích hợp tại cả Toàn màn hình Roon (`#fs-lyrics-offset-minus/plus/reset`, `#fs-lyrics-offset-val`) và Phòng nghe `#listening-room` (`#room-lyrics-offset-minus/plus`, `#room-lyrics-offset-badge`).
+     - Tự động lưu bền vững vào `localStorage` theo từng mã bài hát (`nocturne-lyrics-offset-${track.id}`), tự động nạp lại khi chuyển bài (`displayTrack`).
+  5. **Kiểm Thử Độc Lập & Bảo Toàn Bất Biến:**
+     - Bộ kiểm thử mới `lyrics-offset-fullscreen.test.cjs` (**5/5 tests PASS 100%**).
+     - Toàn bộ 107 test suites toàn dự án (**PASS 100%**).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 17:00 +07] — [Pha B: UI/UX & Visualizer] Đồng Hồ Đo Pha Stereo (Stereo Phase Correlation Meter) & Độ Rộng Không Gian Âm Thanh (Soundstage Width Engine)
 
 ### 🎯 Hạng Mục Nâng Cấp:
