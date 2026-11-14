@@ -2,6 +2,35 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 13:30 +07] — [Pha C: Core Features & Bugfixes] Sắp Xếp Hàng Đợi Kéo Thả Chuẩn HTML5 (Drag & Drop Queue Reordering), Nâng Cấp Toast Top-Center & Cố Định Kích Thước Mini Player HUD
+
+### 🎯 Hạng Mục Nâng Cấp & Sửa Lỗi:
+- **Phân khu trọng tâm:** **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)** & **2. UI/UX & Visualizer Hiện Đại**.
+- **Chi tiết triển khai:**
+  1. **Khắc Phục Triệt Để Lỗi Toast Che Khuất Dạng Sóng / Lời Bài Hát (Hình ảnh phản hồi 1):**
+     - Chuyển vị trí thông báo `#toast` lên đỉnh màn hình trung tâm (**Top-Center HUD Notification**: `top-6 sm:top-8 left-1/2 z-[120]`).
+     - Tinh chỉnh phong cách thiết kế dạng con nhộng bo tròn hoàn hảo (`rounded-full`), lớp nền tối thủy tinh mờ sương (`bg-zinc-900/95 border border-white/15 backdrop-blur-xl`), bóng đổ nổi 3D thanh thoát (`shadow-[0_12px_36px_rgba(0,0,0,0.6)]`).
+     - Loại bỏ 100% hiện tượng va chạm hay đè lên thanh sóng âm (`#waveform-canvas`), khung lời bài hát (`#room-lyrics`) hoặc dock điều khiển phía dưới đáy.
+  2. **Khắc Phục Triệt Để Lỗi Mini Player HUD Vỡ Khung Dạng Sóng (Hình ảnh phản hồi 3):**
+     - Bổ sung quy tắc CSS scoped bảo vệ nghiêm ngặt: `#mini-player-hud canvas { width:72px !important; height:26px !important; max-width:72px !important; }` nhằm vô hiệu hóa ảnh hưởng của rule `canvas { width:100%; height:100%; }`.
+     - Thêm cử chỉ chạm đúp chuột (`dblclick`) vào thanh Mini Player HUD để khôi phục nhanh vị trí góc phải dưới (`bottom-[140px] right-6`) trong trường hợp người dùng kéo lệch ra ngoài tầm nhìn.
+  3. **Hệ Thống Sắp Xếp Hàng Đợi Kéo Thả Chuẩn HTML5 (HTML5 Drag & Drop Queue Reordering):**
+     - Viết mới hàm tiện ích thuần `reorderQueueByIds(queueTrackIds, draggedId, targetId, dropPosition)` trong `library-utils.js`: di chuyển vị trí phần tử an toàn, bảo toàn 100% các bài hát, không sinh trùng lặp hay làm mất danh sách.
+     - Bổ sung thuộc tính `draggable="true"`, `aria-grabbed="false"` và biểu tượng tay cầm kéo thả Audiophile `⠿` (`queue-drag-handle`) tại từng hàng trong `#queue-list`.
+     - Xử lý mượt mà toàn bộ chuỗi sự kiện `dragstart`, `dragover`, `dragleave`, `drop`, `dragend` với vạch kẻ sáng trực quan phía trên/dưới hàng mục tiêu (`queue-drag-over-top` / `queue-drag-over-bottom`).
+     - Tự động đồng bộ với hệ thống nạp trước âm thanh thông minh (`preloadNext(true)`) và thông báo Toast xác nhận sau khi đổi vị trí.
+  4. **Chuẩn Hóa Bộ Phím Tắt Tác Vụ Nhanh (Keyboard Shortcuts):**
+     - `M`: Bật/tắt nhanh Mini Player HUD.
+     - `U`: Bật/tắt chế độ ngắt tiếng (Mute).
+     - `Q`: Đóng/mở nhanh panel Hàng đợi (`#queue-panel`).
+     - `F`: Toàn màn hình Roon Now Playing View.
+  5. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `queue-drag-drop.test.cjs` (**6/6 tests PASS 100%**).
+     - Đã kiểm tra lại toàn bộ các test suites liên quan `target-curves.test.cjs`, `waveform-hover-scrub.test.cjs`, `selfhosted-ecosystem.test.cjs`, `index-script.test.cjs` (**48/48 tests PASS 100%**).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 13:00 +07] — [Pha B: UI/UX & Visualizer Hiện Đại] Thanh Sóng Dạng Sóng Tương Tác Sống Động (Interactive Waveform Scrubbing), Tooltip Xem Trước Thời Gian (Hover Time Preview) & Vạch Kim Mờ (Ghost Playhead)
 
 ### 🎯 Hạng Mục Nâng Cấp:

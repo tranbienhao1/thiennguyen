@@ -100,7 +100,7 @@ test('Acoustic Target Curves & Fullscreen Roon View - DOM & UI Integration', asy
     assert.ok(html.includes('id="eq-panel" class="fixed bottom-[140px]'));
     assert.ok(html.includes('id="sleep-panel" class="fixed bottom-[140px]'));
     assert.ok(html.includes('id="ambient-panel" class="fixed bottom-[140px]'));
-    assert.ok(html.includes('id="toast" class="pointer-events-none fixed bottom-40 sm:bottom-44 left-1/2 z-[120]'));
+    assert.ok(html.includes('id="toast" class="pointer-events-none fixed top-6 sm:top-8 left-1/2 z-[120]'));
   });
 
   await t.test('Audio Graph routing invariant is 100% preserved', () => {

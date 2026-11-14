@@ -30,6 +30,9 @@
     .cover-glow { background:radial-gradient(ellipse at 88% 12%,rgba(145,205,229,.08),transparent 44%); }
     .drop-overlay { background:rgba(17,19,21,.92);backdrop-filter:blur(12px); }
     canvas { width:100%;height:100%; }
+    #mini-player-hud canvas { width:72px !important; height:26px !important; max-width:72px !important; }
+    .queue-drag-over-top { border-top: 2px solid #a78bfa !important; }
+    .queue-drag-over-bottom { border-bottom: 2px solid #a78bfa !important; }
     #app-shell { transition: max-width .35s ease; }
     #sidebar { transition: transform .32s ease, opacity .25s ease, width .32s ease, margin .32s ease; }
     #content-col { transition: flex-basis .32s ease, max-width .32s ease, transform .32s ease; }
@@ -1240,7 +1243,7 @@
       <span>Thêm vào cuối</span>
     </button>
   </div>
-  <div id="toast" class="pointer-events-none fixed bottom-40 sm:bottom-44 left-1/2 z-[120] hidden -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-800 px-4 py-2.5 text-xs text-zinc-100 shadow-xl"></div>
+  <div id="toast" class="pointer-events-none fixed top-6 sm:top-8 left-1/2 z-[120] hidden -translate-x-1/2 rounded-full border border-white/15 bg-zinc-900/95 px-5 py-2.5 text-xs font-medium text-zinc-100 shadow-[0_12px_36px_rgba(0,0,0,0.6)] backdrop-blur-xl transition-all duration-200 select-none max-w-[min(90vw,480px)] text-center"></div>
   <div id="update-banner" class="fixed left-1/2 top-4 z-[70] hidden w-[min(92vw,480px)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-violet-300/25 bg-[#181422]/95 px-4 py-3 shadow-2xl shadow-black/50 backdrop-blur-xl" role="status" aria-live="polite">
     <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 text-base text-violet-200">↻</span>
     <div class="min-w-0 flex-1">
@@ -4081,11 +4084,63 @@
       list.innerHTML = displayTracks.map((track, index) => {
         const metadata = library.trackMetadata(track);
         if (track.id === state.currentId) return `<div class="flex items-center gap-2 rounded-xl border border-violet-300/30 bg-violet-300/[.06] p-2" data-queue-current-row="${escapeHtml(track.id)}"><span class="w-5 text-center text-[10px] font-semibold text-violet-300">▶</span><span class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-violet-200">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}</span><span class="min-w-0 flex-1"><span class="block truncate text-xs font-medium text-zinc-100">${escapeHtml(metadata.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(metadata.artist)} · ${escapeHtml(track.format || sourceLabel(track.source))}</span></span><span class="shrink-0 rounded border border-violet-300/30 px-1.5 py-1 text-[9px] font-medium text-violet-200">Đang phát</span></div>`;
-        return `<div class="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] p-2" data-queue-row="${escapeHtml(track.id)}"><span class="w-5 text-center text-[10px] tabular-nums text-zinc-600">${tracks.indexOf(track) + 1}</span><button type="button" data-queue-play="${escapeHtml(track.id)}" class="flex min-w-0 flex-1 items-center gap-3 text-left"><span class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-violet-200">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}</span><span class="min-w-0"><span class="block truncate text-xs font-medium text-zinc-200">${escapeHtml(metadata.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(metadata.artist)} · ${escapeHtml(track.format || sourceLabel(track.source))}</span></span></button><button type="button" data-queue-move="up" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-white" aria-label="Chuyển lên">↑</button><button type="button" data-queue-move="down" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-white" aria-label="Chuyển xuống">↓</button><button type="button" data-queue-action="remove" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-rose-300" aria-label="Xóa khỏi hàng đợi">×</button></div>`;
+        return `<div class="group/q flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] p-2 transition-all cursor-grab active:cursor-grabbing hover:bg-white/[.04]" data-queue-row="${escapeHtml(track.id)}" draggable="true" aria-grabbed="false"><span class="queue-drag-handle w-4 text-center text-xs text-zinc-500 group-hover/q:text-violet-300 cursor-grab select-none font-mono" title="Kéo thả để sắp xếp lại">⠿</span><span class="w-4 text-center text-[10px] tabular-nums text-zinc-600">${tracks.indexOf(track) + 1}</span><button type="button" data-queue-play="${escapeHtml(track.id)}" class="flex min-w-0 flex-1 items-center gap-3 text-left"><span class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-violet-200">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}</span><span class="min-w-0"><span class="block truncate text-xs font-medium text-zinc-200">${escapeHtml(metadata.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(metadata.artist)} · ${escapeHtml(track.format || sourceLabel(track.source))}</span></span></button><button type="button" data-queue-move="up" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-white" aria-label="Chuyển lên">↑</button><button type="button" data-queue-move="down" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-white" aria-label="Chuyển xuống">↓</button><button type="button" data-queue-action="remove" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-rose-300" aria-label="Xóa khỏi hàng đợi">×</button></div>`;
       }).join('');
       list.querySelectorAll('[data-queue-play]').forEach(button => button.addEventListener('click', () => playTrack(button.dataset.queuePlay)));
       list.querySelectorAll('[data-queue-action="remove"]').forEach(button => button.addEventListener('click', () => removeFromQueue(button.closest('[data-queue-row]').dataset.queueRow)));
       list.querySelectorAll('[data-queue-move]').forEach(button => button.addEventListener('click', () => moveQueueTrack(button.closest('[data-queue-row]').dataset.queueRow, button.dataset.queueMove === 'up' ? -1 : 1)));
+
+      // Pha C — HTML5 Drag and Drop for Queue Reordering
+      let draggedTrackId = null;
+      list.querySelectorAll('[data-queue-row]').forEach(row => {
+        row.addEventListener('dragstart', (e) => {
+          draggedTrackId = row.dataset.queueRow;
+          row.setAttribute('aria-grabbed', 'true');
+          row.classList.add('opacity-40', 'scale-[0.98]');
+          if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', draggedTrackId);
+          }
+        });
+        row.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          if (!draggedTrackId || draggedTrackId === row.dataset.queueRow) return;
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+          const rect = row.getBoundingClientRect();
+          const isAfter = (e.clientY - rect.top) > (rect.height / 2);
+          row.classList.remove('queue-drag-over-top', 'queue-drag-over-bottom');
+          row.classList.add(isAfter ? 'queue-drag-over-bottom' : 'queue-drag-over-top');
+        });
+        row.addEventListener('dragleave', () => {
+          row.classList.remove('queue-drag-over-top', 'queue-drag-over-bottom');
+        });
+        row.addEventListener('drop', (e) => {
+          e.preventDefault();
+          row.classList.remove('queue-drag-over-top', 'queue-drag-over-bottom');
+          const targetId = row.dataset.queueRow;
+          if (!draggedTrackId || !targetId || draggedTrackId === targetId) return;
+          const rect = row.getBoundingClientRect();
+          const dropPosition = (e.clientY - rect.top) > (rect.height / 2) ? 'after' : 'before';
+          const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+          if (lib && typeof lib.reorderQueueByIds === 'function') {
+            state.queueTrackIds = lib.reorderQueueByIds(state.queueTrackIds, draggedTrackId, targetId, dropPosition);
+          } else if (lib && typeof lib.smartQueueReorder === 'function') {
+            const f = state.queueTrackIds.indexOf(draggedTrackId);
+            const t = state.queueTrackIds.indexOf(targetId);
+            state.queueTrackIds = lib.smartQueueReorder(state.queueTrackIds, f, t);
+          }
+          renderQueue();
+          if (state.currentId && audio.src) preloadNext(true);
+          toast('Đã đổi thứ tự bài trong hàng đợi.');
+        });
+        row.addEventListener('dragend', () => {
+          row.setAttribute('aria-grabbed', 'false');
+          row.classList.remove('opacity-40', 'scale-[0.98]');
+          list.querySelectorAll('[data-queue-row]').forEach(r => r.classList.remove('queue-drag-over-top', 'queue-drag-over-bottom'));
+          draggedTrackId = null;
+        });
+      });
+
       renderQueueCurrent();
       updateRoonRadioStatus();
     }
@@ -6902,6 +6957,14 @@
           hudContainer.style.cursor = '';
         }
       });
+      hudContainer.addEventListener('dblclick', (e) => {
+        if (e.target.closest('button') || e.target.closest('canvas')) return;
+        hudContainer.style.left = '';
+        hudContainer.style.top = '';
+        hudContainer.style.right = '';
+        hudContainer.style.bottom = '';
+        toast('Đã đặt lại vị trí Mini Player HUD.');
+      });
     }
 
     const rateSelect = $('playback-rate-select');
@@ -7143,7 +7206,8 @@
       else if (event.key === ']' && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(10); }
       else if (event.key === 'ArrowUp') { event.preventDefault(); const cur = Number($('volume').value) || 0; const next = Math.min(100, cur + 5); setGain(next); toast(`Âm lượng: ${next}%`); }
       else if (event.key === 'ArrowDown') { event.preventDefault(); const cur = Number($('volume').value) || 0; const next = Math.max(0, cur - 5); setGain(next); toast(`Âm lượng: ${next}%`); }
-      else if (event.key.toLowerCase() === 'm') { event.preventDefault(); toggleMute(); }
+      else if (event.key.toLowerCase() === 'm') { event.preventDefault(); toggleMiniPlayerHud(); }
+      else if (event.key.toLowerCase() === 'u') { event.preventDefault(); toggleMute(); }
       else if (event.key.toLowerCase() === 'n') playNext(1);
       else if (event.key.toLowerCase() === 'p') playNext(-1);
       else if (event.key.toLowerCase() === 'q') $('queue-panel').classList.contains('hidden') ? openQueue() : closeQueue();
@@ -8018,9 +8082,6 @@
       } else if ((e.key === 'f' || e.key === 'F') && !isInput && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         toggleRoonFullscreen();
-      } else if ((e.key === 'm' || e.key === 'M') && !isInput && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        toggleMiniPlayerHud();
       }
     });
     openDatabase().then(restoreRecentTracks).catch(error => { console.error('IndexedDB is unavailable:', error); restoreRecentTracks(); toast('Không thể bật lịch sử IndexedDB; mục nghe gần đây vẫn lưu trong trình duyệt.'); });
@@ -8179,5 +8240,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 12:25 +07 | Đã xong: Pha D - Giám sát hạn ngạch bộ nhớ PWA (Storage Quota Monitor), Dọn dẹp bộ đệm & Bộ lọc nghe nhạc ngoại tuyến (Offline Focus Mode): (1) Bộ tiện ích formatStorageBytes & getStorageEstimate truy vấn navigator.storage.estimate() hiển thị chính xác dung lượng đã dùng / hạn ngạch và cờ cảnh báo isLowSpace; (2) auditOfflineStorage kiểm toán tỷ lệ bài hát sẵn sàng phát ngoại tuyến trong thư viện; (3) Tích hợp bộ lọc Ngoại tuyến trên Roon Focus Bar (data-focus="offline", #focus-count-offline) qua filterTracksByFocus; (4) Phân mục quản trị bộ nhớ #storage-quota-section trong Cài đặt với thanh tiến trình trực quan #storage-progress-bar, nút kiểm tra #refresh-storage-btn và nút dọn dẹp bộ đệm lát #prune-cache-btn; (5) Banner #offline-banner hỗ trợ click chuyển đổi nhanh chế độ lọc bài ngoại tuyến; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 20/20 test storage-quota-offline.test.cjs PASS 100%, 96/96 test suites PASS 100% | Lượt kế tiếp: Pha A - DSP Audio Engine: Parametric EQ Presets & Tối ưu hóa chuỗi xử lý âm thanh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 12:45 +07 | Đã xong: Pha A & UI Polish - Chuẩn mực âm học Audiophile (Target Curves & Sound Signatures) & Tái cấu trúc Toàn màn hình Roon chuẩn Mockup: (1) Mở rộng AUTOEQ_PROFILES với 5 chuẩn âm học đỉnh cao: Harman Target 2019, Diffuse Field Studio Reference, Vocal Warmth & Intimacy, Basshead Club Impact, Acoustic Air & Soundstage; tính toán bù trừ Preamp <= 0 dB chống clipping; tích hợp Roon Signal Path nhận diện chuẩn âm học trong chuỗi DSP; (2) Nâng cấp #autoeq-select với các <optgroup> phân nhóm trực quan; (3) Tái cấu trúc thanh dock điều khiển của #roon-fullscreen-view thành một hàng ngang duy nhất: [Thu nhỏ ⌵] + [Thời gian] + [Waveform Seekbar với vạch kim đỏ #ef4444] + [Thời lượng] + [System Output] + [Âm lượng 100] khớp 100% mockup người dùng; (4) Tối ưu clearance chống va chạm giao diện: đặt bottom-[140px] cho mini-player-hud, eq-panel, sleep-panel, ambient-panel và nâng vị trí toast lên bottom-40 sm:bottom-44 z-[120]; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 10/10 test target-curves.test.cjs PASS 100%, toàn bộ 97 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Ambient Sound Stage Animation hoặc Tinh chỉnh Waveform Seekbar Roon Immersive Live Playhead Polish -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 13:00 +07 | Đã xong: Pha B - Interactive Waveform Scrubbing with Hover Time Tooltip & Ghost Playhead: (1) Bộ tiện ích calculateHoverSeekFraction, calculateHoverSeekTime và formatHoverTime đo lường và hiển thị vị trí tua chính xác theo chuột; (2) renderWaveformCanvas hỗ trợ opts.hoverFraction vẽ vạch kim ghost playhead 1.5px bán trong suốt; (3) Tooltip xem trước thời gian dạng nổi (#waveform-hover-tooltip và #fullscreen-waveform-hover-tooltip) bám chuột mượt mà; (4) Tua nhạc trực tiếp bằng thao tác kéo chuột liên tục (drag-to-seek scrubbing khi e.buttons === 1) trên cả #waveform-canvas và #fullscreen-waveform; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 11/11 test waveform-hover-scrub.test.cjs PASS 100%, 98/98 test suites PASS 100% | Lượt kế tiếp: Pha C - Tính Năng: Đồng bộ hóa lyrics đa nguồn (LRCLIB fallback + nhãn đồng bộ thời gian thực theo câu & từ) hoặc Quản lý Playlist thông minh kéo thả -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 13:30 +07 | Đã xong: Pha C & Bugfixes - Sắp xếp Hàng đợi Kéo thả HTML5 (Drag & Drop Queue Reordering), Nâng cấp Toast Top-Center & Cố định kích thước Mini Player HUD: (1) Khắc phục triệt để lỗi Toast che khuất dạng sóng/lời bài hát (Image 1) bằng cách chuyển vị trí #toast lên Top-Center (top-6 sm:top-8 left-1/2 z-[120], bo tròn rounded-full với hiệu ứng kính mờ backdrop-blur-xl cao cấp); (2) Khắc phục triệt để lỗi Mini Player HUD (Image 3) vỡ khung dạng sóng bằng CSS scoped !important #mini-player-hud canvas { width:72px!important; height:26px!important; } và tính năng double-click đặt lại vị trí nổi; (3) Hệ thống kéo thả hàng đợi chuẩn HTML5: helper thuần reorderQueueByIds trong library-utils.js, tay cầm kéo ⠿ (queue-drag-handle), đường chỉ báo vị trí thả trước/sau thời gian thực (queue-drag-over-top / bottom), cập nhật lookahead preload và thông báo toast; (4) Chuẩn hóa phím tắt: M bật/tắt Mini Player HUD, U tắt/bật âm thanh (Mute), Q bật/tắt Hàng đợi; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 48/48 tests PASS 100%, 99/99 test suites PASS 100% | Lượt kế tiếp: Pha D - Kiến Trúc & Hiệu Năng PWA: Service Worker Dynamic Audio Stream Chunking & Cache-First Strategy -->
 </body>
 </html>
