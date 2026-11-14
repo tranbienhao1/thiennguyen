@@ -4879,5 +4879,175 @@
     return `TP ${sign}${tp.toFixed(1)} dBTP`;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge};
+  // Pha B — Cử Chỉ Vuốt Cảm Ứng Di Động (Mobile Touch Swipe Gestures) & Hiệu Ứng Đàn Hồi Vật Lý (Spring Physics)
+  function calculateSwipeGesture(startX, startY, endX, endY, deltaMs, options = {}) {
+    const sX = Number(startX) || 0;
+    const sY = Number(startY) || 0;
+    const eX = Number(endX) || 0;
+    const eY = Number(endY) || 0;
+    const dt = Math.max(1, Number(deltaMs) || 1);
+
+    const deltaX = Math.round((eX - sX) * 10) / 10;
+    const deltaY = Math.round((eY - sY) * 10) / 10;
+    const distance = Math.round(Math.hypot(deltaX, deltaY) * 10) / 10;
+    const velocity = Math.round((distance / dt) * 100) / 100; // px/ms
+
+    const minDistance = Number.isFinite(options.minDistance) ? options.minDistance : 45;
+    const maxCrossAxis = Number.isFinite(options.maxCrossAxis) ? options.maxCrossAxis : 85;
+    const velocityThreshold = Number.isFinite(options.velocityThreshold) ? options.velocityThreshold : 0.25;
+
+    let direction = 'none';
+
+    // Horizontal swipe (Left / Right)
+    if (Math.abs(deltaX) >= minDistance || (Math.abs(deltaX) >= minDistance * 0.65 && velocity >= velocityThreshold)) {
+      if (Math.abs(deltaX) > Math.abs(deltaY) * 1.25 && Math.abs(deltaY) <= maxCrossAxis) {
+        direction = deltaX < 0 ? 'swipe_left' : 'swipe_right';
+      }
+    }
+
+    // Vertical swipe (Down: Dismiss / Up: Expand)
+    if (direction === 'none') {
+      if (Math.abs(deltaY) >= minDistance || (Math.abs(deltaY) >= minDistance * 0.65 && velocity >= velocityThreshold)) {
+        if (Math.abs(deltaY) > Math.abs(deltaX) * 1.25 && Math.abs(deltaX) <= maxCrossAxis) {
+          direction = deltaY > 0 ? 'swipe_down' : 'swipe_up';
+        }
+      }
+    }
+
+    return {
+      direction,
+      deltaX,
+      deltaY,
+      distance,
+      velocity,
+      isValidSwipe: direction !== 'none'
+    };
+  }
+
+  function calculateSpringTransform(deltaX, deltaY, isHorizontal = true, maxDragPx = 180) {
+    const dX = Number(deltaX) || 0;
+    const dY = Number(deltaY) || 0;
+    const maxDrag = Math.max(50, Number(maxDragPx) || 180);
+
+    if (isHorizontal) {
+      const sign = dX >= 0 ? 1 : -1;
+      const raw = Math.abs(dX);
+      const damped = Math.round(sign * Math.min(maxDrag, Math.pow(raw, 0.82) * 1.75) * 10) / 10;
+      const rotateDeg = Math.round((damped / maxDrag) * 7.5 * 100) / 100;
+      const progress = Math.min(1, Math.abs(damped) / maxDrag);
+      const opacity = Math.round(Math.max(0.4, 1 - progress * 0.5) * 100) / 100;
+      const scale = Math.round(Math.max(0.92, 1 - progress * 0.08) * 1000) / 1000;
+      return {
+        translateX: damped,
+        translateY: 0,
+        rotateDeg,
+        scale,
+        opacity,
+        progress,
+        cssTransform: `translate3d(${damped}px, 0, 0) scale(${scale}) rotate(${rotateDeg}deg)`
+      };
+    }
+
+    // Vertical pull-down
+    const dampedY = Math.round(Math.max(0, Math.min(maxDrag, Math.pow(Math.max(0, dY), 0.82) * 1.75)) * 10) / 10;
+    const progress = Math.min(1, dampedY / maxDrag);
+    const opacity = Math.round(Math.max(0.4, 1 - progress * 0.55) * 100) / 100;
+    const scale = Math.round(Math.max(0.90, 1 - progress * 0.1) * 1000) / 1000;
+    return {
+      translateX: 0,
+      translateY: dampedY,
+      rotateDeg: 0,
+      scale,
+      opacity,
+      progress,
+      cssTransform: `translate3d(0, ${dampedY}px, 0) scale(${scale})`
+    };
+  }
+
+  function formatSwipeHint(direction) {
+    switch (direction) {
+      case 'swipe_left':
+        return 'Chuyển sang bài tiếp theo ➔';
+      case 'swipe_right':
+        return 'Quay lại bài trước ‹';
+      case 'swipe_down':
+        return 'Đóng màn hình ✕';
+      case 'swipe_up':
+        return 'Mở toàn màn hình ⛶';
+      default:
+        return '';
+    }
+  }
+
+  // Pha B — Hiện Sóng Dao Động Ký Thời Gian Thực (Real-Time Oscilloscope Waveform)
+  function renderVisualizerOscilloscope(context, options = {}) {
+    if (!context || !options) return false;
+    const width = Number(options.width) || 0;
+    const height = Number(options.height) || 0;
+    if (width <= 0 || height <= 0) return false;
+
+    const data = options.data;
+    if (!data || data.length === 0) return false;
+
+    const theme = getVisualizerTheme(options.theme);
+    const strokeWidth = Number.isFinite(options.strokeWidth) ? Math.max(1, options.strokeWidth) : 2;
+    const glow = options.glow !== false;
+
+    // Center reference line
+    if (options.showCenterLine) {
+      context.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(0, height / 2);
+      context.lineTo(width, height / 2);
+      context.stroke();
+    }
+
+    let grad;
+    try {
+      grad = context.createLinearGradient(0, 0, width, 0);
+      for (const stop of theme.stops) {
+        grad.addColorStop(stop.offset, stop.color);
+      }
+    } catch (_) {
+      grad = theme.peakColor || '#a78bfa';
+    }
+
+    context.lineWidth = strokeWidth;
+    context.strokeStyle = grad;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+
+    if (glow && typeof context.shadowBlur === 'number') {
+      context.shadowBlur = 8;
+      context.shadowColor = theme.peakColor || '#a78bfa';
+    }
+
+    context.beginPath();
+    const sliceWidth = width / (data.length - 1);
+    let x = 0;
+
+    for (let i = 0; i < data.length; i++) {
+      const v = (data[i] || 128) / 128.0; // 0..2, with 1.0 being center
+      const y = (v * height) / 2;
+
+      if (i === 0) {
+        context.moveTo(x, y);
+      } else {
+        context.lineTo(x, y);
+      }
+      x += sliceWidth;
+    }
+
+    context.stroke();
+
+    // Reset shadow
+    if (glow && typeof context.shadowBlur === 'number') {
+      context.shadowBlur = 0;
+    }
+
+    return true;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope};
 });

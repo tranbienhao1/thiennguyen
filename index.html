@@ -946,7 +946,7 @@
     <div id="ambient-glow" aria-hidden="true"></div>
     <div class="mx-auto flex min-h-full max-w-6xl flex-col"><header class="flex items-center justify-between"><span class="text-[10px] font-semibold uppercase tracking-[.24em] text-violet-200">NOCTURNE · NOW PLAYING</span><button id="room-close" type="button" class="rounded-xl border border-white/10 px-3 py-2 text-sm text-zinc-300 hover:bg-white/10" aria-label="Đóng màn hình Đang phát">Đóng ×</button></header>
       <main class="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,.85fr)] lg:gap-16">
-        <div class="relative mx-auto aspect-square w-full max-w-[min(72vw,520px)] overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 shadow-2xl shadow-violet-950/20"><div class="absolute inset-0 bg-gradient-to-br from-violet-500/15 via-transparent to-black/40"></div><img id="room-cover" class="relative h-full w-full object-contain" alt="Bìa album" hidden><div id="room-cover-empty" class="grid h-full w-full place-items-center text-8xl text-violet-200/70">♫</div></div>
+        <div id="room-cover-wrap" class="relative mx-auto aspect-square w-full max-w-[min(72vw,520px)] overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 shadow-2xl shadow-violet-950/20 select-none touch-none"><div class="absolute inset-0 bg-gradient-to-br from-violet-500/15 via-transparent to-black/40"></div><img id="room-cover" class="relative h-full w-full object-contain" alt="Bìa album" hidden><div id="room-cover-empty" class="grid h-full w-full place-items-center text-8xl text-violet-200/70">♫</div></div>
         <section class="min-w-0"><p class="text-[10px] uppercase tracking-[.2em] text-zinc-500">Đang phát</p><h1 id="room-title" class="mt-3 break-words text-3xl font-semibold tracking-tight sm:text-4xl">Chưa phát nhạc</h1><p id="room-artist" class="mt-2 text-lg text-zinc-300">Chọn một bài hát để bắt đầu</p><p id="room-album" class="mt-1 text-sm text-zinc-500">—</p>
           <div class="mt-5 flex flex-wrap items-center gap-2"><span id="room-quality" class="rounded-md border border-white/10 px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-zinc-400">READY</span><button id="room-favorite" type="button" class="rounded-md border border-white/10 px-2.5 py-1.5 text-sm text-zinc-300 hover:text-pink-300" aria-label="Thêm vào yêu thích">♡</button><div id="room-rating" class="flex items-center gap-1 cursor-pointer text-amber-400 text-base select-none px-2.5 py-1 rounded-md border border-white/10 bg-white/[.03]" aria-label="Đánh giá 5 sao" title="Đánh giá bài hát"><span class="star" data-rating="1">☆</span><span class="star" data-rating="2">☆</span><span class="star" data-rating="3">☆</span><span class="star" data-rating="4">☆</span><span class="star" data-rating="5">☆</span></div></div>
           <div class="mt-7 rounded-2xl border border-white/[.08] bg-white/[.03] p-4">
@@ -1204,7 +1204,7 @@
 
     <!-- Center Stage (Album Art & Audio Format Specification) -->
     <div id="fullscreen-stage-art" class="relative z-10 flex flex-1 flex-col items-center justify-center p-4 min-h-0">
-      <div class="relative aspect-square w-[min(72vw,46vh,420px)] shadow-2xl shadow-black/90 overflow-hidden bg-zinc-900 border border-white/10">
+      <div id="fullscreen-cover-wrap" class="relative aspect-square w-[min(72vw,46vh,420px)] shadow-2xl shadow-black/90 overflow-hidden bg-zinc-900 border border-white/10 select-none touch-none">
         <img id="fullscreen-cover-img" class="h-full w-full object-cover hidden" alt="Bìa album">
         <div id="fullscreen-cover-empty" class="grid h-full w-full place-items-center text-6xl text-zinc-600">♫</div>
       </div>
@@ -1520,7 +1520,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art' };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art' };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -3546,7 +3546,18 @@
             }
           }
         }
-        if (typeof library !== 'undefined' && library && typeof library.renderVisualizerSpectrum === 'function') {
+        if (state.visualizerMode === 'oscilloscope' && typeof library !== 'undefined' && library && typeof library.renderVisualizerOscilloscope === 'function') {
+          const oscBuf = new Uint8Array(analyser.frequencyBinCount);
+          analyser.getByteTimeDomainData(oscBuf);
+          library.renderVisualizerOscilloscope(context, {
+            data: oscBuf,
+            width,
+            height,
+            theme: state.visualizerTheme || 'cyber',
+            showCenterLine: true,
+            strokeWidth: 2
+          });
+        } else if (typeof library !== 'undefined' && library && typeof library.renderVisualizerSpectrum === 'function') {
           const normVals = [];
           for (let i = 0; i < bars; i++) {
             const dataIndex = Math.min(data.length - 1, Math.floor(i * data.length / bars));
@@ -8256,7 +8267,122 @@
           toast(`Chủ đề Spectrum: ${themeInfo.name}`);
         }
       });
+      const toggleVisualizerMode = (e) => {
+        if (e) e.preventDefault();
+        state.visualizerMode = state.visualizerMode === 'oscilloscope' ? 'spectrum' : 'oscilloscope';
+        try { localStorage.setItem('nocturne-visualizer-mode', state.visualizerMode); } catch (_) {}
+        toast(state.visualizerMode === 'oscilloscope' ? 'Chế độ: Dao động ký thời gian thực (Oscilloscope)' : 'Chế độ: Phổ tần số FFT (Spectrum)');
+      };
+      visualizerCanvas.addEventListener('contextmenu', toggleVisualizerMode);
+      visualizerCanvas.addEventListener('dblclick', toggleVisualizerMode);
     }
+
+    // Pha B — Cử Chỉ Vuốt Cảm Ứng Di Động (Mobile Touch Swipe Gestures) & Hiệu Ứng Đàn Hồi Vật Lý
+    function attachTouchSwipe(element, options = {}) {
+      if (!element) return;
+      let startX = 0, startY = 0, startTime = 0;
+      let isDragging = false;
+      const isFs = options.isFullscreen || false;
+
+      element.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        startX = t.clientX;
+        startY = t.clientY;
+        startTime = Date.now();
+        isDragging = true;
+        element.style.transition = 'none';
+      }, { passive: true });
+
+      element.addEventListener('touchmove', (e) => {
+        if (!isDragging || e.touches.length !== 1) return;
+        const t = e.touches[0];
+        const deltaX = t.clientX - startX;
+        const deltaY = t.clientY - startY;
+
+        const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+        if (lib && typeof lib.calculateSpringTransform === 'function') {
+          const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+          const spring = lib.calculateSpringTransform(deltaX, deltaY, isHorizontal, 140);
+          element.style.transform = spring.cssTransform;
+          element.style.opacity = spring.opacity;
+        }
+      }, { passive: true });
+
+      element.addEventListener('touchend', (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        if (!e.changedTouches || !e.changedTouches.length) {
+          element.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+          element.style.transform = '';
+          element.style.opacity = '';
+          return;
+        }
+        const t = e.changedTouches[0];
+        const endX = t.clientX;
+        const endY = t.clientY;
+        const duration = Date.now() - startTime;
+
+        const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+        const gesture = (lib && typeof lib.calculateSwipeGesture === 'function')
+          ? lib.calculateSwipeGesture(startX, startY, endX, endY, duration, { minDistance: 45 })
+          : { direction: 'none' };
+
+        element.style.transition = 'transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.32s ease';
+
+        if (gesture.direction === 'swipe_left') {
+          element.style.transform = 'translate3d(-100px, 0, 0) scale(0.9) rotate(-5deg)';
+          element.style.opacity = '0';
+          setTimeout(() => {
+            playNext(1, false);
+            element.style.transition = 'none';
+            element.style.transform = 'translate3d(100px, 0, 0) scale(0.9) rotate(5deg)';
+            requestAnimationFrame(() => {
+              element.style.transition = 'transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.32s ease';
+              element.style.transform = '';
+              element.style.opacity = '';
+            });
+          }, 140);
+          toast(lib?.formatSwipeHint ? lib.formatSwipeHint('swipe_left') : 'Chuyển sang bài tiếp theo ➔');
+        } else if (gesture.direction === 'swipe_right') {
+          element.style.transform = 'translate3d(100px, 0, 0) scale(0.9) rotate(5deg)';
+          element.style.opacity = '0';
+          setTimeout(() => {
+            playPrevious();
+            element.style.transition = 'none';
+            element.style.transform = 'translate3d(-100px, 0, 0) scale(0.9) rotate(5deg)';
+            requestAnimationFrame(() => {
+              element.style.transition = 'transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.32s ease';
+              element.style.transform = '';
+              element.style.opacity = '';
+            });
+          }, 140);
+          toast(lib?.formatSwipeHint ? lib.formatSwipeHint('swipe_right') : 'Quay lại bài trước ‹');
+        } else if (gesture.direction === 'swipe_down') {
+          element.style.transform = 'translate3d(0, 70px, 0) scale(0.92)';
+          element.style.opacity = '0';
+          setTimeout(() => {
+            if (isFs) toggleRoonFullscreen(false);
+            else closeListeningRoom();
+            element.style.transform = '';
+            element.style.opacity = '';
+          }, 140);
+        } else {
+          element.style.transform = '';
+          element.style.opacity = '';
+        }
+      });
+
+      element.addEventListener('touchcancel', () => {
+        isDragging = false;
+        element.style.transition = 'transform 0.25s ease, opacity 0.25s ease';
+        element.style.transform = '';
+        element.style.opacity = '';
+      });
+    }
+
+    attachTouchSwipe($('room-cover-wrap'), { isFullscreen: false });
+    attachTouchSwipe($('fullscreen-cover-wrap'), { isFullscreen: true });
 
     let dragDepth = 0;
     document.addEventListener('dragenter', event => { event.preventDefault(); dragDepth++; $('drop-target').classList.remove('hidden'); $('drop-target').classList.add('flex'); });
@@ -8824,5 +8950,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 17:30 +07 | Đã xong: Pha C - Core Features: Bù Trừ Độ Trễ Lời Bài Hát Thời Gian Thực (Synced Lyrics Real-Time Offset Calibration) & Chế Độ Lời Bài Hát Toàn Màn Hình Roon (Immersive Fullscreen Lyrics Stage): (1) calculateLyricsOffsetTime tính toán mốc thời gian thực tế bù trừ độ trễ giữa âm thanh và lời bài hát, clampLyricsOffset kẹp an toàn [-10s, 10s] và formatLyricsOffset hiển thị chuẩn ms trực quan (+500ms, -250ms, Chuẩn 0ms); (2) calculateLyricsLineOpacity điều tiết độ mờ/sáng tập trung giọng hát (vocal focus) mượt mà theo khoảng cách dòng; (3) Chế độ xem Lời bài hát Toàn màn hình Roon: chuyển đổi linh hoạt Bìa album / Lời bài hát (#fullscreen-view-art-btn, #fullscreen-view-lyrics-btn, #fullscreen-stage-art, #fullscreen-stage-lyrics, #fullscreen-lyrics-scroll) cuộn mượt 60fps; (4) Cụm nút cân chỉnh độ trễ lời bài hát ở cả Toàn màn hình (#fs-lyrics-offset-minus/plus/reset, #fs-lyrics-offset-val) và Phòng nghe (#room-lyrics-offset-minus/plus, #room-lyrics-offset-badge), tự động lưu localStorage bền vững theo từng bài hát; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests lyrics-offset-fullscreen.test.cjs PASS 100%, 107/107 test suites PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản lý bộ đệm IndexedDB & Tối ưu hóa tải trước đa luồng -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 18:00 +07 | Đã xong: Pha D - Hiệu Năng, Kiến Trúc & PWA: Quản Lý Bộ Đệm Âm Thanh LRU Đa Tầng, Thích Ứng Hạn Ngạch Dung Lượng & Đo Lường Độ Trễ Bộ Nhớ (Adaptive Quota LRU Audio Cache & Storage Health Diagnostics): (1) calculateAdaptiveCacheLimits điều tiết hạn mức bộ đệm theo dung lượng đĩa thực tế (tiết kiệm khẩn cấp 8 lát/8MB khi đầy >=90%, thận trọng 14 lát/14MB, tối ưu 20 lát/20MB); (2) computeLruCacheEviction thuật toán loại bỏ bản ghi lâu không truy cập nhất (LRU) dựa trên lastAccessedAt và savedAt, bảo vệ các khóa pinnedKeys của bài đang nghe/nạp trước; (3) formatCacheTelemetry đo lường độ trễ đọc cache vs mạng thời gian thực (Cache HIT/MISS); (4) evaluateStorageHealth chấm điểm sức khỏe lưu trữ PWA (A+/B/C/D) kèm huy hiệu #storage-health-grade trực quan; (5) Tích hợp IndexedDB firstSliceCache tự động cập nhật mốc truy cập và dọn dẹp an toàn; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests adaptive-lru-cache.test.cjs PASS 100%, 108/108 test suites PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: ReplayGain True Peak Metering & Oversampled Inter-Sample Peak Limiter -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 18:30 +07 | Đã xong: Pha A - Audio Engine & DSP: Đo Lường True Peak Thời Gian Thực & Phát Hiện Đỉnh Sóng Liên Mẫu (Inter-Sample Peak Metering & Headroom Safety Engine): (1) calculateInterSamplePeak phát hiện đỉnh sóng thực tế nội suy 4x Hermite theo chuẩn ITU-R BS.1770 / EBU R128, tính toán samplePeakDb, truePeakDbtp, interSampleOvershootDb và cờ isClipping; (2) calculateTruePeakHeadroom tính mức bù suy giảm đề xuất chống xén ngọn (clipping) trên bộ giải mã DAC; (3) formatTruePeakBadge định dạng huy hiệu TP trực quan (TP -1.2 dBTP hoặc TP +0.8 ⚠); (4) Tích hợp UI audiophile: #footer-tp-badge tại thanh điều khiển footer và #room-tp-badge tại Phòng nghe #listening-room, cập nhật mượt mà theo time domain stream; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 4/4 tests true-peak-metering.test.cjs PASS 100%, 109/109 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer Hiện Đại: Vũ trường ánh sáng dynamic visualizer strobe theo dải Bass/Vocal hoặc mini-player swipe gesture -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 19:00 +07 | Đã xong: Pha B - UI/UX & Visualizer: Cử Chỉ Vuốt Cảm Ứng Di Động (Mobile Touch Swipe Gestures with Damped Spring Physics) & Chế Độ Hiện Sóng Dao Động Ký Thời Gian Thực (Real-Time Oscilloscope Waveform Visualizer): (1) calculateSwipeGesture nhận diện cử chỉ vuốt ngang/dọc đa chạm chính xác (swipe_left: bài tiếp, swipe_right: bài trước, swipe_down: đóng màn hình); (2) calculateSpringTransform mô phỏng vật lý kéo đàn hồi (rubber-band spring physics) với góc xoay, độ mờ và scale thích ứng 60fps; (3) formatSwipeHint xuất gợi ý chỉ dẫn audiophile; (4) renderVisualizerOscilloscope kết xuất dao động ký sóng âm thời gian thực theo mảng byte time-domain data kèm hiệu ứng shadow glow và đường 0-crossing tham chiếu; (5) Tích hợp UI: chuyển đổi chế độ Spectrum ↔ Oscilloscope khi nhấp đúp/chuột phải trên #visualizer, điều khiển vuốt đa chạm trên cả Phòng nghe (#room-cover-wrap) và Toàn màn hình (#fullscreen-cover-wrap); (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests touch-swipe-oscilloscope.test.cjs PASS 100%, 110/110 test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features: Synced Lyrics Live Scrubber & Smart Queue Preload Analytics -->
 </body>
 </html>

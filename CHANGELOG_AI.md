@@ -2,6 +2,36 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 19:00 +07] — [Pha B: UI/UX & Visualizer Hiện Đại] Cử Chỉ Vuốt Cảm Ứng Di Động (Mobile Touch Swipe Gestures with Damped Spring Physics) & Chế Độ Hiện Sóng Dao Động Ký Thời Gian Thực (Real-Time Oscilloscope Waveform Visualizer)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **2. UI/UX & Visualizer Hiện Đại**.
+- **Chi tiết triển khai:**
+  1. **Động Cơ Nhận Diện Cử Chỉ Vuốt Cảm Ứng (`calculateSwipeGesture`):**
+     - Đo lường chính xác khoảng cách $(\Delta x, \Delta y)$, vận tốc kéo $v = d / \Delta t$ và góc chuyển động đa trục.
+     - Phân định chuẩn xác các cử chỉ:
+       + `swipe_left`: Chuyển sang bài tiếp theo (Next Track).
+       + `swipe_right`: Quay lại bài trước (Previous Track).
+       + `swipe_down`: Đóng màn hình đang phát / hạ màn hình toàn màn hình (Dismiss).
+       + `swipe_up`: Mở rộng giao diện hoặc toàn màn hình.
+     - Lọc nhiễu chống rung giật (anti-jitter) và chống xung đột cử chỉ chéo trục (cross-axis tolerance).
+  2. **Mô Phỏng Vật Lý Kéo Đàn Hồi 60fps (`calculateSpringTransform`):**
+     - Áp dụng thuật toán giảm chấn phi tuyến (damped rubber-band physics) với hàm lũy thừa $d^{0.82} \times 1.75$ kẹp theo giới hạn `maxDragPx`.
+     - Tính toán góc nghiêng động `rotateDeg` ($\pm 7.5^\circ$), tỷ lệ co dãn `scale` ($0.92 \dots 1.0$) và độ mờ `opacity` mang lại cảm giác xúc giác mượt mà 60fps chuẩn native app (Apple Music / Spotify).
+  3. **Chỉ Dẫn & Phản Hồi Trực Quan (`formatSwipeHint`):**
+     - Hiển thị thông điệp toast xúc tích: `Chuyển sang bài tiếp theo ➔`, `Quay lại bài trước ‹`, `Đóng màn hình ✕`.
+  4. **Chế Độ Hiện Sóng Dao Động Ký Thời Gian Thực (`renderVisualizerOscilloscope`):**
+     - Bổ sung chế độ hiển thị sóng âm time-domain byte buffer với đường sóng mềm mại, hiệu ứng phát sáng neon `shadowBlur`, và vạch trục đối xứng 0-crossing.
+     - Hỗ trợ đổi chế độ trên `#visualizer` bằng thao tác nhấp đúp (Double-Click) hoặc chuột phải (Context Menu) giữa **Phổ tần số FFT (Spectrum)** và **Dao động ký (Oscilloscope)**, lưu trữ bền vững trong `localStorage`.
+  5. **Tích Hợp Giao Diện Đa Thiết Bị (DOM Touch Integration):**
+     - Gắn bộ xử lý cử chỉ vuốt trực tiếp trên `#room-cover-wrap` (Phòng nghe `#listening-room`) và `#fullscreen-cover-wrap` (Toàn màn hình `#roon-fullscreen-view`).
+  6. **Kiểm Thử Độc Lập & Bảo Toàn Bất Biến:**
+     - Bộ kiểm thử mới `touch-swipe-oscilloscope.test.cjs` (**5/5 tests PASS 100%**).
+     - Toàn bộ 110 test suites toàn dự án (**PASS 100%**).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 18:30 +07] — [Pha A: Audio Engine & DSP] Đo Lường True Peak Thời Gian Thực & Phát Hiện Đỉnh Sóng Liên Mẫu (Inter-Sample Peak Metering & Headroom Safety Engine)
 
 ### 🎯 Hạng Mục Nâng Cấp:
