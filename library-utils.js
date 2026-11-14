@@ -952,7 +952,7 @@
     const excludeSet = new Set(Array.isArray(options.excludeIds) ? options.excludeIds : []);
     if (currentTrack && currentTrack.id) excludeSet.add(currentTrack.id);
 
-    const candidates = tracks.filter(t => t && t.id && !excludeSet.has(t.id));
+    const candidates = tracks.filter(t => t && t.id && !excludeSet.has(t.id) && (!options.isOffline || canPlayOffline(t)));
     if (candidates.length === 0) return null;
 
     const currentMeta = currentTrack ? trackMetadata(currentTrack) : null;
@@ -3637,5 +3637,112 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage};
+  // ── Pha D — PWA Architecture: Intelligent Offline Autoplay & Resilient Playback Protection ──
+  function getOfflineTrackList(tracks) {
+    if (!Array.isArray(tracks)) return [];
+    return tracks.filter(t => canPlayOffline(t));
+  }
+
+  function shouldPreloadTrack(track, options = {}) {
+    if (!track) return false;
+    const isOffline = !!options.isOffline;
+    if (isOffline && !canPlayOffline(track)) return false;
+    return true;
+  }
+
+  function getNextPlayableTrack(tracks, currentIndex, direction = 1, options = {}) {
+    if (!Array.isArray(tracks) || tracks.length === 0) {
+      return { track: null, index: -1, wasFiltered: false };
+    }
+
+    const isOffline = !!options.isOffline;
+    const shuffle = !!options.shuffle;
+    const repeat = Number.isInteger(options.repeat) ? options.repeat : 0;
+    const dir = direction >= 0 ? 1 : -1;
+
+    // Case 1: Repeat One
+    if (repeat === 2 && currentIndex >= 0 && currentIndex < tracks.length) {
+      const cur = tracks[currentIndex];
+      if (!isOffline || canPlayOffline(cur)) {
+        return { track: cur, index: currentIndex, wasFiltered: false };
+      }
+    }
+
+    // Case 2: Offline Mode Filtering
+    if (isOffline) {
+      const offlineIndices = [];
+      for (let i = 0; i < tracks.length; i++) {
+        if (canPlayOffline(tracks[i])) {
+          offlineIndices.push(i);
+        }
+      }
+
+      if (offlineIndices.length === 0) {
+        return { track: null, index: -1, wasFiltered: true };
+      }
+
+      // Offline Shuffle
+      if (shuffle) {
+        const available = offlineIndices.filter(idx => idx !== currentIndex);
+        if (available.length === 0) {
+          return { track: tracks[offlineIndices[0]], index: offlineIndices[0], wasFiltered: true };
+        }
+        const pickedIdx = available[Math.floor(Math.random() * available.length)];
+        return { track: tracks[pickedIdx], index: pickedIdx, wasFiltered: true };
+      }
+
+      // Offline Sequential
+      let currentOfflinePos = offlineIndices.indexOf(currentIndex);
+      if (currentOfflinePos === -1) {
+        if (dir > 0) {
+          const nextIdx = offlineIndices.find(idx => idx > currentIndex);
+          const chosen = nextIdx !== undefined ? nextIdx : (repeat === 1 ? offlineIndices[0] : -1);
+          return chosen >= 0
+            ? { track: tracks[chosen], index: chosen, wasFiltered: true }
+            : { track: null, index: -1, wasFiltered: true };
+        } else {
+          const prevIndices = offlineIndices.filter(idx => idx < currentIndex);
+          const chosen = prevIndices.length > 0 ? prevIndices[prevIndices.length - 1] : (repeat === 1 ? offlineIndices[offlineIndices.length - 1] : -1);
+          return chosen >= 0
+            ? { track: tracks[chosen], index: chosen, wasFiltered: true }
+            : { track: null, index: -1, wasFiltered: true };
+        }
+      }
+
+      let nextOfflinePos = currentOfflinePos + dir;
+      if (nextOfflinePos >= offlineIndices.length) {
+        if (repeat === 1) nextOfflinePos = 0;
+        else return { track: null, index: -1, wasFiltered: true };
+      } else if (nextOfflinePos < 0) {
+        if (repeat === 1) nextOfflinePos = offlineIndices.length - 1;
+        else return { track: null, index: -1, wasFiltered: true };
+      }
+
+      const targetIdx = offlineIndices[nextOfflinePos];
+      return { track: tracks[targetIdx], index: targetIdx, wasFiltered: true };
+    }
+
+    // Case 3: Online Normal Mode
+    if (shuffle) {
+      const available = tracks.map((_, i) => i).filter(i => i !== currentIndex);
+      if (available.length === 0) {
+        return { track: tracks[currentIndex] || null, index: currentIndex, wasFiltered: false };
+      }
+      const pickedIdx = available[Math.floor(Math.random() * available.length)];
+      return { track: tracks[pickedIdx], index: pickedIdx, wasFiltered: false };
+    }
+
+    let nextIdx = currentIndex + dir;
+    if (nextIdx >= tracks.length) {
+      if (repeat === 1) nextIdx = 0;
+      else return { track: null, index: -1, wasFiltered: false };
+    } else if (nextIdx < 0) {
+      if (repeat === 1) nextIdx = tracks.length - 1;
+      else return { track: null, index: -1, wasFiltered: false };
+    }
+
+    return { track: tracks[nextIdx], index: nextIdx, wasFiltered: false };
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack};
 });

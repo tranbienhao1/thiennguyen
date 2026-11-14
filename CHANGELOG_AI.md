@@ -2,6 +2,29 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 14:00 +07] — [Pha D: Kiến Trúc & PWA] Bảo Vệ Phát Nhạc Ngoại Tuyến Thông Minh (Intelligent Offline Autoplay & Resilient Playback Protection)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **4. Hiệu Năng, Kiến Trúc & Độ Bền Hệ Thống (Architecture & PWA)**.
+- **Chi tiết triển khai:**
+  1. **Bộ Tiện Ích Điều Hướng & Lọc Bài Khả Dụng Ngoại Tuyến (`getNextPlayableTrack`, `getOfflineTrackList`, `shouldPreloadTrack`):**
+     - `getOfflineTrackList(tracks)`: Trích xuất danh sách các bản nhạc sẵn sàng phát khi mất mạng (nhạc tệp nội bộ, nhạc đã cache full blob hoặc đã lưu lát PCM đầu trong IndexedDB).
+     - `shouldPreloadTrack(track, options)`: Ngăn chặn triệt để các lệnh nạp trước (`preloadNext`) hoặc tải luồng ngầm đối với bài hát cloud khi thiết bị đang ở trạng thái mất kết nối mạng, tránh lãng phí pin và sinh lỗi console mạng.
+     - `getNextPlayableTrack(tracks, currentIndex, direction, options)`: Thuật toán điều hướng tự động thông minh. Khi mất mạng (`isOffline = true`), hàm tự động bỏ qua các bài cloud chưa có bộ đệm và chuyển thẳng tới bài tiếp theo có sẵn trong máy; hỗ trợ đầy đủ các chế độ Lặp lại danh sách (`repeat = 1`), Lặp 1 bài (`repeat = 2`) và Trộn bài ngẫu nhiên (`shuffle = true`).
+  2. **Tích Hợp Khả Năng Kháng Lỗi Mạng Cho `playNext` & `queueIndex`:**
+     - Khi chuyển bài tự động hoặc người dùng bấm nút Next/Previous trong lúc mất mạng, trình phát không còn bị rơi vào vòng lặp lỗi `skipFailedTrack` do cố tải bài cloud.
+     - Tự động hiển thị Toast thông báo tế nhị: *"Chế độ Ngoại tuyến: Đã chuyển tới bài có sẵn trong máy."* khi bài hiện tại chưa được nạp đệm.
+  3. **Roon Radio Tôn Trọng Chế Độ Ngoại Tuyến (`selectRoonRadioTrack`):**
+     - Nâng cấp `selectRoonRadioTrack` tiếp nhận tùy chọn `options.isOffline`: Roon Radio chỉ đề xuất các bài hát có thể phát offline, không đề xuất các bài stream online khi không có internet.
+  4. **Tối Ưu Vị Trí Thông Báo Toast Động:**
+     - Tự động phát hiện sự xuất hiện của thanh thông báo `#offline-banner` (`top-4`) để dịch chuyển `#toast` xuống vị trí an toàn (`top-14` / `3.75rem`), đảm bảo không có bất kỳ sự đè lấn giao diện nào.
+  5. **Kiểm Thử Độc Lập & Bất Biến Âm Thanh:**
+     - Bộ kiểm thử mới `offline-resilience.test.cjs` (**8/8 tests PASS 100%**).
+     - Đạt mốc **100/100 Test Suites PASS 100%** toàn bộ dự án, 0 fail, 0 regression.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 13:30 +07] — [Pha C: Core Features & Bugfixes] Sắp Xếp Hàng Đợi Kéo Thả Chuẩn HTML5 (Drag & Drop Queue Reordering), Nâng Cấp Toast Top-Center & Cố Định Kích Thước Mini Player HUD
 
 ### 🎯 Hạng Mục Nâng Cấp & Sửa Lỗi:

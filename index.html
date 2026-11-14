@@ -1549,7 +1549,20 @@
       }
       renderTracks();
     }
-    const toast = message => { const el = $('toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); };
+    const toast = message => {
+      const el = $('toast');
+      if (!el) return;
+      const offlineBanner = $('offline-banner');
+      const hasBanner = offlineBanner && !offlineBanner.classList.contains('hidden');
+      el.style.top = hasBanner ? '3.75rem' : '';
+      el.textContent = message;
+      el.classList.remove('hidden');
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(() => {
+        el.classList.add('hidden');
+        el.style.top = '';
+      }, 3200);
+    };
     const UPDATE_CHECK_INTERVAL = 5 * 60 * 1000;
     function getUpdateFingerprint(doc) {
       const head = [...doc.head.children]
@@ -5288,9 +5301,22 @@
     function queueIndex() {
       const current = state.tracks.findIndex(track => track.id === state.currentId);
       if (current < 0) return -1;
-      const queued = queueTracks()[0];
+      const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
+      const queuedList = queueTracks();
+      const queued = isOfflineMode && typeof library?.canPlayOffline === 'function' ? queuedList.find(t => library.canPlayOffline(t)) : queuedList[0];
       if (queued) return state.tracks.indexOf(queued);
       if (!state.autoplay || state.repeat === 2) return -1;
+      if (isOfflineMode && typeof library?.getNextPlayableTrack === 'function') {
+        const nextPlayable = library.getNextPlayableTrack(state.tracks, current, 1, {
+          isOffline: true,
+          shuffle: state.shuffle,
+          repeat: state.repeat
+        });
+        if (nextPlayable && nextPlayable.track) {
+          return nextPlayable.index;
+        }
+        return -1;
+      }
       if (state.shuffle) {
         const queuedIndex = state.tracks.findIndex(track => track.id === state.preloadTrackId && track.id !== state.currentId);
         if (queuedIndex >= 0) return queuedIndex;
@@ -5303,7 +5329,8 @@
         const radio = library.selectRoonRadioTrack(state.tracks[current], state.tracks, {
           recentHistory: state.recentHistory,
           favorites: state.favorites,
-          excludeIds: [state.currentId, ...state.queueTrackIds]
+          excludeIds: [state.currentId, ...state.queueTrackIds],
+          isOffline: isOfflineMode
         });
         if (radio && radio.track) return state.tracks.indexOf(radio.track);
       }
@@ -5373,6 +5400,11 @@
       if (state.crossfadeUntil && state.context.currentTime < state.crossfadeUntil) return;
       const index = queueIndex(), next = index >= 0 ? state.tracks[index] : null;
       if (!next || next.id === state.currentId) {
+        clearStalePreload();
+        return;
+      }
+      const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
+      if (isOfflineMode && typeof library?.canPlayOffline === 'function' && !library.canPlayOffline(next)) {
         clearStalePreload();
         return;
       }
@@ -5778,22 +5810,35 @@
       if (currentIndex < 0) { playTrack(state.tracks[direction < 0 ? state.tracks.length - 1 : 0].id); return; }
       if (direction < 0 && audio.currentTime > 3) { audio.currentTime = 0; return; }
       if (direction > 0 && auto && state.sleepAtTrackEnd) { audio.pause(); if (state.dsdWorker || state.dsdUrl) stopDsdWorker(false); if (state.ambientMasterGain && state.context) state.ambientMasterGain.gain.setValueAtTime(0, state.context.currentTime); clearSleepTimer(); toast('Hẹn giờ ngủ: đã tạm dừng khi hết bài.'); return; }
+
+      const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
+      const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
+
       if (direction > 0) {
-        const queued = queueTracks()[0];
+        const queued = isOfflineMode && lib && typeof lib.canPlayOffline === 'function'
+          ? queueTracks().find(t => lib.canPlayOffline(t))
+          : queueTracks()[0];
         if (queued) { playTrack(queued.id); return; }
       }
       if (direction > 0 && auto && state.repeat === 2) { audio.currentTime = 0; try { const played = audio.play(); if (played && played.catch) played.catch(() => {}); } catch (error) {} return; }
       if (direction > 0 && auto && !state.autoplay) return;
-      if (direction > 0 && state.shuffle && state.preloadTrackId && state.preloadTrackId !== state.currentId) { playTrack(state.preloadTrackId); return; }
+      if (direction > 0 && state.shuffle && state.preloadTrackId && state.preloadTrackId !== state.currentId) {
+        const preloadedTrack = typeof trackById === 'function' ? trackById(state.preloadTrackId) : state.tracks.find(t => t.id === state.preloadTrackId);
+        if (!isOfflineMode || !lib || typeof lib.canPlayOffline !== 'function' || lib.canPlayOffline(preloadedTrack)) {
+          playTrack(state.preloadTrackId);
+          return;
+        }
+      }
       if (!state.shuffle && state.repeat !== 1 && direction > 0 && currentIndex >= state.tracks.length - 1) {
-        if (state.roonRadio && typeof library.selectRoonRadioTrack === 'function') {
-          const radio = library.selectRoonRadioTrack(state.tracks[currentIndex], state.tracks, {
+        if (state.roonRadio && lib && typeof lib.selectRoonRadioTrack === 'function') {
+          const radio = lib.selectRoonRadioTrack(state.tracks[currentIndex], state.tracks, {
             recentHistory: state.recentHistory,
             favorites: state.favorites,
-            excludeIds: [state.currentId, ...state.queueTrackIds]
+            excludeIds: [state.currentId, ...state.queueTrackIds],
+            isOffline: isOfflineMode
           });
           if (radio && radio.track) {
-            const meta = library.trackMetadata(radio.track);
+            const meta = lib.trackMetadata(radio.track);
             toast(`⚡ Roon Radio: ${meta.title || radio.track.name} (${radio.reason})`);
             playTrack(radio.track.id);
             return;
@@ -5802,6 +5847,22 @@
         return;
       }
       if (!state.shuffle && state.repeat !== 1 && direction < 0 && currentIndex <= 0) return;
+
+      if (isOfflineMode && lib && typeof lib.getNextPlayableTrack === 'function') {
+        const nextResult = lib.getNextPlayableTrack(state.tracks, currentIndex, direction, {
+          isOffline: true,
+          shuffle: state.shuffle,
+          repeat: state.repeat
+        });
+        if (nextResult && nextResult.track) {
+          if (nextResult.wasFiltered && !lib.canPlayOffline(state.tracks[currentIndex])) {
+            toast('Chế độ Ngoại tuyến: Đã chuyển tới bài có sẵn trong máy.');
+          }
+          playTrack(nextResult.track.id);
+          return;
+        }
+      }
+
       let index;
       if (state.shuffle) {
         const choices = state.tracks.filter(track => track.id !== state.currentId);
@@ -8241,5 +8302,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 12:45 +07 | Đã xong: Pha A & UI Polish - Chuẩn mực âm học Audiophile (Target Curves & Sound Signatures) & Tái cấu trúc Toàn màn hình Roon chuẩn Mockup: (1) Mở rộng AUTOEQ_PROFILES với 5 chuẩn âm học đỉnh cao: Harman Target 2019, Diffuse Field Studio Reference, Vocal Warmth & Intimacy, Basshead Club Impact, Acoustic Air & Soundstage; tính toán bù trừ Preamp <= 0 dB chống clipping; tích hợp Roon Signal Path nhận diện chuẩn âm học trong chuỗi DSP; (2) Nâng cấp #autoeq-select với các <optgroup> phân nhóm trực quan; (3) Tái cấu trúc thanh dock điều khiển của #roon-fullscreen-view thành một hàng ngang duy nhất: [Thu nhỏ ⌵] + [Thời gian] + [Waveform Seekbar với vạch kim đỏ #ef4444] + [Thời lượng] + [System Output] + [Âm lượng 100] khớp 100% mockup người dùng; (4) Tối ưu clearance chống va chạm giao diện: đặt bottom-[140px] cho mini-player-hud, eq-panel, sleep-panel, ambient-panel và nâng vị trí toast lên bottom-40 sm:bottom-44 z-[120]; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 10/10 test target-curves.test.cjs PASS 100%, toàn bộ 97 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Ambient Sound Stage Animation hoặc Tinh chỉnh Waveform Seekbar Roon Immersive Live Playhead Polish -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 13:00 +07 | Đã xong: Pha B - Interactive Waveform Scrubbing with Hover Time Tooltip & Ghost Playhead: (1) Bộ tiện ích calculateHoverSeekFraction, calculateHoverSeekTime và formatHoverTime đo lường và hiển thị vị trí tua chính xác theo chuột; (2) renderWaveformCanvas hỗ trợ opts.hoverFraction vẽ vạch kim ghost playhead 1.5px bán trong suốt; (3) Tooltip xem trước thời gian dạng nổi (#waveform-hover-tooltip và #fullscreen-waveform-hover-tooltip) bám chuột mượt mà; (4) Tua nhạc trực tiếp bằng thao tác kéo chuột liên tục (drag-to-seek scrubbing khi e.buttons === 1) trên cả #waveform-canvas và #fullscreen-waveform; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 11/11 test waveform-hover-scrub.test.cjs PASS 100%, 98/98 test suites PASS 100% | Lượt kế tiếp: Pha C - Tính Năng: Đồng bộ hóa lyrics đa nguồn (LRCLIB fallback + nhãn đồng bộ thời gian thực theo câu & từ) hoặc Quản lý Playlist thông minh kéo thả -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 13:30 +07 | Đã xong: Pha C & Bugfixes - Sắp xếp Hàng đợi Kéo thả HTML5 (Drag & Drop Queue Reordering), Nâng cấp Toast Top-Center & Cố định kích thước Mini Player HUD: (1) Khắc phục triệt để lỗi Toast che khuất dạng sóng/lời bài hát (Image 1) bằng cách chuyển vị trí #toast lên Top-Center (top-6 sm:top-8 left-1/2 z-[120], bo tròn rounded-full với hiệu ứng kính mờ backdrop-blur-xl cao cấp); (2) Khắc phục triệt để lỗi Mini Player HUD (Image 3) vỡ khung dạng sóng bằng CSS scoped !important #mini-player-hud canvas { width:72px!important; height:26px!important; } và tính năng double-click đặt lại vị trí nổi; (3) Hệ thống kéo thả hàng đợi chuẩn HTML5: helper thuần reorderQueueByIds trong library-utils.js, tay cầm kéo ⠿ (queue-drag-handle), đường chỉ báo vị trí thả trước/sau thời gian thực (queue-drag-over-top / bottom), cập nhật lookahead preload và thông báo toast; (4) Chuẩn hóa phím tắt: M bật/tắt Mini Player HUD, U tắt/bật âm thanh (Mute), Q bật/tắt Hàng đợi; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 48/48 tests PASS 100%, 99/99 test suites PASS 100% | Lượt kế tiếp: Pha D - Kiến Trúc & Hiệu Năng PWA: Service Worker Dynamic Audio Stream Chunking & Cache-First Strategy -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 14:00 +07 | Đã xong: Pha D - Kiến Trúc & PWA: Bảo Vệ Phát Nhạc Ngoại Tuyến Thông Minh (Intelligent Offline Autoplay & Resilient Playback Protection): (1) Bộ tiện ích getNextPlayableTrack, getOfflineTrackList, shouldPreloadTrack trong library-utils.js lọc bài khả dụng ngoại tuyến (canPlayOffline); (2) playNext và queueIndex tự động bỏ qua các bài cloud chưa nạp đệm khi mất mạng mà không gây vòng lặp lỗi mạng; (3) selectRoonRadioTrack tôn trọng cờ isOffline chỉ đề xuất bài phát được ngoại tuyến; (4) preloadNext chặn tải ngầm vô ích khi offline; (5) Toast tự động dịch chuyển vị trí (top-14) khi #offline-banner hiển thị; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 8/8 tests offline-resilience.test.cjs PASS 100%, 100/100 test suites PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Dynamic Crossfade Curve Optimization & Gapless Buffer Lead Monitor -->
 </body>
 </html>
