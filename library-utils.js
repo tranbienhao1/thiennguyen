@@ -3975,8 +3975,131 @@
         { offset: 1, color: '#38bdf8' }
       ],
       peakColor: '#bae6fd'
+    },
+    crimson: {
+      id: 'crimson',
+      name: 'Crimson Velvet Night',
+      stops: [
+        { offset: 0, color: '#991b1b' },
+        { offset: 0.5, color: '#ef4444' },
+        { offset: 1, color: '#fb7185' }
+      ],
+      peakColor: '#fecdd3'
+    },
+    amethyst: {
+      id: 'amethyst',
+      name: 'Deep Amethyst Glow',
+      stops: [
+        { offset: 0, color: '#581c87' },
+        { offset: 0.5, color: '#8b5cf6' },
+        { offset: 1, color: '#c084fc' }
+      ],
+      peakColor: '#f5d0fe'
     }
   };
+
+  function hexToRgba(hex, alpha = 1) {
+    if (typeof hex !== 'string') return `rgba(255, 255, 255, ${alpha})`;
+    let clean = hex.replace('#', '');
+    if (clean.length === 3) {
+      clean = clean.split('').map(c => c + c).join('');
+    }
+    if (clean.length === 6) {
+      const r = parseInt(clean.substring(0, 2), 16) || 0;
+      const g = parseInt(clean.substring(2, 4), 16) || 0;
+      const b = parseInt(clean.substring(4, 6), 16) || 0;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    return `rgba(255, 255, 255, ${alpha})`;
+  }
+
+  function calculateVisualizerStrobe(energyOrData, prevStrobe = {}, options = {}) {
+    let bass = 0;
+    let isBeat = false;
+
+    if (energyOrData && typeof energyOrData.bass === 'number') {
+      bass = energyOrData.bass;
+      isBeat = Boolean(energyOrData.isBeatPulse);
+    } else if (Array.isArray(energyOrData) || (energyOrData && typeof energyOrData.length === 'number')) {
+      const total = energyOrData.length;
+      if (total > 0) {
+        let sum = 0;
+        const count = Math.min(total, 16);
+        for (let i = 0; i < count; i++) {
+          sum += (Number(energyOrData[i]) || 0) / 255;
+        }
+        bass = count > 0 ? (sum / count) : 0;
+        isBeat = bass > 0.65;
+      }
+    }
+
+    const threshold = Number(options.threshold) || 0.62;
+    const decayRate = Number(options.decayRate) || 0.88;
+    const prevIntensity = Number(prevStrobe?.intensity) || 0;
+
+    let intensity = prevIntensity * decayRate;
+    let isTriggered = false;
+
+    if (bass >= threshold || isBeat) {
+      const boost = Math.min(1.0, 0.4 + (bass - threshold) * 1.5);
+      intensity = Math.min(1.0, intensity + boost);
+      isTriggered = true;
+    }
+
+    if (intensity < 0.02) intensity = 0;
+
+    const pulseScale = 1.0 + Math.min(0.08, intensity * 0.08);
+    const flashOpacity = Math.min(0.3, intensity * 0.25);
+    const flashColor = options.color || 'rgba(255, 255, 255, 0.2)';
+
+    return {
+      isStrobeTriggered: isTriggered || intensity > 0.35,
+      intensity: Number(intensity.toFixed(3)),
+      pulseScale: Number(pulseScale.toFixed(3)),
+      flashOpacity: Number(flashOpacity.toFixed(3)),
+      flashColor,
+      bassEnergy: Number(bass.toFixed(3))
+    };
+  }
+
+  function renderVisualizerBackdropGlow(context, options = {}) {
+    if (!context || !options) return false;
+    const width = Number(options.width) || 0;
+    const height = Number(options.height) || 0;
+    if (width <= 0 || height <= 0) return false;
+
+    const strobe = options.strobe;
+    const intensity = Number(strobe?.intensity) || 0;
+    if (intensity < 0.03) return false;
+
+    const theme = getVisualizerTheme(options.theme);
+    const color = (theme && theme.peakColor) || '#c084fc';
+
+    try {
+      if (typeof context.save === 'function') context.save();
+      const centerX = width / 2;
+      const centerY = height * 0.85;
+      const radius = Math.max(width, height) * 0.75;
+
+      const glowGrad = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+      const alpha = Math.min(0.28, intensity * 0.25);
+      glowGrad.addColorStop(0, hexToRgba(color, alpha));
+      glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+      context.fillStyle = glowGrad;
+      context.fillRect(0, 0, width, height);
+      if (typeof context.restore === 'function') context.restore();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function formatVisualizerThemeSummary(themeId) {
+    const theme = getVisualizerTheme(themeId);
+    const stopsCount = Array.isArray(theme.stops) ? theme.stops.length : 0;
+    return `${theme.name} · ${stopsCount} bậc màu · Đỉnh ${theme.peakColor}`;
+  }
 
   function getVisualizerTheme(themeId) {
     if (!themeId || typeof themeId !== 'string') return VISUALIZER_THEMES.cyber;
@@ -5511,6 +5634,7 @@
       autoEqProfile: configSource.autoEqProfile || 'none',
       visualizerTheme: configSource.visualizerTheme || 'cyber',
       visualizerMode: configSource.visualizerMode || 'spectrum',
+      visualizerStrobeEnabled: configSource.visualizerStrobeEnabled !== false,
       ambientStageMode: configSource.ambientStageMode || 'reactive',
       limiterMode: configSource.limiterMode || 'transparent',
       roomAcousticProfile: configSource.roomAcousticProfile || 'bypass',
@@ -5597,6 +5721,7 @@
       if (s.autoEqProfile !== undefined) { currentState.autoEqProfile = s.autoEqProfile; appliedSettingsCount++; }
       if (s.visualizerTheme !== undefined) { currentState.visualizerTheme = s.visualizerTheme; appliedSettingsCount++; }
       if (s.visualizerMode !== undefined) { currentState.visualizerMode = s.visualizerMode; appliedSettingsCount++; }
+      if (s.visualizerStrobeEnabled !== undefined) { currentState.visualizerStrobeEnabled = Boolean(s.visualizerStrobeEnabled); appliedSettingsCount++; }
       if (s.ambientStageMode !== undefined) { currentState.ambientStageMode = s.ambientStageMode; appliedSettingsCount++; }
       if (s.limiterMode !== undefined) { currentState.limiterMode = s.limiterMode; appliedSettingsCount++; }
       if (s.roomAcousticProfile !== undefined) { currentState.roomAcousticProfile = s.roomAcousticProfile; appliedSettingsCount++; }
@@ -6158,5 +6283,5 @@
     }
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary};
 });

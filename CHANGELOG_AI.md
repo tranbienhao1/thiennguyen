@@ -2,6 +2,33 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 03:30 +07] — Pha B: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe, Hào Quang Nền Phủ Rộng & Bảng Màu Spectrum Audiophile Mới (Crimson Velvet & Deep Amethyst)
+
+### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:
+- **Phân khu trọng tâm:** **Giao Diện Trực Quan Âm Học & Vũ Trường Ánh Sáng Thời Gian Thực (UI/UX, Visualizer Strobe & Spectrum Palettes)**.
+- **Tính năng & Đột phá:**
+  1. **Hai Bảng Màu Audiophile Mới Trong `VISUALIZER_THEMES`:**
+     - **Crimson Velvet Night (`crimson`):** Tông màu đỏ nhung rượu vang quý phái với gradient chuyển tiếp từ đỏ sẫm Burgundy (`#991b1b`), đỏ tươi ấm (`#ef4444`) đến hồng ngọc rực rỡ (`#fb7185`), điểm đỉnh peak color màu cánh hoa hồng pastel (`#fecdd3`).
+     - **Deep Amethyst Glow (`amethyst`):** Tông màu thạch anh tím hoàng gia huyền ảo, chuyển tiếp từ tím đen hoàng hôn (`#581c87`), tím tử đinh hương (`#8b5cf6`) đến tím sáng Neon (`#c084fc`), đỉnh peak color màu thạch anh tím ánh kim (`#f5d0fe`).
+  2. **Bộ Tính Toán Xung Nhịp Chớp Sáng `calculateVisualizerStrobe`:**
+     - Tự động bắt nhịp âm trầm (Sub-bass transient detector) và nhịp Kick drum từ năng lượng FFT hoặc dải phân tích âm thanh đa kênh.
+     - Tạo xung nhịp chớp sáng vũ trường (Strobe pulse) với độ co giãn động `pulseScale` (1.00 – 1.08) và độ mờ lóe sáng `flashOpacity` tỷ lệ thuận theo công suất bản nhạc.
+     - Tự động phân rã mượt mà (decay rate 0.88) sau mỗi cú đập bass, mang lại cảm giác sống động, nhịp nhàng theo từng nốt nhạc.
+  3. **Kết Xuất Hào Quang Nền Tỏa Tròn `renderVisualizerBackdropGlow`:**
+     - Vẽ hào quang nền dạng Gradient tỏa tròn (Radial Gradient) lan tỏa từ chân phổ tần số lên đỉnh canvas 60fps.
+     - Sử dụng hàm tiện ích `hexToRgba` chuyển hóa linh hoạt màu đỉnh dải phổ (`peakColor`) thành ánh hào quang nền mờ ảo, nâng tầm thẩm mỹ thị giác chuẩn audiophile lounge.
+  4. **Tích Hợp Giao Diện, Phím Tắt & Cấu Hình Sao Lưu:**
+     - Thêm công tắc chuyển đổi `#visualizer-strobe-toggle` "Chớp nhịp Visualizer Strobe Pulse" và chú thích `#visualizer-strobe-desc` trong modal Cài đặt.
+     - Bổ sung phím tắt **`T`** / **`t`** trên bàn phím và thao tác **`Shift + Click`** trên canvas `#visualizer` giúp xoay vòng tuần tự qua toàn bộ 9 bảng màu audiophile (`cyber`, `sunset`, `aurora`, `monochrome`, `emerald`, `amber`, `ocean`, `crimson`, `amethyst`).
+     - Tích hợp sao lưu cấu hình toàn diện trong `exportAppConfiguration` và `mergeRestoredConfiguration` với cờ `visualizerStrobeEnabled`.
+  5. **Bảo Toàn Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `visualizer-strobe-palettes.test.cjs` (**24/24 tests PASS 100%**).
+  - Toàn bộ 95/95 test suites với 829/829 bài kiểm tra trong kho mã nguồn (**PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 03:10 +07] — Bugfix Triệt Để: Khắc Phục Hiện Tượng Bị Back Ra Ngoài Khi Đang Ở Trong View Chi Tiết Album (Album Scope Persistence & Safe Re-Rendering Engine)
 
 ### 🎯 Hạng Mục Nâng Cấp & Săn Lỗi:

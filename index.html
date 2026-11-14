@@ -759,6 +759,11 @@
         <div><h3 class="text-sm font-medium text-amber-100">Sân khấu Ánh sáng Động (Ambient Stage Lighting)</h3><p class="mt-1 text-[10px] leading-4 text-zinc-500">Đồng bộ hào quang nền và màu sắc bìa album theo năng lượng âm học thời gian thực (nhịp Bass và dải Vocal 60fps).</p></div>
         <label class="mt-3 block text-[10px] text-zinc-400">Chế độ ánh sáng sân khấu<select id="ambient-stage-mode-select" class="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"><option value="reactive">Vũ trường Ánh sáng (Audio-Reactive 60fps)</option><option value="subtle">Phòng nghe Tinh tế (Audiophile Lounge)</option><option value="static">Tĩnh từ Bìa Album (Album Art Glow)</option><option value="off">Tắt hào quang</option></select></label>
         <p id="ambient-stage-mode-desc" class="mt-2 text-[10px] text-zinc-400 font-mono">Hào quang phập phồng và chuyển động 60fps đồng bộ theo nhịp đập Bass và năng lượng Vocal.</p>
+        <label class="mt-3 flex items-center justify-between text-[11px] text-zinc-300 cursor-pointer">
+          <span>Chớp nhịp Visualizer Strobe Pulse</span>
+          <input id="visualizer-strobe-toggle" type="checkbox" checked class="h-4 w-4 rounded border-white/10 bg-zinc-950 text-amber-400 focus:ring-0">
+        </label>
+        <p id="visualizer-strobe-desc" class="mt-1 text-[10px] text-zinc-400 font-mono">Chớp sáng nhịp đập âm trầm (Sub-bass transient strobe) &amp; hào quang nền phủ rộng 60fps.</p>
       </section>
       <section class="mt-4 rounded-2xl border border-rose-300/20 bg-rose-300/[.03] p-4">
         <h3 class="text-sm font-medium text-rose-100">Làm mới thư viện Cloud</h3>
@@ -1587,7 +1592,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art' };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art' };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -3660,11 +3665,13 @@
     let visualizerFrame = 0, visualizerGeneration = 0;
     let visualizerPeaks = [];
     let vuLevelL = null, vuLevelR = null;
+    let visualizerStrobeState = { intensity: 0, pulseScale: 1 };
     function setVisualizerRunning(running) {
       visualizerGeneration++;
       if (!running) {
         if (visualizerFrame) cancelAnimationFrame(visualizerFrame);
         visualizerFrame = 0;
+        visualizerStrobeState = { intensity: 0, pulseScale: 1 };
         const roomGlow = $('ambient-glow');
         if (roomGlow) { roomGlow.style.transform = 'scale(1)'; roomGlow.style.opacity = ''; }
         const appBackdrop = $('app-ambient-backdrop');
@@ -3705,6 +3712,13 @@
             appBackdrop.style.transform = stageTransform.transform;
             if (stageTransform.opacity > 0) appBackdrop.style.opacity = String(Math.min(0.4, stageTransform.opacity * 0.45));
           }
+        }
+        if (state.visualizerStrobeEnabled && typeof library !== 'undefined' && library && typeof library.calculateVisualizerStrobe === 'function') {
+          const sampleRate = state.context ? state.context.sampleRate : 44100;
+          const energy = (typeof library.calculateAudioEnergyBands === 'function')
+            ? library.calculateAudioEnergyBands(data, sampleRate, analyser.fftSize)
+            : data;
+          visualizerStrobeState = library.calculateVisualizerStrobe(energy, visualizerStrobeState);
         }
         if (++frame % 30 === 0) {
           analyser.getByteTimeDomainData(timeData);
@@ -3772,6 +3786,14 @@
               }
             }
           }
+        }
+        if (state.visualizerStrobeEnabled && visualizerStrobeState && visualizerStrobeState.intensity > 0.02 && typeof library !== 'undefined' && library && typeof library.renderVisualizerBackdropGlow === 'function') {
+          library.renderVisualizerBackdropGlow(context, {
+            width,
+            height,
+            theme: state.visualizerTheme || 'cyber',
+            strobe: visualizerStrobeState
+          });
         }
         if (state.visualizerMode === 'oscilloscope' && typeof library !== 'undefined' && library && typeof library.renderVisualizerOscilloscope === 'function') {
           const oscBuf = new Uint8Array(analyser.frequencyBinCount);
@@ -7105,6 +7127,7 @@
         autoEqProfile: state.autoEqProfile,
         visualizerTheme: state.visualizerTheme,
         visualizerMode: state.visualizerMode,
+        visualizerStrobeEnabled: state.visualizerStrobeEnabled,
         ambientStageMode: state.ambientStageMode,
         limiterMode: state.limiterMode,
         roomAcousticProfile: state.roomAcousticProfile,
@@ -7152,6 +7175,7 @@
           if (s.autoEqProfile) localStorage.setItem('nocturne-autoeq-profile', s.autoEqProfile);
           if (s.visualizerTheme) localStorage.setItem('nocturne-visualizer-theme', s.visualizerTheme);
           if (s.visualizerMode) localStorage.setItem('nocturne-visualizer-mode', s.visualizerMode);
+          if (s.visualizerStrobeEnabled !== undefined) localStorage.setItem('nocturne-visualizer-strobe', String(s.visualizerStrobeEnabled));
           if (s.ambientStageMode) localStorage.setItem('nocturne-ambient-stage-mode', s.ambientStageMode);
           if (s.limiterMode) localStorage.setItem('nocturne-limiter-mode', s.limiterMode);
           if (s.roomAcousticProfile) localStorage.setItem('nocturne-room-acoustics-profile', s.roomAcousticProfile);
@@ -7204,6 +7228,11 @@
       const profile = (typeof library !== 'undefined' && library.AMBIENT_STAGE_MODES) ? library.AMBIENT_STAGE_MODES[state.ambientStageMode || 'reactive'] : null;
       if (profile) desc.textContent = profile.description;
     }
+    $('visualizer-strobe-toggle')?.addEventListener('change', event => {
+      state.visualizerStrobeEnabled = Boolean(event.target.checked);
+      try { localStorage.setItem('nocturne-visualizer-strobe', String(state.visualizerStrobeEnabled)); } catch (_) {}
+      toast(state.visualizerStrobeEnabled ? 'Đã bật chớp nhịp Visualizer Strobe' : 'Đã tắt chớp nhịp Visualizer Strobe');
+    });
     $('crossfade-seconds').addEventListener('change', event => {
       state.crossfadeSeconds = library.clampCrossfadeSeconds(event.target.value, 0);
       try { localStorage.setItem('nocturne-crossfade-seconds', String(state.crossfadeSeconds)); } catch (error) { console.warn('Could not save crossfade setting:', error); }
@@ -8825,9 +8854,9 @@
 
     const visualizerCanvas = $('visualizer');
     if (visualizerCanvas) {
-      visualizerCanvas.addEventListener('click', () => {
+      visualizerCanvas.addEventListener('click', (e) => {
         if (typeof library !== 'undefined' && library && typeof library.cycleVisualizerTheme === 'function') {
-          state.visualizerTheme = library.cycleVisualizerTheme(state.visualizerTheme);
+          state.visualizerTheme = (e && e.shiftKey) ? library.cycleVisualizerTheme(state.visualizerTheme, { all: true }) : library.cycleVisualizerTheme(state.visualizerTheme);
           try { localStorage.setItem('nocturne-visualizer-theme', state.visualizerTheme); } catch (_) {}
           const themeInfo = (typeof library.getVisualizerTheme === 'function') ? library.getVisualizerTheme(state.visualizerTheme) : { name: state.visualizerTheme };
           toast(`Chủ đề Spectrum: ${themeInfo.name}`);
@@ -9117,6 +9146,13 @@
       }
       if (typeof updateAmbientStageDesc === 'function') updateAmbientStageDesc();
     } catch (error) { console.warn('Could not load saved ambient stage mode:', error); }
+    try {
+      const savedStrobe = localStorage.getItem('nocturne-visualizer-strobe');
+      if (savedStrobe !== null) state.visualizerStrobeEnabled = savedStrobe !== 'false';
+      if ($('visualizer-strobe-toggle')) {
+        $('visualizer-strobe-toggle').checked = state.visualizerStrobeEnabled !== false;
+      }
+    } catch (_) {}
     try { state.favorites = new Set(JSON.parse(localStorage.getItem('nocturne-favorites') || '[]')); } catch (error) { state.favorites = new Set(); }
     try {
       const savedRadio = localStorage.getItem('nocturne-roon-radio');
@@ -9442,6 +9478,14 @@
           ? library.formatVisualizerMode(state.visualizerMode)
           : state.visualizerMode;
         toast(`Chế độ: ${modeLabel}`);
+      } else if ((e.key === 't' || e.key === 'T') && !isInput && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        if (typeof library !== 'undefined' && library && typeof library.cycleVisualizerTheme === 'function') {
+          state.visualizerTheme = library.cycleVisualizerTheme(state.visualizerTheme, { all: true });
+          try { localStorage.setItem('nocturne-visualizer-theme', state.visualizerTheme); } catch (_) {}
+          const themeInfo = (typeof library.getVisualizerTheme === 'function') ? library.getVisualizerTheme(state.visualizerTheme) : { name: state.visualizerTheme };
+          toast(`Chủ đề Phổ & Hào quang: ${themeInfo.name}`);
+        }
       }
     });
     openDatabase().then(restoreRecentTracks).catch(error => { console.error('IndexedDB is unavailable:', error); restoreRecentTracks(); toast('Không thể bật lịch sử IndexedDB; mục nghe gần đây vẫn lưu trong trình duyệt.'); });
@@ -9621,5 +9665,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 02:50 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản Lý Bộ Đệm IndexedDB, Thu Hồi Lát Âm Thanh Mồ Côi & Đường Ống Tải Trước Đa Tầng (Multi-Track Pipeline Preloader, IndexedDB Defragmentation & Gapless Readiness Score): (1) scheduleMultiTrackPreload phân bổ đường ống nạp trước đa tầng (Track +1 Full/Slice, Track +2 First-Slice, Track +3 Metadata) thích ứng theo băng thông mạng (4G, 3G, 2G, SaveData, Offline) và điều tiết concurrency trần; (2) defragmentCacheDatabase quét và phát hiện các lát âm thanh mồ côi (orphaned keys) và slice hết hạn trong firstSliceCache IndexedDB, thu hồi dung lượng rác và tính điểm toàn vẹn cơ sở dữ liệu (integrity score 0-100%); (3) calculatePreloadReadiness & formatPreloadReadinessBadge đo lường mức độ sẵn sàng phát liền mạch Gapless 0ms theo trạng thái readyState và lookahead buffer seconds; (4) Tích hợp UI PWA: nút #defrag-cache-btn 'Chống phân mảnh & Thu hồi rác', hộp tóm tắt độ toàn vẹn #storage-defrag-summary trong #storage-quota-section, và huy hiệu thời gian thực #room-preload-readiness trong Phòng nghe; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination) | Lượt kế tiếp: Pha A - Audio Engine & DSP: Parametric EQ Presets & Tối ưu hóa chuỗi xử lý âm thanh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:00 +07 | Đã xong: Pha A - Audio Engine & DSP: Đa Tuyến Parametric EQ Presets Audiophile & Tối Ưu Headroom Preamp Tự Động (Audiophile Parametric EQ Presets, Negative Preamp & Biquad Filter Coherence): (1) PARAMETRIC_EQ_PRESETS với 6 trường phái âm học chuyên sâu: Sub-Bass Slam, Vocal Clarity & Air, Acoustic Guitar & Piano, Vintage Tube Warmth, Sibilance De-Esser, Orchestral Grandeur; (2) getParametricEqPreset & listParametricEqPresets trích xuất và validate an toàn tham số Biquad filter (peaking, lowshelf, highshelf, Q-factor, gain dB); (3) calculatePresetAutoPreamp tự động bù suy giảm âm học Preamp <= 0 dB triệt tiêu 100% hiện tượng xén ngọn méo tiếng (digital clipping) trên DAC; (4) Tích hợp UI #autoeq-select với nhóm riêng biệt <optgroup label="── Trường phái âm học PEQ (Parametric EQ Presets) ──">, tự động đồng bộ Roon Signal Path và lưu trữ localStorage bền vững; (5) formatParametricEqSummary hiển thị tóm tắt trực quan số dải lọc và mức bù Preamp; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination) | Lượt kế tiếp: Bugfix Triệt Để - Khắc phục tình trạng bị back ra ngoài khi ở trong view chi tiết Album -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:10 +07 | Đã xong: Bugfix Triệt Để - Khắc Phục Hiện Tượng Bị Back Ra Ngoài Khi Đang Ở Trong View Chi Tiết Album (Album Scope Persistence, Safe Re-rendering & Collection Entry State): (1) Sửa lỗi showRows trong renderCollectionCards và renderTracks luôn tôn trọng state.trackScope, ngăn chặn việc renderTracks (do playTrack, loadedmetadata, cache slice hoặc favorite) xóa rỗng track-list.innerHTML và kích hoạt lại lưới album; (2) Lưu trữ state.currentCollectionEntry giúp renderTracks tái tạo hoàn hảo tiêu đề, số lượng bài và hero header mà không bị reset về 'My Albums'; (3) Cập nhật openAlbum và openArtist thiết lập trực tiếp view và scope mà không gọi setLibraryView gây hủy trackScope; (4) Nút quay lại (#album-hero-back và #back-button) reset sạch state.trackScope và state.currentCollectionEntry khi người dùng chủ động muốn thoát; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 1/1 test album-view-persistence.test.cjs PASS 100%, toàn bộ 56/56 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe & Bảng Màu Spectrum Mới -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 03:30 +07 | Đã xong: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe, Hào Quang Nền Phủ Rộng & Bảng Màu Spectrum Audiophile Mới (Crimson Velvet & Deep Amethyst): (1) 2 bảng màu audiophile mới trong VISUALIZER_THEMES (crimson: Crimson Velvet Night #991b1b/#ef4444/#fb7185 với peak #fecdd3, amethyst: Deep Amethyst Glow #581c87/#8b5cf6/#c084fc với peak #f5d0fe); (2) calculateVisualizerStrobe tính toán xung nhịp chớp sáng âm trầm (bass transients) và xung Beat Pulse, tạo phản hồi ánh sáng phập phồng (pulseScale 1.0 - 1.08) và phân rã mượt mà (decay rate); (3) renderVisualizerBackdropGlow kết xuất hào quang nền tỏa tròn (radial gradient glow) từ đỉnh dải màu theo nhịp nhạc thời gian thực 60fps trên canvas; (4) formatVisualizerThemeSummary định dạng chuỗi mô tả chủ đề trực quan; (5) Tích hợp UI & Điều khiển: toggle #visualizer-strobe-toggle và mô tả #visualizer-strobe-desc trong Cài đặt Sân khấu Ánh sáng Động; phím tắt 't' / 'T' và Shift+Click trên #visualizer xoay vòng tuần tự qua toàn bộ 9 bảng màu audiophile; đồng bộ sao lưu exportAppConfiguration & mergeRestoredConfiguration; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 24/24 tests visualizer-strobe-palettes.test.cjs PASS 100%, toàn bộ 95/95 test suites (829/829 tests) PASS 100% | Lượt kế tiếp: Pha C - Core Features & Tối Ưu: Hệ Thống Chia Sẻ Danh Sách Phát & Đồng Bộ Hóa Đa Thiết Bị -->
 </body>
 </html>
