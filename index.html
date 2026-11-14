@@ -974,7 +974,7 @@
               <button id="zone-picker-btn" type="button" class="shrink-0 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-[11px] font-medium text-purple-200 transition hover:bg-purple-500/20 active:scale-95" aria-label="Đổi vùng phát">Đổi Vùng ▾</button>
             </div>
           </div>
-          <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div class="flex items-center gap-1 text-[10px] text-zinc-400"><button id="room-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Chậm hơn 0.5s">-0.5s</button><span id="room-lyrics-offset-badge" class="font-mono text-zinc-400 text-[10px] w-12 text-center" title="Bù trừ độ trễ lời bài hát">0ms</span><button id="room-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Nhanh hơn 0.5s">+0.5s</button></div></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
+          <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div class="flex items-center gap-1 text-[10px] text-zinc-400"><button id="room-lyrics-paste-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Dán nội dung .lrc">📋 Dán</button><button id="room-lyrics-export-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Xuất file .lrc">💾 Xuất</button><button id="room-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Chậm hơn 0.5s">-0.5s</button><span id="room-lyrics-offset-badge" class="font-mono text-zinc-400 text-[10px] w-12 text-center" title="Bù trừ độ trễ lời bài hát">0ms</span><button id="room-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Nhanh hơn 0.5s">+0.5s</button></div></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
           <div class="relative w-full group">
             <canvas id="waveform-canvas" class="w-full h-16 cursor-pointer rounded-sm mb-1" aria-label="Dạng sóng bài hát - nhấn để tua"></canvas>
             <div id="waveform-hover-tooltip" class="pointer-events-none absolute bottom-full mb-1 hidden -translate-x-1/2 rounded-md bg-zinc-800/95 border border-white/10 px-2 py-0.5 text-[10px] font-mono text-zinc-100 shadow-xl backdrop-blur-sm z-30 transition-opacity">0:00</div>
@@ -1002,6 +1002,7 @@
     <button id="queue-backdrop" type="button" class="absolute inset-0 cursor-default" aria-label="Đóng hàng đợi"></button>
     <aside class="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-white/10 bg-zinc-950/95 p-5 shadow-2xl backdrop-blur-2xl">
       <header class="flex items-center justify-between"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300">PLAY NEXT</p><h2 id="queue-title" class="mt-1 text-xl font-semibold">Hàng đợi <span id="queue-count" class="text-sm font-normal text-zinc-500">0</span></h2></div><button id="queue-close" type="button" class="rounded-xl border border-white/10 px-3 py-2 text-xs text-zinc-300 hover:bg-white/10" aria-label="Đóng hàng đợi">Đóng ×</button></header>
+      <div id="queue-metrics-bar" class="mt-2 flex items-center justify-between rounded-lg border border-white/10 bg-white/[.03] px-2.5 py-1 text-[10px] text-zinc-400 font-mono"><span>0 bài · 0:00</span><span>Chờ nạp</span></div>
       <section class="mt-6 rounded-2xl border border-violet-300/15 bg-violet-300/[.04] p-3"><p class="text-[9px] uppercase tracking-[.18em] text-zinc-500">Đang phát</p><div class="mt-2 flex min-w-0 items-center gap-3"><div id="queue-current-cover" class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-white/5 text-violet-200">♫</div><div class="min-w-0"><p id="queue-current-title" class="truncate text-xs font-medium text-zinc-200">Chưa phát nhạc</p><p id="queue-current-artist" class="mt-1 truncate text-[10px] text-zinc-500">—</p></div></div></section>
       <div class="mt-5 flex items-center justify-between gap-2"><h3 class="text-xs font-medium text-zinc-300">Phát tiếp theo</h3><div class="flex gap-2"><button id="queue-add-library" type="button" class="text-[10px] text-violet-300 hover:text-violet-200">＋ Thêm thư viện</button><button id="queue-clear" type="button" class="text-[10px] text-zinc-500 hover:text-rose-300">Xóa</button></div></div>
       <div id="queue-list" class="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto"></div>
@@ -4398,6 +4399,13 @@
     function renderQueue() {
       const list = $('queue-list'), tracks = queueTracks();
       $('queue-count').textContent = tracks.length; $('queue-empty').classList.toggle('hidden', tracks.length > 0);
+      if (typeof library !== 'undefined' && library && typeof library.calculateQueueMetrics === 'function') {
+        const metrics = library.calculateQueueMetrics(tracks);
+        const qBadge = $('queue-metrics-bar');
+        if (qBadge) {
+          qBadge.innerHTML = `<span>${library.formatQueueSummaryBadge(metrics)}</span><span class="${metrics.highResPercentage >= 50 ? 'text-violet-300' : 'text-zinc-500'}">Định dạng: ${Object.keys(metrics.formatBreakdown).join('/') || 'Audio'}</span>`;
+        }
+      }
       // Pha B — ghim bài đang phát làm hàng đầu danh sách hàng đợi (kèm nhãn
       // "Đang phát") để mở panel là thấy ngay vị trí đang nghe, rồi mới tới
       // các bài phát tiếp theo được đánh số 1..N như trước.
@@ -8772,6 +8780,46 @@
     const roomOffsetPlus = $('room-lyrics-offset-plus');
     if (roomOffsetPlus) roomOffsetPlus.addEventListener('click', () => setLyricsOffset(0.5));
 
+    const roomPasteBtn = $('room-lyrics-paste-btn');
+    if (roomPasteBtn) {
+      roomPasteBtn.addEventListener('click', () => {
+        const pasted = prompt('Dán nội dung lời bài hát (.lrc) vào đây:');
+        if (pasted && pasted.trim()) {
+          const cur = state.tracks.find(t => t.id === state.currentId);
+          if (cur) {
+            cur.lyricsText = pasted.trim();
+            try { localStorage.setItem(`nocturne-lyrics-${cur.id}`, cur.lyricsText); } catch (_) {}
+            renderLyrics(cur.lyricsText);
+            toast('Đã nạp lời bài hát thành công!');
+          }
+        }
+      });
+    }
+
+    const roomExportBtn = $('room-lyrics-export-btn');
+    if (roomExportBtn) {
+      roomExportBtn.addEventListener('click', () => {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (!cur) return toast('Chưa chọn bài hát để xuất lời.');
+        if (!state.lyrics || !state.lyrics.length) return toast('Bài hát hiện chưa có lời đồng bộ (.lrc) để xuất.');
+        const lrcContent = (typeof library !== 'undefined' && library && typeof library.generateLrcExportContent === 'function')
+          ? library.generateLrcExportContent(cur, state.lyrics, { offsetMs: state.lyricsOffset })
+          : cur.lyricsText;
+        if (!lrcContent) return toast('Không có nội dung lời bài hát.');
+        const blob = new Blob([lrcContent], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(cur) : cur;
+        a.download = `${meta.artist || 'Artist'} - ${meta.title || 'Track'}.lrc`.replace(/[\\/:*?"<>|]/g, '_');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        toast(`Đã xuất file: ${a.download}`);
+      });
+    }
+
     document.addEventListener('keydown', (e) => {
       const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
       if (e.key === 'Escape') {
@@ -8951,5 +8999,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 18:00 +07 | Đã xong: Pha D - Hiệu Năng, Kiến Trúc & PWA: Quản Lý Bộ Đệm Âm Thanh LRU Đa Tầng, Thích Ứng Hạn Ngạch Dung Lượng & Đo Lường Độ Trễ Bộ Nhớ (Adaptive Quota LRU Audio Cache & Storage Health Diagnostics): (1) calculateAdaptiveCacheLimits điều tiết hạn mức bộ đệm theo dung lượng đĩa thực tế (tiết kiệm khẩn cấp 8 lát/8MB khi đầy >=90%, thận trọng 14 lát/14MB, tối ưu 20 lát/20MB); (2) computeLruCacheEviction thuật toán loại bỏ bản ghi lâu không truy cập nhất (LRU) dựa trên lastAccessedAt và savedAt, bảo vệ các khóa pinnedKeys của bài đang nghe/nạp trước; (3) formatCacheTelemetry đo lường độ trễ đọc cache vs mạng thời gian thực (Cache HIT/MISS); (4) evaluateStorageHealth chấm điểm sức khỏe lưu trữ PWA (A+/B/C/D) kèm huy hiệu #storage-health-grade trực quan; (5) Tích hợp IndexedDB firstSliceCache tự động cập nhật mốc truy cập và dọn dẹp an toàn; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests adaptive-lru-cache.test.cjs PASS 100%, 108/108 test suites PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: ReplayGain True Peak Metering & Oversampled Inter-Sample Peak Limiter -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 18:30 +07 | Đã xong: Pha A - Audio Engine & DSP: Đo Lường True Peak Thời Gian Thực & Phát Hiện Đỉnh Sóng Liên Mẫu (Inter-Sample Peak Metering & Headroom Safety Engine): (1) calculateInterSamplePeak phát hiện đỉnh sóng thực tế nội suy 4x Hermite theo chuẩn ITU-R BS.1770 / EBU R128, tính toán samplePeakDb, truePeakDbtp, interSampleOvershootDb và cờ isClipping; (2) calculateTruePeakHeadroom tính mức bù suy giảm đề xuất chống xén ngọn (clipping) trên bộ giải mã DAC; (3) formatTruePeakBadge định dạng huy hiệu TP trực quan (TP -1.2 dBTP hoặc TP +0.8 ⚠); (4) Tích hợp UI audiophile: #footer-tp-badge tại thanh điều khiển footer và #room-tp-badge tại Phòng nghe #listening-room, cập nhật mượt mà theo time domain stream; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 4/4 tests true-peak-metering.test.cjs PASS 100%, 109/109 test suites PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer Hiện Đại: Vũ trường ánh sáng dynamic visualizer strobe theo dải Bass/Vocal hoặc mini-player swipe gesture -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 19:00 +07 | Đã xong: Pha B - UI/UX & Visualizer: Cử Chỉ Vuốt Cảm Ứng Di Động (Mobile Touch Swipe Gestures with Damped Spring Physics) & Chế Độ Hiện Sóng Dao Động Ký Thời Gian Thực (Real-Time Oscilloscope Waveform Visualizer): (1) calculateSwipeGesture nhận diện cử chỉ vuốt ngang/dọc đa chạm chính xác (swipe_left: bài tiếp, swipe_right: bài trước, swipe_down: đóng màn hình); (2) calculateSpringTransform mô phỏng vật lý kéo đàn hồi (rubber-band spring physics) với góc xoay, độ mờ và scale thích ứng 60fps; (3) formatSwipeHint xuất gợi ý chỉ dẫn audiophile; (4) renderVisualizerOscilloscope kết xuất dao động ký sóng âm thời gian thực theo mảng byte time-domain data kèm hiệu ứng shadow glow và đường 0-crossing tham chiếu; (5) Tích hợp UI: chuyển đổi chế độ Spectrum ↔ Oscilloscope khi nhấp đúp/chuột phải trên #visualizer, điều khiển vuốt đa chạm trên cả Phòng nghe (#room-cover-wrap) và Toàn màn hình (#fullscreen-cover-wrap); (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests touch-swipe-oscilloscope.test.cjs PASS 100%, 110/110 test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features: Synced Lyrics Live Scrubber & Smart Queue Preload Analytics -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-14 19:30 +07 | Đã xong: Pha C - Core Features: Thống Kê Hàng Đợi Thông Minh (Smart Queue Preload & Hi-Res Analytics), Tiến Trình Karaoke Từng Từ & Xuất Lời .LRC Chuẩn (Standard LRC Exporter): (1) calculateQueueMetrics phân tích định dạng âm thanh (FLAC, DSD, WAV, MP3), thời lượng tổng, tỷ lệ nhạc chuẩn Hi-Res và ước tính băng thông dữ liệu; (2) formatQueueSummaryBadge hiển thị tóm tắt hàng đợi trực quan; (3) calculateLyricWordProgress đo lường tiến trình 0.0–1.0 của từng từ đang hát cho hiệu ứng karaoke mượt mà; (4) generateLrcExportContent xuất file chuẩn .lrc với đầy đủ metadata headers ([ti:], [ar:], [al:], [offset:], [length:]); (5) Tích hợp UI: thanh tóm tắt #queue-metrics-bar trong panel Hàng đợi, nút dán [📋 Dán] và nút xuất file [💾 Xuất] trong thẻ Lời bài hát (#room-lyrics-paste-btn, #room-lyrics-export-btn); (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests smart-queue-lyrics-export.test.cjs PASS 100%, 111/111 test suites PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản lý bộ đệm IndexedDB & Tối ưu hóa tải trước đa luồng -->
 </body>
 </html>

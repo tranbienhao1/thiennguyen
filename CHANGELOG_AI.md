@@ -2,6 +2,30 @@
 
 ---
 
+## [Chu Kỳ 2026-11-14 19:30 +07] — [Pha C: Tính Năng & Trải Nghiệm Người Dùng] Thống Kê Hàng Đợi Thông Minh (Smart Queue Preload & Hi-Res Analytics), Tiến Trình Karaoke Từng Từ & Xuất Lời .LRC Chuẩn (Standard LRC Exporter)
+
+### 🎯 Hạng Mục Nâng Cấp:
+- **Phân khu trọng tâm:** **3. Tính Năng & Trải Nghiệm Người Dùng (Core Features)**.
+- **Chi tiết triển khai:**
+  1. **Phân Tích & Thống Kê Hàng Đợi Thông Minh (`calculateQueueMetrics`):**
+     - Quét toàn bộ danh sách bài hát trong hàng đợi phát tiếp, phân tích thời lượng tổng, cơ cấu định dạng nguồn (FLAC, DSD, WAV, MP3, AAC).
+     - Đo lường chính xác tỷ lệ nhạc chất lượng cao (`highResPercentage`: $\ge 24\text{-bit}$, DSD, hoặc $\ge 48\text{ kHz}$) và dự toán lưu lượng mạng (`estimatedSizeMb`).
+  2. **Huy Hiệu Trực Quan Tóm Tắt Hàng Đợi (`formatQueueSummaryBadge`):**
+     - Chuẩn hóa định dạng hiển thị thông tin audiophile: ví dụ `8 bài · 32m 45s · Hi-Res 75% · ~180 MB`.
+     - Tích hợp thanh trạng thái `#queue-metrics-bar` trên đầu panel Hàng đợi `#queue-panel`, tự động làm mới khi sắp xếp hoặc thêm/bớt bài.
+  3. **Tiến Trình Karaoke Từng Từ (`calculateLyricWordProgress`):**
+     - Tính toán tỷ lệ phần trăm $0.0 \dots 1.0$ của từ đang hát dựa trên thời gian phát thực tế và mốc thời gian từ kế tiếp, hỗ trợ hiệu ứng karaoke tô màu mượt mà.
+  4. **Xuất Chuẩn Định Dạng Lời Bài Hát .LRC (`generateLrcExportContent`):**
+     - Sinh nội dung file `.lrc` chuẩn quốc tế với đầy đủ các thẻ metadata headers: `[ti:]`, `[ar:]`, `[al:]`, `[by:Nocturne Audiophile Music Player]`, `[offset:]`, `[length:]` và các dòng thời gian `[mm:ss.xx]`.
+  5. **Tích Hợp Giao Diện Trực Quan (UI Interaction Integration):**
+     - Bổ sung nút dán nhanh `[📋 Dán]` và nút xuất file `[💾 Xuất]` (`#room-lyrics-paste-btn`, `#room-lyrics-export-btn`) ngay trên header thẻ Lời bài hát `#lyrics-card`, giải quyết triệt để phản hồi của người dùng khi muốn nạp hoặc sao lưu lời bài hát.
+  6. **Kiểm Thử Độc Lập & Bảo Toàn Bất Biến:**
+     - Bộ kiểm thử mới `smart-queue-lyrics-export.test.cjs` (**5/5 tests PASS 100%**).
+     - Toàn bộ 111 test suites toàn dự án (**PASS 100%**).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN ĐỒ THỊ ÂM THANH: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Chu Kỳ 2026-11-14 19:00 +07] — [Pha B: UI/UX & Visualizer Hiện Đại] Cử Chỉ Vuốt Cảm Ứng Di Động (Mobile Touch Swipe Gestures with Damped Spring Physics) & Chế Độ Hiện Sóng Dao Động Ký Thời Gian Thực (Real-Time Oscilloscope Waveform Visualizer)
 
 ### 🎯 Hạng Mục Nâng Cấp:
