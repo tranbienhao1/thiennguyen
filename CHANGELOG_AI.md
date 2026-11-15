@@ -2,6 +2,35 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 08:25 +07] — Pha A Mới: Cân Bằng Độ Lớn Đa Tiêu Chuẩn Phòng Thu (Dynamic ReplayGain Multi-Standard Loudness Normalization with True-Peak Auto-Guard)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá DSP & UI:
+- **Phân khu trọng tâm:** **Động Cơ Chuẩn Hóa Độ Lớn Tự Động (Loudness Normalization Standards ITU-R BS.1770 / EBU R128 / Roon Audiophile), Ước Tính K-Weighting Khi Thiếu Tag & True-Peak Auto-Guard Chống Méo Liên Mẫu DAC**.
+- **Tính năng & Đột phá:**
+  1. **Bảng tiêu chuẩn độ lớn quốc tế (`LOUDNESS_STANDARDS`, `getLoudnessStandard`, `listLoudnessStandards`):**
+     - Hỗ trợ 5 tiêu chuẩn chuẩn mực:
+       - `audiophile-album`: Roon Audiophile Album (-18.0 LUFS, Max TP -0.5 dBTP) — Tham chiếu giữ nguyên tỷ lệ album.
+       - `ebu-r128`: EBU R128 (-23.0 LUFS, Max TP -1.0 dBTP) — Tiêu chuẩn phát thanh truyền hình châu Âu dải động cao.
+       - `itu-bs1770`: ITU-R BS.1770 (-24.0 LUFS, Max TP -2.0 dBTP) — Tiêu chuẩn quốc tế phòng thu và điện ảnh.
+       - `streaming-standard`: Streaming Dịch vụ (-14.0 LUFS, Max TP -1.0 dBTP) — Tương thích môi trường Spotify/Apple Music.
+       - `legacy-replaygain`: ReplayGain 2.0 (-18.0 LUFS / 89 dB SPL, Max TP 0.0 dBTP) — Tương thích chuẩn truyền thống.
+  2. **Vệ tinh bảo vệ đỉnh thực tự động True-Peak Auto-Guard (`calculateTruePeakAutoGuard`):**
+     - Dự đoán mức True-Peak sau khi áp dụng gain (`projectedTruePeakDb = measuredTruePeakDb + combinedGainDb`).
+     - Khi vượt trần chuẩn tương ứng (`maxAllowedTruePeakDb`), tự động tính toán mức suy giảm an toàn `guardReductionDb` và kích hoạt chế độ bảo vệ `isGuardActive: true`, triệt tiêu hoàn toàn méo clipping liên mẫu DAC (inter-sample peak distortion).
+  3. **Thuật toán ước tính độ lớn K-weighting thông minh (`estimateLoudnessLUFS`):**
+     - Fallback chính xác cho các bài hát không có sẵn metadata ReplayGain/LUFS dựa trên RMS đo được và hệ số đỉnh Crest Factor (dB), tự động bù offset K-weighting phù hợp.
+  4. **Bộ xử lý Dynamic ReplayGain thích ứng (`calculateDynamicReplayGain`, `formatDynamicReplayGainSummary`):**
+     - Tính toán gain chuẩn hóa tức thời theo chuẩn đã chọn, chế độ Track/Album Gain, bù Preamp ±6 dB và bảo vệ True-Peak.
+  5. **Tích hợp giao diện điều khiển trong Equalizer Panel & Roon Signal Path:**
+     - Bộ chọn chuẩn độ lớn `#loudness-standard-select` và công tắc bảo vệ `#loudness-guard-toggle` kèm trạng thái thời gian thực `#loudness-guard-status`.
+     - Huy hiệu `#replaygain-badge` hiển thị trực quan mức dB, chế độ (Trk/Alb/Est) và biểu tượng bảo vệ 🛡️.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `dynamic-replaygain-loudness.test.cjs` (**6/6 tests PASS 100%**).
+  - Toàn bộ các suite test hồi quy liên quan và hệ thống (**PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 07:45 +07] — Pha D: Tối Ưu Hóa Nạp Trước Bộ Nhớ Đệm Đa Tầng (Multi-Tier Lookahead Audio Buffer Pipeline) & Khả Năng Thích Ứng Khi Băng Thông Mạng Chập Chờn (Network Throttling Resiliency)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Hiệu Năng & PWA:
