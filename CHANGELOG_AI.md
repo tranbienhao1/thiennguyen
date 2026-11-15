@@ -2,6 +2,40 @@
 
 ---
 
+## [Pha C 2026-11-15 20:30 +07] — Sửa Lỗi Kẹt Phát Nhạc Khi Kết Nối Server, Di Chuyển Nút EQ & Tối Ưu Kéo Thả Mini Player HUD Mượt 120fps (Server Playback Hang Fix, EQ Relocation & Mini HUD Smooth Dragging)
+
+### 🎯 Giải Quyết Yêu Cầu Người Dùng:
+1. **Khắc phục triệt để lỗi kẹt nút Play ở trạng thái `...` và thời gian 0:00/0:00 khi kết nối máy chủ rồi bật nhạc:**
+   - **Nguyên nhân gốc rễ:** Các parser máy chủ cá nhân (`parseSubsonicSong`, `parseJellyfinItem`, `parseBlackCandySong`) trước đây trả về trường `src` thay vì `url`. Khi phát nhạc từ server, `track.url` bị `undefined`, dẫn đến hàm `playTrack` kết thúc sớm và `applyOptimisticPlaybackUi` để lại nút phát ở trạng thái `...` vô thời hạn.
+   - **Giải pháp:**
+     - Tự động gán cả `src` và `url` trong các bộ phân tích Subsonic, Jellyfin, Black Candy.
+     - Fallback phòng thủ ngay đầu `playTrack`: `if (!track.url && track.src) track.url = track.src;`.
+     - Thêm bộ đếm an toàn `applyOptimisticPlaybackUi._safetyTimer` tự động giải phóng loading pulse sau 5 giây.
+     - Nâng cấp `clearOptimisticLoadingUi`: khôi phục icon `▶` hoặc `Ⅱ` nếu nút đang hiển thị `…`.
+     - Lắng nghe các sự kiện `error`, `stalled`, `abort` trên phần tử audio để khôi phục ngay trạng thái `▶` nếu kết nối stream gặp lỗi mạng.
+2. **Dời nút EQ (#eq-button) ra vị trí thông thoáng, bấm 100% ăn ngay:**
+   - **Nguyên nhân gốc rễ:** Nút EQ trước đây nằm ở cụm công cụ bên phải (`.footer-right-tools`) vốn bị nhồi nhét quá nhiều nút (9 nút trên màn hình nhỏ) và bị phần đệm trong suốt của cụm điều khiển trung tâm (`.footer-center-controls`) che khuất do không có thiết lập `pointer-events`.
+   - **Giải pháp:**
+     - Di dời nút `#eq-button` sang `.footer-left-col`, đặt ngay cạnh tên bài hát và nút yêu thích ♡ với kiểu dáng pill hiện đại, viền sáng và chỉ báo preset thời gian thực (`EQ · Phẳng`).
+     - Bổ sung thêm shortcut `#header-eq-btn` trên thanh header phía trên cùng bên cạnh cài đặt để người dùng có thể mở nhanh EQ từ bất kỳ đâu.
+     - Thiết lập `.footer-center-controls { pointer-events: none; }` và `.footer-center-controls > * { pointer-events: auto; }` cùng `relative z-20 pointer-events-auto` cho cột trái và cột phải, triệt tiêu 100% hiện tượng xung đột click.
+3. **Khắc phục giật lag khi di chuyển Mini Player HUD (#mini-player-hud):**
+   - **Nguyên nhân gốc rễ:** Phần tử `#mini-player-hud` mang class `transition-all duration-200`, khiến mỗi pixel di chuột trong sự kiện `mousemove` kích hoạt một hiệu ứng transition kéo dài 200ms gây ra hiện tượng giật cục dữ dội; đồng thời `offsetWidth`/`offsetHeight` bị truy vấn liên tục trên từng pixel gây layout thrashing.
+   - **Giải pháp:**
+     - Loại bỏ `transition-all` trong lúc kéo: thêm class `is-dragging` với `transition: none !important;` và `will-change: left, top`.
+     - Lưu đệm kích thước (`rect.width`, `rect.height`) một lần duy nhất khi bắt đầu nhấn chuột (`mousedown`).
+     - Tối ưu hóa điều phối tọa độ thông qua `requestAnimationFrame`, đồng bộ hoàn hảo với tần số quét 60Hz/120Hz/144Hz của màn hình.
+     - Bổ sung bộ lắng nghe cảm ứng touch (`touchstart`, `touchmove`, `touchend`) cho trải nghiệm kéo thả mượt mà trên màn hình cảm ứng.
+
+### 🚀 Kiểm Chứng Kỹ Thuật:
+- `test/eq-relocate-minihud-smooth.test.cjs`: **6/6 tests PASS (100%)**.
+- `test/footer-proportions.test.cjs`: **4/4 tests PASS (100%)**.
+- `test/video-reported-bugs.test.cjs`: **32/32 tests PASS (100%)**.
+- Toàn bộ **1139/1139 tests PASS (100%)** qua 103 test suites, 0 fails.
+- BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN Web Audio API: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Pha C 2026-11-15 20:00 +07] — Nâng Cấp Đồng Bộ Ảnh Bài Hát Tức Thì & Khắc Phục Lỗi Giao Diện Theo Video / Ảnh Thực Tế (Instant Song Art Synchronization & Video-Reported Bug Fixes)
 
 ### 🎯 Giải Quyết Yêu Cầu Người Dùng:

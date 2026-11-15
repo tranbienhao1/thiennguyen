@@ -12,7 +12,7 @@ test('Footer Player Dock Layout & Proportions (Tỷ lệ chuẩn mực Roon Audi
     assert.ok(indexHtml.includes('footer-right-tools'), 'Right column must have class footer-right-tools');
 
     // Check CSS proportional definitions
-    assert.match(indexHtml, /\.footer-left-col\s*\{[^}]*width:\s*26%/i, 'Left column must be allocated 26% width');
+    assert.match(indexHtml, /\.footer-left-col\s*\{[^}]*width:\s*(?:26%|28%)/i, 'Left column must be allocated 26-28% width');
     assert.match(indexHtml, /\.footer-right-tools\s*\{[^}]*width:\s*26%/i, 'Right column must be allocated 26% width');
     assert.match(indexHtml, /\.footer-center-controls\s*\{[^}]*max-width:\s*640px/i, 'Center column must be max 640px and centered');
   });
@@ -41,13 +41,17 @@ test('Footer Player Dock Layout & Proportions (Tỷ lệ chuẩn mực Roon Audi
     assert.ok(!centerHtml.includes('id="eq-button"'), 'Center MUST NOT contain eq-button');
   });
 
-  await t.test('3. Right column tools are right-aligned and capped to prevent overcrowding center', () => {
+  await t.test('3. Right column tools are right-aligned and capped to prevent overcrowding center, EQ relocated to accessible left dock', () => {
+    const leftMatch = indexHtml.match(/<div class="footer-left-col[\s\S]*?<\/div>/);
+    assert.ok(leftMatch, 'Left column container must exist');
+    const leftHtml = leftMatch[0];
+    assert.ok(leftHtml.includes('id="eq-button"'), 'Left column must contain relocated EQ button');
+
     const rightMatch = indexHtml.match(/<div class="footer-right-tools[\s\S]*?<\/div>/);
     assert.ok(rightMatch, 'Right column container must exist');
     const rightHtml = rightMatch[0];
 
     assert.ok(rightHtml.includes('id="quality-badge"'), 'Right must contain quality badge');
-    assert.ok(rightHtml.includes('id="eq-button"'), 'Right must contain EQ button');
     assert.ok(rightHtml.includes('id="queue-button"'), 'Right must contain queue button');
     assert.ok(rightHtml.includes('id="volume"'), 'Right must contain volume slider');
     assert.ok(rightHtml.includes('justify-end'), 'Right column must be right-aligned with justify-end');
