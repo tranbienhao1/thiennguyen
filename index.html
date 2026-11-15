@@ -297,8 +297,11 @@
     #recent-list button>span:nth-child(2){color:white;font-size:12px} #recent-list button>span:nth-child(2) span:last-child{color:#e1e4f2;font-size:11px}
     #recent-list button>span:last-child{display:none}
     footer.glass{z-index:35;height:auto!important;min-height:88px;border:0;border-top:1px solid #454545;background:#222;box-shadow:none;backdrop-filter:none}
-    footer.glass .footer-main-container{height:88px;max-width:none;padding:0 22px;display:flex;align-items:center;width:100%;box-sizing:border-box}
-    footer.glass .footer-main-container>div:first-child{height:88px}
+    footer.glass .footer-main-container{height:88px;max-width:none;padding:0 24px;display:flex;align-items:center;width:100%;box-sizing:border-box}
+    footer.glass .footer-main-container>div:first-child{height:88px;width:100%}
+    .footer-left-col{width:26%!important;max-width:340px!important;flex-shrink:0!important}
+    .footer-center-controls{flex:1!important;max-width:640px!important;min-width:300px!important;margin:0 auto!important}
+    .footer-right-tools{width:26%!important;max-width:360px!important;flex-shrink:0!important;margin-left:auto!important}
     #player-cover{width:54px;height:54px;border-radius:0} #now-title{font-size:13px} #now-artist{color:#aaa}
     #play-button{width:40px;height:40px;border-radius:50%;background:var(--roon-accent);color:white}
     .audio-zone-empty{display:none}
@@ -673,8 +676,8 @@
         <button id="footer-telemetry-close" type="button" class="ml-1 text-zinc-500 hover:text-zinc-300 text-xs px-1" title="Ẩn dải đo lường (bấm vào huy hiệu chất lượng để hiện lại)">✕</button>
       </div>
     </div>
-    <div class="footer-main-container mx-auto max-w-[1600px] px-3 sm:px-6">
-      <div class="flex h-[86px] items-center gap-3 sm:h-[96px] sm:gap-6">
+    <div class="footer-main-container mx-auto max-w-[1720px] px-3 sm:px-6 w-full">
+      <div class="footer-player-row flex h-[86px] w-full items-center justify-between gap-2 sm:h-[92px] sm:gap-4 md:gap-6">
         <div class="audio-zone-empty">
           <button id="zone-idle-pill" type="button" class="flex items-center gap-2 rounded-full font-medium transition hover:opacity-90 active:scale-95 shadow-[0_4px_14px_rgba(0,0,0,0.4)]" style="background: #5265a2; color: #fff; padding: 8px 24px; border-radius: 9999px; font-size: 13px; font-weight: 500; border: none; box-shadow: 0 4px 14px rgba(0,0,0,0.4);" onclick="toggleZoneModal(true)">
             <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
@@ -686,34 +689,34 @@
           </button>
           <button id="audio-zone-button" type="button" class="hidden">Select an audio zone</button>
         </div>
-        <div class="flex min-w-0 flex-1 items-center gap-3 sm:w-[25%] sm:flex-none">
+        <div class="footer-left-col flex min-w-0 items-center gap-3 w-[26%] max-w-[340px] shrink-0">
           <button id="player-cover" type="button" class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-violet-500/30 to-zinc-800 text-xl text-violet-200 transition hover:ring-2 hover:ring-violet-300/50" title="Mở màn hình Đang phát" aria-label="Mở màn hình Đang phát">♫</button>
-          <button id="open-listening-room" type="button" class="min-w-0 flex-1 text-left" title="Mở màn hình Đang phát"><p id="now-title" class="truncate text-xs font-medium sm:text-sm">Chưa phát nhạc</p><p id="now-artist" class="mt-1 truncate text-[11px] text-zinc-500">Chọn một bài hát để bắt đầu</p></button>
-          <button id="favorite-button" class="hidden text-lg text-zinc-500 hover:text-pink-300 sm:block" title="Yêu thích">♡</button>
+          <button id="open-listening-room" type="button" class="min-w-0 flex-1 text-left" title="Mở màn hình Đang phát"><p id="now-title" class="truncate text-xs font-semibold sm:text-sm text-white">Chưa phát nhạc</p><p id="now-artist" class="mt-0.5 truncate text-[11px] text-zinc-400">Chọn một bài hát để bắt đầu</p></button>
+          <button id="favorite-button" class="hidden text-lg text-zinc-500 hover:text-pink-300 sm:block shrink-0 px-1" title="Yêu thích">♡</button>
         </div>
-        <div class="footer-center-controls flex flex-col items-center justify-center shrink-0 min-w-[280px] sm:min-w-[360px] max-w-[560px] mx-auto sm:flex-1 relative z-10 gap-1">
-          <div class="flex items-center gap-3 sm:gap-5">
-            <button id="shuffle-button" class="text-xs text-zinc-500 hover:text-violet-300" title="Trộn bài">⤨</button>
-            <button id="previous-button" class="text-lg text-zinc-300 hover:text-white" aria-label="Bài trước">‹</button>
-            <button id="play-button" class="grid h-9 w-9 place-items-center rounded-full bg-white text-zinc-950 transition hover:scale-105" aria-label="Phát">▶</button>
-            <button id="next-button" class="text-lg text-zinc-300 hover:text-white" aria-label="Bài tiếp">›</button>
-            <button id="repeat-button" class="text-xs text-zinc-500 hover:text-violet-300" title="Lặp lại">↻</button>
+        <div class="footer-center-controls flex flex-col items-center justify-center flex-1 max-w-[620px] min-w-[280px] sm:min-w-[340px] mx-auto relative z-10 gap-1.5 px-2">
+          <div class="flex items-center justify-center gap-5 sm:gap-6">
+            <button id="shuffle-button" class="text-sm text-zinc-400 hover:text-violet-300 transition p-1" title="Trộn bài">⤨</button>
+            <button id="previous-button" class="text-xl text-zinc-300 hover:text-white transition p-1" aria-label="Bài trước">‹</button>
+            <button id="play-button" class="grid h-10 w-10 place-items-center rounded-full bg-white text-zinc-950 transition hover:scale-105 shadow-md active:scale-95" aria-label="Phát">▶</button>
+            <button id="next-button" class="text-xl text-zinc-300 hover:text-white transition p-1" aria-label="Bài tiếp">›</button>
+            <button id="repeat-button" class="text-sm text-zinc-400 hover:text-violet-300 transition p-1" title="Lặp lại">↻</button>
           </div>
-          <div class="hidden w-full max-w-[540px] items-center gap-2 sm:flex"><span id="current-time" class="w-9 text-right text-[10px] tabular-nums text-zinc-500">0:00</span><input id="seek" class="seek-range flex-1" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="duration" class="w-9 text-[10px] tabular-nums text-zinc-500">0:00</span></div>
+          <div class="hidden w-full items-center justify-center gap-2.5 sm:flex"><span id="current-time" class="w-10 text-right text-[11px] font-mono tabular-nums text-zinc-400 shrink-0">0:00</span><input id="seek" class="seek-range flex-1 h-1.5 cursor-pointer" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="duration" class="w-10 text-left text-[11px] font-mono tabular-nums text-zinc-400 shrink-0">0:00</span></div>
         </div>
-        <div class="hidden sm:w-[25%] items-center justify-end gap-1.5 xl:gap-2.5 lg:flex shrink-0">
-          <span id="quality-badge" class="rounded-md border border-white/10 px-2 py-1 text-[9px] font-medium uppercase tracking-wider text-zinc-400 cursor-pointer hover:border-violet-400/40 hover:text-white transition" title="Chất lượng âm thanh · Nhấn để bật/tắt dải đo Telemetry">READY</span>
-          <button id="eq-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white">EQ</button>
-          <button id="queue-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Hàng đợi phát" title="Phát tiếp theo">☰</button>
-          <button id="room-button" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Màn hình Đang phát" title="Đang phát">Phòng nghe</button>
-          <button id="fullscreen-toggle-btn" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-purple-300 hover:text-white hover:border-purple-400 transition" aria-label="Toàn màn hình Roon (F)" title="Toàn màn hình Roon (F)">⛶</button>
-          <button id="mini-player-toggle" class="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-indigo-300 hover:text-white hover:border-indigo-400 transition" aria-label="Mini Player HUD (M)" title="Mini Player HUD (M)">🗗</button>
-          <button id="autoplay-button" class="hidden xl:inline-block rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Tự động phát tiếp" title="Tự động phát tiếp">▶∞</button>
-          <button id="sleep-button" class="hidden xl:inline-block rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Hẹn giờ ngủ" title="Hẹn giờ ngủ">◷</button>
-          <button id="ambient-button" class="hidden 2xl:inline-block rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-white" aria-label="Âm thanh môi trường" title="Âm thanh môi trường" aria-expanded="false">🌧</button>
-          <div class="flex items-center gap-1 pl-1">
+        <div class="footer-right-tools hidden sm:flex items-center justify-end gap-1.5 xl:gap-2 w-[26%] max-w-[360px] shrink-0">
+          <span id="quality-badge" class="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider text-emerald-300 shrink-0 cursor-pointer hover:border-emerald-400/50 hover:bg-emerald-500/20 transition" title="Chất lượng âm thanh · Nhấn để bật/tắt dải đo Telemetry">READY</span>
+          <button id="eq-button" class="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-zinc-300 hover:text-white hover:border-white/20 transition shrink-0 whitespace-nowrap">EQ</button>
+          <button id="queue-button" class="rounded-lg border border-white/10 px-2 py-1 text-xs text-zinc-300 hover:text-white hover:border-white/20 transition shrink-0" aria-label="Hàng đợi phát" title="Phát tiếp theo">☰</button>
+          <button id="room-button" class="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-zinc-300 hover:text-white hover:border-white/20 transition shrink-0 hidden md:inline-flex whitespace-nowrap" aria-label="Màn hình Đang phát" title="Đang phát">Phòng nghe</button>
+          <button id="fullscreen-toggle-btn" class="rounded-lg border border-white/10 px-2 py-1 text-xs text-purple-300 hover:text-white hover:border-purple-400 transition shrink-0" aria-label="Toàn màn hình Roon (F)" title="Toàn màn hình Roon (F)">⛶</button>
+          <button id="mini-player-toggle" class="hidden xl:inline-flex rounded-lg border border-white/10 px-2 py-1 text-xs text-indigo-300 hover:text-white hover:border-indigo-400 transition shrink-0" aria-label="Mini Player HUD (M)" title="Mini Player HUD (M)">🗗</button>
+          <button id="autoplay-button" class="hidden 2xl:inline-flex rounded-lg border border-white/10 px-2 py-1 text-xs text-zinc-400 hover:text-white transition shrink-0" aria-label="Tự động phát tiếp" title="Tự động phát tiếp">▶∞</button>
+          <button id="sleep-button" class="hidden 2xl:inline-flex rounded-lg border border-white/10 px-2 py-1 text-xs text-zinc-400 hover:text-white transition shrink-0" aria-label="Hẹn giờ ngủ" title="Hẹn giờ ngủ">◷</button>
+          <button id="ambient-button" class="hidden 2xl:inline-flex rounded-lg border border-white/10 px-2 py-1 text-xs text-zinc-400 hover:text-white transition shrink-0" aria-label="Âm thanh môi trường" title="Âm thanh môi trường" aria-expanded="false">🌧</button>
+          <div class="flex items-center gap-1.5 pl-1 shrink-0">
             <span class="text-xs text-zinc-500">◖</span>
-            <input id="volume" class="range w-16 sm:w-20" type="range" min="0" max="100" value="72" aria-label="Âm lượng">
+            <input id="volume" class="range w-16 sm:w-20 xl:w-24" type="range" min="0" max="100" value="72" aria-label="Âm lượng">
           </div>
         </div>
         <div class="flex items-center gap-2 sm:hidden"><input id="volume-mobile" class="range w-14" type="range" min="0" max="100" value="72" aria-label="Âm lượng"><button id="seek-mobile-button" class="hidden text-xs text-violet-300" aria-label="Tua">0:00</button></div>
@@ -11403,5 +11406,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 16:15 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Bộ Lập Lịch Nạp Trước Hàng Đợi Ngoại Tuyến & Đường Ống Cache Ngầm Có Trọng Số Ưu Tiên (Priority-Weighted Offline Queue Prefetch Scheduler & Adaptive Concurrency Pipeline): (1) calculatePrefetchPriorityScore tính điểm ưu tiên nạp 0-100 suy giảm theo khoảng cách hàng đợi (50/30/15 điểm), thưởng bài yêu thích/rating, thưởng trọng tải Audiophile Hi-Res/DSD và thích ứng tự động khi nghẽn mạng; (2) evaluateCachePipelineConcurrency giới hạn tối đa 1 luồng nạp an toàn khi đang phát nhạc bảo vệ tuyệt đối Web Audio thread, mở rộng 2-3 luồng khi tạm dừng; (3) scheduleOfflineQueuePrefetch tự động bỏ qua các bài đã cache sẵn, chỉ định chế độ first_slice/full_track và sắp xếp thứ tự nạp; (4) formatPrefetchQueueTelemetry định dạng telemetry nạp ngầm chi tiết; (5) Tích hợp UI nút #schedule-prefetch-queue-btn và chỉ báo #prefetch-queue-status trong Quản trị bộ nhớ; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests offline-prefetch-queue.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Mô Phỏng Mạch Khuếch Đại & Lọc Bù Trừ Pha Tần Số Thấp (Sub-Bass Phase Alignment & Analog Bass Exciter) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 16:45 +07 | Đã xong: Pha A - Audio Engine & DSP: Mô Phỏng Mạch Khuếch Đại & Lọc Bù Trừ Pha Tần Số Thấp (Sub-Bass Phase Alignment & Analog Bass Exciter Harmonic Generator) & Khắc Phục Triệt Để Lỗi Cập Nhật PWA / Bố Cục Điều Khiển Bị Che Khuất: (1) SUB_BASS_PHASE_PROFILES với 4 cấu hình audiophile (bypass, tight_45, deep_90, analog_exciter dải 25-80Hz); (2) generateBassExciterTransferCurve tạo hàm truyền đạt phi tuyến kết hợp soft-saturation và đa thức Chebyshev bậc hai T2; (3) createSubBassPhaseNodes Web Audio BiquadFilter allpass bù pha và WaveShaper oversampling 4x kết nối an toàn trước Limiter; (4) Tích hợp UI Equalizer Panel: #sub-bass-phase-select, #sub-bass-phase-badge, #sub-bass-phase-desc, đồng bộ state.subBassPhaseProfile và lưu trữ localStorage/sao lưu cấu hình; (5) Khắc phục triệt để lỗi cập nhật PWA: applyAppUpdate lưu session phát nhạc, gửi SKIP_WAITING, xóa cache và tự động phát tiếp ngay sau khi tải lại trang; nâng cache version sw.js lên nocturne-v2; (6) Nâng khoảng sáng an toàn maxBottomClearance của Mini Player HUD lên 150px bảo đảm không bao giờ che khuất thanh dock điều khiển; (7) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 8/8 tests sub-bass-phase-alignment.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Đồng Hồ Đo Quang Phổ Âm Hình Radar Phân Cực 3D (3D Polar Radar Soundstage Visualizer & Dynamic Phase Field Hologram) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 17:15 +07 | Đã xong: Pha B - UI/UX & Visualizer: Đồng Hồ Đo Quang Phổ Âm Hình Radar Phân Cực 3D & Trường Pha Hologram Động (3D Polar Radar Soundstage Visualizer & Dynamic Phase Field Hologram): (1) calculatePolarRadarSoundstage phân tích tọa độ cực âm trường Azimuth θ [-90°, +90°], phân bổ 16 bin năng lượng, khẩu độ âm trường 20°-90°+, trọng tâm Centroid Azimuth và tỷ lệ nghịch pha antiPhaseRatio; (2) POLAR_RADAR_MODES và getPolarRadarMode (contour, hologram, spectral); (3) formatPolarRadarTelemetry xuất telemetry trực quan; (4) renderPolarRadarCanvas kết xuất đồ họa radar 60fps với 4 vòng cự ly -24/-12/-6/0 dB, tia quét Hologram sweep beam, đa giác âm trường bo cong mượt mà, hạt phát quang hologram nodes và kim chỉ hướng centroid; (5) Tích hợp nút chế độ #fs-stage-mode-radar trong Fullscreen Stage Visualizer, cập nhật thời gian thực #fs-soundstage-badge và #fs-stage-telemetry-desc; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 8/8 tests polar-radar-soundstage.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 17:35 +07 | Đã xong: Tối Ưu Giao Diện - Tái Định Hình Tỷ Lệ Cân Đối Tuyệt Đối Thanh Dock Điều Khiển (Balanced 3-Column Footer Dock & Seekbar Centering): (1) Thiết lập tỷ lệ 3 cột cân xứng tuyệt đối 26% — 48% — 26% (.footer-left-col, .footer-center-controls, .footer-right-tools); (2) Phím Play/Pause và Seekbar căn giữa 50% toàn màn hình, hai đầu thời gian đối xứng; (3) Cột phải gom gọn huy hiệu chất lượng, EQ, Queue, Phòng nghe, Fullscreen và Volume, ẩn thích ứng các nút phụ trợ tránh tràn ép; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests footer-proportions.test.cjs PASS 100%, toàn bộ 25/25 tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
 </body>
 </html>

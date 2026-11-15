@@ -2,6 +2,32 @@
 
 ---
 
+## [Tối Ưu Giao Diện 2026-11-15 17:35 +07] — Tái Định Hình Tỷ Lệ Cân Đối Tuyệt Đối Thanh Dock Điều Khiển (Balanced 3-Column Footer Dock & Seekbar Centering)
+
+### 🎯 Khắc Phục Lỗi Tỷ Lệ Bố Cục Người Dùng Phản Hồi:
+- **Hiện trạng từ ảnh chụp người dùng:**
+  - Cụm điều khiển bài hát `⤨ ‹ Ⅱ › ↻` bị dồn lệch sang bên trái do cột công cụ bên phải (10 nút bấm) chiếm diện tích quá lớn và tràn ép về phía giữa.
+  - Huy hiệu chất lượng `[LOSSLESS]` và nút `[EQ · Phẳng]` bị đè sát sườn nút lặp lại `↻`.
+  - Thanh tua nhạc `Seekbar` bị kéo lệch tâm, điểm kết thúc `3:33` nằm dưới nút EQ thay vì cân đối toàn dải dưới nút Play/Pause.
+- **Giải pháp tái cấu trúc tỷ lệ chuẩn mực (Roon Proportions Standard):**
+  1. **Kiến trúc 3 Cột Cân Đối Hoàn Hảo (26% — 48% — 26%):**
+     - **Cột Trái (`footer-left-col`, 26% max 340px):** Ảnh bìa vuông bo góc, tiêu đề bài hát và tên nghệ sĩ/định dạng hiển thị tinh tế với cơ chế `truncate` chống tràn dòng, nút tim yêu thích ♡ gọn gàng.
+     - **Cột Giữa (`footer-center-controls`, flex-1 max 640px, căn giữa tuyệt đối):**
+       - Phím `Play/Pause` (`Ⅱ`) tròn 40px nằm chính xác tại **tọa độ 50% trung tâm toàn màn hình**.
+       - Các phím `⤨ ‹ › ↻` cách đều chuẩn mực (`gap-5 sm:gap-6`), kích thước phím được nâng cấp rõ nét dễ bấm (`w-8 h-8`).
+       - Thanh tua nhạc `Seekbar` trải đều 100% chiều rộng của cột giữa, hai đầu thời gian `0:00` và thời lượng `3:33` hiển thị font mono đối xứng chuẩn xác hai bên.
+     - **Cột Phải (`footer-right-tools`, 26% max 360px, căn sát lề phải `justify-end`):**
+       - Huy hiệu chất lượng `[LOSSLESS]` font mono xanh ngọc sang trọng.
+       - Nút `EQ` tối ưu khoảng trống, nút Hàng đợi `☰`, nút `Phòng nghe`, nút Toàn màn hình `⛶` và thanh trượt Âm lượng `◖ ──●──`.
+       - Các nút chức năng mở rộng (`🗗` Mini HUD, `▶∞` Autoplay, `◷` Hẹn giờ ngủ, `🌧` Âm thanh môi trường) được phân cấp hiển thị thích ứng thông minh (`hidden xl:inline-flex` / `hidden 2xl:inline-flex`), ngăn chặn hoàn toàn hiện tượng tràn ép gây xô lệch bố cục trên màn hình laptop/tablet.
+  2. **Bảo Toàn Nghiêm Ngặt Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `footer-proportions.test.cjs` (**5/5 tests PASS 100%**).
+  - Toàn bộ 25 tests liên quan đều **PASS 100%**.
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 17:15 +07] — Pha B: Đồng Hồ Đo Quang Phổ Âm Hình Radar Phân Cực 3D & Trường Pha Hologram Động (3D Polar Radar Soundstage Visualizer & Dynamic Phase Field Hologram)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Visualizer:
