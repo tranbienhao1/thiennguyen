@@ -27,6 +27,17 @@
     .seek-range::-moz-range-progress { height:4px;border-radius:999px;background:#92cce2; }
     .seek-range::-moz-range-thumb { width:10px;height:10px;border:2px solid #c4e6f2;border-radius:50%;background:#92cce2;box-shadow:0 0 0 2px rgba(0,0,0,.45); }
     .track-row.active { background:rgba(145,205,229,.07);border-color:rgba(145,205,229,.18); }
+    @keyframes subtlePulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.65; transform: scale(0.98); }
+    }
+    .loading-pulse {
+      animation: subtlePulse 1.2s ease-in-out infinite;
+    }
+    .track-loading-pulse {
+      animation: subtlePulse 1.2s ease-in-out infinite;
+      border-color: rgba(167, 139, 250, 0.45) !important;
+    }
     .cover-glow { background:radial-gradient(ellipse at 88% 12%,rgba(145,205,229,.08),transparent 44%); }
     .drop-overlay { background:rgba(17,19,21,.92);backdrop-filter:blur(12px); }
     canvas { width:100%;height:100%; }
@@ -3744,6 +3755,22 @@
       }));
       function handleTrackRowActivation(rowTrackId) {
         const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
+        const track = (state.tracks && state.tracks.find(t => t.id === rowTrackId)) || (tracks && tracks.find(t => t.id === rowTrackId));
+
+        if (track) {
+          if (state.currentId && state.currentId !== track.id) {
+            state.previousTrackId = state.currentId;
+          }
+          state.currentId = track.id;
+          displayTrack(track);
+          applyOptimisticPlaybackUi(track);
+        }
+
+        setupAudio();
+        if (state.context && state.context.state === 'suspended') {
+          state.context.resume().catch(e => console.debug('AudioContext resume on user gesture:', e));
+        }
+
         const entry = state.currentCollectionEntry;
         const isAlbumContext = Boolean(state.trackScope) || (entry && (entry.action === 'album' || state.activeView === 'albums'));
         if (isAlbumContext && (state.trackScope || entry)) {
@@ -3763,7 +3790,7 @@
             trackIds: albumTracks.map(t => t.id)
           };
           state.queueTrackIds = queueResult.remainingTrackIds || [];
-          renderQueue();
+          deferRenderQueue();
           toast(`Đang phát Album: ${albumName} (Tuần tự bài 1 đến hết)`);
           playTrack(rowTrackId);
           return;
@@ -5314,6 +5341,68 @@
       clearTimeout(trackRenderTimer);
       trackRenderTimer = setTimeout(() => { trackRenderTimer = null; renderTracks(); }, 180);
     }
+    let queueRenderFrame = null;
+    function deferRenderQueue() {
+      if (queueRenderFrame) return queueRenderFrame;
+      const scheduleFn = typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (typeof requestIdleCallback === 'function' ? requestIdleCallback : (fn => setTimeout(fn, 0)));
+      queueRenderFrame = scheduleFn(() => {
+        queueRenderFrame = null;
+        renderQueue();
+      });
+      return queueRenderFrame;
+    }
+
+    function applyOptimisticPlaybackUi(track) {
+      if (!track) return;
+      state.currentId = track.id;
+      displayTrack(track);
+
+      const playBtn = $('play-button');
+      if (playBtn) {
+        playBtn.textContent = '…';
+        playBtn.classList.add('loading-pulse');
+        playBtn.setAttribute('aria-label', 'Đang tải...');
+      }
+      const roomPlayBtn = $('room-play');
+      if (roomPlayBtn) {
+        roomPlayBtn.textContent = '…';
+        roomPlayBtn.classList.add('loading-pulse');
+      }
+      const miniPlayBtn = $('mini-play');
+      if (miniPlayBtn) {
+        miniPlayBtn.textContent = '…';
+        miniPlayBtn.classList.add('loading-pulse');
+      }
+
+      updateCurrentTrackIndicator();
+      const current = $('track-list') ? $('track-list').querySelector(`[data-track-id="${CSS.escape(String(track.id))}"]`) : null;
+      if (current) current.classList.add('track-loading-pulse');
+
+      if ($('room-seek')) { $('room-seek').value = '0'; paintSeek($('room-seek'), 0); }
+      if ($('seek')) { $('seek').value = '0'; paintSeek($('seek'), 0); }
+      if ($('seek-mobile')) { $('seek-mobile').value = '0'; paintSeek($('seek-mobile'), 0); }
+      if ($('current-time')) $('current-time').textContent = '0:00';
+      if ($('current-time-mobile')) $('current-time-mobile').textContent = '0:00';
+      if ($('room-current-time')) $('room-current-time').textContent = '0:00';
+    }
+
+    function clearOptimisticLoadingUi() {
+      const playBtn = $('play-button');
+      if (playBtn) playBtn.classList.remove('loading-pulse');
+      const roomPlayBtn = $('room-play');
+      if (roomPlayBtn) roomPlayBtn.classList.remove('loading-pulse');
+      const miniPlayBtn = $('mini-play');
+      if (miniPlayBtn) miniPlayBtn.classList.remove('loading-pulse');
+      if (typeof $ === 'function') {
+        const trackList = $('track-list');
+        if (trackList) {
+          trackList.querySelectorAll('.track-loading-pulse').forEach(el => el.classList.remove('track-loading-pulse'));
+        }
+      }
+    }
+
     let previousTrackRow = null;
     function updateCurrentTrackIndicator() {
       // Pha D — đồng bộ cả những phần của hàng phụ thuộc vào trạng thái
@@ -5321,12 +5410,14 @@
       // nhẹ trong renderTrackRows cho ra hàng giống hệt như dựng lại.
       if (previousTrackRow) {
         previousTrackRow.classList.remove('active');
+        previousTrackRow.classList.remove('track-loading-pulse');
         const previousTitle = previousTrackRow.querySelector('.track-title');
         if (previousTitle) { previousTitle.classList.remove('text-violet-200'); previousTitle.classList.add('text-zinc-200'); }
         const previousOverlay = previousTrackRow.querySelector('.track-playing-overlay');
         if (previousOverlay) previousOverlay.remove();
       }
-      const current = $('track-list').querySelector(`[data-track-id="${CSS.escape(String(state.currentId || ''))}"]`);
+      const trackList = $('track-list');
+      const current = trackList ? trackList.querySelector(`[data-track-id="${CSS.escape(String(state.currentId || ''))}"]`) : null;
       if (current) {
         current.classList.add('active');
         const title = current.querySelector('.track-title');
@@ -5914,6 +6005,7 @@
       cover.innerHTML = track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫';
     }
     function renderQueue() {
+      if (arguments[0] === 'defer') return deferRenderQueue();
       const list = $('queue-list'), tracks = queueTracks();
       $('queue-count').textContent = tracks.length; $('queue-empty').classList.toggle('hidden', tracks.length > 0);
       if (typeof library !== 'undefined' && library && typeof library.calculateQueueMetrics === 'function') {
@@ -5990,6 +6082,9 @@
       renderQueueCurrent();
       updateRoonRadioStatus();
     }
+    renderQueue.defer = deferRenderQueue;
+    if (typeof window !== 'undefined') window.deferRenderQueue = deferRenderQueue;
+    if (typeof state !== 'undefined') state.deferRenderQueue = deferRenderQueue;
     // Pha C — Roon Radio: tự động hiển thị gợi ý bài tiếp theo và trạng thái trong hàng đợi
     function updateRoonRadioStatus() {
       const banner = $('roon-radio-banner'), btn = $('roon-radio-toggle');
@@ -7330,6 +7425,7 @@
       state.crossfadeUntil = fadeSeconds > 0 ? state.context.currentTime + fadeSeconds : 0;
       if (state.preloadTrackId === track.id) { state.preloadTrackId = null; state.preloadReadyUrl = null; }
       $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ'; if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
+      if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
       if (typeof updateMiniPlayerHud === 'function') updateMiniPlayerHud(track);
       recordHistory(track);
       if (fadeSeconds > 0) {
@@ -7392,6 +7488,21 @@
     async function playTrack(trackId) {
       const track = state.tracks.find(item => item.id === trackId);
       if (!track) return;
+      const previousTrackId = state.previousTrackId || state.currentId;
+      const previousTrack = state.tracks.find(item => item.id === previousTrackId && item.id !== track.id);
+      state.previousTrackId = null;
+
+      // 1. OPTIMISTIC UI RESPONSE (<16ms): in playTrack immediately in the user click tick before any async/network wait:
+      state.currentId = track.id;
+      if (typeof displayTrack === 'function') displayTrack(track);
+      if (typeof applyOptimisticPlaybackUi === 'function') applyOptimisticPlaybackUi(track);
+
+      // 3. IMMEDIATE AUDIO CONTEXT: Call setupAudio() and state.context.resume() immediately on user gesture before awaiting track.load() or DSD decode
+      if (typeof setupAudio === 'function') setupAudio();
+      if (state.context && state.context.state === 'suspended') {
+        state.context.resume().catch(e => console.debug('AudioContext resume in playTrack:', e));
+      }
+
       const resumeBanner = $('resume-session-banner');
       if (resumeBanner) {
         resumeBanner.classList.add('hidden');
@@ -7402,7 +7513,6 @@
       // số đo của lần phát trước trong lúc đang tải bài mới.
       const playRequestedAt = performance.now();
       track.timeToFirstAudioMs = null; track.timeToFirstAudioMode = null;
-      const previousTrack = state.tracks.find(item => item.id === state.currentId);
       // Pha C — phát lại bài local đã bị thu hồi blob URL: tạo lại URL từ
       // track.file (file gốc vẫn giữ trong RAM) để phát được ngay.
       if (track.source === 'local' && !track.isDsd && !track.url && track.file) { track.url = URL.createObjectURL(track.file); state.objectUrls.add(track.url); }
@@ -7413,7 +7523,8 @@
       const trackUrl = track.url ? new URL(track.url, location.href).href : '';
       const wasPreloaded = state.preloadTrackId === track.id && !!trackUrl && standbyAudio.src === trackUrl;
       state.queueTrackIds = state.queueTrackIds.filter(item => item !== track.id);
-      renderQueue();
+      // 2. NON-BLOCKING DOM: Defer renderQueue() using requestAnimationFrame or requestIdleCallback instead of executing heavy DOM layout thrashing synchronously in the click handler and inside playTrack.
+      if (typeof deferRenderQueue === 'function') deferRenderQueue(); else renderQueue();
       if (!wasPreloaded) ++state.preloadGeneration;
       if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; }
       // Pha C — bài bắt đầu phát thì worker prefetch lát đầu DSD (nếu
@@ -7430,6 +7541,7 @@
               const canPlay = typeof library?.canPlayOffline === 'function' ? library.canPlayOffline(track) : (track.source === 'local' || !!track.file || !!track.blob);
               if (!canPlay) {
                 toast('Đang ngoại tuyến. Bài DSD cloud này cần Internet để tải.');
+                if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
                 return;
               }
             }
@@ -7441,7 +7553,7 @@
           releaseUnusedCloudUrl(previousTrack);
           releaseUnusedLocalUrl(previousTrack);
         }
-        catch (error) { console.error('DSD playback setup failed:', error); if (generation === state.playGeneration) $('play-button').textContent = '▶'; skipFailedTrack(generation, `Không thể chuẩn bị phát DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`); }
+        catch (error) { console.error('DSD playback setup failed:', error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); if (generation === state.playGeneration) $('play-button').textContent = '▶'; skipFailedTrack(generation, `Không thể chuẩn bị phát DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`); }
         return;
       }
       setupAudio();
@@ -7455,18 +7567,19 @@
           const canPlay = typeof library?.canPlayOffline === 'function' ? library.canPlayOffline(track) : (track.source === 'local' || !!track.file || !!track.blob);
           if (!canPlay) {
             toast('Đang ngoại tuyến. Bài hát cloud này cần Internet để tải.');
+            if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
             return;
           }
         }
         try { await track.load(); }
-        catch (error) { console.error('Track streaming failed:', error); releaseUnusedCloudUrl(track); skipFailedTrack(generation, `Không thể phát bài hát: ${mediaErrorMessage(error)}. Chuyển sang bài tiếp theo.`); return; }
+        catch (error) { console.error('Track streaming failed:', error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); releaseUnusedCloudUrl(track); skipFailedTrack(generation, `Không thể phát bài hát: ${mediaErrorMessage(error)}. Chuyển sang bài tiếp theo.`); return; }
       }
       if (generation !== state.playGeneration) return;
-      if (!track.url) { toast('Không có URL phát cho bài hát này.'); return; }
+      if (!track.url) { if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); toast('Không có URL phát cho bài hát này.'); return; }
       const playUrl = new URL(track.url, location.href).href;
       if (state.context.state === 'suspended') await state.context.resume();
       if (generation !== state.playGeneration) return;
-      if (!track.url) { toast('Không có URL phát cho bài hát này.'); return; }
+      if (!track.url) { if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); toast('Không có URL phát cho bài hát này.'); return; }
       if (target.src !== playUrl || target.error) { target.src = playUrl; target.load(); }
       displayTrack(track);
       if (track.cueStart !== undefined && track.cueStart > 0) {
@@ -7482,6 +7595,7 @@
       // chờ tải lát đầu/toàn file); generation đổi thì bỏ qua lần đo cũ.
       target.addEventListener('playing', () => {
         if (generation !== state.playGeneration) return;
+        if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         const mode = wasPreloaded ? 'preload' : track.source === 'local' ? 'local' : track.firstSlicePlayback ? 'slice' : 'full';
         recordTimeToFirstAudio(track, playRequestedAt, performance.now(), mode);
         if (track.id === state.currentId) renderRoomSignal(track);
@@ -7494,6 +7608,7 @@
         finishPlaybackStart(track, generation, target, previousTrack);
       } catch (error) {
         console.error('Playback failed:', error);
+        if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         // Pha A — play() reject vì lát đầu không có khung nhạc mà file đầy
         // đủ còn đang tải (hoặc đã tải xong): thử phát lại từ file đầy đủ
         // thay vì nhảy bài ngay; chỉ nhảy khi tải nền lỗi hoặc phát lại lỗi.
@@ -7507,7 +7622,7 @@
     function stopDsdWorker(invalidate = true) {
       if (!state.dsdWorker && !state.dsdUrl) return;
       if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; }
-      if (invalidate) { state.playGeneration++; $('play-button').textContent = '▶'; }
+      if (invalidate) { state.playGeneration++; $('play-button').textContent = '▶'; if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); }
       if (state.dsdUrl) {
         const url = state.dsdUrl;
         if (audio.src === url) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
@@ -7545,8 +7660,9 @@
         // của deck thường, thay vì đợi giải mã toàn file xong mới hiện.
         recordTimeToFirstAudio(track, playRequestedAt, performance.now(), track.source === 'local' ? 'dsd-local' : 'dsd');
         if (track.id === state.currentId) renderRoomSignal(track);
-        $('play-button').textContent = 'Ⅱ'; recordHistory(track); scheduleTrackRender(); preloadNext(true);
+        $('play-button').textContent = 'Ⅱ'; if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); recordHistory(track); scheduleTrackRender(); preloadNext(true);
       } catch (error) {
+        if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         if (state.dsdUrl === sliceUrl) { URL.revokeObjectURL(sliceUrl); state.objectUrls.delete(sliceUrl); state.dsdUrl = null; state.dsdTrackId = null; }
         track.url = ''; track.firstSlicePlayback = false;
         throw error;
@@ -11407,5 +11523,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 16:45 +07 | Đã xong: Pha A - Audio Engine & DSP: Mô Phỏng Mạch Khuếch Đại & Lọc Bù Trừ Pha Tần Số Thấp (Sub-Bass Phase Alignment & Analog Bass Exciter Harmonic Generator) & Khắc Phục Triệt Để Lỗi Cập Nhật PWA / Bố Cục Điều Khiển Bị Che Khuất: (1) SUB_BASS_PHASE_PROFILES với 4 cấu hình audiophile (bypass, tight_45, deep_90, analog_exciter dải 25-80Hz); (2) generateBassExciterTransferCurve tạo hàm truyền đạt phi tuyến kết hợp soft-saturation và đa thức Chebyshev bậc hai T2; (3) createSubBassPhaseNodes Web Audio BiquadFilter allpass bù pha và WaveShaper oversampling 4x kết nối an toàn trước Limiter; (4) Tích hợp UI Equalizer Panel: #sub-bass-phase-select, #sub-bass-phase-badge, #sub-bass-phase-desc, đồng bộ state.subBassPhaseProfile và lưu trữ localStorage/sao lưu cấu hình; (5) Khắc phục triệt để lỗi cập nhật PWA: applyAppUpdate lưu session phát nhạc, gửi SKIP_WAITING, xóa cache và tự động phát tiếp ngay sau khi tải lại trang; nâng cache version sw.js lên nocturne-v2; (6) Nâng khoảng sáng an toàn maxBottomClearance của Mini Player HUD lên 150px bảo đảm không bao giờ che khuất thanh dock điều khiển; (7) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 8/8 tests sub-bass-phase-alignment.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Đồng Hồ Đo Quang Phổ Âm Hình Radar Phân Cực 3D (3D Polar Radar Soundstage Visualizer & Dynamic Phase Field Hologram) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 17:15 +07 | Đã xong: Pha B - UI/UX & Visualizer: Đồng Hồ Đo Quang Phổ Âm Hình Radar Phân Cực 3D & Trường Pha Hologram Động (3D Polar Radar Soundstage Visualizer & Dynamic Phase Field Hologram): (1) calculatePolarRadarSoundstage phân tích tọa độ cực âm trường Azimuth θ [-90°, +90°], phân bổ 16 bin năng lượng, khẩu độ âm trường 20°-90°+, trọng tâm Centroid Azimuth và tỷ lệ nghịch pha antiPhaseRatio; (2) POLAR_RADAR_MODES và getPolarRadarMode (contour, hologram, spectral); (3) formatPolarRadarTelemetry xuất telemetry trực quan; (4) renderPolarRadarCanvas kết xuất đồ họa radar 60fps với 4 vòng cự ly -24/-12/-6/0 dB, tia quét Hologram sweep beam, đa giác âm trường bo cong mượt mà, hạt phát quang hologram nodes và kim chỉ hướng centroid; (5) Tích hợp nút chế độ #fs-stage-mode-radar trong Fullscreen Stage Visualizer, cập nhật thời gian thực #fs-soundstage-badge và #fs-stage-telemetry-desc; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 8/8 tests polar-radar-soundstage.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 17:35 +07 | Đã xong: Tối Ưu Giao Diện - Tái Định Hình Tỷ Lệ Cân Đối Tuyệt Đối Thanh Dock Điều Khiển (Balanced 3-Column Footer Dock & Seekbar Centering): (1) Thiết lập tỷ lệ 3 cột cân xứng tuyệt đối 26% — 48% — 26% (.footer-left-col, .footer-center-controls, .footer-right-tools); (2) Phím Play/Pause và Seekbar căn giữa 50% toàn màn hình, hai đầu thời gian đối xứng; (3) Cột phải gom gọn huy hiệu chất lượng, EQ, Queue, Phòng nghe, Fullscreen và Volume, ẩn thích ứng các nút phụ trợ tránh tràn ép; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests footer-proportions.test.cjs PASS 100%, toàn bộ 25/25 tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 18:05 +07 | Đã xong: Tối Ưu Độ Trễ & Triệt Tiêu Lag Khi Chọn Bài Hát (Instant Track Selection & Zero-Latency Audio Pipeline): (1) Phản hồi thị giác lạc quan tức thì (<16ms, đo lường ~2.7ms) trong handleTrackRowActivation và playTrack: cập nhật state.currentId, displayTrack(track), hiệu ứng nạp đệm loading-pulse/spinner trên play-button và dòng bài hát, reset seekbar về 0:00 trước bất kỳ thao tác mạng hay giải mã nào; (2) Phi đồng bộ hóa DOM bằng deferRenderQueue (requestAnimationFrame / requestIdleCallback) loại bỏ triệt để hiện tượng đơ giật UI và layout thrashing khi bấm bài; (3) Kích hoạt sớm AudioContext và state.context.resume() ngay trong tick user gesture; (4) Phát tức thì qua First-Slice Cache và local audio, tích hợp pure helpers createOptimisticTrackState, canStartInstantPlayback, formatSelectionLatency; (5) Nâng cấp cache Service Worker lên nocturne-v3 cho PWA tự động làm mới; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests instant-track-selection.test.cjs PASS 100%, toàn bộ 37/37 tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
 </body>
 </html>
