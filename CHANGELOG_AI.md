@@ -2,6 +2,33 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 15:15 +07] — Pha B: Đồng Hồ Đo Quang Phổ Âm Hình Đa Trục 3D & Máy Đo Tương Quan Pha Goniometer (3D Soundstage Vector Spectrogram & Spatial Goniometer Visualizer)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá UI/UX & Visualizer:
+- **Phân khu trọng tâm:** **Đo Tọa Độ Âm Hình Lissajous/Goniometer (`calculateSpatialVectorSpectrogram`), Đo Tương Quan Pha Stereo & Độ Mở Âm Hình Không Gian, Định Dạng Telemetry Âm Hình Chuẩn Mực (`formatSpatialVectorTelemetry`), Vẽ Đồ Thị Vector Scope 60fps Phosphor Glow (`renderSpatialVectorCanvas`), Mở Rộng Thư Viện Bảng Màu Nghệ Thuật (`VISUALIZER_THEMES` thêm `aurora_borealis` & `monochrome_studio` - tổng 15 themes), Nút Chuyển Chế Độ `#fs-stage-mode-vector` trong Fullscreen Stage Visualizer**.
+- **Tính năng & Đột phá:**
+  1. **Tính toán động học phổ âm hình không gian vector (`calculateSpatialVectorSpectrogram`):**
+     - Chuyển đổi tín hiệu kênh đôi Stereo (Left/Right) sang thành phần không gian Mid ($M = \frac{L + R}{\sqrt{2}}$ đại diện cho năng lượng mono trung tâm) và Side ($S = \frac{R - L}{\sqrt{2}}$ đại diện cho chênh lệch stereo hai kênh).
+     - Ánh xạ tọa độ chuẩn hóa Lissajous Vector Scope với $X = Side$ (từ $-1.0$ cực trái đến $+1.0$ cực phải) và $Y = Mid$ (từ $0$ tĩnh lặng đến $1.0$ năng lượng đồng pha cực đại).
+     - Đo lường hệ số tương quan pha stereo $r \in [-1.0, +1.0]$, nhận diện chính xác 3 trạng thái: hoàn toàn đồng pha ($r > 0.8$), không gian nổi tự nhiên ($0 \le r \le 0.8$) và cảnh báo lệch pha/nghịch pha nghiêm trọng ($r < 0$).
+     - Tính toán độ mở trường âm không gian (stereo width: 0% mono hẹp đến 100% âm hình rộng thoáng) và góc lệch tâm Azimuth $[-45^\circ, +45^\circ]$.
+  2. **Định dạng Telemetry âm hình không gian (`formatSpatialVectorTelemetry`):**
+     - Xuất bản ghi đo lường chi tiết: `🧭 Âm hình: Rộng 72% · Lệch phải +4° · Đồng pha chuẩn (+0.92)`.
+  3. **Bộ kết xuất Canvas chuyên dụng độ trễ cực thấp (`renderSpatialVectorCanvas`):**
+     - Vẽ lưới tọa độ goniometer chuẩn phòng thu: các vành tròn suy giảm $0\text{ dB}$, $-6\text{ dB}$, $-12\text{ dB}$, $-24\text{ dB}$ và chữ thập Mid/Side.
+     - Đồ họa vector scope mô phỏng đèn huỳnh quang phosphor (phosphor decay glow) với đường quét năng lượng mượt mà, phản hồi chuyển động 60fps.
+  4. **Mở rộng bộ sưu tập Visualizer Themes (`VISUALIZER_THEMES`):**
+     - Bổ sung 2 bảng màu nghệ thuật audiophile mới: `aurora_borealis` (Bắc Cực Quang huyền ảo) và `monochrome_studio` (Studio Kiểm Âm Phòng Thu) nâng tổng số lên 15 chủ đề thị giác cao cấp.
+  5. **Tích hợp UI Toàn màn hình Roon Fullscreen:**
+     - Nút chuyển chế độ `#fs-stage-mode-vector` (Goniometer 3D) đồng bộ chuyển đổi trạng thái với `#fs-stage-mode-radar` và `#fs-stage-mode-vu`.
+     - Phím tắt và tương tác click chuyển đổi mượt mà giữa các chế độ sân khấu thị giác.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `spatial-vector-spectrogram.test.cjs` (**6/6 tests PASS 100%**).
+  - Toàn bộ test suites hồi quy (**PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 14:45 +07] — Pha A: Bộ Lọc Tái Thiết Tần Số Siêu Âm DSD & Lọc Khử Méo Lượng Tử Hóa (DSD Ultrasonic Reconstruction Filter & High-Frequency Noise Shaping Cutoff Engine)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Audio Engine & DSP:

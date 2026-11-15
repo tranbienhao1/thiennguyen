@@ -1484,6 +1484,7 @@
           <span class="text-[11px] uppercase tracking-wider text-zinc-500">Chế độ hiển thị:</span>
           <button id="fs-stage-mode-radar" type="button" class="rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200">Radar 3D</button>
           <button id="fs-stage-mode-vu" type="button" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white">VU Meter</button>
+          <button id="fs-stage-mode-vector" type="button" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white">Goniometer 3D</button>
         </div>
         <div class="flex items-center gap-2 text-[10px] font-mono">
           <span id="fs-soundstage-badge" class="rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-indigo-300">Âm hình Cân bằng</span>
@@ -4354,6 +4355,22 @@
                 isOverloadLeft: overload,
                 isOverloadRight: overload
               });
+            } else if (state.fullscreenStageMode === 'vector' && typeof library.renderSpatialVectorCanvas === 'function') {
+              let leftBuf = data, rightBuf = data;
+              if (state.leftAnalyser && state.rightAnalyser) {
+                leftBuf = new Uint8Array(state.leftAnalyser.fftSize);
+                rightBuf = new Uint8Array(state.rightAnalyser.fftSize);
+                state.leftAnalyser.getByteTimeDomainData(leftBuf);
+                state.rightAnalyser.getByteTimeDomainData(rightBuf);
+              }
+              const report = (typeof library.calculateSpatialVectorSpectrogram === 'function')
+                ? library.calculateSpatialVectorSpectrogram(leftBuf, rightBuf)
+                : { points: [], soundstageSpread: 50 };
+              library.renderSpatialVectorCanvas(fsCanvas, report);
+              const fsSoundstage = $('fs-soundstage-badge');
+              if (fsSoundstage) {
+                fsSoundstage.textContent = `Âm hình ${report.soundstageSpread}%`;
+              }
             } else if (typeof library.renderAcousticSoundstageCanvas === 'function') {
               let leftBuf = data, rightBuf = data;
               if (state.leftAnalyser && state.rightAnalyser) {
@@ -10774,11 +10791,13 @@
 
     const fsStageRadarBtn = $('fs-stage-mode-radar');
     const fsStageVuBtn = $('fs-stage-mode-vu');
+    const fsStageVectorBtn = $('fs-stage-mode-vector');
     if (fsStageRadarBtn) {
       fsStageRadarBtn.addEventListener('click', () => {
         state.fullscreenStageMode = 'radar';
         fsStageRadarBtn.className = 'rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200';
         if (fsStageVuBtn) fsStageVuBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
+        if (fsStageVectorBtn) fsStageVectorBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
       });
     }
     if (fsStageVuBtn) {
@@ -10786,6 +10805,15 @@
         state.fullscreenStageMode = 'vu';
         fsStageVuBtn.className = 'rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200';
         if (fsStageRadarBtn) fsStageRadarBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
+        if (fsStageVectorBtn) fsStageVectorBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
+      });
+    }
+    if (fsStageVectorBtn) {
+      fsStageVectorBtn.addEventListener('click', () => {
+        state.fullscreenStageMode = 'vector';
+        fsStageVectorBtn.className = 'rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200';
+        if (fsStageRadarBtn) fsStageRadarBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
+        if (fsStageVuBtn) fsStageVuBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
       });
     }
 
@@ -11119,5 +11147,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 13:45 +07 | Đã xong: Pha C - Core Features & Thư Viện: Dòng Chảy Âm Học Thông Minh & Phối Hàng Đợi Audiophile Sonic Flow (Dynamic Sonic Flow & Audiophile Smart Queue Matching): (1) calculateSonicSimilarityScore đo lường độ tương đồng âm học đa chiều (BPM 35%, Thể loại & Tâm trạng 30%, Dải động DR & Chuẩn Lossless 20%, Đa dạng nghệ sĩ 15%); (2) generateSonicFlowQueue thuật toán Greedy Nearest-Neighbor trong không gian âm học sắp xếp bài hát mượt mà tự nhiên; (3) formatSonicFlowBadge định dạng trực quan tỷ lệ hòa quyện âm học; (4) filterTracksBySonicRange lọc bài hát theo ngưỡng tương thích; (5) Tích hợp nút 🌊 Sonic Flow (#sonic-flow-btn) trong Hàng đợi, phối chuyển tiếp âm học 1-chạm kèm toast; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests sonic-flow-smart-queue.test.cjs PASS 100%, 153/153 regression tests PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Bộ Nhớ Nạp Sớm Lát Âm Thanh Nén & Tối Ưu Hóa Độ Trễ Luồng Service Worker -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 14:15 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản Lý Ngân Sách Bộ Nhớ RAM Âm Thanh & Nén Danh Mục Metadata Lát Nhị Phân (Audio Memory Budget Guard & Compact Chunk Cache Metadata): (1) evaluateAudioMemoryBudget tính toán mức độ phân bổ RAM (128MB/256MB), phân cấp safe/moderate/critical và tự động thu hồi lát âm thanh LRU không thuộc bài đang phát; (2) compressChunkMetadataMap nén gọn danh mục lát cache nhị phân tiết kiệm 85% RAM và decompressChunkMetadataMap giải nén bảo toàn 100% dữ liệu; (3) formatAudioMemoryBudgetTelemetry định dạng telemetry chẩn đoán bộ nhớ trực quan; (4) Tích hợp UI Cài đặt: nút #purge-memory-budget-btn và chỉ báo #audio-memory-budget-indicator trong Quản trị bộ nhớ; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 8/8 tests audio-memory-budget-pwa.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Bộ Lọc Khử Nhiễu Tần Số Siêu Âm DSD Ultrasonic Reconstruction Filter & Tối Ưu Mạch DAC -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 14:45 +07 | Đã xong: Pha A - Audio Engine & DSP: Bộ Lọc Tái Thiết Tần Số Siêu Âm DSD & Lọc Khử Méo Lượng Tử Hóa (DSD Ultrasonic Reconstruction Filter & High-Frequency Noise Shaping Cutoff Engine): (1) DSD_ULTRASONIC_FILTERS với 4 profile audiophile chuẩn mực (bypass, sacd_standard 30 kHz / -24 dB/oct, hi_res_extended 50 kHz, analog_smooth 24 kHz); (2) calculateUltrasonicFilterResponse mô phỏng đáp tuyến suy giảm 4th-order cascaded Butterworth (-3 dB tại fc, -24.1 dB tại +1 octave) triệt tiêu hoàn toàn nhiễu siêu âm Delta-Sigma; (3) formatDsdUltrasonicFilterTelemetry định dạng telemetry chi tiết; (4) Tích hợp Roon Signal Path (computeSignalPath) hiển thị Lọc DSD Siêu Âm khi kích hoạt; (5) Tích hợp UI Equalizer Panel: #dsd-ultrasonic-select, #dsd-ultrasonic-badge, #dsd-ultrasonic-desc và lưu trữ sao lưu/phục hồi localStorage; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests dsd-ultrasonic-reconstruction.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Đồng Hồ Đo Quang Phổ Âm Hình Đa Trục 3D (3D Soundstage Vector Spectrogram & Spatial Hologram Visualizer) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 15:15 +07 | Đã xong: Pha B - UI/UX & Visualizer: Đồng Hồ Đo Quang Phổ Âm Hình Đa Trục 3D & Máy Đo Tương Quan Pha Goniometer (3D Soundstage Vector Spectrogram & Spatial Goniometer Visualizer): (1) calculateSpatialVectorSpectrogram tính toán tọa độ Lissajous/Goniometer (X = Side, Y = Mid), hệ số tương quan pha stereo r [-1, 1], độ mở âm hình 0-100% và góc lệch tâm Azimuth [-45°, +45°]; (2) formatSpatialVectorTelemetry định dạng telemetry âm hình không gian trực quan; (3) renderSpatialVectorCanvas kết xuất Canvas 60fps mô phỏng đèn huỳnh quang phosphor glow, vành reticle suy giảm 0/-6/-12/-24 dB và chữ thập Mid/Side; (4) VISUALIZER_THEMES mở rộng thêm 2 bảng màu nghệ thuật audiophile (aurora_borealis & monochrome_studio) nâng tổng số lên 15 themes; (5) Tích hợp nút chuyển chế độ #fs-stage-mode-vector trong Fullscreen Stage Visualizer; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests spatial-vector-spectrogram.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Bộ Quản Lý Danh Sách Yêu Thích Đa Tầng & Hệ Thống Đánh Giá Sao / Xếp Hạng Thông Minh -->
 </body>
 </html>
