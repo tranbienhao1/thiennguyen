@@ -2,6 +2,36 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 11:45 +07] — Pha C: Nhận Diện Tiết Tấu BPM Tự Động, Phân Nhóm Năng Lượng & Sắp Xếp Chuyển Tiếp Hàng Đợi Hài Hòa (Real-Time Audio BPM Extraction, Tempo Tiers & Harmonic Queue Sequencing)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Core Features & Thư Viện:
+- **Phân khu trọng tâm:** **Thuật Toán Tự Tương Quan Chu Kỳ Âm Trầm (YIN/Autocorrelation Fundamental Beat Tracking), Hệ Thống Phân Cấp Tiết Tấu 4 Bậc (`BPM_TEMPO_TIERS`), Sắp Xếp Chuyển Tiếp Hàng Đợi Mượt Mà (`sequenceHarmonicBpmQueue`), Lọc Bài Theo Tiết Tấu & Tích Hợp UI Huy Hiệu BPM Phòng Nghe**.
+- **Tính năng & Đột phá:**
+  1. **Động cơ phân tích & nhận diện tiết tấu thời gian thực (`estimateTrackBpmFromEnergyHistory`):**
+     - Phân tích chuỗi lịch sử năng lượng dải trầm và các xung nhịp tức thời qua hàm tự tương quan có chuẩn hóa độ trễ (Lag-normalized Autocorrelation).
+     - Thuật toán dò tìm đỉnh hài bậc nhất (Fundamental peak picking) loại bỏ lỗi nhân đôi/chia nửa nhịp (octave/subharmonic error), tính toán chính xác giá trị BPM và hệ số tin cậy (Confidence 0.0 – 1.0).
+  2. **Hệ thống phân tầng tiết tấu (`BPM_TEMPO_TIERS`, `getTempoTier`):**
+     - `ambient_slow` (40–80 BPM, `#38bdf8`): Thong thả / Ru êm (Ambient & Slow).
+     - `groove_mid` (80–115 BPM, `#34d399`): Nhịp điệu Thư thái (Groove & Mid-tempo).
+     - `upbeat_dance` (115–140 BPM, `#f59e0b`): Sôi động / Nhảy (Upbeat Dance).
+     - `hyper_fast` (140–240 BPM, `#ef4444`): Cường độ Cao (Fast & Driving).
+  3. **Định dạng Telemetry Tiết tấu & Năng lượng (`formatTempoEnergyBadge`):**
+     - Định dạng trực quan: ví dụ `🎵 124 BPM · Sôi động / Nhảy (92% tin cậy)`.
+  4. **Thuật toán sắp xếp hàng đợi chuyển tiếp hài hòa (`sequenceHarmonicBpmQueue`):**
+     - Sắp xếp thứ tự các bài hát trong hàng đợi giảm thiểu tối đa hiện tượng chênh lệch tiết tấu đột ngột giữa các bài phát nối tiếp nhau (Harmonic BPM Flow).
+     - Hỗ trợ các chế độ: `smooth_asc` (tăng dần êm dịu), `smooth_desc` (hạ dần thư thái) và `nearest_neighbor` (tìm bài có BPM gần nhất với bài kế trước).
+  5. **Bộ lọc danh sách bài theo tiết tấu (`filterTracksByBpmTier`):**
+     - Cho phép lọc nhanh các bài hát theo gu nhịp điệu mong muốn.
+  6. **Tích hợp UI:**
+     - Huy hiệu BPM `#room-bpm-badge` hiển thị nhịp đập trực tiếp trong Phòng nghe, tự động reset khi chuyển bài và cập nhật sau khi phân tích chuỗi tín hiệu.
+     - Nút sắp xếp hàng đợi `#queue-bpm-sort-btn` trong khung điều khiển Hàng đợi (`#queue-modal`).
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `tempo-bpm-harmonic-queue.test.cjs` (**7/7 tests PASS 100%**).
+  - Toàn bộ 18 test suites hồi quy (**144/144 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 11:20 +07] — Pha B: Phổ Âm Thanh Động Học Thang Logarit & Sân Khấu Vũ Trường Ánh Sáng Đa Tầng Hào Quang (Multi-Band Logarithmic Spectrum Dynamics & Real-time Beat Strobe Chromatic Aura Refinement)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá UI/UX & Visualizer:
