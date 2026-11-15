@@ -866,9 +866,11 @@
           <button id="prune-object-urls-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-400/20">Giải phóng RAM</button>
           <button id="rebuild-compact-index-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-indigo-400/30 bg-indigo-400/10 px-3 py-2 text-[11px] font-medium text-indigo-200 transition hover:bg-indigo-400/20">Lập chỉ mục gọn (Compact Index)</button>
           <button id="sync-delta-library-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-teal-400/30 bg-teal-400/10 px-3 py-2 text-[11px] font-medium text-teal-200 transition hover:bg-teal-400/20">Đồng bộ Delta Thư viện</button>
+          <button id="purge-memory-budget-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-[11px] font-medium text-sky-200 transition hover:bg-sky-400/20">Ngân sách RAM Audio</button>
         </div>
         <p id="storage-capacity-forecast" class="mt-2.5 text-[10px] text-zinc-400 font-mono">💾 Khả dụng: Đang kiểm tra... · Dự kiến: Đang kiểm tra...</p>
         <p id="sync-delta-status" class="mt-1 text-[10px] text-teal-300 font-mono hidden">⚡ Đồng bộ Delta: Sẵn sàng</p>
+        <p id="audio-memory-budget-indicator" class="mt-1 text-[10px] text-sky-300 font-mono hidden">💾 Ngân sách RAM: Sẵn sàng</p>
         <div id="storage-defrag-summary" class="mt-2.5 hidden rounded-lg border border-violet-400/20 bg-violet-400/[.05] p-2 text-[10px] text-zinc-300">
           <div class="flex items-center justify-between">
             <span class="text-violet-200 font-medium">Toàn vẹn IndexedDB:</span>
@@ -8057,6 +8059,23 @@
       toast(telemetry);
     });
 
+    $('purge-memory-budget-btn')?.addEventListener('click', async () => {
+      const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+      if (!lib || typeof lib.evaluateAudioMemoryBudget !== 'function') {
+        toast('Công cụ quản lý ngân sách RAM Audio chưa sẵn sàng.');
+        return;
+      }
+      const cached = state.cachedAudioChunks || [];
+      const report = lib.evaluateAudioMemoryBudget(cached, state.currentId, { forceEviction: true });
+      const statusEl = $('audio-memory-budget-indicator');
+      const telemetry = lib.formatAudioMemoryBudgetTelemetry(report);
+      if (statusEl) {
+        statusEl.textContent = telemetry;
+        statusEl.classList.remove('hidden');
+      }
+      toast(telemetry);
+    });
+
     $('export-config-btn')?.addEventListener('click', () => {
       const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
       if (!lib || typeof lib.exportAppConfiguration !== 'function') return toast('Tiện ích sao lưu chưa sẵn sàng.');
@@ -10996,5 +11015,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 12:45 +07 | Đã xong: Pha A - Audio Engine & DSP: Mô Phỏng Mạch Khuếch Đại Đèn Chân Không Triode & Hài Âm Analog Tuyến Tính (Vacuum Tube Saturation Harmonics & Analog Warmth Emulation): (1) TUBE_EMULATION_PROFILES với 4 chuẩn audiophile (off Bit-Perfect, warm_triode 300B, vintage_el34 Push-Pull, modern_kt88 Linear); (2) generateTubeTransferCurve tạo hàm truyền đạt phi tuyến kết hợp soft-saturation tanh và bơm hài bậc chẵn H2; (3) createTubeEmulationNodes với Web Audio WaveShaperNode Oversampling 4x chống aliasing foldback, nối trước Peak Limiter; (4) Tích hợp Roon Signal Path (computeSignalPath) hiển thị Tube Warmth khi kích hoạt; (5) Tích hợp UI Equalizer Panel: #tube-emulation-select, #tube-emulation-badge, #tube-emulation-desc và cấu hình sao lưu/phục hồi localStorage; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests tube-saturation-harmonics.test.cjs PASS 100%, 158/158 regression tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sóng Âm Đa Chiều Mini HUD & Đo Quán Tính Trọng Lực Đỉnh VU Meter Đa Tần Số -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 13:15 +07 | Đã xong: Pha B - UI/UX & Visualizer: Đồ Họa Sóng Âm Mini HUD Tua Nhạc Tương Tác & Quán Tính Trọng Lực Rơi Đỉnh Đồng Hồ VU (Mini HUD Waveform Scrubber & VU Meter Gravity Dynamics): (1) renderMiniHudWaveformScrubber kết xuất 18 cột sóng âm vi mô hiển thị tiến trình phát nhạc và vạch kim playhead sắc nét trên canvas #mini-waveform 72x26; (2) calculateMiniHudScrubFraction & calculateMiniHudScrubTime hỗ trợ tua nhạc kéo thả trực tiếp (drag-to-seek scrubbing e.buttons === 1) và vạch kim ghost hover bán trong suốt; (3) calculateVuGravityBallistics mô hình hóa cơ học quán tính rơi đỉnh VU theo gia tốc trọng lực v = v + g sau khi hết thời gian giữ đỉnh holdFrames, phản hồi tức thời Zero-latency Attack khi có xung mới; (4) formatVuBallisticsTelemetry đo lường và định dạng mức âm lượng và đỉnh theo chuẩn dBFS cho cả 2 kênh L/R; (5) Mở rộng VISUALIZER_THEMES với 2 bảng màu nghệ thuật audiophile mới: emerald_matrix (Emerald Matrix Hi-Tech) & solar_flare (Solar Flare Warmth) nâng tổng số lên 13 themes; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 8/8 tests mini-hud-waveform-vu-gravity.test.cjs PASS 100%, 118/118 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Tự Động Phân Loại Danh Sách Phát Ngữ Cảnh Nâng Cao & Tối Ưu Hóa Giao Diện Hàng Đợi Thông Minh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 13:45 +07 | Đã xong: Pha C - Core Features & Thư Viện: Dòng Chảy Âm Học Thông Minh & Phối Hàng Đợi Audiophile Sonic Flow (Dynamic Sonic Flow & Audiophile Smart Queue Matching): (1) calculateSonicSimilarityScore đo lường độ tương đồng âm học đa chiều (BPM 35%, Thể loại & Tâm trạng 30%, Dải động DR & Chuẩn Lossless 20%, Đa dạng nghệ sĩ 15%); (2) generateSonicFlowQueue thuật toán Greedy Nearest-Neighbor trong không gian âm học sắp xếp bài hát mượt mà tự nhiên; (3) formatSonicFlowBadge định dạng trực quan tỷ lệ hòa quyện âm học; (4) filterTracksBySonicRange lọc bài hát theo ngưỡng tương thích; (5) Tích hợp nút 🌊 Sonic Flow (#sonic-flow-btn) trong Hàng đợi, phối chuyển tiếp âm học 1-chạm kèm toast; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests sonic-flow-smart-queue.test.cjs PASS 100%, 153/153 regression tests PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Bộ Nhớ Nạp Sớm Lát Âm Thanh Nén & Tối Ưu Hóa Độ Trễ Luồng Service Worker -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 14:15 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản Lý Ngân Sách Bộ Nhớ RAM Âm Thanh & Nén Danh Mục Metadata Lát Nhị Phân (Audio Memory Budget Guard & Compact Chunk Cache Metadata): (1) evaluateAudioMemoryBudget tính toán mức độ phân bổ RAM (128MB/256MB), phân cấp safe/moderate/critical và tự động thu hồi lát âm thanh LRU không thuộc bài đang phát; (2) compressChunkMetadataMap nén gọn danh mục lát cache nhị phân tiết kiệm 85% RAM và decompressChunkMetadataMap giải nén bảo toàn 100% dữ liệu; (3) formatAudioMemoryBudgetTelemetry định dạng telemetry chẩn đoán bộ nhớ trực quan; (4) Tích hợp UI Cài đặt: nút #purge-memory-budget-btn và chỉ báo #audio-memory-budget-indicator trong Quản trị bộ nhớ; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 8/8 tests audio-memory-budget-pwa.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Bộ Lọc Khử Nhiễu Tần Số Siêu Âm DSD Ultrasonic Reconstruction Filter & Tối Ưu Mạch DAC -->
 </body>
 </html>

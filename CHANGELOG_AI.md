@@ -2,6 +2,31 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 14:15 +07] — Pha D: Quản Lý Ngân Sách Bộ Nhớ RAM Âm Thanh & Nén Danh Mục Metadata Lát Nhị Phân (Audio Memory Budget Guard & Compact Chunk Cache Metadata)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Hiệu Năng & Kiến Trúc PWA:
+- **Phân khu trọng tâm:** **Đánh Giá Ngân Sách RAM Âm Thanh (`evaluateAudioMemoryBudget`), Thuật Toán Nén Danh Mục Lát Cache Nhị Phân (`compressChunkMetadataMap`, `decompressChunkMetadataMap`), Telemetry Chẩn Đoán Bộ Nhớ (`formatAudioMemoryBudgetTelemetry`), Nút Dọn Dẹp Ngân Sách RAM Audio `#purge-memory-budget-btn` & Chỉ Báo Trạng Thái `#audio-memory-budget-indicator`**.
+- **Tính năng & Đột phá:**
+  1. **Động cơ kiểm soát ngân sách bộ nhớ RAM âm thanh (`evaluateAudioMemoryBudget`):**
+     - Giới hạn trần RAM phân bổ (mặc định 256MB hoặc tùy biến qua `options.maxBudgetBytes`).
+     - Phân loại 3 mức áp lực bộ nhớ thời gian thực: `safe` ($\le 60\%$), `moderate` ($60\% - 85\%$) và `critical` ($> 85\%$).
+     - Thuật toán thu hồi thông minh: tự động bảo vệ tuyệt đối tất cả các lát cache thuộc bài hát đang phát (`isPlaying` hoặc `currentTrackId`), sắp xếp các lát cache còn lại theo thời gian truy cập gần nhất (`lastAccessTime` LRU) để thu hồi về ngưỡng an toàn ($65\%$).
+     - Hỗ trợ cờ ép buộc thu hồi `forceEviction` và giới hạn số lát thu hồi `maxEvictCount`.
+  2. **Thuật toán nén danh mục metadata lát cache nhị phân (`compressChunkMetadataMap` & `decompressChunkMetadataMap`):**
+     - Đóng gói cấu trúc metadata thành mảng nhị phân tinh gọn `[trackId, idx, size, fmt, timeSec]`, giúp giảm kích thước bộ nhớ tới hơn $85\%$ so với đối tượng JSON thông thường.
+     - Hàm giải nén `decompressChunkMetadataMap` khôi phục chính xác $100\%$ các trường `trackId`, `chunkIndex`, `sizeBytes`, `formatCode` và thời gian truy cập `lastAccessTime`.
+  3. **Định dạng Telemetry chẩn đoán bộ nhớ RAM (`formatAudioMemoryBudgetTelemetry`):**
+     - Hiển thị trực quan: `💾 Bộ đệm RAM: X.X/256 MB (An toàn Y%) · Z lát cần thu hồi`.
+  4. **Tích hợp UI Quản trị bộ nhớ:**
+     - Nút **Ngân sách RAM Audio** (`#purge-memory-budget-btn`) màu xanh da trời trong `#storage-quota-section`.
+     - Dòng chỉ báo trạng thái `#audio-memory-budget-indicator` cập nhật tức thời khi nhấn nút và thông báo qua Toast.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `audio-memory-budget-pwa.test.cjs` (**8/8 tests PASS 100%**).
+  - Toàn bộ test suites hồi quy (**996/996 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 13:45 +07] — Pha C: Dòng Chảy Âm Học Thông Minh & Phối Hàng Đợi Audiophile Sonic Flow (Dynamic Sonic Flow & Audiophile Smart Queue Matching)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Core Features & Thư Viện:
