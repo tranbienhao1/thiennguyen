@@ -876,10 +876,12 @@
           <button id="rebuild-compact-index-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-indigo-400/30 bg-indigo-400/10 px-3 py-2 text-[11px] font-medium text-indigo-200 transition hover:bg-indigo-400/20">Lập chỉ mục gọn (Compact Index)</button>
           <button id="sync-delta-library-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-teal-400/30 bg-teal-400/10 px-3 py-2 text-[11px] font-medium text-teal-200 transition hover:bg-teal-400/20">Đồng bộ Delta Thư viện</button>
           <button id="purge-memory-budget-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-[11px] font-medium text-sky-200 transition hover:bg-sky-400/20">Ngân sách RAM Audio</button>
+          <button id="schedule-prefetch-queue-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-[11px] font-medium text-cyan-200 transition hover:bg-cyan-400/20">Nạp sớm hàng đợi PWA</button>
         </div>
         <p id="storage-capacity-forecast" class="mt-2.5 text-[10px] text-zinc-400 font-mono">💾 Khả dụng: Đang kiểm tra... · Dự kiến: Đang kiểm tra...</p>
         <p id="sync-delta-status" class="mt-1 text-[10px] text-teal-300 font-mono hidden">⚡ Đồng bộ Delta: Sẵn sàng</p>
         <p id="audio-memory-budget-indicator" class="mt-1 text-[10px] text-sky-300 font-mono hidden">💾 Ngân sách RAM: Sẵn sàng</p>
+        <p id="prefetch-queue-status" class="mt-1 text-[10px] text-cyan-300 font-mono hidden">⚡ Nạp ngầm hàng đợi: Sẵn sàng</p>
         <div id="storage-defrag-summary" class="mt-2.5 hidden rounded-lg border border-violet-400/20 bg-violet-400/[.05] p-2 text-[10px] text-zinc-300">
           <div class="flex items-center justify-between">
             <span class="text-violet-200 font-medium">Toàn vẹn IndexedDB:</span>
@@ -8207,6 +8209,29 @@
       toast(telemetry);
     });
 
+    $('schedule-prefetch-queue-btn')?.addEventListener('click', async () => {
+      const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+      if (!lib || typeof lib.scheduleOfflineQueuePrefetch !== 'function') {
+        toast('Công cụ lập lịch nạp ngầm hàng đợi chưa sẵn sàng.');
+        return;
+      }
+      const cached = new Set(Array.from(state.objectUrls || []));
+      const report = lib.scheduleOfflineQueuePrefetch(state.queue, state.currentId, cached, {
+        isAudioPlaying: audio && !audio.paused,
+        networkTier: state.networkProfile?.tier || 'high-speed',
+        favorites: state.favorites,
+        ratings: state.trackRatings,
+        maxLookahead: 5
+      });
+      const statusEl = $('prefetch-queue-status');
+      const telemetry = lib.formatPrefetchQueueTelemetry(report);
+      if (statusEl) {
+        statusEl.textContent = telemetry;
+        statusEl.classList.remove('hidden');
+      }
+      toast(telemetry);
+    });
+
     $('export-config-btn')?.addEventListener('click', () => {
       const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
       if (!lib || typeof lib.exportAppConfiguration !== 'function') return toast('Tiện ích sao lưu chưa sẵn sàng.');
@@ -11184,5 +11209,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 14:45 +07 | Đã xong: Pha A - Audio Engine & DSP: Bộ Lọc Tái Thiết Tần Số Siêu Âm DSD & Lọc Khử Méo Lượng Tử Hóa (DSD Ultrasonic Reconstruction Filter & High-Frequency Noise Shaping Cutoff Engine): (1) DSD_ULTRASONIC_FILTERS với 4 profile audiophile chuẩn mực (bypass, sacd_standard 30 kHz / -24 dB/oct, hi_res_extended 50 kHz, analog_smooth 24 kHz); (2) calculateUltrasonicFilterResponse mô phỏng đáp tuyến suy giảm 4th-order cascaded Butterworth (-3 dB tại fc, -24.1 dB tại +1 octave) triệt tiêu hoàn toàn nhiễu siêu âm Delta-Sigma; (3) formatDsdUltrasonicFilterTelemetry định dạng telemetry chi tiết; (4) Tích hợp Roon Signal Path (computeSignalPath) hiển thị Lọc DSD Siêu Âm khi kích hoạt; (5) Tích hợp UI Equalizer Panel: #dsd-ultrasonic-select, #dsd-ultrasonic-badge, #dsd-ultrasonic-desc và lưu trữ sao lưu/phục hồi localStorage; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests dsd-ultrasonic-reconstruction.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Đồng Hồ Đo Quang Phổ Âm Hình Đa Trục 3D (3D Soundstage Vector Spectrogram & Spatial Hologram Visualizer) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 15:15 +07 | Đã xong: Pha B - UI/UX & Visualizer: Đồng Hồ Đo Quang Phổ Âm Hình Đa Trục 3D & Máy Đo Tương Quan Pha Goniometer (3D Soundstage Vector Spectrogram & Spatial Goniometer Visualizer): (1) calculateSpatialVectorSpectrogram tính toán tọa độ Lissajous/Goniometer (X = Side, Y = Mid), hệ số tương quan pha stereo r [-1, 1], độ mở âm hình 0-100% và góc lệch tâm Azimuth [-45°, +45°]; (2) formatSpatialVectorTelemetry định dạng telemetry âm hình không gian trực quan; (3) renderSpatialVectorCanvas kết xuất Canvas 60fps mô phỏng đèn huỳnh quang phosphor glow, vành reticle suy giảm 0/-6/-12/-24 dB và chữ thập Mid/Side; (4) VISUALIZER_THEMES mở rộng thêm 2 bảng màu nghệ thuật audiophile (aurora_borealis & monochrome_studio) nâng tổng số lên 15 themes; (5) Tích hợp nút chuyển chế độ #fs-stage-mode-vector trong Fullscreen Stage Visualizer; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests spatial-vector-spectrogram.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Bộ Quản Lý Danh Sách Yêu Thích Đa Tầng & Hệ Thống Đánh Giá Sao / Xếp Hạng Thông Minh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 15:45 +07 | Đã xong: Pha C - Core Features & Thư Viện: Bộ Quản Lý Danh Sách Yêu Thích Đa Tầng & Hệ Thống Đánh Giá Sao / Xếp Hạng Thông Minh (Multi-Tier Favorites Collections & Smart Track Rating Analytics): (1) calculateTrackEngagementRating tính điểm gắn kết 0-100% kết hợp 45% đánh giá chủ quan, 35% tần suất/hoàn tất phát nhạc, 15% thả tim, 5% định dạng audiophile và xếp hạng sao tổng hợp 1.0-5.0★ chuẩn hóa; (2) categorizeFavoritesByMoodQuality phân tầng 4 danh mục con yêu thích chuyên sâu (masterpieces 5 sao, audiophileLossless Hi-Res/DSD/FLAC, frequentGems nghe nhiều, rediscover khám phá lại); (3) formatTrackEngagementTelemetry định dạng telemetry đánh giá trực quan; (4) Tích hợp UI các nút focus phân tầng yêu thích (★ Tuyệt tác 5★, ❖ Hi-Res Fav, 💎 Nghe nhiều) trên thanh công cụ và huy hiệu #room-engagement-badge trong Màn hình Đang phát; (5) Đồng bộ state.trackRatings với localStorage, exportAppConfiguration và mergeRestoredConfiguration; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests smart-favorites-rating.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản Lý Bộ Nhớ Nạp Sớm Lát Âm Thanh Nhị Phân & Khả Năng Thích Ứng Khi Đứt Kết Nối Ngoại Tuyến -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 16:15 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Bộ Lập Lịch Nạp Trước Hàng Đợi Ngoại Tuyến & Đường Ống Cache Ngầm Có Trọng Số Ưu Tiên (Priority-Weighted Offline Queue Prefetch Scheduler & Adaptive Concurrency Pipeline): (1) calculatePrefetchPriorityScore tính điểm ưu tiên nạp 0-100 suy giảm theo khoảng cách hàng đợi (50/30/15 điểm), thưởng bài yêu thích/rating, thưởng trọng tải Audiophile Hi-Res/DSD và thích ứng tự động khi nghẽn mạng; (2) evaluateCachePipelineConcurrency giới hạn tối đa 1 luồng nạp an toàn khi đang phát nhạc bảo vệ tuyệt đối Web Audio thread, mở rộng 2-3 luồng khi tạm dừng; (3) scheduleOfflineQueuePrefetch tự động bỏ qua các bài đã cache sẵn, chỉ định chế độ first_slice/full_track và sắp xếp thứ tự nạp; (4) formatPrefetchQueueTelemetry định dạng telemetry nạp ngầm chi tiết; (5) Tích hợp UI nút #schedule-prefetch-queue-btn và chỉ báo #prefetch-queue-status trong Quản trị bộ nhớ; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests offline-prefetch-queue.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Mô Phỏng Mạch Khuếch Đại & Lọc Bù Trừ Pha Tần Số Thấp (Sub-Bass Phase Alignment & Analog Bass Exciter) -->
 </body>
 </html>

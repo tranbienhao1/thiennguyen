@@ -2,6 +2,36 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 16:15 +07] — Pha D: Bộ Lập Lịch Nạp Trước Hàng Đợi Ngoại Tuyến & Đường Ống Cache Ngầm Có Trọng Số Ưu Tiên (Priority-Weighted Offline Queue Prefetch Scheduler & Adaptive Concurrency Pipeline)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Hiệu Năng & Kiến Trúc PWA:
+- **Phân khu trọng tâm:** **Tính Toán Điểm Ưu Tiên Nạp Ngầm (`calculatePrefetchPriorityScore`), Điều Tiết Luồng Chạy Ngầm An Toàn Cho Web Audio (`evaluateCachePipelineConcurrency`), Lập Lịch Tác Vụ Nạp Sớm Hàng Đợi Ngoại Tuyến (`scheduleOfflineQueuePrefetch`), Định Dạng Telemetry Lập Lịch (`formatPrefetchQueueTelemetry`), Nút Thao Tác `#schedule-prefetch-queue-btn` & Chỉ Báo `#prefetch-queue-status` trong Quản Trị Bộ Nhớ PWA**.
+- **Tính năng & Đột phá:**
+  1. **Động cơ phân bổ trọng số ưu tiên nạp ngầm (`calculatePrefetchPriorityScore`):**
+     - Mô hình toán học suy giảm theo khoảng cách hàng đợi (Queue Distance Decay): bài kế tiếp ($index = 1$) đạt $50\text{ điểm}$, bài thứ 2 ($30\text{ điểm}$), bài thứ 3 ($15\text{ điểm}$).
+     - Thưởng điểm gắn kết: $+12\text{ điểm}$ cho bài yêu thích, tối đa $+13\text{ điểm}$ theo đánh giá sao ($1 - 5\text{★}$).
+     - Thưởng trọng tải Audiophile: $+10\text{ điểm}$ cho file DSD/DSF/DFF và $+6\text{ điểm}$ cho FLAC/ALAC/WAV giúp đệm sớm các file dung lượng lớn chống hiện tượng xé tiếng/vấp tiếng.
+     - Thích ứng mạng: Tự động hoãn các bài sau ($index > 1$) khi phát hiện mạng bị nghẽn (`constrained`/`throttled`) hoặc bật chế độ tiết kiệm dữ liệu (`saveData`), triệt tiêu điểm về $0$ khi mất mạng (`offline`).
+     - Phân loại 4 bậc ưu tiên: `critical` ($\ge 75$), `high` ($50 - 74$), `normal` ($25 - 49$), `low` ($< 25$).
+  2. **Kiểm soát luồng đồng thời an toàn cho Web Audio (`evaluateCachePipelineConcurrency`):**
+     - BẢO VỆ TUYỆT ĐỐI AUDIO THREAD: Khi bài hát đang phát (`isAudioPlaying === true`), hệ thống khóa chặt tối đa $1$ luồng nạp nền duy nhất kèm khoảng trễ an toàn `safeDelayMs` để $0\%$ gây jitter hoặc nghẽn CPU/băng thông của bài đang phát.
+     - Khi tạm dừng hoặc chờ phát, mở rộng $2 - 3$ luồng nạp nền song song trên mạng tốc độ cao để hoàn tất kho ngoại tuyến nhanh chóng.
+  3. **Lập lịch nạp thông minh (`scheduleOfflineQueuePrefetch`):**
+     - Tự động bỏ qua các bài đã có sẵn trong bộ nhớ cache (`cachedCount`), tập trung băng thông cho các bài chưa nạp.
+     - Lựa chọn chiến lược tải linh hoạt: nạp lát đầu Instant-Start 0ms (`first_slice`: 1MB-3MB) hoặc tải toàn bộ (`full_track`) tùy theo điểm ưu tiên và tình trạng mạng.
+     - Sắp xếp thứ tự tác vụ nạp theo điểm ưu tiên giảm dần.
+  4. **Định dạng Telemetry lập lịch ngoại tuyến (`formatPrefetchQueueTelemetry`):**
+     - Xuất telemetry trực quan: `⚡ Nạp ngầm hàng đợi: 3 bài chờ · 1 luồng (Đang phát) · 2 bài sẵn · Ước tính: ~36.0 MB`.
+  5. **Tích hợp UI Quản trị bộ nhớ:**
+     - Nút **Nạp sớm hàng đợi PWA** (`#schedule-prefetch-queue-btn`) màu cyan trong `#storage-quota-section`.
+     - Dòng trạng thái `#prefetch-queue-status` cập nhật tức thời khi nhấn nút và thông báo qua Toast.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `offline-prefetch-queue.test.cjs` (**6/6 tests PASS 100%**).
+  - Toàn bộ test suites hồi quy (**PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 15:45 +07] — Pha C: Bộ Quản Lý Danh Sách Yêu Thích Đa Tầng & Hệ Thống Đánh Giá Sao / Xếp Hạng Thông Minh (Multi-Tier Favorites Collections & Smart Track Rating Analytics)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Core Features & Thư Viện:
