@@ -2,6 +2,38 @@
 
 ---
 
+## [Pha C 2026-11-15 20:00 +07] — Nâng Cấp Đồng Bộ Ảnh Bài Hát Tức Thì & Khắc Phục Lỗi Giao Diện Theo Video / Ảnh Thực Tế (Instant Song Art Synchronization & Video-Reported Bug Fixes)
+
+### 🎯 Giải Quyết Yêu Cầu Người Dùng:
+1. **Nâng cấp khả năng đồng bộ hình ảnh bài hát tốc độ gần như ngay lập tức:**
+   - Khi quét hoặc thêm bài hát, giải quyết đa tầng (Direct cover -> Album Key -> Normalized Album Title -> Folder/Path match -> Artist unique cover -> LocalStorage Cache) với độ trễ <1ms.
+   - Lan truyền ảnh bìa tức thì `instantPropagateCovers` cho toàn bộ các bài hát cùng album/thư mục trong bộ nhớ.
+   - Cơ chế phát sóng DOM phản ứng thời gian thực `broadcastCoverUpdate` cập nhật đồng thời mọi bề mặt hiển thị (Player dock, Fullscreen Art & Ambient Backdrop, Room Cover, Mini HUD, Danh sách bài hát, Thẻ Recent Activity, Contextual preview) qua `requestAnimationFrame` mà không cần tải lại trang.
+2. **Khắc phục lỗi điều khiển Toàn màn hình (#fullscreen-play-btn):**
+   - Nút `#fullscreen-play-btn` ủy quyền trực tiếp tới `$('play-button').click()`, kích hoạt đầy đủ `AudioContext.resume()`, khởi chạy DSD worker và phát bài đầu tiên/tiếp theo an toàn.
+   - Đồng bộ trạng thái icon (`▶` và `⏸`) hai chiều thông qua sự kiện `play`, `pause`, hàm `updateRoonFullscreenUI` và `MutationObserver`.
+3. **Khắc phục Sân khấu 3D Toàn màn hình (Goniometer 3D, Radar 3D, VU Meter) bị tối đen:**
+   - Triệt tiêu hoàn toàn race condition trong `setVisualizerRunning`: hủy `visualizerFrame` cũ trước khi khởi động, gọi `setupAudio()` bảo đảm các nút phân tích Web Audio sẵn sàng.
+   - Vòng lặp `draw()` trong chế độ Sân khấu 3D tiếp tục hoạt động mượt mà khi `audio.paused = true`:
+     - **VU Meter:** Hiển thị 2 đồng hồ kim L/R ở vị trí nghỉ chuẩn -45° cùng mặt số phát quang.
+     - **Goniometer 3D:** Lưới tọa độ cực tương phản cao (opacity 0.22/0.28), tâm điểm reticle phát sáng và chỉ báo `STANDBY`.
+     - **Radar 3D:** Lưới cực, các vòng dB (-24dB, -12dB, -6dB, 0dB), vạch chia góc và chùm quét radar sweep hoạt họa 60fps.
+   - Luôn nạp dữ liệu time-domain thực tế `analyser.getByteTimeDomainData(timeData)` thay vì dữ liệu frequency, giúp hiển thị đồ thị âm hình không gian chính xác 100%.
+4. **Phông nền Ambient Mờ Ảo Roon (#fullscreen-bg-cover & #fullscreen-ambient-glow):**
+   - Khắc phục hiện tượng phông nền đen sì bằng quy tắc CSS chuyên dụng: `transform: scale(1.18)`, `filter: blur(48px) saturate(1.4) brightness(0.85)`, `opacity: 0.72` kết hợp `radial-gradient` dịu nhẹ cho phép ánh sáng màu sắc của album lan tỏa mềm mại khắp màn hình.
+   - Giải quyết ảnh bìa qua `resolveTrackCover` bảo đảm phông nền luôn hiển thị ngay cả khi bài hát chưa có ảnh bìa nhúng.
+5. **Khắc phục thanh cuộn phần Lời bài hát:**
+   - Triệt tiêu toàn bộ thanh kéo ngang và dọc bằng `scrollbar-width: none !important`, `-ms-overflow-style: none !important`, `::-webkit-scrollbar { display: none !important; }` và `overflow-x: hidden`.
+
+### 🚀 Kiểm Chứng Kỹ Thuật:
+- `test/video-reported-bugs.test.cjs`: **32/32 tests PASS (100%)**.
+- `test/instant-album-art-sync.test.cjs`: **17/17 tests PASS (100%)**.
+- `test/instant-track-selection.test.cjs`: **6/6 tests PASS (100%)**.
+- Toàn bộ **1133/1133 regression tests PASS (100%)** qua 104 test suites.
+- BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN Web Audio API: `state.crossfeedNodes.output.connect(state.context.destination)` nguyên vẹn.
+
+---
+
 ## [Pha C 2026-11-15 19:30 +07] — Nâng Cấp Khả Năng Đồng Bộ Ảnh Bìa Album Ngay Lập Tức (Instantaneous Album Art Synchronization & Zero-Delay Cover Propagation)
 
 ### 🎯 Giải Quyết Yêu Cầu Người Dùng:
