@@ -2,6 +2,35 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 13:15 +07] — Pha B: Đồ Họa Sóng Âm Mini HUD Tua Nhạc Tương Tác & Quán Tính Trọng Lực Rơi Đỉnh Đồng Hồ VU (Mini HUD Waveform Scrubber & VU Meter Gravity Dynamics)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá UI/UX & Visualizer:
+- **Phân khu trọng tâm:** **Đồ Họa Sóng Âm Mini HUD Tương Tác (`renderMiniHudWaveformScrubber`), Tua Nhạc Kéo Thả Trực Tiếp Từ Mini HUD (`calculateMiniHudScrubFraction`, `calculateMiniHudScrubTime`), Mô Hình Vật Lý Rơi Đỉnh Đồng Hồ VU Gia Tốc Trọng Lực (`calculateVuGravityBallistics`), Telemetry VU dB (`formatVuBallisticsTelemetry`) & 2 Bảng Màu Audiophile Mới (`emerald_matrix`, `solar_flare`)**.
+- **Tính năng & Đột phá:**
+  1. **Đồ họa sóng âm Mini HUD sắc nét & vạch kim tương tác (`renderMiniHudWaveformScrubber`):**
+     - Vẽ 18 cột sóng âm vi mô hiển thị tiến trình phát nhạc và vạch kim playhead sắc nét trên canvas 72x26.
+     - Hỗ trợ vạch kim ghost hover bán trong suốt (`hoverFraction`) bám theo vị trí chuột.
+  2. **Tua nhạc mượt mà trực tiếp từ Mini HUD:**
+     - Các tiện ích thuần `calculateMiniHudScrubFraction` và `calculateMiniHudScrubTime` chuyển đổi tọa độ chuột chính xác thành thời gian bài hát.
+     - Hỗ trợ cả thao tác click trực tiếp và kéo chuột liên tục (drag-to-seek scrubbing khi `e.buttons === 1`).
+     - Tự động xóa vạch kim mờ khi rời chuột (`mouseleave`).
+  3. **Mô hình động học cơ học rơi đỉnh VU theo gia tốc trọng lực (`calculateVuGravityBallistics`):**
+     - Mô phỏng chính xác kim đồng hồ đo cơ học audiophile: giữ đỉnh trong `holdFrames` (10 frames), sau đó rơi tự do có gia tốc trọng lực $v = v + g$ mượt mà tự nhiên thay vì rơi tuyến tính cứng nhắc.
+     - Khả năng phản hồi tức thời (Zero-latency Attack) khi có xung âm thanh mới vượt qua đỉnh cũ.
+  4. **Định dạng Telemetry Đồng Hồ VU (`formatVuBallisticsTelemetry`):**
+     - Đo lường và định dạng mức âm lượng và đỉnh theo chuẩn dBFS cho cả 2 kênh L/R.
+  5. **Mở rộng bảng màu Audiophile trong `VISUALIZER_THEMES`:**
+     - `emerald_matrix`: Xanh ngọc lục bảo Matrix Hi-Tech (`#064e3b`, `#10b981`, `#6ee7b7`, peak `#a7f3d0`).
+     - `solar_flare`: Hào quang mặt trời rực rỡ (`#7c2d12`, `#ea580c`, `#fbbf24`, peak `#fef08a`).
+     - Nâng tổng số bảng màu nghệ thuật lên 13 themes với chu trình xoay vòng phím tắt `t` / `T`.
+  6. **BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN:**
+     - `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `mini-hud-waveform-vu-gravity.test.cjs` (**8/8 tests PASS 100%**).
+  - Toàn bộ 21 test suites hồi quy (**118/118 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 12:45 +07] — Pha A: Mô Phỏng Mạch Khuếch Đại Đèn Chân Không Triode & Hài Âm Analog Tuyến Tính (Vacuum Tube Saturation Harmonics & Analog Warmth Emulation)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Audio Engine & DSP:
