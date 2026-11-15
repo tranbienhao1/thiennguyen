@@ -2,6 +2,35 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 10:40 +07] — Pha A: Mô Phỏng Không Gian Phòng Động Học & Vi Chỉnh Cân Bằng Crossfeed Tai Nghe Kênh Đôi (Dynamic Convolution Room Modeling & Headphone Crossfeed Balance Refinement)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Audio Engine & DSP:
+- **Phân khu trọng tâm:** **Bộ Tiêu Chuẩn Ma Trận Crossfeed Tai Nghe Audiophile (Bauer Stereophonic / Jan Meier Natural / Chu Moy / Binaural Studio), Cân Bằng Năng Lượng Hai Tai (Equal-Power Direct Gain Compensation), Mở Rộng 2 Không Gian Phòng Nghe Mới (Audiophile Vinyl Lounge & Chamber Music Salon) & Tự Thích Ứng Tỷ Lệ Wet/Dry Theo Năng Lượng Bản Nhạc (Adaptive Dynamic Room Wet/Dry)**.
+- **Tính năng & Đột phá:**
+  1. **Bộ tiêu chuẩn ma trận Crossfeed tai nghe chuyên nghiệp (`CROSSFEED_PRESETS`, `getCrossfeedPreset`, `listCrossfeedPresets`, `calculateCrossfeedMatrixParams`):**
+     - `bauer`: Chuẩn Roon Standard / Bauer Stereophonic (Cutoff 700 Hz, ITD 300 µs, Gain chéo tối đa 0.35 ≈ −9.1 dB) — tái tạo trường âm tự nhiên trước mặt.
+     - `meier`: Mạch Jan Meier Natural (Cutoff 650 Hz, ITD 250 µs, Gain chéo tối đa 0.38 ≈ −8.4 dB) — tối ưu giọng ca trung tính, giảm mệt mỏi thính giác khi nghe lâu.
+     - `chu_moy`: Chu Moy Modified Linkwitz (Cutoff 750 Hz, ITD 350 µs, Gain chéo tối đa 0.30 ≈ −10.5 dB) — cấu trúc mộc mạc, phù hợp cho tai nghe closed-back cách âm sâu.
+     - `binaural_studio`: Binaural Studio Monitor (Cutoff 850 Hz, ITD 280 µs, Gain chéo tối đa 0.28 ≈ −11.0 dB) — mô phỏng 2 loa kiểm âm studio đặt góc $\pm 30^\circ$.
+     - Áp dụng định luật cân bằng năng lượng trực tiếp $L_{out}^2 + R_{out}^2$ qua `directGain`, ngăn chặn hoàn toàn hiện tượng sụt giảm âm lượng khi bật crossfeed.
+  2. **Định dạng telemetry tóm tắt (`formatCrossfeedMatrixSummary`):**
+     - Xuất nhãn thông số kỹ thuật trực quan: ví dụ `⚡ Bauer Stereophonic (Roon Standard) (700Hz · 0.30ms · -9.1dB)`.
+  3. **Mở rộng thư viện không gian phòng nghe IR Convolver (`ROOM_ACOUSTIC_PROFILES`):**
+     - Thêm `vinyl_lounge`: Audiophile Vinyl Lounge (RT60 0.45s, preDelay 10ms, damping 0.65) — mô phỏng phòng nghe đĩa than lót thảm len và gỗ sồi ấm áp.
+     - Thêm `chamber_music`: Chamber Music Salon (RT60 1.25s, preDelay 18ms, damping 0.45) — salon thính phòng bán cổ điển cho nhạc hòa tấu tứ tấu đàn dây và piano.
+  4. **Bộ điều tiết phòng nghe thích ứng động học (`calculateAdaptiveRoomWetDry`):**
+     - Tự động điều chỉnh tỷ lệ Wet/Dry dựa trên độ dynamic range / crest factor và mật độ năng lượng dải trầm (bass energy > 0.75 giảm nhẹ wet chống đục âm; crest factor >= 14 dB mở rộng âm trường tự nhiên).
+  5. **Tích hợp UI:**
+     - Bộ chọn chuẩn Crossfeed `#crossfeed-preset-select` và mô tả `#crossfeed-preset-desc` trong Equalizer Panel.
+     - Bổ sung 2 tùy chọn phòng nghe trong `#room-acoustics-select`.
+     - Tích hợp sao lưu & khôi phục `crossfeedPreset` vào hệ thống backup JSON.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `dynamic-room-crossfeed-refinement.test.cjs` (**6/6 tests PASS 100%**).
+  - Toàn bộ 16 test suites hồi quy (**130/130 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 10:02 +07] — Pha D: Nén & Lập Chỉ Mục Thư Viện Đa Luồng Web Worker (IndexedDB Compact Indexing & Web Worker Asynchronous Library Scan)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Hiệu Năng & Kiến Trúc PWA:
