@@ -42,6 +42,22 @@
     .drop-overlay { background:rgba(17,19,21,.92);backdrop-filter:blur(12px); }
     canvas { width:100%;height:100%; }
     #mini-player-hud canvas { width:72px !important; height:26px !important; max-width:72px !important; }
+    .no-scrollbar,
+    #fullscreen-lyrics-scroll,
+    #fullscreen-stage-lyrics,
+    #room-lyrics {
+      overflow-x: hidden !important;
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+    }
+    .no-scrollbar::-webkit-scrollbar,
+    #fullscreen-lyrics-scroll::-webkit-scrollbar,
+    #fullscreen-stage-lyrics::-webkit-scrollbar,
+    #room-lyrics::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+    }
     #mini-player-hud { width:360px!important; max-width:calc(100vw - 2rem)!important; min-width:280px!important; height:64px!important; max-height:64px!important; box-sizing:border-box!important; overflow:hidden!important; }
     #mini-waveform { width:72px !important; height:26px !important; min-width:72px !important; max-width:72px !important; min-height:26px !important; max-height:26px !important; display:block !important; flex-shrink:0 !important; }
     .queue-drag-over-top { border-top: 2px solid #a78bfa !important; }
@@ -65,6 +81,22 @@
   <style id="roon-inspired-theme">
     :root { --accent:126 189 216; --line:rgba(255,255,255,.075); color-scheme:dark; }
     * { scrollbar-color:#41464b transparent; scrollbar-width:thin; }
+    .no-scrollbar,
+    #fullscreen-lyrics-scroll,
+    #fullscreen-stage-lyrics,
+    #room-lyrics {
+      overflow-x: hidden !important;
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+    }
+    .no-scrollbar::-webkit-scrollbar,
+    #fullscreen-lyrics-scroll::-webkit-scrollbar,
+    #fullscreen-stage-lyrics::-webkit-scrollbar,
+    #room-lyrics::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+    }
     .metadata-inline-link { padding:0;border:0;background:transparent;color:#a8d9ec;text-decoration:underline;text-underline-offset:3px;cursor:pointer; }
     .metadata-inline-link:hover { color:#e3f5fb; }
     .track-row [data-metadata-action] { opacity:1; }
@@ -1247,7 +1279,7 @@
               <button id="zone-picker-btn" type="button" class="shrink-0 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-[11px] font-medium text-purple-200 transition hover:bg-purple-500/20 active:scale-95" aria-label="Đổi vùng phát">Đổi Vùng ▾</button>
             </div>
           </div>
-          <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span id="room-lyrics-source-badge" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono text-zinc-400">Chưa có</span></div><div class="flex items-center gap-1 text-[10px] text-zinc-400"><button id="room-lyrics-refresh-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Tìm lại lời trực tuyến">🔄 Tìm lại</button><button id="room-lyrics-paste-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Dán nội dung .lrc">📋 Dán</button><button id="room-lyrics-export-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Xuất file .lrc">💾 Xuất</button><button id="room-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Chậm hơn 0.5s">-0.5s</button><span id="room-lyrics-offset-badge" class="font-mono text-zinc-400 text-[10px] w-12 text-center" title="Bù trừ độ trễ lời bài hát">0ms</span><button id="room-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Nhanh hơn 0.5s">+0.5s</button></div></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
+          <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span id="room-lyrics-source-badge" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono text-zinc-400">Chưa có</span></div><div class="flex items-center gap-1 text-[10px] text-zinc-400"><button id="room-lyrics-refresh-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Tìm lại lời trực tuyến">🔄 Tìm lại</button><button id="room-lyrics-paste-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Dán nội dung .lrc">📋 Dán</button><button id="room-lyrics-export-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Xuất file .lrc">💾 Xuất</button><button id="room-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Chậm hơn 0.5s">-0.5s</button><span id="room-lyrics-offset-badge" class="font-mono text-zinc-400 text-[10px] w-12 text-center" title="Bù trừ độ trễ lời bài hát">0ms</span><button id="room-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Nhanh hơn 0.5s">+0.5s</button></div></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto overflow-x-hidden text-sm leading-6 text-zinc-500 no-scrollbar"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
           <div class="relative w-full group">
             <canvas id="waveform-canvas" class="w-full h-16 cursor-pointer rounded-sm mb-1" aria-label="Dạng sóng bài hát - nhấn để tua"></canvas>
             <div id="waveform-hover-tooltip" class="pointer-events-none absolute bottom-full mb-1 hidden -translate-x-1/2 rounded-md bg-zinc-800/95 border border-white/10 px-2 py-0.5 text-[10px] font-mono text-zinc-100 shadow-xl backdrop-blur-sm z-30 transition-opacity">0:00</div>
@@ -1504,7 +1536,7 @@
     </div>
 
     <!-- Center Stage Lyrics Mode (Immersive Synced Lyrics with Offset Calibration) -->
-    <div id="fullscreen-stage-lyrics" class="relative z-10 hidden flex-1 flex-col items-center justify-between p-4 max-w-3xl mx-auto w-full min-h-0">
+    <div id="fullscreen-stage-lyrics" class="relative z-10 hidden flex-1 flex-col items-center justify-between p-4 max-w-3xl mx-auto w-full min-h-0 overflow-x-hidden">
       <div class="flex items-center gap-2 mb-2 text-xs text-zinc-400">
         <span class="text-[11px] uppercase tracking-wider text-zinc-500">Bù trừ độ trễ:</span>
         <button id="fs-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px]" title="Chậm hơn 0.5s">-0.5s</button>
@@ -1512,7 +1544,7 @@
         <button id="fs-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px]" title="Nhanh hơn 0.5s">+0.5s</button>
         <button id="fs-lyrics-offset-reset" type="button" class="text-zinc-500 hover:text-zinc-300 text-[11px] ml-1">Đặt lại</button>
       </div>
-      <div id="fullscreen-lyrics-scroll" class="w-full flex-1 overflow-y-auto space-y-4 py-8 text-center scroll-smooth pr-2 select-none">
+      <div id="fullscreen-lyrics-scroll" class="w-full flex-1 overflow-y-auto overflow-x-hidden space-y-4 py-8 text-center scroll-smooth select-none no-scrollbar">
         <p class="text-sm text-zinc-500">Chưa có lời đồng bộ (.lrc) cho bài này.</p>
       </div>
     </div>
@@ -5656,7 +5688,7 @@
       }
       for (const line of state.lyrics) {
         const row = document.createElement('p');
-        row.className = 'fs-lyric-line text-lg sm:text-xl font-medium text-zinc-400 py-1.5 transition-all duration-300 cursor-pointer hover:text-white rounded-lg px-3';
+        row.className = 'fs-lyric-line text-lg sm:text-xl font-medium text-zinc-400 py-1.5 transition-all duration-300 cursor-pointer hover:text-white rounded-lg px-3 max-w-full break-words';
         row.textContent = line.text;
         if (Number.isFinite(line.time)) {
           row.dataset.time = String(line.time);
@@ -11635,5 +11667,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 18:05 +07 | Đã xong: Tối Ưu Độ Trễ & Triệt Tiêu Lag Khi Chọn Bài Hát (Instant Track Selection & Zero-Latency Audio Pipeline): (1) Phản hồi thị giác lạc quan tức thì (<16ms, đo lường ~2.7ms) trong handleTrackRowActivation và playTrack: cập nhật state.currentId, displayTrack(track), hiệu ứng nạp đệm loading-pulse/spinner trên play-button và dòng bài hát, reset seekbar về 0:00 trước bất kỳ thao tác mạng hay giải mã nào; (2) Phi đồng bộ hóa DOM bằng deferRenderQueue (requestAnimationFrame / requestIdleCallback) loại bỏ triệt để hiện tượng đơ giật UI và layout thrashing khi bấm bài; (3) Kích hoạt sớm AudioContext và state.context.resume() ngay trong tick user gesture; (4) Phát tức thì qua First-Slice Cache và local audio, tích hợp pure helpers createOptimisticTrackState, canStartInstantPlayback, formatSelectionLatency; (5) Nâng cấp cache Service Worker lên nocturne-v3 cho PWA tự động làm mới; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests instant-track-selection.test.cjs PASS 100%, toàn bộ 37/37 tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 18:20 +07 | Đã xong: Tái Cấu Trúc Repo - Gom Toàn Bộ File Kiểm Thử Vào Thư Mục test/ & Chuẩn Hóa package.json: (1) Di chuyển toàn bộ 124 file kiểm thử *.test.cjs vào thư mục test/, cập nhật đường dẫn tương đối ../ và require, bảo toàn lịch sử git rename; (2) Giảm 93% số lượng file ở thư mục gốc (từ 136 files xuống còn các file cốt lõi); (3) Bổ sung package.json chuẩn hoá npm test; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); toàn bộ test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 18:45 +07 | Đã xong: Pha C - Khắc Phục Sân Khấu Âm Thanh 3D Toàn Màn Hình & Phông Nền Ambient Mờ Ảo Roon (Fullscreen 3D Stage Visualizers & Ambient Blurred Backdrop Polish): (1) Phông nền mờ ảo #fullscreen-bg-cover & #fullscreen-ambient-glow chuẩn xác theo ảnh mẫu: scale-110 filter blur-[56px] opacity-75 brightness-95 saturate-150 kết hợp gradient vignette tinh tế from-black/40 via-transparent to-black/80; (2) updateRoonFullscreenUI đồng bộ hiển thị và cập nhật ảnh bìa mờ mượt mà cho cả 2 tab Bìa album và Lời bài hát khi track có ảnh bìa; (3) Tách rời triệt để vòng lặp render Fullscreen Stage Visualizer khỏi kích thước thanh footer: setVisualizerRunning và draw tiếp tục hoạt động liên tục ngay cả khi visualizer thanh footer bị ẩn hoặc có kích thước bằng 0; (4) resizeFullscreenStageCanvas tự động co giãn độ phân giải canvas theo devicePixelRatio và kích thước khung nhìn thực tế; (5) Hàm setFullscreenStageMode điều hướng và đồng bộ mượt mà cả 3 chế độ sân khấu 3D: Radar 3D (library.renderPolarRadarCanvas), VU Meter (library.renderVisualizerVuMeter với 2 kim L/R độc lập), Goniometer 3D (library.renderSpatialVectorCanvas); (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 10/10 tests fullscreen-stage-backdrop.test.cjs PASS 100%, toàn bộ 1068/1068 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 19:05 +07 | Đã xong: Pha C - Ẩn Hoàn Toàn Thanh Cuộn Dọc & Ngang Phần Lời Bài Hát (Zero Scrollbar Synced Lyrics Immersive Mode): (1) Triệt tiêu toàn bộ thanh cuộn dọc (vertical scrollbar) và thanh cuộn ngang (horizontal scrollbar) tại khung lời bài hát #fullscreen-lyrics-scroll, #fullscreen-stage-lyrics và #room-lyrics; (2) Thiết lập triệt để các thuộc tính overflow-x-hidden, scrollbar-width: none !important (Firefox), -ms-overflow-style: none !important (Edge/IE) và ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; } (Chrome, Safari, Opera); (3) Bổ sung max-w-full break-words trên fs-lyric-line ngăn chặn tràn lề văn bản theo chiều ngang; (4) Duy trì trải nghiệm cuộn mượt mà (smooth scrolling, touch swipe, chuột cuộn và auto scroll); (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 1/1 tests lyrics-scrollbar-hidden.test.cjs PASS 100%, toàn bộ 1070/1070 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
 </body>
 </html>

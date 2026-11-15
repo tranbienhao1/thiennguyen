@@ -2,6 +2,36 @@
 
 ---
 
+## [Pha C 2026-11-15 19:05 +07] — Ẩn Hoàn Toàn Thanh Cuộn Dọc & Ngang Phần Lời Bài Hát (Zero Scrollbar Synced Lyrics Immersive Mode)
+
+### 🎯 Giải Quyết Yêu Cầu Người Dùng:
+- **Hiện trạng:** Trong giao diện lời bài hát toàn màn hình (`#fullscreen-stage-lyrics`), xuất hiện các thanh cuộn kéo:
+  1. Thanh cuộn dọc (vertical scrollbar) ở cạnh bên phải với các nút mũi tên lên/xuống và thanh kéo xám.
+  2. Thanh cuộn ngang (horizontal scrollbar) ở đáy phần lời bài hát với các nút mũi tên trái/phải và thanh kéo ngang do các dòng chữ dài hoặc hiệu ứng phóng đại (`scale-105`) bị tràn nhẹ sang hai bên.
+- **Yêu cầu:** Ẩn hoàn toàn tất cả các thanh kéo qua lại và lên xuống ở phần lời bài hát, mang lại trải nghiệm xem lời đắm chìm, sạch sẽ như ứng dụng Apple Music / Spotify / Roon.
+
+### 🚀 Giải Pháp Kỹ Thuật Đã Triển Khai:
+1. **Triệt Tiêu Hoàn Toàn Thanh Cuộn Ngang & Dọc Bằng CSS:**
+   - Bổ sung quy tắc CSS chuyên biệt trong `<style id="app-style">` và `<style id="roon-inspired-theme">`:
+     - `overflow-x: hidden !important;`
+     - `scrollbar-width: none !important;` (Firefox)
+     - `-ms-overflow-style: none !important;` (IE & Edge)
+     - `::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }` (Chrome, Edge, Safari, Opera)
+   - Áp dụng cho: `#fullscreen-lyrics-scroll`, `#fullscreen-stage-lyrics`, `#room-lyrics` và lớp tiện ích `.no-scrollbar`.
+2. **Cập Nhật Cấu Trúc HTML & Lớp CSS Khung Lời Bài Hát:**
+   - `#fullscreen-lyrics-scroll`: Thêm `overflow-x-hidden no-scrollbar`, loại bỏ `pr-2` (vốn dùng để bù trừ chiều rộng thanh cuộn cũ, giúp lời bài hát cân đối tuyệt đối giữa màn hình).
+   - `#fullscreen-stage-lyrics`: Thêm `overflow-x-hidden`.
+   - `#room-lyrics`: Thêm `overflow-x-hidden no-scrollbar`, loại bỏ `pr-1`.
+   - `.fs-lyric-line`: Bổ sung `max-w-full break-words` trong `renderFullscreenLyrics()` đảm bảo các dòng lời dài tự động ngắt dòng, không gây tràn khung nhìn.
+3. **Bảo Tồn Trải Nghiệm Người Dùng & Âm Thanh:**
+   - Giữ nguyên cơ chế cuộn mượt mà: chuột cuộn (mouse wheel), vuốt chạm cảm ứng (touch swipe), bấm vào dòng lời để nhảy thời gian và tự động cuộn theo nhịp hát (`scrollIntoView({ behavior: 'smooth', block: 'center' })`).
+   - Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API `state.crossfeedNodes.output.connect(state.context.destination)`.
+4. **Kiểm Chứng Tự Động:**
+   - Tạo test suite chuyên biệt `test/lyrics-scrollbar-hidden.test.cjs`: **1/1 test PASS 100%**.
+   - Chạy toàn bộ test suite dự án `npm test`: **1070/1070 tests PASS 100%** trên 104 test suites.
+
+---
+
 ## [Pha C 2026-11-15 18:45 +07] — Khắc Phục Sân Khấu Âm Thanh 3D Toàn Màn Hình & Phông Nền Ambient Mờ Ảo Roon (Fullscreen 3D Stage Visualizers & Ambient Blurred Backdrop Polish)
 
 ### 🎯 Giải Quyết Yêu Cầu & Lỗi Giao Diện:
