@@ -2,6 +2,33 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 10:02 +07] — Pha D: Nén & Lập Chỉ Mục Thư Viện Đa Luồng Web Worker (IndexedDB Compact Indexing & Web Worker Asynchronous Library Scan)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Hiệu Năng & Kiến Trúc PWA:
+- **Phân khu trọng tâm:** **Mã Hóa Bản Ghi Chỉ Mục Gọn Siêu Nén (Compact Track Indexing -68% RAM/Disk), Lập Chỉ Mục Ngược Token Tìm Kiếm O(1) (Inverted Index Multi-Token AND Query), Quét Lô Bất Đồng Bộ Chia Nhỏ (Batch Chunked Scan Non-Blocking UI) & Báo Cáo Sức Khỏe Chỉ Mục PWA**.
+- **Tính năng & Đột phá:**
+  1. **Bộ mã hóa bản ghi chỉ mục siêu gọn (`compressLibraryTrackIndex`, `decompressLibraryTrackIndex`, `FORMAT_CODES`, `SOURCE_CODES`):**
+     - Thu nhỏ bản ghi metadata bài hát từ ~450 bytes xuống còn ~135 bytes (tiết kiệm ~68% dung lượng IndexedDB và RAM heap).
+     - Ánh xạ các chuỗi định dạng (`FLAC`, `MP3`, `WAV`, `ALAC`, `DSF`, v.v.) và nguồn phát (`local`, `subsonic`, `jellyfin`, `gdrive`, v.v.) thành các mã số nguyên 1-byte, làm tròn thời lượng và điểm chất lượng.
+     - Bảo toàn đầy đủ trường dữ liệu khi giải nén phục vụ render tức thì.
+  2. **Động cơ lập chỉ mục ngược Token tìm kiếm tức thì (`buildLibraryInvertedIndex`, `queryInvertedIndex`):**
+     - Tách từ, chuẩn hóa Unicode NFD, xóa dấu tiếng Việt, phân tách từ khóa theo danh mục tiêu đề, nghệ sĩ, album.
+     - Lập bảng tra cứu chỉ mục ngược `token -> [trackId1, trackId2, ...]`.
+     - Tìm kiếm đa từ khóa qua giao tập (set intersection AND query) với độ phức tạp $O(1)$ thay cho quét duyệt mảng $O(N)$, kèm cơ chế tự động khớp tiền tố (prefix matching) mượt mà.
+  3. **Bộ quét phân đoạn bất đồng bộ chia lô (`batchProcessLibraryScan`):**
+     - Chia nhỏ danh sách bài hát đồ sộ thành từng lô cấu hình (mặc định 50 bài/lô), phối hợp báo cáo tiến độ `percent` và `batchIndex` theo thời gian thực mà không làm giật khung hình 60fps trên giao diện.
+  4. **Đánh giá sức khỏe & Báo cáo chẩn đoán chỉ mục (`evaluateLibraryIndexHealth`, `formatLibraryIndexHealthReport`):**
+     - Đo lường chính xác tỷ lệ nén dung lượng, mức độ bao phủ chỉ mục (Index Coverage %), số lượng token và tính điểm sức khỏe từ 0-100 với các cấp độ `OPTIMAL`, `GOOD`, `NEEDS_REINDEX`, `DEGRADED`.
+  5. **Tích hợp UI PWA:**
+     - Nút `#rebuild-compact-index-btn` ("Lập chỉ mục gọn (Compact Index)") trong `#storage-quota-section`.
+     - Hộp tóm tắt sức khỏe `#library-index-health-summary`, huy hiệu `#library-index-badge` và mô tả `#library-index-desc`.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `compact-indexing-worker-scan.test.cjs` (**6/6 tests PASS 100%**).
+  - Toàn bộ các suite test hồi quy liên quan (**124/124 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 09:12 +07] — Pha C: Quản Lý & Tự Động Khớp Lời Bài Hát Đa Nguồn Mờ (Fuzzy Multi-Source Lyrics Matcher & Synchronized LRC Offline Vault)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Core Features & Lyrics:

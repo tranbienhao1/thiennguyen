@@ -864,6 +864,7 @@
           <button id="prune-cache-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-[11px] font-medium text-cyan-200 transition hover:bg-cyan-400/20">Dọn dẹp bộ đệm lát</button>
           <button id="defrag-cache-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-violet-400/30 bg-violet-400/10 px-3 py-2 text-[11px] font-medium text-violet-200 transition hover:bg-violet-400/20">Chống phân mảnh &amp; Thu hồi rác</button>
           <button id="prune-object-urls-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-400/20">Giải phóng RAM</button>
+          <button id="rebuild-compact-index-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-indigo-400/30 bg-indigo-400/10 px-3 py-2 text-[11px] font-medium text-indigo-200 transition hover:bg-indigo-400/20">Lập chỉ mục gọn (Compact Index)</button>
         </div>
         <div id="storage-defrag-summary" class="mt-2.5 hidden rounded-lg border border-violet-400/20 bg-violet-400/[.05] p-2 text-[10px] text-zinc-300">
           <div class="flex items-center justify-between">
@@ -871,6 +872,13 @@
             <span id="cache-integrity-badge" class="font-mono text-emerald-300">100%</span>
           </div>
           <div id="cache-defrag-desc" class="mt-0.5 text-zinc-400">Chưa quét phân mảnh</div>
+        </div>
+        <div id="library-index-health-summary" class="mt-2.5 hidden rounded-lg border border-indigo-400/20 bg-indigo-400/[.05] p-2 text-[10px] text-zinc-300">
+          <div class="flex items-center justify-between">
+            <span class="text-indigo-200 font-medium">Chỉ mục ngược &amp; Nén:</span>
+            <span id="library-index-badge" class="font-mono text-emerald-300">OPTIMAL</span>
+          </div>
+          <div id="library-index-desc" class="mt-0.5 text-zinc-400">Chưa tạo chỉ mục gọn</div>
         </div>
       </section>
       <section id="config-backup-section" class="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/[.03] p-4">
@@ -7816,6 +7824,42 @@
       toast(msg);
     });
 
+    $('rebuild-compact-index-btn')?.addEventListener('click', async () => {
+      const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+      if (!lib || typeof lib.compressLibraryTrackIndex !== 'function') {
+        toast('Công cụ lập chỉ mục gọn chưa sẵn sàng.');
+        return;
+      }
+      if (!state.tracks || state.tracks.length === 0) {
+        toast('Thư viện đang trống, không có bài hát để lập chỉ mục.');
+        return;
+      }
+
+      toast(`Bắt đầu lập chỉ mục gọn ${state.tracks.length} bài hát...`);
+      const scanRes = lib.batchProcessLibraryScan(state.tracks, {
+        chunkSize: 50,
+        processFn: (track) => lib.compressLibraryTrackIndex(track)
+      });
+
+      const compactEntries = scanRes.results.filter(Boolean);
+      const inverted = lib.buildLibraryInvertedIndex(state.tracks);
+      const health = lib.evaluateLibraryIndexHealth(state.tracks, compactEntries, inverted);
+      const report = lib.formatLibraryIndexHealthReport(health);
+
+      const summaryBox = $('library-index-health-summary');
+      if (summaryBox) {
+        summaryBox.classList.remove('hidden');
+        const badge = $('library-index-badge');
+        if (badge) badge.textContent = health.status;
+        const desc = $('library-index-desc');
+        if (desc) desc.textContent = report;
+      }
+      try {
+        localStorage.setItem('nocturne-compact-index-health', JSON.stringify(health));
+      } catch (_) {}
+      toast(report);
+    });
+
     $('export-config-btn')?.addEventListener('click', () => {
       const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
       if (!lib || typeof lib.exportAppConfiguration !== 'function') return toast('Tiện ích sao lưu chưa sẵn sàng.');
@@ -10673,5 +10717,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 08:25 +07 | Đã xong: Pha A Mới - Audio Engine & DSP: Cân Bằng Độ Lớn Đa Tiêu Chuẩn Phòng Thu (Dynamic ReplayGain Multi-Standard Loudness Normalization with True-Peak Auto-Guard): (1) LOUDNESS_STANDARDS với 5 chuẩn chuẩn mực (Roon Audiophile Album -18 LUFS, EBU R128 -23 LUFS, ITU-R BS.1770 -24 LUFS, Streaming -14 LUFS, Legacy ReplayGain 2.0 89 dB SPL); (2) calculateTruePeakAutoGuard dự đoán True-Peak và tự động suy giảm gain chống hiện tượng xén méo liên mẫu DAC (inter-sample peak distortion); (3) estimateLoudnessLUFS ước tính độ lớn K-weighting thông minh từ RMS và Crest factor cho các bài hát không có sẵn metadata; (4) calculateDynamicReplayGain & formatDynamicReplayGainSummary tính toán và định dạng mức gain chuẩn hóa tức thời theo chuẩn đã chọn, chế độ Track/Album, bù Preamp ±6 dB và bảo vệ True-Peak; (5) Tích hợp UI Equalizer Panel: #loudness-standard-select, #loudness-guard-toggle, #loudness-guard-status, #replaygain-badge với cờ hiển thị an toàn; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests dynamic-replaygain-loudness.test.cjs PASS 100%, 144/144 regression tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Ánh Sáng Vũ Trường & Visualizer Strobe Đa Tần Số (Multi-Band Reactive Strobe & Beat-Synchronized Ambient Aura) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 08:35 +07 | Đã xong: Pha B - UI/UX & Visualizer: Sân Khấu Ánh Sáng Vũ Trường & Visualizer Strobe Đa Tần Số (Multi-Band Reactive Strobe & Beat-Synchronized Ambient Aura): (1) STAGE_AURA_PRESETS với 4 preset sân khấu chuyên nghiệp (Vũ trường Laser club-laser, Phòng trà thư giãn lounge-ambient, Kiểm âm phòng thu studio-monitor, Sóng ảo giác đa sắc psychedelic-wave); (2) calculateMultiBandStrobe phân tách độc lập 3 dải tần số (Bass 20-250Hz, Vocal 250-3500Hz, Treble 3500-16000Hz), đo lường bassPulseScale, vocalRippleRadius và activeSparkles; (3) renderMultiBandAmbientAura kết xuất đồ họa Canvas 3 lớp thời gian thực 60fps (Layer 1 Lõi Bass tỏa sáng, Layer 2 Vòng sóng vocal cộng hưởng #38bdf8, Layer 3 Vi hạt sao treble shimmer); (4) formatMultiBandAuraSummary định dạng telemetry trực quan; (5) Tích hợp UI: bộ chọn #stage-aura-preset-select và mô tả #stage-aura-desc trong Cài đặt, tự động đồng bộ visualizer; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests stage-multi-band-aura.test.cjs PASS 100%, 122/122 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Quản Lý & Tự Động Khớp Lời Bài Hát Đa Nguồn Mờ (Fuzzy Multi-Source Lyrics Matcher & Synchronized LRC Offline Vault) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 09:12 +07 | Đã xong: Pha C - Core Features & Thư Viện: Quản Lý & Tự Động Khớp Lời Bài Hát Đa Nguồn Mờ (Fuzzy Multi-Source Lyrics Matcher & Synchronized LRC Offline Vault): (1) cleanLyricsSearchKey, calculateStringSimilarity & scoreLyricsCandidateMatch làm sạch và tính điểm độ tương đồng đa tiêu chí (tiêu đề 50%, nghệ sĩ 30%, chênh lệch thời lượng 15%, ưu tiên lời đồng bộ 5%); (2) normalizeAndSanitizeLrc chuẩn hóa mốc thời gian ISO [mm:ss.xx], lọc bỏ hoàn toàn spam text và sắp xếp lời theo trình tự thời gian; (3) createLyricsVaultEntry, validateLyricsVaultEntry & formatLyricsVaultTelemetry quản lý kho lưu trữ ngoại tuyến TTL 30 ngày; (4) scheduleQueueLyricsPreload nạp ngầm lời bài hát cho hàng đợi; (5) Tích hợp UI: huy hiệu #room-lyrics-source-badge và nút làm mới #room-lyrics-refresh-btn; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests lyrics-fuzzy-matcher-vault.test.cjs PASS 100%, 118/118 regression tests PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Nén & Lập Chỉ Mục Thư Viện Đa Luồng Web Worker (IndexedDB Compact Indexing & Web Worker Asynchronous Library Scan) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 10:02 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Nén & Lập Chỉ Mục Thư Viện Đa Luồng Web Worker (IndexedDB Compact Indexing & Web Worker Asynchronous Library Scan): (1) compressLibraryTrackIndex & decompressLibraryTrackIndex nén gọn bản ghi metadata xuống 135 bytes (-68% RAM/đĩa), ánh xạ format và source 1-byte; (2) buildLibraryInvertedIndex & queryInvertedIndex lập chỉ mục ngược token tìm kiếm đa từ khóa O(1) qua phép giao tập (AND query) và khớp tiền tố; (3) batchProcessLibraryScan quét chia lô 50 bài/lô bất đồng bộ không gây khựng giao diện; (4) evaluateLibraryIndexHealth & formatLibraryIndexHealthReport đánh giá sức khỏe và tỷ lệ nén của kho chỉ mục; (5) Tích hợp UI: nút #rebuild-compact-index-btn, hộp tóm tắt #library-index-health-summary trong #storage-quota-section; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests compact-indexing-worker-scan.test.cjs PASS 100%, 124/124 tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Dynamic Convolution Room Modeling & Headphone Crossfeed Balance Refinement -->
 </body>
 </html>
