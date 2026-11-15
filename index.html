@@ -698,8 +698,8 @@
     </section>
   </main>
 
-  <input id="file-input" class="hidden" type="file" accept="audio/*,.flac,.wav,.alac,.m4a,.mp3,.ogg,.opus,.aac,.aiff,.wma,.aif,.dsf,.dff,.cue" multiple>
-  <input id="folder-input" class="hidden" type="file" accept="audio/*,.flac,.wav,.alac,.m4a,.mp3,.ogg,.opus,.aac,.aiff,.wma,.aif,.dsf,.dff,.cue" webkitdirectory directory multiple>
+  <input id="file-input" class="hidden" type="file" accept="audio/*,.flac,.wav,.alac,.m4a,.mp3,.ogg,.opus,.aac,.aiff,.wma,.aif,.dsf,.dff,.cue,image/*,.jpg,.jpeg,.png,.webp,.bmp" multiple>
+  <input id="folder-input" class="hidden" type="file" accept="audio/*,.flac,.wav,.alac,.m4a,.mp3,.ogg,.opus,.aac,.aiff,.wma,.aif,.dsf,.dff,.cue,image/*,.jpg,.jpeg,.png,.webp,.bmp" webkitdirectory directory multiple>
   <div id="drop-target" class="drop-overlay pointer-events-none fixed inset-0 z-40 hidden items-center justify-center">
     <div class="rounded-3xl border border-violet-300/30 bg-zinc-900/80 px-12 py-10 text-center shadow-2xl"><div class="text-4xl text-violet-300">♫</div><p class="mt-4 text-lg font-medium">Thả nhạc vào thư viện</p><p class="mt-1 text-sm text-zinc-500">File âm thanh hoặc thư mục</p></div>
   </div>
@@ -1836,10 +1836,25 @@
         Object.assign(track, metadata);
         if (cover) track.cover = await normalizeCoverImage(cover);
         else if (track.cover === undefined) track.cover = null;
+        if (track.cover) {
+          if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(track.cover, track);
+        } else {
+          const resolved = (typeof library !== 'undefined' && typeof library.resolveTrackCover === 'function')
+            ? library.resolveTrackCover(track, state.albumCovers, state.tracks)
+            : null;
+          if (resolved) {
+            track.cover = resolved;
+            if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(resolved, track);
+          }
+        }
         track.metadataLoaded = true;
         changed = true;
       }
-      if (!track.cover && imageResult.status === 'fulfilled' && imageResult.value) { track.cover = await normalizeCoverImage(imageResult.value); changed = true; }
+      if (!track.cover && imageResult.status === 'fulfilled' && imageResult.value) {
+        track.cover = await normalizeCoverImage(imageResult.value);
+        if (track.cover && typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(track.cover, track);
+        changed = true;
+      }
       if (changed) {
         trackMetadataRevision++;
         filterOptionsSignature = '';
@@ -1861,7 +1876,62 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null };
+    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null };
+
+    function saveAlbumCoversCache() {
+      try {
+        if (typeof localStorage === 'undefined' || !state.albumCovers) return;
+        const serializable = [];
+        for (const [key, cover] of state.albumCovers.entries()) {
+          if (typeof cover === 'string' && !cover.startsWith('blob:')) {
+            serializable.push([key, cover]);
+          }
+        }
+        localStorage.setItem('nocturne-album-covers', JSON.stringify(serializable.slice(0, 500)));
+      } catch (e) {
+        console.warn('Could not save album covers cache:', e);
+      }
+    }
+
+    function syncAlbumCoversImmediate(cover, track) {
+      if (!track) return;
+      const key = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function')
+        ? library.buildAlbumKey(track)
+        : null;
+      if (!key || key === ':::') return;
+      if (!state.albumCovers) state.albumCovers = new Map();
+
+      let targetCover = cover || track.cover;
+      if (!targetCover || targetCover === '♫') {
+        targetCover = (typeof library !== 'undefined' && typeof library.resolveTrackCover === 'function')
+          ? library.resolveTrackCover(track, state.albumCovers, state.tracks)
+          : null;
+      }
+      if (!targetCover || targetCover === '♫') return;
+
+      const currentCover = state.albumCovers.get(key);
+      if (!currentCover || targetCover.length > currentCover.length) {
+        state.albumCovers.set(key, targetCover);
+        saveAlbumCoversCache();
+      }
+
+      if (!track.cover || track.cover === '♫') track.cover = targetCover;
+
+      if (Array.isArray(state.tracks)) {
+        for (const sibling of state.tracks) {
+          if (sibling && (!sibling.cover || sibling.cover === '♫')) {
+            const sibKey = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function')
+              ? library.buildAlbumKey(sibling)
+              : null;
+            if (sibKey === key) {
+              sibling.cover = targetCover;
+            }
+          }
+        }
+      }
+    }
+    window.syncAlbumCoversImmediate = syncAlbumCoversImmediate;
+    window.saveAlbumCoversCache = saveAlbumCoversCache;
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -2314,6 +2384,17 @@
         fallback = filenameMetadata(filename, tags.track || tags.tracknumber || tags.trackNumber);
         Object.assign(track, library.resolveTrackMetadata(tags, fallback));
         track.cover = await normalizeCoverImage(tags.cover);
+        if (track.cover) {
+          if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(track.cover, track);
+        } else {
+          const resolved = (typeof library !== 'undefined' && typeof library.resolveTrackCover === 'function')
+            ? library.resolveTrackCover(track, state.albumCovers, state.tracks)
+            : null;
+          if (resolved) {
+            track.cover = resolved;
+            if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(resolved, track);
+          }
+        }
         track.sampleRate = technical.sampleRate;
         track.bitDepth = technical.bitDepth;
         track.channels = technical.channels;
@@ -2678,7 +2759,13 @@
       list.innerHTML = recent.map(({entry, track}) => {
         const metadata = track ? library.trackMetadata(track) : {title:entry.title || 'Bài hát gần đây', artist:entry.artist || 'Nghệ sĩ không xác định'};
         const title = escapeHtml(metadata.title), artist = escapeHtml(metadata.artist);
-        const cover = track && track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '<span>♫</span>';
+        let trackCover = track && track.cover && track.cover !== '♫' ? track.cover : null;
+        if (!trackCover && track && typeof library?.resolveTrackCover === 'function') {
+          trackCover = library.resolveTrackCover(track, state.albumCovers, state.tracks);
+        } else if (!trackCover && entry && typeof library?.resolveTrackCover === 'function') {
+          trackCover = library.resolveTrackCover(entry, state.albumCovers, state.tracks);
+        }
+        const cover = trackCover ? `<img src="${escapeHtml(trackCover)}" class="h-full w-full object-contain" alt="">` : '<span>♫</span>';
         const active = track && track.id === state.currentId;
         const unavailable = !track;
         return `<button type="button" data-recent-track="${escapeHtml(entry.trackKey)}" ${unavailable ? 'disabled title="Thêm lại thư mục/file vào thư viện để phát bài này"' : ''} class="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] p-2 text-left transition hover:border-violet-300/20 hover:bg-white/[.055] focus:outline-none focus:ring-2 focus:ring-violet-400/50 disabled:cursor-not-allowed disabled:opacity-60"><span class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-zinc-800 text-lg text-violet-200">${cover}</span><span class="min-w-0 flex-1"><span class="block truncate text-xs font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${title}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${unavailable ? 'Thêm lại file/thư viện để phát' : artist}</span></span><span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/[.06] text-xs text-zinc-300 transition group-hover:bg-violet-400 group-hover:text-zinc-950" aria-hidden="true">${active && audio && !audio.paused ? 'Ⅱ' : '▶'}</span></button>`;
@@ -2690,6 +2777,11 @@
       $('recent-section').classList.toggle('hidden', !recent.length || state.activeView !== 'home');
       renderContextualPlaylist();
     }
+
+    function renderRecentActivity() {
+      return renderRecentTracks();
+    }
+    window.renderRecentActivity = renderRecentActivity;
 
     function renderContextualPlaylist() {
       const section = $('smart-contextual-section');
@@ -2995,6 +3087,17 @@
       const cover = await normalizeCoverImage(tags.cover);
       const trackObj = { id: id(), file, url, source: 'local', name: file.name, ...metadata, cover, lyricsText: tags.lyrics || '', format, isDsd, sampleRate: technical.sampleRate, bitDepth: technical.bitDepth, channels: technical.channels, duration: technical.duration, size: file.size };
       trackObj.rating = getTrackRating(trackObj);
+      if (trackObj.cover) {
+        if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(trackObj.cover, trackObj);
+      } else {
+        const resolved = (typeof library !== 'undefined' && typeof library.resolveTrackCover === 'function')
+          ? library.resolveTrackCover(trackObj, state.albumCovers, state.tracks)
+          : null;
+        if (resolved) {
+          trackObj.cover = resolved;
+          if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(resolved, trackObj);
+        }
+      }
       return trackObj;
     }
     const localFileKey = file => `${file.relativePath || file.webkitRelativePath || file.name}-${file.size}`;
@@ -3002,7 +3105,58 @@
       const candidates = [...files].filter(file => file && (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name)));
       const lrcByBase = new Map([...files].filter(file => file && /\.lrc$/i.test(file.name)).map(file => [(file.relativePath || file.webkitRelativePath || file.name).replace(/\.[^.]+$/, '').toLowerCase(), file]));
       const cueFiles = [...files].filter(file => file && /\.cue$/i.test(file.name));
-      if (!candidates.length && !cueFiles.length) { toast('Không tìm thấy file âm thanh hoặc file CUE được hỗ trợ.'); return; }
+      const folderArtCandidates = (typeof library !== 'undefined' && typeof library.extractFolderArtCandidates === 'function')
+        ? library.extractFolderArtCandidates(files)
+        : [];
+      const folderCoverByDir = new Map();
+      for (const cand of folderArtCandidates) {
+        const fullPath = cand.relativePath || cand.webkitRelativePath || cand.name || '';
+        let dir = '';
+        if (fullPath.includes('/')) dir = fullPath.slice(0, fullPath.lastIndexOf('/'));
+        else if (fullPath.includes('\\')) dir = fullPath.slice(0, fullPath.lastIndexOf('\\'));
+        if (!folderCoverByDir.has(dir)) {
+          try {
+            const url = URL.createObjectURL(cand.file || cand);
+            state.objectUrls.add(url);
+            folderCoverByDir.set(dir, url);
+          } catch (e) {
+            console.warn('Could not create object URL for folder art:', e);
+          }
+        }
+      }
+      if (!candidates.length && !cueFiles.length) {
+        if (folderArtCandidates.length && state.tracks.length) {
+          for (const cand of folderArtCandidates) {
+            const fullPath = cand.relativePath || cand.webkitRelativePath || cand.name || '';
+            let dir = '';
+            if (fullPath.includes('/')) dir = fullPath.slice(0, fullPath.lastIndexOf('/'));
+            else if (fullPath.includes('\\')) dir = fullPath.slice(0, fullPath.lastIndexOf('\\'));
+            const folderCover = folderCoverByDir.get(dir) || (folderCoverByDir.size === 1 ? folderCoverByDir.values().next().value : null);
+            if (folderCover) {
+              for (const tr of state.tracks) {
+                const trPath = tr.relativePath || tr.name || '';
+                let trDir = '';
+                if (trPath.includes('/')) trDir = trPath.slice(0, trPath.lastIndexOf('/'));
+                else if (trPath.includes('\\')) trDir = trPath.slice(0, trPath.lastIndexOf('\\'));
+                if ((!trDir && !dir) || trDir === dir || folderCoverByDir.size === 1) {
+                  if (!tr.cover || tr.cover === '♫') {
+                    tr.cover = folderCover;
+                    if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(folderCover, tr);
+                  }
+                }
+              }
+            }
+          }
+          if (typeof library?.propagateAlbumCovers === 'function') {
+            library.propagateAlbumCovers(state.tracks, state.albumCovers);
+          }
+          renderTracks();
+          toast('Đã áp dụng ảnh bìa cho các bài hát.');
+          return;
+        }
+        toast('Không tìm thấy file âm thanh hoặc file CUE được hỗ trợ.');
+        return;
+      }
       const existing = new Map(state.tracks.filter(track => track.source === 'local').map(track => [`${track.relativePath || track.name || track.title}-${track.size}`, track]));
       const additions = [], pending = [];
 
@@ -3043,6 +3197,11 @@
 
           for (const ct of parsedTracks) {
             const trackDur = ct.duration > 0 ? ct.duration : (siblingTrack && siblingTrack.duration ? Math.max(0, siblingTrack.duration - (ct.offset || 0)) : 0);
+            const tPath = cueFile.relativePath || cueFile.webkitRelativePath || cueFile.name || '';
+            let tDir = '';
+            if (tPath.includes('/')) tDir = tPath.slice(0, tPath.lastIndexOf('/'));
+            else if (tPath.includes('\\')) tDir = tPath.slice(0, tPath.lastIndexOf('\\'));
+            const folderCover = folderCoverByDir.get(tDir) || (folderCoverByDir.size === 1 ? folderCoverByDir.values().next().value : null);
             const vTrack = {
               id: id(),
               file: matchedAudioFile || null,
@@ -3063,13 +3222,14 @@
               sampleRate: siblingTrack?.sampleRate || 44100,
               bitDepth: siblingTrack?.bitDepth || 16,
               channels: siblingTrack?.channels || 2,
-              cover: siblingTrack?.cover || '',
+              cover: siblingTrack?.cover || folderCover || '',
               lyricsText: '',
               isCue: true,
               cueFile: cueFile.name,
               parentFile: matchedAudioFile ? matchedAudioFile.name : (parsedTracks.file || '')
             };
             getTrackRating(vTrack);
+            if (vTrack.cover && typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(vTrack.cover, vTrack);
             additions.push(vTrack);
           }
 
@@ -3093,6 +3253,15 @@
         while (nextFile < pending.length) {
           const {file,key} = pending[nextFile++];
           const track = await makeLocalTrack(file);
+          const tPath = file.relativePath || file.webkitRelativePath || file.name || '';
+          let tDir = '';
+          if (tPath.includes('/')) tDir = tPath.slice(0, tPath.lastIndexOf('/'));
+          else if (tPath.includes('\\')) tDir = tPath.slice(0, tPath.lastIndexOf('\\'));
+          const folderCover = folderCoverByDir.get(tDir) || (folderCoverByDir.size === 1 ? folderCoverByDir.values().next().value : null);
+          if (folderCover && (!track.cover || track.cover === '♫')) {
+            track.cover = folderCover;
+            if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(folderCover, track);
+          }
           const lrcFile = lrcByBase.get((file.relativePath || file.webkitRelativePath || file.name).replace(/\.[^.]+$/, '').toLowerCase());
           if (lrcFile) { try { track.lyricsText = await lrcFile.text(); } catch (error) { track.lyricsText = ''; } }
           track.name = file.name; track.relativePath = file.relativePath || file.webkitRelativePath || file.name;
@@ -3101,6 +3270,9 @@
       });
       await Promise.all(workers);
       state.tracks.push(...additions);
+      if (typeof library !== 'undefined' && typeof library.propagateAlbumCovers === 'function') {
+        library.propagateAlbumCovers(state.tracks, state.albumCovers);
+      }
       renderTracks();
       toast(`Đã thêm ${additions.length} bài hát${additions.length ? '' : ' mới'}.`);
     }
@@ -3546,14 +3718,19 @@
       const metadata = track => library.trackMetadata(track);
       const artists = new Map(), albums = new Map();
       for (const track of tracks) {
+        if (!track.cover && typeof library?.resolveTrackCover === 'function') {
+          track.cover = library.resolveTrackCover(track, state.albumCovers, state.tracks);
+        }
         const info = metadata(track), artistKey = library.normalizeSearchKey(info.artist);
         if (!artists.has(artistKey)) artists.set(artistKey,{key:artistKey,name:info.artist,tracks:[],cover:track.cover || ''});
         artists.get(artistKey).tracks.push(track);
         const albumKey = `${library.normalizeSearchKey(info.album)}\t${artistKey}`;
         if (!albums.has(albumKey)) albums.set(albumKey,{key:albumKey,name:info.album,artist:info.artist,tracks:[],cover:track.cover || ''});
         albums.get(albumKey).tracks.push(track);
-        if (!albums.get(albumKey).cover && track.cover) albums.get(albumKey).cover = track.cover;
-        if (!artists.get(artistKey).cover && track.cover) artists.get(artistKey).cover = track.cover;
+        const artKey = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function') ? library.buildAlbumKey(track) : null;
+        const albumCover = track.cover || (artKey && state.albumCovers ? state.albumCovers.get(artKey) : null);
+        if (!albums.get(albumKey).cover && albumCover) albums.get(albumKey).cover = albumCover;
+        if (!artists.get(artistKey).cover && albumCover) artists.get(artistKey).cover = albumCover;
       }
       const isArtistView = ['artists','composers'].includes(view), isSongView = view === 'songs', isGenreView = view === 'genres';
       let entries = [];
@@ -3718,6 +3895,9 @@
           const q = quality(track), active = track.id === state.currentId, queued = state.queueTrackIds.includes(track.id) && track.id !== state.currentId;
           const versionInfo = versionInfoById.get(track.id) || {versionGroup: {key: `id:${track.id}`, versions: [track]}, versionIndex: 0};
           const metadata = library.trackMetadata(track);
+          if (!track.cover && typeof library?.resolveTrackCover === 'function') {
+            track.cover = library.resolveTrackCover(track, state.albumCovers, state.tracks);
+          }
           // Pha B — huy hiệu chất lượng của bài DSD mang tooltip là dòng
           // kiểm toán giải mã đầy đủ (thời gian giải mã, lát chậm nhất,
           // throughput MB/s) để xem tốc độ worker ngay trong danh sách mà
@@ -3854,6 +4034,9 @@
       recordTrackRowsRender(performance.now() - startedAt, renderedTracks.length, false);
     }
     function renderTracks() {
+      if (typeof library !== 'undefined' && typeof library.propagateAlbumCovers === 'function' && state.tracks && state.tracks.length) {
+        library.propagateAlbumCovers(state.tracks, state.albumCovers);
+      }
       if (!state.trackScope) $('album-hero')?.classList.add('hidden');
       updateMetadataFilters();
       if (typeof renderFocusBar === 'function') renderFocusBar();
@@ -5918,6 +6101,16 @@
       }
     }
     function displayTrack(track) {
+      if (!track) return;
+      if (!track.cover || track.cover === '♫') {
+        const resolvedCover = (typeof library !== 'undefined' && library && typeof library.resolveTrackCover === 'function')
+          ? library.resolveTrackCover(track, state.albumCovers, state.tracks)
+          : null;
+        if (resolvedCover) {
+          track.cover = resolvedCover;
+          if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(resolvedCover, track);
+        }
+      }
       state.currentId = track.id;
       $('player-footer').classList.remove('player-idle');
       $('now-title').textContent = library.trackMetadata(track).title;
@@ -8029,7 +8222,7 @@
       if (window.showDirectoryPicker) {
         try {
           const dir = await window.showDirectoryPicker({ mode: 'read' }), files = [];
-          async function walk(handle) { for await (const entry of handle.values()) { if (entry.kind === 'file') { const file = await entry.getFile(); if (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name) || /\.cue$/i.test(file.name)) files.push(file); } else if (entry.kind === 'directory') await walk(entry); } }
+          async function walk(handle) { for await (const entry of handle.values()) { if (entry.kind === 'file') { const file = await entry.getFile(); if (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name) || /\.cue$/i.test(file.name) || /\.(jpe?g|png|webp|bmp|gif)$/i.test(file.name)) files.push(file); } else if (entry.kind === 'directory') await walk(entry); } }
           await walk(dir); await addLocalFiles(files); return;
         } catch (error) { if (error.name === 'AbortError') return; console.warn('Directory picker failed; using input fallback:', error); }
       }
@@ -8953,6 +9146,17 @@
                 source: 'Subsonic'
               };
           if (parsed) {
+            if (parsed.cover) {
+              if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(parsed.cover, parsed);
+            } else {
+              const resolved = (typeof library !== 'undefined' && typeof library.resolveTrackCover === 'function')
+                ? library.resolveTrackCover(parsed, state.albumCovers, state.tracks)
+                : null;
+              if (resolved) {
+                parsed.cover = resolved;
+                if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(resolved, parsed);
+              }
+            }
             newTracks.push(parsed);
           }
         }
@@ -9056,6 +9260,17 @@
             ? library.parseJellyfinItem(item, endpoint, token)
             : null;
           if (parsed) {
+            if (parsed.cover) {
+              if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(parsed.cover, parsed);
+            } else {
+              const resolved = (typeof library !== 'undefined' && typeof library.resolveTrackCover === 'function')
+                ? library.resolveTrackCover(parsed, state.albumCovers, state.tracks)
+                : null;
+              if (resolved) {
+                parsed.cover = resolved;
+                if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(resolved, parsed);
+              }
+            }
             newTracks.push(parsed);
           }
         }
@@ -9251,6 +9466,17 @@
                 source: 'Black Candy'
               };
           if (parsed) {
+            if (parsed.cover) {
+              if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(parsed.cover, parsed);
+            } else {
+              const resolved = (typeof library !== 'undefined' && typeof library.resolveTrackCover === 'function')
+                ? library.resolveTrackCover(parsed, state.albumCovers, state.tracks)
+                : null;
+              if (resolved) {
+                parsed.cover = resolved;
+                if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(resolved, parsed);
+              }
+            }
             newTracks.push(parsed);
           }
         }
@@ -11668,5 +11894,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 18:20 +07 | Đã xong: Tái Cấu Trúc Repo - Gom Toàn Bộ File Kiểm Thử Vào Thư Mục test/ & Chuẩn Hóa package.json: (1) Di chuyển toàn bộ 124 file kiểm thử *.test.cjs vào thư mục test/, cập nhật đường dẫn tương đối ../ và require, bảo toàn lịch sử git rename; (2) Giảm 93% số lượng file ở thư mục gốc (từ 136 files xuống còn các file cốt lõi); (3) Bổ sung package.json chuẩn hoá npm test; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); toàn bộ test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 18:45 +07 | Đã xong: Pha C - Khắc Phục Sân Khấu Âm Thanh 3D Toàn Màn Hình & Phông Nền Ambient Mờ Ảo Roon (Fullscreen 3D Stage Visualizers & Ambient Blurred Backdrop Polish): (1) Phông nền mờ ảo #fullscreen-bg-cover & #fullscreen-ambient-glow chuẩn xác theo ảnh mẫu: scale-110 filter blur-[56px] opacity-75 brightness-95 saturate-150 kết hợp gradient vignette tinh tế from-black/40 via-transparent to-black/80; (2) updateRoonFullscreenUI đồng bộ hiển thị và cập nhật ảnh bìa mờ mượt mà cho cả 2 tab Bìa album và Lời bài hát khi track có ảnh bìa; (3) Tách rời triệt để vòng lặp render Fullscreen Stage Visualizer khỏi kích thước thanh footer: setVisualizerRunning và draw tiếp tục hoạt động liên tục ngay cả khi visualizer thanh footer bị ẩn hoặc có kích thước bằng 0; (4) resizeFullscreenStageCanvas tự động co giãn độ phân giải canvas theo devicePixelRatio và kích thước khung nhìn thực tế; (5) Hàm setFullscreenStageMode điều hướng và đồng bộ mượt mà cả 3 chế độ sân khấu 3D: Radar 3D (library.renderPolarRadarCanvas), VU Meter (library.renderVisualizerVuMeter với 2 kim L/R độc lập), Goniometer 3D (library.renderSpatialVectorCanvas); (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 10/10 tests fullscreen-stage-backdrop.test.cjs PASS 100%, toàn bộ 1068/1068 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 19:05 +07 | Đã xong: Pha C - Ẩn Hoàn Toàn Thanh Cuộn Dọc & Ngang Phần Lời Bài Hát (Zero Scrollbar Synced Lyrics Immersive Mode): (1) Triệt tiêu toàn bộ thanh cuộn dọc (vertical scrollbar) và thanh cuộn ngang (horizontal scrollbar) tại khung lời bài hát #fullscreen-lyrics-scroll, #fullscreen-stage-lyrics và #room-lyrics; (2) Thiết lập triệt để các thuộc tính overflow-x-hidden, scrollbar-width: none !important (Firefox), -ms-overflow-style: none !important (Edge/IE) và ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; } (Chrome, Safari, Opera); (3) Bổ sung max-w-full break-words trên fs-lyric-line ngăn chặn tràn lề văn bản theo chiều ngang; (4) Duy trì trải nghiệm cuộn mượt mà (smooth scrolling, touch swipe, chuột cuộn và auto scroll); (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 1/1 tests lyrics-scrollbar-hidden.test.cjs PASS 100%, toàn bộ 1070/1070 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 19:30 +07 | Đã xong: Nâng Cấp Khả Năng Đồng Bộ Ảnh Bìa Tức Thì Trong Toàn Bộ Ứng Dụng (Instantaneous Album Art Synchronization & Zero-Delay Cover Propagation): (1) Bộ pure helpers trong library-utils.js: buildAlbumKey chuẩn hóa khóa album "${artist}:::${album}", propagateAlbumCovers đồng bộ hai chiều ảnh bìa giữa mảng bài hát và coverMap chọn ảnh chất lượng cao nhất, resolveTrackCover giải quyết tức thì fallback từ coverMap hoặc sibling tracks, extractFolderArtCandidates nhận diện và chấm điểm ảnh bìa thư mục độc lập (cover.jpg, folder.jpg, front.png, v.v.); (2) index.html khởi tạo state.albumCovers từ bộ nhớ đệm localStorage 'nocturne-album-covers'; (3) addLocalFiles quét ảnh bìa thư mục, tạo object URL và gán ngay cho bài hát trong thư mục; (4) makeLocalTrack và mọi nguồn nạp nhạc (local, cloud, Subsonic, Jellyfin, Black Candy) kích hoạt syncAlbumCoversImmediate lan truyền ảnh bìa tức thì cho toàn bộ sibling tracks cùng album; (5) displayTrack gọi resolveTrackCover hiển thị ảnh bìa 0ms trên thanh dock footer, chế độ toàn màn hình, phòng nghe và MediaSession; (6) renderRecentActivity / renderRecentTracks dùng resolveTrackCover hiển thị ảnh bìa thay vì ký tự '♫'; (7) renderTracks và renderCollectionCards đồng bộ hoàn toàn ảnh bìa album; (8) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 14/14 tests instant-album-sync.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
 </body>
 </html>

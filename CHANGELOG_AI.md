@@ -2,6 +2,36 @@
 
 ---
 
+## [Pha C 2026-11-15 19:30 +07] — Nâng Cấp Khả Năng Đồng Bộ Ảnh Bìa Album Ngay Lập Tức (Instantaneous Album Art Synchronization & Zero-Delay Cover Propagation)
+
+### 🎯 Giải Quyết Yêu Cầu Người Dùng:
+- **Hiện trạng:**
+  - Trong cùng một album nhạc hoặc thư mục, nhiều file âm thanh không có ảnh bìa nhúng (embedded art) thường hiển thị biểu tượng `♫` rỗng (ví dụ: các bài trong cùng album hoặc nghệ sĩ ở Recent Activity chỉ có bài đầu tiên hiện ảnh bìa, các bài sau bị rỗng).
+  - Khi người dùng kéo thả thư mục nhạc chứa file ảnh rời (`cover.jpg`, `folder.jpg`, `front.png`), hệ thống bỏ qua các file ảnh này khiến các bài hát không có bìa.
+  - Khi phát một bài hát chưa có ảnh bìa (`track.cover == null`), thanh dock footer, chế độ toàn màn hình và phòng nghe không tìm kiếm ảnh bìa từ các bài hát cùng album, khiến phông nền đen sì và thiếu ảnh bìa.
+- **Yêu cầu:** Nâng cấp khả năng đồng bộ ảnh bìa album tức thì (0ms latency), tự động lan truyền ảnh bìa giữa các bài hát cùng album và phân giải ngay lập tức khi phát nhạc hoặc hiển thị danh sách.
+
+### 🚀 Giải Pháp Kỹ Thuật Đã Triển Khai:
+1. **Bộ Tiện Ích Thuần (Pure Helpers) Trong `library-utils.js`:**
+   - `buildAlbumKey(track)`: Chuẩn hóa khóa nhận diện album `${artist}:::${album}` (hỗ trợ `albumArtist`, `artist`, `album`, `albumName`, cắt khoảng trắng và viết thường an toàn).
+   - `extractFolderArtCandidates(files)`: Quét và lọc tự động các file ảnh bìa rời (`cover.jpg`, `folder.jpg`, `front.png`, `albumart.jpg`, v.v.) trong danh sách file được kéo thả hoặc chọn, chấm điểm ưu tiên theo tên chuẩn.
+   - `propagateAlbumCovers(tracks, coverMap)`: Lan truyền hai chiều ảnh bìa giữa mảng bài hát và `coverMap`, tự động ưu tiên ảnh bìa có chất lượng/độ phân giải cao hơn.
+   - `resolveTrackCover(track, coverMap, allTracks)`: Phân giải ảnh bìa tức thì (0ms) theo thứ bậc: ảnh bài hát -> `coverMap` -> bài hát cùng albumKey -> bài hát cùng albumName.
+2. **Tích Hợp Sâu Trong `index.html`:**
+   - **Khởi động nhanh (Warm Cache):** Khởi tạo `state.albumCovers = new Map()` từ `localStorage['nocturne-album-covers']` giúp hiển thị ngay ảnh bìa khi mở lại web.
+   - **Tự động quét ảnh thư mục:** `addLocalFiles(files)` tự động tách các file ảnh bìa rời, tạo Object URL và gán ngay cho các bài hát cùng thư mục.
+   - **Lan truyền tức thì (Instant Propagation):** `makeLocalTrack(file)` và các luồng nạp nhạc (local, cloud, Subsonic, Jellyfin, Black Candy) tự động gọi `syncAlbumCoversImmediate` lan truyền ảnh bìa cho toàn bộ sibling tracks cùng album trong `state.tracks`.
+   - **0ms Fallback Khi Phát Nhạc:** `displayTrack(track)` tự động giải quyết ảnh bìa qua `resolveTrackCover`, lập tức hiển thị ảnh bìa trên thanh dock footer, phòng nghe, giao diện toàn màn hình và MediaSession.
+   - **Recent Activity & Thẻ Album:** `renderRecentActivity()` và `renderRecentTracks()` áp dụng `resolveTrackCover` để hiển thị ảnh bìa thật thay vì biểu tượng `♫`.
+3. **Bảo Toàn Bất Biến Đồ Thị Âm Thanh:**
+   - `state.crossfeedNodes.output.connect(state.context.destination)` được bảo toàn tuyệt đối 100%.
+4. **Kiểm Chứng Tự Động:**
+   - `test/instant-album-sync.test.cjs`: **14/14 tests PASS**.
+   - `test/instant-album-art-sync.test.cjs`: **17/17 tests PASS**.
+   - Toàn bộ **1101/1101 tests** của dự án PASS 100% (0 regressions).
+
+---
+
 ## [Pha C 2026-11-15 19:05 +07] — Ẩn Hoàn Toàn Thanh Cuộn Dọc & Ngang Phần Lời Bài Hát (Zero Scrollbar Synced Lyrics Immersive Mode)
 
 ### 🎯 Giải Quyết Yêu Cầu Người Dùng:
