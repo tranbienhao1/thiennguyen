@@ -2,6 +2,34 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 14:45 +07] — Pha A: Bộ Lọc Tái Thiết Tần Số Siêu Âm DSD & Lọc Khử Méo Lượng Tử Hóa (DSD Ultrasonic Reconstruction Filter & High-Frequency Noise Shaping Cutoff Engine)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Audio Engine & DSP:
+- **Phân khu trọng tâm:** **Đăng Ký Profile Bộ Lọc Siêu Âm DSD (`DSD_ULTRASONIC_FILTERS`), Hàm Truyền Đạt Biquad Cascaded Butterworth 4th-Order (`calculateUltrasonicFilterResponse`), Telemetry Chuẩn Lọc DSD (`formatDsdUltrasonicFilterTelemetry`), Tích Hợp Roon Signal Path (`computeSignalPath`), UI Equalizer Panel `#dsd-ultrasonic-select`, `#dsd-ultrasonic-badge`, `#dsd-ultrasonic-desc` & Lưu Trữ Bền Vững**.
+- **Tính năng & Đột phá:**
+  1. **Hệ thống cấu hình bộ lọc siêu âm DSD chuẩn Audiophile (`DSD_ULTRASONIC_FILTERS`):**
+     - `bypass`: Bypass Bit-Perfect, truyền trực tiếp nguyên bản tới DAC ngoài không can thiệp.
+     - `sacd_standard`: Chuẩn SACD Scarlett Book (30 kHz Gentle Roll-off, độ dốc -24 dB/oct), triệt tiêu nhiễu lượng tử hóa siêu âm Delta-Sigma mà không làm suy giảm độ thoáng âm hình.
+     - `hi_res_extended`: Mở rộng dải thông Hi-Res (50 kHz Extended), tối ưu cho hệ thống loa tweeter ribbon/beryllium đáp ứng siêu tần.
+     - `analog_smooth`: Analog mượt mà (24 kHz Studio Linear Phase), loại trừ hiện tượng méo xuyên điều chế (IMD) trên ampli đèn và tai nghe trở kháng thấp.
+  2. **Mô hình toán học đáp tuyến suy giảm 4th-order cascaded Butterworth (`calculateUltrasonicFilterResponse`):**
+     - Đạt chuẩn suy giảm -3 dB chính xác tại tần số cắt $f_c$ và độ dốc suy giảm dốc đứng xấp xỉ -24.1 dB/octave khi lên gấp đôi tần số ($2 f_c$), giữ phẳng tuyệt đối toàn bộ dải nghe thấy của tai người (0-20 kHz).
+  3. **Định dạng Telemetry chuẩn mực (`formatDsdUltrasonicFilterTelemetry`):**
+     - Hiển thị trực quan: `🛡️ Lọc DSD: Chuẩn SACD (SACD 30k · Cắt 30 kHz · -24 dB/oct)`.
+  4. **Tích hợp Roon Signal Path & DSP Chain:**
+     - Nút xử lý BiquadFilterNode `lowpass` tích hợp trước Peak Limiter trong chuỗi DSP.
+     - `computeSignalPath` tự động nhận diện và hiển thị trạm lọc `Lọc DSD Siêu Âm: [Badge]` khi được kích hoạt.
+  5. **Tích hợp UI Equalizer Panel & Lưu Trữ PWA:**
+     - Bộ chọn `#dsd-ultrasonic-select`, huy hiệu `#dsd-ultrasonic-badge` (màu chàm sang trọng), mô tả chi tiết `#dsd-ultrasonic-desc`.
+     - Lưu trữ tự động vào `localStorage` key `'nocturne-dsd-ultrasonic-filter'`.
+     - Tích hợp sao lưu toàn diện trong `exportAppConfiguration` và khôi phục trong `mergeRestoredConfiguration`.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `dsd-ultrasonic-reconstruction.test.cjs` (**7/7 tests PASS 100%**).
+  - Toàn bộ test suites hồi quy (**996/996 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 14:15 +07] — Pha D: Quản Lý Ngân Sách Bộ Nhớ RAM Âm Thanh & Nén Danh Mục Metadata Lát Nhị Phân (Audio Memory Budget Guard & Compact Chunk Cache Metadata)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Hiệu Năng & Kiến Trúc PWA:

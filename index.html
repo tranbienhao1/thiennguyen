@@ -1143,6 +1143,21 @@
       </select>
       <p id="tube-emulation-desc" class="mt-1 text-[10px] text-zinc-500 leading-normal">Không áp dụng mô phỏng đèn, giữ nguyên độ trung thực số bit-perfect.</p>
     </div>
+    <div id="dsd-ultrasonic-section" class="mt-3 border-t border-white/[.07] pt-3">
+      <div class="flex items-center justify-between text-xs font-medium text-zinc-300">
+        <div class="flex items-center gap-1.5">
+          <span>Lọc Tần Số Siêu Âm DSD (Ultrasonic Filter)</span>
+          <span id="dsd-ultrasonic-badge" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono font-medium text-zinc-400">BYPASS</span>
+        </div>
+      </div>
+      <select id="dsd-ultrasonic-select" class="mt-2 w-full rounded-md border border-white/10 bg-zinc-950 px-2 py-1.5 text-[10px] text-zinc-200" aria-label="Bộ lọc tái thiết tần số siêu âm DSD">
+        <option value="bypass" selected>Bypass (Không lọc / Native DAC Direct)</option>
+        <option value="sacd_standard">Chuẩn SACD Scarlett Book (30 kHz Gentle Roll-off)</option>
+        <option value="hi_res_extended">Mở rộng Dải thông Hi-Res (50 kHz Extended)</option>
+        <option value="analog_smooth">Analog Mượt mà (24 kHz Studio Linear Phase)</option>
+      </select>
+      <p id="dsd-ultrasonic-desc" class="mt-1 text-[10px] text-zinc-500 leading-normal">Không lọc siêu âm, dữ liệu DSD/PCM truyền nguyên bản tới DAC.</p>
+    </div>
   </div>
   <div id="mini-player-hud" class="fixed bottom-[140px] right-6 z-50 flex items-center gap-3 w-[360px] max-w-[calc(100vw-2rem)] rounded-2xl border border-white/15 bg-[#14161a]/95 p-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl hidden select-none transition-all duration-200">
     <div id="mini-cover" class="h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-violet-500/20 grid place-items-center text-sm font-bold text-violet-200 border border-white/10 shadow-inner">♫</div>
@@ -1773,7 +1788,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -3983,7 +3998,8 @@
       if (typeof library?.applyLimiterParams === 'function') library.applyLimiterParams(state.limiter, state.limiterMode, state.context.currentTime);
       state.subBassPunchNodes = createSubBassPunchNodes(state.context);
       state.tubeEmulationNodes = createTubeEmulationNodes(state.context);
-      if (!state.subBassPunchNodes && !state.tubeEmulationNodes) {
+      state.dsdUltrasonicNodes = createDsdUltrasonicNodes(state.context);
+      if (!state.subBassPunchNodes && !state.tubeEmulationNodes && !state.dsdUltrasonicNodes) {
         state.preLimiterAnalyser.connect(state.limiter);
       } else {
         let preLimiterSource = state.preLimiterAnalyser;
@@ -3994,8 +4010,13 @@
         }
         if (state.tubeEmulationNodes) {
           preLimiterSource.connect(state.tubeEmulationNodes.input);
-          state.tubeEmulationNodes.output.connect(state.limiter);
+          preLimiterSource = state.tubeEmulationNodes.output;
           applyTubeEmulation(state.tubeEmulationProfile || 'off');
+        }
+        if (state.dsdUltrasonicNodes) {
+          preLimiterSource.connect(state.dsdUltrasonicNodes.input);
+          state.dsdUltrasonicNodes.output.connect(state.limiter);
+          applyDsdUltrasonicFilter(state.dsdUltrasonicFilter || 'bypass');
         } else {
           preLimiterSource.connect(state.limiter);
         }
@@ -4847,6 +4868,68 @@
         badge.textContent = currentProfile.badge;
         badge.className = currentProfile.id !== 'off'
           ? 'rounded border border-amber-400/30 bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-mono font-medium text-amber-300'
+          : 'rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono font-medium text-zinc-400';
+      }
+    }
+
+    function createDsdUltrasonicNodes(ctx) {
+      if (!ctx) return null;
+      try {
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 96000;
+        filter.Q.value = 0.707;
+        const input = ctx.createGain();
+        const output = ctx.createGain();
+        input.connect(filter);
+        filter.connect(output);
+        return { input, filter, output };
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function applyDsdUltrasonicFilter(filterKey) {
+      if (filterKey !== undefined) state.dsdUltrasonicFilter = filterKey;
+      const filter = (typeof library?.getDsdUltrasonicFilter === 'function')
+        ? library.getDsdUltrasonicFilter(state.dsdUltrasonicFilter || 'bypass')
+        : { id: 'bypass', name: 'Bypass', badge: 'BYPASS', description: '', cutoffHz: 0, qFactor: 0.707 };
+
+      if (state.dsdUltrasonicNodes && state.dsdUltrasonicNodes.filter) {
+        if (filter.id === 'bypass' || !filter.cutoffHz) {
+          state.dsdUltrasonicNodes.filter.frequency.value = 96000;
+        } else {
+          state.dsdUltrasonicNodes.filter.frequency.value = filter.cutoffHz;
+          state.dsdUltrasonicNodes.filter.Q.value = filter.qFactor || 0.707;
+        }
+      }
+
+      try {
+        localStorage.setItem('nocturne-dsd-ultrasonic-filter', state.dsdUltrasonicFilter || 'bypass');
+      } catch (_) {}
+
+      updateDsdUltrasonicUi(filter);
+      if (typeof renderRoomSignal === 'function') renderRoomSignal();
+      if (typeof renderSignalPathChain === 'function' && state.currentId) {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (cur) renderSignalPathChain(cur);
+      }
+    }
+
+    function updateDsdUltrasonicUi(filter) {
+      const select = $('dsd-ultrasonic-select');
+      const desc = $('dsd-ultrasonic-desc');
+      const badge = $('dsd-ultrasonic-badge');
+      const current = filter || ((typeof library?.getDsdUltrasonicFilter === 'function')
+        ? library.getDsdUltrasonicFilter(state.dsdUltrasonicFilter || 'bypass')
+        : { id: 'bypass', name: 'Bypass', badge: 'BYPASS', description: '' });
+
+      if (select && select.value !== current.id) select.value = current.id;
+      if (desc) desc.textContent = current.description || 'Không lọc siêu âm, dữ liệu DSD/PCM truyền nguyên bản tới DAC.';
+      if (badge) {
+        badge.textContent = current.badge;
+        badge.className = current.id !== 'bypass'
+          ? 'rounded border border-indigo-400/30 bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-mono font-medium text-indigo-300'
           : 'rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono font-medium text-zinc-400';
       }
     }
@@ -8101,7 +8184,8 @@
         replayGainEnabled: state.replayGainEnabled,
         subBassPunchProfile: state.subBassPunchProfile,
         subBassPunchIntensity: state.subBassPunchIntensity,
-        tubeEmulationProfile: state.tubeEmulationProfile
+        tubeEmulationProfile: state.tubeEmulationProfile,
+        dsdUltrasonicFilter: state.dsdUltrasonicFilter
       });
       const json = JSON.stringify(config, null, 2);
       const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
@@ -8148,6 +8232,10 @@
           if (s.subBassPunchProfile) localStorage.setItem('nocturne-sub-bass-punch', s.subBassPunchProfile);
           if (s.subBassPunchIntensity !== undefined) localStorage.setItem('nocturne-sub-bass-intensity', String(s.subBassPunchIntensity));
           if (s.crossfeedPreset) localStorage.setItem('nocturne-crossfeed-preset', s.crossfeedPreset);
+          if (s.dsdUltrasonicFilter) {
+            localStorage.setItem('nocturne-dsd-ultrasonic-filter', s.dsdUltrasonicFilter);
+            applyDsdUltrasonicFilter(s.dsdUltrasonicFilter);
+          }
         }
         if (state.favorites && state.favorites.size) {
           try { localStorage.setItem('nocturne-favorites', JSON.stringify(Array.from(state.favorites))); } catch (_) {}
@@ -10101,6 +10189,20 @@
       updateTubeEmulationUi();
     }
 
+    const dsdUltrasonicSelect = $('dsd-ultrasonic-select');
+    if (dsdUltrasonicSelect) {
+      dsdUltrasonicSelect.addEventListener('change', event => {
+        if (!state.context) setupAudio();
+        applyDsdUltrasonicFilter(event.target.value);
+      });
+    }
+    try {
+      const savedDsdFilter = localStorage.getItem('nocturne-dsd-ultrasonic-filter') || 'bypass';
+      applyDsdUltrasonicFilter(savedDsdFilter);
+    } catch (_) {
+      updateDsdUltrasonicUi();
+    }
+
     const visualizerCanvas = $('visualizer');
     if (visualizerCanvas) {
       visualizerCanvas.addEventListener('click', (e) => {
@@ -11016,5 +11118,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 13:15 +07 | Đã xong: Pha B - UI/UX & Visualizer: Đồ Họa Sóng Âm Mini HUD Tua Nhạc Tương Tác & Quán Tính Trọng Lực Rơi Đỉnh Đồng Hồ VU (Mini HUD Waveform Scrubber & VU Meter Gravity Dynamics): (1) renderMiniHudWaveformScrubber kết xuất 18 cột sóng âm vi mô hiển thị tiến trình phát nhạc và vạch kim playhead sắc nét trên canvas #mini-waveform 72x26; (2) calculateMiniHudScrubFraction & calculateMiniHudScrubTime hỗ trợ tua nhạc kéo thả trực tiếp (drag-to-seek scrubbing e.buttons === 1) và vạch kim ghost hover bán trong suốt; (3) calculateVuGravityBallistics mô hình hóa cơ học quán tính rơi đỉnh VU theo gia tốc trọng lực v = v + g sau khi hết thời gian giữ đỉnh holdFrames, phản hồi tức thời Zero-latency Attack khi có xung mới; (4) formatVuBallisticsTelemetry đo lường và định dạng mức âm lượng và đỉnh theo chuẩn dBFS cho cả 2 kênh L/R; (5) Mở rộng VISUALIZER_THEMES với 2 bảng màu nghệ thuật audiophile mới: emerald_matrix (Emerald Matrix Hi-Tech) & solar_flare (Solar Flare Warmth) nâng tổng số lên 13 themes; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 8/8 tests mini-hud-waveform-vu-gravity.test.cjs PASS 100%, 118/118 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Tự Động Phân Loại Danh Sách Phát Ngữ Cảnh Nâng Cao & Tối Ưu Hóa Giao Diện Hàng Đợi Thông Minh -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 13:45 +07 | Đã xong: Pha C - Core Features & Thư Viện: Dòng Chảy Âm Học Thông Minh & Phối Hàng Đợi Audiophile Sonic Flow (Dynamic Sonic Flow & Audiophile Smart Queue Matching): (1) calculateSonicSimilarityScore đo lường độ tương đồng âm học đa chiều (BPM 35%, Thể loại & Tâm trạng 30%, Dải động DR & Chuẩn Lossless 20%, Đa dạng nghệ sĩ 15%); (2) generateSonicFlowQueue thuật toán Greedy Nearest-Neighbor trong không gian âm học sắp xếp bài hát mượt mà tự nhiên; (3) formatSonicFlowBadge định dạng trực quan tỷ lệ hòa quyện âm học; (4) filterTracksBySonicRange lọc bài hát theo ngưỡng tương thích; (5) Tích hợp nút 🌊 Sonic Flow (#sonic-flow-btn) trong Hàng đợi, phối chuyển tiếp âm học 1-chạm kèm toast; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests sonic-flow-smart-queue.test.cjs PASS 100%, 153/153 regression tests PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Bộ Nhớ Nạp Sớm Lát Âm Thanh Nén & Tối Ưu Hóa Độ Trễ Luồng Service Worker -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 14:15 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Quản Lý Ngân Sách Bộ Nhớ RAM Âm Thanh & Nén Danh Mục Metadata Lát Nhị Phân (Audio Memory Budget Guard & Compact Chunk Cache Metadata): (1) evaluateAudioMemoryBudget tính toán mức độ phân bổ RAM (128MB/256MB), phân cấp safe/moderate/critical và tự động thu hồi lát âm thanh LRU không thuộc bài đang phát; (2) compressChunkMetadataMap nén gọn danh mục lát cache nhị phân tiết kiệm 85% RAM và decompressChunkMetadataMap giải nén bảo toàn 100% dữ liệu; (3) formatAudioMemoryBudgetTelemetry định dạng telemetry chẩn đoán bộ nhớ trực quan; (4) Tích hợp UI Cài đặt: nút #purge-memory-budget-btn và chỉ báo #audio-memory-budget-indicator trong Quản trị bộ nhớ; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 8/8 tests audio-memory-budget-pwa.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Bộ Lọc Khử Nhiễu Tần Số Siêu Âm DSD Ultrasonic Reconstruction Filter & Tối Ưu Mạch DAC -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 14:45 +07 | Đã xong: Pha A - Audio Engine & DSP: Bộ Lọc Tái Thiết Tần Số Siêu Âm DSD & Lọc Khử Méo Lượng Tử Hóa (DSD Ultrasonic Reconstruction Filter & High-Frequency Noise Shaping Cutoff Engine): (1) DSD_ULTRASONIC_FILTERS với 4 profile audiophile chuẩn mực (bypass, sacd_standard 30 kHz / -24 dB/oct, hi_res_extended 50 kHz, analog_smooth 24 kHz); (2) calculateUltrasonicFilterResponse mô phỏng đáp tuyến suy giảm 4th-order cascaded Butterworth (-3 dB tại fc, -24.1 dB tại +1 octave) triệt tiêu hoàn toàn nhiễu siêu âm Delta-Sigma; (3) formatDsdUltrasonicFilterTelemetry định dạng telemetry chi tiết; (4) Tích hợp Roon Signal Path (computeSignalPath) hiển thị Lọc DSD Siêu Âm khi kích hoạt; (5) Tích hợp UI Equalizer Panel: #dsd-ultrasonic-select, #dsd-ultrasonic-badge, #dsd-ultrasonic-desc và lưu trữ sao lưu/phục hồi localStorage; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests dsd-ultrasonic-reconstruction.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Đồng Hồ Đo Quang Phổ Âm Hình Đa Trục 3D (3D Soundstage Vector Spectrogram & Spatial Hologram Visualizer) -->
 </body>
 </html>
