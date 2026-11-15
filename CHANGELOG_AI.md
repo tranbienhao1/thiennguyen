@@ -2,6 +2,34 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 13:45 +07] — Pha C: Dòng Chảy Âm Học Thông Minh & Phối Hàng Đợi Audiophile Sonic Flow (Dynamic Sonic Flow & Audiophile Smart Queue Matching)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Core Features & Thư Viện:
+- **Phân khu trọng tâm:** **Điểm Tương Đồng Âm Học Đa Chiều (`calculateSonicSimilarityScore`), Thuật Toán Sắp Xếp Dòng Chảy Âm Thanh Hàng Đợi (`generateSonicFlowQueue`), Định Dạng Telemetry Hòa Quyện (`formatSonicFlowBadge`), Bộ Lọc Ngưỡng Âm Học (`filterTracksBySonicRange`) & Tích Hợp Nút Phối Âm Học `#sonic-flow-btn` Trong Hàng Đợi**.
+- **Tính năng & Đột phá:**
+  1. **Động cơ phân tích độ tương đồng âm học đa chiều (`calculateSonicSimilarityScore`):**
+     - Đánh giá khoảng cách âm học chuẩn xác trên thang điểm 100 dựa trên 4 trụ cột:
+       - **Độ tương đồng tiết tấu BPM** (Tối đa 35 điểm): Chênh lệch $\le 5$ BPM đạt 35 điểm tuyệt đối, mượt mà chuyển nhịp.
+       - **Tương thích Thể loại & Tâm trạng** (Tối đa 30 điểm): Khớp nhãn cảm xúc thư thái/sôi động hoặc phân họ âm nhạc tương ứng.
+       - **Dải động & Chuẩn định dạng Audiophile** (Tối đa 20 điểm): Hòa hợp các chuẩn lossless FLAC/DSD và thời lượng bài tương thích.
+       - **Chống đơn điệu nghệ sĩ** (Tối đa 15 điểm): Đảm bảo đa dạng danh sách phát, tránh chụm lặp cùng một nghệ sĩ liên tục.
+  2. **Thuật toán sắp xếp dòng chảy âm thanh hàng đợi (`generateSonicFlowQueue`):**
+     - Thuật toán Greedy Nearest-Neighbor trong không gian âm học: bắt đầu từ bài hạt giống đang phát (`seedTrack`), tự động tìm kiếm và xếp nối tiếp các bài trong hàng đợi có chỉ số hòa quyện cao nhất.
+     - Tính toán điểm hòa quyện trung bình (`avgSimilarityScore`) và chuỗi chuyển tiếp (`transitions`).
+  3. **Định dạng Telemetry Sonic Flow (`formatSonicFlowBadge`):**
+     - Báo cáo trực quan mức độ chuyển tiếp: `🌊 Sonic Flow: X% Hòa quyện · Tương đồng Nhịp & Tâm trạng`.
+  4. **Bộ lọc vùng âm học (`filterTracksBySonicRange`):**
+     - Lọc nhanh các bài trong kho thư viện đạt độ tương thích trên ngưỡng chỉ định (mặc định $\ge 60\%$), sắp xếp giảm dần theo điểm số.
+  5. **Tích hợp UI Hàng Đợi:**
+     - Nút **🌊 Sonic Flow** (`#sonic-flow-btn`) màu chàm tinh tế trong tiêu đề Hàng đợi.
+     - Bấm một chạm tự động tối ưu hóa toàn bộ hàng đợi phát theo trường phái âm học tương thích và thông báo tỷ lệ hòa quyện qua Toast.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `sonic-flow-smart-queue.test.cjs` (**6/6 tests PASS 100%**).
+  - Toàn bộ 25 test suites hồi quy (**153/153 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 13:15 +07] — Pha B: Đồ Họa Sóng Âm Mini HUD Tua Nhạc Tương Tác & Quán Tính Trọng Lực Rơi Đỉnh Đồng Hồ VU (Mini HUD Waveform Scrubber & VU Meter Gravity Dynamics)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá UI/UX & Visualizer:
