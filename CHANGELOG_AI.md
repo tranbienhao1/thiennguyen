@@ -2,6 +2,35 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 08:35 +07] — Pha B: Sân Khấu Ánh Sáng Vũ Trường & Visualizer Strobe Đa Tần Số (Multi-Band Reactive Strobe & Beat-Synchronized Ambient Aura)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá UI/UX & Visualizer:
+- **Phân khu trọng tâm:** **Đồ Họa Âm Học Thời Gian Thực (Multi-Band Reactive FFT), Hào Quang Vũ Trường 3 Tầng Đồng Bộ Nhịp Điệu (Bass Core Pulse, Vocal Resonant Halo, Treble Shimmer Sparkles) & 4 Preset Sân Khấu Chuyên Nghiệp**.
+- **Tính năng & Đột phá:**
+  1. **Bộ Preset sân khấu hào quang đa tầng (`STAGE_AURA_PRESETS`, `getStageAuraPreset`, `listStageAuraPresets`):**
+     - `club-laser`: Vũ Trường Laser — Phản xạ chớp giật mạnh theo tiếng trống kick bass, vi hạt treble lấp lánh (24 particles), xung nhịp dãn nở 1.12x.
+     - `lounge-ambient`: Phòng Trà Thư Giãn — Chuyển động êm dịu, ưu tiên dải vocal ấm áp, phân rã chậm (decay 0.94), hào quang mịn màng.
+     - `studio-monitor`: Kiểm Âm Phòng Thu — Phản hồi tuyến tính kỹ thuật 3 dải tần (Bass/Vocal/Treble) đồng đều.
+     - `psychedelic-wave`: Sóng Ảo Giác Đa Sắc — 32 vi hạt ánh sáng đa góc, mở rộng 1.10x, xoay vần phổ màu theo thời gian thực.
+  2. **Thuật toán phân tích nhịp chớp đa dải (`calculateMultiBandStrobe`):**
+     - Bóc tách độc lập 3 dải tần số (Bass 20–250Hz, Vocal 250–3500Hz, Treble 3500–16000Hz) từ phổ âm thanh FFT hoặc năng lượng âm học thời gian thực.
+     - Tính toán tỷ lệ dãn nở lõi trầm `bassPulseScale`, bán kính sóng lan tỏa vocal `vocalRippleRadius`, số lượng hạt lấp lánh `activeSparkles` và dải tần thống trị `dominantBand` ('bass', 'vocal', 'treble', 'balanced').
+  3. **Động cơ kết xuất hào quang sân khấu 60fps (`renderMultiBandAmbientAura`):**
+     - Tích hợp 3 lớp Canvas đồ họa:
+       - **Layer 1 (Lõi Bass):** Radial gradient tỏa sáng từ tâm theo màu đỉnh (`peakColor`) của theme visualizer với nhịp nén dãn nở mượt mà.
+       - **Layer 2 (Vòng Vocal):** Vòng hào quang cộng hưởng âm sắc giọng hát (#38bdf8 sky-blue) mở rộng bán kính và thay đổi độ dày nét vẽ theo năng lượng trung âm.
+       - **Layer 3 (Sao Treble):** Tinh vân vi hạt ánh sáng lấp lánh (White Shimmer Star Sparkles) phân bổ theo hàm sin điều biến pha, phát sáng và tắt dần theo tiếng cymbal / hi-hat.
+  4. **Tích hợp UI & Điều khiển:**
+     - Bộ chọn `#stage-aura-preset-select` và mô tả `#stage-aura-desc` trong bảng điều khiển Cài đặt Sân khấu Ánh sáng Động.
+     - Lưu trữ bền vững `localStorage['nocturne-stage-aura-preset']`.
+     - Tự động đồng bộ chu trình kết xuất canvas 60fps trong visualizer.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `stage-multi-band-aura.test.cjs` (**5/5 tests PASS 100%**).
+  - Toàn bộ các suite test hồi quy liên quan (**122/122 tests PASS 100%** trong 844ms).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 08:25 +07] — Pha A Mới: Cân Bằng Độ Lớn Đa Tiêu Chuẩn Phòng Thu (Dynamic ReplayGain Multi-Standard Loudness Normalization with True-Peak Auto-Guard)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá DSP & UI:
