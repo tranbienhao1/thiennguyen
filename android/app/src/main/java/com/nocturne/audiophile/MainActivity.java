@@ -4,20 +4,30 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Dialog;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
+import android.media.MediaMetadata;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.PowerManager;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -41,6 +51,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -55,12 +66,15 @@ import org.json.JSONObject;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -92,12 +106,21 @@ public class MainActivity extends AppCompatActivity {
     private static final String WAKELOCK_TAG = "Nocturne:AudiophilePlaybackWakeLock";
     private static final String DEFAULT_ASSET_URL = "https://appassets.androidplatform.net/assets/index.html";
 
+    private static final String NOTIFICATION_CHANNEL_ID = "nocturne_playback";
+    private static final int NOTIFICATION_ID = 1001;
+
+    public static final String ACTION_PLAY_PAUSE = "com.nocturne.audiophile.ACTION_PLAY_PAUSE";
+    public static final String ACTION_NEXT = "com.nocturne.audiophile.ACTION_NEXT";
+    public static final String ACTION_PREV = "com.nocturne.audiophile.ACTION_PREVIOUS";
+
     private WebView mWebView;
     private ProgressBar mProgressBar;
     private PowerManager.WakeLock mWakeLock;
     private AudioManager mAudioManager;
     private AudioFocusRequest mAudioFocusRequest;
     private boolean mHasAudioFocus = false;
+    private MediaSession mMediaSession;
+    private boolean mIsMediaReceiverRegistered = false;
 
     private ValueCallback<Uri[]> mFilePathCallback;
     private ActivityResultLauncher<Intent> mFileChooserLauncher;
@@ -118,8 +141,11 @@ public class MainActivity extends AppCompatActivity {
         mWebView = findViewById(R.id.web_view);
         mProgressBar = findViewById(R.id.loading_indicator);
 
-        // 2. Initialize system services (PowerManager for WakeLock, AudioManager for Audio Focus)
+        // 2. Initialize system services (PowerManager for WakeLock, AudioManager for Audio Focus, MediaSession & Notifications)
         initPowerAndAudioManagers();
+        initMediaSession();
+        registerMediaNotificationReceiver();
+        createNotificationChannelIfNeeded();
 
         // 3. Register activity result launchers for file selection & permissions
         initActivityResultLaunchers();
@@ -550,6 +576,19 @@ public class MainActivity extends AppCompatActivity {
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
 
+                // 1. Intercept local media streaming (FLAC, DSD, WAV, MP3) with HTTP 206 Partial Content range support
+                String scheme = uri.getScheme();
+                String host = uri.getHost();
+                String path = uri.getPath();
+                if ("https".equalsIgnoreCase(scheme) &&
+                        "appassets.androidplatform.net".equalsIgnoreCase(host) &&
+                        "/local-media".equalsIgnoreCase(path)) {
+                    WebResourceResponse mediaResponse = handleLocalMediaStreaming(request);
+                    if (mediaResponse != null) {
+                        return mediaResponse;
+                    }
+                }
+
                 // Intercept asset loader
                 WebResourceResponse assetResponse = assetLoader.shouldInterceptRequest(uri);
                 if (assetResponse != null) {
@@ -568,8 +607,6 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 // Proxy local network HTTP requests for ALL methods (GET, POST, PUT, DELETE, HEAD, etc.) to bypass CORS restrictions
-                String host = uri.getHost();
-                String scheme = uri.getScheme();
                 if ("http".equalsIgnoreCase(scheme) && isLocalOrPrivateNetwork(host)) {
                     WebResourceResponse proxied = proxyLocalHttpRequest(request);
                     if (proxied != null) return proxied;
@@ -636,7 +673,16 @@ public class MainActivity extends AppCompatActivity {
                 popupWebView.setWebViewClient(new WebViewClient() {
                     @Override
                     public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                        WebResourceResponse assetResponse = assetLoader.shouldInterceptRequest(request.getUrl());
+                        Uri uri = request.getUrl();
+                        if ("https".equalsIgnoreCase(uri.getScheme()) &&
+                                "appassets.androidplatform.net".equalsIgnoreCase(uri.getHost()) &&
+                                "/local-media".equalsIgnoreCase(uri.getPath())) {
+                            WebResourceResponse mediaResponse = handleLocalMediaStreaming(request);
+                            if (mediaResponse != null) {
+                                return mediaResponse;
+                            }
+                        }
+                        WebResourceResponse assetResponse = assetLoader.shouldInterceptRequest(uri);
                         if (assetResponse != null) {
                             return assetResponse;
                         }
@@ -934,8 +980,17 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        cancelMediaNotification();
         releaseWakeLock();
         abandonAudioFocus();
+        unregisterMediaNotificationReceiver();
+        if (mMediaSession != null) {
+            try {
+                mMediaSession.setActive(false);
+                mMediaSession.release();
+            } catch (Exception ignored) {}
+            mMediaSession = null;
+        }
         if (mActivePopupDialog != null && mActivePopupDialog.isShowing()) {
             mActivePopupDialog.dismiss();
             mActivePopupDialog = null;
@@ -944,6 +999,527 @@ public class MainActivity extends AppCompatActivity {
             mWebView.destroy();
         }
         super.onDestroy();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.getAction() != null) {
+            String action = intent.getAction();
+            if (ACTION_PLAY_PAUSE.equals(action)) {
+                dispatchPlayPauseToWeb();
+            } else if (ACTION_NEXT.equals(action)) {
+                dispatchNextToWeb();
+            } else if (ACTION_PREV.equals(action)) {
+                dispatchPreviousToWeb();
+            }
+        }
+    }
+
+    /**
+     * BoundedFileInputStream wraps RandomAccessFile to stream exact byte ranges (HTTP 206 Partial Content)
+     * with zero memory buffering for high-resolution FLAC/DSD/WAV audio files.
+     */
+    public static class BoundedFileInputStream extends InputStream {
+        private final RandomAccessFile mRaf;
+        private long mRemaining;
+
+        public BoundedFileInputStream(File file, long start, long length) throws IOException {
+            this.mRaf = new RandomAccessFile(file, "r");
+            if (start > 0) {
+                this.mRaf.seek(start);
+            }
+            this.mRemaining = length;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (mRemaining <= 0) return -1;
+            int b = mRaf.read();
+            if (b != -1) mRemaining--;
+            return b;
+        }
+
+        @Override
+        public int read(@NonNull byte[] b, int off, int len) throws IOException {
+            if (mRemaining <= 0) return -1;
+            int toRead = (int) Math.min(len, mRemaining);
+            int bytesRead = mRaf.read(b, off, toRead);
+            if (bytesRead > 0) {
+                mRemaining -= bytesRead;
+            }
+            return bytesRead;
+        }
+
+        @Override
+        public int available() throws IOException {
+            return (int) Math.min(mRemaining, Integer.MAX_VALUE);
+        }
+
+        @Override
+        public void close() throws IOException {
+            mRaf.close();
+        }
+    }
+
+    /**
+     * Determines proper audio MIME type based on file extension
+     */
+    public static String getAudioMimeType(String fileName) {
+        if (fileName == null) return "application/octet-stream";
+        String lower = fileName.toLowerCase(Locale.US);
+        if (lower.endsWith(".flac")) return "audio/flac";
+        if (lower.endsWith(".dsf") || lower.endsWith(".dff")) return "audio/x-dsd";
+        if (lower.endsWith(".wav")) return "audio/wav";
+        if (lower.endsWith(".mp3")) return "audio/mpeg";
+        if (lower.endsWith(".m4a") || lower.endsWith(".alac") || lower.endsWith(".aac")) return "audio/mp4";
+        if (lower.endsWith(".ogg")) return "audio/ogg";
+        if (lower.endsWith(".opus")) return "audio/opus";
+        if (lower.endsWith(".aiff") || lower.endsWith(".aif")) return "audio/aiff";
+        if (lower.endsWith(".ape")) return "audio/x-ape";
+        if (lower.endsWith(".wma")) return "audio/x-ms-wma";
+        return "audio/octet-stream";
+    }
+
+    /**
+     * Handles local media streaming for URLs matching:
+     * https://appassets.androidplatform.net/local-media?path=<encoded_path>
+     * Implements HTTP 206 Partial Content (Range header: bytes=start-end) support,
+     * Content-Range, Content-Length, and proper audio MIME types for zero memory buffering.
+     */
+    private WebResourceResponse handleLocalMediaStreaming(WebResourceRequest request) {
+        try {
+            Uri uri = request.getUrl();
+            String method = request.getMethod();
+            if (method == null || method.isEmpty()) method = "GET";
+            method = method.toUpperCase(Locale.US);
+
+            if ("OPTIONS".equals(method)) {
+                Map<String, String> headers = new HashMap<>();
+                headers.put("Access-Control-Allow-Origin", "*");
+                headers.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+                headers.put("Access-Control-Allow-Headers", "*");
+                headers.put("Access-Control-Max-Age", "86400");
+                return new WebResourceResponse("text/plain", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(new byte[0]));
+            }
+
+            String pathParam = uri.getQueryParameter("path");
+            if (pathParam == null || pathParam.isEmpty()) {
+                String query = uri.getQuery();
+                if (query != null && query.startsWith("path=")) {
+                    pathParam = query.substring(5);
+                }
+            }
+
+            if (pathParam == null || pathParam.isEmpty()) {
+                Map<String, String> errHeaders = new HashMap<>();
+                errHeaders.put("Access-Control-Allow-Origin", "*");
+                return new WebResourceResponse("text/plain", "UTF-8", 400, "Bad Request", errHeaders,
+                        new ByteArrayInputStream("Missing path parameter".getBytes(StandardCharsets.UTF_8)));
+            }
+
+            File file = new File(pathParam);
+            if (!file.exists()) {
+                try {
+                    String decoded = URLDecoder.decode(pathParam, StandardCharsets.UTF_8.name());
+                    File f2 = new File(decoded);
+                    if (f2.exists()) {
+                        file = f2;
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            if (!file.exists() || !file.isFile() || !file.canRead()) {
+                Log.w(TAG, "Local media file not found or unreadable: " + file.getAbsolutePath());
+                Map<String, String> errHeaders = new HashMap<>();
+                errHeaders.put("Access-Control-Allow-Origin", "*");
+                return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", errHeaders,
+                        new ByteArrayInputStream(("File not found: " + pathParam).getBytes(StandardCharsets.UTF_8)));
+            }
+
+            long fileLength = file.length();
+            String mimeType = getAudioMimeType(file.getName());
+
+            Map<String, String> reqHeaders = request.getRequestHeaders();
+            String rangeHeader = null;
+            if (reqHeaders != null) {
+                for (Map.Entry<String, String> entry : reqHeaders.entrySet()) {
+                    if ("Range".equalsIgnoreCase(entry.getKey())) {
+                        rangeHeader = entry.getValue();
+                        break;
+                    }
+                }
+            }
+
+            long start = 0;
+            long end = fileLength - 1;
+            boolean isRange = false;
+
+            if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+                String rangeValue = rangeHeader.substring(6).trim();
+                int dashIndex = rangeValue.indexOf('-');
+                try {
+                    if (dashIndex == 0) {
+                        // bytes=-500 -> last 500 bytes
+                        long suffix = Long.parseLong(rangeValue.substring(1).trim());
+                        start = Math.max(0, fileLength - suffix);
+                        isRange = true;
+                    } else if (dashIndex > 0) {
+                        String sStart = rangeValue.substring(0, dashIndex).trim();
+                        String sEnd = rangeValue.substring(dashIndex + 1).trim();
+                        start = Long.parseLong(sStart);
+                        if (!sEnd.isEmpty()) {
+                            end = Long.parseLong(sEnd);
+                        }
+                        isRange = true;
+                    }
+                } catch (NumberFormatException e) {
+                    Log.w(TAG, "Invalid range header: " + rangeHeader, e);
+                }
+            }
+
+            if (isRange) {
+                if (start < 0 || start > end || start >= fileLength) {
+                    Map<String, String> respHeaders = new HashMap<>();
+                    respHeaders.put("Content-Range", "bytes */" + fileLength);
+                    respHeaders.put("Access-Control-Allow-Origin", "*");
+                    return new WebResourceResponse("text/plain", "UTF-8", 416, "Range Not Satisfiable", respHeaders,
+                            new ByteArrayInputStream(new byte[0]));
+                }
+                if (end >= fileLength) {
+                    end = fileLength - 1;
+                }
+            }
+
+            long contentLength = end - start + 1;
+            int statusCode = isRange ? 206 : 200;
+            String statusReason = isRange ? "Partial Content" : "OK";
+
+            Map<String, String> respHeaders = new HashMap<>();
+            respHeaders.put("Content-Type", mimeType);
+            respHeaders.put("Content-Length", String.valueOf(contentLength));
+            respHeaders.put("Accept-Ranges", "bytes");
+            respHeaders.put("Access-Control-Allow-Origin", "*");
+            respHeaders.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+            respHeaders.put("Access-Control-Allow-Headers", "*");
+            respHeaders.put("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges");
+            respHeaders.put("Cache-Control", "no-cache");
+
+            if (isRange) {
+                respHeaders.put("Content-Range", String.format(Locale.US, "bytes %d-%d/%d", start, end, fileLength));
+            }
+
+            InputStream is;
+            if ("HEAD".equals(method)) {
+                is = new ByteArrayInputStream(new byte[0]);
+            } else {
+                is = new BoundedFileInputStream(file, start, contentLength);
+            }
+            return new WebResourceResponse(mimeType, null, statusCode, statusReason, respHeaders, is);
+        } catch (Exception e) {
+            Log.e(TAG, "Error handling local media streaming: " + e.getMessage(), e);
+            Map<String, String> errHeaders = new HashMap<>();
+            errHeaders.put("Access-Control-Allow-Origin", "*");
+            return new WebResourceResponse("text/plain", "UTF-8", 500, "Internal Server Error", errHeaders,
+                    new ByteArrayInputStream(("Stream error: " + e.getMessage()).getBytes(StandardCharsets.UTF_8)));
+        }
+    }
+
+    /**
+     * Intercept FiiO physical hardware buttons & headphone media keys
+     */
+    public boolean isMediaKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_MEDIA_PLAY ||
+                keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE ||
+                keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
+                keyCode == KeyEvent.KEYCODE_HEADSETHOOK ||
+                keyCode == KeyEvent.KEYCODE_MEDIA_STOP ||
+                keyCode == KeyEvent.KEYCODE_MEDIA_NEXT ||
+                keyCode == KeyEvent.KEYCODE_MEDIA_PREVIOUS;
+    }
+
+    public void handleMediaKey(int keyCode) {
+        Log.d(TAG, "Hardware Media Key intercepted: " + keyCode);
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_MEDIA_NEXT:
+                dispatchNextToWeb();
+                break;
+            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+                dispatchPreviousToWeb();
+                break;
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+            case KeyEvent.KEYCODE_HEADSETHOOK:
+            case KeyEvent.KEYCODE_MEDIA_STOP:
+            default:
+                dispatchPlayPauseToWeb();
+                break;
+        }
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        if (isMediaKey(keyCode)) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                handleMediaKey(keyCode);
+            }
+            return true; // Return true so FiiO system music app doesn't steal the hardware key events!
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (isMediaKey(keyCode)) {
+            if (event.getRepeatCount() == 0) {
+                handleMediaKey(keyCode);
+            }
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (isMediaKey(keyCode)) {
+            return true;
+        }
+        return super.onKeyUp(keyCode, event);
+    }
+
+    public void dispatchPlayPauseToWeb() {
+        runOnUiThread(() -> {
+            if (mWebView != null) {
+                mWebView.evaluateJavascript("if (typeof state !== 'undefined') $('play-button')?.click();", null);
+            }
+        });
+    }
+
+    public void dispatchNextToWeb() {
+        runOnUiThread(() -> {
+            if (mWebView != null) {
+                mWebView.evaluateJavascript("if (typeof state !== 'undefined') $('next-button')?.click();", null);
+            }
+        });
+    }
+
+    public void dispatchPreviousToWeb() {
+        runOnUiThread(() -> {
+            if (mWebView != null) {
+                mWebView.evaluateJavascript("if (typeof state !== 'undefined') $('previous-button')?.click();", null);
+            }
+        });
+    }
+
+    private final BroadcastReceiver mMediaNotificationReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null || intent.getAction() == null) return;
+            String action = intent.getAction();
+            Log.d(TAG, "Media notification action received: " + action);
+            if (ACTION_PLAY_PAUSE.equals(action)) {
+                dispatchPlayPauseToWeb();
+            } else if (ACTION_NEXT.equals(action)) {
+                dispatchNextToWeb();
+            } else if (ACTION_PREV.equals(action)) {
+                dispatchPreviousToWeb();
+            }
+        }
+    };
+
+    private void registerMediaNotificationReceiver() {
+        if (!mIsMediaReceiverRegistered) {
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(ACTION_PLAY_PAUSE);
+            filter.addAction(ACTION_NEXT);
+            filter.addAction(ACTION_PREV);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(mMediaNotificationReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(mMediaNotificationReceiver, filter);
+            }
+            mIsMediaReceiverRegistered = true;
+        }
+    }
+
+    private void unregisterMediaNotificationReceiver() {
+        if (mIsMediaReceiverRegistered) {
+            try {
+                unregisterReceiver(mMediaNotificationReceiver);
+            } catch (Exception ignored) {}
+            mIsMediaReceiverRegistered = false;
+        }
+    }
+
+    private void initMediaSession() {
+        try {
+            mMediaSession = new MediaSession(this, "NocturnePlayback");
+            mMediaSession.setCallback(new MediaSession.Callback() {
+                @Override
+                public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
+                    if (mediaButtonIntent != null && mediaButtonIntent.hasExtra(Intent.EXTRA_KEY_EVENT)) {
+                        KeyEvent ke = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                        if (ke != null && ke.getAction() == KeyEvent.ACTION_DOWN && ke.getRepeatCount() == 0) {
+                            if (isMediaKey(ke.getKeyCode())) {
+                                handleMediaKey(ke.getKeyCode());
+                                return true;
+                            }
+                        }
+                    }
+                    return super.onMediaButtonEvent(mediaButtonIntent);
+                }
+
+                @Override
+                public void onPlay() {
+                    dispatchPlayPauseToWeb();
+                }
+
+                @Override
+                public void onPause() {
+                    dispatchPlayPauseToWeb();
+                }
+
+                @Override
+                public void onSkipToNext() {
+                    dispatchNextToWeb();
+                }
+
+                @Override
+                public void onSkipToPrevious() {
+                    dispatchPreviousToWeb();
+                }
+
+                @Override
+                public void onStop() {
+                    dispatchPlayPauseToWeb();
+                }
+            });
+            mMediaSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
+            mMediaSession.setActive(true);
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to initialize MediaSession: " + e.getMessage());
+        }
+    }
+
+    private void createNotificationChannelIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                NotificationChannel channel = nm.getNotificationChannel(NOTIFICATION_CHANNEL_ID);
+                if (channel == null) {
+                    channel = new NotificationChannel(
+                            NOTIFICATION_CHANNEL_ID,
+                            "Nocturne Playback",
+                            NotificationManager.IMPORTANCE_LOW
+                    );
+                    channel.setDescription("Nocturne Audiophile Hi-Res Playback Controls");
+                    channel.setShowBadge(false);
+                    channel.setSound(null, null);
+                    channel.enableVibration(false);
+                    channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                    nm.createNotificationChannel(channel);
+                }
+            }
+        }
+    }
+
+    public void updateMediaNotification(String title, String artist, String album, boolean isPlaying) {
+        if (isPlaying) {
+            acquireWakeLock();
+            showMediaNotification(title, artist, album, true);
+        } else {
+            cancelMediaNotification();
+            releaseWakeLock();
+        }
+    }
+
+    private void showMediaNotification(String title, String artist, String album, boolean isPlaying) {
+        try {
+            createNotificationChannelIfNeeded();
+
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
+
+            Intent prevIntent = new Intent(ACTION_PREV).setPackage(getPackageName());
+            PendingIntent pPrev = PendingIntent.getBroadcast(this, 101, prevIntent, flags);
+
+            Intent playPauseIntent = new Intent(ACTION_PLAY_PAUSE).setPackage(getPackageName());
+            PendingIntent pPlayPause = PendingIntent.getBroadcast(this, 102, playPauseIntent, flags);
+
+            Intent nextIntent = new Intent(ACTION_NEXT).setPackage(getPackageName());
+            PendingIntent pNext = PendingIntent.getBroadcast(this, 103, nextIntent, flags);
+
+            Intent contentIntent = new Intent(this, MainActivity.class);
+            contentIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent contentPendingIntent = PendingIntent.getActivity(this, 100, contentIntent, flags);
+
+            String displayTitle = (title != null && !title.trim().isEmpty()) ? title.trim() : "Nocturne Audiophile";
+            String displayArtist = (artist != null && !artist.trim().isEmpty()) ? artist.trim() : "Nocturne Hi-Res Audio";
+            String displayAlbum = (album != null && !album.trim().isEmpty()) ? album.trim() : null;
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setContentTitle(displayTitle)
+                    .setContentText(displayArtist)
+                    .setSubText(displayAlbum)
+                    .setOngoing(true)
+                    .setAutoCancel(false)
+                    .setPriority(NotificationCompat.PRIORITY_LOW)
+                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setContentIntent(contentPendingIntent)
+                    .addAction(android.R.drawable.ic_media_previous, "Previous", pPrev)
+                    .addAction(isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
+                            isPlaying ? "Pause" : "Play", pPlayPause)
+                    .addAction(android.R.drawable.ic_media_next, "Next", pNext);
+
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.notify(NOTIFICATION_ID, builder.build());
+            }
+
+            if (mMediaSession != null) {
+                try {
+                    PlaybackState.Builder psb = new PlaybackState.Builder()
+                            .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE |
+                                    PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT |
+                                    PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP)
+                            .setState(isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
+                                    PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f);
+                    mMediaSession.setPlaybackState(psb.build());
+
+                    MediaMetadata.Builder mb = new MediaMetadata.Builder();
+                    mb.putString(MediaMetadata.METADATA_KEY_TITLE, displayTitle);
+                    mb.putString(MediaMetadata.METADATA_KEY_ARTIST, displayArtist);
+                    if (displayAlbum != null) {
+                        mb.putString(MediaMetadata.METADATA_KEY_ALBUM, displayAlbum);
+                    }
+                    mMediaSession.setMetadata(mb.build());
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error displaying media notification: " + e.getMessage(), e);
+        }
+    }
+
+    private void cancelMediaNotification() {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.cancel(NOTIFICATION_ID);
+            }
+            if (mMediaSession != null) {
+                try {
+                    PlaybackState.Builder psb = new PlaybackState.Builder()
+                            .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE)
+                            .setState(PlaybackState.STATE_STOPPED, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 0.0f);
+                    mMediaSession.setPlaybackState(psb.build());
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error cancelling media notification: " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -964,6 +1540,11 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void releaseWakeLock() {
             mActivity.runOnUiThread(mActivity::releaseWakeLock);
+        }
+
+        @JavascriptInterface
+        public void updateMediaNotification(String title, String artist, String album, boolean isPlaying) {
+            mActivity.runOnUiThread(() -> mActivity.updateMediaNotification(title, artist, album, isPlaying));
         }
 
         @JavascriptInterface

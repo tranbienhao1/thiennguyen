@@ -50,6 +50,12 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="com.nocturne.audiophile.ACTION_PLAY_PAUSE" />
+                <action android:name="com.nocturne.audiophile.ACTION_NEXT" />
+                <action android:name="com.nocturne.audiophile.ACTION_PREVIOUS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
 
     </application>

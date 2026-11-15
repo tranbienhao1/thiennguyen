@@ -40,6 +40,15 @@
     }
     * { scrollbar-width:thin; scrollbar-color:#41464b transparent; }
     body { background:#111315; }
+    /* FiiO M11S DAP Performance & Battery Mode */
+    body.fiio-dap-mode *,
+    body.fiio-dap-mode .glass,
+    body.fiio-dap-mode #content-col>header,
+    body.fiio-dap-mode [class*="backdrop-blur"],
+    body.fiio-dap-mode #settings-modal::backdrop {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
     .glass { background:rgba(20,22,24,.96); backdrop-filter:blur(22px); }
     .surface { background:linear-gradient(112deg,#22282b 0%,#1a1d1f 56%,#191b1d 100%); }
     .range,input[type=range] { accent-color:#92cce2; }
@@ -1005,7 +1014,7 @@
               <div id="search-history-chips" class="mt-2 flex flex-wrap gap-1.5"></div>
             </div>
           </div>
-          <button id="header-favorites" type="button" aria-label="Đánh dấu trang" title="Đánh dấu trang">♧</button><button id="header-search" type="button" aria-label="Tìm kiếm" title="Tìm kiếm">⌕</button><button id="header-profile" type="button" aria-label="Tài khoản" title="Tài khoản">R</button><button id="header-eq-btn" type="button" class="px-2 py-1 text-xs font-semibold text-zinc-300 hover:text-white rounded border border-white/10 hover:border-white/20 transition cursor-pointer" aria-label="Bộ chỉnh âm Equalizer" title="Bộ chỉnh âm Equalizer (E)">EQ</button><button id="mobile-settings" type="button" aria-label="Cấu hình">⚙</button>
+          <button id="header-favorites" type="button" aria-label="Đánh dấu trang" title="Đánh dấu trang">♧</button><button id="header-search" type="button" aria-label="Tìm kiếm" title="Tìm kiếm">⌕</button><button id="header-profile" type="button" aria-label="Tài khoản" title="Tài khoản">R</button><button id="header-eq-btn" type="button" class="px-2 py-1 text-xs font-semibold text-zinc-300 hover:text-white rounded border border-white/10 hover:border-white/20 transition cursor-pointer" aria-label="Bộ chỉnh âm Equalizer" title="Bộ chỉnh âm Equalizer (E)">EQ</button><button id="fiio-scan-header-btn" type="button" class="hidden px-2 py-1 text-xs font-semibold rounded border border-amber-400/40 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20 transition cursor-pointer items-center gap-1.5" title="Quét thẻ nhớ FiiO &amp; Bộ nhớ máy"><span class="text-sm leading-none">⚡</span><span class="hidden md:inline">Quét thẻ nhớ FiiO &amp; Bộ nhớ máy</span><span class="inline md:hidden">Quét FiiO</span></button><button id="mobile-settings" type="button" aria-label="Cấu hình">⚙</button>
         </div>
       </header>
       <div class="relative mt-4 block sm:hidden">
@@ -1401,6 +1410,25 @@
           </label>
         </section>
       </div>
+      <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S</span>
+        </div>
+        <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button id="fiio-scan-settings-btn" type="button" class="w-full rounded-lg bg-amber-500/20 border border-amber-400/40 px-3 py-2.5 text-xs font-medium text-amber-200 hover:bg-amber-500/30 transition flex items-center justify-center gap-2">
+            <span>⚡</span> Quét thẻ nhớ FiiO &amp; Bộ nhớ máy
+          </button>
+        </div>
+        <div class="mt-3 pt-3 border-t border-white/10">
+          <label class="flex items-center justify-between cursor-pointer">
+            <span class="text-xs font-medium text-zinc-200">Chế độ FiiO DAP (Snapdragon 660 Hiệu năng cao &amp; Tiết kiệm pin)</span>
+            <input id="fiio-dap-mode-toggle" type="checkbox" class="h-4 w-4 rounded accent-amber-400">
+          </label>
+          <p class="mt-1 text-[10px] leading-4 text-zinc-400">Vô hiệu hóa hiệu ứng CSS backdrop-filter làm mờ nặng và giới hạn visualizer ở chế độ nhẹ giúp tiết kiệm pin, giải phóng GPU Snapdragon 660.</p>
+        </div>
+      </section>
       <section class="mt-4 rounded-2xl border border-fuchsia-300/15 bg-fuchsia-300/[.03] p-4">
         <div><h3 class="text-sm font-medium text-fuchsia-100">Chất lượng chuyển đổi DSD</h3><p class="mt-1 text-[10px] leading-4 text-zinc-500">Chọn PCM đầu ra cho DSF/DFF (hai họ tần số 44,1 và 48 kHz). Tần số cao giữ nhiều băng thông hơn nhưng tạo file tạm lớn hơn. DSD được giải mã trên thiết bị, không bit-perfect.</p></div>
         <div class="mt-3 grid gap-3 sm:grid-cols-2">
@@ -2431,7 +2459,24 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null };
+    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)) };
+
+    function applyFiioDapMode(enabled) {
+      state.fiioDapMode = Boolean(enabled);
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('nocturne-fiio-dap-mode', String(state.fiioDapMode));
+        }
+      } catch (_) {}
+      if (typeof document !== 'undefined' && document.body) {
+        document.body.classList.toggle('fiio-dap-mode', state.fiioDapMode);
+      }
+      const toggle = $('fiio-dap-mode-toggle');
+      if (toggle && toggle.checked !== state.fiioDapMode) {
+        toggle.checked = state.fiioDapMode;
+      }
+    }
+    window.applyFiioDapMode = applyFiioDapMode;
 
     function saveAlbumCoversCache() {
       try {
@@ -5311,7 +5356,7 @@
           if (isAudioActive) {
           const barWidth = (width - gap * (bars - 1)) / bars;
 
-          if (state.visualizerStrobeEnabled && visualizerStrobeState && typeof library !== 'undefined' && library && typeof library.renderMultiBandAmbientAura === 'function') {
+          if (!state.fiioDapMode && state.visualizerStrobeEnabled && visualizerStrobeState && typeof library !== 'undefined' && library && typeof library.renderMultiBandAmbientAura === 'function') {
             library.renderMultiBandAmbientAura(footerContext, {
               width,
               height,
@@ -5319,7 +5364,7 @@
               strobe: visualizerStrobeState,
               time: performance.now()
             });
-          } else if (state.visualizerStrobeEnabled && visualizerStrobeState && visualizerStrobeState.intensity > 0.02 && typeof library !== 'undefined' && library && typeof library.renderVisualizerBackdropGlow === 'function') {
+          } else if (!state.fiioDapMode && state.visualizerStrobeEnabled && visualizerStrobeState && visualizerStrobeState.intensity > 0.02 && typeof library !== 'undefined' && library && typeof library.renderVisualizerBackdropGlow === 'function') {
             library.renderVisualizerBackdropGlow(footerContext, {
               width,
               height,
@@ -5370,6 +5415,16 @@
               isOverloadRight: vuLevelR.isOverload,
               theme: state.visualizerTheme || 'cyber'
             });
+          } else if (state.fiioDapMode) {
+            // FiiO DAP lightweight mode: render crisp lightweight bars without heavy physics simulations
+            const lightBars = Math.min(bars, 18);
+            const lightBarWidth = (width - gap * (lightBars - 1)) / lightBars;
+            for (let i = 0; i < lightBars; i++) {
+              const val = data[Math.floor(i * data.length / lightBars)] / 255;
+              const barHeight = Math.max(2, val * height);
+              footerContext.fillStyle = '#92cce2';
+              footerContext.fillRect(i * (lightBarWidth + gap), height - barHeight, lightBarWidth, barHeight);
+            }
           } else if (typeof library !== 'undefined' && library && typeof library.renderVisualizerSpectrum === 'function') {
             let normVals = [];
             if (typeof library.calculateLogarithmicFrequencyBins === 'function') {
@@ -6908,6 +6963,7 @@
       $('now-artist').textContent = `${metadata.artist} · ${track.format || sourceLabel(track.source)}${technical ? ` · ${technical}` : ''}`;
       const cover = $('player-cover'); cover.innerHTML = track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫';
       updateMediaSession({...track, ...metadata});
+      if (typeof window !== 'undefined') window.NocturneNative?.updateMediaNotification(metadata.title || track.title || track.name || '', metadata.artist || track.artist || '', metadata.album || track.album || '', true);
       const room = signalDescription(track), q = quality(track);
       if (typeof library?.formatRoonThreeLine === 'function') {
         const currentZone = state.zones.find(z => z.id === state.activeZoneId) || state.roonZones.find(z => z.id === state.activeZoneId);
@@ -8524,6 +8580,8 @@
       if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
       if (typeof updateMiniPlayerHud === 'function') updateMiniPlayerHud(track);
       recordHistory(track);
+      const finishMeta = (typeof library !== 'undefined' && library.trackMetadata) ? library.trackMetadata(track) : track;
+      if (typeof window !== 'undefined') window.NocturneNative?.updateMediaNotification(finishMeta.title || track.title || track.name || '', finishMeta.artist || track.artist || '', finishMeta.album || track.album || '', true);
       if (fadeSeconds > 0) {
         // Pha A — để deck cũ phát hết fade rồi mới dừng/xóa src; nếu đã
         // chuyển bài khác thì generation đổi nên timeout này bỏ qua.
@@ -10466,6 +10524,173 @@
     }
     window.connectBlackCandyServer = connectBlackCandyServer;
 
+    function saveFiioCatalog(tracks) {
+      try {
+        const fiioTracks = (tracks || state.tracks).filter(t => t && t.id && String(t.id).startsWith('fiio_'));
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('nocturne-fiio-catalog', JSON.stringify(fiioTracks));
+        }
+      } catch (e) {
+        console.warn('Could not persist FiiO catalog:', e);
+      }
+    }
+    window.saveFiioCatalog = saveFiioCatalog;
+
+    function saveCatalog() {
+      saveFiioCatalog();
+      if (typeof persistCloudCatalog === 'function') {
+        try { persistCloudCatalog(state.tracks); } catch (_) {}
+      }
+    }
+    window.saveCatalog = saveCatalog;
+
+    function restoreFiioCatalog() {
+      try {
+        const raw = (typeof localStorage !== 'undefined') && localStorage.getItem('nocturne-fiio-catalog');
+        if (raw) {
+          const tracks = JSON.parse(raw);
+          if (Array.isArray(tracks) && tracks.length) {
+            let added = 0;
+            for (const t of tracks) {
+              if (t && t.id && !state.tracks.some(item => item.id === t.id)) {
+                state.tracks.push(t);
+                added++;
+              }
+            }
+            if (added > 0) {
+              if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
+              renderTracks();
+              if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Could not restore FiiO catalog:', err);
+      }
+    }
+    window.restoreFiioCatalog = restoreFiioCatalog;
+
+    async function scanFiioStorage() {
+      const isNative = Boolean((typeof window !== 'undefined') && (window.isNativeAndroid || window.NocturneNative));
+      const native = (typeof window !== 'undefined') ? window.NocturneNative : null;
+      if (!native && !isNative) {
+        toast('Tính năng này chỉ khả dụng trên ứng dụng Android hoặc máy nghe nhạc FiiO DAP.');
+        return;
+      }
+      try {
+        if (native && typeof native.requestStoragePermission === 'function') {
+          try { native.requestStoragePermission(); } catch (_) {}
+        }
+
+        let paths = [];
+        if (native && typeof native.getStoragePaths === 'function') {
+          try {
+            const rawPaths = native.getStoragePaths();
+            paths = typeof rawPaths === 'string' ? JSON.parse(rawPaths) : (rawPaths || []);
+          } catch (_) {}
+        }
+        if (!Array.isArray(paths) || !paths.length) {
+          paths = ['/sdcard', '/sdcard/Music', '/storage'];
+        }
+
+        let allFiles = [];
+        for (const p of paths) {
+          if (native && typeof native.scanDirectory === 'function') {
+            try {
+              const rawRes = native.scanDirectory(p, 10000);
+              const files = typeof rawRes === 'string' ? JSON.parse(rawRes) : (rawRes || []);
+              if (Array.isArray(files)) {
+                allFiles.push(...files);
+              }
+            } catch (e) {
+              console.warn('Scan directory error for ' + p, e);
+            }
+          }
+        }
+
+        // Deduplicate files by path
+        const seenPaths = new Set();
+        const uniqueFiles = [];
+        for (const f of allFiles) {
+          if (!f || !f.path) continue;
+          if (!seenPaths.has(f.path)) {
+            seenPaths.add(f.path);
+            uniqueFiles.push(f);
+          }
+        }
+
+        const existingPaths = new Set(
+          state.tracks
+            .filter(t => t.path || t.url)
+            .map(t => t.path || (t.url && t.url.includes('path=') ? decodeURIComponent(t.url.split('path=')[1] || '') : ''))
+        );
+
+        let addedCount = 0;
+        const newTracks = [];
+        for (const file of uniqueFiles) {
+          if (existingPaths.has(file.path)) continue;
+          const track = (typeof library !== 'undefined' && typeof library.createFiioTrack === 'function')
+            ? library.createFiioTrack(file)
+            : {
+                id: 'fiio_' + btoa(encodeURIComponent(file.path)).replace(/=/g, '').slice(-16) + '_' + Math.random().toString(36).slice(2, 6),
+                title: file.name.replace(/\.[^/.]+$/, ''),
+                name: file.name.replace(/\.[^/.]+$/, ''),
+                path: file.path,
+                source: 'local',
+                url: 'https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(file.path),
+                size: file.size,
+                isDsd: /\.(dsf|dff)$/i.test(file.name),
+                format: file.name.split('.').pop().toUpperCase(),
+                artist: 'Unknown Artist',
+                album: 'FiiO Internal & SD Card',
+                duration: 0
+              };
+          newTracks.push(track);
+          existingPaths.add(file.path);
+          addedCount++;
+        }
+
+        if (newTracks.length > 0) {
+          state.tracks.push(...newTracks);
+          if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
+          renderTracks();
+          if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks);
+          saveCatalog();
+        }
+
+        toast(`Đã quét xong: tìm thấy ${uniqueFiles.length} bài hát trên bộ nhớ FiiO & thẻ MicroSD.`);
+      } catch (err) {
+        console.warn('FiiO storage scan failed:', err);
+        toast(`Lỗi quét bộ nhớ: ${err.message || err}`);
+      }
+    }
+    window.scanFiioStorage = scanFiioStorage;
+
+    function setupFiioIntegration() {
+      const isAndroidDap = Boolean((typeof window !== 'undefined') && (window.isNativeAndroid || window.NocturneNative));
+      const headerBtn = $('fiio-scan-header-btn');
+      if (headerBtn) {
+        if (isAndroidDap) {
+          headerBtn.classList.remove('hidden');
+          headerBtn.classList.add('inline-flex');
+        }
+        headerBtn.addEventListener('click', scanFiioStorage);
+      }
+      const settingsBtn = $('fiio-scan-settings-btn');
+      if (settingsBtn) {
+        settingsBtn.addEventListener('click', scanFiioStorage);
+      }
+      const dapToggle = $('fiio-dap-mode-toggle');
+      if (dapToggle) {
+        dapToggle.checked = Boolean(state.fiioDapMode);
+        dapToggle.addEventListener('change', e => {
+          applyFiioDapMode(e.target.checked);
+          toast(state.fiioDapMode ? 'Đã bật Chế độ FiiO DAP (Hiệu năng cao & Tiết kiệm pin)' : 'Đã tắt Chế độ FiiO DAP');
+        });
+      }
+    }
+    window.setupFiioIntegration = setupFiioIntegration;
+
     function setupLyricsAutoScrollSuspension() {
       const ids = ['lyrics-card', 'room-lyrics', 'fullscreen-lyrics', 'fullscreen-lyrics-box'];
       ids.forEach(id => {
@@ -11507,6 +11732,11 @@
         if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
         if ($('fullscreen-play-btn')) $('fullscreen-play-btn').textContent = '⏸';
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'playing'; } catch (error) {} }
+        const curTrack = state.tracks.find(item => item.id === state.currentId);
+        if (curTrack) {
+          const notifMeta = (typeof library !== 'undefined' && library.trackMetadata) ? library.trackMetadata(curTrack) : curTrack;
+          if (typeof window !== 'undefined') window.NocturneNative?.updateMediaNotification(notifMeta.title || curTrack.title || curTrack.name || '', notifMeta.artist || curTrack.artist || '', notifMeta.album || curTrack.album || '', true);
+        }
         updatePositionState();
         if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
       });
@@ -11517,6 +11747,9 @@
         if ($('mini-play')) $('mini-play').textContent = '▶';
         if ($('fullscreen-play-btn')) $('fullscreen-play-btn').textContent = '▶';
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'paused'; } catch (error) {} }
+        const curTrack = state.tracks.find(item => item.id === state.currentId);
+        const notifMeta = (typeof library !== 'undefined' && library.trackMetadata && curTrack) ? library.trackMetadata(curTrack) : (curTrack || {});
+        if (typeof window !== 'undefined') window.NocturneNative?.updateMediaNotification(notifMeta.title || curTrack?.title || curTrack?.name || '', notifMeta.artist || curTrack?.artist || '', notifMeta.album || curTrack?.album || '', false);
         if (!(state.isFullscreen && state.fullscreenViewMode === 'stage')) {
           setVisualizerRunning(false);
         }
@@ -12674,6 +12907,9 @@
     });
     openDatabase().then(restoreRecentTracks).catch(error => { console.error('IndexedDB is unavailable:', error); restoreRecentTracks(); toast('Không thể bật lịch sử IndexedDB; mục nghe gần đây vẫn lưu trong trình duyệt.'); });
     if (!window.isSecureContext) console.info('Directory picker and cloud OAuth require HTTPS or localhost; use the file input fallback for local playback.');
+    setupFiioIntegration();
+    applyFiioDapMode(state.fiioDapMode);
+    restoreFiioCatalog();
     renderTracks();
     // Persist cloud catalog metadata locally; MSAL independently manages its own token cache.
     restoreCloudCatalog().then(restored => {
