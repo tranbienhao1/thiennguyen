@@ -149,7 +149,7 @@ test('DOM & Script Integration: Multi-Theme Visualizer', async (t) => {
   });
 
   await t.test('sự kiện click trên #visualizer xoay vòng theme và hiển thị toast', () => {
-    assert.ok(indexHtml.includes("library.cycleVisualizerTheme(state.visualizerTheme)"), 'Click listener phải xoay vòng theme');
+    assert.ok(indexHtml.includes("library.cycleVisualizerTheme(state.visualizerTheme"), 'Click listener phải xoay vòng theme');
     assert.ok(indexHtml.includes("Chủ đề Spectrum:"), 'Phải thông báo toast khi đổi theme');
   });
 

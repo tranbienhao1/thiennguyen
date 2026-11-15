@@ -2,6 +2,33 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 12:45 +07] — Pha A: Mô Phỏng Mạch Khuếch Đại Đèn Chân Không Triode & Hài Âm Analog Tuyến Tính (Vacuum Tube Saturation Harmonics & Analog Warmth Emulation)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Audio Engine & DSP:
+- **Phân khu trọng tâm:** **Hệ Thống Mô Phỏng Đèn Điện Tử Chân Không 4 Profile (`TUBE_EMULATION_PROFILES`), Hàm Truyền Đạt Phi Tuyến Bơm Hài Bậc Chẵn Triode H₂ (`generateTubeTransferCurve`), Tích Hợp Web Audio WaveShaperNode Oversampling 4x, Roon Signal Path & Tích Hợp UI Bảng Điều Khiển EQ**.
+- **Tính năng & Đột phá:**
+  1. **Thư viện profile đèn điện tử audiophile (`TUBE_EMULATION_PROFILES`, `getTubeEmulationProfile`):**
+     - `off`: Chế độ Bypass (Thuần số Bit-Perfect 100%).
+     - `warm_triode`: Single-Ended Triode 300B huyền thoại (Drive 1.35, Bias 0.08, Hài chẵn $H_2$ 0.18) tạo chất âm ngọt ngào, ấm áp, dải trung mượt như nhung.
+     - `vintage_el34`: Push-Pull EL34 cổ điển (Drive 1.65, Bias 0.04, $H_2$ 0.10) chất âm mộc mạc, dày dặn, âm trầm sâu lắng.
+     - `modern_kt88`: Audiophile Linear KT88 hiện đại (Drive 1.20, Bias 0.02, $H_2$ 0.06) độ động cực cao, độ méo hài cực thấp, tái tạo không gian sân khấu trong trẻo.
+  2. **Bộ tạo đường cong truyền đạt phi tuyến tính (`generateTubeTransferCurve`):**
+     - Kết hợp hàm nén bão hòa mềm $\tanh(drive \cdot (x + bias))$ với thành phần bậc hai bất đối xứng $H_2 \cdot x^2 \cdot \text{sgn}(x)$, triệt tiêu hiện tượng xén ngọn số gắt gỏng (hard clipping).
+  3. **Bộ xử lý Web Audio WaveShaperNode Oversampling 4x (`createTubeEmulationNodes`):**
+     - Thiết lập `oversample = '4x'` triệt tiêu hoàn toàn hiện tượng răng cưa/gấp tần số (aliasing foldback) trong dải tần nghe được.
+     - Nối an toàn trong chuỗi DSP ngay trước Peak Limiter.
+  4. **Tích hợp Roon Signal Path (`computeSignalPath`):**
+     - Tự động hiển thị bước xử lý *"Mô Phỏng Đèn Điện Tử (Tube Warmth)"* trong chuỗi tín hiệu Roon khi người dùng kích hoạt.
+  5. **Tích hợp UI Bảng Điều Khiển EQ:**
+     - Menu lựa chọn `#tube-emulation-select`, huy hiệu `#tube-emulation-badge` và mô tả `#tube-emulation-desc`.
+     - Đồng bộ lưu trữ và khôi phục cấu hình localStorage `nocturne-tube-emulation`.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `tube-saturation-harmonics.test.cjs` (**7/7 tests PASS 100%**).
+  - Toàn bộ 20 test suites hồi quy (**158/158 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 12:15 +07] — Pha D: Đồng Bộ Thư Viện Vi Sai Đa Nguồn & Dự Báo Sức Chứa Ngoại Tuyến (Offline Library Delta Differential Sync & Storage Capacity Forecast)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Hiệu Năng & Kiến Trúc PWA:

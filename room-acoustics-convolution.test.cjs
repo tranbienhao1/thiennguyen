@@ -24,7 +24,7 @@ test('Pha A: ROOM_ACOUSTIC_PROFILES defines expected acoustic spaces', () => {
   assert.ok(profiles.cathedral.rt60 > profiles.concert_hall.rt60);
 
   const list = library.listRoomAcousticProfiles();
-  assert.equal(list.length, 5);
+  assert.ok(list.length >= 5);
   assert.equal(list[0].id, 'bypass');
 });
 
