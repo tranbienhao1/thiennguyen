@@ -7,7 +7,8 @@
  * Drive/OneDrive, luồng nhạc), yêu cầu no-store (bộ kiểm tra cập nhật trong
  * app) và yêu cầu Range không bao giờ đi qua cache.
  */
-const CACHE_NAME = 'nocturne-v1';
+const CACHE_NAME = 'nocturne-v2';
+self.CACHE_NAME = CACHE_NAME;
 const APP_SHELL = [
   './',
   'index.html',

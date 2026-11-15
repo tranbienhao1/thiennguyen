@@ -2,6 +2,35 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 16:45 +07] — Pha A: Mô Phỏng Mạch Khuếch Đại & Lọc Bù Trừ Pha Tần Số Thấp (Sub-Bass Phase Alignment & Analog Bass Exciter Harmonic Generator) & Khắc Phục Triệt Để Lỗi Cập Nhật PWA / Bố Cục Điều Khiển Bị Che Khuất
+
+### 🎯 Hạng Mục Nâng Cấp, Sửa Lỗi & Tối Ưu Bố Cục:
+- **Phân khu trọng tâm:** **1. Audio Engine & DSP (Sub-Bass Phase Alignment & Analog Bass Exciter)** kết hợp **Khắc phục triệt để lỗi người dùng phản hồi qua ảnh chụp: banner cập nhật không áp dụng được và Mini HUD / thanh điều khiển bị che khuất**.
+- **Tính năng & Đột phá:**
+  1. **Động cơ Bù Pha & Kích Thích Hài Âm Siêu Trầm (`calculateSubBassPhaseParams` & `generateBassExciterTransferCurve`):**
+     - Đăng ký danh mục cấu hình âm học `SUB_BASS_PHASE_PROFILES`:
+       - `bypass`: Nguyên bản Bit-Perfect tới DAC.
+       - `tight_45`: Bù pha $+45^\circ$ tại 65Hz chống triệt tiêu pha âm học giữa tai nghe và phòng nghe, tái tạo tiếng kick dứt khoát và gọn gàng.
+       - `deep_90`: Bù pha $+90^\circ$ tại 45Hz tạo độ sâu lắng, mở rộng dải sub-bass cho các bản thu nhạc giao hưởng và EDM.
+       - `analog_exciter`: Hiệu ứng Missing Fundamental kích thích hài âm bậc chẵn $H_2$ và $H_3$ trong dải tần 25–80Hz, giúp màng loa tái hiện nốt siêu trầm rõ nét mà không cần tăng âm lượng tổng thể.
+     - Hàm sinh hàm truyền đạt phi tuyến mềm `generateBassExciterTransferCurve`: kết hợp bão hòa hyperbolic $\tanh(x(1 + 0.8d))$ với đa thức Chebyshev bậc 2 $T_2(x) = 2x^2 - 1$, bảo đảm biên độ chuẩn xác trong khoảng $[-1.0, +1.0]$.
+     - `formatSubBassPhaseTelemetry`: định dạng chuỗi telemetry chi tiết hiển thị góc pha, tần số cắt và tỷ lệ hài âm.
+     - Tích hợp chuỗi tín hiệu Roon Signal Path (`computeSignalPath`): hiển thị trạm DSP `Bù Pha Trầm: [Profile.badge]` khi được bật.
+     - Tích hợp cấu hình sao lưu `exportAppConfiguration` và khôi phục an toàn `mergeRestoredConfiguration`.
+  2. **Khắc Phục Triệt Để Lỗi Cập Nhật Ứng Dụng (Khắc phục vấn đề trong Hình ảnh 1 & 2):**
+     - Loại bỏ hoàn toàn khối lệnh chặn cập nhật khi đang phát nhạc (`isAppPlaying()`), sửa lỗi gọi `showToast` không tồn tại gây exception `ReferenceError`.
+     - Tự động lưu phiên phát hiện tại (`trackId`, vị trí `currentTime`, `volume`, hàng đợi), gửi tín hiệu `SKIP_WAITING` tới Service Worker, xóa cache cũ và tải lại trang với query tham số xóa cache `_nocturne_update`.
+     - Ngay sau khi trang tải lại, hệ thống tự động phát tiếp đúng bài và đúng giây đang nghe (`auto-resume`) mà không cần người dùng bấm lại.
+     - Nâng cấp phiên bản bộ nhớ cache Service Worker lên `nocturne-v2` trong `sw.js` giúp mọi trình duyệt phát hiện và kích hoạt bản mới ngay lập tức.
+     - Tối ưu khoảng sáng an toàn khi kéo thả Mini Player HUD (`maxBottomClearance = 150px`) đảm bảo HUD không bao giờ chạm hoặc che khuất thanh dock điều khiển bài hát phía dưới.
+  3. **Bảo Toàn Nghiêm Ngặt Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `sub-bass-phase-alignment.test.cjs` (**8/8 tests PASS 100%**).
+  - Toàn bộ các test suites liên quan (`index-script.test.cjs`, `sw.test.cjs`, `footer-telemetry-relocation.test.cjs`, `audio-stream-chunking-cache.test.cjs` ...) đều **PASS 100%**.
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 16:15 +07] — Pha D: Bộ Lập Lịch Nạp Trước Hàng Đợi Ngoại Tuyến & Đường Ống Cache Ngầm Có Trọng Số Ưu Tiên (Priority-Weighted Offline Queue Prefetch Scheduler & Adaptive Concurrency Pipeline)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Hiệu Năng & Kiến Trúc PWA:
