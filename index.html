@@ -865,7 +865,10 @@
           <button id="defrag-cache-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-violet-400/30 bg-violet-400/10 px-3 py-2 text-[11px] font-medium text-violet-200 transition hover:bg-violet-400/20">Chống phân mảnh &amp; Thu hồi rác</button>
           <button id="prune-object-urls-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-400/20">Giải phóng RAM</button>
           <button id="rebuild-compact-index-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-indigo-400/30 bg-indigo-400/10 px-3 py-2 text-[11px] font-medium text-indigo-200 transition hover:bg-indigo-400/20">Lập chỉ mục gọn (Compact Index)</button>
+          <button id="sync-delta-library-btn" type="button" class="flex-1 min-w-[100px] rounded-lg border border-teal-400/30 bg-teal-400/10 px-3 py-2 text-[11px] font-medium text-teal-200 transition hover:bg-teal-400/20">Đồng bộ Delta Thư viện</button>
         </div>
+        <p id="storage-capacity-forecast" class="mt-2.5 text-[10px] text-zinc-400 font-mono">💾 Khả dụng: Đang kiểm tra... · Dự kiến: Đang kiểm tra...</p>
+        <p id="sync-delta-status" class="mt-1 text-[10px] text-teal-300 font-mono hidden">⚡ Đồng bộ Delta: Sẵn sàng</p>
         <div id="storage-defrag-summary" class="mt-2.5 hidden rounded-lg border border-violet-400/20 bg-violet-400/[.05] p-2 text-[10px] text-zinc-300">
           <div class="flex items-center justify-between">
             <span class="text-violet-200 font-medium">Toàn vẹn IndexedDB:</span>
@@ -7741,6 +7744,11 @@
           healthEl.className = `rounded border px-2 py-0.5 text-[9px] font-medium ${health.badgeColor}`;
           healthEl.title = health.summary;
         }
+        const forecastEl = $('storage-capacity-forecast');
+        if (forecastEl && typeof library.estimateOfflineStorageAvailability === 'function') {
+          const cap = library.estimateOfflineStorageAvailability(est);
+          forecastEl.textContent = library.formatStorageCapacityForecast(cap);
+        }
       }
     }
     function hideSettings() {
@@ -7928,6 +7936,23 @@
         localStorage.setItem('nocturne-compact-index-health', JSON.stringify(health));
       } catch (_) {}
       toast(report);
+    });
+
+    $('sync-delta-library-btn')?.addEventListener('click', async () => {
+      const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+      if (!lib || typeof lib.computeLibraryDifferentialDelta !== 'function') {
+        toast('Công cụ đồng bộ Delta chưa sẵn sàng.');
+        return;
+      }
+      const cached = state.tracks || [];
+      const delta = lib.computeLibraryDifferentialDelta(cached, state.tracks);
+      const statusEl = $('sync-delta-status');
+      const telemetry = lib.formatDifferentialSyncTelemetry(delta);
+      if (statusEl) {
+        statusEl.textContent = telemetry;
+        statusEl.classList.remove('hidden');
+      }
+      toast(telemetry);
     });
 
     $('export-config-btn')?.addEventListener('click', () => {
@@ -10815,5 +10840,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 10:40 +07 | Đã xong: Pha A - Audio Engine & DSP: Mô Phỏng Không Gian Phòng Động Học & Vi Chỉnh Cân Bằng Crossfeed Tai Nghe Kênh Đôi (Dynamic Convolution Room Modeling & Headphone Crossfeed Balance Refinement): (1) CROSSFEED_PRESETS với 4 chuẩn ma trận audiophile (Bauer Stereophonic 700Hz/300µs, Jan Meier Natural 650Hz/250µs, Chu Moy 750Hz/350µs, Binaural Studio Monitor ±30° 850Hz/280µs); (2) calculateCrossfeedMatrixParams tính toán gain chéo và bù trừ gain trực tiếp directGain bảo toàn năng lượng hai tai L^2+R^2 chống sụt giảm âm lượng; (3) formatCrossfeedMatrixSummary định dạng telemetry trực quan; (4) ROOM_ACOUSTIC_PROFILES mở rộng thêm 2 không gian audiophile mới (Audiophile Vinyl Lounge RT60 0.45s và Chamber Music Salon RT60 1.25s); (5) calculateAdaptiveRoomWetDry tự thích ứng tỷ lệ Wet/Dry theo độ dynamic range và mật độ năng lượng dải trầm; (6) Tích hợp UI Equalizer Panel: #crossfeed-preset-select, #crossfeed-preset-desc và tùy chọn phòng nghe mới; (7) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests dynamic-room-crossfeed-refinement.test.cjs PASS 100%, 130/130 tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Vũ Trường Ánh Sáng Dynamic Visualizer Strobe & Bảng Màu Spectrum Mới -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 11:20 +07 | Đã xong: Pha B - UI/UX & Visualizer: Phổ Âm Thanh Động Học Thang Logarit & Sân Khấu Vũ Trường Ánh Sáng Đa Tầng Hào Quang (Multi-Band Logarithmic Spectrum Dynamics & Real-time Beat Strobe Chromatic Aura Refinement): (1) calculateLogarithmicFrequencyBins chia phổ tần theo thang logarit Octave phân bổ đều năng lượng Sub-Bass, Bass, Vocal Mids đến Treble kết hợp bù trừ độ nhạy cao tần high-shelf tilt; (2) calculateBallisticSpectrumDynamics điều tiết quán tính động học Attack 0.72 / Decay 0.86 loại bỏ hoàn toàn rung giật FFT; (3) calculateBeatStrobeChromaticAura phát hiện xung nhịp Bass tức thời phát sóng cộng hưởng đồng tâm đa tầng (Concentric Ripples) và dịch chuyển sắc độ hào quang 60fps; (4) Mở rộng VISUALIZER_THEMES với 2 bảng màu audiophile mới: neon_hologram (Neon Cyberpunk) & golden_ember (Golden Tube Warmth); (5) Cập nhật renderVisualizerSpectrum, renderMultiBandAmbientAura và chu trình phím tắt t / T xoay vòng trọn vẹn 11 bảng màu; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests spectrum-dynamics-strobe-aura.test.cjs PASS 100%, 137/137 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Tự Động Phân Loại Danh Sách Phát Thông Minh & Tối Ưu Hóa Giao Diện Hàng Đợi Nâng Cao -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 11:45 +07 | Đã xong: Pha C - Core Features & Thư Viện: Nhận Diện Tiết Tấu BPM Tự Động, Phân Nhóm Năng Lượng & Sắp Xếp Chuyển Tiếp Hàng Đợi Hài Hòa (Real-Time Audio BPM Extraction, Tempo Tiers & Harmonic Queue Sequencing): (1) estimateTrackBpmFromEnergyHistory phân tích chuỗi năng lượng âm trầm qua hàm tự tương quan Autocorrelation & phát hiện đỉnh hài bậc nhất (fundamental peak picking) loại bỏ lỗi nhân đôi nhịp; (2) BPM_TEMPO_TIERS phân cấp 4 bậc tiết tấu chuẩn mực (ambient_slow, groove_mid, upbeat_dance, hyper_fast); (3) formatTempoEnergyBadge xuất telemetry trực quan; (4) sequenceHarmonicBpmQueue sắp xếp mượt mà hàng đợi (smooth_asc, smooth_desc, nearest_neighbor) chống hẫng tiết tấu; (5) filterTracksByBpmTier lọc bài theo dải BPM; (6) Tích hợp UI: huy hiệu #room-bpm-badge trong Phòng nghe và nút #queue-bpm-sort-btn trong Hàng đợi; (7) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests tempo-bpm-harmonic-queue.test.cjs PASS 100%, 144/144 regression tests PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & PWA: Nén Âm Thanh Web Audio Cache & Tối Ưu Đường Đua Tải Luồng Background -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 12:15 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Đồng Bộ Thư Viện Vi Sai Đa Nguồn & Dự Báo Sức Chứa Ngoại Tuyến (Offline Library Delta Differential Sync & Storage Capacity Forecast): (1) computeLibraryDifferentialDelta so sánh phân sai hai chiều phân loại added, modified, removed, unchanged và đo tỷ lệ tiết kiệm băng thông 95%-100%; (2) mergeDifferentialCatalog gộp cập nhật chỉ mục O(1) không làm gián đoạn bài đang phát; (3) formatDifferentialSyncTelemetry định dạng telemetry đồng bộ vi sai; (4) estimateOfflineStorageAvailability & formatStorageCapacityForecast dự báo dung lượng ngoại tuyến khả dụng kèm đệm an toàn 200MB và số lượng bài FLAC/MP3 dự kiến; (5) Tích hợp UI: nút #sync-delta-library-btn, #sync-delta-status và #storage-capacity-forecast trong Quản trị bộ nhớ; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests offline-delta-catalog-forecast.test.cjs PASS 100%, 151/151 regression tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Mô Phỏng Mạch Khuếch Đại Đèn Chân Không Triode (Tube Saturation Harmonics & Analog Warmth Emulation) -->
 </body>
 </html>

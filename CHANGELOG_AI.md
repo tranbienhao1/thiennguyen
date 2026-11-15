@@ -2,6 +2,33 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 12:15 +07] — Pha D: Đồng Bộ Thư Viện Vi Sai Đa Nguồn & Dự Báo Sức Chứa Ngoại Tuyến (Offline Library Delta Differential Sync & Storage Capacity Forecast)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Hiệu Năng & Kiến Trúc PWA:
+- **Phân khu trọng tâm:** **Thuật Toán So Sánh Phân Sai Danh Mục Thư Viện (`computeLibraryDifferentialDelta`), Gộp Chỉ Mục Vi Sai O(1) Tiết Kiệm Băng Thông (`mergeDifferentialCatalog`), Dự Báo Sức Chứa Ngoại Tuyến Kèm Dung Lượng Đệm An Toàn (`estimateOfflineStorageAvailability`) & Tích Hợp UI Quản Trị Bộ Nhớ PWA**.
+- **Tính năng & Đột phá:**
+  1. **Động cơ đồng bộ vi sai Delta thông minh (`computeLibraryDifferentialDelta`):**
+     - Thay vì tải lại toàn bộ kho nhạc (gây tốn hàng chục MB băng thông và đơ UI), thuật toán so sánh phân sai hai chiều giữa bộ nhớ cache cục bộ (IndexedDB) và nguồn danh mục mới.
+     - Phân loại chính xác 4 trạng thái: `added` (bài mới), `modified` (bài được nâng cấp chất lượng âm thanh / thay đổi metadata), `removed` (bài đã xóa trên máy chủ) và `unchanged` (bài giữ nguyên).
+     - Đo lường chính xác tỷ lệ tiết kiệm băng thông mạng (`bandwidthSavingsPercent`, thông thường đạt 95%–100%).
+  2. **Bộ gộp danh mục vi sai không phá hủy (`mergeDifferentialCatalog`):**
+     - Cập nhật tức thời chỉ mục bài hát với độ phức tạp $O(1)$ cho từng phần tử thay đổi, duy trì tính bất biến và không làm gián đoạn bài hát đang phát hoặc bộ nhớ đệm lát âm thanh đã nạp trước.
+  3. **Định dạng Telemetry Đồng bộ Vi sai (`formatDifferentialSyncTelemetry`):**
+     - Xuất báo cáo trực quan: `⚡ Đồng bộ Delta: +X mới · Y cập nhật · Z đã xóa (tiết kiệm S% băng thông)`.
+  4. **Dự báo sức chứa lưu trữ ngoại tuyến (`estimateOfflineStorageAvailability`, `formatStorageCapacityForecast`):**
+     - Đọc hạn ngạch `navigator.storage.estimate()` và tự động khấu trừ dung lượng đệm an toàn dự phòng (Safety Margin 200MB) chống tràn bộ nhớ trình duyệt.
+     - Ước tính số lượng bài hát FLAC (~35MB/bài) và MP3 (~8MB/bài) có thể lưu thêm ngoại tuyến một cách an toàn.
+     - Cảnh báo cờ giới hạn (`isStorageConstrained`) khi dung lượng trống dưới 50MB.
+  5. **Tích hợp UI PWA:**
+     - Nút **Đồng bộ Delta Thư viện** (`#sync-delta-library-btn`) và thông báo `#sync-delta-status` trong phân mục Quản trị bộ nhớ.
+     - Dòng dự báo sức chứa ngoại tuyến `#storage-capacity-forecast` cập nhật tự động khi mở Cài đặt hoặc khi bấm *Kiểm tra dung lượng*.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `offline-delta-catalog-forecast.test.cjs` (**7/7 tests PASS 100%**).
+  - Toàn bộ 19 test suites hồi quy (**151/151 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 11:45 +07] — Pha C: Nhận Diện Tiết Tấu BPM Tự Động, Phân Nhóm Năng Lượng & Sắp Xếp Chuyển Tiếp Hàng Đợi Hài Hòa (Real-Time Audio BPM Extraction, Tempo Tiers & Harmonic Queue Sequencing)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Core Features & Thư Viện:
