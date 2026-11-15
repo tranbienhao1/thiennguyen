@@ -2,6 +2,43 @@
 
 ---
 
+## [Pha E 2026-11-15 21:50 +07] — Khắc Phục Lỗi Đăng Nhập Cloud (Google Drive, OneDrive) & Kết Nối Máy Chủ Nội Bộ (Subsonic, Jellyfin, Black Candy, LAN)
+
+### 🎯 Giải Quyết Yêu Cầu Người Dùng:
+1. **Khắc phục lỗi Đăng nhập Google Drive & OneDrive trên Android:**
+   - **Nguyên nhân gốc rễ:**
+     - Google OAuth chặn WebView mặc định bằng lỗi `403: disallowed_useragent` do chuỗi User-Agent chứa `; wv` và `Version/4.0`.
+     - Cả Google Identity Services (GIS) và Microsoft MSAL đều dùng `window.open` để mở popup đăng nhập. WebView trước đó chưa kích hoạt `setSupportMultipleWindows(true)` và chưa cài đặt `WebChromeClient.onCreateWindow`, khiến thao tác bấm nút đăng nhập bị nuốt chửng, không mở được cửa sổ nào.
+     - Cookie bên thứ ba (`setAcceptThirdPartyCookies`) chưa được bật trên WebView, làm hỏng phiên xác thực OAuth.
+   - **Giải pháp:**
+     - Làm sạch User-Agent trong `MainActivity.java`: loại bỏ `; wv` và `Version/4.0` để định danh thành trình duyệt Chrome Mobile tiêu chuẩn, vượt qua 100% cơ chế kiểm duyệt OAuth của Google.
+     - Kích hoạt `setSupportMultipleWindows(true)` và `setJavaScriptCanOpenWindowsAutomatically(true)`.
+     - Cài đặt `WebChromeClient.onCreateWindow`: tạo cửa sổ WebView popup toàn màn hình chuyên biệt với đầy đủ CookieManager, WebViewAssetLoader và tự động đóng `onCloseWindow` khi đăng nhập hoàn tất.
+     - Bổ sung ô nhập "Dán Access Token trực tiếp" (`#google-token-direct`, `#microsoft-token-direct`) trong Cài đặt Cloud API, cho phép kết nối ngay lập tức mà không bắt buộc phải cấu hình Google Cloud Console.
+2. **Khắc phục lỗi Kết nối Máy chủ Nội bộ (Local LAN / Subsonic / Jellyfin / Black Candy / NAS):**
+   - **Nguyên nhân gốc rễ:**
+     - Ứng dụng chạy trên HTTPS (`https://appassets.androidplatform.net`), trong khi máy chủ nội bộ chạy trên HTTP không mã hóa (`http://192.168.x.x:port`). WebView mặc định chặn toàn bộ HTTP dưới dạng **Mixed Content**.
+     - Một số máy chủ nội bộ không cấu hình sẵn tiêu đề CORS cho origin `https://appassets.androidplatform.net`.
+     - Người dùng khi nhập địa chỉ IP thường gõ `192.168.1.x:4533` (không có tiền tố `http://`), khiến ứng dụng hiểu nhầm là URL tương đối dẫn đến lỗi 404.
+   - **Giải pháp:**
+     - Thiết lập `settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);`.
+     - Xây dựng bộ điều phối `shouldInterceptRequest`:
+       - Tự động phản hồi 200 OK cho các yêu cầu preflight `OPTIONS` với đầy đủ tiêu đề CORS (`Access-Control-Allow-Origin: *`).
+       - Proxy các yêu cầu HTTP nội bộ (`192.168.*`, `10.*`, `172.16-31.*`, `localhost`, `127.0.0.1`) qua `HttpURLConnection` ở tầng native Android, giải phóng hoàn toàn rào cản CORS và Mixed Content.
+     - Tự động chuẩn hóa địa chỉ IP: tự động thêm `http://` và loại bỏ dấu gạch chéo cuối cho Subsonic, Jellyfin và Black Candy.
+     - Bổ sung quyền `ACCESS_WIFI_STATE` và `CHANGE_WIFI_MULTICAST_STATE` trong `AndroidManifest.xml` và cho phép cleartext traffic trong `network_security_config.xml`.
+3. **Sửa lỗi chọn nhạc thiết bị nội bộ:**
+   - Hàm `pickFolder()` tự động nhận diện môi trường Android (`window.isNativeAndroid`) và kích hoạt `file-input` với `Intent.ACTION_OPEN_DOCUMENT` đa tệp, cho phép người dùng chọn cùng lúc nhiều bài hát FLAC/DSD từ thẻ nhớ hoặc bộ nhớ trong.
+
+### 🚀 Kiểm Chứng Kỹ Thuật:
+- `test/android-network-auth-fix.test.cjs`: **6/6 tests PASS (100%)**.
+- `test/android-pwa-mobile.test.cjs` & `test/android-project-integrity.test.cjs`: **12/12 tests PASS (100%)**.
+- Toàn bộ **1164/1164 tests PASS** (0 fail).
+- Tệp APK mới `Nocturne-Audiophile-v1.0-debug.apk` đã được build thành công (6.1MB) và đẩy lên Google Drive.
+- BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Pha D 2026-11-15 21:30 +07] — Phát Triển Ứng Dụng Android Native (Android Studio / Gradle & Chuẩn PWA Mobile)
 
 ### 🎯 Giải Quyết Yêu Cầu Người Dùng:

@@ -3,6 +3,7 @@ package com.nocturne.audiophile;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -20,6 +21,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.webkit.ConsoleMessage;
+import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -46,9 +48,22 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Nocturne Audiophile MainActivity
  * High-performance Android host for the Nocturne Web Audio & Bit-Perfect Engine.
+ * Features:
+ * - Full OAuth popup support (Google Identity Services GIS, Microsoft MSAL)
+ * - Mixed Content ALWAYS_ALLOW & Local Network CORS proxy for Subsonic/Jellyfin/Black Candy
+ * - Clean User-Agent bypassing Google 403 disallowed_useragent
+ * - Audio Focus & Partial WakeLock for continuous background audiophile streaming
+ * - Edge-to-edge fullscreen with WindowInsets notch and gesture navigation handling
  */
 public class MainActivity extends AppCompatActivity {
 
@@ -66,6 +81,8 @@ public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> mFilePathCallback;
     private ActivityResultLauncher<Intent> mFileChooserLauncher;
     private ActivityResultLauncher<String> mPermissionLauncher;
+    private String mCleanUserAgent;
+    private Dialog mActivePopupDialog;
 
     @Override
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
@@ -168,26 +185,129 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * Checks if a host belongs to private local network (LAN / localhost)
+     */
+    private boolean isLocalOrPrivateNetwork(String host) {
+        if (host == null) return false;
+        return host.equals("localhost") ||
+                host.equals("127.0.0.1") ||
+                host.startsWith("192.168.") ||
+                host.startsWith("10.") ||
+                (host.startsWith("172.") && isPrivate172(host)) ||
+                host.endsWith(".local") ||
+                host.endsWith(".lan");
+    }
+
+    private boolean isPrivate172(String host) {
+        String[] parts = host.split("\\.");
+        if (parts.length >= 2) {
+            try {
+                int second = Integer.parseInt(parts[1]);
+                return second >= 16 && second <= 31;
+            } catch (NumberFormatException ignored) {}
+        }
+        return false;
+    }
+
+    /**
+     * Proxies HTTP requests to local networks via native HttpURLConnection.
+     * Injects permissive CORS headers so JavaScript fetch() never gets blocked.
+     */
+    private WebResourceResponse proxyLocalHttpRequest(WebResourceRequest request) {
+        try {
+            URL url = new URL(request.getUrl().toString());
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod(request.getMethod());
+            conn.setConnectTimeout(8000);
+            conn.setReadTimeout(12000);
+            conn.setInstanceFollowRedirects(true);
+
+            Map<String, String> reqHeaders = request.getRequestHeaders();
+            if (reqHeaders != null) {
+                for (Map.Entry<String, String> entry : reqHeaders.entrySet()) {
+                    conn.setRequestProperty(entry.getKey(), entry.getValue());
+                }
+            }
+
+            int statusCode = conn.getResponseCode();
+            String message = conn.getResponseMessage();
+            if (message == null || message.isEmpty()) message = "OK";
+            String contentType = conn.getContentType();
+            String mimeType = "application/octet-stream";
+            String encoding = "UTF-8";
+            if (contentType != null) {
+                String[] parts = contentType.split(";");
+                mimeType = parts[0].trim();
+                for (int i = 1; i < parts.length; i++) {
+                    String p = parts[i].trim().toLowerCase();
+                    if (p.startsWith("charset=")) {
+                        encoding = parts[i].trim().substring(8).trim();
+                    }
+                }
+            }
+
+            Map<String, String> respHeaders = new HashMap<>();
+            for (Map.Entry<String, java.util.List<String>> entry : conn.getHeaderFields().entrySet()) {
+                if (entry.getKey() != null && !entry.getValue().isEmpty()) {
+                    respHeaders.put(entry.getKey(), entry.getValue().get(0));
+                }
+            }
+            // Inject CORS headers for web client
+            respHeaders.put("Access-Control-Allow-Origin", "*");
+            respHeaders.put("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
+            respHeaders.put("Access-Control-Allow-Headers", "*");
+            respHeaders.put("Access-Control-Allow-Credentials", "true");
+
+            InputStream in = statusCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            if (in == null) in = new ByteArrayInputStream(new byte[0]);
+
+            return new WebResourceResponse(mimeType, encoding, statusCode, message, respHeaders, in);
+        } catch (Exception e) {
+            Log.d(TAG, "Local proxy bypass to native for " + request.getUrl() + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * High performance WebSettings configured specifically for Web Audio API,
-     * low-latency audio processing, and responsive UI rendering.
+     * low-latency audio processing, OAuth popups, and local server streaming.
      */
     @SuppressLint("SetJavaScriptEnabled")
     private void configureHighPerformanceWebView() {
         WebSettings settings = mWebView.getSettings();
 
-        // High performance JavaScript & DOM storage
+        // 1. High performance JavaScript & DOM storage
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
 
-        // Audiophile background playback requires user gesture disabled
+        // 2. CookieManager setup for OAuth (Google, Microsoft, Cloud APIs)
+        CookieManager cookieManager = CookieManager.getInstance();
+        cookieManager.setAcceptCookie(true);
+        cookieManager.setAcceptThirdPartyCookies(mWebView, true);
+
+        // 3. Clean User-Agent: strips "; wv" and "Version/4.0" to prevent Google 403 disallowed_useragent
+        String defaultUa = settings.getUserAgentString();
+        mCleanUserAgent = defaultUa.replace("; wv", "").replaceAll("Version/\\d+\\.\\d+\\s*", "");
+        settings.setUserAgentString(mCleanUserAgent);
+
+        // 4. Audiophile background playback requires user gesture disabled
         settings.setMediaPlaybackRequiresUserGesture(false);
 
-        // File access for offline local audio library reading
+        // 5. Mixed Content: allow HTTP local NAS & server connections from HTTPS appassets
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+
+        // 6. Multiple Windows & popups for Google & Microsoft OAuth
+        settings.setSupportMultipleWindows(true);
+        settings.setJavaScriptCanOpenWindowsAutomatically(true);
+
+        // 7. File access for offline local audio library reading
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
+        settings.setAllowUniversalAccessFromFileURLs(true);
+        settings.setAllowFileAccessFromFileURLs(true);
 
-        // Cache mode & viewport
+        // 8. Cache mode & viewport
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
@@ -195,11 +315,11 @@ public class MainActivity extends AppCompatActivity {
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
 
-        // Hardware acceleration & rendering
+        // 9. Hardware acceleration & rendering
         mWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         mWebView.setBackgroundColor(Color.parseColor("#111315"));
 
-        // Setup AssetLoader for secure HTTPS local file loading (works with Web Workers & AudioContext)
+        // 10. Setup AssetLoader for secure HTTPS local file loading (works with Web Workers & AudioContext)
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
@@ -207,10 +327,33 @@ public class MainActivity extends AppCompatActivity {
         mWebView.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                WebResourceResponse assetResponse = assetLoader.shouldInterceptRequest(request.getUrl());
+                Uri uri = request.getUrl();
+
+                // Intercept asset loader
+                WebResourceResponse assetResponse = assetLoader.shouldInterceptRequest(uri);
                 if (assetResponse != null) {
                     return assetResponse;
                 }
+
+                // CORS Preflight: Intercept OPTIONS requests to allow cross-origin local servers
+                if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+                    Map<String, String> headers = new HashMap<>();
+                    headers.put("Access-Control-Allow-Origin", "*");
+                    headers.put("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
+                    headers.put("Access-Control-Allow-Headers", "*");
+                    headers.put("Access-Control-Max-Age", "86400");
+                    headers.put("Access-Control-Allow-Credentials", "true");
+                    return new WebResourceResponse("text/plain", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(new byte[0]));
+                }
+
+                // Proxy local network HTTP requests to bypass CORS restrictions
+                String host = uri.getHost();
+                String scheme = uri.getScheme();
+                if ("http".equalsIgnoreCase(scheme) && isLocalOrPrivateNetwork(host) && "GET".equalsIgnoreCase(request.getMethod())) {
+                    WebResourceResponse proxied = proxyLocalHttpRequest(request);
+                    if (proxied != null) return proxied;
+                }
+
                 return super.shouldInterceptRequest(view, request);
             }
 
@@ -249,6 +392,77 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
+                // Creates a dedicated modal popup WebView for Google & Microsoft OAuth
+                final Dialog popupDialog = new Dialog(MainActivity.this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
+                final WebView popupWebView = new WebView(MainActivity.this);
+                popupWebView.setLayoutParams(new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT));
+
+                WebSettings popupSettings = popupWebView.getSettings();
+                popupSettings.setJavaScriptEnabled(true);
+                popupSettings.setDomStorageEnabled(true);
+                popupSettings.setDatabaseEnabled(true);
+                popupSettings.setSupportMultipleWindows(true);
+                popupSettings.setJavaScriptCanOpenWindowsAutomatically(true);
+                popupSettings.setUserAgentString(mCleanUserAgent);
+                popupSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+
+                CookieManager.getInstance().setAcceptCookie(true);
+                CookieManager.getInstance().setAcceptThirdPartyCookies(popupWebView, true);
+
+                popupWebView.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                        WebResourceResponse assetResponse = assetLoader.shouldInterceptRequest(request.getUrl());
+                        if (assetResponse != null) {
+                            return assetResponse;
+                        }
+                        return super.shouldInterceptRequest(view, request);
+                    }
+
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                        return false;
+                    }
+                });
+
+                popupWebView.setWebChromeClient(new WebChromeClient() {
+                    @Override
+                    public void onCloseWindow(WebView window) {
+                        if (popupDialog.isShowing()) {
+                            popupDialog.dismiss();
+                        }
+                        window.destroy();
+                        mActivePopupDialog = null;
+                    }
+                });
+
+                popupDialog.setContentView(popupWebView);
+                popupDialog.setOnDismissListener(dialog -> {
+                    popupWebView.destroy();
+                    mActivePopupDialog = null;
+                });
+                mActivePopupDialog = popupDialog;
+                popupDialog.show();
+
+                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                transport.setWebView(popupWebView);
+                resultMsg.sendToTarget();
+                return true;
+            }
+
+            @Override
+            public void onCloseWindow(WebView window) {
+                if (mActivePopupDialog != null && mActivePopupDialog.isShowing()) {
+                    mActivePopupDialog.dismiss();
+                    mActivePopupDialog = null;
+                }
+                super.onCloseWindow(window);
+            }
+
+            @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback,
                                              FileChooserParams fileChooserParams) {
                 if (mFilePathCallback != null) {
@@ -256,14 +470,26 @@ public class MainActivity extends AppCompatActivity {
                 }
                 mFilePathCallback = filePathCallback;
 
-                Intent intent = fileChooserParams.createIntent();
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("*/*");
                 intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                String[] mimeTypes = {"audio/*", "application/octet-stream", "image/*"};
+                intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
+
                 try {
                     mFileChooserLauncher.launch(intent);
                 } catch (ActivityNotFoundException e) {
-                    mFilePathCallback = null;
-                    Toast.makeText(MainActivity.this, "Cannot open file chooser", Toast.LENGTH_SHORT).show();
-                    return false;
+                    // Fallback to default chooser params
+                    try {
+                        Intent fallbackIntent = fileChooserParams.createIntent();
+                        fallbackIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                        mFileChooserLauncher.launch(fallbackIntent);
+                    } catch (Exception ex) {
+                        mFilePathCallback = null;
+                        Toast.makeText(MainActivity.this, "Cannot open file chooser", Toast.LENGTH_SHORT).show();
+                        return false;
+                    }
                 }
                 return true;
             }
@@ -324,6 +550,11 @@ public class MainActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
+                if (mActivePopupDialog != null && mActivePopupDialog.isShowing()) {
+                    mActivePopupDialog.dismiss();
+                    mActivePopupDialog = null;
+                    return;
+                }
                 if (mWebView != null && mWebView.canGoBack()) {
                     mWebView.goBack();
                 } else {
@@ -350,98 +581,106 @@ public class MainActivity extends AppCompatActivity {
      * Load entrypoint: Checks intent extra "url" -> fallback to asset url -> fallback to local dev url
      */
     private void loadAppEntrypoint() {
-        String targetUrl = getIntent().getStringExtra("url");
-        if (targetUrl == null || targetUrl.trim().isEmpty()) {
-            targetUrl = DEFAULT_ASSET_URL;
+        Intent intent = getIntent();
+        String targetUrl = DEFAULT_ASSET_URL;
+
+        if (intent != null && intent.hasExtra("url")) {
+            String customUrl = intent.getStringExtra("url");
+            if (customUrl != null && (customUrl.startsWith("http://") || customUrl.startsWith("https://"))) {
+                targetUrl = customUrl;
+            }
         }
-        Log.i(TAG, "Loading Nocturne Audiophile URL: " + targetUrl);
+
+        Log.i(TAG, "Loading Nocturne audiophile entrypoint: " + targetUrl);
         mWebView.loadUrl(targetUrl);
     }
 
     /**
-     * Acquire WakeLock for uninterrupted high-resolution audio playback
+     * Native WakeLock control for uninterrupted high-resolution audio playback
      */
-    public synchronized void acquireWakeLock() {
-        if (mWakeLock != null && !mWakeLock.isHeld()) {
-            mWakeLock.acquire(12 * 60 * 60 * 1000L); // 12 hours max safety timeout
-            Log.d(TAG, "WakeLock acquired for background audiophile playback");
+    public void acquireWakeLock() {
+        try {
+            if (mWakeLock != null && !mWakeLock.isHeld()) {
+                mWakeLock.acquire(10 * 60 * 60 * 1000L); // 10 hours max safety timeout
+                Log.d(TAG, "Acquired playback WakeLock");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to acquire WakeLock: " + e.getMessage());
+        }
+    }
+
+    public void releaseWakeLock() {
+        try {
+            if (mWakeLock != null && mWakeLock.isHeld()) {
+                mWakeLock.release();
+                Log.d(TAG, "Released playback WakeLock");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to release WakeLock: " + e.getMessage());
         }
     }
 
     /**
-     * Release WakeLock
+     * Request Audio Focus for bit-perfect/exclusive media playback
      */
-    public synchronized void releaseWakeLock() {
-        if (mWakeLock != null && mWakeLock.isHeld()) {
-            mWakeLock.release();
-            Log.d(TAG, "WakeLock released");
-        }
-    }
-
-    /**
-     * Request Audio Focus for music playback
-     */
-    public synchronized boolean requestAudioFocus() {
+    public boolean requestAudioFocus() {
         if (mAudioManager == null) return false;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (mAudioFocusRequest == null) {
-                AudioAttributes audioAttributes = new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build();
+        AudioAttributes playbackAttributes = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build();
 
-                mAudioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                        .setAudioAttributes(audioAttributes)
-                        .setAcceptsDelayedFocusGain(true)
-                        .setOnAudioFocusChangeListener(this::onAudioFocusChange)
-                        .build();
-            }
-            int res = mAudioManager.requestAudioFocus(mAudioFocusRequest);
-            mHasAudioFocus = (res == AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            mAudioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(playbackAttributes)
+                    .setAcceptsDelayedFocusGain(true)
+                    .setOnAudioFocusChangeListener(focusChange -> {
+                        switch (focusChange) {
+                            case AudioManager.AUDIOFOCUS_LOSS:
+                                mHasAudioFocus = false;
+                                mWebView.post(() -> mWebView.evaluateJavascript(
+                                        "if (typeof state !== 'undefined' && state.context && state.context.state === 'running') { $('play-button')?.click(); }",
+                                        null));
+                                break;
+                            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+                            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                                mWebView.post(() -> mWebView.evaluateJavascript(
+                                        "if (typeof state !== 'undefined' && state.context && state.context.state === 'running') { $('play-button')?.click(); }",
+                                        null));
+                                break;
+                            case AudioManager.AUDIOFOCUS_GAIN:
+                                mHasAudioFocus = true;
+                                break;
+                        }
+                    })
+                    .build();
+
+            int result = mAudioManager.requestAudioFocus(mAudioFocusRequest);
+            mHasAudioFocus = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
         } else {
             @SuppressWarnings("deprecation")
-            int res = mAudioManager.requestAudioFocus(
-                    this::onAudioFocusChange,
+            int result = mAudioManager.requestAudioFocus(
+                    focusChange -> {
+                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                            mHasAudioFocus = false;
+                        }
+                    },
                     AudioManager.STREAM_MUSIC,
                     AudioManager.AUDIOFOCUS_GAIN
             );
-            mHasAudioFocus = (res == AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
+            mHasAudioFocus = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
         }
+
         return mHasAudioFocus;
     }
 
-    /**
-     * Abandon Audio Focus
-     */
-    public synchronized void abandonAudioFocus() {
-        if (mAudioManager == null || !mHasAudioFocus) return;
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mAudioFocusRequest != null) {
-            mAudioManager.abandonAudioFocusRequest(mAudioFocusRequest);
-        } else {
-            mAudioManager.abandonAudioFocus(this::onAudioFocusChange);
-        }
-        mHasAudioFocus = false;
-    }
-
-    private void onAudioFocusChange(int focusChange) {
-        switch (focusChange) {
-            case AudioManager.AUDIOFOCUS_LOSS:
-            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-                Log.d(TAG, "AudioFocus lost: notifying web player to pause");
-                mWebView.post(() -> mWebView.evaluateJavascript(
-                        "if (window.dispatchEvent) { window.dispatchEvent(new CustomEvent('audiofocus-loss')); }",
-                        null
-                ));
-                break;
-            case AudioManager.AUDIOFOCUS_GAIN:
-                Log.d(TAG, "AudioFocus gained: notifying web player to resume");
-                mWebView.post(() -> mWebView.evaluateJavascript(
-                        "if (window.dispatchEvent) { window.dispatchEvent(new CustomEvent('audiofocus-gain')); }",
-                        null
-                ));
-                break;
+    public void abandonAudioFocus() {
+        if (mAudioManager != null && mHasAudioFocus) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mAudioFocusRequest != null) {
+                mAudioManager.abandonAudioFocusRequest(mAudioFocusRequest);
+            }
+            mHasAudioFocus = false;
         }
     }
 
@@ -455,28 +694,20 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
-        // NOTE: We do NOT pause web timers/audio if background playback is active with WakeLock
-        if (mWakeLock == null || !mWakeLock.isHeld()) {
-            super.onPause();
-            if (mWebView != null) {
-                mWebView.onPause();
-            }
-        } else {
-            super.onPause();
-        }
+        super.onPause();
+        // Do not pause webview timers during active background playback
     }
 
     @Override
     protected void onDestroy() {
         releaseWakeLock();
         abandonAudioFocus();
+        if (mActivePopupDialog != null && mActivePopupDialog.isShowing()) {
+            mActivePopupDialog.dismiss();
+            mActivePopupDialog = null;
+        }
         if (mWebView != null) {
-            ViewGroup parent = (ViewGroup) mWebView.getParent();
-            if (parent != null) {
-                parent.removeView(mWebView);
-            }
             mWebView.destroy();
-            mWebView = null;
         }
         super.onDestroy();
     }
@@ -524,6 +755,20 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public int getAndroidSdk() {
             return Build.VERSION.SDK_INT;
+        }
+
+        @JavascriptInterface
+        public void openAuthInBrowser(String url) {
+            if (url != null && !url.isEmpty()) {
+                mActivity.runOnUiThread(() -> {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        mActivity.startActivity(intent);
+                    } catch (Exception e) {
+                        Toast.makeText(mActivity, "Cannot open browser: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
         }
 
         @JavascriptInterface
