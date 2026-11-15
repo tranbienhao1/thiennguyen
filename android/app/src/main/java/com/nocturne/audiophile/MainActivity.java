@@ -15,6 +15,7 @@ import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.PowerManager;
 import android.util.Log;
 import android.view.View;
@@ -48,19 +49,39 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Nocturne Audiophile MainActivity
  * High-performance Android host for the Nocturne Web Audio & Bit-Perfect Engine.
  * Features:
+ * - FiiO M11S (Android 10 / API 29) & Audiophile DAP compatibility:
+ *   * Runtime storage permission handling (READ_EXTERNAL_STORAGE for Android <= 12)
+ *   * Legacy external storage access for direct SD card /sdcard/Music browsing
+ *   * Robust multi-fallback file chooser bypassing non-existent DocumentsUI
  * - Full OAuth popup support (Google Identity Services GIS, Microsoft MSAL)
- * - Mixed Content ALWAYS_ALLOW & Local Network CORS proxy for Subsonic/Jellyfin/Black Candy
+ * - Mixed Content ALWAYS_ALLOW & Full HTTP method CORS proxy for Subsonic/Jellyfin/Black Candy (GET, POST, PUT, DELETE, OPTIONS, HEAD)
  * - Clean User-Agent bypassing Google 403 disallowed_useragent
  * - Audio Focus & Partial WakeLock for continuous background audiophile streaming
  * - Edge-to-edge fullscreen with WindowInsets notch and gesture navigation handling
@@ -80,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
 
     private ValueCallback<Uri[]> mFilePathCallback;
     private ActivityResultLauncher<Intent> mFileChooserLauncher;
-    private ActivityResultLauncher<String> mPermissionLauncher;
+    private ActivityResultLauncher<String[]> mPermissionLauncher;
     private String mCleanUserAgent;
     private Dialog mActivePopupDialog;
 
@@ -100,7 +121,7 @@ public class MainActivity extends AppCompatActivity {
         // 2. Initialize system services (PowerManager for WakeLock, AudioManager for Audio Focus)
         initPowerAndAudioManagers();
 
-        // 3. Register activity result launchers for file selection & notifications
+        // 3. Register activity result launchers for file selection & permissions
         initActivityResultLaunchers();
 
         // 4. Configure high performance WebView settings
@@ -112,7 +133,7 @@ public class MainActivity extends AppCompatActivity {
         // 6. Handle notch & window insets
         setupWindowInsetsHandling();
 
-        // 7. Request audio & notification permissions
+        // 7. Request audio, storage & notification permissions
         requestAppPermissions();
 
         // 8. Load application entrypoint
@@ -150,7 +171,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Register File Chooser for audio import (FLAC, DSD, WAV, MP3, etc.)
+     * Register File Chooser for audio import (FLAC, DSD, WAV, MP3, etc.) and runtime permissions
      */
     private void initActivityResultLaunchers() {
         mFileChooserLauncher = registerForActivityResult(
@@ -169,6 +190,18 @@ public class MainActivity extends AppCompatActivity {
                             } else if (data.getData() != null) {
                                 results = new Uri[]{data.getData()};
                             }
+
+                            // Try to persist read permission if supported by the provider
+                            if (results != null) {
+                                for (Uri u : results) {
+                                    try {
+                                        getContentResolver().takePersistableUriPermission(
+                                                u, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                    } catch (SecurityException ignored) {
+                                        // ACTION_GET_CONTENT URIs may not support persistable flags
+                                    }
+                                }
+                            }
                         }
                         mFilePathCallback.onReceiveValue(results);
                         mFilePathCallback = null;
@@ -177,11 +210,107 @@ public class MainActivity extends AppCompatActivity {
         );
 
         mPermissionLauncher = registerForActivityResult(
-                new ActivityResultContracts.RequestPermission(),
-                isGranted -> {
-                    Log.d(TAG, "Permission response received: " + isGranted);
+                new ActivityResultContracts.RequestMultiplePermissions(),
+                result -> {
+                    Log.d(TAG, "Runtime permissions response: " + result);
                 }
         );
+    }
+
+    /**
+     * Audiophile DAP Multi-Fallback File Chooser:
+     * DAPs like FiiO M11S (Android 10), Astell&Kern, HiBy, Cayin often do NOT have standard DocumentsUI.
+     * Hierarchy of fallbacks:
+     * 1. Primary: Intent.ACTION_GET_CONTENT with Intent.createChooser(..., "Chọn nhạc")
+     * 2. Fallback 1: Intent.ACTION_OPEN_DOCUMENT
+     * 3. Fallback 2: FileChooserParams.createIntent()
+     * 4. Fallback 3: Generic Intent.ACTION_GET_CONTENT with "*\/*"
+     */
+    public boolean launchDapMusicChooser(@Nullable WebChromeClient.FileChooserParams fileChooserParams) {
+        String[] audioMimeTypes = new String[]{
+                "audio/*",
+                "application/ogg",
+                "application/x-flac",
+                "application/flac",
+                "audio/flac",
+                "audio/x-flac",
+                "audio/dsd",
+                "audio/x-dsd",
+                "audio/wav",
+                "audio/x-wav",
+                "audio/x-aiff",
+                "audio/aiff",
+                "audio/aac",
+                "audio/mp4",
+                "audio/mpeg",
+                "audio/mp3",
+                "audio/x-m4a",
+                "audio/alac",
+                "application/octet-stream",
+                "*/*"
+        };
+
+        // Primary: Intent.ACTION_GET_CONTENT with Intent.createChooser(..., "Chọn nhạc")
+        try {
+            Intent getContentIntent = new Intent(Intent.ACTION_GET_CONTENT);
+            getContentIntent.addCategory(Intent.CATEGORY_OPENABLE);
+            getContentIntent.setType("audio/*");
+            getContentIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            getContentIntent.putExtra(Intent.EXTRA_MIME_TYPES, audioMimeTypes);
+
+            Intent chooserIntent = Intent.createChooser(getContentIntent, "Chọn nhạc");
+            chooserIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            mFileChooserLauncher.launch(chooserIntent);
+            return true;
+        } catch (ActivityNotFoundException e1) {
+            Log.w(TAG, "ACTION_GET_CONTENT chooser failed, falling back to ACTION_OPEN_DOCUMENT", e1);
+        } catch (Exception e1) {
+            Log.w(TAG, "Chooser launch error: " + e1.getMessage());
+        }
+
+        // Fallback 1: ACTION_OPEN_DOCUMENT
+        try {
+            Intent openDocIntent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            openDocIntent.addCategory(Intent.CATEGORY_OPENABLE);
+            openDocIntent.setType("audio/*");
+            openDocIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            openDocIntent.putExtra(Intent.EXTRA_MIME_TYPES, audioMimeTypes);
+            mFileChooserLauncher.launch(openDocIntent);
+            return true;
+        } catch (ActivityNotFoundException e2) {
+            Log.w(TAG, "ACTION_OPEN_DOCUMENT failed, falling back to default params", e2);
+        } catch (Exception e2) {
+            Log.w(TAG, "ACTION_OPEN_DOCUMENT error: " + e2.getMessage());
+        }
+
+        // Fallback 2: fileChooserParams.createIntent()
+        if (fileChooserParams != null) {
+            try {
+                Intent fallbackIntent = fileChooserParams.createIntent();
+                fallbackIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                mFileChooserLauncher.launch(fallbackIntent);
+                return true;
+            } catch (Exception e3) {
+                Log.w(TAG, "fileChooserParams createIntent failed", e3);
+            }
+        }
+
+        // Fallback 3: Generic GET_CONTENT
+        try {
+            Intent genericIntent = new Intent(Intent.ACTION_GET_CONTENT);
+            genericIntent.setType("*/*");
+            genericIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            mFileChooserLauncher.launch(genericIntent);
+            return true;
+        } catch (Exception e4) {
+            Log.e(TAG, "All file chooser intents failed", e4);
+            if (mFilePathCallback != null) {
+                mFilePathCallback.onReceiveValue(null);
+                mFilePathCallback = null;
+            }
+            Toast.makeText(this, "Không tìm thấy ứng dụng chọn tập tin âm thanh", Toast.LENGTH_SHORT).show();
+            return false;
+        }
     }
 
     /**
@@ -191,6 +320,7 @@ public class MainActivity extends AppCompatActivity {
         if (host == null) return false;
         return host.equals("localhost") ||
                 host.equals("127.0.0.1") ||
+                host.equals("10.0.2.2") ||
                 host.startsWith("192.168.") ||
                 host.startsWith("10.") ||
                 (host.startsWith("172.") && isPrivate172(host)) ||
@@ -210,14 +340,80 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * Extracts request body from WebResourceRequest using reflection or stream access
+     */
+    private byte[] extractRequestBody(WebResourceRequest request) {
+        if (request == null) return null;
+        Class<?> reqClass = request.getClass();
+
+        // 1. Try common getter methods
+        String[] methodNames = new String[]{"getBody", "getData", "getInputStream", "getRequestBody", "getBytes"};
+        for (String name : methodNames) {
+            try {
+                Method m = reqClass.getMethod(name);
+                m.setAccessible(true);
+                Object res = m.invoke(request);
+                byte[] b = toByteArray(res);
+                if (b != null) return b;
+            } catch (Throwable ignored) {}
+        }
+
+        // 2. Try declared fields on class hierarchy
+        Class<?> cur = reqClass;
+        String[] fieldNames = new String[]{"body", "mBody", "data", "mData", "postData", "mPostData", "requestBody", "mRequestBody"};
+        while (cur != null && cur != Object.class) {
+            for (String name : fieldNames) {
+                try {
+                    Field f = cur.getDeclaredField(name);
+                    f.setAccessible(true);
+                    Object res = f.get(request);
+                    byte[] b = toByteArray(res);
+                    if (b != null) return b;
+                } catch (Throwable ignored) {}
+            }
+            cur = cur.getSuperclass();
+        }
+
+        return null;
+    }
+
+    private byte[] toByteArray(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof byte[]) return (byte[]) obj;
+        if (obj instanceof String) return ((String) obj).getBytes(StandardCharsets.UTF_8);
+        if (obj instanceof InputStream) {
+            try (InputStream in = (InputStream) obj;
+                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                byte[] buf = new byte[4096];
+                int n;
+                while ((n = in.read(buf)) != -1) {
+                    out.write(buf, 0, n);
+                }
+                return out.toByteArray();
+            } catch (Exception ignored) {}
+        }
+        if (obj instanceof ByteBuffer) {
+            ByteBuffer bb = (ByteBuffer) obj;
+            byte[] b = new byte[bb.remaining()];
+            bb.get(b);
+            return b;
+        }
+        return null;
+    }
+
+    /**
      * Proxies HTTP requests to local networks via native HttpURLConnection.
+     * Handles ALL HTTP methods (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH) and forwards the request body.
      * Injects permissive CORS headers so JavaScript fetch() never gets blocked.
      */
     private WebResourceResponse proxyLocalHttpRequest(WebResourceRequest request) {
         try {
             URL url = new URL(request.getUrl().toString());
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod(request.getMethod());
+            String method = request.getMethod();
+            if (method == null || method.isEmpty()) method = "GET";
+            method = method.toUpperCase(Locale.US);
+            conn.setRequestMethod(method);
             conn.setConnectTimeout(8000);
             conn.setReadTimeout(12000);
             conn.setInstanceFollowRedirects(true);
@@ -225,7 +421,25 @@ public class MainActivity extends AppCompatActivity {
             Map<String, String> reqHeaders = request.getRequestHeaders();
             if (reqHeaders != null) {
                 for (Map.Entry<String, String> entry : reqHeaders.entrySet()) {
-                    conn.setRequestProperty(entry.getKey(), entry.getValue());
+                    if (!"Host".equalsIgnoreCase(entry.getKey())) {
+                        conn.setRequestProperty(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+
+            // Handle request body for POST, PUT, PATCH, DELETE
+            byte[] bodyBytes = extractRequestBody(request);
+            boolean hasOutput = "POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method) ||
+                    ("DELETE".equals(method) && bodyBytes != null && bodyBytes.length > 0);
+
+            if (hasOutput) {
+                conn.setDoOutput(true);
+                if (bodyBytes != null && bodyBytes.length > 0) {
+                    conn.setFixedLengthStreamingMode(bodyBytes.length);
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(bodyBytes);
+                        os.flush();
+                    }
                 }
             }
 
@@ -239,7 +453,7 @@ public class MainActivity extends AppCompatActivity {
                 String[] parts = contentType.split(";");
                 mimeType = parts[0].trim();
                 for (int i = 1; i < parts.length; i++) {
-                    String p = parts[i].trim().toLowerCase();
+                    String p = parts[i].trim().toLowerCase(Locale.US);
                     if (p.startsWith("charset=")) {
                         encoding = parts[i].trim().substring(8).trim();
                     }
@@ -247,23 +461,30 @@ public class MainActivity extends AppCompatActivity {
             }
 
             Map<String, String> respHeaders = new HashMap<>();
-            for (Map.Entry<String, java.util.List<String>> entry : conn.getHeaderFields().entrySet()) {
+            for (Map.Entry<String, List<String>> entry : conn.getHeaderFields().entrySet()) {
                 if (entry.getKey() != null && !entry.getValue().isEmpty()) {
                     respHeaders.put(entry.getKey(), entry.getValue().get(0));
                 }
             }
-            // Inject CORS headers for web client
+
+            // Inject CORS headers on all responses so WebView fetch() never gets blocked
             respHeaders.put("Access-Control-Allow-Origin", "*");
-            respHeaders.put("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
+            respHeaders.put("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
             respHeaders.put("Access-Control-Allow-Headers", "*");
             respHeaders.put("Access-Control-Allow-Credentials", "true");
+            respHeaders.put("Access-Control-Expose-Headers", "*");
 
-            InputStream in = statusCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
-            if (in == null) in = new ByteArrayInputStream(new byte[0]);
+            InputStream in;
+            if ("HEAD".equals(method)) {
+                in = new ByteArrayInputStream(new byte[0]);
+            } else {
+                in = statusCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                if (in == null) in = new ByteArrayInputStream(new byte[0]);
+            }
 
             return new WebResourceResponse(mimeType, encoding, statusCode, message, respHeaders, in);
         } catch (Exception e) {
-            Log.d(TAG, "Local proxy bypass to native for " + request.getUrl() + ": " + e.getMessage());
+            Log.d(TAG, "Local proxy bypass to native for " + request.getUrl() + " (" + request.getMethod() + "): " + e.getMessage());
             return null;
         }
     }
@@ -301,7 +522,7 @@ public class MainActivity extends AppCompatActivity {
         settings.setSupportMultipleWindows(true);
         settings.setJavaScriptCanOpenWindowsAutomatically(true);
 
-        // 7. File access for offline local audio library reading
+        // 7. File access for offline local audio library reading & DAP SD card storage
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(true);
         settings.setAllowUniversalAccessFromFileURLs(true);
@@ -339,17 +560,17 @@ public class MainActivity extends AppCompatActivity {
                 if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
                     Map<String, String> headers = new HashMap<>();
                     headers.put("Access-Control-Allow-Origin", "*");
-                    headers.put("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
+                    headers.put("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH");
                     headers.put("Access-Control-Allow-Headers", "*");
                     headers.put("Access-Control-Max-Age", "86400");
                     headers.put("Access-Control-Allow-Credentials", "true");
                     return new WebResourceResponse("text/plain", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(new byte[0]));
                 }
 
-                // Proxy local network HTTP requests to bypass CORS restrictions
+                // Proxy local network HTTP requests for ALL methods (GET, POST, PUT, DELETE, HEAD, etc.) to bypass CORS restrictions
                 String host = uri.getHost();
                 String scheme = uri.getScheme();
-                if ("http".equalsIgnoreCase(scheme) && isLocalOrPrivateNetwork(host) && "GET".equalsIgnoreCase(request.getMethod())) {
+                if ("http".equalsIgnoreCase(scheme) && isLocalOrPrivateNetwork(host)) {
                     WebResourceResponse proxied = proxyLocalHttpRequest(request);
                     if (proxied != null) return proxied;
                 }
@@ -470,28 +691,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 mFilePathCallback = filePathCallback;
 
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("*/*");
-                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-                String[] mimeTypes = {"audio/*", "application/octet-stream", "image/*"};
-                intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
-
-                try {
-                    mFileChooserLauncher.launch(intent);
-                } catch (ActivityNotFoundException e) {
-                    // Fallback to default chooser params
-                    try {
-                        Intent fallbackIntent = fileChooserParams.createIntent();
-                        fallbackIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-                        mFileChooserLauncher.launch(fallbackIntent);
-                    } catch (Exception ex) {
-                        mFilePathCallback = null;
-                        Toast.makeText(MainActivity.this, "Cannot open file chooser", Toast.LENGTH_SHORT).show();
-                        return false;
-                    }
-                }
-                return true;
+                return launchDapMusicChooser(fileChooserParams);
             }
         });
 
@@ -504,7 +704,8 @@ public class MainActivity extends AppCompatActivity {
      */
     private void injectAndroidEnvironmentBridge() {
         String js = "window.isNativeAndroid = true;" +
-                "window.androidPlatformInfo = { platform: 'Android', sdk: " + Build.VERSION.SDK_INT + " };" +
+                "window.androidPlatformInfo = { platform: 'Android', sdk: " + Build.VERSION.SDK_INT +
+                ", isDapCompatible: true, supportsLegacyStorage: " + (Build.VERSION.SDK_INT <= 30) + " };" +
                 "if (window.dispatchEvent) { window.dispatchEvent(new CustomEvent('nocturne-native-ready')); }";
         mWebView.evaluateJavascript(js, null);
     }
@@ -531,6 +732,7 @@ public class MainActivity extends AppCompatActivity {
             int rightDp = (int) (rightPx / density);
 
             String setCssVars = String.format(
+                    Locale.US,
                     "document.documentElement.style.setProperty('--safe-inset-top', '%dpx');" +
                     "document.documentElement.style.setProperty('--safe-inset-bottom', '%dpx');" +
                     "document.documentElement.style.setProperty('--safe-inset-left', '%dpx');" +
@@ -566,14 +768,50 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Request permissions for Android 13+ audio & notification
+     * Request permissions for Android 10 (FiiO M11S / API 29) through Android 15 (API 35).
+     * Android <= 12 (API <= 32) MUST request Manifest.permission.READ_EXTERNAL_STORAGE at runtime.
+     * Android 13+ (API 33+) requests READ_MEDIA_AUDIO and POST_NOTIFICATIONS.
      */
-    private void requestAppPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    public void requestAppPermissions() {
+        List<String> perms = new ArrayList<>();
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+            // Android <= 12 (API <= 32) e.g. FiiO M11S (Android 10 / API 29)
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED) {
+                perms.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+                }
+            }
+        } else {
+            // Android 13+ (API 33+)
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO)
+                    != PackageManager.PERMISSION_GRANTED) {
+                perms.add(Manifest.permission.READ_MEDIA_AUDIO);
+            }
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                     != PackageManager.PERMISSION_GRANTED) {
-                mPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+                perms.add(Manifest.permission.POST_NOTIFICATIONS);
             }
+        }
+        if (!perms.isEmpty()) {
+            mPermissionLauncher.launch(perms.toArray(new String[0]));
+        }
+    }
+
+    /**
+     * Check if audio storage read permission is granted
+     */
+    public boolean hasStoragePermission() {
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+            return ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
+                    == PackageManager.PERMISSION_GRANTED;
+        } else {
+            return ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED;
         }
     }
 
@@ -638,13 +876,9 @@ public class MainActivity extends AppCompatActivity {
                     .setOnAudioFocusChangeListener(focusChange -> {
                         switch (focusChange) {
                             case AudioManager.AUDIOFOCUS_LOSS:
-                                mHasAudioFocus = false;
-                                mWebView.post(() -> mWebView.evaluateJavascript(
-                                        "if (typeof state !== 'undefined' && state.context && state.context.state === 'running') { $('play-button')?.click(); }",
-                                        null));
-                                break;
                             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
                             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                                mHasAudioFocus = false;
                                 mWebView.post(() -> mWebView.evaluateJavascript(
                                         "if (typeof state !== 'undefined' && state.context && state.context.state === 'running') { $('play-button')?.click(); }",
                                         null));
@@ -713,7 +947,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * JavaScript Bridge Interface exposed to the web application
+     * JavaScript Bridge Interface exposed to the web application as `window.NocturneNative`
      */
     public static class WebAppInterface {
         private final MainActivity mActivity;
@@ -755,6 +989,221 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public int getAndroidSdk() {
             return Build.VERSION.SDK_INT;
+        }
+
+        @JavascriptInterface
+        public boolean hasStoragePermission() {
+            return mActivity.hasStoragePermission();
+        }
+
+        @JavascriptInterface
+        public void requestStoragePermission() {
+            mActivity.runOnUiThread(mActivity::requestAppPermissions);
+        }
+
+        @JavascriptInterface
+        public void openMusicChooser() {
+            mActivity.runOnUiThread(() -> mActivity.launchDapMusicChooser(null));
+        }
+
+        /**
+         * Returns JSON array of all accessible music storage root directories
+         * (e.g. /sdcard/Music, internal storage, and external MicroSD card mount points on FiiO M11S).
+         */
+        @JavascriptInterface
+        public String getStoragePaths() {
+            JSONArray array = new JSONArray();
+            Set<String> paths = new HashSet<>();
+
+            // 1. Primary external storage /sdcard
+            try {
+                File extDir = Environment.getExternalStorageDirectory();
+                if (extDir != null && extDir.exists()) {
+                    paths.add(extDir.getAbsolutePath());
+                    File musicDir = new File(extDir, "Music");
+                    if (musicDir.exists()) {
+                        paths.add(musicDir.getAbsolutePath());
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            // 2. Standard Music public directory
+            try {
+                File pubMusic = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC);
+                if (pubMusic != null && pubMusic.exists()) {
+                    paths.add(pubMusic.getAbsolutePath());
+                }
+            } catch (Exception ignored) {}
+
+            // 3. App-specific external files dirs (covers secondary SD cards on DAPs)
+            try {
+                File[] extFilesDirs = ContextCompat.getExternalFilesDirs(mActivity, null);
+                if (extFilesDirs != null) {
+                    for (File f : extFilesDirs) {
+                        if (f != null) {
+                            // Extract root SD card mount point from /storage/XXXX-XXXX/Android/data/...
+                            String p = f.getAbsolutePath();
+                            int idx = p.indexOf("/Android/");
+                            if (idx > 0) {
+                                String root = p.substring(0, idx);
+                                paths.add(root);
+                                File sdMusic = new File(root, "Music");
+                                if (sdMusic.exists()) paths.add(sdMusic.getAbsolutePath());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            // 4. Scan /storage directly on Android 10 (FiiO M11S)
+            try {
+                File storageRoot = new File("/storage");
+                if (storageRoot.exists() && storageRoot.isDirectory()) {
+                    File[] sub = storageRoot.listFiles();
+                    if (sub != null) {
+                        for (File s : sub) {
+                            if (s.isDirectory() && !s.getName().equals("self") && !s.getName().equals("knox-emulated")) {
+                                paths.add(s.getAbsolutePath());
+                                File m = new File(s, "Music");
+                                if (m.exists()) paths.add(m.getAbsolutePath());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            for (String p : paths) {
+                array.put(p);
+            }
+            return array.toString();
+        }
+
+        /**
+         * Scans a directory recursively for audio files (FLAC, DSD: DSF/DFF, WAV, ALAC, AIFF, MP3, etc.)
+         * Returns a JSON array of track metadata descriptors.
+         */
+        @JavascriptInterface
+        public String scanDirectory(String dirPath, int maxFiles) {
+            JSONArray results = new JSONArray();
+            if (dirPath == null || dirPath.isEmpty()) return results.toString();
+
+            File dir = new File(dirPath);
+            if (!dir.exists() || !dir.canRead()) return results.toString();
+
+            int limit = maxFiles > 0 ? maxFiles : 10000;
+            List<File> audioFiles = new ArrayList<>();
+            scanDirInternal(dir, audioFiles, limit);
+
+            for (File file : audioFiles) {
+                try {
+                    JSONObject obj = new JSONObject();
+                    obj.put("name", file.getName());
+                    obj.put("path", file.getAbsolutePath());
+                    obj.put("size", file.length());
+                    obj.put("lastModified", file.lastModified());
+                    results.put(obj);
+                } catch (Exception ignored) {}
+            }
+            return results.toString();
+        }
+
+        private void scanDirInternal(File current, List<File> collected, int limit) {
+            if (collected.size() >= limit || current == null || !current.exists()) return;
+            File[] files = current.listFiles();
+            if (files == null) return;
+
+            for (File file : files) {
+                if (collected.size() >= limit) break;
+                if (file.isDirectory()) {
+                    if (!file.getName().startsWith(".")) {
+                        scanDirInternal(file, collected, limit);
+                    }
+                } else {
+                    String name = file.getName().toLowerCase(Locale.US);
+                    if (name.endsWith(".flac") || name.endsWith(".dsf") || name.endsWith(".dff") ||
+                            name.endsWith(".wav") || name.endsWith(".mp3") || name.endsWith(".m4a") ||
+                            name.endsWith(".alac") || name.endsWith(".aiff") || name.endsWith(".aif") ||
+                            name.endsWith(".ogg") || name.endsWith(".opus") || name.endsWith(".ape") ||
+                            name.endsWith(".cue") || name.endsWith(".iso") || name.endsWith(".wma")) {
+                        collected.add(file);
+                    }
+                }
+            }
+        }
+
+        /**
+         * Native HTTP request proxy bridge for JavaScript fetch() calls that need native execution
+         * (e.g. Jellyfin POST login /Users/AuthenticateByName, Subsonic, Black Candy POST /api/v1/sessions)
+         */
+        @JavascriptInterface
+        public String httpFetch(String urlString, String method, String headersJson, String body) {
+            JSONObject response = new JSONObject();
+            try {
+                URL url = new URL(urlString);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                String m = (method != null && !method.isEmpty()) ? method.toUpperCase(Locale.US) : "GET";
+                conn.setRequestMethod(m);
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(12000);
+                conn.setInstanceFollowRedirects(true);
+
+                if (headersJson != null && !headersJson.isEmpty()) {
+                    try {
+                        JSONObject h = new JSONObject(headersJson);
+                        java.util.Iterator<String> keys = h.keys();
+                        while (keys.hasNext()) {
+                            String k = keys.next();
+                            conn.setRequestProperty(k, h.optString(k));
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                if (("POST".equals(m) || "PUT".equals(m) || "PATCH".equals(m)) && body != null) {
+                    conn.setDoOutput(true);
+                    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                    conn.setFixedLengthStreamingMode(bytes.length);
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(bytes);
+                        os.flush();
+                    }
+                }
+
+                int code = conn.getResponseCode();
+                String msg = conn.getResponseMessage();
+                response.put("status", code);
+                response.put("statusText", msg != null ? msg : "OK");
+
+                JSONObject respHeaders = new JSONObject();
+                for (Map.Entry<String, List<String>> e : conn.getHeaderFields().entrySet()) {
+                    if (e.getKey() != null && !e.getValue().isEmpty()) {
+                        respHeaders.put(e.getKey(), e.getValue().get(0));
+                    }
+                }
+                // Inject CORS headers
+                respHeaders.put("Access-Control-Allow-Origin", "*");
+                response.put("headers", respHeaders);
+
+                InputStream in = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+                if (in != null) {
+                    try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+                        byte[] buf = new byte[4096];
+                        int r;
+                        while ((r = in.read(buf)) != -1) {
+                            bos.write(buf, 0, r);
+                        }
+                        response.put("body", bos.toString("UTF-8"));
+                    }
+                } else {
+                    response.put("body", "");
+                }
+            } catch (Exception e) {
+                try {
+                    response.put("status", 500);
+                    response.put("statusText", "Native Fetch Error: " + e.getMessage());
+                    response.put("error", e.getMessage());
+                } catch (Exception ignored) {}
+            }
+            return response.toString();
         }
 
         @JavascriptInterface

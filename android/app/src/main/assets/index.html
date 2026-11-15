@@ -17,22 +17,26 @@
   <style id="app-style">
     /* Android Mobile Viewport & Safe Area Inset Support (PWA Edge-to-Edge) */
     :root {
-      --safe-area-top: env(safe-area-inset-top, 0px);
-      --safe-area-bottom: env(safe-area-inset-bottom, 0px);
-      --safe-area-left: env(safe-area-inset-left, 0px);
-      --safe-area-right: env(safe-area-inset-right, 0px);
+      --safe-inset-top: env(safe-area-inset-top, 0px);
+      --safe-inset-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-inset-left: env(safe-area-inset-left, 0px);
+      --safe-inset-right: env(safe-area-inset-right, 0px);
+      --safe-area-top: var(--safe-inset-top, env(safe-area-inset-top, 0px));
+      --safe-area-bottom: var(--safe-inset-bottom, env(safe-area-inset-bottom, 0px));
+      --safe-area-left: var(--safe-inset-left, env(safe-area-inset-left, 0px));
+      --safe-area-right: var(--safe-inset-right, env(safe-area-inset-right, 0px));
       color-scheme:dark;
       --accent:126 189 216;
     }
-    .safe-area-top, .pt-safe { padding-top: env(safe-area-inset-top, 0px) !important; }
-    .safe-area-bottom, .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px) !important; }
-    .safe-area-left, .pl-safe { padding-left: env(safe-area-inset-left, 0px) !important; }
-    .safe-area-right, .pr-safe { padding-right: env(safe-area-inset-right, 0px) !important; }
+    .safe-area-top, .pt-safe { padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px)) !important; }
+    .safe-area-bottom, .pb-safe { padding-bottom: var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) !important; }
+    .safe-area-left, .pl-safe { padding-left: var(--safe-area-left, env(safe-area-inset-left, 0px)) !important; }
+    .safe-area-right, .pr-safe { padding-right: var(--safe-area-right, env(safe-area-inset-right, 0px)) !important; }
     .safe-area-all, .p-safe {
-      padding-top: env(safe-area-inset-top, 0px) !important;
-      padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-      padding-left: env(safe-area-inset-left, 0px) !important;
-      padding-right: env(safe-area-inset-right, 0px) !important;
+      padding-top: var(--safe-area-top, env(safe-area-inset-top, 0px)) !important;
+      padding-bottom: var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) !important;
+      padding-left: var(--safe-area-left, env(safe-area-inset-left, 0px)) !important;
+      padding-right: var(--safe-area-right, env(safe-area-inset-right, 0px)) !important;
     }
     * { scrollbar-width:thin; scrollbar-color:#41464b transparent; }
     body { background:#111315; }
@@ -400,7 +404,7 @@
     @media(max-width:1023.98px){
       #sidebar-close{display:inline-grid}
       #app-shell{height:calc(100dvh - 104px);min-height:360px}
-      #sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(300px,86vw);height:100dvh;max-height:100dvh;transform:translateX(0)}
+      #sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(300px,86vw);height:100dvh;max-height:100dvh;transform:translateX(0);box-sizing:border-box}
       body.sidebar-collapsed #sidebar{transform:translateX(-105%);opacity:0;pointer-events:none}
       body:not(.sidebar-collapsed) #sidebar{transform:translateX(0);opacity:1}
       #sidebar-toggle{display:grid} #sidebar-close{display:inline-grid}
@@ -411,15 +415,512 @@
       #collection-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 18px}
       .roon-stat-grid{gap:12px}.roon-stat{min-height:112px;padding:16px}.roon-stat-value{font-size:29px}
     }
+    @media(max-width:767.98px){
+      /* Prevent horizontal scrolling & overflow on Android phones / DAPs (360px-412px viewports) */
+      html, body {
+        overflow-x: hidden !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+      }
+      #app-shell {
+        height: auto !important;
+        min-height: 100dvh !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+      }
+      #content-col {
+        width: 100% !important;
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+        padding-bottom: calc(128px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+      }
+
+      /* Safe-area insets & Touch Ergonomics for Header */
+      #content-col>header {
+        grid-template-columns: auto 1fr auto !important;
+        min-height: calc(56px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+        padding-top: calc(8px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+        padding-left: calc(10px + var(--safe-area-left, env(safe-area-inset-left, 0px))) !important;
+        padding-right: calc(10px + var(--safe-area-right, env(safe-area-inset-right, 0px))) !important;
+        padding-bottom: 8px !important;
+        max-width: 100vw !important;
+        box-sizing: border-box !important;
+        gap: 8px !important;
+      }
+      #page-title {
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+        text-align: center !important;
+        margin: 0 !important;
+      }
+      #sidebar-toggle {
+        display: inline-grid !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        width: 44px !important;
+        height: 44px !important;
+        place-items: center !important;
+        font-size: 20px !important;
+        touch-action: manipulation !important;
+      }
+      #sidebar-toggle-icon {
+        font-size: 20px !important;
+      }
+      #back-button {
+        display: inline-grid !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        width: 44px !important;
+        height: 44px !important;
+        place-items: center !important;
+        font-size: 24px !important;
+        touch-action: manipulation !important;
+      }
+      #header-favorites, #header-search {
+        min-width: 40px !important;
+        min-height: 44px !important;
+        width: 40px !important;
+        height: 44px !important;
+        display: inline-grid !important;
+        place-items: center !important;
+        font-size: 19px !important;
+        touch-action: manipulation !important;
+      }
+      #header-profile {
+        min-width: 36px !important;
+        min-height: 36px !important;
+        width: 36px !important;
+        height: 36px !important;
+        display: inline-grid !important;
+        place-items: center !important;
+      }
+      #header-eq-btn {
+        min-width: 38px !important;
+        min-height: 38px !important;
+        display: inline-grid !important;
+        place-items: center !important;
+        font-size: 12px !important;
+        touch-action: manipulation !important;
+      }
+      #mobile-settings {
+        min-width: 38px !important;
+        min-height: 38px !important;
+        display: inline-grid !important;
+        place-items: center !important;
+        font-size: 17px !important;
+        touch-action: manipulation !important;
+      }
+
+      /* Sidebar Navigation on phone screens */
+      #sidebar {
+        padding-top: calc(20px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+        padding-bottom: calc(24px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+        padding-left: calc(16px + var(--safe-area-left, env(safe-area-inset-left, 0px))) !important;
+        padding-right: 16px !important;
+      }
+      #sidebar .nav-link {
+        min-height: 48px !important;
+        padding: 12px 14px !important;
+        font-size: 15px !important;
+        touch-action: manipulation !important;
+      }
+      #sidebar .source-btn {
+        min-height: 44px !important;
+        padding: 10px 14px !important;
+      }
+      #sidebar-close, #settings-trigger, #sidebar-more {
+        min-width: 44px !important;
+        min-height: 44px !important;
+        width: 44px !important;
+        height: 44px !important;
+        display: inline-grid !important;
+        place-items: center !important;
+        font-size: 22px !important;
+        touch-action: manipulation !important;
+      }
+
+      /* Track Rows on mobile: 56-60px thumb-friendly with high contrast */
+      #track-list .track-row {
+        min-height: 58px !important;
+        padding: 8px 12px !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+        touch-action: manipulation !important;
+        cursor: pointer !important;
+        contain-intrinsic-size: auto 58px;
+      }
+      #track-list .track-row:active {
+        background: rgba(255, 255, 255, 0.08) !important;
+      }
+      #track-list .track-row.active {
+        background: rgba(145, 205, 229, 0.12) !important;
+        box-shadow: inset 4px 0 #91cde5 !important;
+      }
+      #track-list .track-row.active .track-title {
+        color: #b6dce9 !important;
+        font-weight: 600 !important;
+      }
+      #track-list .track-row .track-art {
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        border-radius: 6px !important;
+      }
+      #track-list .track-row .track-title {
+        font-size: 13.5px !important;
+        line-height: 1.35 !important;
+        color: #f1f3f4 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+      }
+      #track-list .track-row .artist-link {
+        font-size: 11.5px !important;
+        color: #7675ed !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+      }
+
+      /* Docked Mobile Footer Player Bar */
+      footer.glass {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: auto !important;
+        min-height: calc(80px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+        padding-bottom: calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 3px) !important;
+        box-sizing: border-box !important;
+        z-index: 40 !important;
+        background: rgba(21, 21, 21, 0.96) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+        box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5) !important;
+      }
+      footer.glass .footer-main-container {
+        height: auto !important;
+        max-width: 100% !important;
+        padding: 0 10px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      footer.glass .footer-player-row {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        height: 60px !important;
+        min-height: 60px !important;
+        gap: 6px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+
+      /* Left col: Cover & High-Contrast Typography */
+      footer.glass .footer-left-col {
+        width: auto !important;
+        max-width: none !important;
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        overflow: hidden !important;
+      }
+      footer.glass #player-cover {
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        border-radius: 8px !important;
+        flex-shrink: 0 !important;
+        touch-action: manipulation !important;
+      }
+      footer.glass #open-listening-room {
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+        overflow: hidden !important;
+        touch-action: manipulation !important;
+      }
+      footer.glass #now-title {
+        font-size: 13.5px !important;
+        font-weight: 600 !important;
+        color: #ffffff !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+        line-height: 1.25 !important;
+      }
+      footer.glass #now-artist {
+        font-size: 11px !important;
+        color: #9da5a9 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+        line-height: 1.25 !important;
+        margin-top: 1px !important;
+        max-width: 100% !important;
+      }
+
+      /* Center controls: Prev, Play/Pause, Next thumb targets */
+      footer.glass .footer-center-controls {
+        flex: 0 0 auto !important;
+        min-width: 0 !important;
+        width: auto !important;
+        max-width: none !important;
+        margin: 0 !important;
+        gap: 0 !important;
+        padding: 0 !important;
+      }
+      footer.glass .footer-center-controls > div:first-child {
+        display: flex !important;
+        align-items: center !important;
+        gap: 2px !important;
+      }
+      footer.glass #play-button {
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        display: grid !important;
+        place-items: center !important;
+        border-radius: 50% !important;
+        font-size: 17px !important;
+        margin: 0 2px !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.4) !important;
+        touch-action: manipulation !important;
+      }
+      footer.glass #previous-button, footer.glass #next-button {
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        display: inline-grid !important;
+        place-items: center !important;
+        font-size: 24px !important;
+        color: #e5e7eb !important;
+        padding: 0 !important;
+        touch-action: manipulation !important;
+      }
+      footer.glass #shuffle-button, footer.glass #repeat-button {
+        min-width: 38px !important;
+        min-height: 44px !important;
+        display: inline-grid !important;
+        place-items: center !important;
+        font-size: 15px !important;
+        touch-action: manipulation !important;
+      }
+
+      /* Smooth Touch-Scrubbing Seek Bar */
+      footer.glass .footer-main-container > div:last-child {
+        display: flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+        padding: 2px 0 4px 0 !important;
+        width: 100% !important;
+      }
+      #seek-mobile {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        height: 24px !important;
+        cursor: pointer !important;
+        touch-action: manipulation !important;
+        accent-color: #92cce2 !important;
+      }
+      #seek-mobile::-webkit-slider-runnable-track {
+        height: 5px !important;
+        border-radius: 9999px !important;
+        background: linear-gradient(to right, #92cce2 0%, #92cce2 var(--seek-progress, 0%), #464b4f var(--seek-progress, 0%), #464b4f 100%) !important;
+      }
+      #seek-mobile::-webkit-slider-thumb {
+        -webkit-appearance: none !important;
+        appearance: none !important;
+        width: 18px !important;
+        height: 18px !important;
+        border-radius: 50% !important;
+        margin-top: -6.5px !important;
+        background: #92cce2 !important;
+        border: 2px solid #ffffff !important;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.5) !important;
+      }
+      #current-time-mobile, #duration-mobile {
+        font-size: 10.5px !important;
+        color: #9ca3af !important;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+        tabular-nums: tabular-nums !important;
+        min-width: 32px !important;
+      }
+      #queue-button-mobile, #autoplay-button-mobile, #sleep-button-mobile, #ambient-button-mobile {
+        min-width: 38px !important;
+        min-height: 38px !important;
+        display: inline-grid !important;
+        place-items: center !important;
+        font-size: 14px !important;
+        color: #9da3a7 !important;
+        padding: 0 !important;
+        touch-action: manipulation !important;
+      }
+
+      /* Fullscreen Room / Now Playing modal */
+      #listening-room {
+        padding-top: calc(16px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+        padding-bottom: calc(24px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+        padding-left: calc(16px + var(--safe-area-left, env(safe-area-inset-left, 0px))) !important;
+        padding-right: calc(16px + var(--safe-area-right, env(safe-area-inset-right, 0px))) !important;
+        box-sizing: border-box !important;
+      }
+      #listening-room main {
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
+        padding: 8px 0 24px 0 !important;
+      }
+      #room-cover-wrap {
+        width: 100% !important;
+        max-width: min(76vw, 300px) !important;
+        aspect-ratio: 1 / 1 !important;
+        margin: 0 auto !important;
+        border-radius: 20px !important;
+      }
+      #room-title {
+        font-size: clamp(22px, 6vw, 30px) !important;
+        line-height: 1.2 !important;
+      }
+      #room-artist {
+        font-size: 15px !important;
+      }
+      #room-close {
+        min-width: 44px !important;
+        min-height: 44px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        touch-action: manipulation !important;
+      }
+      #room-previous, #room-next {
+        min-width: 48px !important;
+        min-height: 48px !important;
+        display: inline-grid !important;
+        place-items: center !important;
+        font-size: 26px !important;
+        touch-action: manipulation !important;
+      }
+      #room-play {
+        width: 58px !important;
+        height: 58px !important;
+        min-width: 58px !important;
+        min-height: 58px !important;
+        display: grid !important;
+        place-items: center !important;
+        touch-action: manipulation !important;
+      }
+      #room-lyrics {
+        max-height: 220px !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior-y: contain !important;
+        touch-action: pan-y !important;
+      }
+      #room-lyrics .lyric-line {
+        min-height: 32px !important;
+        display: flex !important;
+        align-items: center !important;
+        padding: 4px 8px !important;
+        font-size: 14.5px !important;
+        touch-action: manipulation !important;
+      }
+
+      /* Modal dialogs max-height & scrollability */
+      #settings-modal {
+        padding: calc(12px + var(--safe-area-top, env(safe-area-inset-top, 0px))) 10px calc(12px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) 10px !important;
+        box-sizing: border-box !important;
+      }
+      #settings-modal > div, #settings-panel {
+        max-height: calc(100dvh - 1.5rem) !important;
+        max-height: min(90vh, calc(100dvh - 1.5rem)) !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        padding: 16px !important;
+        border-radius: 18px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      #settings-modal input, #settings-modal select, #settings-modal button {
+        min-height: 44px !important;
+      }
+      #settings-modal #close-settings {
+        min-width: 44px !important;
+        min-height: 44px !important;
+      }
+
+      /* EQ & DSP Panel on mobile */
+      #eq-panel {
+        position: fixed !important;
+        left: 10px !important;
+        right: 10px !important;
+        bottom: calc(76px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+        width: auto !important;
+        max-width: none !important;
+        max-height: min(85vh, calc(100dvh - 90px)) !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        z-index: 70 !important;
+        border-radius: 18px !important;
+        padding: 16px !important;
+        box-sizing: border-box !important;
+      }
+      #eq-panel select, #eq-panel button {
+        min-height: 40px !important;
+      }
+
+      /* Sleep & Ambient panels on mobile */
+      #sleep-panel, #ambient-panel {
+        position: fixed !important;
+        left: 10px !important;
+        right: 10px !important;
+        bottom: calc(76px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+        width: auto !important;
+        max-width: none !important;
+        max-height: min(85vh, calc(100dvh - 90px)) !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        z-index: 70 !important;
+        border-radius: 18px !important;
+        padding: 16px !important;
+        box-sizing: border-box !important;
+      }
+
+      /* Zone modal & Signal Path modal */
+      #zone-modal > div, #signal-path-popover > div {
+        max-height: min(90vh, calc(100dvh - 2rem)) !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        border-radius: 18px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      #zone-modal-close {
+        min-width: 44px !important;
+        min-height: 44px !important;
+        display: inline-grid !important;
+        place-items: center !important;
+      }
+    }
     @media(max-width:640px){
-      #app-shell{height:calc(100dvh - 88px);min-height:320px}
-      #content-col>header{grid-template-columns:1fr 1fr 1fr;min-height:54px;padding:0 10px!important}
-      #header-favorites,#header-search{width:32px;height:34px}
+      #app-shell{height:auto;min-height:100dvh}
       #search{position:absolute;top:56px;right:12px;z-index:3;width:calc(100vw - 24px)}
       #home-view,#library-view{padding:24px 17px 34px}
-      #home-heading{margin:20px 0 35px;font-size:43px}
+      #home-heading{margin:20px 0 35px;font-size:clamp(30px, 7vw, 43px)}
       #library-intro{align-items:flex-start;flex-direction:column;margin:24px 0 30px}
-      #list-title{font-size:47px}
+      #list-title{font-size:clamp(30px, 8vw, 47px)}
       #visible-count{margin-top:8px!important;font-size:13px!important}
       #play-library-button{min-height:48px;font-size:15px}
       #context-row{align-items:flex-start;flex-direction:column;margin-bottom:18px}
@@ -432,8 +933,10 @@
       #recent-section{margin:0 -17px;padding:22px 17px}
       #recent-section .activity-heading{gap:14px;flex-wrap:wrap}#recent-section #recent-title{font-size:18px}#recent-section .activity-tab{font-size:11px}
       #recent-list{grid-auto-columns:132px;gap:12px}
-      footer.glass{height:88px}footer.glass>div{padding:0 10px}footer.glass>div>div:first-child{height:62px}
       footer.glass.player-idle .audio-zone-empty button{min-width:220px;height:46px;font-size:14px}
+    }
+    @media(max-width:480px){
+      #volume-mobile{display:none!important}
     }
   </style>
 </head>
@@ -1015,7 +1518,7 @@
     </section>
   </div>
   <div id="eq-panel" class="fixed bottom-[140px] right-4 z-40 hidden max-h-[75vh] w-[min(25rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-white/10 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-xl">
-    <div class="flex items-center justify-between"><h3 class="text-sm font-medium">Parametric Equalizer</h3><label class="flex items-center gap-2 text-[10px] text-zinc-400"><input id="eq-enabled" type="checkbox" class="accent-violet-500"> Bật EQ</label></div>
+    <div class="flex items-center justify-between"><div class="flex items-center gap-3"><h3 class="text-sm font-medium">Parametric Equalizer</h3><label class="flex items-center gap-2 text-[10px] text-zinc-400"><input id="eq-enabled" type="checkbox" class="accent-violet-500"> Bật EQ</label></div><button id="eq-close-btn" type="button" class="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white text-sm" aria-label="Đóng EQ">✕</button></div>
     <p class="mt-1 text-[10px] text-zinc-500">Tự động hạ preamp theo mức boost cao nhất để giữ headroom. Tắt EQ để bypass DSP.</p>
     <label class="mt-3 flex items-center justify-between text-xs text-zinc-400">Preset EQ <select id="eq-preset" class="rounded-md border border-white/10 bg-zinc-950 px-2 py-1.5 text-[10px] text-zinc-200"><option value="flat">Phẳng</option><option value="bass">Bass mạnh</option><option value="treble">Treble sáng</option><option value="vocal">Giọng hát</option><option value="rock">Rock</option><option value="jazz">Jazz</option><option value="custom">Tùy chỉnh</option></select></label>
     <div id="eq-bands" class="mt-3 space-y-2"></div>
@@ -1295,7 +1798,7 @@
       <main class="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,.85fr)] lg:gap-16">
         <div id="room-cover-wrap" class="relative mx-auto aspect-square w-full max-w-[min(72vw,520px)] overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 shadow-2xl shadow-violet-950/20 select-none touch-none"><div class="absolute inset-0 bg-gradient-to-br from-violet-500/15 via-transparent to-black/40"></div><img id="room-cover" class="relative h-full w-full object-contain" alt="Bìa album" hidden><div id="room-cover-empty" class="grid h-full w-full place-items-center text-8xl text-violet-200/70">♫</div></div>
         <section class="min-w-0"><p class="text-[10px] uppercase tracking-[.2em] text-zinc-500">Đang phát</p><h1 id="room-title" class="mt-3 break-words text-3xl font-semibold tracking-tight sm:text-4xl">Chưa phát nhạc</h1><p id="room-artist" class="mt-2 text-lg text-zinc-300">Chọn một bài hát để bắt đầu</p><p id="room-album" class="mt-1 text-sm text-zinc-500">—</p>
-          <div class="mt-5 flex flex-wrap items-center gap-2"><span id="room-quality" class="rounded-md border border-white/10 px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-zinc-400">READY</span><button id="room-favorite" type="button" class="rounded-md border border-white/10 px-2.5 py-1.5 text-sm text-zinc-300 hover:text-pink-300" aria-label="Thêm vào yêu thích">♡</button><div id="room-rating" class="flex items-center gap-1 cursor-pointer text-amber-400 text-base select-none px-2.5 py-1 rounded-md border border-white/10 bg-white/[.03]" aria-label="Đánh giá 5 sao" title="Đánh giá bài hát"><span class="star" data-rating="1">☆</span><span class="star" data-rating="2">☆</span><span class="star" data-rating="3">☆</span><span class="star" data-rating="4">☆</span><span class="star" data-rating="5">☆</span></div><span id="room-engagement-badge" class="hidden sm:inline-block rounded border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[9px] font-mono text-amber-300" title="Chỉ số gắn kết & xếp hạng thông minh (Smart Track Engagement Analytics)">--★</span></div>
+          <div class="mt-5 flex flex-wrap items-center gap-2"><span id="room-quality" class="rounded-md border border-white/10 px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-zinc-400">READY</span><button id="room-favorite" type="button" class="rounded-md border border-white/10 px-2.5 py-1.5 text-sm text-zinc-300 hover:text-pink-300" aria-label="Thêm vào yêu thích">♡</button><button id="room-eq-button" type="button" class="rounded-md border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs font-semibold text-violet-300 hover:text-white hover:bg-violet-500/20 hover:border-violet-400/50 transition inline-flex items-center gap-1.5" title="Bộ chỉnh âm Equalizer & DSP">🎛 EQ &amp; DSP</button><div id="room-rating" class="flex items-center gap-1 cursor-pointer text-amber-400 text-base select-none px-2.5 py-1 rounded-md border border-white/10 bg-white/[.03]" aria-label="Đánh giá 5 sao" title="Đánh giá bài hát"><span class="star" data-rating="1">☆</span><span class="star" data-rating="2">☆</span><span class="star" data-rating="3">☆</span><span class="star" data-rating="4">☆</span><span class="star" data-rating="5">☆</span></div><span id="room-engagement-badge" class="hidden sm:inline-block rounded border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[9px] font-mono text-amber-300" title="Chỉ số gắn kết & xếp hạng thông minh (Smart Track Engagement Analytics)">--★</span></div>
           <div class="mt-7 rounded-2xl border border-white/[.08] bg-white/[.03] p-4">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
@@ -1928,7 +2431,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null };
+    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null };
 
     function saveAlbumCoversCache() {
       try {
@@ -4435,7 +4938,15 @@
         return 0;
       }
       const steps = 32, outCurve = new Float32Array(steps + 1), inCurve = new Float32Array(steps + 1);
-      const startOut = Number.isFinite(oldDeck.router.gain.value) ? oldDeck.router.gain.value : 1;
+      const rawOut = (oldDeck.router && oldDeck.router.gain && Number.isFinite(oldDeck.router.gain.value))
+        ? oldDeck.router.gain.value
+        : 1;
+      const isOngoingFade = Boolean(
+        typeof state !== 'undefined' && state && state.crossfadeUntil && context.currentTime < state.crossfadeUntil
+      );
+      const startOut = (isOngoingFade && rawOut > 0.05)
+        ? Math.min(1, Math.max(0, rawOut))
+        : (rawOut > 0.05 ? Math.min(1, rawOut) : 1);
       const curveType = (typeof state !== 'undefined' && state && state.crossfadeCurve) ? state.crossfadeCurve : 'equal-power';
       for (let i = 0; i <= steps; i++) {
         const gains = typeof library.calculateCrossfadeGains === 'function'
@@ -4444,12 +4955,31 @@
         outCurve[i] = gains.out * startOut;
         inCurve[i] = gains.in;
       }
-      oldDeck.router.gain.cancelScheduledValues(now);
-      oldDeck.router.gain.setValueAtTime(startOut, now);
+      if (typeof oldDeck.router.gain.cancelAndHoldAtTime === 'function') {
+        try { oldDeck.router.gain.cancelAndHoldAtTime(now); }
+        catch (_) { oldDeck.router.gain.cancelScheduledValues(now); }
+      } else if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') {
+        oldDeck.router.gain.cancelScheduledValues(now);
+      }
       oldDeck.router.gain.setValueCurveAtTime(outCurve, now, duration);
-      newDeck.router.gain.cancelScheduledValues(now);
-      newDeck.router.gain.setValueAtTime(0, now);
+      try {
+        if (typeof oldDeck.router.gain.setValueAtTime === 'function') {
+          oldDeck.router.gain.setValueAtTime(0, now + duration);
+        }
+      } catch (_) {}
+
+      if (typeof newDeck.router.gain.cancelAndHoldAtTime === 'function') {
+        try { newDeck.router.gain.cancelAndHoldAtTime(now); }
+        catch (_) { newDeck.router.gain.cancelScheduledValues(now); }
+      } else if (typeof newDeck.router.gain.cancelScheduledValues === 'function') {
+        newDeck.router.gain.cancelScheduledValues(now);
+      }
       newDeck.router.gain.setValueCurveAtTime(inCurve, now, duration);
+      try {
+        if (typeof newDeck.router.gain.setValueAtTime === 'function') {
+          newDeck.router.gain.setValueAtTime(1, now + duration);
+        }
+      } catch (_) {}
       return duration;
     }
     function rebuildDeckRoute(deck) {
@@ -8016,12 +8546,25 @@
             const claimedByPreload = preloadHref !== '' && previous.src === preloadHref;
             if (!claimedByPreload) { previous.pause(); previous.muted = true; previous.removeAttribute('src'); previous.load(); }
           }
+          if (oldDeck && oldDeck.router && oldDeck.router.gain) {
+            try {
+              if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') oldDeck.router.gain.cancelScheduledValues(state.context ? state.context.currentTime : 0);
+              oldDeck.router.gain.value = 1;
+              if (typeof oldDeck.router.gain.setValueAtTime === 'function') oldDeck.router.gain.setValueAtTime(1, state.context ? state.context.currentTime : 0);
+            } catch (_) {}
+          }
           releaseUnusedCloudUrl(previousTrack); releaseUnusedLocalUrl(previousTrack);
         }, fadeSeconds * 1000 + 50);
       } else {
         standbyAudio.muted = true; standbyAudio.pause();
         previous.pause(); previous.muted = true;
         previous.removeAttribute('src'); previous.load();
+        if (oldDeck && oldDeck.router && oldDeck.router.gain) {
+          try {
+            if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') oldDeck.router.gain.cancelScheduledValues(state.context ? state.context.currentTime : 0);
+            oldDeck.router.gain.value = 1;
+          } catch (_) {}
+        }
       }
       scheduleTrackRender();
       preloadNext(true);
@@ -8083,6 +8626,7 @@
       // track.file (file gốc vẫn giữ trong RAM) để phát được ngay.
       if (track.source === 'local' && !track.isDsd && !track.url && track.file) { track.url = URL.createObjectURL(track.file); state.objectUrls.add(track.url); }
       const generation = ++state.playGeneration;
+      state.autoCrossfadeGeneration = 0;
       state.bpmEnergyHistory = [];
       const roomBpmInit = $('room-bpm-badge');
       if (roomBpmInit) roomBpmInit.textContent = '-- BPM';
@@ -8167,7 +8711,22 @@
       target.volume = audio.volume; target.muted = false;
       if (state.activeDeck) {
         const nextDeck = state.activeDeck === state.deckA ? state.deckB : state.deckA;
-        nextDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .01);
+        const now = state.context ? state.context.currentTime : 0;
+        try {
+          if (typeof nextDeck.router.gain.cancelScheduledValues === 'function') nextDeck.router.gain.cancelScheduledValues(now);
+          nextDeck.router.gain.setValueAtTime(0, now);
+        } catch (_) {
+          nextDeck.router.gain.setTargetAtTime(0, now, .01);
+        }
+        const isFading = Boolean(state.crossfadeUntil && state.context && state.context.currentTime < state.crossfadeUntil);
+        if (!isFading && state.activeDeck.router && state.activeDeck.router.gain) {
+          try {
+            if (typeof state.activeDeck.router.gain.cancelScheduledValues === 'function') state.activeDeck.router.gain.cancelScheduledValues(now);
+            state.activeDeck.router.gain.setValueAtTime(1, now);
+          } catch (_) {
+            state.activeDeck.router.gain.value = 1;
+          }
+        }
       }
       const onPlaybackLoadError = () => {
         if (generation !== state.playGeneration) return;
@@ -10911,6 +11470,19 @@
         const activeTrack = state.tracks.find(item => item.id === state.currentId);
         if (typeof checkScrobbleEligibility === 'function' && activeTrack) checkScrobbleEligibility(activeTrack, element.currentTime, activeTrack.duration || element.duration);
         if (library.shouldPreloadNext(element.duration, element.currentTime, standbyAudio.src, state.preloadReadyUrl, library.PRELOAD_LEAD_SECONDS, location.href)) preloadNext();
+        // Auto-crossfade lookahead on track end: start next track early so Deck A and Deck B blend seamlessly
+        const autoFadeEligible = (typeof library !== 'undefined' && typeof library.shouldAutoCrossfade === 'function')
+          ? library.shouldAutoCrossfade(element.currentTime, element.duration, state.crossfadeSeconds, {
+              isPaused: element.paused,
+              isSliceWaiting: Boolean(activeTrack && activeTrack.firstSlicePlayback && activeTrack.fullAudioPromise),
+              repeatMode: state.repeat,
+              hasNextTrack: (typeof queueIndex === 'function' ? queueIndex() >= 0 : false)
+            })
+          : (element === audio && !element.paused && state.crossfadeSeconds > 0 && Number.isFinite(element.duration) && element.duration > state.crossfadeSeconds && element.currentTime >= element.duration - state.crossfadeSeconds && !(activeTrack && activeTrack.firstSlicePlayback && activeTrack.fullAudioPromise) && (typeof queueIndex === 'function' ? queueIndex() >= 0 : true));
+        if (element === audio && autoFadeEligible && state.autoCrossfadeGeneration !== state.playGeneration && !state.sleepAtTrackEnd) {
+          state.autoCrossfadeGeneration = state.playGeneration;
+          playNext(1, true);
+        }
         if (typeof savePlaybackSession === 'function') savePlaybackSession();
       });
       element.addEventListener('progress', () => updateBufferPipelineTelemetry(element));
@@ -11089,12 +11661,15 @@
       } catch (error) { console.warn('Could not register media session actions:', error); }
     }
     $('eq-button').addEventListener('click', () => $('eq-panel').classList.toggle('hidden'));
+    $('room-eq-button')?.addEventListener('click', () => $('eq-panel').classList.toggle('hidden'));
+    $('eq-close-btn')?.addEventListener('click', () => $('eq-panel').classList.add('hidden'));
     $('eq-add-band').addEventListener('click', () => addEqBand());
     $('eq-enabled').addEventListener('change', event => {
       if (!state.context) setupAudio();
       applyEq();
       const enabled = event.target.checked;
       $('eq-button').classList.toggle('text-violet-300', enabled);
+      $('room-eq-button')?.classList.toggle('text-violet-300', enabled);
       updateEqButtonLabel();
     });
     $('eq-preamp').addEventListener('input', applyEq);
