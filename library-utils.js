@@ -7592,5 +7592,217 @@
     return `${rec.icon || '🎵'} ${title} (${count} bài · ${dur})`;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge};
+  // ── Pha D — Tối Ưu Hóa Nạp Trước Bộ Nhớ Đệm Đa Tầng & Khả Năng Thích Ứng Khi Băng Thông Mạng Chập Chờn ──
+
+  function calculateNetworkThroughputAdaptiveProfile(measurements = [], currentNetworkState = {}) {
+    const isOnline = currentNetworkState.isOnline !== false;
+    if (!isOnline) {
+      return {
+        measuredBps: 0,
+        kbps: 0,
+        mbps: 0,
+        tier: 'offline',
+        label: 'Ngoại tuyến',
+        recommendedPrefetchTracks: 0,
+        recommendedSliceBytes: 0,
+        lookaheadTargetSeconds: 0,
+        allowMetadataEnrichment: false,
+        isThrottled: true,
+        saveDataActive: Boolean(currentNetworkState.saveData)
+      };
+    }
+
+    let measuredBps = 0;
+    const validSamples = Array.isArray(measurements) ? measurements.filter(m => m && Number(m.bytes) > 0 && Number(m.durationMs) > 0) : [];
+
+    if (validSamples.length > 0) {
+      let totalWeight = 0;
+      let weightedSpeedSum = 0;
+      let weight = 1.0;
+      for (let i = validSamples.length - 1; i >= 0; i--) {
+        const sample = validSamples[i];
+        const sampleBps = (Number(sample.bytes) * 8) / (Number(sample.durationMs) / 1000);
+        weightedSpeedSum += sampleBps * weight;
+        totalWeight += weight;
+        weight *= 0.6;
+      }
+      measuredBps = totalWeight > 0 ? weightedSpeedSum / totalWeight : 2500000;
+    } else if (Number.isFinite(currentNetworkState.downlink) && currentNetworkState.downlink > 0) {
+      measuredBps = currentNetworkState.downlink * 1000000;
+    } else {
+      const typeSpeedMap = {
+        '4g': 4000000,
+        '3g': 1200000,
+        '2g': 250000,
+        'slow-2g': 64000
+      };
+      measuredBps = typeSpeedMap[currentNetworkState.effectiveType] || 3000000;
+    }
+
+    let tier = 'stable';
+    if (measuredBps >= 5000000) {
+      tier = 'high-speed';
+    } else if (measuredBps >= 1500000) {
+      tier = 'stable';
+    } else if (measuredBps >= 400000) {
+      tier = 'constrained';
+    } else {
+      tier = 'throttled';
+    }
+
+    if (currentNetworkState.saveData && (tier === 'high-speed' || tier === 'stable')) {
+      tier = 'constrained';
+    }
+
+    const tierConfigMap = {
+      'high-speed': {
+        recommendedPrefetchTracks: 3,
+        recommendedSliceBytes: 1048576,
+        lookaheadTargetSeconds: 45,
+        allowMetadataEnrichment: true,
+        label: 'Băng thông Cao'
+      },
+      'stable': {
+        recommendedPrefetchTracks: 2,
+        recommendedSliceBytes: 524288,
+        lookaheadTargetSeconds: 30,
+        allowMetadataEnrichment: true,
+        label: 'Ổn định'
+      },
+      'constrained': {
+        recommendedPrefetchTracks: 1,
+        recommendedSliceBytes: 262144,
+        lookaheadTargetSeconds: 16,
+        allowMetadataEnrichment: false,
+        label: 'Băng thông Hạn chế'
+      },
+      'throttled': {
+        recommendedPrefetchTracks: 0,
+        recommendedSliceBytes: 131072,
+        lookaheadTargetSeconds: 8,
+        allowMetadataEnrichment: false,
+        label: 'Nghẽn mạng / Chậm'
+      }
+    };
+
+    const config = tierConfigMap[tier] || tierConfigMap['stable'];
+    const kbps = Math.round(measuredBps / 1000);
+    const mbps = Math.round((measuredBps / 1000000) * 100) / 100;
+
+    return {
+      measuredBps: Math.round(measuredBps),
+      kbps,
+      mbps,
+      tier,
+      label: config.label,
+      recommendedPrefetchTracks: config.recommendedPrefetchTracks,
+      recommendedSliceBytes: config.recommendedSliceBytes,
+      lookaheadTargetSeconds: config.lookaheadTargetSeconds,
+      allowMetadataEnrichment: config.allowMetadataEnrichment,
+      isThrottled: tier === 'throttled',
+      saveDataActive: Boolean(currentNetworkState.saveData)
+    };
+  }
+
+  function calculateThrottlingBackoff(failureCount = 1, baseDelayMs = 800, maxDelayMs = 15000, options = {}) {
+    const count = Math.max(1, Number(failureCount) || 1);
+    const base = Math.max(100, Number(baseDelayMs) || 800);
+    const max = Math.max(base, Number(maxDelayMs) || 15000);
+    const maxRetries = Number.isFinite(options.maxRetries) ? options.maxRetries : 5;
+
+    const expDelay = Math.min(max, base * Math.pow(2, count - 1));
+    const jitterRatio = Number.isFinite(options.jitter) ? Math.max(0, Math.min(0.5, options.jitter)) : 0.15;
+    const randomFactor = 1 + (Math.random() * 2 - 1) * jitterRatio;
+    const delayMs = Math.max(100, Math.min(Math.round(max * 1.3), Math.round(expDelay * randomFactor)));
+
+    let backoffLevel = 'immediate';
+    if (delayMs > 8000) {
+      backoffLevel = 'extended';
+    } else if (delayMs > 4000) {
+      backoffLevel = 'moderate';
+    } else if (delayMs > 1500) {
+      backoffLevel = 'quick';
+    }
+
+    return {
+      delayMs,
+      baseDelayMs: base,
+      failureCount: count,
+      retryAllowed: count <= maxRetries,
+      nextAttemptInSec: Math.round((delayMs / 1000) * 10) / 10,
+      backoffLevel
+    };
+  }
+
+  function evaluateLookaheadBufferPipeline(activeDeckState = {}, nextTrackPreloadState = {}, queueLength = 0, networkProfile = {}) {
+    const curTime = Math.max(0, Number(activeDeckState.currentTime) || 0);
+    const dur = Math.max(0, Number(activeDeckState.duration) || 0);
+    const bufEnd = Math.max(0, Number(activeDeckState.bufferedEnd) || 0);
+    const isPlaying = Boolean(activeDeckState.isPlaying);
+
+    const activeHeadroomSec = Math.max(0, bufEnd - curTime);
+    const remainingTrackSec = Math.max(0, dur - curTime);
+    const isUnderflowRisk = Boolean(isPlaying && activeHeadroomSec < 4.0 && remainingTrackSec > 5.0);
+
+    let nextTrackReadiness = 0;
+    if (nextTrackPreloadState) {
+      if (nextTrackPreloadState.isReady) {
+        nextTrackReadiness = 1.0;
+      } else if (Number(nextTrackPreloadState.ratio) >= 0) {
+        nextTrackReadiness = Math.min(1.0, Math.max(0, Number(nextTrackPreloadState.ratio)));
+      } else if (Number(nextTrackPreloadState.bytesLoaded) > 0 && Number(nextTrackPreloadState.totalBytes) > 0) {
+        nextTrackReadiness = Math.min(1.0, Math.max(0, nextTrackPreloadState.bytesLoaded / nextTrackPreloadState.totalBytes));
+      }
+    }
+
+    let pipelineHealth = 'healthy';
+    if (isPlaying && activeHeadroomSec < 2.0 && remainingTrackSec > 3.0) {
+      pipelineHealth = 'starving';
+    } else if (isUnderflowRisk || (networkProfile.isThrottled && activeHeadroomSec < 8.0)) {
+      pipelineHealth = 'vulnerable';
+    } else if (activeHeadroomSec >= 15.0 && (nextTrackReadiness >= 0.8 || queueLength === 0)) {
+      pipelineHealth = 'optimal';
+    } else {
+      pipelineHealth = 'healthy';
+    }
+
+    let recommendedAction = 'normal';
+    if (pipelineHealth === 'starving') {
+      recommendedAction = 'emergency_fallback';
+    } else if (pipelineHealth === 'vulnerable') {
+      recommendedAction = 'boost_active_buffer';
+    } else if (networkProfile.isThrottled) {
+      recommendedAction = 'throttle_lookahead';
+    }
+
+    return {
+      activeHeadroomSec: Math.round(activeHeadroomSec * 10) / 10,
+      isUnderflowRisk,
+      nextTrackReadiness: Math.round(nextTrackReadiness * 100) / 100,
+      pipelineHealth,
+      recommendedAction,
+      networkTier: networkProfile.tier || 'stable',
+      recommendedSliceBytes: networkProfile.recommendedSliceBytes || 524288
+    };
+  }
+
+  function formatLookaheadPipelineTelemetry(pipelineReport) {
+    if (!pipelineReport) return '⚡ Đệm: Đang tải...';
+    const headroom = pipelineReport.activeHeadroomSec !== undefined ? `${pipelineReport.activeHeadroomSec}s` : '--';
+    const readiness = pipelineReport.nextTrackReadiness !== undefined ? `${Math.round(pipelineReport.nextTrackReadiness * 100)}%` : '--';
+
+    switch (pipelineReport.pipelineHealth) {
+      case 'starving':
+        return `🚨 Đệm cạn kiệt (${headroom}) · Nguy cơ dừng nhạc`;
+      case 'vulnerable':
+        return `⚠️ Đệm mỏng (${headroom}) · Đang nạp gấp`;
+      case 'optimal':
+        return `⚡ Đệm dồi dào (${headroom}) · Kế tiếp ${readiness}`;
+      case 'healthy':
+      default:
+        return `🟢 Đệm ổn định (${headroom}) · Kế tiếp ${readiness}`;
+    }
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry};
 });

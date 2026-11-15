@@ -2,6 +2,33 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 07:45 +07] — Pha D: Tối Ưu Hóa Nạp Trước Bộ Nhớ Đệm Đa Tầng (Multi-Tier Lookahead Audio Buffer Pipeline) & Khả Năng Thích Ứng Khi Băng Thông Mạng Chập Chờn (Network Throttling Resiliency)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Hiệu Năng & PWA:
+- **Phân khu trọng tâm:** **Kiến Trúc Bộ Nhớ Đệm Âm Thanh Đa Tầng, Thích Ứng Băng Thông Mạng Thời Gian Thực (EWMA Throughput), Thuật Toán Phục Hồi Lũy Tiến Jitter & Chống Nghẽn Mạng PWA**.
+- **Tính năng & Đột phá:**
+  1. **Hồ sơ thích ứng băng thông mạng (`calculateNetworkThroughputAdaptiveProfile`):**
+     - Thuật toán trung bình trượt có trọng số hàm mũ (EWMA) đo lường tốc độ truyền tải thực tế (bps / kbps / Mbps) qua các lần tải lát nhị phân.
+     - Phân loại 5 cấp bậc băng thông: `high-speed` (>=5 Mbps), `stable` (1.5–5 Mbps), `constrained` (400 kbps–1.5 Mbps), `throttled` (<400 kbps), và `offline`.
+     - Tự động điều chỉnh kích thước lát nạp đệm thích ứng: 1MB (`high-speed`), 512KB (`stable`), 256KB (`constrained`), 128KB (`throttled`).
+     - Tự động hoãn các tác vụ tốn băng thông (ảnh bìa chất lượng cao, truy vấn metadata MusicBrainz ngoài) khi mạng bị nghẽn (`allowMetadataEnrichment: false`) và khi kích hoạt chế độ tiết kiệm dữ liệu (`saveData: true`).
+  2. **Thuật toán phục hồi lũy tiến có Jitter chống nghẽn (`calculateThrottlingBackoff`):**
+     - Mô hình hồi phục Exponential Backoff kết hợp độ trễ ngẫu nhiên có kiểm soát (Jitter 15%) chống dồn toa yêu cầu mạng khi máy chủ hoặc đường truyền bị quá tải.
+     - Phân cấp phản ứng: `immediate` (<=1.5s), `quick` (1.5–4s), `moderate` (4–8s), `extended` (>8s), kiểm soát số lần thử tối đa an toàn.
+  3. **Đánh giá sức khỏe đường ống đệm nạp trước (`evaluateLookaheadBufferPipeline`):**
+     - Kiểm soát đồng thời 3 tầng đệm: thời gian đệm chạy an toàn của bài đang phát (`activeHeadroomSec`), nguy cơ gián đoạn (`isUnderflowRisk < 4.0s`), và mức độ sẵn sàng của bài kế tiếp (`nextTrackReadiness`).
+     - Phân loại 4 mức sức khỏe đường ống: `optimal`, `healthy`, `vulnerable`, `starving`.
+     - Đưa ra hành động tối ưu hóa: `normal`, `boost_active_buffer`, `throttle_lookahead`, `emergency_fallback`.
+  4. **Tích hợp UI Telemetry & Bất biến Âm thanh:**
+     - Bổ sung huy hiệu thời gian thực `#footer-buffer-pipeline-badge` trên `#footer-telemetry-strip`: hiển thị số giây đệm khả dụng, tỷ lệ sẵn sàng bài kế tiếp và cảnh báo đổi màu theo trạng thái sức khỏe đường ống.
+     - Cập nhật liên tục qua sự kiện `timeupdate` và `progress` trên các deck âm thanh.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `lookahead-buffer-resiliency.test.cjs` (**6/6 tests PASS 100%**).
+  - Toàn bộ các suite test hồi quy liên quan (**138/138 tests PASS 100%** trong 766ms).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 07:15 +07] — Pha C: Hệ Thống Gợi Ý Danh Sách Phát Ngữ Cảnh Tự Động (Smart Contextual Playlist Engine) & Gắn Tag Âm Học Tự Động (Acoustic Metadata Auto-Tagging)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Core Features & UI:
