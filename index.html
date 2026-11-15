@@ -478,6 +478,58 @@
             </div>
           </div>
         </section>
+
+        <!-- Smart Contextual Playlist Recommendation Engine (Pha C) -->
+        <section id="smart-contextual-section" class="mb-8" aria-labelledby="contextual-heading">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="inline-block h-2 w-2 rounded-full bg-indigo-400 animate-pulse"></span>
+                <h2 id="contextual-heading" class="text-lg font-semibold text-white">Gợi ý Ngữ cảnh Thông minh</h2>
+                <span id="contextual-time-badge" class="rounded-full border border-indigo-400/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-mono text-indigo-300">Đêm Khuya</span>
+              </div>
+              <p id="contextual-subtitle" class="mt-0.5 text-xs text-zinc-400">Tuyển chọn bài hát phù hợp thời điểm và chuẩn âm học cho bạn</p>
+            </div>
+            <div class="flex items-center gap-1.5 overflow-x-auto text-xs">
+              <button type="button" class="contextual-preset-pill active rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200 transition hover:bg-purple-500/30" data-context="auto">Tự động</button>
+              <button type="button" class="contextual-preset-pill rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 transition hover:bg-white/10 hover:text-white" data-context="late-night">Đêm khuya</button>
+              <button type="button" class="contextual-preset-pill rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 transition hover:bg-white/10 hover:text-white" data-context="deep-focus">Tập trung</button>
+              <button type="button" class="contextual-preset-pill rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 transition hover:bg-white/10 hover:text-white" data-context="high-energy">Năng lượng</button>
+              <button type="button" class="contextual-preset-pill rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 transition hover:bg-white/10 hover:text-white" data-context="hi-res-master">Hi-Res/DSD</button>
+              <button type="button" class="contextual-preset-pill rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 transition hover:bg-white/10 hover:text-white" data-context="analog-warmth">Vintage</button>
+            </div>
+          </div>
+          <div id="contextual-card" class="rounded-2xl border border-white/10 bg-gradient-to-br from-indigo-950/40 via-zinc-900/60 to-purple-950/30 p-5 backdrop-blur-xl shadow-xl transition-all">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div class="flex items-start gap-4 min-w-0">
+                <div id="contextual-icon" class="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-indigo-500/20 text-2xl border border-indigo-400/30 shadow-inner">🌙</div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <h3 id="contextual-playlist-title" class="text-base font-semibold text-white truncate">Đêm Khuya Audiophile</h3>
+                    <span id="contextual-badge-pill" class="rounded border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[9px] font-mono text-purple-300">LATE NIGHT</span>
+                  </div>
+                  <p id="contextual-desc" class="mt-1 text-xs text-zinc-300 line-clamp-2">Tuyển tập các bản thu Vocal, Jazz và Ballad sâu lắng với dải động tự nhiên, lý tưởng cho trải nghiệm nghe tai nghe đêm muộn.</p>
+                  <div class="mt-2 flex items-center gap-3 text-[11px] font-mono text-zinc-400">
+                    <span id="contextual-count">0 bài hát</span>
+                    <span>·</span>
+                    <span id="contextual-duration">0 phút</span>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button id="contextual-play-btn" type="button" class="flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-purple-600/30 transition hover:bg-purple-500 active:scale-95">
+                  <span>▶</span>
+                  <span>Phát Danh Sách</span>
+                </button>
+                <button id="contextual-queue-btn" type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white" title="Thêm vào hàng đợi">
+                  <span>＋ Hàng đợi</span>
+                </button>
+              </div>
+            </div>
+            <!-- Horizontal preview of contextual tracks -->
+            <div id="contextual-tracks-preview" class="mt-4 flex gap-3 overflow-x-auto pt-2 pb-1 border-t border-white/5"></div>
+          </div>
+        </section>
       </div>
 
       <section id="recent-section" class="mt-7 hidden" aria-labelledby="recent-title">
@@ -1653,7 +1705,7 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null };
+    const state = { tracks: [], currentId: null, queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null };
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -2423,6 +2475,93 @@
         if (track) playTrack(track.id);
       }));
       $('recent-section').classList.toggle('hidden', !recent.length || state.activeView !== 'home');
+      renderContextualPlaylist();
+    }
+
+    function renderContextualPlaylist() {
+      const section = $('smart-contextual-section');
+      if (!section) return;
+      if (state.activeView !== 'home') {
+        section.classList.add('hidden');
+        return;
+      }
+      section.classList.remove('hidden');
+
+      if (!state.tracks || state.tracks.length === 0) {
+        if ($('contextual-count')) $('contextual-count').textContent = '0 bài hát';
+        if ($('contextual-duration')) $('contextual-duration').textContent = '0:00';
+        if ($('contextual-tracks-preview')) $('contextual-tracks-preview').innerHTML = '<p class="text-xs text-zinc-500 py-2">Thêm nhạc vào thư viện để nhận gợi ý danh sách phát ngữ cảnh.</p>';
+        return;
+      }
+
+      const hour = new Date().getHours();
+      const rec = (typeof library !== 'undefined' && typeof library.recommendContextualPlaylist === 'function')
+        ? library.recommendContextualPlaylist(state.tracks, {
+            context: state.contextualPreset || 'auto',
+            hour,
+            seedTrackId: state.currentId
+          })
+        : null;
+      if (!rec) return;
+      state.contextualRecommendation = rec;
+
+      document.querySelectorAll('.contextual-preset-pill').forEach(pill => {
+        const isAct = pill.dataset.context === (state.contextualPreset || 'auto');
+        pill.classList.toggle('active', isAct);
+        pill.classList.toggle('border-purple-500/40', isAct);
+        pill.classList.toggle('bg-purple-500/20', isAct);
+        pill.classList.toggle('text-purple-200', isAct);
+        pill.classList.toggle('text-zinc-400', !isAct);
+      });
+
+      const timeSlotText = hour >= 22 || hour < 5 ? 'Đêm Khuya' : hour >= 5 && hour < 11 ? 'Buổi Sáng' : hour >= 11 && hour < 17 ? 'Buổi Chiều' : 'Buổi Tối';
+      if ($('contextual-time-badge')) $('contextual-time-badge').textContent = `${timeSlotText} · ${String(hour).padStart(2, '0')}:00`;
+
+      if ($('contextual-icon')) $('contextual-icon').textContent = rec.icon || '🎵';
+      if ($('contextual-playlist-title')) $('contextual-playlist-title').textContent = rec.title;
+      if ($('contextual-badge-pill')) $('contextual-badge-pill').textContent = rec.badge || 'SMART';
+      if ($('contextual-desc')) $('contextual-desc').textContent = rec.description;
+      if ($('contextual-count')) $('contextual-count').textContent = `${rec.totalTracks} bài hát`;
+      if ($('contextual-duration')) $('contextual-duration').textContent = rec.formattedDuration || '0:00';
+
+      const previewTracks = (rec.tracks || []).slice(0, 8);
+      const previewEl = $('contextual-tracks-preview');
+      if (previewEl) {
+        previewEl.innerHTML = previewTracks.map(t => {
+          const meta = (typeof library !== 'undefined' && typeof library.trackMetadata === 'function') ? library.trackMetadata(t) : t;
+          const tags = (typeof library !== 'undefined' && typeof library.autoTagTrackAcoustics === 'function') ? library.autoTagTrackAcoustics(t) : { dominantTag: 'Audio' };
+          const isCurrent = t.id === state.currentId;
+          const coverHtml = t.cover ? `<img src="${escapeHtml(t.cover)}" class="h-full w-full object-contain" alt="">` : '♫';
+          return `<button type="button" data-contextual-track="${escapeHtml(t.id)}" class="group flex flex-col items-start gap-1.5 p-2 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.06] hover:border-violet-400/30 transition shrink-0 w-[130px] text-left">
+            <div class="relative h-24 w-full rounded-lg bg-zinc-800 flex items-center justify-center overflow-hidden">
+              ${coverHtml}
+              ${isCurrent ? '<span class="absolute inset-0 bg-purple-900/40 grid place-items-center text-white text-xs">▶</span>' : ''}
+              <span class="absolute bottom-1 right-1 rounded bg-black/60 px-1 py-0.2 text-[8px] font-mono text-zinc-300">${t.duration ? formatTime(t.duration) : ''}</span>
+            </div>
+            <span class="w-full truncate text-xs font-medium ${isCurrent ? 'text-purple-300' : 'text-zinc-200'}">${escapeHtml(meta.title)}</span>
+            <span class="w-full truncate text-[10px] text-zinc-400">${escapeHtml(meta.artist)}</span>
+            <span class="rounded bg-white/5 border border-white/5 px-1 py-0.2 text-[8px] font-mono text-zinc-400">${tags.dominantTag}</span>
+          </button>`;
+        }).join('');
+
+        previewEl.querySelectorAll('[data-contextual-track]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const trackId = btn.dataset.contextualTrack;
+            if (!trackId) return;
+            const matchedIndex = rec.tracks.findIndex(t => t.id === trackId);
+            const remainingTracks = rec.tracks.slice(matchedIndex + 1);
+            state.playbackContext = {
+              type: 'contextual-playlist',
+              id: rec.id,
+              title: rec.title,
+              trackIds: rec.tracks.map(t => t.id)
+            };
+            state.queueTrackIds = remainingTracks.map(t => t.id);
+            playTrack(trackId);
+            toast(`Đang phát: ${rec.title}`);
+          });
+        });
+      }
     }
     function recordHistory(track) {
       const trackKey = library.historyTrackKey(track);
@@ -8325,6 +8464,50 @@
       });
     }
 
+    // Pha C — Bộ lắng nghe sự kiện Gợi ý Danh sách phát Ngữ cảnh (Smart Contextual Playlist)
+    document.querySelectorAll('.contextual-preset-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        state.contextualPreset = pill.dataset.context;
+        try { localStorage.setItem('nocturne-contextual-preset', state.contextualPreset); } catch (_) {}
+        renderContextualPlaylist();
+        toast(`Đã chuyển gợi ý: ${pill.textContent}`);
+      });
+    });
+
+    const ctxPlayBtn = $('contextual-play-btn');
+    if (ctxPlayBtn) {
+      ctxPlayBtn.addEventListener('click', () => {
+        const rec = state.contextualRecommendation || (typeof library !== 'undefined' && typeof library.recommendContextualPlaylist === 'function' ? library.recommendContextualPlaylist(state.tracks, { context: state.contextualPreset || 'auto', seedTrackId: state.currentId }) : null);
+        if (!rec || !rec.tracks || rec.tracks.length === 0) {
+          toast('Chưa có bài hát trong danh sách gợi ý.');
+          return;
+        }
+        state.playbackContext = {
+          type: 'contextual-playlist',
+          id: rec.id,
+          title: rec.title,
+          trackIds: rec.tracks.map(t => t.id)
+        };
+        state.queueTrackIds = rec.tracks.slice(1).map(t => t.id);
+        playTrack(rec.tracks[0].id);
+        toast(typeof library !== 'undefined' && typeof library.formatContextualRecommendationBadge === 'function' ? library.formatContextualRecommendationBadge(rec) : `Đang phát: ${rec.title}`);
+      });
+    }
+
+    const ctxQueueBtn = $('contextual-queue-btn');
+    if (ctxQueueBtn) {
+      ctxQueueBtn.addEventListener('click', () => {
+        const rec = state.contextualRecommendation || (typeof library !== 'undefined' && typeof library.recommendContextualPlaylist === 'function' ? library.recommendContextualPlaylist(state.tracks, { context: state.contextualPreset || 'auto' }) : null);
+        if (!rec || !rec.tracks || rec.tracks.length === 0) {
+          toast('Chưa có bài hát trong danh sách gợi ý.');
+          return;
+        }
+        const newIds = rec.tracks.map(t => t.id);
+        state.queueTrackIds = [...(state.queueTrackIds || []), ...newIds];
+        toast(`Đã thêm ${newIds.length} bài vào hàng đợi.`);
+      });
+    }
+
     const rateSelect = $('playback-rate-select');
     if (rateSelect) {
       rateSelect.addEventListener('change', () => {
@@ -10188,5 +10371,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 05:00 +07 | Đã xong: Pha D & Bugfix - Kiến Trúc & PWA: Tối Ưu Bộ Nhớ Cache Service Worker, Phân Đoạn Âm Thanh Stream (Audio Stream Dynamic Chunking) & Khắc Phục Triệt Để Xung Đột Bố Cục Footer/Mini HUD & Nâng Cấp 1-Click Update: (1) calculateAudioChunkRanges phân đoạn byte range (bytes=0-524287) nạp đệm mượt mà cho stream âm thanh lớn; shouldCacheAudioStream xác định chiến lược (full-cache <= 5MB vs range-chunk > 5MB vs bypass); formatStreamChunkStatus định dạng telemetry nạp đệm thời gian thực; buildServiceWorkerCacheManifest xây dựng danh mục cache chuẩn hóa; (2) Tối ưu triệt để bố cục Player Footer: tách bạch hoàn toàn #footer-telemetry-strip (height: 28px) và .footer-main-container (height: 88px), triệt tiêu các CSS selector lỗi div:first-child kế thừa 100% height, đảm bảo nút Play/Pause và seekbar luôn thông thoáng, không bao giờ bị đè lấn hoặc che khuất; (3) Cố định cứng kích thước Mini Player HUD (w-[360px] h-[64px]) và ràng buộc giới hạn kéo (maxBottomClearance = 110px) không bao giờ che khuất dock điều khiển bài hát; (4) Nâng cấp cơ chế 'Cập nhật' (#update-now): lưu phiên phát hiện tại, tạm dừng mượt mà, kích hoạt ngay Service Worker qua SKIP_WAITING và tự động phát tiếp ngay sau khi tải lại mà không làm gián đoạn người nghe; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 86/86 tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Dynamic Crossfade Equal-Power Smoothing & Sub-bass Transient Punch -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 05:45 +07 | Đã xong: Pha A - Audio Engine & DSP: Dynamic Crossfade Equal-Power Smoothing & Sub-bass Transient Punch (Audiophile Sub-Bass Dynamic Transient Punch Engine, Low-Frequency Decay Shaping & Equal-Power Crossfade Transition Smoothing): (1) calculateSubBassPunchParams & getSubBassPunchProfile kiến tạo 5 profile xung lực dải trầm (off, tight 60Hz, deep 42Hz, warm 85Hz, slam 35Hz) với khả năng tự động tính toán preamp bù suy giảm an toàn chống clipping 100% 0 dBFS; (2) calculateLowFrequencyTransientDecay mô hình hóa vật lý giảm chấn và nửa thời gian chu kỳ xung lực dải trầm; (3) profile hòa âm 'sub-bass-blend' trong calculateCrossfadeGains bảo toàn trọn vẹn năng lượng âm trầm (cos^0.7 / sin^0.7) giữ mức >= 0.784 ở điểm giao thoa; (4) Tích hợp chuỗi Web Audio DSP: createSubBassPunchNodes nối trước Peak Limiter, đồng bộ cấu hình sao lưu và khôi phục localStorage nocturne-sub-bass-punch và nocturne-sub-bass-intensity; (5) Tích hợp UI EQ panel: #sub-bass-select, slider #sub-bass-intensity-slider, huy hiệu #sub-bass-punch-badge và tùy chọn trong #crossfade-curve-select; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 13/13 tests sub-bass-punch-crossfade.test.cjs PASS 100%, 116/116 regression tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Âm Nhạc Toàn Màn Hình & Đồng Hồ Đo Nhiệt Động Học Âm Học (Acoustic Thermal Ballistics & Fullscreen Soundstage) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 06:25 +07 | Đã xong: Pha B - UI/UX & Visualizer: Sân Khấu Âm Nhạc Toàn Màn Hình & Đồng Hồ Đo Nhiệt Động Học Âm Học (Acoustic Thermal Ballistics & Fullscreen Soundstage 3D): (1) calculateThermalBallistics mô phỏng quán tính nhiệt động học ampli (Power dissipation = RMS^2), nhiệt độ vận hành 25°C–85°C và cảnh báo quá tải nhiệt; formatThermalBallisticsBadge xuất huy hiệu trực quan; (2) calculateSoundstageAcousticVectors & formatSoundstageVectorsSummary phân tích vector âm hình 3D (hướng Azimuth [-45°, +45°], độ sâu Depth [0.1, 1.0], độ mở Spread [0, 100%], độ thoáng Airiness); (3) renderAcousticSoundstageCanvas kết xuất radar chòm sao âm học 3D (Polar Soundstage Radar) với vị trí điểm ngọt sweet spot và hào quang vector phát sáng 60fps; (4) Tích hợp chế độ Sân khấu Toàn màn hình (#fullscreen-stage-visualizer, #fullscreen-view-stage-btn, canvas #fullscreen-stage-canvas, nút chuyển đổi Radar 3D / VU Meter, huy hiệu #fs-soundstage-badge & #fs-thermal-badge) và phím tắt chuyển đổi; (5) Bổ sung huy hiệu nhiệt động học #room-thermal-badge trong Phòng nghe; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 10/10 tests acoustic-thermal-ballistics-stage.test.cjs PASS 100%, 126/126 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Tối Ưu: Hệ Thống Gợi Ý Danh Sách Phát Ngữ Cảnh Tự Động (Smart Contextual Playlist Engine & Acoustic Metadata Auto-Tagging) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 07:15 +07 | Đã xong: Pha C - Core Features & Tối Ưu: Hệ Thống Gợi Ý Danh Sách Phát Ngữ Cảnh Tự Động (Smart Contextual Playlist Engine) & Gắn Tag Âm Học Tự Động (Acoustic Metadata Auto-Tagging): (1) autoTagTrackAcoustics & ACOUSTIC_TAG_TAXONOMY gắn tag đa chiều cho bài hát theo 4 nhóm Quality, Dynamics, Acoustic, Daypart; xác định dominantTag và confidenceScore; (2) recommendContextualPlaylist & CONTEXTUAL_PLAYLIST_PRESETS kiến tạo 5 Preset danh sách phát ngữ cảnh (late-night, deep-focus, high-energy, hi-res-master, analog-warmth) tự động thích nghi khung giờ sinh học và thuật toán ưu tiên bài hạt giống seedTrackId thông minh; (3) formatContextualRecommendationBadge xuất huy hiệu danh sách trực quan; (4) Tích hợp UI trang chủ: #smart-contextual-section, #contextual-time-badge, thanh preset pills, thẻ thông tin #contextual-card với nút phát danh sách #contextual-play-btn, nút thêm hàng đợi #contextual-queue-btn và dải thẻ bài hát ngang #contextual-tracks-preview; (5) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests smart-contextual-playlist.test.cjs PASS 100%, 132/132 regression tests PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Tối Ưu Hóa Nạp Trước Bộ Nhớ Đệm Đa Tầng & Network Throttling Resiliency -->
 </body>
 </html>

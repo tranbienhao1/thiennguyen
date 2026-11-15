@@ -7342,5 +7342,255 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas};
+  // ── Pha C — Hệ Thống Gợi Ý Danh Sách Phát Ngữ Cảnh & Gắn Tag Tự Động ──
+
+  const ACOUSTIC_TAG_TAXONOMY = {
+    quality: [
+      { id: 'dsd-master', label: 'DSD Direct Master', match: t => Boolean(t.isDsd || String(t.format || '').toLowerCase().includes('dsd') || /\.(dsf|dff)$/i.test(t.path || t.file || t.url || '')) },
+      { id: 'hires-audio', label: 'Hi-Res 24-bit', match: t => Boolean(t.isHiRes || (t.sampleRate && t.sampleRate > 48000) || (t.bitDepth && t.bitDepth > 16)) },
+      { id: 'lossless-flac', label: 'Lossless Studio', match: t => Boolean(String(t.format || '').toLowerCase().includes('flac') || String(t.format || '').toLowerCase().includes('wav') || t.qualityTier === 'lossless') },
+      { id: 'compact-audio', label: 'Standard AAC/MP3', match: t => Boolean(String(t.format || '').toLowerCase().includes('mp3') || String(t.format || '').toLowerCase().includes('aac') || String(t.format || '').toLowerCase().includes('m4a')) }
+    ],
+    dynamics: [
+      { id: 'dr-audiophile', label: 'Dynamic Master (DR12+)', match: (t, tel = {}) => Boolean(tel.drScore >= 12 || (t.dynamicRange && t.dynamicRange >= 12)) },
+      { id: 'dr-standard', label: 'Natural Dynamic (DR8-11)', match: (t, tel = {}) => Boolean((tel.drScore >= 8 && tel.drScore < 12) || (t.dynamicRange >= 8 && t.dynamicRange < 12)) },
+      { id: 'dr-club', label: 'Compressed Loudness', match: (t, tel = {}) => Boolean((tel.drScore > 0 && tel.drScore < 8) || (t.dynamicRange > 0 && t.dynamicRange < 8)) }
+    ],
+    acoustic: [
+      { id: 'tag-vocal', label: 'Audiophile Vocal', match: t => /vocal|giọng ca|singer|acoustic/i.test(`${t.title || ''} ${t.artist || ''} ${t.genre || ''}`) },
+      { id: 'tag-acoustic', label: 'Acoustic Unplugged', match: t => /acoustic|unplugged|guitar|piano|mộc/i.test(`${t.title || ''} ${t.artist || ''} ${t.genre || ''}`) },
+      { id: 'tag-electronic', label: 'Sub-Bass EDM', match: t => /edm|remix|house|techno|dance|synth/i.test(`${t.title || ''} ${t.artist || ''} ${t.genre || ''}`) },
+      { id: 'tag-classical', label: 'Classical & Symphony', match: t => /classical|symphony|orchestra|concerto|piano/i.test(`${t.title || ''} ${t.artist || ''} ${t.genre || ''}`) },
+      { id: 'tag-jazz', label: 'Vintage Jazz & Blues', match: t => /jazz|blues|soul|sax/i.test(`${t.title || ''} ${t.artist || ''} ${t.genre || ''}`) }
+    ],
+    daypart: [
+      { id: 'daypart-morning', label: 'Khởi đầu Năng lượng (Morning)', match: t => /pop|rock|energy|dance/i.test(`${t.genre || ''} ${t.title || ''}`) },
+      { id: 'daypart-focus', label: 'Tập trung Sâu (Deep Focus)', match: t => (Number(t.duration) >= 200 && /acoustic|piano|classical|jazz|ambient|instrumental/i.test(`${t.genre || ''} ${t.title || ''}`)) },
+      { id: 'daypart-latenight', label: 'Đêm khuya Audiophile (Late Night)', match: t => Boolean(t.isDsd || t.isHiRes || /vocal|ballad|trữ tình|jazz|slow/i.test(`${t.genre || ''} ${t.title || ''}`)) }
+    ]
+  };
+
+  function autoTagTrackAcoustics(track, telemetry = {}) {
+    if (!track) {
+      return {
+        tags: ['Audio'],
+        categoryMap: { quality: ['Audio'], dynamics: [], acoustic: [], daypart: [] },
+        dominantTag: 'Audio',
+        confidenceScore: 0.5
+      };
+    }
+
+    const categoryMap = {
+      quality: [],
+      dynamics: [],
+      acoustic: [],
+      daypart: []
+    };
+
+    for (const [cat, tagDefs] of Object.entries(ACOUSTIC_TAG_TAXONOMY)) {
+      for (const def of tagDefs) {
+        try {
+          if (typeof def.match === 'function' && def.match(track, telemetry)) {
+            categoryMap[cat].push(def.label);
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (categoryMap.quality.length === 0) {
+      categoryMap.quality.push(track.format ? String(track.format).toUpperCase() : 'Stereo Audio');
+    }
+    if (categoryMap.acoustic.length === 0) {
+      const moodGenre = detectTrackMoodAndGenre(track);
+      if (moodGenre.genres && moodGenre.genres.length) {
+        categoryMap.acoustic.push(moodGenre.genres[0]);
+      }
+    }
+
+    const allTags = [
+      ...categoryMap.quality,
+      ...categoryMap.dynamics,
+      ...categoryMap.acoustic,
+      ...categoryMap.daypart
+    ];
+
+    const dominantTag = categoryMap.quality[0] || categoryMap.acoustic[0] || 'Audiophile Track';
+    const confidenceScore = Math.min(1.0, Math.max(0.6, 0.5 + allTags.length * 0.1));
+
+    return {
+      tags: allTags,
+      categoryMap,
+      dominantTag,
+      confidenceScore: Math.round(confidenceScore * 100) / 100
+    };
+  }
+
+  const CONTEXTUAL_PLAYLIST_PRESETS = {
+    'late-night': {
+      id: 'late-night',
+      title: 'Đêm Khuya Audiophile',
+      subtitle: 'Không gian tĩnh lặng · Chi tiết ấm áp',
+      description: 'Tuyển tập các bản thu Vocal, Jazz và Ballad sâu lắng với dải động tự nhiên, lý tưởng cho trải nghiệm nghe tai nghe đêm muộn.',
+      badge: 'LATE NIGHT',
+      icon: '🌙',
+      filter: t => {
+        const text = `${t.genre || ''} ${t.title || ''} ${t.artist || ''}`.toLowerCase();
+        return Boolean(t.isDsd || t.isHiRes || /vocal|jazz|ballad|trữ tình|acoustic|blues|slow/i.test(text));
+      },
+      sort: (a, b) => (Number(b.duration) || 0) - (Number(a.duration) || 0)
+    },
+    'deep-focus': {
+      id: 'deep-focus',
+      title: 'Tập Trung Sâu & Dòng Chảy',
+      subtitle: 'Không lời · Nhịp điệu điều hòa',
+      description: 'Âm nhạc mộc, cổ điển, jazz êm dịu và âm thanh khí quyển giúp não bộ duy trì trạng thái tập trung sâu.',
+      badge: 'DEEP FOCUS',
+      icon: '🧠',
+      filter: t => {
+        const text = `${t.genre || ''} ${t.title || ''} ${t.artist || ''}`.toLowerCase();
+        return /acoustic|piano|guitar|classical|instrumental|ambient|lo-fi|jazz/i.test(text);
+      },
+      sort: (a, b) => ((b.rating || 0) - (a.rating || 0))
+    },
+    'high-energy': {
+      id: 'high-energy',
+      title: 'Năng Lượng Bùng Nổ',
+      subtitle: 'Xung lực dải trầm · Tiết tấu sôi động',
+      description: 'Nhịp điệu dồn dập, bass uy lực và tiết tấu hưng phấn tiếp lửa cho các hoạt động thể thao hoặc khởi động ngày mới.',
+      badge: 'HIGH ENERGY',
+      icon: '⚡',
+      filter: t => {
+        const text = `${t.genre || ''} ${t.title || ''} ${t.artist || ''}`.toLowerCase();
+        return /edm|rock|pop|remix|house|techno|dance|electronic|bùng nổ/i.test(text);
+      },
+      sort: (a, b) => (Number(b.duration) || 0) - (Number(a.duration) || 0)
+    },
+    'hi-res-master': {
+      id: 'hi-res-master',
+      title: 'Trình Diễn Master & DSD',
+      subtitle: 'Chuẩn âm học phòng thu 24-bit / DSD',
+      description: 'Tận dụng tối đa băng thông DAC cao cấp với các bản thu FLAC 24-bit 96kHz+ và DSD Direct Stream Digital nguyên bản.',
+      badge: 'HI-RES MASTER',
+      icon: '💎',
+      filter: t => Boolean(t.isDsd || t.isHiRes || (t.sampleRate && t.sampleRate > 48000) || (t.bitDepth && t.bitDepth > 16) || t.qualityTier === 'dsd' || t.qualityTier === 'highres'),
+      sort: (a, b) => (compareTrackQuality ? compareTrackQuality(b, a) : 0)
+    },
+    'analog-warmth': {
+      id: 'analog-warmth',
+      title: 'Hồn Thu Âm Hoài Niệm (Vinyl Vintage)',
+      subtitle: 'Chất âm mộc mạc · Giàu nhạc tính thập niên',
+      description: 'Giai điệu vàng của những thập niên 70s-90s với âm hưởng mộc mạc, ngọt ngào và dải trầm analog ấm áp.',
+      badge: 'VINTAGE VINYL',
+      icon: '📻',
+      filter: t => {
+        const dec = extractDecade ? extractDecade(t) : null;
+        const text = `${t.genre || ''} ${t.title || ''} ${t.artist || ''} ${t.album || ''}`.toLowerCase();
+        return Boolean((dec && ['1960s', '1970s', '1980s', '1990s'].includes(dec)) || /retro|vintage|oldies|classic|xưa|hoài niệm|bất hủ/i.test(text));
+      },
+      sort: (a, b) => (Number(a.year || 9999) - Number(b.year || 9999))
+    }
+  };
+
+  function recommendContextualPlaylist(tracks, options = {}) {
+    if (!Array.isArray(tracks) || tracks.length === 0) {
+      const preset = CONTEXTUAL_PLAYLIST_PRESETS['late-night'];
+      return {
+        id: preset.id,
+        title: preset.title,
+        subtitle: preset.subtitle,
+        description: preset.description,
+        badge: preset.badge,
+        icon: preset.icon,
+        tracks: [],
+        totalTracks: 0,
+        totalDurationSec: 0,
+        formattedDuration: '0:00',
+        matchScore: 0
+      };
+    }
+
+    let presetKey = options.context;
+    if (!presetKey || presetKey === 'auto') {
+      const hour = Number.isFinite(options.hour) ? options.hour : new Date().getHours();
+      if (hour >= 22 || hour < 5) {
+        presetKey = 'late-night';
+      } else if (hour >= 5 && hour < 11) {
+        presetKey = 'high-energy';
+      } else if (hour >= 11 && hour < 17) {
+        presetKey = 'deep-focus';
+      } else {
+        presetKey = 'late-night';
+      }
+    }
+
+    const preset = CONTEXTUAL_PLAYLIST_PRESETS[presetKey] || CONTEXTUAL_PLAYLIST_PRESETS['late-night'];
+    const maxTracks = Number.isFinite(options.maxTracks) ? Math.max(1, options.maxTracks) : 25;
+    const excludeIds = new Set(Array.isArray(options.excludeIds) ? options.excludeIds : []);
+
+    let filtered = tracks.filter(t => t && !excludeIds.has(t.id));
+
+    if (options.seedTrackId) {
+      const seed = tracks.find(t => t && t.id === options.seedTrackId);
+      if (seed) {
+        const seedArtist = String(seed.artist || '').toLowerCase().trim();
+        const seedGenre = String(seed.genre || '').toLowerCase().trim();
+        filtered.sort((a, b) => {
+          let scoreA = 0, scoreB = 0;
+          if (seedArtist && String(a.artist || '').toLowerCase().includes(seedArtist)) scoreA += 3;
+          if (seedArtist && String(b.artist || '').toLowerCase().includes(seedArtist)) scoreB += 3;
+          if (seedGenre && String(a.genre || '').toLowerCase().includes(seedGenre)) scoreA += 2;
+          if (seedGenre && String(b.genre || '').toLowerCase().includes(seedGenre)) scoreB += 2;
+          if (seed.isHiRes && a.isHiRes) scoreA += 1;
+          if (seed.isHiRes && b.isHiRes) scoreB += 1;
+          return scoreB - scoreA;
+        });
+      }
+    }
+
+    let matchedTracks = filtered.filter(preset.filter);
+
+    if (matchedTracks.length < Math.min(5, filtered.length)) {
+      const remaining = filtered.filter(t => !matchedTracks.some(m => m.id === t.id));
+      matchedTracks = matchedTracks.concat(remaining.slice(0, 5 - matchedTracks.length));
+    }
+
+    if (typeof preset.sort === 'function' && !options.seedTrackId) {
+      try { matchedTracks.sort(preset.sort); } catch (_) {}
+    } else if (options.seedTrackId) {
+      const seedIndex = matchedTracks.findIndex(t => t && t.id === options.seedTrackId);
+      if (seedIndex > 0) {
+        const [seedItem] = matchedTracks.splice(seedIndex, 1);
+        matchedTracks.unshift(seedItem);
+      }
+    }
+
+    const selectedTracks = matchedTracks.slice(0, maxTracks);
+    const totalDurationSec = selectedTracks.reduce((acc, t) => acc + (Number(t.duration) || 0), 0);
+    const formattedDuration = formatAlbumDuration ? formatAlbumDuration(totalDurationSec) : `${Math.round(totalDurationSec / 60)} phút`;
+    const matchScore = tracks.length > 0 ? Math.min(1.0, Math.round((selectedTracks.length / Math.min(maxTracks, tracks.length)) * 100) / 100) : 0;
+
+    return {
+      id: preset.id,
+      title: preset.title,
+      subtitle: preset.subtitle,
+      description: preset.description,
+      badge: preset.badge,
+      icon: preset.icon,
+      tracks: selectedTracks,
+      totalTracks: selectedTracks.length,
+      totalDurationSec,
+      formattedDuration,
+      matchScore
+    };
+  }
+
+  function formatContextualRecommendationBadge(rec) {
+    if (!rec) return 'Gợi ý Ngữ cảnh';
+    const title = rec.title || 'Danh sách Thông minh';
+    const count = rec.totalTracks !== undefined ? rec.totalTracks : 0;
+    const dur = rec.formattedDuration || '0:00';
+    return `${rec.icon || '🎵'} ${title} (${count} bài · ${dur})`;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge};
 });

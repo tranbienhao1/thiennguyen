@@ -2,6 +2,41 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 07:15 +07] — Pha C: Hệ Thống Gợi Ý Danh Sách Phát Ngữ Cảnh Tự Động (Smart Contextual Playlist Engine) & Gắn Tag Âm Học Tự Động (Acoustic Metadata Auto-Tagging)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Core Features & UI:
+- **Phân khu trọng tâm:** **Hệ Thống Gợi Ý Danh Sách Phát Ngữ Cảnh Thời Gian Thực & Phân Loại Metadata Âm Học Đa Chiều (Contextual Dayparts, Quality & Dynamic Tagging, Smart Playlist Presets)**.
+- **Tính năng & Đột phá:**
+  1. **Hệ thống phân loại Tag âm học tự động (`autoTagTrackAcoustics`, `ACOUSTIC_TAG_TAXONOMY`):**
+     - Tự động gắn tag đa chiều cho từng bài hát dựa trên chất lượng, độ động, âm học và thời điểm:
+       - **Chất lượng (Quality):** DSD Direct Master (`dsd-master`), Hi-Res 24-bit (`hires-audio`), Lossless Studio (`lossless-flac`), Standard AAC/MP3 (`compact-audio`).
+       - **Độ động (Dynamics):** Dynamic Master DR12+ (`dr-audiophile`), Natural Dynamic DR8-11 (`dr-standard`), Compressed Loudness (`dr-club`).
+       - **Âm học (Acoustic):** Audiophile Vocal, Acoustic Unplugged, Sub-Bass EDM, Classical & Symphony, Vintage Jazz & Blues.
+       - **Thời điểm (Daypart):** Morning Energy, Deep Focus, Late Night Audiophile.
+     - Xác định thẻ nổi bật (`dominantTag`) và hệ số tin cậy (`confidenceScore` từ 0.6 đến 1.0).
+  2. **Động cơ gợi ý danh sách phát ngữ cảnh thông minh (`recommendContextualPlaylist`, `CONTEXTUAL_PLAYLIST_PRESETS`):**
+     - Hỗ trợ 5 Preset ngữ cảnh độc quyền:
+       - `late-night`: Đêm Khuya Audiophile (Vocal/Jazz/DSD/Ballad dải động cao).
+       - `deep-focus`: Tập Trung Sâu & Dòng Chảy (Acoustic/Piano/Classical không lời).
+       - `high-energy`: Năng Lượng Bùng Nổ (Pop/Rock/EDM tiết tấu nhanh).
+       - `hi-res-master`: Trình Diễn Master & DSD (băng thông Hi-Res và DSD tối đa).
+       - `analog-warmth`: Hồn Thu Âm Hoài Niệm (Vinyl Vintage 70s-90s âm hưởng mộc).
+     - Tự động nhận diện khung giờ sinh học trong ngày (Daypart matching: 22h-5h Đêm khuya, 5h-11h Năng lượng, 11h-17h Tập trung, 17h-22h Đêm muộn/Vintage).
+     - Thuật toán ưu tiên bài hạt giống (`seedTrackId`) thông minh xếp bài cùng nghệ sĩ/thể loại lên đầu mà không phá vỡ tính đồng nhất ngữ cảnh.
+     - Định dạng huy hiệu gợi ý trực quan (`formatContextualRecommendationBadge`).
+  3. **Tích hợp UI Sân Nhà Roon (`#smart-contextual-section`):**
+     - Đặt ngay trang chủ (`#home-view`) với thẻ chào đón thời gian thực `#contextual-time-badge`.
+     - Thanh chuyển Preset 1-chạm (`.contextual-preset-pill`: Tự động, Đêm khuya, Tập trung, Năng lượng, Hi-Res/DSD, Vintage).
+     - Thẻ thông tin danh sách `#contextual-card` với nút phát ngay `#contextual-play-btn`, nút thêm hàng đợi `#contextual-queue-btn`.
+     - Dải thẻ ngang xem trước bài hát `#contextual-tracks-preview` hiển thị bìa, thời lượng, bài đang phát và huy hiệu âm học nổi bật, bấm vào bài nào phát ngay bài đó kèm nạp hàng đợi nối đuôi.
+  4. **Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `smart-contextual-playlist.test.cjs` (**6/6 tests PASS 100%**).
+  - Toàn bộ các suite test hồi quy liên quan (**132/132 tests PASS 100%** trong 651ms).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 06:25 +07] — Pha B: Sân Khấu Âm Nhạc Toàn Màn Hình 3D & Đồng Hồ Đo Nhiệt Động Học Âm Học (Acoustic Thermal Ballistics & Fullscreen Soundstage 3D)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá UI/UX & Visualizer:
