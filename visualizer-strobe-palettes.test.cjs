@@ -146,15 +146,17 @@ test('Pha B: cycleVisualizerTheme hỗ trợ tùy chọn all để xoay vòng to
     assert.equal(library.cycleVisualizerTheme('monochrome'), 'cyber');
   });
 
-  await t.test('với options.all = true xoay vòng tuần tự qua toàn bộ 9 bảng màu audiophile', () => {
+  await t.test('với options.all = true xoay vòng tuần tự qua toàn bộ các bảng màu audiophile', () => {
     const allThemes = Object.keys(library.VISUALIZER_THEMES);
-    assert.equal(allThemes.length, 9, 'Phải có đủ 9 bảng màu trong VISUALIZER_THEMES');
+    assert.ok(allThemes.length >= 9, 'Phải có ít nhất 9 bảng màu trong VISUALIZER_THEMES');
     assert.ok(allThemes.includes('crimson'));
     assert.ok(allThemes.includes('amethyst'));
+    assert.ok(allThemes.includes('neon_hologram'));
+    assert.ok(allThemes.includes('golden_ember'));
 
     assert.equal(library.cycleVisualizerTheme('ocean', { all: true }), 'crimson');
     assert.equal(library.cycleVisualizerTheme('crimson', { all: true }), 'amethyst');
-    assert.equal(library.cycleVisualizerTheme('amethyst', { all: true }), allThemes[0]);
+    assert.equal(library.cycleVisualizerTheme(allThemes[allThemes.length - 1], { all: true }), allThemes[0]);
   });
 });
 

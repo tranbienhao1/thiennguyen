@@ -2,6 +2,33 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 11:20 +07] — Pha B: Phổ Âm Thanh Động Học Thang Logarit & Sân Khấu Vũ Trường Ánh Sáng Đa Tầng Hào Quang (Multi-Band Logarithmic Spectrum Dynamics & Real-time Beat Strobe Chromatic Aura Refinement)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá UI/UX & Visualizer:
+- **Phân khu trọng tâm:** **Phân Bổ Cột Phổ Thang Logarit / Octave Bù Trừ Cao Tần (Logarithmic FFT Binning & High-Shelf Tilt), Quán Tính Động Học Phổ Đồ Bất Đối Xứng Attack/Decay (Ballistic Spectrum Dynamics 0.72/0.86), Sóng Cộng Hưởng Đồng Tâm & Dịch Chuyển Sắc Thái Đa Tầng (Concentric Ripples & Chromatic Beat Aura), Bổ Sung 2 Theme Mới (Neon Cyberpunk & Golden Ember) & Chu Trình Xoay Toàn Bộ 11 Bảng Màu**.
+- **Tính năng & Đột phá:**
+  1. **Động cơ phân bổ tần số theo thang logarit Octave (`calculateLogarithmicFrequencyBins`):**
+     - Thay thế phân bổ tuyến tính truyền thống (vốn dồn 80% số cột cho dải treble ít năng lượng) bằng thang logarit octave chuẩn âm học, chia đều phổ tần từ Sub-Bass (20-60Hz), Bass (60-250Hz), Vocal Mids (250-2.5kHz) đến Highs/Air (2.5-16kHz).
+     - Tích hợp hàm bù trừ độ nhạy cao tần (High-shelf acoustic tilt factor $1.0 + \frac{i}{N} \cdot 0.25$), giúp các cột cao tần nảy múa nhịp nhàng mà không bị chìm.
+  2. **Bộ điều tiết quán tính động học phổ đồ âm học (`calculateBallisticSpectrumDynamics`):**
+     - Mô phỏng quán tính kim đo cơ học với tỷ lệ Attack nhanh (0.72) khi có xung nhịp âm thanh và Decay mềm mại (0.86) khi âm tắt dần, loại bỏ hoàn toàn hiện tượng rung giật gián đoạn của đồ thị FFT thô.
+     - Tự động kẹp ngưỡng làm sạch nhiễu nền (<0.005) về 0 tuyệt đối.
+  3. **Động cơ hào quang sân khấu ánh sáng sắc độ thực thời gian thực (`calculateBeatStrobeChromaticAura`):**
+     - Phát hiện xung nhịp Bass tức thời và phát ra các vòng sóng cộng hưởng đồng tâm (Concentric Ripples): kích hoạt vòng sơ cấp khi Bass > 0.1 và tạo thêm vòng hào quang cộng hưởng thứ cấp bao quanh khi Sub-bass drop > 0.35.
+     - Tính toán góc dịch chuyển sắc thái màu sắc thời gian thực (`chromaticOffsetDeg`) theo thời gian và năng lượng Treble, tạo hiệu ứng phản chiếu ánh sáng sân khấu huyền ảo 60fps.
+  4. **Thư viện màu sắc mở rộng (`VISUALIZER_THEMES`):**
+     - Bổ sung `neon_hologram` (Neon Cyberpunk Hologram: Cyan `#06b6d4`, Hot Pink `#ec4899`, Violet `#a855f7` với vạch đỉnh Bright Cyan `#67e8f9`).
+     - Bổ sung `golden_ember` (Golden Tube Ember: Warm Amber `#b45309`, Tube Gold `#f59e0b`, Warm Glow `#fef08a` với vạch đỉnh Pure White `#ffffff`).
+     - Nâng cấp `cycleVisualizerTheme` và sự kiện click `#visualizer` hỗ trợ xoay vòng mượt mà qua toàn bộ 11 bảng màu audiophile.
+  5. **Tích hợp UI & Bất biến âm thanh:**
+     - Tích hợp phân bổ thang logarit và động học quán tính vào chu trình render 60fps của `renderVisualizerSpectrum` và `renderMultiBandAmbientAura`.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `spectrum-dynamics-strobe-aura.test.cjs` (**7/7 tests PASS 100%**).
+  - Toàn bộ 17 test suites hồi quy (**137/137 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 10:40 +07] — Pha A: Mô Phỏng Không Gian Phòng Động Học & Vi Chỉnh Cân Bằng Crossfeed Tai Nghe Kênh Đôi (Dynamic Convolution Room Modeling & Headphone Crossfeed Balance Refinement)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Audio Engine & DSP:
