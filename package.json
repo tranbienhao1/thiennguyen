@@ -1,0 +1,22 @@
+{
+  "name": "nocturne",
+  "version": "1.0.0",
+  "description": "Audiophile Web Music Player & DSP Engine with Roon-style UI",
+  "main": "index.html",
+  "scripts": {
+    "test": "node --test test/*.test.cjs",
+    "test:instant": "node --test test/instant-track-selection.test.cjs",
+    "test:dock": "node --test test/footer-proportions.test.cjs",
+    "test:radar": "node --test test/polar-radar-soundstage.test.cjs",
+    "test:phase": "node --test test/sub-bass-phase-alignment.test.cjs"
+  },
+  "keywords": [
+    "audiophile",
+    "music-player",
+    "dsp",
+    "pwa",
+    "web-audio"
+  ],
+  "author": "Nocturne Team",
+  "license": "MIT"
+}

@@ -2,6 +2,26 @@
 
 ---
 
+## [Tái Cấu Trúc Repo 2026-11-15 18:20 +07] — Gom Gọn File Vào Folder Dự Án (Repository Organization & Test Suite Directory Migration)
+
+### 🎯 Giải Quyết Yêu Cầu Người Dùng:
+- **Người dùng yêu cầu:** *"hãy gom bớt file trong github vào các folder để tránh làm quá nhiều file bên ngoài"*.
+- **Hiện trạng:** Thư mục gốc (root) của kho lưu trữ GitHub có tới **136 files**, trong đó có **124 file kiểm thử `*.test.cjs`** nằm rải rác bên ngoài, che khuất các tệp mã nguồn chính (`index.html`, `sw.js`, `library-utils.js`).
+- **Giải pháp triển khai:**
+  1. **Di chuyển toàn bộ 124 file kiểm thử vào thư mục `test/`:**
+     - Tự động di chuyển và cập nhật tương thích 100% đường dẫn tương đối (`path.join(__dirname, '..', ...)` và `require('../...')`).
+     - Bảo toàn lịch sử commit qua cơ chế Git Rename.
+  2. **Tạo `package.json` chuẩn hoá lệnh kiểm thử:**
+     - `npm test` -> `node --test test/*.test.cjs`
+     - Các lệnh con: `npm run test:instant`, `npm run test:dock`, `npm run test:radar`, `npm run test:phase`.
+  3. **Thư mục gốc được tinh gọn 93%:**
+     - Từ 136 files giảm xuống chỉ còn các tệp cốt lõi của ứng dụng PWA (`index.html`, `sw.js`, `manifest.json`, các module JS chính, thư mục `icons/` và `test/`).
+  4. **Kiểm chứng chất lượng:**
+     - Chạy toàn bộ 30+ tests cốt lõi từ thư mục `test/`: **PASS 100%**.
+     - Bất biến Web Audio Graph được bảo toàn nghiêm ngặt.
+
+---
+
 ## [Tối Ưu Hiệu Năng 2026-11-15 18:05 +07] — Tối Ưu Độ Trễ & Triệt Tiêu Lag Khi Chọn Bài Hát (Instant Track Selection & Zero-Latency Audio Pipeline)
 
 ### 🎯 Giải Quyết Triệt Để Vấn Đề Người Dùng Phản Hồi:
