@@ -1474,8 +1474,8 @@
   <!-- Roon Immersive Fullscreen Now Playing View -->
   <div id="roon-fullscreen-view" class="fixed inset-0 z-[100] hidden flex-col justify-between bg-zinc-950 overflow-hidden select-none transition-opacity duration-300">
     <!-- Ambient Blur Cover Backdrop -->
-    <img id="fullscreen-bg-cover" class="pointer-events-none absolute inset-0 h-full w-full object-cover scale-125 filter blur-3xl opacity-35 brightness-50 hidden" alt="" aria-hidden="true">
-    <div id="fullscreen-ambient-glow" class="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-black/90" aria-hidden="true"></div>
+    <img id="fullscreen-bg-cover" class="pointer-events-none absolute inset-0 h-full w-full object-cover scale-110 filter blur-[56px] opacity-75 brightness-95 saturate-150 transition-all duration-700 ease-out hidden" alt="" aria-hidden="true">
+    <div id="fullscreen-ambient-glow" class="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80" aria-hidden="true"></div>
 
     <!-- Top Navigation Bar -->
     <div class="relative z-20 flex items-center justify-between px-6 pt-5 sm:px-10">
@@ -4199,26 +4199,36 @@
         if (appBackdrop) { appBackdrop.style.transform = 'scale(1)'; appBackdrop.style.opacity = ''; }
         return;
       }
-      const generation = visualizerGeneration, canvas = $('visualizer'), context = canvas.getContext('2d');
-      const ratio = window.devicePixelRatio || 1, width = canvas.clientWidth, height = canvas.clientHeight;
-      if (!width || !height) return;
-      if (canvas.width !== width * ratio || canvas.height !== height * ratio) { canvas.width = width * ratio; canvas.height = height * ratio; }
-      context.setTransform(ratio,0,0,ratio,0,0);
-      const analyser = state.activeAnalyser || state.analyser, data = new Uint8Array(analyser.frequencyBinCount), bars = 32, gap = 2;
-      const barWidth = (width - gap * (bars - 1)) / bars;
+      const analyser = state.activeAnalyser || state.analyser;
+      if (!analyser) return;
+
+      const generation = visualizerGeneration;
+      const canvas = $('visualizer');
+      const isStageActive = !!(state.isFullscreen && state.fullscreenViewMode === 'stage');
+      const hasFooterVisualizer = !!(canvas && canvas.clientWidth > 0 && canvas.clientHeight > 0);
+      const roomGlow = $('ambient-glow');
+      const appBackdrop = $('app-ambient-backdrop');
+      const isGlowActive = !!((roomGlow && roomGlow.classList.contains('active')) || (appBackdrop && appBackdrop.classList.contains('active')));
+
+      // Decouple fullscreen stage rendering from footer visualizer dimensions:
+      // Even if the footer visualizer is hidden or 0 width, if state.isFullscreen && state.fullscreenViewMode === 'stage', continue the animation loop and render to #fullscreen-stage-canvas
+      if (!hasFooterVisualizer && !isStageActive && !isGlowActive && !state.isFullscreen) {
+        return;
+      }
+
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const bars = 32, gap = 2;
       const timeData = new Uint8Array(analyser.fftSize);
       const preTimeData = state.preLimiterAnalyser ? new Uint8Array(state.preLimiterAnalyser.fftSize) : null;
       let frame = 0;
       const draw = () => {
         if (generation !== visualizerGeneration || document.hidden || audio.paused || !audio.src) {
           visualizerFrame = 0;
-          const roomGlow = $('ambient-glow');
           if (roomGlow) { roomGlow.style.transform = 'scale(1)'; roomGlow.style.opacity = ''; }
-          const appBackdrop = $('app-ambient-backdrop');
           if (appBackdrop) { appBackdrop.style.transform = 'scale(1)'; appBackdrop.style.opacity = ''; }
           return;
         }
-        visualizerFrame = requestAnimationFrame(draw); analyser.getByteFrequencyData(data); context.clearRect(0,0,width,height);
+        visualizerFrame = requestAnimationFrame(draw); analyser.getByteFrequencyData(data);
         if (typeof library !== 'undefined' && library && typeof library.calculateAudioEnergyBands === 'function' && typeof library.calculateAmbientPulseTransform === 'function') {
           const sampleRate = state.context ? state.context.sampleRate : 44100;
           const energy = library.calculateAudioEnergyBands(data, sampleRate, analyser.fftSize);
@@ -4353,122 +4363,175 @@
             }
           }
         }
-        if (state.visualizerStrobeEnabled && visualizerStrobeState && typeof library !== 'undefined' && library && typeof library.renderMultiBandAmbientAura === 'function') {
-          library.renderMultiBandAmbientAura(context, {
-            width,
-            height,
-            theme: state.visualizerTheme || 'cyber',
-            strobe: visualizerStrobeState,
-            time: performance.now()
-          });
-        } else if (state.visualizerStrobeEnabled && visualizerStrobeState && visualizerStrobeState.intensity > 0.02 && typeof library !== 'undefined' && library && typeof library.renderVisualizerBackdropGlow === 'function') {
-          library.renderVisualizerBackdropGlow(context, {
-            width,
-            height,
-            theme: state.visualizerTheme || 'cyber',
-            strobe: visualizerStrobeState
-          });
-        }
-        if (state.visualizerMode === 'oscilloscope' && typeof library !== 'undefined' && library && typeof library.renderVisualizerOscilloscope === 'function') {
-          const oscBuf = new Uint8Array(analyser.frequencyBinCount);
-          analyser.getByteTimeDomainData(oscBuf);
-          library.renderVisualizerOscilloscope(context, {
-            data: oscBuf,
-            width,
-            height,
-            theme: state.visualizerTheme || 'cyber',
-            showCenterLine: true,
-            strokeWidth: 2
-          });
-        } else if (state.visualizerMode === 'vumeter' && typeof library !== 'undefined' && library && typeof library.renderVisualizerVuMeter === 'function') {
-          const leftBuf = (state.leftAnalyser) ? new Uint8Array(state.leftAnalyser.frequencyBinCount) : data;
-          const rightBuf = (state.rightAnalyser) ? new Uint8Array(state.rightAnalyser.frequencyBinCount) : data;
-          if (state.leftAnalyser) state.leftAnalyser.getByteFrequencyData(leftBuf);
-          if (state.rightAnalyser) state.rightAnalyser.getByteFrequencyData(rightBuf);
-
-          let maxL = 0, maxR = 0;
-          for (let i = 0; i < leftBuf.length; i++) {
-            if (leftBuf[i] > maxL) maxL = leftBuf[i];
+        const footerCanvas = $('visualizer');
+        const footerContext = footerCanvas ? footerCanvas.getContext('2d') : null;
+        if (footerCanvas && footerContext && footerCanvas.clientWidth > 0 && footerCanvas.clientHeight > 0) {
+          const ratio = window.devicePixelRatio || 1;
+          const width = footerCanvas.clientWidth;
+          const height = footerCanvas.clientHeight;
+          if (footerCanvas.width !== width * ratio || footerCanvas.height !== height * ratio) {
+            footerCanvas.width = width * ratio;
+            footerCanvas.height = height * ratio;
           }
-          for (let i = 0; i < rightBuf.length; i++) {
-            if (rightBuf[i] > maxR) maxR = rightBuf[i];
+          footerContext.setTransform(ratio, 0, 0, ratio, 0, 0);
+          footerContext.clearRect(0, 0, width, height);
+
+          const barWidth = (width - gap * (bars - 1)) / bars;
+
+          if (state.visualizerStrobeEnabled && visualizerStrobeState && typeof library !== 'undefined' && library && typeof library.renderMultiBandAmbientAura === 'function') {
+            library.renderMultiBandAmbientAura(footerContext, {
+              width,
+              height,
+              theme: state.visualizerTheme || 'cyber',
+              strobe: visualizerStrobeState,
+              time: performance.now()
+            });
+          } else if (state.visualizerStrobeEnabled && visualizerStrobeState && visualizerStrobeState.intensity > 0.02 && typeof library !== 'undefined' && library && typeof library.renderVisualizerBackdropGlow === 'function') {
+            library.renderVisualizerBackdropGlow(footerContext, {
+              width,
+              height,
+              theme: state.visualizerTheme || 'cyber',
+              strobe: visualizerStrobeState
+            });
           }
-          const normL = maxL / 255;
-          const normR = maxR / 255;
+          if (state.visualizerMode === 'oscilloscope' && typeof library !== 'undefined' && library && typeof library.renderVisualizerOscilloscope === 'function') {
+            const oscBuf = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteTimeDomainData(oscBuf);
+            library.renderVisualizerOscilloscope(footerContext, {
+              data: oscBuf,
+              width,
+              height,
+              theme: state.visualizerTheme || 'cyber',
+              showCenterLine: true,
+              strokeWidth: 2
+            });
+          } else if (state.visualizerMode === 'vumeter' && typeof library !== 'undefined' && library && typeof library.renderVisualizerVuMeter === 'function') {
+            const leftBuf = (state.leftAnalyser) ? new Uint8Array(state.leftAnalyser.frequencyBinCount) : data;
+            const rightBuf = (state.rightAnalyser) ? new Uint8Array(state.rightAnalyser.frequencyBinCount) : data;
+            if (state.leftAnalyser) state.leftAnalyser.getByteFrequencyData(leftBuf);
+            if (state.rightAnalyser) state.rightAnalyser.getByteFrequencyData(rightBuf);
 
-          vuLevelL = (typeof library.calculateVuBallistics === 'function')
-            ? library.calculateVuBallistics(normL, vuLevelL ? vuLevelL.level : 0)
-            : { needleAngle: -45 + normL * 90, isOverload: normL >= 0.95 };
-          vuLevelR = (typeof library.calculateVuBallistics === 'function')
-            ? library.calculateVuBallistics(normR, vuLevelR ? vuLevelR.level : 0)
-            : { needleAngle: -45 + normR * 90, isOverload: normR >= 0.95 };
-
-          library.renderVisualizerVuMeter(context, {
-            width,
-            height,
-            leftAngle: vuLevelL.needleAngle,
-            rightAngle: vuLevelR.needleAngle,
-            isOverloadLeft: vuLevelL.isOverload,
-            isOverloadRight: vuLevelR.isOverload,
-            theme: state.visualizerTheme || 'cyber'
-          });
-        } else if (typeof library !== 'undefined' && library && typeof library.renderVisualizerSpectrum === 'function') {
-          let normVals = [];
-          if (typeof library.calculateLogarithmicFrequencyBins === 'function') {
-            normVals = library.calculateLogarithmicFrequencyBins(data, bars);
-            if (typeof library.calculateBallisticSpectrumDynamics === 'function' && state.prevVisualizerBins) {
-              normVals = library.calculateBallisticSpectrumDynamics(state.prevVisualizerBins, normVals);
+            let maxL = 0, maxR = 0;
+            for (let i = 0; i < leftBuf.length; i++) {
+              if (leftBuf[i] > maxL) maxL = leftBuf[i];
             }
-            state.prevVisualizerBins = normVals;
+            for (let i = 0; i < rightBuf.length; i++) {
+              if (rightBuf[i] > maxR) maxR = rightBuf[i];
+            }
+            const normL = maxL / 255;
+            const normR = maxR / 255;
+
+            vuLevelL = (typeof library.calculateVuBallistics === 'function')
+              ? library.calculateVuBallistics(normL, vuLevelL ? vuLevelL.level : 0)
+              : { needleAngle: -45 + normL * 90, isOverload: normL >= 0.95 };
+            vuLevelR = (typeof library.calculateVuBallistics === 'function')
+              ? library.calculateVuBallistics(normR, vuLevelR ? vuLevelR.level : 0)
+              : { needleAngle: -45 + normR * 90, isOverload: normR >= 0.95 };
+
+            library.renderVisualizerVuMeter(footerContext, {
+              width,
+              height,
+              leftAngle: vuLevelL.needleAngle,
+              rightAngle: vuLevelR.needleAngle,
+              isOverloadLeft: vuLevelL.isOverload,
+              isOverloadRight: vuLevelR.isOverload,
+              theme: state.visualizerTheme || 'cyber'
+            });
+          } else if (typeof library !== 'undefined' && library && typeof library.renderVisualizerSpectrum === 'function') {
+            let normVals = [];
+            if (typeof library.calculateLogarithmicFrequencyBins === 'function') {
+              normVals = library.calculateLogarithmicFrequencyBins(data, bars);
+              if (typeof library.calculateBallisticSpectrumDynamics === 'function' && state.prevVisualizerBins) {
+                normVals = library.calculateBallisticSpectrumDynamics(state.prevVisualizerBins, normVals);
+              }
+              state.prevVisualizerBins = normVals;
+            } else {
+              for (let i = 0; i < bars; i++) {
+                const dataIndex = Math.min(data.length - 1, Math.floor(i * data.length / bars));
+                normVals.push((data[dataIndex] || 0) / 255);
+              }
+            }
+            if (typeof library.calculateVuGravityBallistics === 'function') {
+              const prevP = (state.vuGravityState && state.vuGravityState.peaks) ? state.vuGravityState.peaks : null;
+              const prevH = (state.vuGravityState && state.vuGravityState.holdCounters) ? state.vuGravityState.holdCounters : null;
+              const prevV = (state.vuGravityState && state.vuGravityState.velocities) ? state.vuGravityState.velocities : null;
+              state.vuGravityState = library.calculateVuGravityBallistics(normVals, prevP, prevH, prevV);
+              visualizerPeaks = state.vuGravityState.peaks;
+            } else if (typeof library.updateVisualizerPeaks === 'function') {
+              visualizerPeaks = library.updateVisualizerPeaks(normVals, visualizerPeaks);
+            }
+            library.renderVisualizerSpectrum(footerContext, {
+              data,
+              peaks: visualizerPeaks,
+              width,
+              height,
+              bars,
+              gap,
+              theme: state.visualizerTheme || 'cyber',
+              mode: 'mirror',
+              logarithmic: true,
+              ballistics: true,
+              prevBins: state.prevVisualizerBins
+            });
           } else {
-            for (let i = 0; i < bars; i++) {
-              const dataIndex = Math.min(data.length - 1, Math.floor(i * data.length / bars));
-              normVals.push((data[dataIndex] || 0) / 255);
-            }
+            for (let i = 0; i < bars; i++) { const value = data[Math.floor(i * data.length / bars)] / 255, barHeight = Math.max(2, value * height); footerContext.fillStyle = `rgba(167,139,250,${.35 + value * .65})`; footerContext.beginPath(); footerContext.roundRect(i * (barWidth + gap), (height - barHeight) / 2, barWidth, barHeight, 2); footerContext.fill(); }
           }
-          if (typeof library.calculateVuGravityBallistics === 'function') {
-            const prevP = (state.vuGravityState && state.vuGravityState.peaks) ? state.vuGravityState.peaks : null;
-            const prevH = (state.vuGravityState && state.vuGravityState.holdCounters) ? state.vuGravityState.holdCounters : null;
-            const prevV = (state.vuGravityState && state.vuGravityState.velocities) ? state.vuGravityState.velocities : null;
-            state.vuGravityState = library.calculateVuGravityBallistics(normVals, prevP, prevH, prevV);
-            visualizerPeaks = state.vuGravityState.peaks;
-          } else if (typeof library.updateVisualizerPeaks === 'function') {
-            visualizerPeaks = library.updateVisualizerPeaks(normVals, visualizerPeaks);
-          }
-          library.renderVisualizerSpectrum(context, {
-            data,
-            peaks: visualizerPeaks,
-            width,
-            height,
-            bars,
-            gap,
-            theme: state.visualizerTheme || 'cyber',
-            mode: 'mirror',
-            logarithmic: true,
-            ballistics: true,
-            prevBins: state.prevVisualizerBins
-          });
-        } else {
-          for (let i = 0; i < bars; i++) { const value = data[Math.floor(i * data.length / bars)] / 255, barHeight = Math.max(2, value * height); context.fillStyle = `rgba(167,139,250,${.35 + value * .65})`; context.beginPath(); context.roundRect(i * (barWidth + gap), (height - barHeight) / 2, barWidth, barHeight, 2); context.fill(); }
         }
 
         if (state.isFullscreen && state.fullscreenViewMode === 'stage') {
           const fsCanvas = $('fullscreen-stage-canvas');
           if (fsCanvas) {
+            const dpr = window.devicePixelRatio || 1;
+            const clientW = fsCanvas.clientWidth || (fsCanvas.getBoundingClientRect ? fsCanvas.getBoundingClientRect().width : 0) || 600;
+            const clientH = fsCanvas.clientHeight || (fsCanvas.getBoundingClientRect ? fsCanvas.getBoundingClientRect().height : 0) || 340;
+            const targetW = Math.round(clientW * dpr);
+            const targetH = Math.round(clientH * dpr);
+            if (targetW > 0 && targetH > 0 && (fsCanvas.width !== targetW || fsCanvas.height !== targetH)) {
+              fsCanvas.width = targetW;
+              fsCanvas.height = targetH;
+            }
             const fsCtx = fsCanvas.getContext('2d');
             const fsW = fsCanvas.width;
             const fsH = fsCanvas.height;
             if (state.fullscreenStageMode === 'vu' && typeof library.renderVisualizerVuMeter === 'function') {
-              const needle = state.thermalBallistics ? state.thermalBallistics.needleAngle : (vuLevelL ? vuLevelL.needleAngle : -45);
-              const overload = state.thermalBallistics ? state.thermalBallistics.isOverload : false;
+              let angleL = state.thermalBallistics ? state.thermalBallistics.needleAngle : -45;
+              let angleR = angleL;
+              let overL = state.thermalBallistics ? state.thermalBallistics.isOverload : false;
+              let overR = overL;
+
+              const leftBuf = (state.leftAnalyser) ? new Uint8Array(state.leftAnalyser.frequencyBinCount) : data;
+              const rightBuf = (state.rightAnalyser) ? new Uint8Array(state.rightAnalyser.frequencyBinCount) : data;
+              if (state.leftAnalyser) state.leftAnalyser.getByteFrequencyData(leftBuf);
+              if (state.rightAnalyser) state.rightAnalyser.getByteFrequencyData(rightBuf);
+
+              let maxL = 0, maxR = 0;
+              for (let i = 0; i < leftBuf.length; i++) { if (leftBuf[i] > maxL) maxL = leftBuf[i]; }
+              for (let i = 0; i < rightBuf.length; i++) { if (rightBuf[i] > maxR) maxR = rightBuf[i]; }
+              const normL = maxL / 255;
+              const normR = maxR / 255;
+
+              if (typeof library.calculateVuBallistics === 'function') {
+                vuLevelL = library.calculateVuBallistics(normL, vuLevelL ? vuLevelL.level : 0);
+                vuLevelR = library.calculateVuBallistics(normR, vuLevelR ? vuLevelR.level : 0);
+                angleL = vuLevelL.needleAngle;
+                angleR = vuLevelR.needleAngle;
+                overL = vuLevelL.isOverload;
+                overR = vuLevelR.isOverload;
+              } else if (state.thermalBallistics) {
+                angleL = state.thermalBallistics.needleAngle;
+                angleR = angleL;
+                overL = state.thermalBallistics.isOverload;
+                overR = overL;
+              }
+
               library.renderVisualizerVuMeter(fsCtx, {
                 width: fsW,
                 height: fsH,
                 theme: state.visualizerTheme || 'cyber',
-                leftAngle: needle,
-                rightAngle: needle,
-                isOverloadLeft: overload,
-                isOverloadRight: overload
+                leftAngle: angleL,
+                rightAngle: angleR,
+                isOverloadLeft: overL,
+                isOverloadRight: overR
               });
             } else if (state.fullscreenStageMode === 'vector' && typeof library.renderSpatialVectorCanvas === 'function') {
               let leftBuf = data, rightBuf = data;
@@ -4481,10 +4544,16 @@
               const report = (typeof library.calculateSpatialVectorSpectrogram === 'function')
                 ? library.calculateSpatialVectorSpectrogram(leftBuf, rightBuf)
                 : { points: [], soundstageSpread: 50 };
-              library.renderSpatialVectorCanvas(fsCanvas, report);
+              library.renderSpatialVectorCanvas(fsCanvas, report, {
+                theme: state.visualizerTheme || 'cyber'
+              });
               const fsSoundstage = $('fs-soundstage-badge');
               if (fsSoundstage) {
                 fsSoundstage.textContent = `Âm hình ${report.soundstageSpread}%`;
+              }
+              const fsDesc = $('fs-stage-telemetry-desc');
+              if (fsDesc && typeof library.formatSpatialVectorTelemetry === 'function') {
+                fsDesc.textContent = library.formatSpatialVectorTelemetry(report);
               }
             } else if (state.fullscreenStageMode === 'radar' && typeof library.renderPolarRadarCanvas === 'function') {
               let leftBuf = data, rightBuf = data;
@@ -4536,6 +4605,7 @@
       };
       if (!visualizerFrame) visualizerFrame = requestAnimationFrame(draw);
     }
+    window.setVisualizerRunning = setVisualizerRunning;
     let volumeBeforeMute = 80;
     function setGain(value) {
       const num = Number(value);
@@ -7126,12 +7196,17 @@
       view.classList.toggle('flex', shouldOpen);
       if (shouldOpen) {
         updateRoonFullscreenUI();
+        if (state.fullscreenViewMode === 'stage' && typeof setVisualizerRunning === 'function') {
+          if (typeof resizeFullscreenStageCanvas === 'function') resizeFullscreenStageCanvas();
+          setVisualizerRunning(true);
+        }
         if (typeof generateTrackWaveform === 'function' && state.currentId) {
           const track = trackById(state.currentId);
           if (track) generateTrackWaveform(track);
         }
       }
     }
+    window.toggleRoonFullscreen = toggleRoonFullscreen;
 
     function updateRoonFullscreenUI() {
       const view = $('roon-fullscreen-view');
@@ -7226,6 +7301,7 @@
         }
       }
     }
+    window.updateRoonFullscreenUI = updateRoonFullscreenUI;
     function queueIndex() {
       const current = state.tracks.findIndex(track => track.id === state.currentId);
       if (current < 0) return -1;
@@ -11115,6 +11191,45 @@
     }
     window.setLyricsOffset = setLyricsOffset;
 
+    function resizeFullscreenStageCanvas() {
+      const fsCanvas = $('fullscreen-stage-canvas');
+      if (!fsCanvas) return;
+      const dpr = window.devicePixelRatio || 1;
+      const clientW = fsCanvas.clientWidth || (fsCanvas.getBoundingClientRect ? fsCanvas.getBoundingClientRect().width : 0) || 600;
+      const clientH = fsCanvas.clientHeight || (fsCanvas.getBoundingClientRect ? fsCanvas.getBoundingClientRect().height : 0) || 340;
+      const targetW = Math.round(clientW * dpr);
+      const targetH = Math.round(clientH * dpr);
+      if (targetW > 0 && targetH > 0 && (fsCanvas.width !== targetW || fsCanvas.height !== targetH)) {
+        fsCanvas.width = targetW;
+        fsCanvas.height = targetH;
+      }
+    }
+    window.resizeFullscreenStageCanvas = resizeFullscreenStageCanvas;
+
+    function setFullscreenStageMode(mode) {
+      if (mode === 'vu') state.fullscreenStageMode = 'vu';
+      else if (mode === 'vector') state.fullscreenStageMode = 'vector';
+      else state.fullscreenStageMode = 'radar';
+
+      const cur = state.fullscreenStageMode;
+      const fsStageRadarBtn = $('fs-stage-mode-radar');
+      const fsStageVuBtn = $('fs-stage-mode-vu');
+      const fsStageVectorBtn = $('fs-stage-mode-vector');
+
+      const activeBtnClass = 'rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200';
+      const inactiveBtnClass = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
+
+      if (fsStageRadarBtn) fsStageRadarBtn.className = cur === 'radar' ? activeBtnClass : inactiveBtnClass;
+      if (fsStageVuBtn) fsStageVuBtn.className = cur === 'vu' ? activeBtnClass : inactiveBtnClass;
+      if (fsStageVectorBtn) fsStageVectorBtn.className = cur === 'vector' ? activeBtnClass : inactiveBtnClass;
+
+      resizeFullscreenStageCanvas();
+      if (typeof setVisualizerRunning === 'function') {
+        setVisualizerRunning(true);
+      }
+    }
+    window.setFullscreenStageMode = setFullscreenStageMode;
+
     function setFullscreenViewMode(mode) {
       if (mode === 'lyrics') state.fullscreenViewMode = 'lyrics';
       else if (mode === 'stage') state.fullscreenViewMode = 'stage';
@@ -11148,6 +11263,15 @@
       if (curMode === 'lyrics') {
         if (typeof renderFullscreenLyrics === 'function') renderFullscreenLyrics();
         updateLyricsHighlight();
+      } else if (curMode === 'stage') {
+        resizeFullscreenStageCanvas();
+        if (typeof setVisualizerRunning === 'function') {
+          setVisualizerRunning(true);
+        }
+      }
+
+      if (typeof updateRoonFullscreenUI === 'function') {
+        updateRoonFullscreenUI();
       }
     }
     window.setFullscreenViewMode = setFullscreenViewMode;
@@ -11163,28 +11287,13 @@
     const fsStageVuBtn = $('fs-stage-mode-vu');
     const fsStageVectorBtn = $('fs-stage-mode-vector');
     if (fsStageRadarBtn) {
-      fsStageRadarBtn.addEventListener('click', () => {
-        state.fullscreenStageMode = 'radar';
-        fsStageRadarBtn.className = 'rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200';
-        if (fsStageVuBtn) fsStageVuBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
-        if (fsStageVectorBtn) fsStageVectorBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
-      });
+      fsStageRadarBtn.addEventListener('click', () => setFullscreenStageMode('radar'));
     }
     if (fsStageVuBtn) {
-      fsStageVuBtn.addEventListener('click', () => {
-        state.fullscreenStageMode = 'vu';
-        fsStageVuBtn.className = 'rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200';
-        if (fsStageRadarBtn) fsStageRadarBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
-        if (fsStageVectorBtn) fsStageVectorBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
-      });
+      fsStageVuBtn.addEventListener('click', () => setFullscreenStageMode('vu'));
     }
     if (fsStageVectorBtn) {
-      fsStageVectorBtn.addEventListener('click', () => {
-        state.fullscreenStageMode = 'vector';
-        fsStageVectorBtn.className = 'rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-[11px] font-medium text-purple-200';
-        if (fsStageRadarBtn) fsStageRadarBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
-        if (fsStageVuBtn) fsStageVuBtn.className = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-white';
-      });
+      fsStageVectorBtn.addEventListener('click', () => setFullscreenStageMode('vector'));
     }
 
     const fsOffsetMinus = $('fs-lyrics-offset-minus');
@@ -11525,5 +11634,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 17:35 +07 | Đã xong: Tối Ưu Giao Diện - Tái Định Hình Tỷ Lệ Cân Đối Tuyệt Đối Thanh Dock Điều Khiển (Balanced 3-Column Footer Dock & Seekbar Centering): (1) Thiết lập tỷ lệ 3 cột cân xứng tuyệt đối 26% — 48% — 26% (.footer-left-col, .footer-center-controls, .footer-right-tools); (2) Phím Play/Pause và Seekbar căn giữa 50% toàn màn hình, hai đầu thời gian đối xứng; (3) Cột phải gom gọn huy hiệu chất lượng, EQ, Queue, Phòng nghe, Fullscreen và Volume, ẩn thích ứng các nút phụ trợ tránh tràn ép; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests footer-proportions.test.cjs PASS 100%, toàn bộ 25/25 tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 18:05 +07 | Đã xong: Tối Ưu Độ Trễ & Triệt Tiêu Lag Khi Chọn Bài Hát (Instant Track Selection & Zero-Latency Audio Pipeline): (1) Phản hồi thị giác lạc quan tức thì (<16ms, đo lường ~2.7ms) trong handleTrackRowActivation và playTrack: cập nhật state.currentId, displayTrack(track), hiệu ứng nạp đệm loading-pulse/spinner trên play-button và dòng bài hát, reset seekbar về 0:00 trước bất kỳ thao tác mạng hay giải mã nào; (2) Phi đồng bộ hóa DOM bằng deferRenderQueue (requestAnimationFrame / requestIdleCallback) loại bỏ triệt để hiện tượng đơ giật UI và layout thrashing khi bấm bài; (3) Kích hoạt sớm AudioContext và state.context.resume() ngay trong tick user gesture; (4) Phát tức thì qua First-Slice Cache và local audio, tích hợp pure helpers createOptimisticTrackState, canStartInstantPlayback, formatSelectionLatency; (5) Nâng cấp cache Service Worker lên nocturne-v3 cho PWA tự động làm mới; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 7/7 tests instant-track-selection.test.cjs PASS 100%, toàn bộ 37/37 tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 18:20 +07 | Đã xong: Tái Cấu Trúc Repo - Gom Toàn Bộ File Kiểm Thử Vào Thư Mục test/ & Chuẩn Hóa package.json: (1) Di chuyển toàn bộ 124 file kiểm thử *.test.cjs vào thư mục test/, cập nhật đường dẫn tương đối ../ và require, bảo toàn lịch sử git rename; (2) Giảm 93% số lượng file ở thư mục gốc (từ 136 files xuống còn các file cốt lõi); (3) Bổ sung package.json chuẩn hoá npm test; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); toàn bộ test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 18:45 +07 | Đã xong: Pha C - Khắc Phục Sân Khấu Âm Thanh 3D Toàn Màn Hình & Phông Nền Ambient Mờ Ảo Roon (Fullscreen 3D Stage Visualizers & Ambient Blurred Backdrop Polish): (1) Phông nền mờ ảo #fullscreen-bg-cover & #fullscreen-ambient-glow chuẩn xác theo ảnh mẫu: scale-110 filter blur-[56px] opacity-75 brightness-95 saturate-150 kết hợp gradient vignette tinh tế from-black/40 via-transparent to-black/80; (2) updateRoonFullscreenUI đồng bộ hiển thị và cập nhật ảnh bìa mờ mượt mà cho cả 2 tab Bìa album và Lời bài hát khi track có ảnh bìa; (3) Tách rời triệt để vòng lặp render Fullscreen Stage Visualizer khỏi kích thước thanh footer: setVisualizerRunning và draw tiếp tục hoạt động liên tục ngay cả khi visualizer thanh footer bị ẩn hoặc có kích thước bằng 0; (4) resizeFullscreenStageCanvas tự động co giãn độ phân giải canvas theo devicePixelRatio và kích thước khung nhìn thực tế; (5) Hàm setFullscreenStageMode điều hướng và đồng bộ mượt mà cả 3 chế độ sân khấu 3D: Radar 3D (library.renderPolarRadarCanvas), VU Meter (library.renderVisualizerVuMeter với 2 kim L/R độc lập), Goniometer 3D (library.renderSpatialVectorCanvas); (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 10/10 tests fullscreen-stage-backdrop.test.cjs PASS 100%, toàn bộ 1068/1068 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
 </body>
 </html>

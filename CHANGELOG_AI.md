@@ -2,6 +2,35 @@
 
 ---
 
+## [Pha C 2026-11-15 18:45 +07] — Khắc Phục Sân Khấu Âm Thanh 3D Toàn Màn Hình & Phông Nền Ambient Mờ Ảo Roon (Fullscreen 3D Stage Visualizers & Ambient Blurred Backdrop Polish)
+
+### 🎯 Giải Quyết Yêu Cầu & Lỗi Giao Diện:
+- **Hiện trạng:**
+  1. Trong `#roon-fullscreen-view`, phông nền ảnh bìa (`#fullscreen-bg-cover` và `#fullscreen-ambient-glow`) bị chìm vào màu đen kịt do các lớp phủ tối màu (`blur-3xl opacity-35 brightness-50` kết hợp `from-black/60 via-black/30 to-black/90` trên nền `bg-zinc-950`), khiến phông nền đen sì ở cả hai tab "Bìa album" và "Lời bài hát".
+  2. Canvas sân khấu âm thanh 3D `#fullscreen-stage-canvas` (Radar 3D, VU Meter, Goniometer 3D) bị đen hoàn toàn không hiển thị đồ họa.
+- **Phân tích nguyên nhân gốc rễ (Root Cause):**
+  - Hàm `setVisualizerRunning` và vòng lặp `draw()` trước đây thoát sớm ngay lập tức (`if (!width || !height) return;`) nếu `$('visualizer').clientWidth === 0`. Khi mở toàn màn hình hoặc thanh footer bị ẩn/thu gọn, visualizer ở footer có kích thước 0, làm ngắt hoàn toàn vòng lặp `requestAnimationFrame`, khiến canvas `#fullscreen-stage-canvas` không bao giờ được render.
+  - Chưa có hàm điều hướng chế độ sân khấu `setFullscreenStageMode` đồng bộ và chưa xử lý tự động co giãn độ phân giải canvas theo `devicePixelRatio`.
+
+### 🚀 Giải Pháp Kỹ Thuật Đã Triển Khai:
+1. **Phông Nền Mờ Ảo Audiophile Chuẩn Tham Chiếu (Ambient Blurred Cover Backdrop):**
+   - Nâng cấp `#fullscreen-bg-cover` với chuẩn lớp phủ: `scale-110 filter blur-[56px] opacity-75 brightness-95 saturate-150 transition-all duration-700 ease-out`, giữ màu sắc tươi tắn, độ bão hòa rực rỡ và tỏa hào quang mềm mại lan tỏa toàn bộ phông nền.
+   - Tinh chỉnh `#fullscreen-ambient-glow` với gradient vignette nhẹ nhàng: `bg-gradient-to-b from-black/40 via-transparent to-black/80`, bảo đảm lời bài hát và các nút điều khiển sắc nét, tương phản hoàn hảo.
+   - Đảm bảo `updateRoonFullscreenUI()` cập nhật và hiển thị tin cậy `#fullscreen-bg-cover` cho cả tab "Bìa album" và "Lời bài hát" bất cứ khi nào bài hát có ảnh bìa.
+2. **Tách Rời Vòng Lặp Sân Khấu 3D Khỏi Kích Thước Footer (Decoupled Stage Render Loop):**
+   - Tách biệt hoàn toàn việc render `#fullscreen-stage-canvas` khỏi kích thước của visualizer thanh footer. Khi `state.isFullscreen && state.fullscreenViewMode === 'stage'`, vòng lặp hoạt ảnh `draw()` vẫn tiếp tục chạy 60fps mượt mà kể cả khi footer có kích thước 0 hoặc bị ẩn.
+   - Thêm hàm `resizeFullscreenStageCanvas()` đồng bộ độ phân giải `width` & `height` của canvas theo `devicePixelRatio` và kích thước khung nhìn thực tế.
+   - Bổ sung hàm `setFullscreenStageMode(mode)` hỗ trợ chuyển đổi linh hoạt cả 3 chế độ sân khấu:
+     - **'radar':** `library.renderPolarRadarCanvas` (Radar chòm sao phân cực 3D và trường pha hologram).
+     - **'vu':** `library.renderVisualizerVuMeter` (Đồng hồ VU kim cơ học quán tính với 2 kim L/R độc lập).
+     - **'vector':** `library.renderSpatialVectorCanvas` (Goniometer Lissajous đo tương quan pha Mid/Side).
+   - Trong `setFullscreenViewMode('stage')` và `setFullscreenStageMode(mode)`, bảo đảm `setVisualizerRunning(true)` và `resizeFullscreenStageCanvas()` luôn được kích hoạt.
+3. **Bảo Toàn Nghiêm Ngặt Bất Biến Đồ Thị Âm Thanh (Web Audio Invariant):**
+   - Đồ thị âm thanh `state.crossfeedNodes.output.connect(state.context.destination)` được bảo toàn 100% nguyên vẹn.
+4. **Kiểm Chứng Toàn Diện:**
+   - 10/10 tests `test/fullscreen-stage-backdrop.test.cjs` PASS 100%.
+   - Toàn bộ **1068/1068** tests trên 103 test suites của dự án Nocturne PASS 100%.
+
 ## [Tái Cấu Trúc Repo 2026-11-15 18:20 +07] — Gom Gọn File Vào Folder Dự Án (Repository Organization & Test Suite Directory Migration)
 
 ### 🎯 Giải Quyết Yêu Cầu Người Dùng:
