@@ -2032,7 +2032,31 @@
             (!track.format || track.format.toUpperCase().includes('FLAC') || track.format.toUpperCase().includes('WAV') || track.format.toUpperCase().includes('ALAC') || track.format.toUpperCase().includes('LOSSLESS'));
         }
         if (crit === 'favorite') {
-          return Boolean(track.isFavorite || (favs && favs.has(track.id)));
+          return Boolean(track.isFavorite || (favs && (favs.has(track.id) || favs.has(String(track.id)))));
+        }
+        if (crit === 'fav-masterpiece') {
+          const isFav = Boolean(track.isFavorite || (favs && (favs.has(track.id) || favs.has(String(track.id)))));
+          const ratings = options.ratings || {};
+          const uRating = Number(ratings[track.id] || ratings[String(track.id)] || track.rating || 0);
+          return uRating === 5 || (isFav && uRating >= 4);
+        }
+        if (crit === 'fav-hires') {
+          const isFav = Boolean(track.isFavorite || (favs && (favs.has(track.id) || favs.has(String(track.id)))));
+          const fmt = (track.format || track.title || '').toString().toUpperCase();
+          const isHiresFmt = fmt.includes('FLAC') || fmt.includes('DSD') || fmt.includes('DSF') || fmt.includes('DFF') || fmt.includes('WAV') || fmt.includes('ALAC') || (track.sampleRate && track.sampleRate > 48000);
+          return isFav && isHiresFmt;
+        }
+        if (crit === 'fav-gems') {
+          const isFav = Boolean(track.isFavorite || (favs && (favs.has(track.id) || favs.has(String(track.id)))));
+          const stats = (options.playStats && (options.playStats[track.id] || options.playStats[String(track.id)])) || {};
+          const pCount = Number(stats.playCount ?? track.playCount ?? 0);
+          return isFav && pCount >= 3;
+        }
+        if (crit === 'fav-rediscover') {
+          const isFav = Boolean(track.isFavorite || (favs && (favs.has(track.id) || favs.has(String(track.id)))));
+          const stats = (options.playStats && (options.playStats[track.id] || options.playStats[String(track.id)])) || {};
+          const pCount = Number(stats.playCount ?? track.playCount ?? 0);
+          return isFav && pCount <= 1;
         }
         if (crit === 'cloud') {
           return track.source === 'google' || track.source === 'microsoft' || track.source === 'cloud';
@@ -6190,6 +6214,7 @@
 
     const playlists = Array.isArray(configSource.playlists) ? configSource.playlists : [];
     const recentHistory = Array.isArray(configSource.recentHistory) ? configSource.recentHistory.slice(0, 50) : [];
+    const trackRatings = (configSource.trackRatings && typeof configSource.trackRatings === 'object') ? configSource.trackRatings : {};
 
     const settings = {
       crossfadeSeconds: Number(configSource.crossfadeSeconds) || 0,
@@ -6220,6 +6245,7 @@
       favorites,
       playlists,
       recentHistory,
+      trackRatings,
       settings
     };
   }
@@ -6236,7 +6262,7 @@
       }
 
       const hasApp = parsed.appName === 'Nocturne';
-      const hasCore = Array.isArray(parsed.favorites) || Array.isArray(parsed.playlists) || (parsed.settings && typeof parsed.settings === 'object');
+      const hasCore = Array.isArray(parsed.favorites) || Array.isArray(parsed.playlists) || (parsed.settings && typeof parsed.settings === 'object') || (parsed.trackRatings && typeof parsed.trackRatings === 'object');
 
       if (!hasApp && !hasCore) {
         return { isValid: false, config: null, error: 'File không chứa cấu hình hợp lệ của ứng dụng Nocturne.' };
@@ -6249,6 +6275,7 @@
         favorites: Array.isArray(parsed.favorites) ? parsed.favorites.filter(id => typeof id === 'string' || typeof id === 'number') : [],
         playlists: Array.isArray(parsed.playlists) ? parsed.playlists : [],
         recentHistory: Array.isArray(parsed.recentHistory) ? parsed.recentHistory : [],
+        trackRatings: (parsed.trackRatings && typeof parsed.trackRatings === 'object') ? parsed.trackRatings : {},
         settings: (parsed.settings && typeof parsed.settings === 'object') ? parsed.settings : {}
       };
 
@@ -6280,6 +6307,17 @@
       restoredPlaylistsCount = importedConfig.playlists.length;
     }
 
+    let restoredRatingsCount = 0;
+    if (importedConfig.trackRatings && typeof importedConfig.trackRatings === 'object') {
+      if (!currentState.trackRatings || typeof currentState.trackRatings !== 'object') {
+        currentState.trackRatings = {};
+      }
+      for (const [tid, rating] of Object.entries(importedConfig.trackRatings)) {
+        currentState.trackRatings[tid] = Number(rating);
+        restoredRatingsCount++;
+      }
+    }
+
     let appliedSettingsCount = 0;
     if (importedConfig.settings && typeof importedConfig.settings === 'object') {
       const s = importedConfig.settings;
@@ -6307,6 +6345,7 @@
     return {
       restoredFavoritesCount,
       restoredPlaylistsCount,
+      restoredRatingsCount,
       appliedSettingsCount
     };
   }
@@ -9967,5 +10006,164 @@
     return true;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas};
+  // Pha C — Multi-Tier Favorites Collections & Smart Track Engagement Rating Analytics
+  function calculateTrackEngagementRating(track, userRating, playStats) {
+    const rawRating = Number(userRating || 0);
+    const validUserRating = (Number.isFinite(rawRating) && rawRating >= 1 && rawRating <= 5) ? Math.round(rawRating) : 0;
+    const stats = (playStats && typeof playStats === 'object') ? playStats : {};
+    const playCount = Math.max(0, Math.round(Number(stats.playCount || 0)));
+    const skipCount = Math.max(0, Math.round(Number(stats.skipCount || 0)));
+    const completionRate = Math.max(0, Math.min(1, Number(stats.completionRate ?? 1)));
+    const isFavorite = Boolean(stats.isFavorite);
+
+    // 1. Điểm đánh giá chủ quan từ người dùng (45% max)
+    const ratingPoints = validUserRating > 0 ? (validUserRating / 5) * 45 : 0;
+
+    // 2. Điểm tương tác phát nhạc thực tế (35% max)
+    const playPoints = Math.min(15, playCount * 3);
+    const completionPoints = completionRate * 15;
+    const skipPenalty = Math.min(12, skipCount * 4);
+    const behaviorPoints = Math.max(0, playPoints + completionPoints - skipPenalty);
+
+    // 3. Điểm thưởng danh sách Yêu thích Heart/Bookmark (15% max)
+    const favoritePoints = isFavorite ? 15 : 0;
+
+    // 4. Điểm thưởng định dạng Audiophile Hi-Res (5% max)
+    let audiophileBonus = 0;
+    const fmt = (track && (track.format || track.title || '')).toString().toUpperCase();
+    if (fmt.includes('DSD') || fmt.includes('DSF') || fmt.includes('DFF') || fmt.includes('FLAC') || fmt.includes('ALAC') || fmt.includes('WAV')) {
+      audiophileBonus = 5;
+    } else {
+      audiophileBonus = 2;
+    }
+
+    let totalScore = ratingPoints + behaviorPoints + favoritePoints + audiophileBonus;
+    if (validUserRating === 0 && playCount === 0 && !isFavorite) {
+      totalScore = 0;
+    }
+    const engagementScore = Math.min(100, Math.max(0, Math.round(totalScore)));
+
+    let compositeStars = 0;
+    if (validUserRating > 0 && engagementScore > 0) {
+      compositeStars = (validUserRating * 0.6) + ((engagementScore / 20) * 0.4);
+    } else if (validUserRating > 0) {
+      compositeStars = validUserRating;
+    } else if (engagementScore > 0) {
+      compositeStars = engagementScore / 20;
+    } else {
+      compositeStars = 0;
+    }
+    compositeStars = Math.min(5.0, Math.max(0.0, Math.round(compositeStars * 10) / 10));
+
+    let tier = 'unranked';
+    let tierLabel = 'Chưa xếp hạng';
+    if (engagementScore >= 85 || validUserRating === 5) {
+      tier = 'masterpiece';
+      tierLabel = 'Tuyệt tác Masterpiece';
+    } else if (engagementScore >= 65 || validUserRating === 4) {
+      tier = 'loved_gem';
+      tierLabel = 'Ngọc quý yêu thích';
+    } else if (engagementScore >= 40 || validUserRating === 3) {
+      tier = 'engaged';
+      tierLabel = 'Gắn kết thường xuyên';
+    } else if (engagementScore >= 15 || validUserRating >= 1) {
+      tier = 'casual';
+      tierLabel = 'Nghe phổ thông';
+    }
+
+    return {
+      engagementScore,
+      compositeStars,
+      validUserRating,
+      tier,
+      tierLabel,
+      isFavorite,
+      playCount,
+      skipCount,
+      completionRate,
+      audiophileBonus
+    };
+  }
+
+  function categorizeFavoritesByMoodQuality(tracks, favoritesSet, ratingsMap, playStatsMap) {
+    const list = Array.isArray(tracks) ? tracks : [];
+    const favSet = (favoritesSet instanceof Set) ? favoritesSet : new Set(Array.isArray(favoritesSet) ? favoritesSet : []);
+    const ratings = (ratingsMap && typeof ratingsMap === 'object') ? ratingsMap : {};
+    const stats = (playStatsMap && typeof playStatsMap === 'object') ? playStatsMap : {};
+
+    const all = [];
+    const masterpieces = [];
+    const audiophileLossless = [];
+    const frequentGems = [];
+    const rediscover = [];
+
+    for (let i = 0; i < list.length; i++) {
+      const t = list[i];
+      if (!t || !t.id) continue;
+      const tid = String(t.id);
+      const isFav = favSet.has(tid) || favSet.has(Number(tid));
+      const uRating = Number(ratings[tid] || ratings[Number(tid)] || t.rating || 0);
+      const tStats = stats[tid] || stats[Number(tid)] || {};
+      const engagement = calculateTrackEngagementRating(t, uRating, {
+        playCount: tStats.playCount ?? t.playCount ?? 0,
+        skipCount: tStats.skipCount ?? t.skipCount ?? 0,
+        completionRate: tStats.completionRate ?? 1,
+        isFavorite: isFav
+      });
+
+      if (!isFav && uRating < 4 && engagement.engagementScore < 70) {
+        continue;
+      }
+
+      all.push(t);
+
+      if (uRating === 5 || engagement.engagementScore >= 85) {
+        masterpieces.push(t);
+      }
+
+      const fmt = (t.format || t.title || '').toString().toUpperCase();
+      if (fmt.includes('DSD') || fmt.includes('DSF') || fmt.includes('DFF') || fmt.includes('FLAC') || fmt.includes('ALAC') || fmt.includes('WAV')) {
+        audiophileLossless.push(t);
+      }
+
+      const pCount = Number(tStats.playCount ?? t.playCount ?? 0);
+      const sCount = Number(tStats.skipCount ?? t.skipCount ?? 0);
+      if (pCount >= 3 && sCount <= 1) {
+        frequentGems.push(t);
+      }
+
+      if (isFav && pCount <= 1) {
+        rediscover.push(t);
+      }
+    }
+
+    return {
+      all,
+      masterpieces,
+      audiophileLossless,
+      frequentGems,
+      rediscover,
+      counts: {
+        all: all.length,
+        masterpieces: masterpieces.length,
+        audiophileLossless: audiophileLossless.length,
+        frequentGems: frequentGems.length,
+        rediscover: rediscover.length
+      }
+    };
+  }
+
+  function formatTrackEngagementTelemetry(engagementResult) {
+    if (!engagementResult || typeof engagementResult !== 'object') {
+      return '⭐ Đánh giá: --★ (Chưa xếp hạng)';
+    }
+    const stars = Number(engagementResult.compositeStars || 0).toFixed(1);
+    const score = Math.round(Number(engagementResult.engagementScore || 0));
+    const label = engagementResult.tierLabel || 'Chưa xếp hạng';
+    const uRating = engagementResult.validUserRating > 0 ? `${engagementResult.validUserRating}★ Thủ công` : 'Tự động';
+    const plays = Math.round(Number(engagementResult.playCount || 0));
+    return `⭐ Đánh giá: ${stars}★ (Độ gắn kết ${score}% · ${label} · ${uRating} · Nghe ${plays} lượt)`;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry};
 });

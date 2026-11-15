@@ -2,6 +2,36 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 15:45 +07] — Pha C: Bộ Quản Lý Danh Sách Yêu Thích Đa Tầng & Hệ Thống Đánh Giá Sao / Xếp Hạng Thông Minh (Multi-Tier Favorites Collections & Smart Track Rating Analytics)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Core Features & Thư Viện:
+- **Phân khu trọng tâm:** **Phân Tầng Danh Mục Yêu Thích Thông Minh (`categorizeFavoritesByMoodQuality`), Bảng Điểm Đánh Giá Mức Độ Gắn Kết & Xếp Hạng Sao Hài Hòa (`calculateTrackEngagementRating`), Định Dạng Telemetry Đánh Giá Trực Quan (`formatTrackEngagementTelemetry`), Bộ Lọc Focus Phân Tầng Yêu Thích Mới (`fav-masterpiece`, `fav-hires`, `fav-gems`), Huy Hiệu Đánh Giá Cá Nhân Hóa `#room-engagement-badge` trong Màn Hình Đang Phát, Đồng Bộ Toàn Diện Lưu Trữ, Sao Lưu & Phục Hồi `state.trackRatings`**.
+- **Tính năng & Đột phá:**
+  1. **Động cơ phân tích độ gắn kết & xếp hạng sao tổng hợp (`calculateTrackEngagementRating`):**
+     - Tổng hợp 4 trụ cột dữ liệu âm học và hành vi người nghe: Đánh giá chủ quan từ người dùng (45%), tần suất phát & tỷ lệ hoàn thành bài hát (35% kèm phạt skip), trạng thái thả tim Heart/Bookmark (15%) và điểm thưởng định dạng Audiophile Hi-Res DSD/FLAC/WAV/ALAC (5%).
+     - Tính toán điểm số `engagementScore` (thang điểm chuẩn hóa $0 - 100$) và số sao tổng hợp `compositeStars` ($0.0 - 5.0\text{★}$).
+     - Phân tầng 5 bậc chuẩn mực: `masterpiece` ($\ge 85$), `loved_gem` ($\ge 65$), `engaged` ($\ge 40$), `casual` ($\ge 15$) và `unranked`.
+  2. **Phân loại bộ sưu tập yêu thích đa tầng thông minh (`categorizeFavoritesByMoodQuality`):**
+     - Tự động bóc tách danh mục yêu thích thành 4 bộ sưu tập chuyên sâu:
+       - `masterpieces`: Các tuyệt tác đạt 5 sao hoặc điểm gắn kết tối đa.
+       - `audiophileLossless`: Tuyển tập yêu thích đạt chuẩn phòng thu Hi-Res/DSD/FLAC.
+       - `frequentGems`: Những bản nhạc được nghe nhiều nhất và không bị skip.
+       - `rediscover`: Các bài hát đã thả tim nhưng lâu chưa được nghe lại.
+  3. **Định dạng Telemetry đánh giá chuẩn Audiophile (`formatTrackEngagementTelemetry`):**
+     - Xuất nhãn telemetry chi tiết: `⭐ Đánh giá: 4.8★ (Độ gắn kết 92% · Tuyệt tác Masterpiece · 5★ Thủ công · Nghe 18 lượt)`.
+  4. **Tích hợp UI & Bộ Lọc Nhanh Focus Pills:**
+     - Bổ sung 3 nút focus phân tầng yêu thích trên thanh công cụ: `★ Tuyệt tác 5★` (`data-focus="fav-masterpiece"`), `❖ Hi-Res Fav` (`data-focus="fav-hires"`) và `💎 Nghe nhiều` (`data-focus="fav-gems"`).
+     - Bổ sung huy hiệu `#room-engagement-badge` màu hổ phách ngay cạnh cụm đánh giá sao `#room-rating` trong Màn hình Đang phát.
+  5. **Lưu trữ bền vững & Đồng bộ PWA:**
+     - Tự động lưu cấu trúc `state.trackRatings` vào `localStorage` key `'nocturne-track-ratings'`.
+     - Tích hợp sao lưu toàn diện trong `exportAppConfiguration` và khôi phục an toàn trong `mergeRestoredConfiguration`.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `smart-favorites-rating.test.cjs` (**7/7 tests PASS 100%**).
+  - Toàn bộ test suites hồi quy (**PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 15:15 +07] — Pha B: Đồng Hồ Đo Quang Phổ Âm Hình Đa Trục 3D & Máy Đo Tương Quan Pha Goniometer (3D Soundstage Vector Spectrogram & Spatial Goniometer Visualizer)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá UI/UX & Visualizer:
