@@ -1152,7 +1152,7 @@
               <button id="zone-picker-btn" type="button" class="shrink-0 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-[11px] font-medium text-purple-200 transition hover:bg-purple-500/20 active:scale-95" aria-label="Đổi vùng phát">Đổi Vùng ▾</button>
             </div>
           </div>
-          <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span class="text-[9px] uppercase tracking-wider text-zinc-600">.lrc đồng bộ · bấm dòng để tua</span></div><div class="flex items-center gap-1 text-[10px] text-zinc-400"><button id="room-lyrics-paste-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Dán nội dung .lrc">📋 Dán</button><button id="room-lyrics-export-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Xuất file .lrc">💾 Xuất</button><button id="room-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Chậm hơn 0.5s">-0.5s</button><span id="room-lyrics-offset-badge" class="font-mono text-zinc-400 text-[10px] w-12 text-center" title="Bù trừ độ trễ lời bài hát">0ms</span><button id="room-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Nhanh hơn 0.5s">+0.5s</button></div></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
+          <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span id="room-lyrics-source-badge" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono text-zinc-400">Chưa có</span></div><div class="flex items-center gap-1 text-[10px] text-zinc-400"><button id="room-lyrics-refresh-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Tìm lại lời trực tuyến">🔄 Tìm lại</button><button id="room-lyrics-paste-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Dán nội dung .lrc">📋 Dán</button><button id="room-lyrics-export-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Xuất file .lrc">💾 Xuất</button><button id="room-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Chậm hơn 0.5s">-0.5s</button><span id="room-lyrics-offset-badge" class="font-mono text-zinc-400 text-[10px] w-12 text-center" title="Bù trừ độ trễ lời bài hát">0ms</span><button id="room-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Nhanh hơn 0.5s">+0.5s</button></div></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto pr-1 text-sm leading-6 text-zinc-500"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
           <div class="relative w-full group">
             <canvas id="waveform-canvas" class="w-full h-16 cursor-pointer rounded-sm mb-1" aria-label="Dạng sóng bài hát - nhấn để tua"></canvas>
             <div id="waveform-hover-tooltip" class="pointer-events-none absolute bottom-full mb-1 hidden -translate-x-1/2 rounded-md bg-zinc-800/95 border border-white/10 px-2 py-0.5 text-[10px] font-mono text-zinc-100 shadow-xl backdrop-blur-sm z-30 transition-opacity">0:00</div>
@@ -4902,13 +4902,26 @@
     window.suspendLyricsAutoScroll = suspendLyricsAutoScroll;
     window.resumeLyricsAutoScroll = resumeLyricsAutoScroll;
 
-    function renderLyrics(lrcText) {
+    function renderLyrics(lrcText, vaultEntry = null) {
       const container = $('room-lyrics');
       if (!container) return;
+      const badge = $('room-lyrics-source-badge');
       state.lyrics = (typeof library.parseLrcWithOffsetAndTags === 'function' && typeof lrcText === 'string' && /\[offset:/i.test(lrcText)) ? library.parseLrcWithOffsetAndTags(lrcText) : library.parseLyrics(lrcText);
       state.lyricIndex = -1;
       container.innerHTML = '';
       const lines = state.lyrics.length ? state.lyrics : (typeof lrcText === 'string' ? lrcText.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/).map(text => text.trim()).filter(text => text && !text.startsWith('[')).map(text => ({time: NaN, text})) : []);
+      if (badge) {
+        if (!lines.length) {
+          badge.textContent = 'Chưa có';
+          badge.className = 'rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono text-zinc-500';
+        } else if (vaultEntry && typeof library.formatLyricsVaultTelemetry === 'function') {
+          badge.textContent = library.formatLyricsVaultTelemetry(vaultEntry);
+          badge.className = `rounded border px-1.5 py-0.5 text-[9px] font-mono ${vaultEntry.isSynced ? 'border-violet-400/30 bg-violet-500/10 text-violet-300' : 'border-zinc-700 bg-zinc-800/40 text-zinc-300'}`;
+        } else {
+          badge.textContent = state.lyrics.some(l => Number.isFinite(l.time)) ? '⚡ Đồng bộ (.lrc)' : '📄 Lời văn xuôi';
+          badge.className = 'rounded border border-violet-400/30 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-mono text-violet-300';
+        }
+      }
       if (!lines.length) {
         container.innerHTML = `<div class="py-4 text-center text-xs text-zinc-500"><p>Chưa có lời đồng bộ (.lrc) cho bài này.</p><div class="mt-3 flex items-center justify-center gap-2"><button type="button" id="lyrics-retry-btn" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-violet-300 hover:bg-white/10">🔍 Tìm lời trực tuyến</button><button type="button" id="lyrics-paste-btn" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-zinc-300 hover:bg-white/10">📝 Dán lời .lrc</button></div></div>`;
         const retryBtn = $('lyrics-retry-btn');
@@ -4916,7 +4929,7 @@
           const cur = state.tracks.find(t => t.id === state.currentId);
           if (cur) {
             cur.lyricsText = '';
-            triggerLyricsFetch(cur);
+            triggerLyricsFetch(cur, true);
           }
         });
         const pasteBtn = $('lyrics-paste-btn');
@@ -4925,9 +4938,19 @@
           if (pasted && pasted.trim()) {
             const cur = state.tracks.find(t => t.id === state.currentId);
             if (cur) {
-              cur.lyricsText = pasted.trim();
-              try { localStorage.setItem(`nocturne-lyrics-${cur.id}`, cur.lyricsText); } catch (_) {}
-              renderLyrics(cur.lyricsText);
+              const sanitized = (typeof library.normalizeAndSanitizeLrc === 'function')
+                ? library.normalizeAndSanitizeLrc(pasted.trim())
+                : pasted.trim();
+              const entry = (typeof library.createLyricsVaultEntry === 'function')
+                ? library.createLyricsVaultEntry(cur, sanitized, { source: 'manual', matchScore: 100 })
+                : null;
+              cur.lyricsText = sanitized;
+              cur.lyricsVaultEntry = entry;
+              try {
+                if (entry) localStorage.setItem(`nocturne-lyrics-vault-${cur.id}`, JSON.stringify(entry));
+                localStorage.setItem(`nocturne-lyrics-${cur.id}`, sanitized);
+              } catch (_) {}
+              renderLyrics(sanitized, entry);
               toast('Đã nạp lời bài hát thành công!');
             }
           }
@@ -5004,23 +5027,44 @@
       }
     }
     async function triggerLyricsFetch(track) {
+      const forceRefresh = arguments.length > 1 ? Boolean(arguments[1]) : false;
       if (!track) return;
-      if (track.lyricsText) {
-        renderLyrics(track.lyricsText);
-        return;
-      }
-      try {
-        const cached = localStorage.getItem(`nocturne-lyrics-${track.id}`);
-        if (cached) {
-          track.lyricsText = cached;
-          renderLyrics(cached);
+      if (!forceRefresh) {
+        if (track.lyricsVaultEntry) {
+          renderLyrics(track.lyricsVaultEntry.lrcText, track.lyricsVaultEntry);
           return;
         }
-      } catch (_) {}
+        if (track.lyricsText) {
+          const entry = (typeof library.createLyricsVaultEntry === 'function')
+            ? library.createLyricsVaultEntry(track, track.lyricsText, { source: 'local' })
+            : null;
+          renderLyrics(track.lyricsText, entry);
+          return;
+        }
+        try {
+          const vaultRaw = localStorage.getItem(`nocturne-lyrics-vault-${track.id}`);
+          if (vaultRaw) {
+            const vaultParsed = JSON.parse(vaultRaw);
+            const valResult = (typeof library.validateLyricsVaultEntry === 'function') ? library.validateLyricsVaultEntry(vaultParsed) : { isValid: true };
+            if (valResult.isValid) {
+              track.lyricsText = vaultParsed.lrcText;
+              track.lyricsVaultEntry = vaultParsed;
+              renderLyrics(vaultParsed.lrcText, vaultParsed);
+              return;
+            }
+          }
+          const legacyCached = localStorage.getItem(`nocturne-lyrics-${track.id}`);
+          if (legacyCached) {
+            track.lyricsText = legacyCached;
+            renderLyrics(legacyCached);
+            return;
+          }
+        } catch (_) {}
+      }
 
       const container = $('room-lyrics');
       if (container) {
-        container.innerHTML = '<p class="text-xs text-violet-300 animate-pulse">Đang tìm lời đồng bộ (.lrc) trực tuyến qua LRCLIB...</p>';
+        container.innerHTML = '<p class="text-xs text-violet-300 animate-pulse">Đang tìm lời đồng bộ (.lrc) mờ trực tuyến qua LRCLIB...</p>';
       }
 
       const meta = library.trackMetadata ? library.trackMetadata(track) : { title: track.title, artist: track.artist };
@@ -5036,25 +5080,71 @@
         if (dur > 0) url += `&duration=${dur}`;
         const resp = await fetch(url);
         let lrc = null;
+        let bestCandidate = null;
+        let matchScore = 90;
+
         if (resp.ok) {
           const data = await resp.json();
           lrc = data.syncedLyrics || data.plainLyrics;
+          bestCandidate = data;
+          if (typeof library.scoreLyricsCandidateMatch === 'function') {
+            const scored = library.scoreLyricsCandidateMatch(track, data);
+            matchScore = scored.matchScore;
+          }
         } else {
           const searchResp = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent((cleaned.artist ? cleaned.artist + ' ' : '') + cleaned.title)}`);
           if (searchResp.ok) {
             const list = await searchResp.json();
             if (Array.isArray(list) && list.length > 0) {
-              const best = list.find(item => item.syncedLyrics) || list[0];
-              lrc = best.syncedLyrics || best.plainLyrics;
+              if (typeof library.scoreLyricsCandidateMatch === 'function') {
+                let maxScore = -1;
+                for (const item of list) {
+                  const s = library.scoreLyricsCandidateMatch(track, item);
+                  if (s.matchScore > maxScore) {
+                    maxScore = s.matchScore;
+                    bestCandidate = item;
+                    matchScore = s.matchScore;
+                  }
+                }
+                if (bestCandidate && maxScore >= 50) {
+                  lrc = bestCandidate.syncedLyrics || bestCandidate.plainLyrics;
+                }
+              } else {
+                const best = list.find(item => item.syncedLyrics) || list[0];
+                lrc = best.syncedLyrics || best.plainLyrics;
+              }
             }
           }
         }
 
         if (lrc && state.currentId === track.id) {
-          track.lyricsText = lrc;
-          try { localStorage.setItem(`nocturne-lyrics-${track.id}`, lrc); } catch (_) {}
-          renderLyrics(lrc);
-          toast(`Đã tìm thấy lời đồng bộ (.lrc) cho “${meta.title}”`);
+          const sanitizedLrc = (typeof library.normalizeAndSanitizeLrc === 'function')
+            ? library.normalizeAndSanitizeLrc(lrc)
+            : lrc;
+          track.lyricsText = sanitizedLrc;
+
+          const vaultEntry = (typeof library.createLyricsVaultEntry === 'function')
+            ? library.createLyricsVaultEntry(track, sanitizedLrc, { source: 'lrclib', matchScore })
+            : { lrcText: sanitizedLrc, isSynced: /\[\d{1,2}:\d{2}/.test(sanitizedLrc), matchScore };
+
+          track.lyricsVaultEntry = vaultEntry;
+          try {
+            localStorage.setItem(`nocturne-lyrics-vault-${track.id}`, JSON.stringify(vaultEntry));
+            localStorage.setItem(`nocturne-lyrics-${track.id}`, sanitizedLrc);
+          } catch (_) {}
+
+          renderLyrics(sanitizedLrc, vaultEntry);
+          toast(`Đã tìm thấy lời đồng bộ (.lrc) cho “${meta.title}” (${matchScore}% khớp)`);
+
+          // Background preload next queue items
+          if (typeof library.scheduleQueueLyricsPreload === 'function' && Array.isArray(state.queue)) {
+            const preloadTargets = library.scheduleQueueLyricsPreload(state.queue, state.currentId, { maxPreload: 2 });
+            setTimeout(() => {
+              for (const pt of preloadTargets) {
+                if (pt && !pt.lyricsText) triggerLyricsFetch(pt, false).catch(() => {});
+              }
+            }, 3000);
+          }
         } else if (state.currentId === track.id) {
           renderLyrics('');
         }
@@ -10275,6 +10365,19 @@
     const roomOffsetPlus = $('room-lyrics-offset-plus');
     if (roomOffsetPlus) roomOffsetPlus.addEventListener('click', () => setLyricsOffset(0.5));
 
+    const roomRefreshBtn = $('room-lyrics-refresh-btn');
+    if (roomRefreshBtn) {
+      roomRefreshBtn.addEventListener('click', () => {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (cur) {
+          toast('Đang tìm lại lời bài hát trực tuyến...');
+          triggerLyricsFetch(cur, true);
+        } else {
+          toast('Chưa chọn bài hát.');
+        }
+      });
+    }
+
     const roomPasteBtn = $('room-lyrics-paste-btn');
     if (roomPasteBtn) {
       roomPasteBtn.addEventListener('click', () => {
@@ -10282,10 +10385,20 @@
         if (pasted && pasted.trim()) {
           const cur = state.tracks.find(t => t.id === state.currentId);
           if (cur) {
-            cur.lyricsText = pasted.trim();
-            try { localStorage.setItem(`nocturne-lyrics-${cur.id}`, cur.lyricsText); } catch (_) {}
-            renderLyrics(cur.lyricsText);
-            toast('Đã nạp lời bài hát thành công!');
+            const sanitized = (typeof library.normalizeAndSanitizeLrc === 'function')
+              ? library.normalizeAndSanitizeLrc(pasted.trim())
+              : pasted.trim();
+            const entry = (typeof library.createLyricsVaultEntry === 'function')
+              ? library.createLyricsVaultEntry(cur, sanitized, { source: 'manual', matchScore: 100 })
+              : { lrcText: sanitized, isSynced: /\[\d{1,2}:\d{2}/.test(sanitized), matchScore: 100 };
+            cur.lyricsText = sanitized;
+            cur.lyricsVaultEntry = entry;
+            try {
+              localStorage.setItem(`nocturne-lyrics-vault-${cur.id}`, JSON.stringify(entry));
+              localStorage.setItem(`nocturne-lyrics-${cur.id}`, sanitized);
+            } catch (_) {}
+            renderLyrics(sanitized, entry);
+            toast('Đã nạp lời bài hát vào kho lưu trữ ngoại tuyến!');
           }
         }
       });
@@ -10559,5 +10672,6 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 07:45 +07 | Đã xong: Pha D - Hiệu Năng & Kiến Trúc PWA: Tối Ưu Hóa Nạp Trước Bộ Nhớ Đệm Đa Tầng (Multi-Tier Lookahead Audio Buffer Pipeline) & Khả Năng Thích Ứng Khi Băng Thông Mạng Chập Chờn (Network Throttling Resiliency): (1) calculateNetworkThroughputAdaptiveProfile đo lường tốc độ mạng trung bình trượt có trọng số hàm mũ (EWMA), phân cấp 5 bậc (high-speed, stable, constrained, throttled, offline), tự động điều chỉnh kích thước lát tải 128KB-1MB và hoãn metadata khi nghẽn mạng hoặc kích hoạt saveData; (2) calculateThrottlingBackoff thuật toán phục hồi lũy tiến Exponential Backoff kết hợp Jitter 15% chống nghẽn đường truyền; (3) evaluateLookaheadBufferPipeline kiểm soát đồng thời 3 tầng đệm (headroom đang phát, underflow risk < 4s, độ sẵn sàng bài kế tiếp), đánh giá 4 cấp sức khỏe (optimal, healthy, vulnerable, starving); (4) formatLookaheadPipelineTelemetry xuất nhãn telemetry thời gian thực; (5) Tích hợp UI: huy hiệu #footer-buffer-pipeline-badge trên #footer-telemetry-strip đổi màu cảnh báo thông minh, lắng nghe timeupdate & progress; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests lookahead-buffer-resiliency.test.cjs PASS 100%, 138/138 regression tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: Cân Bằng Độ Lớn Tự Thích Ứng (Dynamic ReplayGain Multi-Standard ITU-R BS.1770 / EBU R128 Loudness Normalization with True-Peak Auto-Guard) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 08:25 +07 | Đã xong: Pha A Mới - Audio Engine & DSP: Cân Bằng Độ Lớn Đa Tiêu Chuẩn Phòng Thu (Dynamic ReplayGain Multi-Standard Loudness Normalization with True-Peak Auto-Guard): (1) LOUDNESS_STANDARDS với 5 chuẩn chuẩn mực (Roon Audiophile Album -18 LUFS, EBU R128 -23 LUFS, ITU-R BS.1770 -24 LUFS, Streaming -14 LUFS, Legacy ReplayGain 2.0 89 dB SPL); (2) calculateTruePeakAutoGuard dự đoán True-Peak và tự động suy giảm gain chống hiện tượng xén méo liên mẫu DAC (inter-sample peak distortion); (3) estimateLoudnessLUFS ước tính độ lớn K-weighting thông minh từ RMS và Crest factor cho các bài hát không có sẵn metadata; (4) calculateDynamicReplayGain & formatDynamicReplayGainSummary tính toán và định dạng mức gain chuẩn hóa tức thời theo chuẩn đã chọn, chế độ Track/Album, bù Preamp ±6 dB và bảo vệ True-Peak; (5) Tích hợp UI Equalizer Panel: #loudness-standard-select, #loudness-guard-toggle, #loudness-guard-status, #replaygain-badge với cờ hiển thị an toàn; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests dynamic-replaygain-loudness.test.cjs PASS 100%, 144/144 regression tests PASS 100% | Lượt kế tiếp: Pha B - UI/UX & Visualizer: Sân Khấu Ánh Sáng Vũ Trường & Visualizer Strobe Đa Tần Số (Multi-Band Reactive Strobe & Beat-Synchronized Ambient Aura) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 08:35 +07 | Đã xong: Pha B - UI/UX & Visualizer: Sân Khấu Ánh Sáng Vũ Trường & Visualizer Strobe Đa Tần Số (Multi-Band Reactive Strobe & Beat-Synchronized Ambient Aura): (1) STAGE_AURA_PRESETS với 4 preset sân khấu chuyên nghiệp (Vũ trường Laser club-laser, Phòng trà thư giãn lounge-ambient, Kiểm âm phòng thu studio-monitor, Sóng ảo giác đa sắc psychedelic-wave); (2) calculateMultiBandStrobe phân tách độc lập 3 dải tần số (Bass 20-250Hz, Vocal 250-3500Hz, Treble 3500-16000Hz), đo lường bassPulseScale, vocalRippleRadius và activeSparkles; (3) renderMultiBandAmbientAura kết xuất đồ họa Canvas 3 lớp thời gian thực 60fps (Layer 1 Lõi Bass tỏa sáng, Layer 2 Vòng sóng vocal cộng hưởng #38bdf8, Layer 3 Vi hạt sao treble shimmer); (4) formatMultiBandAuraSummary định dạng telemetry trực quan; (5) Tích hợp UI: bộ chọn #stage-aura-preset-select và mô tả #stage-aura-desc trong Cài đặt, tự động đồng bộ visualizer; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 5/5 tests stage-multi-band-aura.test.cjs PASS 100%, 122/122 regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Quản Lý & Tự Động Khớp Lời Bài Hát Đa Nguồn Mờ (Fuzzy Multi-Source Lyrics Matcher & Synchronized LRC Offline Vault) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 09:12 +07 | Đã xong: Pha C - Core Features & Thư Viện: Quản Lý & Tự Động Khớp Lời Bài Hát Đa Nguồn Mờ (Fuzzy Multi-Source Lyrics Matcher & Synchronized LRC Offline Vault): (1) cleanLyricsSearchKey, calculateStringSimilarity & scoreLyricsCandidateMatch làm sạch và tính điểm độ tương đồng đa tiêu chí (tiêu đề 50%, nghệ sĩ 30%, chênh lệch thời lượng 15%, ưu tiên lời đồng bộ 5%); (2) normalizeAndSanitizeLrc chuẩn hóa mốc thời gian ISO [mm:ss.xx], lọc bỏ hoàn toàn spam text và sắp xếp lời theo trình tự thời gian; (3) createLyricsVaultEntry, validateLyricsVaultEntry & formatLyricsVaultTelemetry quản lý kho lưu trữ ngoại tuyến TTL 30 ngày; (4) scheduleQueueLyricsPreload nạp ngầm lời bài hát cho hàng đợi; (5) Tích hợp UI: huy hiệu #room-lyrics-source-badge và nút làm mới #room-lyrics-refresh-btn; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests lyrics-fuzzy-matcher-vault.test.cjs PASS 100%, 118/118 regression tests PASS 100% | Lượt kế tiếp: Pha D - Hiệu Năng & Kiến Trúc PWA: Nén & Lập Chỉ Mục Thư Viện Đa Luồng Web Worker (IndexedDB Compact Indexing & Web Worker Asynchronous Library Scan) -->
 </body>
 </html>

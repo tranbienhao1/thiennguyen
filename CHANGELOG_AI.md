@@ -2,6 +2,34 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 09:12 +07] — Pha C: Quản Lý & Tự Động Khớp Lời Bài Hát Đa Nguồn Mờ (Fuzzy Multi-Source Lyrics Matcher & Synchronized LRC Offline Vault)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Core Features & Lyrics:
+- **Phân khu trọng tâm:** **Động Cơ Khớp Lời Mờ Đa Chiều (Fuzzy Matcher), Làm Sạch LRC Tự Động (Spam & Tag Normalization), Kho Lưu Trữ Lời Ngoại Tuyến (Offline Lyrics Vault TTL) & Tải Trước Lời Hàng Đợi (Queue Preload)**.
+- **Tính năng & Đột phá:**
+  1. **Thuật toán so khớp mờ đa chiều (`cleanLyricsSearchKey`, `calculateStringSimilarity`, `scoreLyricsCandidateMatch`):**
+     - Làm sạch thông minh tiêu đề và nghệ sĩ, lọc bỏ dấu tiếng Việt, đuôi mở rộng âm thanh (`.flac`, `.dsf`, `.mp3`), và các thẻ phụ `[Remastered]`, `(feat. ...)`, `[Official Audio]`, `[Live]`.
+     - Chấm điểm ứng viên đa tiêu chí: độ tương đồng tiêu đề (50%), nghệ sĩ (30%), chênh lệch thời lượng $\pm 2\text{s}$ đến $\pm 10\text{s}$ (15%), và ưu tiên lời đồng bộ `[mm:ss.xx]` so với lời văn xuôi (5%).
+     - Phân loại độ tin cậy `high` (>=80%), `medium` (60-79%), `low` (<60%).
+  2. **Động cơ phân tích & làm sạch chuẩn hóa LRC (`normalizeAndSanitizeLrc`):**
+     - Chuẩn hóa mọi định dạng mốc thời gian không chuẩn (`[1:23.4]`, `[01:23]`, `[01:23:45]`) về định dạng chuẩn ISO `[mm:ss.xx]`.
+     - Tự động lọc sạch quảng cáo, spam text (`lyrics by`, `www.`, `qq:`, link rác).
+     - Tự động sắp xếp các câu lời hát theo thứ tự thời gian tăng dần nghiêm ngặt.
+  3. **Kho lưu trữ lời bài hát ngoại tuyến (`createLyricsVaultEntry`, `validateLyricsVaultEntry`, `formatLyricsVaultTelemetry`):**
+     - Đóng gói bản ghi vault với đầy đủ `trackId`, `title`, `artist`, `source` (`lrclib`, `manual`, `local`), `matchScore`, `linesCount`, `savedAt`, và thời hạn hết hạn 30 ngày.
+     - Hiển thị huy hiệu `#room-lyrics-source-badge` trực quan thời gian thực (ví dụ: `⚡ Đồng bộ (LRCLIB · 95% khớp · 38 câu)`).
+  4. **Tải trước lời bài hát cho hàng đợi (`scheduleQueueLyricsPreload`):**
+     - Tự động nhận diện $N$ bài hát kế tiếp trong hàng đợi chưa có lời và nạp ngầm vào vault mà không ảnh hưởng luồng phát nhạc.
+  5. **Tích hợp UI:**
+     - Nút tìm lại lời trực tuyến `#room-lyrics-refresh-btn` (🔄 Tìm lại).
+     - Nút dán lời thủ công `#room-lyrics-paste-btn` tự động chuẩn hóa và lưu vào vault.
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `lyrics-fuzzy-matcher-vault.test.cjs` (**6/6 tests PASS 100%**).
+  - Toàn bộ các suite test hồi quy liên quan (**118/118 tests PASS 100%** trong 860ms).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 08:35 +07] — Pha B: Sân Khấu Ánh Sáng Vũ Trường & Visualizer Strobe Đa Tần Số (Multi-Band Reactive Strobe & Beat-Synchronized Ambient Aura)
 
 ### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá UI/UX & Visualizer:
