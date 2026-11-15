@@ -2,6 +2,44 @@
 
 ---
 
+## [Tự Động Nâng Cấp 2026-11-15 17:15 +07] — Pha B: Đồng Hồ Đo Quang Phổ Âm Hình Radar Phân Cực 3D & Trường Pha Hologram Động (3D Polar Radar Soundstage Visualizer & Dynamic Phase Field Hologram)
+
+### 🎯 Hạng Mục Nâng Cấp, Tính Năng & Đột Phá Visualizer:
+- **Phân khu trọng tâm:** **2. UI/UX & Visualizer (3D Polar Radar Soundstage Visualizer & Dynamic Phase Field Hologram)**.
+- **Tính năng & Đột phá:**
+  1. **Động cơ Phân Cực Âm Học Radar 3D (`calculatePolarRadarSoundstage` & `POLAR_RADAR_MODES`):**
+     - Đăng ký danh mục chế độ hiển thị `POLAR_RADAR_MODES`: `contour` (Khung Đa Giác Phân Cực), `hologram` (Đám Mây Hạt Hologram), `spectral` (Vành Đai Quang Phổ).
+     - Phân tích tín hiệu stereo $(L, R)$ theo hệ tọa độ cực âm học:
+       - Tách thành phần Mid $M = (L+R)/\sqrt{2}$ và Side $S = (R-L)/\sqrt{2}$.
+       - Chiếu lên mặt phẳng cực với góc Azimuth hướng tính $\theta \in [-90^\circ, +90^\circ]$: chuẩn hóa vector sóng để không bị đảo góc theo cực âm/dương tức thời của sóng sin.
+       - Phân chia 16 sector góc định hướng, đo lường năng lượng biên độ và mật độ phân bố âm trường thời gian thực.
+       - Tích hợp 3 dải phổ năng lượng tần số `spectralBands` (subBass, mid, high) từ dữ liệu FFT của Web Audio Analyser.
+     - Tính toán các chỉ số âm học audiophile chuyên sâu:
+       - `centroidAzimuthDeg`: Trọng tâm trường âm (Centroid Azimuth) xác định nguồn âm đang lệch trái hay lệch phải bao nhiêu độ.
+       - `soundstageApertureDeg`: Khẩu độ trường âm (Soundstage Aperture) mở rộng từ $20^\circ$ (mono hội tụ) tới $90^\circ+$ (3D siêu rộng).
+       - `polarDepth`: Độ sâu trường âm không gian (0–100%).
+       - `correlation`: Hệ số tương quan pha stereo thời gian thực $r \in [-1.0, +1.0]$.
+       - `antiPhaseRatio`: Tỷ lệ phát hiện nghịch pha / triệt tiêu âm học khi $L \cdot R < 0$.
+       - `soundstageState`: Tự động phân cấp 4 trạng thái trường âm (`anti_phase_alert`, `wide_holographic`, `mono_focused`, `balanced_stereo`).
+  2. **Bộ Vẽ Canvas Radar Hologram 60fps (`renderPolarRadarCanvas`):**
+     - Vẽ hệ thống lưới tọa độ Radar Audiophile chuyên nghiệp:
+       - 4 vòng cự ly chuẩn mực: `-24 dB` ($0.25R$), `-12 dB` ($0.50R$), `-6 dB` ($0.75R$), `0 dB` ($1.0R$).
+       - Các đường nan hoa góc Azimuth: $-60^\circ, -45^\circ, -30^\circ, 0^\circ, +30^\circ, +45^\circ, +60^\circ$ kèm nhãn `◄ TRÁI (L -90°)` và `PHẢI (R +90°) ►`.
+       - Tia quét radar Hologram (Sweep Beam) chuyển động quét mượt mà góc cực.
+       - Đa giác trường âm (Soundstage Contour) bo cong spline mượt mà, đổi màu theo theme hoặc cảnh báo đỏ rực khi có hiện tượng nghịch pha.
+       - Hạt phát quang (Hologram Nodes) phát sáng tại các đỉnh năng lượng âm học.
+       - Kim chỉ hướng Vector Centroid Azimuth định vị vị trí sân khấu âm thanh tức thời.
+  3. **Tích hợp Giao diện Toàn Màn hình (Fullscreen Stage Visualizer):**
+     - Nút chế độ `#fs-stage-mode-radar` trong Fullscreen View kết nối trực tiếp vào vòng lặp Canvas requestAnimationFrame.
+     - Tự động cập nhật huy hiệu `#fs-soundstage-badge` và dòng mô tả telemetry trực quan `#fs-stage-telemetry-desc` với `formatPolarRadarTelemetry`.
+  4. **Bảo Toàn Nghiêm Ngặt Bất Biến Đồ Thị Âm Thanh:**
+     - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+- **Kiểm chứng chất lượng:**
+  - Test suite mới: `polar-radar-soundstage.test.cjs` (**8/8 tests PASS 100%**).
+  - Toàn bộ regression tests (**43/43 tests PASS 100%**).
+
+---
+
 ## [Tự Động Nâng Cấp 2026-11-15 16:45 +07] — Pha A: Mô Phỏng Mạch Khuếch Đại & Lọc Bù Trừ Pha Tần Số Thấp (Sub-Bass Phase Alignment & Analog Bass Exciter Harmonic Generator) & Khắc Phục Triệt Để Lỗi Cập Nhật PWA / Bố Cục Điều Khiển Bị Che Khuất
 
 ### 🎯 Hạng Mục Nâng Cấp, Sửa Lỗi & Tối Ưu Bố Cục:
