@@ -2,6 +2,37 @@
 
 ---
 
+## [Pha D 2026-11-15 21:30 +07] — Phát Triển Ứng Dụng Android Native (Android Studio / Gradle & Chuẩn PWA Mobile)
+
+### 🎯 Giải Quyết Yêu Cầu Người Dùng:
+1. **Xây dựng ứng dụng Android Native hoàn chỉnh (`android/`):**
+   - **Cấu trúc dự án chuẩn Android Studio:** `android/settings.gradle.kts`, `android/build.gradle.kts` (AGP 8.7.3, tương thích Gradle 8.14.3 và JDK 21), `android/gradle.properties`, `android/local.properties`.
+   - **Cấu hình ứng dụng (`android/app/build.gradle.kts`):** `namespace = 'com.nocturne.audiophile'`, `compileSdk = 35`, `minSdk = 26` (hỗ trợ từ Android 8.0 Oreo đến Android 15), `targetSdk = 35`.
+   - **Đầy đủ quyền âm thanh audiophile (`AndroidManifest.xml`):**
+     - `WAKE_LOCK`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`: Cho phép phát nhạc lossless nền liên tục không bao giờ bị hệ thống ngắt khi tắt màn hình.
+     - `MODIFY_AUDIO_SETTINGS`, `READ_MEDIA_AUDIO`, `INTERNET`, `POST_NOTIFICATIONS`.
+     - `android:hardwareAccelerated='true'` tối ưu hóa hiệu năng render 120fps.
+   - **`MainActivity.java` với WebView hiệu năng cao:**
+     - Thiết lập WebSettings: `javaScriptEnabled(true)`, `domStorageEnabled(true)`, `mediaPlaybackRequiresUserGesture(false)`, `allowFileAccess(true)`, `databaseEnabled(true)`.
+     - Quản lý `AudioManager` & `AudioFocusRequest` chuyên nghiệp.
+     - Trải nghiệm toàn màn hình tràn viền (Edge-to-Edge) với `WindowInsetsCompat` tự động truyền biến CSS `--safe-inset-*`.
+     - Tích hợp `WebViewAssetLoader` phục vụ tài nguyên offline an toàn qua HTTPS (`https://appassets.androidplatform.net/assets/index.html`).
+     - Cầu nối JavaScript `window.NocturneNative` (WakeLock, AudioFocus, Toast, Platform telemetry).
+   - **Build file APK thành công:** Đã biên dịch ra tệp `app-debug.apk` (6.1MB) tại `android/app/build/outputs/apk/debug/app-debug.apk` và sao lưu ra `C:\Users\thien\Music\Nocturne-Audiophile-v1.0-debug.apk` để người dùng dễ dàng cài đặt ngay lên điện thoại Android.
+
+2. **Nâng cấp PWA & Mobile UI/UX cho Android (`manifest.json` & `index.html`):**
+   - **Bộ icon Android sắc nét:** Tạo `icons/icon-192.png` và `icons/icon-512.png` chuẩn magic bytes PNG với cấu hình `any maskable` và `any` trong `manifest.json`.
+   - **Tràn viền Edge-to-Edge:** Bổ sung `viewport-fit=cover` vào thẻ viewport meta.
+   - **Safe-area insets CSS:** Tích hợp `env(safe-area-inset-top)` và `env(safe-area-inset-bottom)` bảo vệ thanh header khỏi camera tai thỏ/nốt ruồi và bảo vệ thanh dock footer khỏi thanh điều hướng cử chỉ (gesture pill).
+   - **MediaSession API:** Hoàn thiện Metadata đa độ phân giải và đầy đủ action handlers (`play`, `pause`, `previoustrack`, `nexttrack`, `seekto`...) hỗ trợ điều khiển ngoài màn hình khóa (Lockscreen) và thanh thông báo (Notification Center) của Android.
+
+3. **Kiểm thử & Bất biến:**
+   - 11/11 tests mới PASS (`test/android-pwa-mobile.test.cjs`, `test/android-project-integrity.test.cjs`).
+   - 1157/1157 tests PASS toàn bộ hệ thống (0 fail).
+   - BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Pha C 2026-11-15 20:30 +07] — Sửa Lỗi Kẹt Phát Nhạc Khi Kết Nối Server, Di Chuyển Nút EQ & Tối Ưu Kéo Thả Mini Player HUD Mượt 120fps (Server Playback Hang Fix, EQ Relocation & Mini HUD Smooth Dragging)
 
 ### 🎯 Giải Quyết Yêu Cầu Người Dùng:
