@@ -1507,10 +1507,10 @@
 
   function calculateAlbumRemainingSeconds(tracks, currentTrackId, currentTrackPlaybackSec = 0) {
     if (!Array.isArray(tracks) || !currentTrackId) return 0;
-    const curTrack = tracks.find(t => t && t.id === currentTrackId);
+    const curTrack = tracks.find(t => t && (t.id === currentTrackId || String(t.id) === String(currentTrackId)));
     if (!curTrack || !curTrack.album) return Math.max(0, Math.round((curTrack?.duration || 0) - (Number(currentTrackPlaybackSec) || 0)));
     const albumTracks = tracks.filter(t => t && t.album === curTrack.album);
-    const curIndex = albumTracks.findIndex(t => t.id === currentTrackId);
+    const curIndex = albumTracks.findIndex(t => t && (t.id === currentTrackId || String(t.id) === String(currentTrackId)));
     if (curIndex === -1) return Math.max(0, Math.round((curTrack.duration || 0) - (Number(currentTrackPlaybackSec) || 0)));
 
     let remaining = Math.max(0, (curTrack.duration || 0) - (Number(currentTrackPlaybackSec) || 0));
@@ -8780,7 +8780,7 @@
   function scheduleQueueLyricsPreload(queue = [], currentId = null, options = {}) {
     if (!Array.isArray(queue) || queue.length === 0) return [];
     const maxPreload = Number(options.maxPreload) || 3;
-    const curIdx = queue.findIndex(t => t && t.id === currentId);
+    const curIdx = queue.findIndex(t => t && (t.id === currentId || String(t.id) === String(currentId)));
     const startIdx = curIdx >= 0 ? curIdx + 1 : 0;
     const candidates = queue.slice(startIdx, startIdx + maxPreload);
 
@@ -9145,7 +9145,7 @@
     const result = [];
 
     if (currentTrack) {
-      const curIdx = remaining.findIndex(t => t && t.id === currentTrack.id);
+      const curIdx = remaining.findIndex(t => t && (t.id === currentTrack.id || String(t.id) === String(currentTrack.id)));
       if (curIdx >= 0) {
         result.push(remaining.splice(curIdx, 1)[0]);
       }

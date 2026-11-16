@@ -2641,10 +2641,14 @@
           }
         }
       };
-      window.onNativeBitPerfectPlaybackEnded = () => {
+      window.onBitPerfectPlaybackComplete = () => {
         state.isNativeBitPerfectPlaying = false;
-        playNext(1);
+        state.isNativeBitPerfectPaused = false;
+        playNext(1, true);
       };
+      window.onNativeBitPerfectPlaybackEnded = window.onBitPerfectPlaybackComplete;
+      window.nextTrack = () => playNext(1, false);
+      window.prevTrack = () => playNext(-1, false);
       window.onNativeBitPerfectStateChange = (isPlaying) => {
         state.isNativeBitPerfectPaused = !isPlaying;
         const symbol = isPlaying ? 'Ⅱ' : '▶';
@@ -4192,8 +4196,18 @@
       return { label, tone: isDsd ? 'text-fuchsia-300 border-fuchsia-300/20 bg-fuchsia-300/5' : hires ? 'text-amber-300 border-amber-300/20 bg-amber-300/5' : lossless ? 'text-emerald-300 border-emerald-300/20 bg-emerald-300/5' : 'text-zinc-500 border-white/10' };
     }
     function isFavorite(track) { return state.favorites.has(track.id) || state.favorites.has(`${track.source}:${track.remoteId || track.id}`); }
-    function trackById(trackId) { return state.tracks.find(item => item.id === trackId); }
-    function queueTracks() { return state.queueTrackIds.map(trackById).filter(Boolean).filter(track => track.id !== state.currentId); }
+    function trackById(trackId) {
+      if (trackId == null) return null;
+      const sId = String(trackId);
+      return state.tracks.find(item => item && (item.id === trackId || String(item.id) === sId));
+    }
+    function queueTracks() {
+      const curIdStr = state.currentId != null ? String(state.currentId) : null;
+      return (state.queueTrackIds || [])
+        .map(trackById)
+        .filter(Boolean)
+        .filter(track => curIdStr == null || (track.id !== state.currentId && String(track.id) !== curIdStr));
+    }
     function formatDecodeAudit(decodeMs, maxChunkMs, chunksOverBudget, throughputMBps, initialChunkBytes, maxConsecutiveOverBudget, minSliceThroughputMBps, firstSliceMs) {
       if (Number.isFinite(decodeMs) && decodeMs >= 0 && Number.isFinite(maxChunkMs) && maxChunkMs >= 0) {
         const total = decodeMs >= 1000 ? `${(decodeMs / 1000).toFixed(1)} s` : `${Math.round(decodeMs)} ms`;
@@ -8853,23 +8867,26 @@
     }
     window.updateRoonFullscreenUI = updateRoonFullscreenUI;
     function queueIndex() {
-      const current = state.tracks.findIndex(track => track.id === state.currentId);
+      const currentIdStr = state.currentId != null ? String(state.currentId) : null;
+      const current = state.tracks.findIndex(track => track && (track.id === state.currentId || String(track.id) === currentIdStr));
       if (current < 0) return -1;
       const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
       const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
       const queuedList = queueTracks();
       const queued = isOfflineMode && lib && typeof lib.canPlayOffline === 'function' ? queuedList.find(t => lib.canPlayOffline(t)) : queuedList[0];
-      if (queued) return state.tracks.indexOf(queued);
+      if (queued && (currentIdStr == null || String(queued.id) !== currentIdStr)) return state.tracks.indexOf(queued);
       if (!state.autoplay || state.repeat === 2) return -1;
 
       const isSequentialAlbum = Boolean(lib && typeof lib.shouldEnforceSequentialPlayback === 'function' && lib.shouldEnforceSequentialPlayback(state.playbackContext));
       if (isSequentialAlbum) {
-        const albumTracks = (state.playbackContext.trackIds || []).map(id => (typeof trackById === 'function' ? trackById(id) : null) || state.tracks.find(t => t.id === id)).filter(Boolean);
+        const albumTracks = (state.playbackContext.trackIds || [])
+          .map(id => trackById(id) || state.tracks.find(t => t && String(t.id) === String(id)))
+          .filter(Boolean);
         const seqResult = (lib && typeof lib.resolveNextSequentialTrack === 'function')
           ? lib.resolveNextSequentialTrack(state.currentId, albumTracks, 1, { repeat: state.repeat })
           : null;
-        if (seqResult && seqResult.track) {
-          return state.tracks.findIndex(t => t.id === seqResult.track.id);
+        if (seqResult && seqResult.track && (currentIdStr == null || String(seqResult.track.id) !== currentIdStr)) {
+          return state.tracks.findIndex(t => t && String(t.id) === String(seqResult.track.id));
         }
         if (seqResult && seqResult.isEnd) {
           if (state.roonRadio && lib && typeof lib.selectRoonRadioTrack === 'function') {
@@ -8879,7 +8896,13 @@
               excludeIds: [state.currentId, ...state.queueTrackIds],
               isOffline: isOfflineMode
             });
-            if (radio && radio.track) return state.tracks.indexOf(radio.track);
+            if (radio && radio.track && (currentIdStr == null || String(radio.track.id) !== currentIdStr)) return state.tracks.indexOf(radio.track);
+          }
+          if (state.repeat === 1 && albumTracks.length > 0) {
+            return state.tracks.findIndex(t => t && String(t.id) === String(albumTracks[0].id));
+          }
+          if (state.tracks.length > 1) {
+            return (current + 1) % state.tracks.length;
           }
           return -1;
         }
@@ -8892,14 +8915,17 @@
           repeat: state.repeat
         });
         if (nextPlayable && nextPlayable.track) {
+          if (currentIdStr != null && String(nextPlayable.track.id) === currentIdStr && state.tracks.length > 1) {
+            return (current + 1) % state.tracks.length;
+          }
           return nextPlayable.index >= 0 ? nextPlayable.index : state.tracks.indexOf(nextPlayable.track);
         }
         return -1;
       }
       if (state.shuffle) {
-        const queuedIndex = state.tracks.findIndex(track => track.id === state.preloadTrackId && track.id !== state.currentId);
+        const queuedIndex = state.tracks.findIndex(track => track && track.id === state.preloadTrackId && (currentIdStr == null || String(track.id) !== currentIdStr));
         if (queuedIndex >= 0) return queuedIndex;
-        const choices = state.tracks.filter(track => track.id !== state.currentId);
+        const choices = state.tracks.filter(track => track && (currentIdStr == null || String(track.id) !== currentIdStr));
         return choices.length ? state.tracks.indexOf(choices[Math.floor(Math.random() * choices.length)]) : state.repeat === 1 ? current : -1;
       }
       if (current + 1 < state.tracks.length) return current + 1;
@@ -8911,8 +8937,9 @@
           excludeIds: [state.currentId, ...state.queueTrackIds],
           isOffline: isOfflineMode
         });
-        if (radio && radio.track) return state.tracks.indexOf(radio.track);
+        if (radio && radio.track && (currentIdStr == null || String(radio.track.id) !== currentIdStr)) return state.tracks.indexOf(radio.track);
       }
+      if (state.tracks.length > 1) return 0;
       return -1;
     }
     // Pha C — bài kế là DSD: không phát được qua deck chờ (cần giải mã
@@ -9127,7 +9154,8 @@
       return finishPlaybackStart(track, generation, target, previousTrack);
     }
     async function playTrack(trackId) {
-      const track = state.tracks.find(item => item.id === trackId);
+      const sTrackId = trackId != null ? String(trackId) : null;
+      const track = state.tracks.find(item => item && (item.id === trackId || (sTrackId != null && String(item.id) === sTrackId)));
       if (!track) return;
       if (!track.url && track.src) track.url = track.src;
       const previousTrackId = state.previousTrackId || state.currentId;
@@ -9192,7 +9220,7 @@
       if (roomBpmInit) roomBpmInit.textContent = '-- BPM';
       const trackUrl = track.url ? new URL(track.url, location.href).href : '';
       const wasPreloaded = state.preloadTrackId === track.id && !!trackUrl && standbyAudio.src === trackUrl;
-      state.queueTrackIds = state.queueTrackIds.filter(item => item !== track.id);
+      state.queueTrackIds = (state.queueTrackIds || []).filter(item => item !== track.id && String(item) !== String(track.id));
       // 2. NON-BLOCKING DOM: Defer renderQueue() using requestAnimationFrame or requestIdleCallback instead of executing heavy DOM layout thrashing synchronously in the click handler and inside playTrack.
       if (typeof deferRenderQueue === 'function') deferRenderQueue(); else renderQueue();
       if (!wasPreloaded) ++state.preloadGeneration;
@@ -9516,10 +9544,28 @@
     }
     function playNext(direction = 1, auto = false) {
       if (!state.tracks.length) return;
-      const currentIndex = state.tracks.findIndex(track => track.id === state.currentId);
-      if (currentIndex < 0) { playTrack(state.tracks[direction < 0 ? state.tracks.length - 1 : 0].id); return; }
+      const currentIdStr = state.currentId != null ? String(state.currentId) : null;
+      let currentIndex = state.tracks.findIndex(track => track && (track.id === state.currentId || String(track.id) === currentIdStr));
+      if (currentIndex < 0) {
+        const curTrackObj = state.tracks.find(item => item && item.url && audio && audio.src && new URL(item.url, location.href).href === audio.src);
+        if (curTrackObj) {
+          currentIndex = state.tracks.indexOf(curTrackObj);
+          state.currentId = curTrackObj.id;
+        }
+      }
+      if (currentIndex < 0) {
+        playTrack(state.tracks[direction < 0 ? state.tracks.length - 1 : 0].id);
+        return;
+      }
       if (direction < 0 && audio.currentTime > 3) { audio.currentTime = 0; return; }
-      if (direction > 0 && auto && state.sleepAtTrackEnd) { audio.pause(); if (state.dsdWorker || state.dsdUrl) stopDsdWorker(false); if (state.ambientMasterGain && state.context) state.ambientMasterGain.gain.setValueAtTime(0, state.context.currentTime); clearSleepTimer(); toast('Hẹn giờ ngủ: đã tạm dừng khi hết bài.'); return; }
+      if (direction > 0 && auto && state.sleepAtTrackEnd) {
+        audio.pause();
+        if (state.dsdWorker || state.dsdUrl) stopDsdWorker(false);
+        if (state.ambientMasterGain && state.context) state.ambientMasterGain.gain.setValueAtTime(0, state.context.currentTime);
+        clearSleepTimer();
+        toast('Hẹn giờ ngủ: đã tạm dừng khi hết bài.');
+        return;
+      }
 
       const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
       const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
@@ -9528,20 +9574,32 @@
         const queued = isOfflineMode && lib && typeof lib.canPlayOffline === 'function'
           ? queueTracks().find(t => lib.canPlayOffline(t))
           : queueTracks()[0];
-        if (queued) { playTrack(queued.id); return; }
+        if (queued && (currentIdStr == null || String(queued.id) !== currentIdStr)) {
+          playTrack(queued.id);
+          return;
+        }
       }
-      if (direction > 0 && auto && state.repeat === 2) { audio.currentTime = 0; try { const played = audio.play(); if (played && played.catch) played.catch(() => {}); } catch (error) {} return; }
+      if (direction > 0 && auto && state.repeat === 2) {
+        audio.currentTime = 0;
+        try {
+          const played = audio.play();
+          if (played && played.catch) played.catch(() => {});
+        } catch (error) {}
+        return;
+      }
       if (direction > 0 && auto && !state.autoplay) return;
 
       const isSequentialAlbum = Boolean(lib && typeof lib.shouldEnforceSequentialPlayback === 'function' && lib.shouldEnforceSequentialPlayback(state.playbackContext));
 
       if (isSequentialAlbum) {
-        const albumTracks = (state.playbackContext.trackIds || []).map(id => (typeof trackById === 'function' ? trackById(id) : null) || state.tracks.find(t => t.id === id)).filter(Boolean);
+        const albumTracks = (state.playbackContext.trackIds || [])
+          .map(id => trackById(id) || state.tracks.find(t => t && String(t.id) === String(id)))
+          .filter(Boolean);
         const seqResult = (lib && typeof lib.resolveNextSequentialTrack === 'function')
           ? lib.resolveNextSequentialTrack(state.currentId, albumTracks, direction, { repeat: state.repeat })
           : null;
 
-        if (seqResult && seqResult.track) {
+        if (seqResult && seqResult.track && (currentIdStr == null || String(seqResult.track.id) !== currentIdStr)) {
           if (lib && typeof lib.resolveAlbumPlaybackQueue === 'function') {
             const qResult = lib.resolveAlbumPlaybackQueue(seqResult.track.id, albumTracks);
             state.queueTrackIds = qResult.remainingTrackIds || [];
@@ -9556,13 +9614,24 @@
             const radio = lib.selectRoonRadioTrack(state.tracks[currentIndex] || albumTracks[albumTracks.length - 1], state.tracks, {
               recentHistory: state.recentHistory,
               favorites: state.favorites,
-              excludeIds: [state.currentId, ...state.queueTrackIds],
+              excludeIds: [state.currentId, ...(state.queueTrackIds || [])],
               isOffline: isOfflineMode
             });
-            if (radio && radio.track) {
+            if (radio && radio.track && (currentIdStr == null || String(radio.track.id) !== currentIdStr)) {
               const meta = lib.trackMetadata(radio.track);
               toast(`⚡ Roon Radio: ${meta.title || radio.track.name} (${radio.reason})`);
               playTrack(radio.track.id);
+              return;
+            }
+          }
+          if (state.repeat === 1 && albumTracks.length > 0) {
+            playTrack(albumTracks[0].id);
+            return;
+          }
+          if (state.tracks.length > 1) {
+            const nextIdx = (currentIndex + 1) % state.tracks.length;
+            if (currentIdStr == null || String(state.tracks[nextIdx].id) !== currentIdStr) {
+              playTrack(state.tracks[nextIdx].id);
               return;
             }
           }
@@ -9573,27 +9642,33 @@
           return;
         }
       }
-      if (direction > 0 && state.shuffle && state.preloadTrackId && state.preloadTrackId !== state.currentId) {
-        const preloadedTrack = typeof trackById === 'function' ? trackById(state.preloadTrackId) : state.tracks.find(t => t.id === state.preloadTrackId);
+
+      if (direction > 0 && state.shuffle && state.preloadTrackId && (currentIdStr == null || String(state.preloadTrackId) !== currentIdStr)) {
+        const preloadedTrack = trackById(state.preloadTrackId);
         if (!isOfflineMode || !lib || typeof lib.canPlayOffline !== 'function' || lib.canPlayOffline(preloadedTrack)) {
           playTrack(state.preloadTrackId);
           return;
         }
       }
+
       if (!state.shuffle && state.repeat !== 1 && direction > 0 && currentIndex >= state.tracks.length - 1) {
         if (state.roonRadio && lib && typeof lib.selectRoonRadioTrack === 'function') {
           const radio = lib.selectRoonRadioTrack(state.tracks[currentIndex], state.tracks, {
             recentHistory: state.recentHistory,
             favorites: state.favorites,
-            excludeIds: [state.currentId, ...state.queueTrackIds],
+            excludeIds: [state.currentId, ...(state.queueTrackIds || [])],
             isOffline: isOfflineMode
           });
-          if (radio && radio.track) {
+          if (radio && radio.track && (currentIdStr == null || String(radio.track.id) !== currentIdStr)) {
             const meta = lib.trackMetadata(radio.track);
             toast(`⚡ Roon Radio: ${meta.title || radio.track.name} (${radio.reason})`);
             playTrack(radio.track.id);
             return;
           }
+        }
+        if (state.tracks.length > 1) {
+          playTrack(state.tracks[0].id);
+          return;
         }
         return;
       }
@@ -9605,7 +9680,7 @@
           shuffle: state.shuffle,
           repeat: state.repeat
         });
-        if (nextResult && nextResult.track) {
+        if (nextResult && nextResult.track && (currentIdStr == null || String(nextResult.track.id) !== currentIdStr)) {
           if (nextResult.wasFiltered && !lib.canPlayOffline(state.tracks[currentIndex])) {
             toast('Chế độ Ngoại tuyến: Đã chuyển tới bài có sẵn trong máy.');
           }
@@ -9616,10 +9691,18 @@
 
       let index;
       if (state.shuffle) {
-        const choices = state.tracks.filter(track => track.id !== state.currentId);
-        if (!choices.length) { if (direction > 0 && state.repeat === 1) playTrack(state.currentId); return; }
+        const choices = state.tracks.filter(track => track && (currentIdStr == null || String(track.id) !== currentIdStr));
+        if (!choices.length) {
+          if (direction > 0 && state.repeat === 1) playTrack(state.currentId);
+          return;
+        }
         index = state.tracks.indexOf(choices[Math.floor(Math.random() * choices.length)]);
-      } else index = (currentIndex + direction + state.tracks.length) % state.tracks.length;
+      } else {
+        index = (currentIndex + direction + state.tracks.length) % state.tracks.length;
+        if (state.tracks.length > 1 && currentIdStr != null && String(state.tracks[index].id) === currentIdStr) {
+          index = (index + 1) % state.tracks.length;
+        }
+      }
       playTrack(state.tracks[index].id);
     }
 
