@@ -1940,7 +1940,7 @@
               <button id="zone-picker-btn" type="button" class="shrink-0 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-[11px] font-medium text-purple-200 transition hover:bg-purple-500/20 active:scale-95" aria-label="Đổi vùng phát">Đổi Vùng ▾</button>
             </div>
           </div>
-          <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span id="room-lyrics-source-badge" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono text-zinc-400">Chưa có</span></div><div class="flex items-center gap-1 text-[10px] text-zinc-400"><button id="room-lyrics-refresh-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Tìm lại lời trực tuyến">🔄 Tìm lại</button><button id="room-lyrics-paste-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Dán nội dung .lrc">📋 Dán</button><button id="room-lyrics-export-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Xuất file .lrc">💾 Xuất</button><button id="room-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Chậm hơn 0.5s">-0.5s</button><span id="room-lyrics-offset-badge" class="font-mono text-zinc-400 text-[10px] w-12 text-center" title="Bù trừ độ trễ lời bài hát">0ms</span><button id="room-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Nhanh hơn 0.5s">+0.5s</button></div></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto overflow-x-hidden text-sm leading-6 text-zinc-500 no-scrollbar"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
+          <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span id="room-lyrics-source-badge" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono text-zinc-400">Chưa có</span></div><div class="flex items-center gap-1 text-[10px] text-zinc-400"><button id="room-lyrics-search-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Tìm trên LRCLIB">🔍 Tìm trên LRCLIB</button><button id="room-lyrics-edit-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Chỉnh sửa / Đồng bộ V2">✏️ Chỉnh sửa / Đồng bộ V2</button><button id="room-lyrics-refresh-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Tìm lại lời trực tuyến">🔄 Tìm lại</button><button id="room-lyrics-paste-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Dán nội dung .lrc">📋 Dán</button><button id="room-lyrics-export-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Xuất file .lrc">💾 Xuất</button><button id="room-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Chậm hơn 0.5s">-0.5s</button><span id="room-lyrics-offset-badge" class="font-mono text-zinc-400 text-[10px] w-12 text-center" title="Bù trừ độ trễ lời bài hát">0ms</span><button id="room-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Nhanh hơn 0.5s">+0.5s</button></div></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto overflow-x-hidden text-sm leading-6 text-zinc-500 no-scrollbar"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
           <div class="relative w-full group">
             <canvas id="waveform-canvas" class="w-full h-16 cursor-pointer rounded-sm mb-1" aria-label="Dạng sóng bài hát - nhấn để tua"></canvas>
             <div id="waveform-hover-tooltip" class="pointer-events-none absolute bottom-full mb-1 hidden -translate-x-1/2 rounded-md bg-zinc-800/95 border border-white/10 px-2 py-0.5 text-[10px] font-mono text-zinc-100 shadow-xl backdrop-blur-sm z-30 transition-opacity">0:00</div>
@@ -2207,6 +2207,8 @@
         <span id="fs-lyrics-offset-val" class="font-mono text-zinc-300 text-[11px] w-20 text-center">Chuẩn (0ms)</span>
         <button id="fs-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px]" title="Nhanh hơn 0.5s">+0.5s</button>
         <button id="fs-lyrics-offset-reset" type="button" class="text-zinc-500 hover:text-zinc-300 text-[11px] ml-1">Đặt lại</button>
+        <button id="fs-lyrics-search-btn" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px] text-zinc-300 ml-2" title="Tìm trên LRCLIB">🔍 Tìm trên LRCLIB</button>
+        <button id="fs-lyrics-edit-btn" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px] text-zinc-300" title="Chỉnh sửa / Đồng bộ V2">✏️ Chỉnh sửa / Đồng bộ V2</button>
       </div>
       <div id="fullscreen-lyrics-scroll" class="w-full flex-1 overflow-y-auto overflow-x-hidden space-y-4 py-8 text-center scroll-smooth select-none no-scrollbar">
         <p class="text-sm text-zinc-500">Chưa có lời đồng bộ (.lrc) cho bài này.</p>
@@ -2280,6 +2282,10 @@
       </div>
       <div id="fullscreen-lyrics-box" class="hidden">
         <div id="fullscreen-lyrics">
+          <div class="flex items-center justify-center gap-2 mb-2">
+            <button id="fullscreen-lyrics-search-btn" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px] text-zinc-300" title="Tìm trên LRCLIB">🔍 Tìm trên LRCLIB</button>
+            <button id="fullscreen-lyrics-edit-btn" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px] text-zinc-300" title="Chỉnh sửa / Đồng bộ V2">✏️ Chỉnh sửa / Đồng bộ V2</button>
+          </div>
           <p id="fullscreen-lyric-line"></p>
         </div>
       </div>
@@ -2328,6 +2334,9 @@
   <script src="metadata-utils.js"></script>
   <script src="metadata-ui.js"></script>
   <script src="cloud-metadata.js"></script>
+  <script src="lyrics-utils.js"></script>
+  <script src="lrclib-client.js"></script>
+  <script src="lyrics-editor-ui.js"></script>
   <script>
     const cloudMetadata = window.NocturneCloudMetadata;
 (() => {
@@ -5471,6 +5480,9 @@
           if (roomGlow) { roomGlow.style.transform = 'scale(1)'; roomGlow.style.opacity = ''; }
           if (appBackdrop) { appBackdrop.style.transform = 'scale(1)'; appBackdrop.style.opacity = ''; }
         } else {
+          if (state.lyrics && state.lyrics.length) {
+            updateLyricsHighlight();
+          }
         if (typeof library !== 'undefined' && library && typeof library.calculateAudioEnergyBands === 'function' && typeof library.calculateAmbientPulseTransform === 'function') {
           const sampleRate = state.context ? state.context.sampleRate : 44100;
           const energy = library.calculateAudioEnergyBands(data, sampleRate, analyser.fftSize);
@@ -6875,10 +6887,34 @@
       const container = $('room-lyrics');
       if (!container) return;
       const badge = $('room-lyrics-source-badge');
-      state.lyrics = (typeof library.parseLrcWithOffsetAndTags === 'function' && typeof lrcText === 'string' && /\[offset:/i.test(lrcText)) ? library.parseLrcWithOffsetAndTags(lrcText) : library.parseLyrics(lrcText);
+      const lu = (typeof window !== 'undefined' && window.LyricsUtils) ? window.LyricsUtils : (typeof LyricsUtils !== 'undefined' ? LyricsUtils : null);
+      if (lu && typeof lu.parseLrc === 'function' && typeof lrcText === 'string') {
+        const parsed = lu.parseLrc(lrcText);
+        state.lyrics = parsed.lines || [];
+      } else {
+        state.lyrics = (typeof library.parseLrcWithOffsetAndTags === 'function' && typeof lrcText === 'string' && /\[offset:/i.test(lrcText)) ? library.parseLrcWithOffsetAndTags(lrcText) : library.parseLyrics(lrcText);
+      }
+      for (const line of state.lyrics) {
+        if (line.start_ms === undefined && Number.isFinite(line.time)) {
+          line.start_ms = Math.round(line.time * 1000);
+        }
+        if (line.time === undefined && Number.isFinite(line.start_ms)) {
+          line.time = line.start_ms / 1000;
+        }
+        if (line.words && Array.isArray(line.words)) {
+          for (const w of line.words) {
+            if (w.start_ms === undefined && Number.isFinite(w.time)) {
+              w.start_ms = Math.round(w.time * 1000);
+            }
+            if (w.time === undefined && Number.isFinite(w.start_ms)) {
+              w.time = w.start_ms / 1000;
+            }
+          }
+        }
+      }
       state.lyricIndex = -1;
       container.innerHTML = '';
-      const lines = state.lyrics.length ? state.lyrics : (typeof lrcText === 'string' ? lrcText.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/).map(text => text.trim()).filter(text => text && !text.startsWith('[')).map(text => ({time: NaN, text})) : []);
+      const lines = state.lyrics.length ? state.lyrics : (typeof lrcText === 'string' ? lrcText.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/).map(text => text.trim()).filter(text => text && !text.startsWith('[')).map(text => ({time: NaN, start_ms: NaN, text})) : []);
       if (badge) {
         if (!lines.length) {
           badge.textContent = 'Chưa có';
@@ -6887,7 +6923,7 @@
           badge.textContent = library.formatLyricsVaultTelemetry(vaultEntry);
           badge.className = `rounded border px-1.5 py-0.5 text-[9px] font-mono ${vaultEntry.isSynced ? 'border-violet-400/30 bg-violet-500/10 text-violet-300' : 'border-zinc-700 bg-zinc-800/40 text-zinc-300'}`;
         } else {
-          badge.textContent = state.lyrics.some(l => Number.isFinite(l.time)) ? '⚡ Đồng bộ (.lrc)' : '📄 Lời văn xuôi';
+          badge.textContent = state.lyrics.some(l => Number.isFinite(l.time) || Number.isFinite(l.start_ms)) ? '⚡ Đồng bộ (.lrc)' : '📄 Lời văn xuôi';
           badge.className = 'rounded border border-violet-400/30 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-mono text-violet-300';
         }
       }
@@ -6937,13 +6973,14 @@
             const span = document.createElement('span');
             span.className = 'lyric-word';
             span.classList.add('lyric-word');
-            span.dataset.time = String(word.time);
+            span.dataset.time = String(Number.isFinite(word.time) ? word.time : (word.start_ms / 1000));
             span.textContent = word.text;
             span.addEventListener('click', (e) => {
               if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
               const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
               if (currentAudio && Number.isFinite(currentAudio.duration)) {
-                currentAudio.currentTime = Math.min(Math.max(0, word.time), currentAudio.duration);
+                const seekSec = Number.isFinite(word.start_ms) ? (word.start_ms / 1000) : (Number.isFinite(word.time) ? word.time : 0);
+                currentAudio.currentTime = Math.min(Math.max(0, seekSec), currentAudio.duration);
                 updatePositionState(true);
               }
             });
@@ -6955,13 +6992,15 @@
         } else {
           row.textContent = line.text;
         }
-        if (Number.isFinite(line.time)) {
-          row.dataset.time = String(line.time);
+        const lineTimeSec = Number.isFinite(line.time) ? line.time : (Number.isFinite(line.start_ms) ? (line.start_ms / 1000) : NaN);
+        if (Number.isFinite(lineTimeSec)) {
+          row.dataset.time = String(lineTimeSec);
           row.classList.add('lyric-line-seekable');
           row.addEventListener('click', () => {
             const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
             if (currentAudio && Number.isFinite(currentAudio.duration)) {
-              currentAudio.currentTime = Math.min(Math.max(0, line.time), currentAudio.duration);
+              const seekSec = Number.isFinite(line.start_ms) ? (line.start_ms / 1000) : lineTimeSec;
+              currentAudio.currentTime = Math.min(Math.max(0, seekSec), currentAudio.duration);
               updatePositionState(true);
             }
           });
@@ -6982,12 +7021,14 @@
         const row = document.createElement('p');
         row.className = 'fs-lyric-line text-lg sm:text-xl font-medium text-zinc-400 py-1.5 transition-all duration-300 cursor-pointer hover:text-white rounded-lg px-3 max-w-full break-words';
         row.textContent = line.text;
-        if (Number.isFinite(line.time)) {
-          row.dataset.time = String(line.time);
+        const lineTimeSec = Number.isFinite(line.time) ? line.time : (Number.isFinite(line.start_ms) ? (line.start_ms / 1000) : NaN);
+        if (Number.isFinite(lineTimeSec)) {
+          row.dataset.time = String(lineTimeSec);
           row.addEventListener('click', () => {
             const currentAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
             if (currentAudio && Number.isFinite(currentAudio.duration)) {
-              currentAudio.currentTime = Math.min(Math.max(0, line.time), currentAudio.duration);
+              const seekSec = Number.isFinite(line.start_ms) ? (line.start_ms / 1000) : lineTimeSec;
+              currentAudio.currentTime = Math.min(Math.max(0, seekSec), currentAudio.duration);
               updatePositionState(true);
             }
           });
@@ -6998,9 +7039,62 @@
     async function triggerLyricsFetch(track) {
       const forceRefresh = arguments.length > 1 ? Boolean(arguments[1]) : false;
       if (!track) return;
+
+      const container = $('room-lyrics');
+      const meta = (typeof library !== 'undefined' && library.trackMetadata) ? library.trackMetadata(track) : { title: track.title, artist: track.artist, album: track.album };
+      const cleaned = (typeof library !== 'undefined' && library.cleanSearchQuery) ? library.cleanSearchQuery(meta.title, meta.artist) : { title: meta.title, artist: meta.artist };
+
+      let fingerprint = track.audioFingerprint || track.fingerprint || null;
+      const getFingerprint = async () => {
+        if (fingerprint) return fingerprint;
+        try {
+          const lu = (typeof window !== 'undefined' && window.LyricsUtils) ? window.LyricsUtils : (typeof LyricsUtils !== 'undefined' ? LyricsUtils : null);
+          if (lu && typeof lu.computeAudioFingerprint === 'function') {
+            const audioData = track.file || track.blob || track.firstSlice || track.buffer || null;
+            if (audioData) {
+              fingerprint = await lu.computeAudioFingerprint(audioData);
+              track.audioFingerprint = fingerprint;
+              track.fingerprint = fingerprint;
+            }
+          }
+        } catch (_) {}
+        return fingerprint;
+      };
+
       if (!forceRefresh) {
+        // Priority 1: Check local sidecar file (.lrc / .txt / .lyricsfile / .yaml)
+        try {
+          const client = (typeof window !== 'undefined' && window.LrclibClient) ? window.LrclibClient : (typeof LrclibClient !== 'undefined' ? LrclibClient : null);
+          if (client && typeof client.findLocalSidecarLyrics === 'function') {
+            const sidecar = await client.findLocalSidecarLyrics(track.fileHandle || track.file || track.name || track.path, track.dirHandle);
+            if (sidecar && sidecar.text && sidecar.text.trim()) {
+              const lu = (typeof window !== 'undefined' && window.LyricsUtils) ? window.LyricsUtils : (typeof LyricsUtils !== 'undefined' ? LyricsUtils : null);
+              const sidecarText = sidecar.text.trim();
+              track.lyricsText = sidecarText;
+              track.lyricsSource = 'sidecar';
+              const fp = await getFingerprint();
+              if (client && typeof client.saveLyricsToVault === 'function') {
+                const vaultKey = fp || track.id;
+                await client.saveLyricsToVault(vaultKey, {
+                  key: vaultKey,
+                  lrc: sidecarText,
+                  lyricsfile: sidecar.type === 'lyricsfile' ? sidecarText : (lu && typeof lu.lrcToLyricsfile === 'function' ? lu.lrcToLyricsfile(sidecarText, meta) : null),
+                  metadata: meta,
+                  source: 'local-sidecar',
+                  updatedAt: Date.now()
+                }).catch(() => {});
+              }
+              if (state.currentId === track.id) {
+                renderLyrics(sidecarText, { source: 'local-sidecar', isSynced: /\[\d{1,2}:\d{2}/.test(sidecarText), matchScore: 100 });
+                toast(`Đã nạp lời bài hát từ tệp đính kèm (${sidecar.name})`);
+              }
+              return;
+            }
+          }
+        } catch (_) {}
+
         if (track.lyricsVaultEntry) {
-          renderLyrics(track.lyricsVaultEntry.lrcText, track.lyricsVaultEntry);
+          renderLyrics(track.lyricsVaultEntry.lrcText || track.lyricsVaultEntry.lrc, track.lyricsVaultEntry);
           return;
         }
         if (track.lyricsText) {
@@ -7010,7 +7104,35 @@
           renderLyrics(track.lyricsText, entry);
           return;
         }
+
+        // Priority 2: Check IndexedDB vault (window.LrclibClient.getLyricsFromVault) by 64KB audio fingerprint or track.id
         try {
+          const client = (typeof window !== 'undefined' && window.LrclibClient) ? window.LrclibClient : (typeof LrclibClient !== 'undefined' ? LrclibClient : null);
+          if (client && typeof client.getLyricsFromVault === 'function') {
+            const fp = await getFingerprint();
+            let vaultData = null;
+            if (fp) {
+              vaultData = await client.getLyricsFromVault(fp).catch(() => null);
+            }
+            if (!vaultData && track.id) {
+              vaultData = await client.getLyricsFromVault(track.id).catch(() => null);
+            }
+            if (!vaultData && track.cloudId) {
+              vaultData = await client.getLyricsFromVault(track.cloudId).catch(() => null);
+            }
+            if (vaultData && (vaultData.lrc || vaultData.lrcText || vaultData.lyricsfile)) {
+              const lrcContent = vaultData.lrc || vaultData.lrcText || (vaultData.lyricsfile && window.LyricsUtils ? window.LyricsUtils.lyricsfileToLrc(vaultData.lyricsfile) : '');
+              if (lrcContent) {
+                track.lyricsText = lrcContent;
+                track.lyricsVaultEntry = vaultData;
+                if (state.currentId === track.id) {
+                  renderLyrics(lrcContent, vaultData);
+                }
+                return;
+              }
+            }
+          }
+
           const vaultRaw = localStorage.getItem(`nocturne-lyrics-vault-${track.id}`);
           if (vaultRaw) {
             const vaultParsed = JSON.parse(vaultRaw);
@@ -7031,56 +7153,76 @@
         } catch (_) {}
       }
 
-      const container = $('room-lyrics');
+      // Priority 3: If not cached and online, auto-match from LRCLIB
       if (container) {
         container.innerHTML = '<p class="text-xs text-violet-300 animate-pulse">Đang tìm lời đồng bộ (.lrc) mờ trực tuyến qua LRCLIB...</p>';
       }
 
-      const meta = library.trackMetadata ? library.trackMetadata(track) : { title: track.title, artist: track.artist };
-      const cleaned = library.cleanSearchQuery ? library.cleanSearchQuery(meta.title, meta.artist) : { title: meta.title, artist: meta.artist };
       if (!cleaned.title) {
         renderLyrics('');
         return;
       }
 
       try {
+        const client = (typeof window !== 'undefined' && window.LrclibClient) ? window.LrclibClient : (typeof LrclibClient !== 'undefined' ? LrclibClient : null);
         const dur = Math.round(Number(track.duration) || 0);
-        let url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleaned.title)}&artist_name=${encodeURIComponent(cleaned.artist || '')}`;
-        if (dur > 0) url += `&duration=${dur}`;
-        const resp = await fetch(url);
         let lrc = null;
         let bestCandidate = null;
         let matchScore = 90;
 
-        if (resp.ok) {
-          const data = await resp.json();
-          lrc = data.syncedLyrics || data.plainLyrics;
-          bestCandidate = data;
-          if (typeof library.scoreLyricsCandidateMatch === 'function') {
-            const scored = library.scoreLyricsCandidateMatch(track, data);
-            matchScore = scored.matchScore;
-          }
-        } else {
-          const searchResp = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent((cleaned.artist ? cleaned.artist + ' ' : '') + cleaned.title)}`);
-          if (searchResp.ok) {
-            const list = await searchResp.json();
-            if (Array.isArray(list) && list.length > 0) {
+        if (client && typeof client.getLyrics === 'function') {
+          try {
+            const lrclibResult = await client.getLyrics({
+              trackName: cleaned.title,
+              artistName: cleaned.artist || meta.artist || '',
+              albumName: meta.album || track.album || '',
+              duration: dur > 0 ? dur : undefined
+            });
+            if (lrclibResult && (lrclibResult.syncedLyrics || lrclibResult.plainLyrics)) {
+              lrc = lrclibResult.syncedLyrics || lrclibResult.plainLyrics;
+              bestCandidate = lrclibResult;
               if (typeof library.scoreLyricsCandidateMatch === 'function') {
-                let maxScore = -1;
-                for (const item of list) {
-                  const s = library.scoreLyricsCandidateMatch(track, item);
-                  if (s.matchScore > maxScore) {
-                    maxScore = s.matchScore;
-                    bestCandidate = item;
-                    matchScore = s.matchScore;
+                matchScore = library.scoreLyricsCandidateMatch(track, lrclibResult).matchScore;
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (!lrc) {
+          let url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleaned.title)}&artist_name=${encodeURIComponent(cleaned.artist || '')}`;
+          if (dur > 0) url += `&duration=${dur}`;
+          const resp = await fetch(url).catch(() => null);
+
+          if (resp && resp.ok) {
+            const data = await resp.json();
+            lrc = data.syncedLyrics || data.plainLyrics;
+            bestCandidate = data;
+            if (typeof library.scoreLyricsCandidateMatch === 'function') {
+              const scored = library.scoreLyricsCandidateMatch(track, data);
+              matchScore = scored.matchScore;
+            }
+          } else {
+            const searchResp = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent((cleaned.artist ? cleaned.artist + ' ' : '') + cleaned.title)}`).catch(() => null);
+            if (searchResp && searchResp.ok) {
+              const list = await searchResp.json();
+              if (Array.isArray(list) && list.length > 0) {
+                if (typeof library.scoreLyricsCandidateMatch === 'function') {
+                  let maxScore = -1;
+                  for (const item of list) {
+                    const s = library.scoreLyricsCandidateMatch(track, item);
+                    if (s.matchScore > maxScore) {
+                      maxScore = s.matchScore;
+                      bestCandidate = item;
+                      matchScore = s.matchScore;
+                    }
                   }
+                  if (bestCandidate && maxScore >= 50) {
+                    lrc = bestCandidate.syncedLyrics || bestCandidate.plainLyrics;
+                  }
+                } else {
+                  const best = list.find(item => item.syncedLyrics) || list[0];
+                  lrc = best.syncedLyrics || best.plainLyrics;
                 }
-                if (bestCandidate && maxScore >= 50) {
-                  lrc = bestCandidate.syncedLyrics || bestCandidate.plainLyrics;
-                }
-              } else {
-                const best = list.find(item => item.syncedLyrics) || list[0];
-                lrc = best.syncedLyrics || best.plainLyrics;
               }
             }
           }
@@ -7097,6 +7239,34 @@
             : { lrcText: sanitizedLrc, isSynced: /\[\d{1,2}:\d{2}/.test(sanitizedLrc), matchScore };
 
           track.lyricsVaultEntry = vaultEntry;
+
+          try {
+            const fp = await getFingerprint();
+            if (client && typeof client.saveLyricsToVault === 'function') {
+              const lu = (typeof window !== 'undefined' && window.LyricsUtils) ? window.LyricsUtils : (typeof LyricsUtils !== 'undefined' ? LyricsUtils : null);
+              const yamlStr = (lu && typeof lu.lrcToLyricsfile === 'function') ? lu.lrcToLyricsfile(sanitizedLrc, meta) : null;
+              const vaultKey = fp || track.id;
+              await client.saveLyricsToVault(vaultKey, {
+                key: vaultKey,
+                lrc: sanitizedLrc,
+                lyricsfile: yamlStr,
+                metadata: meta,
+                source: 'lrclib',
+                updatedAt: Date.now()
+              });
+              if (fp && track.id && fp !== track.id) {
+                await client.saveLyricsToVault(track.id, {
+                  key: track.id,
+                  lrc: sanitizedLrc,
+                  lyricsfile: yamlStr,
+                  metadata: meta,
+                  source: 'lrclib',
+                  updatedAt: Date.now()
+                });
+              }
+            }
+          } catch (_) {}
+
           try {
             localStorage.setItem(`nocturne-lyrics-vault-${track.id}`, JSON.stringify(vaultEntry));
             localStorage.setItem(`nocturne-lyrics-${track.id}`, sanitizedLrc);
@@ -7128,7 +7298,13 @@
       const effectiveTime = (library && typeof library.calculateLyricsOffsetTime === 'function')
         ? library.calculateLyricsOffsetTime(audio.currentTime, offsetSec)
         : (audio.currentTime + offsetSec);
-      const index = library.lyricLineAt(state.lyrics, effectiveTime);
+      const currentMs = Math.round(effectiveTime * 1000);
+
+      const lu = (typeof window !== 'undefined' && window.LyricsUtils) ? window.LyricsUtils : (typeof LyricsUtils !== 'undefined' ? LyricsUtils : null);
+      const index = (lu && typeof lu.findActiveLineIndex === 'function')
+        ? lu.findActiveLineIndex(state.lyrics, currentMs)
+        : ((library && typeof library.lyricLineAt === 'function') ? library.lyricLineAt(state.lyrics, effectiveTime) : -1);
+
       const lineChanged = (index !== state.lyricIndex);
       if (lineChanged) {
         state.lyricIndex = index;
@@ -7188,18 +7364,25 @@
           }
         }
       }
+
       if (index >= 0 && index < state.lyrics.length) {
         const activeLine = state.lyrics[index];
         if (activeLine && activeLine.words && activeLine.words.length) {
           const rows = container.querySelectorAll('.lyric-line');
           const activeRow = rows[index];
           if (activeRow) {
+            const lyricsUi = (typeof window !== 'undefined' && window.LyricsEditorUI) ? window.LyricsEditorUI : (typeof LyricsEditorUI !== 'undefined' ? LyricsEditorUI : null);
+            if (lyricsUi && typeof lyricsUi.renderKaraokeLine === 'function') {
+              lyricsUi.renderKaraokeLine(activeRow, activeLine, currentMs);
+            }
             const rawSpans = (typeof activeRow.querySelectorAll === 'function' && activeRow.querySelectorAll('.lyric-word').length)
               ? activeRow.querySelectorAll('.lyric-word')
               : (activeRow.children && Array.isArray(activeRow.children) ? activeRow.children.filter(c => c.classList && c.classList.contains('lyric-word')) : []);
             const spans = Array.from(new Set(rawSpans));
             if (spans && spans.length) {
-              const wordIndex = library.lyricWordAt(activeLine.words, effectiveTime);
+              const wordIndex = (lu && typeof lu.findActiveWordIndex === 'function')
+                ? lu.findActiveWordIndex(activeLine.words, currentMs)
+                : ((library && typeof library.lyricWordAt === 'function') ? library.lyricWordAt(activeLine.words, effectiveTime) : -1);
               spans.forEach((span, w) => {
                 span.classList.toggle('lyric-word-sung', w < wordIndex);
                 span.classList.toggle('lyric-word-active', w === wordIndex);
@@ -11092,7 +11275,7 @@
     window.setupFiioIntegration = setupFiioIntegration;
 
     function setupLyricsAutoScrollSuspension() {
-      const ids = ['lyrics-card', 'room-lyrics', 'fullscreen-lyrics', 'fullscreen-lyrics-box'];
+      const ids = ['lyrics-card', 'room-lyrics', 'fullscreen-lyrics', 'fullscreen-lyrics-box', 'fullscreen-stage-lyrics', 'fullscreen-lyrics-scroll'];
       ids.forEach(id => {
         const el = $(id);
         if (!el) return;
@@ -13321,6 +13504,70 @@
     if (roomOffsetMinus) roomOffsetMinus.addEventListener('click', () => setLyricsOffset(-0.5));
     const roomOffsetPlus = $('room-lyrics-offset-plus');
     if (roomOffsetPlus) roomOffsetPlus.addEventListener('click', () => setLyricsOffset(0.5));
+
+    const roomLyricsSearchBtn = $('room-lyrics-search-btn');
+    if (roomLyricsSearchBtn) {
+      roomLyricsSearchBtn.addEventListener('click', () => {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (window.LyricsEditorUI && typeof window.LyricsEditorUI.openSearch === 'function') {
+          window.LyricsEditorUI.openSearch(cur);
+        } else {
+          toast('Mô-đun tìm kiếm LRCLIB chưa sẵn sàng.');
+        }
+      });
+    }
+
+    const roomLyricsEditBtn = $('room-lyrics-edit-btn');
+    if (roomLyricsEditBtn) {
+      roomLyricsEditBtn.addEventListener('click', () => {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (window.LyricsEditorUI && typeof window.LyricsEditorUI.openEditor === 'function') {
+          window.LyricsEditorUI.openEditor(cur);
+        } else {
+          toast('Mô-đun biên tập lời V2 chưa sẵn sàng.');
+        }
+      });
+    }
+
+    const fsLyricsSearchBtn = $('fs-lyrics-search-btn');
+    if (fsLyricsSearchBtn) {
+      fsLyricsSearchBtn.addEventListener('click', () => {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (window.LyricsEditorUI && typeof window.LyricsEditorUI.openSearch === 'function') {
+          window.LyricsEditorUI.openSearch(cur);
+        }
+      });
+    }
+
+    const fsLyricsEditBtn = $('fs-lyrics-edit-btn');
+    if (fsLyricsEditBtn) {
+      fsLyricsEditBtn.addEventListener('click', () => {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (window.LyricsEditorUI && typeof window.LyricsEditorUI.openEditor === 'function') {
+          window.LyricsEditorUI.openEditor(cur);
+        }
+      });
+    }
+
+    const fullscreenLyricsSearchBtn = $('fullscreen-lyrics-search-btn');
+    if (fullscreenLyricsSearchBtn) {
+      fullscreenLyricsSearchBtn.addEventListener('click', () => {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (window.LyricsEditorUI && typeof window.LyricsEditorUI.openSearch === 'function') {
+          window.LyricsEditorUI.openSearch(cur);
+        }
+      });
+    }
+
+    const fullscreenLyricsEditBtn = $('fullscreen-lyrics-edit-btn');
+    if (fullscreenLyricsEditBtn) {
+      fullscreenLyricsEditBtn.addEventListener('click', () => {
+        const cur = state.tracks.find(t => t.id === state.currentId);
+        if (window.LyricsEditorUI && typeof window.LyricsEditorUI.openEditor === 'function') {
+          window.LyricsEditorUI.openEditor(cur);
+        }
+      });
+    }
 
     const roomRefreshBtn = $('room-lyrics-refresh-btn');
     if (roomRefreshBtn) {
