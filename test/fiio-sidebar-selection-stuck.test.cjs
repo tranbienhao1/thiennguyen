@@ -67,13 +67,22 @@ test('6. virtual-scroll.js Mobile & DAP Window Scroll Binding', () => {
   assert.ok(code.includes('this._scrollTarget = window;'), 'virtual-scroll must bind scrollTarget to window on mobile/DAP');
 });
 
-test('7. App Version Bump for Release v2.0.1', () => {
+test('7. App Version Bump for Release v2.0.2', () => {
   const gradle = fs.readFileSync(BUILD_GRADLE_PATH, 'utf8');
-  assert.ok(gradle.includes('versionCode = 11'), 'versionCode must be bumped to 11');
-  assert.ok(gradle.includes('versionName = "2.0.1"'), 'versionName must be bumped to 2.0.1');
+  assert.ok(gradle.includes('versionCode = 12'), 'versionCode must be bumped to 12');
+  assert.ok(gradle.includes('versionName = "2.0.2"'), 'versionName must be bumped to 2.0.2');
 });
 
 test('8. CRITICAL AUDIO GRAPH INVARIANT PRESERVATION', () => {
   const html = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
   assert.ok(html.includes('state.crossfeedNodes.output.connect(state.context.destination)'), 'Web Audio graph must strictly preserve state.crossfeedNodes.output.connect(state.context.destination)');
+});
+
+test('9. Fast-Tap Direct Activation & Focus Outline Elimination for FiiO Touchscreen', () => {
+  const html = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
+  assert.ok(html.includes('user-scalable=no'), 'Viewport meta must specify user-scalable=no to disable double-tap gesture lag');
+  assert.ok(html.includes('outline: none !important'), 'CSS must enforce outline: none !important globally on buttons and links');
+  assert.ok(html.includes('-webkit-tap-highlight-color: transparent !important'), 'CSS must disable webkit tap highlight color');
+  assert.ok(html.includes('touchStartPos'), 'index.html must implement Fast-Tap touchStartPos tracking');
+  assert.ok(html.includes('interactiveEl.click()'), 'Fast-Tap touchend listener must trigger interactiveEl.click() directly on tap');
 });
