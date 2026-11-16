@@ -937,6 +937,10 @@ public class MainActivity extends AppCompatActivity {
 
         Log.i(TAG, "Loading Nocturne audiophile entrypoint: " + targetUrl);
         mWebView.loadUrl(targetUrl);
+        mWebView.post(() -> {
+            mWebView.requestFocus();
+            mWebView.requestFocusFromTouch();
+        });
     }
 
     /**
@@ -1353,7 +1357,7 @@ public class MainActivity extends AppCompatActivity {
     public void dispatchPlayPauseToWeb() {
         runOnUiThread(() -> {
             if (mWebView != null) {
-                mWebView.evaluateJavascript("if (typeof state !== 'undefined') $('play-button')?.click();", null);
+                mWebView.evaluateJavascript("if (window.onHardwarePlayPause) { window.onHardwarePlayPause(); } else if (typeof $ !== 'undefined') { $('play-button')?.click(); } else { const b = document.getElementById('play-button'); if (b) b.click(); }", null);
             }
         });
     }
@@ -1361,7 +1365,7 @@ public class MainActivity extends AppCompatActivity {
     public void dispatchNextToWeb() {
         runOnUiThread(() -> {
             if (mWebView != null) {
-                mWebView.evaluateJavascript("if (typeof state !== 'undefined') $('next-button')?.click();", null);
+                mWebView.evaluateJavascript("if (window.onHardwareNext) { window.onHardwareNext(); } else if (typeof $ !== 'undefined') { $('next-button')?.click(); } else { const b = document.getElementById('next-button'); if (b) b.click(); }", null);
             }
         });
     }
@@ -1369,7 +1373,7 @@ public class MainActivity extends AppCompatActivity {
     public void dispatchPreviousToWeb() {
         runOnUiThread(() -> {
             if (mWebView != null) {
-                mWebView.evaluateJavascript("if (typeof state !== 'undefined') $('previous-button')?.click();", null);
+                mWebView.evaluateJavascript("if (window.onHardwarePrevious) { window.onHardwarePrevious(); } else if (typeof $ !== 'undefined') { $('previous-button')?.click(); } else { const b = document.getElementById('previous-button'); if (b) b.click(); }", null);
             }
         });
     }
@@ -1457,6 +1461,12 @@ public class MainActivity extends AppCompatActivity {
                     dispatchPlayPauseToWeb();
                 }
             });
+            PlaybackState.Builder psb = new PlaybackState.Builder()
+                    .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE |
+                            PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT |
+                            PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP)
+                    .setState(PlaybackState.STATE_PAUSED, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 0.0f);
+            mMediaSession.setPlaybackState(psb.build());
             mMediaSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
             mMediaSession.setActive(true);
         } catch (Exception e) {

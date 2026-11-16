@@ -13,6 +13,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="description" content="NOCTURNE — thư viện nhạc hi-res riêng tư, phát nhạc lossless và giải mã DSD ngay trên thiết bị.">
   <title>Roon — Music Library</title>
+  <link rel="stylesheet" href="tailwind.min.css">
   <script src="https://cdn.tailwindcss.com"></script>
   <style id="app-style">
     /* Android Mobile Viewport & Safe Area Inset Support (PWA Edge-to-Edge) */
@@ -38,16 +39,32 @@
       padding-left: var(--safe-area-left, env(safe-area-inset-left, 0px)) !important;
       padding-right: var(--safe-area-right, env(safe-area-inset-right, 0px)) !important;
     }
+    /* Authoritative native hidden attribute handling */
+    [hidden] {
+      display: none !important;
+    }
     /* Critical offline resilience: guarantee modal popovers never render on cold launch */
+    #sidebar-backdrop.hidden, #sidebar-backdrop[hidden],
     #sleep-panel.hidden, #sleep-panel[hidden],
     #eq-panel.hidden, #eq-panel[hidden],
     #ambient-panel.hidden, #ambient-panel[hidden],
     #queue-panel.hidden, #queue-panel[hidden],
+    #zone-modal.hidden, #zone-modal[hidden],
+    #signal-path-popover.hidden, #signal-path-popover[hidden],
     #mini-player-hud.hidden, #mini-player-hud[hidden],
     #metadata-modal.hidden, #metadata-modal[hidden],
+    #listening-room.hidden, #listening-room[hidden],
+    #roon-fullscreen-view.hidden, #roon-fullscreen-view[hidden],
     #settings-error.hidden,
     #drop-target.hidden {
       display: none !important;
+    }
+    #sidebar-backdrop.hidden, #sidebar-backdrop[hidden] {
+      pointer-events: none !important;
+    }
+    button, select, input, a, .nav-link, .source-btn, .collection-card, .track-row, .roon-stat {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
     * { scrollbar-width:thin; scrollbar-color:#41464b transparent; }
     body { background:#111315; }
@@ -408,7 +425,15 @@
     .audio-zone-empty{display:none}
     footer.player-idle #footer-telemetry-strip{display:none!important}
     footer.player-idle .footer-main-container{display:flex;align-items:center;justify-content:center;width:100%;height:88px}
-    footer.player-idle>div>div>div:not(.audio-zone-empty), footer.player-idle .footer-main-container>div:not(.audio-zone-empty){display:none!important}
+    footer.player-idle>div>div>div:not(.audio-zone-empty), footer.player-idle .footer-player-row>div:not(.audio-zone-empty){display:none!important}
+    @media (max-width:767.98px){
+      footer.glass.player-idle .footer-main-container{height:auto!important}
+      footer.glass.player-idle .footer-player-row>div{display:flex!important}
+      footer.glass.player-idle .audio-zone-empty{display:none!important}
+    }
+    body.fiio-dap-mode footer.glass.player-idle .footer-main-container{height:auto!important}
+    body.fiio-dap-mode footer.glass.player-idle .footer-player-row>div{display:flex!important}
+    body.fiio-dap-mode footer.glass.player-idle .audio-zone-empty{display:none!important}
     footer.player-idle .audio-zone-empty{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
     footer.player-idle .audio-zone-empty button{min-width:240px;height:51px;padding:0 27px;border:0;border-radius:999px;background:var(--roon-accent);color:#fff;font-size:16px}
     #zone-idle-pill{background:#5265a2!important;color:#fff!important;padding:8px 24px!important;border-radius:9999px!important;font-size:13px!important;font-weight:500!important;border:none!important;box-shadow:0 4px 14px rgba(0,0,0,0.4)!important;min-width:auto!important;height:auto!important}
@@ -996,7 +1021,7 @@
 </head>
 <body class="min-h-screen overflow-x-hidden text-zinc-100">
   <div id="app-ambient-backdrop" class="pointer-events-none fixed inset-0 z-0 opacity-0 transition-opacity duration-1000" aria-hidden="true"></div>
-  <button id="sidebar-backdrop" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm transition-opacity lg:hidden" type="button" aria-label="Đóng thanh bên"></button>
+  <button id="sidebar-backdrop" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm transition-opacity lg:hidden" type="button" aria-label="Đóng thanh bên" hidden></button>
   <main id="app-shell" class="mx-auto flex min-h-screen max-w-[1600px] flex-col pb-32 lg:flex-row lg:gap-5 lg:px-5">
     <aside id="sidebar" class="w-full shrink-0 border-b border-white/5 bg-[#17130f]/95 px-5 py-5 backdrop-blur-2xl lg:sticky lg:top-0 lg:h-screen lg:w-[260px] lg:border-b-0 lg:bg-transparent lg:px-0 lg:py-7">
       <div class="roon-brand">
@@ -9607,12 +9632,18 @@
       $('sidebar-toggle').setAttribute('aria-label', open ? 'Đóng thanh điều hướng' : 'Mở thanh điều hướng');
       $('sidebar-toggle-icon').textContent = open ? '×' : '☰';
       const mobile = window.matchMedia('(max-width: 1023.98px)').matches;
-      $('sidebar-backdrop').classList.toggle('hidden', !open || !mobile);
+      const isHidden = !open || !mobile;
+      $('sidebar-backdrop').classList.toggle('hidden', isHidden);
+      $('sidebar-backdrop').hidden = isHidden;
     }
     $('sidebar-toggle').addEventListener('click', () => setSidebarOpen(!sidebarIsOpen()));
     $('sidebar-close').addEventListener('click', () => setSidebarOpen(false));
     $('sidebar-backdrop').addEventListener('click', () => setSidebarOpen(false));
-    window.addEventListener('resize', () => $('sidebar-backdrop').classList.toggle('hidden', !sidebarIsOpen() || !window.matchMedia('(max-width: 1023.98px)').matches));
+    window.addEventListener('resize', () => {
+      const isHidden = !sidebarIsOpen() || !window.matchMedia('(max-width: 1023.98px)').matches;
+      $('sidebar-backdrop').classList.toggle('hidden', isHidden);
+      $('sidebar-backdrop').hidden = isHidden;
+    });
     document.querySelectorAll('.source-btn').forEach(button => button.addEventListener('click', () => { if (window.matchMedia('(max-width: 1023.98px)').matches) setSidebarOpen(false); }));
     setSidebarOpen(!window.matchMedia('(max-width: 1023.98px)').matches);
 
@@ -10859,6 +10890,9 @@
     $('room-next').addEventListener('click', () => playNext(1));
     $('room-previous').addEventListener('click', () => playNext(-1));
     $('room-favorite').addEventListener('click', () => $('favorite-button').click());
+    window.onHardwarePlayPause = () => { const btn = $('play-button'); if (btn) btn.click(); };
+    window.onHardwareNext = () => { const btn = $('next-button'); if (btn) btn.click(); else if (typeof playNext === 'function') playNext(1); };
+    window.onHardwarePrevious = () => { const btn = $('previous-button'); if (btn) btn.click(); else if (typeof playNext === 'function') playNext(-1); };
     const openListeningRoom = () => {
       $('listening-room').classList.remove('hidden');
       $('room-play').textContent = !audio.src || audio.paused ? '▶' : 'Ⅱ';
