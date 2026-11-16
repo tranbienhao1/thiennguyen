@@ -852,12 +852,23 @@ public class MainActivity extends AppCompatActivity {
                     mActivePopupDialog = null;
                     return;
                 }
-                if (mWebView != null && mWebView.canGoBack()) {
-                    mWebView.goBack();
-                } else {
-                    setEnabled(false);
-                    getOnBackPressedDispatcher().onBackPressed();
+                if (mWebView != null) {
+                    mWebView.evaluateJavascript("(function(){ return Boolean(window.onAndroidBackPressed && window.onAndroidBackPressed()); })()", value -> {
+                        if ("true".equalsIgnoreCase(value)) {
+                            // Handled by JavaScript modal / panel dismissal
+                            return;
+                        }
+                        if (mWebView.canGoBack()) {
+                            mWebView.goBack();
+                        } else {
+                            setEnabled(false);
+                            getOnBackPressedDispatcher().onBackPressed();
+                        }
+                    });
+                    return;
                 }
+                setEnabled(false);
+                getOnBackPressedDispatcher().onBackPressed();
             }
         });
     }

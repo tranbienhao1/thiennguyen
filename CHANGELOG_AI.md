@@ -2,6 +2,45 @@
 
 ---
 
+## [Pha F 2026-11-16 19:15 +07] — Bản Sửa Lỗi Toàn Diện v1.4: Khắc Phục Triệt Để Modal "Hẹn Giờ Ngủ" & EQ Bị Kẹt Trên FiiO M11S, Khôi Phục Hoàn Toàn Cơ Chế Crossfade Mượt Mà & Tích Hợp Phím Back Android
+
+### 🎯 Giải Quyết Yêu Cầu Người Dùng:
+1. **Khắc phục lỗi Modal "Hẹn giờ ngủ" và EQ hiện đè lên giao diện khi mở app và không thể đóng trên FiiO M11S:**
+   - **Nguyên nhân gốc rễ (Video `VID_20261116_182958.mp4`):**
+     - Khi ứng dụng chạy offline (hoặc mạng WiFi DAP chưa kết nối/chặn cdn.tailwindcss.com), lớp tiện ích `.hidden` không được nạp vào CSS runtime.
+     - Trong CSS `@media (max-width: 767.98px)`, các panel `#sleep-panel`, `#eq-panel` được gán `position: fixed !important`, nhưng không có định nghĩa `display: none !important;` khi mang class `hidden`. Do đó trình duyệt WebView hiển thị cả `#sleep-panel` và `#eq-panel` đè trực tiếp lên màn hình ngay khi khởi động.
+     - Nút đóng `✕` (`#sleep-close`) quá nhỏ (khoảng 10x10px), không có padding/kích thước tối thiểu khiến thao tác chạm ngón tay trên màn hình cảm ứng 720x1440 của FiiO M11S bị trượt. Panel lại không có backdrop bắt sự kiện click bên ngoài.
+     - Khi người dùng bấm phím Back phần cứng của máy, `MainActivity.java` không nhận diện được modal trong WebView nên thoát app về màn hình chính Android thay vì đóng modal.
+   - **Giải pháp:**
+     - Bổ sung quy tắc CSS offline-first tối thượng tại `<style id="app-style">` và media query mobile: `.hidden, [hidden], #sleep-panel.hidden, #sleep-panel[hidden], #eq-panel.hidden, #eq-panel[hidden], #ambient-panel.hidden, #ambient-panel[hidden] { display: none !important; }`.
+     - Thêm thuộc tính HTML gốc `hidden` cho `#sleep-panel` và `#eq-panel` để triệt tiêu 100% hiện tượng flash hiển thị mặc định (FOUC).
+     - Nâng cấp kích thước vùng chạm nút đóng `✕` (`#sleep-close`, `#eq-close-btn`, `#ambient-close`) đạt chuẩn công thái học di động ($\ge 44 \times 44\text{px}$) với hình tròn mờ nổi bật.
+     - Thêm nút **"Đóng hộp thoại"** (`#sleep-dismiss`) to rõ ràng ngay cuối hộp thoại hẹn giờ ngủ.
+     - Bổ sung bộ lắng nghe sự kiện chạm ra ngoài (Tap-outside pointerdown listener) tự động thu gọn các panel trôi nổi.
+     - Tích hợp cầu nối phím Back phần cứng: `window.onAndroidBackPressed` trong JavaScript phối hợp cùng `getOnBackPressedDispatcher` trong `MainActivity.java`, ưu tiên đóng modal/panel đang mở khi nhấn phím Back trước khi thoát app.
+
+2. **Khắc phục lỗi Crossfade chuyển bài bị nghẽn ("chuyển thẳng ko còn như trước"):**
+   - **Nguyên nhân gốc rễ:**
+     - Trong hàm `queueIndex()`, khi ở chế độ ngoại tuyến (`isOfflineMode = true`), code gọi `library.getNextPlayableTrack(state.tracks, current, 1, ...)`. Hàm này trả về đối tượng `{ track, index, wasFiltered }`, nhưng code lại gọi `state.tracks.indexOf(nextPlayable)`, dẫn đến luôn trả về `-1`.
+     - Vì `queueIndex()` trả về `-1` khi offline, cờ `hasNextTrack` trong `shouldAutoCrossfade` nhận giá trị `false`, khiến cơ chế Auto-Crossfade hoàn toàn không được kích hoạt khi gần hết bài.
+     - Bài hát phát đến tận EOF (hết dữ liệu) mới kích hoạt sự kiện `ended` gọi `playNext(1, true)`, tạo thành cú nhảy bài đột ngột ("chuyển thẳng") không hề có khoảng chuyển hòa âm.
+     - Giá trị mặc định `crossfadeSeconds` bị lưu `'0'` trong `localStorage` từ các bản cũ khiến crossfade luôn ở trạng thái Tắt.
+   - **Giải pháp:**
+     - Sửa triệt để hàm `queueIndex()`: trích xuất đúng `nextPlayable.index` từ `getNextPlayableTrack` để xác định bài tiếp theo trong danh sách offline.
+     - Đảm bảo `preloadNext()` luôn nạp trước bài tiếp theo vào `standbyAudio` và `shouldAutoCrossfade()` kích hoạt sớm trước EOF $t = \text{duration} - (\text{crossfadeSeconds} + 0.5\text{s})$.
+     - Đặt mức mặc định thông minh 2–3 giây cho chế độ DAP Android/FiiO M11S nếu người dùng chưa thiết lập.
+
+### 🚀 Kiểm Chứng Kỹ Thuật:
+- `test/fiio-v14-modal-and-crossfade.test.cjs`: **6/6 tests PASS (100%)**.
+- `test/fiio-v13-enhancements.test.cjs`: **5/5 tests PASS (100%)**.
+- `test/offline-resilience.test.cjs`: **8/8 tests PASS (100%)**.
+- `test/target-curves.test.cjs`: **10/10 tests PASS (100%)**.
+- Toàn bộ **1208/1208 tests PASS** (0 fail).
+- Tệp APK mới `Nocturne-Audiophile-v1.4-fiio.apk` đã được build thành công (6.27MB) và đẩy lên Google Drive.
+- BẢO TOÀN TUYỆT ĐỐI BẤT BIẾN: `state.crossfeedNodes.output.connect(state.context.destination)`.
+
+---
+
 ## [Pha E 2026-11-15 21:50 +07] — Khắc Phục Lỗi Đăng Nhập Cloud (Google Drive, OneDrive) & Kết Nối Máy Chủ Nội Bộ (Subsonic, Jellyfin, Black Candy, LAN)
 
 ### 🎯 Giải Quyết Yêu Cầu Người Dùng:
