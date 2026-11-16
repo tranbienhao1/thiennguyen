@@ -60,7 +60,13 @@
       display: none !important;
     }
     #sidebar-backdrop.hidden, #sidebar-backdrop[hidden] {
+      display: none !important;
       pointer-events: none !important;
+      visibility: hidden !important;
+    }
+    body.sidebar-collapsed #sidebar {
+      pointer-events: none !important;
+      visibility: hidden !important;
     }
     button, select, input, a, .nav-link, .source-btn, .collection-card, .track-row, .roon-stat {
       touch-action: manipulation;
@@ -140,9 +146,9 @@
     #sidebar { transition: transform .32s ease, opacity .25s ease, width .32s ease, margin .32s ease; }
     #content-col { transition: flex-basis .32s ease, max-width .32s ease, transform .32s ease; }
     @media (max-width: 1023.98px) {
-      #sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 60; width: min(86vw, 320px); max-height: 100dvh; overflow-y: auto; border-right: 1px solid rgba(255,255,255,.08); box-shadow: 24px 0 60px rgba(0,0,0,.5); }
-      body.sidebar-collapsed #sidebar { transform: translateX(-105%); opacity: 0; pointer-events: none; }
-      body:not(.sidebar-collapsed) #sidebar { transform: translateX(0); opacity: 1; }
+      #sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 60; width: min(86vw, 320px); max-height: 100dvh; overflow-y: auto; border-right: 1px solid rgba(255,255,255,.08); box-shadow: 24px 0 60px rgba(0,0,0,.5); touch-action: manipulation; }
+      body.sidebar-collapsed #sidebar { transform: translateX(-105%) !important; opacity: 0 !important; pointer-events: none !important; visibility: hidden !important; }
+      body:not(.sidebar-collapsed) #sidebar { transform: translateX(0); opacity: 1; visibility: visible !important; pointer-events: auto !important; }
       body:not(.sidebar-collapsed) #content-col { transform: scale(.985); }
     }
     @media (min-width: 1024px) {
@@ -453,9 +459,9 @@
     @media(max-width:1023.98px){
       #sidebar-close{display:inline-grid}
       #app-shell{height:calc(100dvh - 104px);min-height:360px}
-      #sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(300px,86vw);height:100dvh;max-height:100dvh;transform:translateX(0);box-sizing:border-box}
-      body.sidebar-collapsed #sidebar{transform:translateX(-105%);opacity:0;pointer-events:none}
-      body:not(.sidebar-collapsed) #sidebar{transform:translateX(0);opacity:1}
+      #sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(300px,86vw);height:100dvh;max-height:100dvh;transform:translateX(0);box-sizing:border-box;touch-action:manipulation}
+      body.sidebar-collapsed #sidebar{transform:translateX(-105%) !important;opacity:0 !important;pointer-events:none !important;visibility:hidden !important}
+      body:not(.sidebar-collapsed) #sidebar{transform:translateX(0);opacity:1;visibility:visible !important;pointer-events:auto !important}
       #sidebar-toggle{display:grid} #sidebar-close{display:inline-grid}
       #content-col>header{min-height:58px;padding:0 16px!important}
       #home-view,#library-view{padding:30px 26px 46px}
@@ -2677,6 +2683,12 @@
 
     const dsdWorkerBaseUrl = new URL('.', document.baseURI || location.href).href;
     const $ = id => document.getElementById(id);
+    const isMobileViewport = () => {
+      if (typeof window === 'undefined') return false;
+      return window.matchMedia('(max-width: 1023.98px)').matches ||
+             window.innerWidth < 1024 ||
+             Boolean(window.isNativeAndroid || window.NocturneNative || (typeof state !== 'undefined' && state && state.fiioDapMode));
+    };
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
     const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false };
@@ -3045,6 +3057,9 @@
         $('page-title').textContent = SMART_PLAYLIST_TITLES[key] || 'Smart Playlist';
       }
       renderTracks();
+      if (typeof isMobileViewport === 'function' && isMobileViewport() && typeof setSidebarOpen === 'function') {
+        setSidebarOpen(false);
+      }
     }
     const toast = message => {
       const el = $('toast');
@@ -10308,24 +10323,49 @@
     const sidebarIsOpen = () => !document.body.classList.contains('sidebar-collapsed');
     function setSidebarOpen(open) {
       document.body.classList.toggle('sidebar-collapsed', !open);
-      $('sidebar-toggle').setAttribute('aria-expanded', String(open));
-      $('sidebar-toggle').setAttribute('aria-label', open ? 'Đóng thanh điều hướng' : 'Mở thanh điều hướng');
-      $('sidebar-toggle-icon').textContent = open ? '×' : '☰';
-      const mobile = window.matchMedia('(max-width: 1023.98px)').matches;
+      const toggle = $('sidebar-toggle');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', String(open));
+        toggle.setAttribute('aria-label', open ? 'Đóng thanh điều hướng' : 'Mở thanh điều hướng');
+      }
+      const toggleIcon = $('sidebar-toggle-icon');
+      if (toggleIcon) toggleIcon.textContent = open ? '×' : '☰';
+      const mobile = isMobileViewport();
       const isHidden = !open || !mobile;
-      $('sidebar-backdrop').classList.toggle('hidden', isHidden);
-      $('sidebar-backdrop').hidden = isHidden;
+      const backdrop = $('sidebar-backdrop');
+      if (backdrop) {
+        backdrop.classList.toggle('hidden', isHidden);
+        backdrop.hidden = isHidden;
+      }
     }
-    $('sidebar-toggle').addEventListener('click', () => setSidebarOpen(!sidebarIsOpen()));
-    $('sidebar-close').addEventListener('click', () => setSidebarOpen(false));
-    $('sidebar-backdrop').addEventListener('click', () => setSidebarOpen(false));
+    $('sidebar-toggle')?.addEventListener('click', () => setSidebarOpen(!sidebarIsOpen()));
+    $('sidebar-close')?.addEventListener('click', () => setSidebarOpen(false));
+    $('sidebar-backdrop')?.addEventListener('click', () => setSidebarOpen(false));
     window.addEventListener('resize', () => {
-      const isHidden = !sidebarIsOpen() || !window.matchMedia('(max-width: 1023.98px)').matches;
-      $('sidebar-backdrop').classList.toggle('hidden', isHidden);
-      $('sidebar-backdrop').hidden = isHidden;
+      const isHidden = !sidebarIsOpen() || !isMobileViewport();
+      const backdrop = $('sidebar-backdrop');
+      if (backdrop) {
+        backdrop.classList.toggle('hidden', isHidden);
+        backdrop.hidden = isHidden;
+      }
     });
-    document.querySelectorAll('.source-btn').forEach(button => button.addEventListener('click', () => { if (window.matchMedia('(max-width: 1023.98px)').matches) setSidebarOpen(false); }));
-    setSidebarOpen(!window.matchMedia('(max-width: 1023.98px)').matches);
+
+    // Auto-dismiss sidebar on mobile/DAP on ANY navigation selection
+    $('sidebar')?.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!target) return;
+      const navItem = target.closest(
+        '.nav-link, [data-view], [data-smart-playlist], .source-btn, [data-view-link], ' +
+        '#favorites-filter, #folders-button, #sidebar-close, .roon-sidebar-tool, ' +
+        '#playlist-export-m3u-btn, #playlist-import-m3u-btn, #choose-folder, ' +
+        '#google-quick-connect, #microsoft-quick-connect, #open-settings-sidebar, #sidebar-more, #settings-trigger'
+      );
+      if (navItem && isMobileViewport()) {
+        setSidebarOpen(false);
+      }
+    });
+    document.querySelectorAll('.source-btn').forEach(button => button.addEventListener('click', () => { if (isMobileViewport()) setSidebarOpen(false); }));
+    setSidebarOpen(!isMobileViewport());
 
     $('add-files').addEventListener('click', pickLocalFiles);
     $('empty-add').addEventListener('click', pickLocalFiles);
@@ -12391,6 +12431,10 @@
     });
 
     window.onAndroidBackPressed = function() {
+      if (typeof sidebarIsOpen === 'function' && sidebarIsOpen() && isMobileViewport()) {
+        setSidebarOpen(false);
+        return true;
+      }
       if (typeof isSettingsOpen === 'function' && isSettingsOpen()) {
         hideSettings();
         return true;
@@ -12469,7 +12513,7 @@
       $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').classList.toggle('text-pink-300', isFavorite(track)); renderTracks();
     });
     $('recent-clear').addEventListener('click', clearHistory);
-    $('favorites-filter').addEventListener('click', () => { state.favoritesOnly = !state.favoritesOnly; $('favorites-filter').classList.toggle('text-violet-300', state.favoritesOnly); $('favorites-filter').setAttribute('aria-pressed', String(state.favoritesOnly)); renderTracks(); });
+    $('favorites-filter').addEventListener('click', () => { state.favoritesOnly = !state.favoritesOnly; $('favorites-filter').classList.toggle('text-violet-300', state.favoritesOnly); $('favorites-filter').setAttribute('aria-pressed', String(state.favoritesOnly)); renderTracks(); if (isMobileViewport()) setSidebarOpen(false); });
     $('search').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search-mobile').value = event.target.value; renderTracks(); });
     $('search-mobile').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search').value = event.target.value; renderTracks(); });
     function renderSearchHistoryDropdown(isMobile) {
@@ -12534,7 +12578,7 @@
       col.scrollTop = Math.max(0, state.viewScroll[state.activeView] || 0);
     }
     function setLibraryView(view) {
-      if (view === 'folders') { pickFolder(); return; }
+      if (view === 'folders') { pickFolder(); if (isMobileViewport()) setSidebarOpen(false); return; }
       saveViewScroll();
       const supported = ['home','albums','artists','songs','genres','history'];
       state.activeView = supported.includes(view) ? view : 'albums';
@@ -12544,12 +12588,19 @@
       state.groupBy = 'none';
       if (state.activeView === 'history' && !state.recentHistory.length) readHistory();
       renderTracks();
-      if (window.matchMedia('(max-width: 1023.98px)').matches) setSidebarOpen(false);
+      if (isMobileViewport()) setSidebarOpen(false);
       restoreViewScroll();
     }
     document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => setLibraryView(button.dataset.view)));
     document.querySelectorAll('[data-smart-playlist]').forEach(button => {
       button.addEventListener('click', () => selectSmartPlaylist(button.dataset.smartPlaylist));
+    });
+    document.querySelectorAll('[data-view-link]').forEach(link => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        setLibraryView(link.dataset.viewLink || 'home');
+        if (isMobileViewport()) setSidebarOpen(false);
+      });
     });
     const roomRatingEl = $('room-rating');
     if (roomRatingEl) {
@@ -12604,7 +12655,7 @@
       state.filter = button.dataset.source; $('source-filter').value = state.filter;
       syncSourceNavigation();
       renderTracks();
-      if (window.matchMedia('(max-width: 1023.98px)').matches) setSidebarOpen(false);
+      if (isMobileViewport()) setSidebarOpen(false);
     }));
     $('sort-button').addEventListener('click', event => {
       if (state.activeView === 'songs') state.sortAsc = !state.sortAsc;

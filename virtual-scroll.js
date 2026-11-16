@@ -176,6 +176,20 @@
       if (this.options.scrollContainer) return this.options.scrollContainer;
       if (this._scrollTarget) return this._scrollTarget;
 
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        const isMobileOrDap = window.innerWidth <= 768 || Boolean(window.isNativeAndroid || window.NocturneNative);
+        const contentCol = document.getElementById('content-col');
+        if (contentCol && !isMobileOrDap) {
+          const style = window.getComputedStyle ? window.getComputedStyle(contentCol) : null;
+          const overflowY = style ? style.overflowY : '';
+          if (overflowY === 'auto' || overflowY === 'scroll') {
+            this._scrollTarget = contentCol;
+            return contentCol;
+          }
+        }
+        this._scrollTarget = window;
+        return window;
+      }
       if (typeof document !== 'undefined') {
         const contentCol = document.getElementById('content-col');
         if (contentCol) {

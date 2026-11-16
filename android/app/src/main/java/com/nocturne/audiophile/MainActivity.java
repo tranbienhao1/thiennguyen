@@ -605,8 +605,9 @@ public class MainActivity extends AppCompatActivity {
 
         // 8. Cache mode & viewport
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setUseWideViewPort(true);
-        settings.setLoadWithOverviewMode(true);
+        // Ensure WebView on FiiO M11S (Android 10) matches physical screen dp bounds (360px viewport) without desktop zoom out
+        settings.setUseWideViewPort(false);
+        settings.setLoadWithOverviewMode(false);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
