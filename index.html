@@ -1048,8 +1048,15 @@
       </nav>
       <button id="favorites-filter" class="nav-link" type="button" aria-pressed="false"><span class="nav-icon">♡</span> Yêu thích</button>
       <div id="smart-playlists-section" class="mt-4">
-        <p class="roon-section-label">Smart Playlists</p>
-        <nav class="roon-nav smart-playlists-nav" aria-label="Smart Playlists">
+        <div class="flex items-center justify-between">
+          <p class="roon-section-label !mb-0">Smart Playlists</p>
+          <div class="flex items-center gap-1.5">
+            <button id="playlist-export-m3u-btn" type="button" class="text-[10px] text-zinc-400 hover:text-cyan-300" title="Xuất playlist M3U/M3U8">💾 Xuất</button>
+            <button id="playlist-import-m3u-btn" type="button" class="text-[10px] text-zinc-400 hover:text-emerald-300" title="Nhập playlist M3U/M3U8">📥 Nhập</button>
+            <input id="playlist-m3u-file-input" type="file" accept=".m3u8,.m3u" class="hidden">
+          </div>
+        </div>
+        <nav class="roon-nav smart-playlists-nav mt-1.5" aria-label="Smart Playlists">
           <button class="nav-link smart-playlist-btn" type="button" data-smart-playlist="dsd" id="smart-playlist-dsd"><span class="nav-icon">❖</span> DSD Collection</button>
           <button class="nav-link smart-playlist-btn" type="button" data-smart-playlist="hires" id="smart-playlist-hires"><span class="nav-icon">◈</span> Hi-Res Audiophile</button>
           <button class="nav-link smart-playlist-btn" type="button" data-smart-playlist="fav-long" id="smart-playlist-fav-long"><span class="nav-icon">♥</span> Top Yêu Thích &gt; 4m</button>
@@ -1615,6 +1622,12 @@
           <button id="import-config-btn" type="button" class="flex-1 min-w-[120px] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium text-zinc-300 transition hover:bg-white/10">📂 Khôi phục cấu hình</button>
           <input id="import-config-file" type="file" accept=".json,application/json" class="hidden">
         </div>
+        <div class="mt-2.5 pt-2.5 border-t border-white/10 flex flex-wrap gap-2">
+          <button id="export-user-settings-btn" type="button" class="flex-1 min-w-[120px] rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-[11px] font-medium text-cyan-200 transition hover:bg-cyan-400/20">⚡ Xuất Settings Cloud (.json)</button>
+          <button id="import-user-settings-btn" type="button" class="flex-1 min-w-[120px] rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-400/20">📥 Nhập Settings Cloud</button>
+          <button id="fetch-online-covers-btn" type="button" class="flex-1 min-w-[120px] rounded-lg border border-violet-400/30 bg-violet-400/10 px-3 py-2 text-[11px] font-medium text-violet-200 transition hover:bg-violet-400/20">🎨 Tải bìa Online (Cover Art)</button>
+          <input id="import-user-settings-file" type="file" accept=".json,application/json" class="hidden">
+        </div>
       </section>
       <div class="mt-5 rounded-2xl border border-white/10 p-4">
         <h3 class="text-sm font-medium">Phát URL trực tiếp / WebDAV</h3><p class="mt-1 text-[10px] leading-4 text-zinc-500">Dùng URL truy cập trực tiếp tới file âm thanh. Máy chủ cần cho phép CORS để trình duyệt đọc metadata và phân tích âm thanh; hỗ trợ Range tùy cấu hình máy chủ.</p>
@@ -1721,7 +1734,10 @@
     </div>
     <div class="mt-3 border-t border-white/10 pt-3">
       <div class="flex items-center justify-between text-xs text-zinc-400">
-        <span>Cân chỉnh tai nghe (AutoEQ Harman)</span>
+        <div class="flex items-center gap-1.5">
+          <span>Cân chỉnh tai nghe (AutoEQ Harman)</span>
+          <button id="autoeq-modal-btn" type="button" class="rounded bg-violet-600/30 hover:bg-violet-600/50 px-1.5 py-0.5 text-[9px] font-medium text-violet-300 border border-violet-500/30 transition">50+ Profiles</button>
+        </div>
         <span id="autoeq-badge" class="font-mono text-[10px] text-zinc-400">Tắt</span>
       </div>
       <div class="mt-2">
@@ -1743,13 +1759,92 @@
             <option value="peq-orchestral">Orchestral Grandeur (Hòa nhạc giao hưởng dải động rộng)</option>
           </optgroup>
           <optgroup label="── Cân chỉnh tai nghe (Headphone AutoEQ) ──">
+          </optgroup>
+          <optgroup label="── Sennheiser ──">
             <option value="sennheiser-hd600">Sennheiser HD 600 (Harman Over-Ear)</option>
             <option value="sennheiser-hd650">Sennheiser HD 650 / 6XX (Harman Over-Ear)</option>
-            <option value="ath-m50x">Audio-Technica ATH-M50x (Harman Over-Ear)</option>
+            <option value="sennheiser-hd800s">Sennheiser HD 800 S (Harman Over-Ear)</option>
+            <option value="sennheiser-hd560s">Sennheiser HD 560S (Over-Ear Reference)</option>
+            <option value="sennheiser-hd660s">Sennheiser HD 660S (Over-Ear Open)</option>
+            <option value="sennheiser-hd700">Sennheiser HD 700 (Over-Ear Open)</option>
+          </optgroup>
+          <optgroup label="── Sony ──">
             <option value="sony-wh1000xm4">Sony WH-1000XM4 (Harman Over-Ear)</option>
-            <option value="beyer-dt770">Beyerdynamic DT 770 Pro 80Ω (Harman Over-Ear)</option>
-            <option value="airpods-pro">Apple AirPods Pro (Harman In-Ear)</option>
+            <option value="sony-wh1000xm5">Sony WH-1000XM5 (Harman Over-Ear)</option>
+            <option value="sony-wf1000xm4">Sony WF-1000XM4 (In-Ear TWS)</option>
+            <option value="sony-wf1000xm5">Sony WF-1000XM5 (In-Ear TWS)</option>
+            <option value="sony-mdr7506">Sony MDR-7506 (Over-Ear Studio)</option>
+            <option value="sony-mdr1am2">Sony MDR-1AM2 (Over-Ear Portable)</option>
+            <option value="sony-ier-m9">Sony IER-M9 (In-Ear Monitor)</option>
+            <option value="sony-ier-z1r">Sony IER-Z1R (In-Ear Flagship)</option>
+          </optgroup>
+          <optgroup label="── Moondrop ──">
+            <option value="moondrop-aria">Moondrop Aria (In-Ear Monitor)</option>
+            <option value="moondrop-kato">Moondrop Kato (In-Ear Monitor)</option>
+            <option value="moondrop-blessing2">Moondrop Blessing 2 (In-Ear Monitor)</option>
+            <option value="moondrop-blessing2-dusk">Moondrop Blessing 2 Dusk (In-Ear Monitor)</option>
+            <option value="moondrop-chu">Moondrop Chu (In-Ear Entry)</option>
+            <option value="moondrop-chu2">Moondrop Chu II (In-Ear Entry)</option>
+            <option value="moondrop-starfield">Moondrop Starfield (In-Ear Monitor)</option>
+            <option value="moondrop-variations">Moondrop Variations (In-Ear Tribrid)</option>
+          </optgroup>
+          <optgroup label="── FiiO ──">
+            <option value="fiio-fh9">FiiO FH9 (In-Ear Flagship Hybrid)</option>
+            <option value="fiio-fd5">FiiO FD5 (In-Ear Beryllium Dynamic)</option>
+            <option value="fiio-fa7s">FiiO FA7S (In-Ear Balanced Armature)</option>
+            <option value="fiio-fh7">FiiO FH7 (In-Ear Hybrid)</option>
+            <option value="fiio-fd7">FiiO FD7 (In-Ear Pure Beryllium)</option>
+            <option value="fiio-fh3">FiiO FH3 (In-Ear Hybrid Entry)</option>
+            <option value="fiio-ft3">FiiO FT3 (Over-Ear Open 60mm)</option>
+          </optgroup>
+          <optgroup label="── Apple ──">
+            <option value="apple-airpods-pro">Apple AirPods Pro (Harman In-Ear)</option>
+            <option value="apple-airpods-pro-2">Apple AirPods Pro 2 (In-Ear TWS)</option>
+            <option value="apple-airpods-max">Apple AirPods Max (Over-Ear ANC)</option>
+            <option value="apple-airpods-3">Apple AirPods 3 (Earbuds Semi-Open)</option>
+          </optgroup>
+          <optgroup label="── HiFiMan ──">
             <option value="hifiman-sundara">HiFiMan Sundara (Harman Over-Ear Planar)</option>
+            <option value="hifiman-ananda">HiFiMan Ananda (Planar Magnetic)</option>
+            <option value="hifiman-edition-xs">HiFiMan Edition XS (Planar Magnetic)</option>
+            <option value="hifiman-arya">HiFiMan Arya (Planar Magnetic Flagship)</option>
+            <option value="hifiman-he400se">HiFiMan HE400se (Planar Magnetic Entry)</option>
+            <option value="hifiman-susvara">HiFiMan Susvara (Planar Magnetic Ultra)</option>
+          </optgroup>
+          <optgroup label="── Beyerdynamic ──">
+            <option value="beyer-dt770">Beyerdynamic DT 770 Pro 80Ω (Harman Over-Ear)</option>
+            <option value="beyer-dt990">Beyerdynamic DT 990 Pro 250Ω (Over-Ear Open)</option>
+            <option value="beyer-dt880">Beyerdynamic DT 880 Pro (Over-Ear Semi-Open)</option>
+            <option value="beyer-dt1990">Beyerdynamic DT 1990 Pro (Over-Ear Tesla Studio)</option>
+            <option value="beyer-t1">Beyerdynamic T1 2nd Gen (Over-Ear Flagship Tesla)</option>
+          </optgroup>
+          <optgroup label="── Audio-Technica ──">
+            <option value="ath-m50x">Audio-Technica ATH-M50x (Harman Over-Ear)</option>
+            <option value="ath-m40x">Audio-Technica ATH-M40x (Over-Ear Closed)</option>
+            <option value="ath-r70x">Audio-Technica ATH-R70x (Over-Ear Open Reference)</option>
+            <option value="ath-ad900x">Audio-Technica ATH-AD900X (Over-Ear Open Air)</option>
+          </optgroup>
+          <optgroup label="── Shure ──">
+            <option value="shure-se215">Shure SE215 (In-Ear Stage Monitor)</option>
+            <option value="shure-se846">Shure SE846 (In-Ear Quad BA Flagship)</option>
+            <option value="shure-srh1840">Shure SRH1840 (Over-Ear Open Mastering)</option>
+            <option value="shure-srh1540">Shure SRH1540 (Over-Ear Closed Audiophile)</option>
+            <option value="shure-srh840">Shure SRH840 (Over-Ear Closed Studio)</option>
+          </optgroup>
+          <optgroup label="── Focal ──">
+            <option value="focal-clear">Focal Clear (Over-Ear Open Audiophile)</option>
+            <option value="focal-utopia">Focal Utopia (Over-Ear Open Pure Beryllium)</option>
+            <option value="focal-elegia">Focal Elegia (Over-Ear Closed Audiophile)</option>
+            <option value="focal-celestee">Focal Celestee (Over-Ear Closed Audiophile)</option>
+            <option value="focal-bathys">Focal Bathys (Over-Ear Hi-Fi ANC)</option>
+          </optgroup>
+          <optgroup label="── AKG, Audeze, Meze, Etymotic ──">
+            <option value="akg-k371">AKG K371 (Over-Ear Closed Harman)</option>
+            <option value="akg-k702">AKG K702 (Over-Ear Open Reference)</option>
+            <option value="audeze-lcd-x">Audeze LCD-X (Planar Magnetic Studio)</option>
+            <option value="audeze-maxwell">Audeze Maxwell (Planar Wireless Audiophile)</option>
+            <option value="meze-109-pro">Meze 109 Pro (Over-Ear Open Dynamic)</option>
+            <option value="etymotic-er4xr">Etymotic ER4XR (In-Ear Deep Insertion)</option>
           </optgroup>
         </select>
       </div>
@@ -1979,6 +2074,7 @@
           <button id="sonic-flow-btn" type="button" class="text-[10px] text-indigo-300 hover:text-indigo-200" title="Sắp xếp hàng đợi thông minh theo trường phái âm học tương thích (Sonic Flow AI)">🌊 Sonic Flow</button>
           <button id="queue-bpm-sort-btn" type="button" class="text-[10px] text-amber-300 hover:text-amber-200" title="Sắp xếp hàng đợi mượt mà theo tiết tấu BPM chuyển tiếp hài hòa">⚡ Sắp xếp BPM</button>
           <button id="queue-share-btn" type="button" class="text-[10px] text-cyan-300 hover:text-cyan-200" title="Chia sẻ danh sách phát qua liên kết hoặc tệp M3U8">🔗 Chia sẻ</button>
+          <button id="queue-export-m3u-btn" type="button" class="text-[10px] text-cyan-300 hover:text-cyan-200" title="Xuất danh sách phát M3U/M3U8">💾 Xuất M3U</button>
           <button id="queue-import-btn" type="button" class="text-[10px] text-emerald-300 hover:text-emerald-200" title="Nhập danh sách phát từ tệp M3U8/JSON hoặc liên kết">📥 Nhập</button>
           <input id="playlist-import-file" type="file" accept=".m3u8,.m3u,.json" class="hidden">
           <button id="queue-add-library" type="button" class="text-[10px] text-violet-300 hover:text-violet-200">＋ Thêm thư viện</button>
@@ -2328,6 +2424,26 @@
     </div>
   </div>
 
+  <!-- Global Spotlight Command Palette (Ctrl+K, Cmd+K, /) -->
+  <div id="command-palette-modal" class="fixed inset-0 z-[90] hidden place-items-start justify-center bg-black/75 p-4 pt-16 sm:pt-24 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="palette-input">
+    <div class="w-full max-w-xl rounded-2xl border border-white/15 bg-zinc-900/95 shadow-2xl backdrop-blur-2xl overflow-hidden flex flex-col max-h-[80vh] transition-all">
+      <div class="flex items-center gap-3 border-b border-white/10 px-4 py-3 bg-zinc-950/60">
+        <span class="text-zinc-400 text-base">🔍</span>
+        <input id="palette-input" type="text" class="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none" placeholder="Tìm kiếm bài hát, album, nghệ sĩ, hoặc lệnh (Ctrl+K)..." autocomplete="off" spellcheck="false">
+        <span class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400">ESC</span>
+      </div>
+      <div id="palette-results" class="flex-1 overflow-y-auto p-2 space-y-1 no-scrollbar min-h-[120px] max-h-[60vh]"></div>
+      <div class="border-t border-white/10 px-4 py-2 bg-zinc-950/40 flex items-center justify-between text-[11px] text-zinc-500">
+        <div class="flex items-center gap-3">
+          <span><kbd class="font-mono text-zinc-400">↑</kbd><kbd class="font-mono text-zinc-400">↓</kbd> để di chuyển</span>
+          <span><kbd class="font-mono text-zinc-400">↵</kbd> để chọn</span>
+          <span><kbd class="font-mono text-zinc-400">ESC</kbd> để đóng</span>
+        </div>
+        <span class="text-purple-400/80 font-mono text-[10px]">Nocturne Spotlight</span>
+      </div>
+    </div>
+  </div>
+
   <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
   <script src="library-utils.js"></script>
@@ -2337,6 +2453,10 @@
   <script src="lyrics-utils.js"></script>
   <script src="lrclib-client.js"></script>
   <script src="lyrics-editor-ui.js"></script>
+  <script src="library-tools.js"></script>
+  <script src="ui-overlay.js"></script>
+  <script src="autoeq-cue.js"></script>
+  <script src="virtual-scroll.js"></script>
   <script>
     const cloudMetadata = window.NocturneCloudMetadata;
 (() => {
@@ -4799,7 +4919,7 @@
       }));
       const renderedTracks = displayTracksByGroup.flat();
       const signature = trackRowsSignature(renderedTracks);
-      if (list.dataset.trackRowsSignature === signature && list.querySelectorAll('[data-track-id]').length === renderedTracks.length) {
+      if (list.dataset.trackRowsSignature === signature && (list._virtualTrackList || list.querySelectorAll('[data-track-id]').length === renderedTracks.length)) {
         // Pha D — nội dung các hàng không đổi (chỉ đổi bài đang phát):
         // cập nhật dấu hiệu bài đang phát tại chỗ + hàng đợi, bỏ qua
         // việc dựng lại toàn bộ innerHTML và gắn lại listener.
@@ -4808,42 +4928,116 @@
         recordTrackRowsRender(performance.now() - startedAt, renderedTracks.length, true);
         return;
       }
-      list.innerHTML = groups.map((group, groupIndex) => {
-        const heading = group.label ? `<h3 class="mb-2 mt-5 border-b border-white/[.07] px-3 pb-2 text-[10px] font-medium uppercase tracking-[.18em] text-zinc-500">${escapeHtml(group.label)} <span class="ml-1 text-zinc-700">${group.tracks.length}</span></h3>` : '';
-        const rows = displayTracksByGroup[groupIndex].map((track, trackIndex) => {
-          const q = quality(track), active = track.id === state.currentId, queued = state.queueTrackIds.includes(track.id) && track.id !== state.currentId;
-          const versionInfo = versionInfoById.get(track.id) || {versionGroup: {key: `id:${track.id}`, versions: [track]}, versionIndex: 0};
-          const metadata = library.trackMetadata(track);
-          if (!track.cover && typeof library?.resolveTrackCover === 'function') {
-            track.cover = library.resolveTrackCover(track, state.albumCovers, state.tracks);
+
+      function renderSingleTrackRow(track, trackIndex) {
+        const q = quality(track), active = track.id === state.currentId, queued = state.queueTrackIds.includes(track.id) && track.id !== state.currentId;
+        const versionInfo = versionInfoById.get(track.id) || {versionGroup: {key: `id:${track.id}`, versions: [track]}, versionIndex: 0};
+        const metadata = library.trackMetadata(track);
+        if (!track.cover && typeof library?.resolveTrackCover === 'function') {
+          track.cover = library.resolveTrackCover(track, state.albumCovers, state.tracks);
+        }
+        // Pha B — huy hiệu chất lượng của bài DSD mang tooltip là dòng
+        // kiểm toán giải mã đầy đủ (thời gian giải mã, lát chậm nhất,
+        // throughput MB/s) để xem tốc độ worker ngay trong danh sách mà
+        // không cần mở Phòng nghe; bài chưa có số đo thì không tooltip.
+        const audit = track.isDsd ? formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget, track.dsdThroughputMBps, track.dsdInitialChunkBytes, track.dsdMaxConsecutiveOverBudget, track.dsdMinSliceThroughputMBps, track.dsdFirstSliceMs) : '';
+        // Pha B — tooltip huy hiệu thêm trạng thái cache lát đầu (chỉ
+        // hiện khi đã biết: đã lưu/chưa lưu) để biết bài nào bấm là
+        // phát ngay mà không cần mở Phòng nghe; gộp sau dòng kiểm
+        // toán DSD (nếu có) để tooltip cũ không mất.
+        const sliceCache = usesFirstSliceCache(track) ? firstSliceCacheText(track.firstSliceCached) : '';
+        const badgeTitle = [audit, sliceCache].filter(Boolean).join(' · ');
+        const trRating = typeof getTrackRating === 'function' ? getTrackRating(track) : (track.rating || 0);
+        const trStars = (typeof library !== 'undefined' && typeof library.formatRating === 'function') ? library.formatRating(trRating) : '☆☆☆☆☆';
+        const titleHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.title, state.query, {escape: true}) : escapeHtml(metadata.title);
+        const artistHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.artist, state.query, {escape: true}) : escapeHtml(metadata.artist);
+        const albumHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.album, state.query, {escape: true}) : escapeHtml(metadata.album);
+        // Pha B — hàng bài hát kiểu Tidal (Melissa chọn 20:35): hàng phẳng
+        // ngăn bằng hairline thay vì thẻ bo tròn, bìa 48px, số thứ tự
+        // đổi thành ▶ khi hover, tiêu đề text-sm rõ hơn nghệ sĩ text-xs,
+        // huy hiệu chất lượng thành pill, thời lượng text-xs.
+        return `<div role="button" tabindex="0" class="track-row${versionInfo.versionIndex > 0 ? ' track-version-row' : ''} ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[.06] ${versionInfo.versionIndex > 0 ? 'py-2 pl-10 pr-4' : 'px-4 py-2'} text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]" aria-label="Phát ${escapeHtml(metadata.title)} — ${escapeHtml(metadata.artist)}" data-track-index="${trackIndex + 1}" data-track-id="${escapeHtml(track.id)}">
+          <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${titleHtml}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${artistHtml}</span> <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
+          <span class="hidden truncate text-xs text-zinc-500 sm:block"><span class="album-link hover:underline cursor-pointer">${albumHtml}</span></span><span class="hidden sm:block"><span class="rounded-full border px-2 py-0.5 text-[9px] font-medium tracking-wide ${q.tone}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${q.label}</span></span><span class="flex items-center justify-end gap-1"><span class="track-rating hidden sm:inline-block mr-1 text-[11px] text-amber-400 cursor-pointer select-none hover:opacity-80" data-rating-track-id="${escapeHtml(track.id)}" title="Đánh giá: ${trRating}/5 sao">${trStars}</span>${versionInfo.versionIndex === 0 && versionInfo.versionGroup.versions.length > 1 ? `<button type="button" data-version-action="toggle" data-version-key="${escapeHtml(versionInfo.versionGroup.key)}" class="shrink-0 rounded-full border border-violet-400/40 px-2 py-0.5 text-[10px] font-medium text-violet-200 hover:bg-violet-400/10" aria-expanded="${expandedVersions.has(versionInfo.versionGroup.key)}" aria-label="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn' : 'Mở rộng'} ${versionInfo.versionGroup.versions.length} phiên bản của ${escapeHtml(metadata.title)}" title="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn các phiên bản' : 'Xem các phiên bản khác'}">${versionInfo.versionGroup.versions.length} phiên bản ${expandedVersions.has(versionInfo.versionGroup.key) ? '▴' : '▾'}</button>` : ''}<span class="text-right text-xs tabular-nums text-zinc-400">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button><button type="button" data-queue-action="play_next" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Phát tiếp theo" title="Phát tiếp theo">⏭</button><button type="button" data-queue-action="append" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Thêm vào cuối" title="Thêm vào cuối">➕</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
+        </div>`;
+      }
+
+      if (tracks.length > 40 && typeof renderVirtualizedTrackRows === 'function') {
+        renderVirtualizedTrackRows(list, renderedTracks, {
+          rowHeight: 64,
+          bufferCount: 5,
+          currentId: state.currentId,
+          queueTrackIds: state.queueTrackIds,
+          renderRow: (track, trackIndex) => renderSingleTrackRow(track, trackIndex),
+          onRowClick: handleTrackRowActivation,
+          onRowContextMenu: (trackId, e) => {
+            if (typeof showTrackContextMenu === 'function') {
+              showTrackContextMenu(e.clientX, e.clientY, trackId);
+            }
           }
-          // Pha B — huy hiệu chất lượng của bài DSD mang tooltip là dòng
-          // kiểm toán giải mã đầy đủ (thời gian giải mã, lát chậm nhất,
-          // throughput MB/s) để xem tốc độ worker ngay trong danh sách mà
-          // không cần mở Phòng nghe; bài chưa có số đo thì không tooltip.
-          const audit = track.isDsd ? formatDecodeAudit(track.dsdDecodeMs, track.dsdMaxChunkMs, track.dsdChunksOverBudget, track.dsdThroughputMBps, track.dsdInitialChunkBytes, track.dsdMaxConsecutiveOverBudget, track.dsdMinSliceThroughputMBps, track.dsdFirstSliceMs) : '';
-          // Pha B — tooltip huy hiệu thêm trạng thái cache lát đầu (chỉ
-          // hiện khi đã biết: đã lưu/chưa lưu) để biết bài nào bấm là
-          // phát ngay mà không cần mở Phòng nghe; gộp sau dòng kiểm
-          // toán DSD (nếu có) để tooltip cũ không mất.
-          const sliceCache = usesFirstSliceCache(track) ? firstSliceCacheText(track.firstSliceCached) : '';
-          const badgeTitle = [audit, sliceCache].filter(Boolean).join(' · ');
-          const trRating = typeof getTrackRating === 'function' ? getTrackRating(track) : (track.rating || 0);
-          const trStars = (typeof library !== 'undefined' && typeof library.formatRating === 'function') ? library.formatRating(trRating) : '☆☆☆☆☆';
-          const titleHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.title, state.query, {escape: true}) : escapeHtml(metadata.title);
-          const artistHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.artist, state.query, {escape: true}) : escapeHtml(metadata.artist);
-          const albumHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.album, state.query, {escape: true}) : escapeHtml(metadata.album);
-          // Pha B — hàng bài hát kiểu Tidal (Melissa chọn 20:35): hàng phẳng
-          // ngăn bằng hairline thay vì thẻ bo tròn, bìa 48px, số thứ tự
-          // đổi thành ▶ khi hover, tiêu đề text-sm rõ hơn nghệ sĩ text-xs,
-          // huy hiệu chất lượng thành pill, thời lượng text-xs.
-          return `<div role="button" tabindex="0" class="track-row${versionInfo.versionIndex > 0 ? ' track-version-row' : ''} ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[.06] ${versionInfo.versionIndex > 0 ? 'py-2 pl-10 pr-4' : 'px-4 py-2'} text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]" aria-label="Phát ${escapeHtml(metadata.title)} — ${escapeHtml(metadata.artist)}" data-track-index="${trackIndex + 1}" data-track-id="${escapeHtml(track.id)}">
-            <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${titleHtml}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${artistHtml}</span> <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
-            <span class="hidden truncate text-xs text-zinc-500 sm:block"><span class="album-link hover:underline cursor-pointer">${albumHtml}</span></span><span class="hidden sm:block"><span class="rounded-full border px-2 py-0.5 text-[9px] font-medium tracking-wide ${q.tone}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${q.label}</span></span><span class="flex items-center justify-end gap-1"><span class="track-rating hidden sm:inline-block mr-1 text-[11px] text-amber-400 cursor-pointer select-none hover:opacity-80" data-rating-track-id="${escapeHtml(track.id)}" title="Đánh giá: ${trRating}/5 sao">${trStars}</span>${versionInfo.versionIndex === 0 && versionInfo.versionGroup.versions.length > 1 ? `<button type="button" data-version-action="toggle" data-version-key="${escapeHtml(versionInfo.versionGroup.key)}" class="shrink-0 rounded-full border border-violet-400/40 px-2 py-0.5 text-[10px] font-medium text-violet-200 hover:bg-violet-400/10" aria-expanded="${expandedVersions.has(versionInfo.versionGroup.key)}" aria-label="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn' : 'Mở rộng'} ${versionInfo.versionGroup.versions.length} phiên bản của ${escapeHtml(metadata.title)}" title="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn các phiên bản' : 'Xem các phiên bản khác'}">${versionInfo.versionGroup.versions.length} phiên bản ${expandedVersions.has(versionInfo.versionGroup.key) ? '▴' : '▾'}</button>` : ''}<span class="text-right text-xs tabular-nums text-zinc-400">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button><button type="button" data-queue-action="play_next" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Phát tiếp theo" title="Phát tiếp theo">⏭</button><button type="button" data-queue-action="append" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Thêm vào cuối" title="Thêm vào cuối">➕</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
-          </div>`;
+        });
+      } else {
+        if (list._virtualTrackList) {
+          list._virtualTrackList.destroy();
+          list._virtualTrackList = null;
+        }
+        list.innerHTML = groups.map((group, groupIndex) => {
+          const heading = group.label ? `<h3 class="mb-2 mt-5 border-b border-white/[.07] px-3 pb-2 text-[10px] font-medium uppercase tracking-[.18em] text-zinc-500">${escapeHtml(group.label)} <span class="ml-1 text-zinc-700">${group.tracks.length}</span></h3>` : '';
+          const rows = displayTracksByGroup[groupIndex].map((track, trackIndex) => renderSingleTrackRow(track, trackIndex)).join('');
+          return heading + rows;
         }).join('');
-        return heading + rows;
-      }).join('');
+        list.querySelectorAll('[data-rating-track-id]').forEach(button => button.addEventListener('click', event => {
+          event.stopPropagation();
+          const t = (typeof trackById === 'function') ? trackById(button.dataset.ratingTrackId) : null;
+          if (!t) return;
+          const current = (typeof getTrackRating === 'function') ? getTrackRating(t) : (t.rating || 0);
+          const next = (current % 5) + 1;
+          if (typeof setTrackRating === 'function') setTrackRating(t, next);
+        }));
+        list.querySelectorAll('[data-metadata-action="open"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); metadataUI.open(trackById(button.dataset.metadataTrackId)); }));
+        list.querySelectorAll('[data-queue-action="play_next"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); handlePlayNext(button.dataset.trackId); }));
+        list.querySelectorAll('[data-queue-action="append"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); handleAppendQueue(button.dataset.trackId); }));
+        list.querySelectorAll('[data-queue-action="add"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); addToQueue(button.dataset.trackId); }));
+        list.querySelectorAll('.album-link').forEach(link => link.addEventListener('click', event => {
+          event.stopPropagation();
+          const row = link.closest('[data-track-id]');
+          const trackId = row?.dataset?.trackId;
+          const track = (typeof trackById === 'function') ? trackById(trackId) : (state.tracks || []).find(t => t.id === trackId);
+          if (!track) return;
+          const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(track) : track;
+          if (typeof openAlbum === 'function') openAlbum(meta.album, meta.artist);
+        }));
+        list.querySelectorAll('.artist-link').forEach(link => link.addEventListener('click', event => {
+          event.stopPropagation();
+          const row = link.closest('[data-track-id]');
+          const trackId = row?.dataset?.trackId;
+          const track = (typeof trackById === 'function') ? trackById(trackId) : (state.tracks || []).find(t => t.id === trackId);
+          if (!track) return;
+          const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(track) : track;
+          if (typeof openArtist === 'function') openArtist(meta.artist);
+        }));
+        list.querySelectorAll('[data-version-action="toggle"]').forEach(button => button.addEventListener('click', event => {
+          event.stopPropagation();
+          const key = button.dataset.versionKey;
+          if (!key) return;
+          if (!(state.expandedVersions instanceof Set)) state.expandedVersions = new Set();
+          if (state.expandedVersions.has(key)) state.expandedVersions.delete(key); else state.expandedVersions.add(key);
+          renderTracks();
+        }));
+        list.querySelectorAll('[data-track-id]').forEach(row => {
+          row.addEventListener('click', event => {
+            const queueButton = event.target.closest('[data-queue-action]');
+            if (queueButton) { event.stopPropagation(); queueButton.dataset.queueAction === 'remove' ? removeFromQueue(row.dataset.trackId) : addToQueue(row.dataset.trackId); return; }
+            if (event.ctrlKey || event.metaKey) { addToQueue(row.dataset.trackId); return; }
+            handleTrackRowActivation(row.dataset.trackId);
+          });
+          row.addEventListener('keydown', event => {
+            if (event.target !== row || (event.key !== 'Enter' && event.key !== ' ')) return;
+            event.preventDefault(); handleTrackRowActivation(row.dataset.trackId);
+          });
+          row.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); showTrackContextMenu(event.clientX, event.clientY, row.dataset.trackId); });
+        });
+      }
       list.querySelectorAll('[data-rating-track-id]').forEach(button => button.addEventListener('click', event => {
         event.stopPropagation();
         const t = (typeof trackById === 'function') ? trackById(button.dataset.ratingTrackId) : null;
@@ -5099,9 +5293,13 @@
       if (applyEqPreset(next)) toast(`Preset EQ: ${EQ_PRESET_LABELS[next]}.`);
     }
     function applyAutoEqProfile(profileId) {
-      const profile = (typeof library !== 'undefined' && library && typeof library.getAutoEqProfile === 'function')
-        ? library.getAutoEqProfile(profileId)
-        : null;
+      let profile = null;
+      if (typeof NocturneAutoEqCue !== 'undefined' && typeof NocturneAutoEqCue.getAutoEqProfile === 'function') {
+        profile = NocturneAutoEqCue.getAutoEqProfile(profileId);
+      }
+      if (!profile && typeof library !== 'undefined' && library && typeof library.getAutoEqProfile === 'function') {
+        profile = library.getAutoEqProfile(profileId);
+      }
       state.autoEqProfile = profile && profile.id !== 'none' ? profile.id : 'none';
       try { localStorage.setItem('nocturne-autoeq-profile', state.autoEqProfile); } catch (e) {}
 
@@ -10439,6 +10637,158 @@
         e.target.value = '';
       }
     });
+
+    // Library Tools: User Settings Export / Import & Online Cover Art Fetcher
+    $('export-user-settings-btn')?.addEventListener('click', () => {
+      const tools = window.LibraryTools || (typeof LibraryTools !== 'undefined' ? LibraryTools : null);
+      if (!tools || typeof tools.exportUserSettings !== 'function') return toast('LibraryTools chưa sẵn sàng.');
+      const json = tools.exportUserSettings(state);
+      const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.download = `nocturne-user-settings-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast(`Đã xuất cài đặt: ${a.download}`);
+    });
+
+    $('import-user-settings-btn')?.addEventListener('click', () => {
+      $('import-user-settings-file')?.click();
+    });
+
+    $('import-user-settings-file')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const tools = window.LibraryTools || (typeof LibraryTools !== 'undefined' ? LibraryTools : null);
+        if (!tools || typeof tools.importUserSettings !== 'function') throw new Error('LibraryTools chưa sẵn sàng.');
+        const result = tools.importUserSettings(text, state);
+        if (!result.isValid) throw new Error(result.error);
+        toast(`Khôi phục thành công: ${result.restoredCount.favorites} yêu thích, ${result.restoredCount.peqBands} PEQ bands, ${result.restoredCount.preferences} cài đặt.`);
+      } catch (err) {
+        toast(`Lỗi khôi phục cài đặt: ${err.message || err}`);
+      } finally {
+        e.target.value = '';
+      }
+    });
+
+    $('fetch-online-covers-btn')?.addEventListener('click', async () => {
+      const tools = window.LibraryTools || (typeof LibraryTools !== 'undefined' ? LibraryTools : null);
+      if (!tools || typeof tools.fetchCoverArtOnline !== 'function') return toast('Cover Art Fetcher chưa sẵn sàng.');
+      toast('Đang tìm kiếm bìa album trực tuyến...');
+      let updatedCount = 0;
+      const seen = new Set();
+      for (const track of (state.tracks || [])) {
+        const art = track.artist || '';
+        const alb = track.album || '';
+        if (!alb || alb === 'Unknown Album' || alb === 'Chưa rõ') continue;
+        const key = `${art}:::${alb}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (state.albumCovers && state.albumCovers.has(key)) continue;
+        try {
+          const res = await tools.fetchCoverArtOnline(art, alb, { timeoutMs: 5000 });
+          if (res && res.success && (res.url || res.dataUrl)) {
+            if (!state.albumCovers) state.albumCovers = new Map();
+            state.albumCovers.set(key, res.dataUrl || res.url);
+            updatedCount++;
+          }
+        } catch (_) {}
+        if (updatedCount >= 5) break;
+      }
+      if (updatedCount > 0) {
+        if (typeof saveAlbumCoversCache === 'function') saveAlbumCoversCache();
+        if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
+        toast(`Đã cập nhật ${updatedCount} ảnh bìa album trực tuyến!`);
+      } else {
+        toast('Không tìm thấy ảnh bìa mới hoặc thư viện đã có đủ bìa.');
+      }
+    });
+
+    // Playlist M3U/M3U8 Export & Import
+    function getM3uExportTracks() {
+      if (state.queueTrackIds && state.queueTrackIds.length > 0) {
+        return state.queueTrackIds.map(id => state.tracks.find(t => t.id === id)).filter(Boolean);
+      }
+      return state.tracks || [];
+    }
+
+    $('playlist-export-m3u-btn')?.addEventListener('click', () => {
+      const tools = window.LibraryTools || (typeof LibraryTools !== 'undefined' ? LibraryTools : null);
+      if (!tools || typeof tools.exportPlaylistM3U !== 'function') return toast('M3U Exporter chưa sẵn sàng.');
+      const list = getM3uExportTracks();
+      if (!list.length) return toast('Không có bài hát nào để xuất M3U.');
+      const name = state.activeSmartPlaylistKey ? `Playlist-${state.activeSmartPlaylistKey}` : 'Nocturne-Playlist';
+      const m3u = tools.exportPlaylistM3U(name, list);
+      const blob = new Blob([m3u], { type: 'audio/x-mpegurl;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${name}.m3u8`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast(`Đã xuất M3U: ${a.download} (${list.length} bài)`);
+    });
+
+    $('queue-export-m3u-btn')?.addEventListener('click', () => {
+      const tools = window.LibraryTools || (typeof LibraryTools !== 'undefined' ? LibraryTools : null);
+      if (!tools || typeof tools.exportPlaylistM3U !== 'function') return toast('M3U Exporter chưa sẵn sàng.');
+      const list = (state.queueTrackIds || []).map(id => state.tracks.find(t => t.id === id)).filter(Boolean);
+      if (!list.length) return toast('Hàng đợi rỗng.');
+      const m3u = tools.exportPlaylistM3U('Nocturne-Queue', list);
+      const blob = new Blob([m3u], { type: 'audio/x-mpegurl;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Nocturne-Queue.m3u8';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast(`Đã xuất M3U Hàng đợi (${list.length} bài)`);
+    });
+
+    $('playlist-import-m3u-btn')?.addEventListener('click', () => {
+      $('playlist-m3u-file-input')?.click();
+    });
+
+    $('playlist-m3u-file-input')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const tools = window.LibraryTools || (typeof LibraryTools !== 'undefined' ? LibraryTools : null);
+        if (!tools || typeof tools.parseM3UPlaylist !== 'function') throw new Error('M3U Parser chưa sẵn sàng.');
+        const parsed = tools.parseM3UPlaylist(text);
+        if (!parsed.isValid) throw new Error(parsed.error);
+        const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+        let added = 0;
+        if (lib && typeof lib.matchPlaylistWithLibrary === 'function') {
+          const match = lib.matchPlaylistWithLibrary(parsed.tracks, state.tracks);
+          for (const item of match.matchedTracks) {
+            if (!state.queueTrackIds.includes(item.local.id) && item.local.id !== state.currentId) {
+              state.queueTrackIds.push(item.local.id);
+              added++;
+            }
+          }
+          toast(`Đã nhập "${parsed.name}": khớp ${match.matchedCount}/${match.totalCount} bài (Thêm ${added} bài vào hàng đợi).`);
+        } else {
+          toast(`Đã phân tích "${parsed.name}": ${parsed.trackCount} bài hát.`);
+        }
+        if (typeof renderQueue === 'function') renderQueue();
+      } catch (err) {
+        toast(`Lỗi nhập M3U: ${err.message || err}`);
+      } finally {
+        e.target.value = '';
+      }
+    });
     async function runCloudLogin(connect) {
       $('settings-error').classList.add('hidden');
       try {
@@ -11994,8 +12344,31 @@
       toast(`Đã tua tới ${formatTime(next)} / ${formatTime(audio.duration)}.`);
     };
     document.addEventListener('keydown', event => {
+      // Global Command Palette Shortcut: Ctrl+K or Cmd+K
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'k' || event.key === 'K')) {
+        event.preventDefault();
+        if (typeof toggleCommandPalette === 'function') toggleCommandPalette();
+        else if (window.UIOverlay?.toggleCommandPalette) window.UIOverlay.toggleCommandPalette();
+        return;
+      }
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
       const target = event.target, tag = target && target.tagName;
+      // Slash shortcut for Command Palette when not typing in an input
+      if (event.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT' && (!target || !target.isContentEditable)) {
+        event.preventDefault();
+        if (typeof openCommandPalette === 'function') openCommandPalette();
+        else if (window.UIOverlay?.openCommandPalette) window.UIOverlay.openCommandPalette();
+        return;
+      }
+      if (event.key === 'Escape') {
+        const cmdModal = $('command-palette-modal');
+        if (cmdModal && !cmdModal.classList.contains('hidden')) {
+          event.preventDefault();
+          if (typeof closeCommandPalette === 'function') closeCommandPalette();
+          else if (window.UIOverlay?.closeCommandPalette) window.UIOverlay.closeCommandPalette();
+          return;
+        }
+      }
       if (event.key === 'Escape' && isSettingsOpen()) { event.preventDefault(); hideSettings(); return; }
       if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); toggleAmbientPanel(false); return; }
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target && target.isContentEditable) || (target && target.closest && target.closest('button, a, [role="button"]')) || !$('listening-room').classList.contains('hidden')) return;
@@ -13988,5 +14361,27 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 19:30 +07 | Đã xong: Nâng Cấp Khả Năng Đồng Bộ Ảnh Bìa Tức Thì Trong Toàn Bộ Ứng Dụng (Instantaneous Album Art Synchronization & Zero-Delay Cover Propagation): (1) Bộ pure helpers trong library-utils.js: buildAlbumKey chuẩn hóa khóa album "${artist}:::${album}", propagateAlbumCovers đồng bộ hai chiều ảnh bìa giữa mảng bài hát và coverMap chọn ảnh chất lượng cao nhất, resolveTrackCover giải quyết tức thì fallback từ coverMap hoặc sibling tracks, extractFolderArtCandidates nhận diện và chấm điểm ảnh bìa thư mục độc lập (cover.jpg, folder.jpg, front.png, v.v.); (2) index.html khởi tạo state.albumCovers từ bộ nhớ đệm localStorage 'nocturne-album-covers'; (3) addLocalFiles quét ảnh bìa thư mục, tạo object URL và gán ngay cho bài hát trong thư mục; (4) makeLocalTrack và mọi nguồn nạp nhạc (local, cloud, Subsonic, Jellyfin, Black Candy) kích hoạt syncAlbumCoversImmediate lan truyền ảnh bìa tức thì cho toàn bộ sibling tracks cùng album; (5) displayTrack gọi resolveTrackCover hiển thị ảnh bìa 0ms trên thanh dock footer, chế độ toàn màn hình, phòng nghe và MediaSession; (6) renderRecentActivity / renderRecentTracks dùng resolveTrackCover hiển thị ảnh bìa thay vì ký tự '♫'; (7) renderTracks và renderCollectionCards đồng bộ hoàn toàn ảnh bìa album; (8) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 14/14 tests instant-album-sync.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 20:00 +07 | Đã xong: Pha C - Nâng Cấp Đồng Bộ Ảnh Bài Hát Tức Thì & Khắc Phục Lỗi Giao Diện Theo Video / Ảnh Thực Tế (Instant Song Art Synchronization & Video-Reported Bug Fixes): (1) Nâng cấp đồng bộ ảnh bài hát tốc độ tức thì: instantResolveTrackCover (5 tầng fallback <1ms), instantPropagateCovers lan truyền O(N) bộ nhớ, broadcastCoverUpdate cập nhật trực tiếp DOM tất cả bề mặt UI bằng requestAnimationFrame không cần reload trang; (2) Sửa nút #fullscreen-play-btn ủy quyền $('play-button').click() đầy đủ AudioContext.resume() và đồng bộ icon ▶/⏸ hai chiều; (3) Khắc phục Sân khấu 3D Toàn màn hình (Goniometer 3D, Radar 3D, VU Meter) tiếp tục chạy vòng lặp và kết xuất trạng thái standby/idle mượt mà khi audio tạm dừng, không bị tối đen canvas; nạp dữ liệu time-domain thực tế; (4) Phông nền mờ ảo #fullscreen-bg-cover & #fullscreen-ambient-glow chuẩn hóa CSS filter blur 48px saturate 1.4 brightness 0.85 scale 1.18 rực rỡ và mềm mại; (5) Triệt tiêu hoàn toàn thanh cuộn dọc/ngang ở phần lời bài hát; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 32/32 tests video-reported-bugs.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 20:30 +07 | Đã xong: Pha C - Sửa Lỗi Kẹt Phát Nhạc Khi Kết Nối Server, Di Chuyển Nút EQ & Tối Ưu Kéo Thả Mini Player HUD Mượt 120fps (Server Playback Hang Fix, EQ Relocation & Mini HUD Smooth Dragging): (1) Khắc phục triệt để lỗi kẹt nút Play ở trạng thái "..." và thời gian 0:00/0:00: đồng bộ trường url từ src trong các bộ phân tích parseSubsonicSong, parseJellyfinItem, parseBlackCandySong; fallback track.url = track.url || track.src trong playTrack; bổ sung bộ đếm an toàn safety timer tự động giải phóng loading pulse sau 5s; gắn event listeners error/stalled/abort trên audio element khôi phục ngay trạng thái ▶ khi gặp sự cố; (2) Dời nút EQ (#eq-button) từ cụm công cụ bên phải sang vị trí thông thoáng, nổi bật tại .footer-left-col ngay cạnh tên bài hát và nút yêu thích; bổ sung shortcut #header-eq-btn trên thanh header; thiết lập pointer-events: none cho .footer-center-controls và pointer-events: auto cho các nút con, loại bỏ hoàn toàn hiện tượng che khuất nút bấm; (3) Tối ưu kéo thả Mini Player HUD (#mini-player-hud): loại bỏ transition-all khi drag bằng class is-dragging và transition: none, lưu cache kích thước offset dimensions tránh layout thrashing, điều phối vị trí bằng requestAnimationFrame và hỗ trợ cảm ứng touch mượt mà 120fps; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests eq-relocate-minihud-smooth.test.cjs PASS 100%, 1139/1139 toàn bộ test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
+  <!-- AutoEQ Headphone Profile Selection Modal -->
+  <div id="autoeq-modal" class="fixed inset-0 z-[130] hidden flex items-center justify-center bg-black/80 backdrop-blur-md p-4" role="dialog" aria-modal="true" aria-labelledby="autoeq-modal-title">
+    <div class="relative w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl flex flex-col max-h-[85vh]">
+      <div class="flex items-center justify-between pb-3 border-b border-white/10">
+        <div class="flex items-center gap-2">
+          <span class="grid h-8 w-8 place-items-center rounded-xl bg-violet-600/20 text-violet-300 font-bold text-sm">🎧</span>
+          <div>
+            <h3 id="autoeq-modal-title" class="text-sm font-semibold text-white">Thư viện Cân chỉnh Tai nghe AutoEQ</h3>
+            <p class="text-[10px] text-zinc-400">Hơn 50+ cấu hình 10-Band PEQ chuẩn Harman Target</p>
+          </div>
+        </div>
+        <button id="autoeq-modal-close" type="button" class="grid h-8 w-8 place-items-center rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition" aria-label="Đóng">✕</button>
+      </div>
+      <div class="mt-3">
+        <input id="autoeq-modal-search" type="text" placeholder="Tìm kiếm theo hãng hoặc model (Sennheiser, Sony, Moondrop, FiiO...)" class="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-xs text-white placeholder-zinc-500 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition">
+      </div>
+      <div id="autoeq-modal-list" class="mt-3 flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar min-h-[260px]">
+        <!-- Dynamic list of headphone profile cards -->
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
