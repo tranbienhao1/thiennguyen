@@ -16,11 +16,19 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceInfo;
 import android.media.AudioFocusRequest;
+import android.media.AudioFormat;
+import android.media.AudioMixerAttributes;
 import android.media.AudioManager;
+import android.media.AudioTrack;
+import android.media.MediaCodec;
+import android.media.MediaExtractor;
+import android.media.MediaFormat;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
+import android.os.Process;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -77,12 +85,14 @@ import org.json.JSONObject;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.concurrent.atomic.AtomicLong;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLDecoder;
@@ -1044,6 +1054,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        stopBitPerfectPlayback();
         cancelMediaNotification();
         releaseWakeLock();
         abandonAudioFocus();
@@ -1356,6 +1367,13 @@ public class MainActivity extends AppCompatActivity {
 
     public void dispatchPlayPauseToWeb() {
         runOnUiThread(() -> {
+            if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
+                if (mBitPerfectPlayer.isPlaying()) {
+                    mBitPerfectPlayer.pause();
+                } else {
+                    mBitPerfectPlayer.resume();
+                }
+            }
             if (mWebView != null) {
                 mWebView.evaluateJavascript("if (window.onHardwarePlayPause) { window.onHardwarePlayPause(); } else if (typeof $ !== 'undefined') { $('play-button')?.click(); } else { const b = document.getElementById('play-button'); if (b) b.click(); }", null);
             }
@@ -1590,6 +1608,759 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.e(TAG, "Error cancelling media notification: " + e.getMessage(), e);
         }
+    }
+
+    public static final int FLAG_AUDIOTRACK_DIRECT = 0x1;
+
+    public static boolean isFiioDevice() {
+        String mfg = Build.MANUFACTURER != null ? Build.MANUFACTURER.toLowerCase(Locale.US) : "";
+        String brand = Build.BRAND != null ? Build.BRAND.toLowerCase(Locale.US) : "";
+        String model = Build.MODEL != null ? Build.MODEL.toLowerCase(Locale.US) : "";
+        String product = Build.PRODUCT != null ? Build.PRODUCT.toLowerCase(Locale.US) : "";
+        return mfg.contains("fiio") || brand.contains("fiio") ||
+                model.contains("fiio") || model.contains("m11") || model.contains("m15") || model.contains("m17") ||
+                product.contains("fiio") || product.contains("m11");
+    }
+
+    public AudioDeviceInfo findPreferredBitPerfectDevice() {
+        if (mAudioManager == null) return null;
+        AudioDeviceInfo[] devices = mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+        if (devices == null) return null;
+
+        // 1st Priority: USB DAC (TYPE_USB_DEVICE or TYPE_USB_HEADSET)
+        for (AudioDeviceInfo dev : devices) {
+            if (dev.isSink() && (dev.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                    dev.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                return dev;
+            }
+        }
+
+        // 2nd Priority: FiiO Internal DAC / 3.5mm / 4.4mm Balanced / Line Out
+        for (AudioDeviceInfo dev : devices) {
+            if (dev.isSink()) {
+                int t = dev.getType();
+                if (t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                        t == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                        t == AudioDeviceInfo.TYPE_LINE_ANALOG ||
+                        t == AudioDeviceInfo.TYPE_LINE_DIGITAL ||
+                        t == AudioDeviceInfo.TYPE_AUX_LINE) {
+                    return dev;
+                }
+            }
+        }
+
+        // 3rd Priority: Any sink
+        for (AudioDeviceInfo dev : devices) {
+            if (dev.isSink()) return dev;
+        }
+        return null;
+    }
+
+    public boolean isBitPerfectSupported() {
+        if (isFiioDevice()) return true;
+        if (Build.VERSION.SDK_INT >= 34) return true;
+        if (hasConnectedUsbDac()) return true;
+
+        try {
+            AudioFormat format = new AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(44100)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                    .build();
+            AudioAttributes.Builder builder = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC);
+            try {
+                builder.setFlags(FLAG_AUDIOTRACK_DIRECT);
+            } catch (Throwable ignored) {}
+            if (AudioTrack.isDirectPlaybackSupported(format, builder.build())) {
+                return true;
+            }
+        } catch (Throwable ignored) {}
+
+        return true;
+    }
+
+    private boolean hasConnectedUsbDac() {
+        if (mAudioManager == null) return false;
+        AudioDeviceInfo[] devices = mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+        if (devices != null) {
+            for (AudioDeviceInfo dev : devices) {
+                if (dev.isSink() && (dev.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                        dev.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private String getAudioDeviceTypeName(int type, boolean isFiio) {
+        switch (type) {
+            case AudioDeviceInfo.TYPE_USB_DEVICE:
+                return "USB Audio DAC";
+            case AudioDeviceInfo.TYPE_USB_HEADSET:
+                return "USB Headset";
+            case AudioDeviceInfo.TYPE_WIRED_HEADPHONES:
+                return isFiio ? "FiiO Internal DAC / 3.5mm & 4.4mm Balanced" : "Wired Headphones (3.5mm)";
+            case AudioDeviceInfo.TYPE_WIRED_HEADSET:
+                return isFiio ? "FiiO Internal DAC / 3.5mm Headset" : "Wired Headset";
+            case AudioDeviceInfo.TYPE_LINE_ANALOG:
+                return isFiio ? "FiiO Dedicated Line Out (LO)" : "Line Analog Out";
+            case AudioDeviceInfo.TYPE_LINE_DIGITAL:
+                return isFiio ? "FiiO SPDIF / Coaxial Out" : "Line Digital Out";
+            case AudioDeviceInfo.TYPE_AUX_LINE:
+                return "Aux Line Out";
+            case AudioDeviceInfo.TYPE_BUILTIN_SPEAKER:
+                return "Built-in Speaker";
+            case AudioDeviceInfo.TYPE_BLUETOOTH_A2DP:
+                return "Bluetooth Audio (A2DP)";
+            case AudioDeviceInfo.TYPE_BLUETOOTH_SCO:
+                return "Bluetooth SCO";
+            case AudioDeviceInfo.TYPE_HEARING_AID:
+                return "Hearing Aid";
+            case 26: // TYPE_BLE_HEADSET
+                return "BLE Headset";
+            case 27: // TYPE_BLE_SPEAKER
+                return "BLE Speaker";
+            default:
+                return "Audio Output (" + type + ")";
+        }
+    }
+
+    public String getAudioOutputDeviceInfo() {
+        JSONObject root = new JSONObject();
+        try {
+            boolean isFiio = isFiioDevice();
+            boolean bitPerfectSupported = isBitPerfectSupported();
+            boolean hasUsb = false;
+            String usbDacName = "";
+            boolean hasWired = false;
+            boolean hasFiioDac = false;
+
+            root.put("isBitPerfectSupported", bitPerfectSupported);
+            root.put("isFiioDevice", isFiio);
+            root.put("deviceManufacturer", Build.MANUFACTURER);
+            root.put("deviceBrand", Build.BRAND);
+            root.put("deviceModel", Build.MODEL);
+            root.put("deviceProduct", Build.PRODUCT);
+            root.put("androidSdk", Build.VERSION.SDK_INT);
+
+            JSONArray devicesArray = new JSONArray();
+            AudioDeviceInfo preferred = findPreferredBitPerfectDevice();
+
+            if (mAudioManager != null) {
+                AudioDeviceInfo[] devices = mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+                if (devices != null) {
+                    for (AudioDeviceInfo dev : devices) {
+                        if (!dev.isSink()) continue;
+
+                        JSONObject d = new JSONObject();
+                        int type = dev.getType();
+                        CharSequence name = dev.getProductName();
+                        String nameStr = name != null ? name.toString() : "";
+
+                        boolean isUsbType = (type == AudioDeviceInfo.TYPE_USB_DEVICE || type == AudioDeviceInfo.TYPE_USB_HEADSET);
+                        boolean isWiredType = (type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                                type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                                type == AudioDeviceInfo.TYPE_LINE_ANALOG ||
+                                type == AudioDeviceInfo.TYPE_LINE_DIGITAL ||
+                                type == AudioDeviceInfo.TYPE_AUX_LINE);
+                        boolean isFiioInternal = isFiio && isWiredType;
+
+                        if (isUsbType) {
+                            hasUsb = true;
+                            if (usbDacName.isEmpty()) usbDacName = nameStr;
+                        }
+                        if (isWiredType) hasWired = true;
+                        if (isFiioInternal) hasFiioDac = true;
+
+                        d.put("id", dev.getId());
+                        d.put("type", type);
+                        d.put("typeName", getAudioDeviceTypeName(type, isFiio));
+                        d.put("productName", nameStr);
+                        d.put("isUsb", isUsbType);
+                        d.put("isFiioInternalDac", isFiioInternal);
+                        d.put("isPreferred", preferred != null && preferred.getId() == dev.getId());
+
+                        // Sample rates
+                        JSONArray rates = new JSONArray();
+                        int[] devRates = dev.getSampleRates();
+                        if (devRates != null && devRates.length > 0) {
+                            for (int r : devRates) rates.put(r);
+                        } else if (isFiioInternal) {
+                            for (int r : new int[]{44100, 48000, 88200, 96000, 176400, 192000, 352800, 384000}) {
+                                rates.put(r);
+                            }
+                        }
+                        d.put("sampleRates", rates);
+
+                        // Channel counts
+                        JSONArray chs = new JSONArray();
+                        int[] devChs = dev.getChannelCounts();
+                        if (devChs != null && devChs.length > 0) {
+                            for (int c : devChs) chs.put(c);
+                        } else {
+                            chs.put(2);
+                        }
+                        d.put("channelCounts", chs);
+
+                        devicesArray.put(d);
+                    }
+                }
+            }
+
+            root.put("hasUsbDac", hasUsb);
+            root.put("usbDacName", usbDacName);
+            root.put("hasWiredHeadphones", hasWired);
+            root.put("hasFiioInternalDac", hasFiioDac || (isFiio && hasWired));
+            root.put("devices", devicesArray);
+
+            if (preferred != null) {
+                JSONObject prefObj = new JSONObject();
+                prefObj.put("id", preferred.getId());
+                prefObj.put("typeName", getAudioDeviceTypeName(preferred.getType(), isFiio));
+                prefObj.put("productName", preferred.getProductName() != null ? preferred.getProductName().toString() : "");
+                prefObj.put("isUsb", preferred.getType() == AudioDeviceInfo.TYPE_USB_DEVICE || preferred.getType() == AudioDeviceInfo.TYPE_USB_HEADSET);
+                prefObj.put("isFiioInternalDac", isFiio && (preferred.getType() == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || preferred.getType() == AudioDeviceInfo.TYPE_WIRED_HEADSET));
+                root.put("preferredDevice", prefObj);
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error generating audio output device info: " + e.getMessage(), e);
+        }
+        return root.toString();
+    }
+
+    @androidx.annotation.RequiresApi(34)
+    private static class Api34AudioHelper {
+        public static boolean setPreferredMixerBitPerfect(AudioManager am, AudioAttributes attrs, AudioDeviceInfo device, AudioFormat format) {
+            try {
+                AudioMixerAttributes mixerAttr = new AudioMixerAttributes.Builder(format)
+                        .setMixerBehavior(AudioMixerAttributes.MIXER_BEHAVIOR_BIT_PERFECT)
+                        .build();
+                return am.setPreferredMixerAttributes(attrs, device, mixerAttr);
+            } catch (Throwable t) {
+                Log.w(TAG, "setPreferredMixerAttributes failed: " + t.getMessage());
+                return false;
+            }
+        }
+
+        public static void clearPreferredMixer(AudioManager am, AudioAttributes attrs, AudioDeviceInfo device) {
+            try {
+                am.clearPreferredMixerAttributes(attrs, device);
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    public class BitPerfectAudioPlayer {
+        private final Object mPauseLock = new Object();
+        private volatile boolean mIsPlaying = false;
+        private volatile boolean mIsPaused = false;
+        private volatile boolean mIsStopped = false;
+        private final AtomicLong mSeekTargetUs = new AtomicLong(-1);
+        private final AtomicLong mCurrentPositionMs = new AtomicLong(0);
+        private final AtomicLong mDurationMs = new AtomicLong(0);
+
+        private Thread mPlaybackThread = null;
+        private AudioTrack mAudioTrack = null;
+        private boolean mPreferredMixerAttributesSet = false;
+        private String mCurrentTrackTitle = "";
+        private String mCurrentTrackArtist = "";
+        private String mCurrentTrackAlbum = "";
+
+        public synchronized boolean start(String urlOrPath, int sampleRate, int bitDepth) {
+            stop();
+
+            if (urlOrPath == null || urlOrPath.trim().isEmpty()) {
+                Log.e(TAG, "BitPerfect: Cannot start playback with null or empty URL/path");
+                return false;
+            }
+
+            mIsStopped = false;
+            mIsPaused = false;
+            mIsPlaying = true;
+            mSeekTargetUs.set(-1);
+            mCurrentPositionMs.set(0);
+            mDurationMs.set(0);
+
+            acquireWakeLock();
+            requestAudioFocus();
+
+            // Derive display title from file name
+            try {
+                String fileName = new File(urlOrPath).getName();
+                if (fileName.contains("?")) fileName = fileName.substring(0, fileName.indexOf('?'));
+                int dot = fileName.lastIndexOf('.');
+                if (dot > 0) fileName = fileName.substring(0, dot);
+                mCurrentTrackTitle = fileName.replace('_', ' ');
+                mCurrentTrackArtist = isFiioDevice() ? "FiiO Bit-Perfect Engine" : "Bit-Perfect Direct Audio";
+                mCurrentTrackAlbum = "Direct Bit-Perfect Playback";
+                updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, true);
+            } catch (Exception ignored) {}
+
+            mPlaybackThread = new Thread(() -> {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
+                runPlaybackLoop(urlOrPath, sampleRate, bitDepth);
+            }, "BitPerfectAudioThread");
+            mPlaybackThread.start();
+
+            return true;
+        }
+
+        public void pause() {
+            synchronized (mPauseLock) {
+                mIsPaused = true;
+                mPauseLock.notifyAll();
+            }
+            if (mAudioTrack != null && mAudioTrack.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                try {
+                    mAudioTrack.pause();
+                } catch (Exception ignored) {}
+            }
+            updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, false);
+        }
+
+        public void resume() {
+            synchronized (mPauseLock) {
+                mIsPaused = false;
+                mPauseLock.notifyAll();
+            }
+            if (mAudioTrack != null && mAudioTrack.getPlayState() == AudioTrack.PLAYSTATE_PAUSED) {
+                try {
+                    mAudioTrack.play();
+                } catch (Exception ignored) {}
+            }
+            updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, true);
+        }
+
+        public void seek(long positionMs) {
+            mSeekTargetUs.set(Math.max(0, positionMs * 1000L));
+            synchronized (mPauseLock) {
+                mPauseLock.notifyAll();
+            }
+        }
+
+        public synchronized void stop() {
+            mIsStopped = true;
+            synchronized (mPauseLock) {
+                mIsPaused = false;
+                mPauseLock.notifyAll();
+            }
+            if (mPlaybackThread != null) {
+                try {
+                    mPlaybackThread.interrupt();
+                    mPlaybackThread.join(800);
+                } catch (InterruptedException ignored) {}
+                mPlaybackThread = null;
+            }
+            if (mAudioTrack != null) {
+                try {
+                    mAudioTrack.stop();
+                    mAudioTrack.release();
+                } catch (Exception ignored) {}
+                mAudioTrack = null;
+            }
+            mIsPlaying = false;
+            mIsPaused = false;
+            cancelMediaNotification();
+            releaseWakeLock();
+            abandonAudioFocus();
+        }
+
+        public boolean isPlaying() {
+            return mIsPlaying && !mIsPaused;
+        }
+
+        public boolean isPaused() {
+            return mIsPaused;
+        }
+
+        public long getPositionMs() {
+            return mCurrentPositionMs.get();
+        }
+
+        public long getDurationMs() {
+            return mDurationMs.get();
+        }
+
+        private void runPlaybackLoop(String urlOrPath, int requestedSampleRate, int requestedBitDepth) {
+            MediaExtractor extractor = new MediaExtractor();
+            MediaCodec decoder = null;
+            AudioTrack track = null;
+            AudioDeviceInfo preferredDevice = null;
+            AudioAttributes audioAttributes = null;
+
+            try {
+                // 1. Resolve source
+                String resolvedPath = urlOrPath;
+                if (resolvedPath.contains("local-media?path=")) {
+                    int pIdx = resolvedPath.indexOf("path=");
+                    resolvedPath = resolvedPath.substring(pIdx + 5);
+                    int amp = resolvedPath.indexOf('&');
+                    if (amp >= 0) resolvedPath = resolvedPath.substring(0, amp);
+                    try {
+                        resolvedPath = URLDecoder.decode(resolvedPath, StandardCharsets.UTF_8.name());
+                    } catch (Exception ignored) {}
+                }
+                if (resolvedPath.startsWith("file://")) {
+                    try {
+                        resolvedPath = Uri.parse(resolvedPath).getPath();
+                    } catch (Exception ignored) {}
+                }
+
+                File localFile = new File(resolvedPath);
+                if (localFile.exists() && localFile.canRead()) {
+                    try (FileInputStream fis = new FileInputStream(localFile)) {
+                        extractor.setDataSource(fis.getFD());
+                    } catch (Exception fallback) {
+                        extractor.setDataSource(resolvedPath);
+                    }
+                } else if (resolvedPath.startsWith("content://")) {
+                    extractor.setDataSource(MainActivity.this, Uri.parse(resolvedPath), null);
+                } else {
+                    extractor.setDataSource(resolvedPath);
+                }
+
+                // 2. Locate audio track
+                int audioTrackIdx = -1;
+                MediaFormat format = null;
+                for (int i = 0; i < extractor.getTrackCount(); i++) {
+                    MediaFormat f = extractor.getTrackFormat(i);
+                    String mime = f.getString(MediaFormat.KEY_MIME);
+                    if (mime != null && mime.startsWith("audio/")) {
+                        audioTrackIdx = i;
+                        format = f;
+                        break;
+                    }
+                }
+
+                if (audioTrackIdx < 0 || format == null) {
+                    Log.e(TAG, "BitPerfect: No audio stream found in source: " + urlOrPath);
+                    return;
+                }
+
+                extractor.selectTrack(audioTrackIdx);
+
+                int sampleRate = format.containsKey(MediaFormat.KEY_SAMPLE_RATE) ?
+                        format.getInteger(MediaFormat.KEY_SAMPLE_RATE) : (requestedSampleRate > 0 ? requestedSampleRate : 44100);
+                int channels = format.containsKey(MediaFormat.KEY_CHANNEL_COUNT) ?
+                        format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) : 2;
+                long durUs = format.containsKey(MediaFormat.KEY_DURATION) ?
+                        format.getLong(MediaFormat.KEY_DURATION) : 0;
+                mDurationMs.set(durUs / 1000);
+
+                // 3. Create and configure decoder
+                String mime = format.getString(MediaFormat.KEY_MIME);
+                decoder = MediaCodec.createDecoderByType(mime);
+                decoder.configure(format, null, null, 0);
+                decoder.start();
+
+                // 4. Build AudioAttributes with FLAG_AUDIOTRACK_DIRECT (flags = 0x1)
+                AudioAttributes.Builder attrBuilder = new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC);
+                try {
+                    attrBuilder.setFlags(FLAG_AUDIOTRACK_DIRECT);
+                } catch (Throwable t) {
+                    Log.w(TAG, "AudioAttributes.setFlags(FLAG_AUDIOTRACK_DIRECT) failed: " + t.getMessage());
+                }
+                audioAttributes = attrBuilder.build();
+
+                // 5. Build AudioTrack
+                int channelMask = (channels == 1) ? AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+                int pcmEncoding = AudioFormat.ENCODING_PCM_16BIT;
+                if (requestedBitDepth == 24 && Build.VERSION.SDK_INT >= 31) {
+                    pcmEncoding = AudioFormat.ENCODING_PCM_24BIT_PACKED;
+                } else if (requestedBitDepth == 32 && Build.VERSION.SDK_INT >= 31) {
+                    pcmEncoding = AudioFormat.ENCODING_PCM_32BIT;
+                }
+
+                AudioFormat audioFormat = new AudioFormat.Builder()
+                        .setEncoding(pcmEncoding)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(channelMask)
+                        .build();
+
+                int minBufSize = AudioTrack.getMinBufferSize(sampleRate, channelMask, pcmEncoding);
+                if (minBufSize <= 0) {
+                    minBufSize = sampleRate * channels * 4;
+                }
+                int bufferSize = Math.max(minBufSize * 4, 131072);
+
+                try {
+                    track = new AudioTrack.Builder()
+                            .setAudioAttributes(audioAttributes)
+                            .setAudioFormat(audioFormat)
+                            .setBufferSizeInBytes(bufferSize)
+                            .setTransferMode(AudioTrack.MODE_STREAM)
+                            .build();
+                } catch (Throwable t) {
+                    Log.w(TAG, "Direct AudioTrack build failed, falling back to standard attributes: " + t.getMessage());
+                    AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build();
+                    track = new AudioTrack.Builder()
+                            .setAudioAttributes(fallbackAttrs)
+                            .setAudioFormat(audioFormat)
+                            .setBufferSizeInBytes(bufferSize)
+                            .setTransferMode(AudioTrack.MODE_STREAM)
+                            .build();
+                }
+
+                mAudioTrack = track;
+
+                // 6. Audio output device routing
+                preferredDevice = findPreferredBitPerfectDevice();
+                if (preferredDevice != null && track != null) {
+                    boolean devOk = track.setPreferredDevice(preferredDevice);
+                    Log.i(TAG, "BitPerfect: AudioTrack.setPreferredDevice(" + preferredDevice.getProductName() + ", type=" + preferredDevice.getType() + "): " + devOk);
+                }
+
+                // 7. For Android 14+ (API 34+), call AudioTrack.setBitPerfectMode(AudioTrack.BIT_PERFECT_PLAYBACK_MODE_AUTO) via reflection or SDK check
+                if (Build.VERSION.SDK_INT >= 34 && track != null) {
+                    try {
+                        Method setBitPerfectMode = AudioTrack.class.getMethod("setBitPerfectMode", int.class);
+                        int autoMode = 1; // AudioTrack.BIT_PERFECT_PLAYBACK_MODE_AUTO
+                        try {
+                            Field f = AudioTrack.class.getField("BIT_PERFECT_PLAYBACK_MODE_AUTO");
+                            autoMode = f.getInt(null);
+                        } catch (Throwable ignored) {}
+                        setBitPerfectMode.invoke(track, autoMode);
+                        Log.i(TAG, "BitPerfect: Invoked AudioTrack.setBitPerfectMode(" + autoMode + ") successfully.");
+                    } catch (Throwable t1) {
+                        try {
+                            Method m2 = AudioTrack.class.getMethod("setBitPerfectPlaybackMode", int.class);
+                            m2.invoke(track, 1);
+                            Log.i(TAG, "BitPerfect: Invoked AudioTrack.setBitPerfectPlaybackMode(1) successfully.");
+                        } catch (Throwable t2) {
+                            Log.d(TAG, "BitPerfect: setBitPerfectMode reflection not available: " + t1.getMessage());
+                        }
+                    }
+
+                    // Set preferred mixer attributes on AudioManager for USB DAC
+                    if (preferredDevice != null && (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                            preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                        mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
+                                mAudioManager, audioAttributes, preferredDevice, audioFormat);
+                    }
+                }
+
+                // 8. Playback loop
+                track.play();
+                MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+                boolean sawInputEOS = false;
+                boolean sawOutputEOS = false;
+                final long TIMEOUT_US = 10000;
+
+                while (!mIsStopped && !sawOutputEOS) {
+                    // Check pause
+                    synchronized (mPauseLock) {
+                        while (mIsPaused && !mIsStopped) {
+                            if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                                track.pause();
+                            }
+                            try {
+                                mPauseLock.wait();
+                            } catch (InterruptedException e) {
+                                break;
+                            }
+                        }
+                    }
+                    if (mIsStopped) break;
+                    if (track.getPlayState() == AudioTrack.PLAYSTATE_PAUSED) {
+                        track.play();
+                    }
+
+                    // Check seek
+                    long seekUs = mSeekTargetUs.getAndSet(-1);
+                    if (seekUs >= 0) {
+                        try {
+                            extractor.seekTo(seekUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+                            decoder.flush();
+                            track.flush();
+                            sawInputEOS = false;
+                        } catch (Exception e) {
+                            Log.w(TAG, "BitPerfect: Seek error: " + e.getMessage());
+                        }
+                    }
+
+                    // Feed input buffer
+                    if (!sawInputEOS) {
+                        int inIndex = decoder.dequeueInputBuffer(TIMEOUT_US);
+                        if (inIndex >= 0) {
+                            ByteBuffer inBuf = decoder.getInputBuffer(inIndex);
+                            if (inBuf != null) {
+                                inBuf.clear();
+                                int sampleSize = extractor.readSampleData(inBuf, 0);
+                                if (sampleSize < 0) {
+                                    decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                                    sawInputEOS = true;
+                                } else {
+                                    long ptsUs = extractor.getSampleTime();
+                                    decoder.queueInputBuffer(inIndex, 0, sampleSize, ptsUs, 0);
+                                    extractor.advance();
+                                }
+                            }
+                        }
+                    }
+
+                    // Dequeue output buffer
+                    int outIndex = decoder.dequeueOutputBuffer(info, TIMEOUT_US);
+                    if (outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        MediaFormat newFormat = decoder.getOutputFormat();
+                        Log.i(TAG, "BitPerfect: Decoder output format changed: " + newFormat);
+                        int newRate = newFormat.containsKey(MediaFormat.KEY_SAMPLE_RATE) ?
+                                newFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE) : sampleRate;
+                        int newCh = newFormat.containsKey(MediaFormat.KEY_CHANNEL_COUNT) ?
+                                newFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT) : channels;
+                        int newEncoding = pcmEncoding;
+                        if (newFormat.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+                            newEncoding = newFormat.getInteger(MediaFormat.KEY_PCM_ENCODING);
+                        }
+
+                        if (newRate != sampleRate || newCh != channels || newEncoding != pcmEncoding) {
+                            sampleRate = newRate;
+                            channels = newCh;
+                            pcmEncoding = newEncoding;
+                            channelMask = (channels == 1) ? AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+
+                            try {
+                                track.stop();
+                                track.release();
+                            } catch (Exception ignored) {}
+
+                            audioFormat = new AudioFormat.Builder()
+                                    .setEncoding(pcmEncoding)
+                                    .setSampleRate(sampleRate)
+                                    .setChannelMask(channelMask)
+                                    .build();
+                            minBufSize = AudioTrack.getMinBufferSize(sampleRate, channelMask, pcmEncoding);
+                            if (minBufSize <= 0) minBufSize = sampleRate * channels * 4;
+                            bufferSize = Math.max(minBufSize * 4, 131072);
+
+                            try {
+                                track = new AudioTrack.Builder()
+                                        .setAudioAttributes(audioAttributes)
+                                        .setAudioFormat(audioFormat)
+                                        .setBufferSizeInBytes(bufferSize)
+                                        .setTransferMode(AudioTrack.MODE_STREAM)
+                                        .build();
+                            } catch (Throwable t) {
+                                AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
+                                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                        .build();
+                                track = new AudioTrack.Builder()
+                                        .setAudioAttributes(fallbackAttrs)
+                                        .setAudioFormat(audioFormat)
+                                        .setBufferSizeInBytes(bufferSize)
+                                        .setTransferMode(AudioTrack.MODE_STREAM)
+                                        .build();
+                            }
+                            mAudioTrack = track;
+                            if (preferredDevice != null) track.setPreferredDevice(preferredDevice);
+                            track.play();
+                        }
+                    } else if (outIndex >= 0) {
+                        if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                            sawOutputEOS = true;
+                        }
+                        ByteBuffer outBuf = decoder.getOutputBuffer(outIndex);
+                        if (outBuf != null && info.size > 0 && track != null) {
+                            outBuf.position(info.offset);
+                            outBuf.limit(info.offset + info.size);
+                            track.write(outBuf, info.size, AudioTrack.WRITE_BLOCKING);
+                            mCurrentPositionMs.set(info.presentationTimeUs / 1000);
+                        }
+                        decoder.releaseOutputBuffer(outIndex, false);
+                    }
+                }
+
+                // If completed naturally (sawOutputEOS)
+                if (sawOutputEOS && !mIsStopped) {
+                    mWebView.post(() -> {
+                        mWebView.evaluateJavascript(
+                                "if (typeof window.onBitPerfectPlaybackComplete === 'function') window.onBitPerfectPlaybackComplete(); " +
+                                "else if (typeof window.nextTrack === 'function') window.nextTrack(); " +
+                                "else { var nb = document.getElementById('next-button'); if (nb) nb.click(); }",
+                                null
+                        );
+                    });
+                }
+
+            } catch (Exception e) {
+                Log.e(TAG, "BitPerfect: Playback engine error: " + e.getMessage(), e);
+            } finally {
+                try {
+                    if (track != null) {
+                        try { track.stop(); } catch (Exception ignored) {}
+                        try { track.release(); } catch (Exception ignored) {}
+                    }
+                    if (mAudioTrack == track) {
+                        mAudioTrack = null;
+                    }
+                } catch (Exception ignored) {}
+
+                try {
+                    if (mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
+                        Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
+                        mPreferredMixerAttributesSet = false;
+                    }
+                } catch (Exception ignored) {}
+
+                try {
+                    if (decoder != null) {
+                        try { decoder.stop(); } catch (Exception ignored) {}
+                        try { decoder.release(); } catch (Exception ignored) {}
+                    }
+                } catch (Exception ignored) {}
+
+                try {
+                    extractor.release();
+                } catch (Exception ignored) {}
+
+                mIsPlaying = false;
+                mIsPaused = false;
+                releaseWakeLock();
+                abandonAudioFocus();
+            }
+        }
+    }
+
+    private final BitPerfectAudioPlayer mBitPerfectPlayer = new BitPerfectAudioPlayer();
+
+    public boolean startBitPerfectPlayback(String urlOrPath, int sampleRate, int bitDepth) {
+        return mBitPerfectPlayer.start(urlOrPath, sampleRate, bitDepth);
+    }
+
+    public void pauseBitPerfectPlayback() {
+        mBitPerfectPlayer.pause();
+    }
+
+    public void resumeBitPerfectPlayback() {
+        mBitPerfectPlayer.resume();
+    }
+
+    public void seekBitPerfectPlayback(long positionMs) {
+        mBitPerfectPlayer.seek(positionMs);
+    }
+
+    public void stopBitPerfectPlayback() {
+        mBitPerfectPlayer.stop();
+    }
+
+    public boolean isBitPerfectPlaying() {
+        return mBitPerfectPlayer.isPlaying();
+    }
+
+    public long getBitPerfectPosition() {
+        return mBitPerfectPlayer.getPositionMs();
+    }
+
+    public long getBitPerfectDuration() {
+        return mBitPerfectPlayer.getDurationMs();
     }
 
     /**
@@ -1885,6 +2656,56 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(mActivity, message, Toast.LENGTH_SHORT).show()
                 );
             }
+        }
+
+        @JavascriptInterface
+        public boolean startBitPerfectPlayback(String urlOrPath, int sampleRate, int bitDepth) {
+            return mActivity.startBitPerfectPlayback(urlOrPath, sampleRate, bitDepth);
+        }
+
+        @JavascriptInterface
+        public void pauseBitPerfectPlayback() {
+            mActivity.pauseBitPerfectPlayback();
+        }
+
+        @JavascriptInterface
+        public void resumeBitPerfectPlayback() {
+            mActivity.resumeBitPerfectPlayback();
+        }
+
+        @JavascriptInterface
+        public void seekBitPerfectPlayback(long positionMs) {
+            mActivity.seekBitPerfectPlayback(positionMs);
+        }
+
+        @JavascriptInterface
+        public void stopBitPerfectPlayback() {
+            mActivity.stopBitPerfectPlayback();
+        }
+
+        @JavascriptInterface
+        public boolean isBitPerfectSupported() {
+            return mActivity.isBitPerfectSupported();
+        }
+
+        @JavascriptInterface
+        public String getAudioOutputDeviceInfo() {
+            return mActivity.getAudioOutputDeviceInfo();
+        }
+
+        @JavascriptInterface
+        public boolean isBitPerfectPlaying() {
+            return mActivity.isBitPerfectPlaying();
+        }
+
+        @JavascriptInterface
+        public long getBitPerfectPosition() {
+            return mActivity.getBitPerfectPosition();
+        }
+
+        @JavascriptInterface
+        public long getBitPerfectDuration() {
+            return mActivity.getBitPerfectDuration();
         }
     }
 }

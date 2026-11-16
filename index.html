@@ -1503,6 +1503,20 @@
           <p class="mt-1 text-[10px] leading-4 text-zinc-400">Vô hiệu hóa hiệu ứng CSS backdrop-filter làm mờ nặng và giới hạn visualizer ở chế độ nhẹ giúp tiết kiệm pin, giải phóng GPU Snapdragon 660.</p>
         </div>
       </section>
+      <section id="bitperfect-section" class="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/[.03] p-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-medium text-emerald-200">Âm thanh Bit-Perfect Direct (PC / FiiO / USB DAC)</h3>
+          <span id="bitperfect-mode-badge" class="rounded border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[9px] font-mono text-emerald-300">BIT-PERFECT</span>
+        </div>
+        <p class="mt-1 text-[10px] leading-4 text-zinc-400">Xuất tín hiệu âm thanh nguyên bản 100% tới DAC ngoài không qua bộ nén/trộn của hệ điều hành, bỏ qua toàn bộ DSP/EQ và tự động thích ứng tần số lấy mẫu gốc.</p>
+        <div class="mt-3 pt-3 border-t border-white/10">
+          <label class="flex items-center justify-between cursor-pointer">
+            <span class="text-xs font-medium text-zinc-200">Chế độ Xuất Bit-Perfect (PC / FiiO DAPS / USB DAC Direct)</span>
+            <input id="bitperfect-mode-toggle" type="checkbox" class="h-4 w-4 rounded accent-emerald-400">
+          </label>
+          <p class="mt-1 text-[10px] leading-4 text-zinc-400">Trên PC: Tự động thích ứng tần số lấy mẫu AudioContext (44.1 - 192kHz) và bỏ qua DSP (Pure Direct 0 dB). Trên Android/FiiO: Ủy quyền cho Native AudioTrack Direct bit-perfect.</p>
+        </div>
+      </section>
       <section class="mt-4 rounded-2xl border border-fuchsia-300/15 bg-fuchsia-300/[.03] p-4">
         <div><h3 class="text-sm font-medium text-fuchsia-100">Chất lượng chuyển đổi DSD</h3><p class="mt-1 text-[10px] leading-4 text-zinc-500">Chọn PCM đầu ra cho DSF/DFF (hai họ tần số 44,1 và 48 kHz). Tần số cao giữ nhiều băng thông hơn nhưng tạo file tạm lớn hơn. DSD được giải mã trên thiết bị, không bit-perfect.</p></div>
         <div class="mt-3 grid gap-3 sm:grid-cols-2">
@@ -2536,7 +2550,101 @@
     const $ = id => document.getElementById(id);
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)) };
+    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false };
+
+    function applyBitPerfectMode(enabled) {
+      state.bitPerfectEnabled = Boolean(enabled);
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('nocturne-bitperfect-enabled', String(state.bitPerfectEnabled));
+        }
+      } catch (_) {}
+      const toggle = $('bitperfect-mode-toggle');
+      if (toggle && toggle.checked !== state.bitPerfectEnabled) {
+        toggle.checked = state.bitPerfectEnabled;
+      }
+      const badge = $('bitperfect-mode-badge');
+      if (badge) {
+        badge.textContent = state.bitPerfectEnabled ? 'DIRECT ON' : 'OFF';
+        badge.className = state.bitPerfectEnabled
+          ? 'rounded border border-emerald-400/50 bg-emerald-500/20 px-2 py-0.5 text-[9px] font-mono text-emerald-300'
+          : 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-mono text-zinc-400';
+      }
+
+      if (state.bitPerfectEnabled) {
+        // Pure Direct DSP Bypass: in Bit-Perfect mode, bypass EQ nodes, crossfeed nodes, tone controls, dynamic compression and limiter; route source directly to state.context.destination with unity gain (gain 1.0).
+        // In Bit-Perfect mode, maintain volume at unity gain (1.0 / 0 dB) to prevent software digital bit reduction, deferring volume to the external DAC / hardware.
+        if (typeof setGain === 'function') setGain(100);
+      } else {
+        // CRITICAL AUDIO INVARIANT: When Bit-Perfect mode is OFF (standard PWA mode), state.crossfeedNodes.output.connect(state.context.destination) must remain strictly preserved!
+        if (state.crossfeedNodes && state.context) {
+          try {
+            state.crossfeedNodes.output.disconnect();
+            state.crossfeedNodes.output.connect(state.context.destination);
+          } catch (_) {}
+        }
+        const volVal = $('volume') ? $('volume').value : 80;
+        if (typeof setGain === 'function') setGain(volVal);
+        if (state.isNativeBitPerfectPlaying) {
+          if (typeof window !== 'undefined' && window.NocturneNative?.stopBitPerfectPlayback) {
+            window.NocturneNative.stopBitPerfectPlayback();
+          }
+          state.isNativeBitPerfectPlaying = false;
+        }
+      }
+
+      if (state.context && typeof rebuildAudioRoutes === 'function') {
+        rebuildAudioRoutes();
+      }
+
+      const cur = state.tracks.find(t => t.id === state.currentId);
+      if (cur && typeof displayTrack === 'function') {
+        displayTrack(cur);
+      } else if (state.bitPerfectEnabled) {
+        const qBadge = $('quality-badge');
+        if (qBadge) {
+          qBadge.textContent = '⚡ BIT-PERFECT DIRECT';
+          qBadge.className = 'rounded-md border border-amber-400/50 bg-amber-500/20 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-amber-300';
+        }
+      }
+    }
+    window.applyBitPerfectMode = applyBitPerfectMode;
+
+    function setupBitPerfectIntegration() {
+      const toggle = $('bitperfect-mode-toggle');
+      if (toggle) {
+        toggle.checked = Boolean(state.bitPerfectEnabled);
+        toggle.addEventListener('change', e => {
+          applyBitPerfectMode(e.target.checked);
+          toast(state.bitPerfectEnabled ? '⚡ Đã bật Chế độ Xuất Bit-Perfect Direct (PC / FiiO DAPS / USB DAC Direct)' : 'Đã tắt Chế độ Bit-Perfect');
+        });
+      }
+      window.onNativeBitPerfectPosition = (positionMs, durationMs) => {
+        if (!state.isSeeking && Number.isFinite(positionMs) && positionMs >= 0) {
+          const curSec = positionMs / 1000;
+          const durSec = (durationMs && durationMs > 0) ? (durationMs / 1000) : ((state.tracks.find(t => t.id === state.currentId) || {}).duration || 0);
+          $('current-time').textContent = formatTime(curSec);
+          if ($('current-time-mobile')) $('current-time-mobile').textContent = formatTime(curSec);
+          if ($('room-current-time')) $('room-current-time').textContent = formatTime(curSec);
+          if (durSec > 0) {
+            const ratio = Math.max(0, Math.min(1000, Math.round((curSec / durSec) * 1000)));
+            syncSeek(ratio);
+          }
+        }
+      };
+      window.onNativeBitPerfectPlaybackEnded = () => {
+        state.isNativeBitPerfectPlaying = false;
+        playNext(1);
+      };
+      window.onNativeBitPerfectStateChange = (isPlaying) => {
+        state.isNativeBitPerfectPaused = !isPlaying;
+        const symbol = isPlaying ? 'Ⅱ' : '▶';
+        $('play-button').textContent = symbol;
+        if ($('room-play')) $('room-play').textContent = symbol;
+        if ($('mini-play')) $('mini-play').textContent = symbol;
+      };
+    }
+    window.setupBitPerfectIntegration = setupBitPerfectIntegration;
 
     function applyFiioDapMode(enabled) {
       state.fiioDapMode = Boolean(enabled);
@@ -5029,7 +5137,23 @@
       applyEq();
     }
     function attachAudioElement(element) {
-      const source = state.context.createMediaElementSource(element), router = state.context.createGain();
+      let source;
+      try {
+        source = state.context.createMediaElementSource(element);
+      } catch (err) {
+        try {
+          const clone = element.cloneNode(true);
+          if (element.parentNode) element.parentNode.replaceChild(clone, element);
+          if (element === audio) audio = clone;
+          else if (element === standbyAudio) standbyAudio = clone;
+          if (typeof attachDeckEvents === 'function') attachDeckEvents(clone);
+          element = clone;
+          source = state.context.createMediaElementSource(clone);
+        } catch (_) {
+          source = state.context.createGain();
+        }
+      }
+      const router = state.context.createGain();
       const preamp = state.context.createGain(), direct = state.context.createGain();
       router.gain.value = element === audio ? 1 : 0;
       source.connect(router);
@@ -5125,23 +5249,56 @@
       let node = deck.router;
       deck.filters.forEach(filter => { node.connect(filter); node = filter; });
       node.connect(deck.preamp); deck.preamp.connect(state.preLimiterAnalyser);
+      if (state.bitPerfectEnabled) {
+        // Pure Direct DSP Bypass: in Bit-Perfect mode, bypass EQ nodes, crossfeed nodes, tone controls, dynamic compression and limiter; route source directly to state.context.destination with unity gain (gain 1.0).
+        deck.direct.connect(state.context.destination);
+      }
     }
     function rebuildAudioRoutes() {
       if (!state.context) return;
       [state.deckA, state.deckB].filter(Boolean).forEach(rebuildDeckRoute);
-      state.filters = state.deckA.filters;
+      state.filters = state.deckA ? state.deckA.filters : [];
       state.bands.forEach((band, index) => [state.deckA, state.deckB].forEach(deck => { const filter = deck.filters[index]; filter.type = band.type; filter.frequency.setTargetAtTime(band.frequency, state.context.currentTime, .015); filter.Q.setTargetAtTime(band.q, state.context.currentTime, .015); filter.gain.setTargetAtTime(band.gain, state.context.currentTime, .015); }));
       const maxBoost = state.bands.reduce((max, band) => Math.max(max, band.gain), 0), effectivePreamp = Math.max(-60, Math.min(0, -maxBoost + (Number($('eq-preamp').value) || 0)));
       const enabled = $('eq-enabled').checked;
       const phaseMult = state.phaseInvert ? -1 : 1;
       [state.deckA, state.deckB].forEach(deck => { deck.preamp.gain.setTargetAtTime(enabled ? phaseMult * Math.pow(10, effectivePreamp / 20) : 0, state.context.currentTime, .015); deck.direct.gain.setTargetAtTime(enabled ? 0 : phaseMult * 1, state.context.currentTime, .015); });
       state.activeAnalyser = enabled ? state.analyser : state.directAnalyser;
+      if (state.bitPerfectEnabled) {
+        // Pure Direct DSP Bypass: in Bit-Perfect mode, bypass EQ nodes, crossfeed nodes, tone controls, dynamic compression and limiter; route source directly to state.context.destination with unity gain (gain 1.0).
+        [state.deckA, state.deckB].filter(Boolean).forEach(deck => {
+          deck.preamp.gain.setTargetAtTime(0, state.context.currentTime, .015);
+          deck.direct.gain.setTargetAtTime(1.0, state.context.currentTime, .015);
+        });
+        state.activeAnalyser = state.directAnalyser;
+        // In Bit-Perfect mode, maintain volume at unity gain (1.0 / 0 dB) to prevent software digital bit reduction, deferring volume to the external DAC / hardware.
+        audio.volume = 1.0;
+        standbyAudio.volume = 1.0;
+      }
     }
     function setupAudio() {
-      if (state.context) return;
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) { toast('Trình duyệt không hỗ trợ Web Audio API.'); return; }
-      state.context = new AudioContextClass();
+      const curTrack = state.tracks.find(t => t.id === state.currentId);
+      const targetRate = (state.bitPerfectEnabled && curTrack && curTrack.sampleRate) ? curTrack.sampleRate : undefined;
+      if (state.context) {
+        if (state.bitPerfectEnabled && targetRate && state.context.sampleRate !== targetRate) {
+          try { state.context.close(); } catch (_) {}
+          try {
+            state.context = new AudioContextClass({ sampleRate: targetRate });
+          } catch (_) {
+            state.context = new AudioContextClass();
+          }
+        } else {
+          return;
+        }
+      } else {
+        try {
+          state.context = targetRate ? new AudioContextClass({ sampleRate: targetRate }) : new AudioContextClass();
+        } catch (_) {
+          state.context = new AudioContextClass();
+        }
+      }
       state.analyser = state.context.createAnalyser(); state.analyser.fftSize = 256; state.analyser.smoothingTimeConstant = .82;
       state.directAnalyser = state.context.createAnalyser(); state.directAnalyser.fftSize = 256; state.directAnalyser.smoothingTimeConstant = .82;
       state.preLimiterAnalyser = state.context.createAnalyser(); state.preLimiterAnalyser.fftSize = 256; state.preLimiterAnalyser.smoothingTimeConstant = .82;
@@ -5718,6 +5875,14 @@
     function setGain(value) {
       const num = Number(value);
       if (num > 0) volumeBeforeMute = num;
+      if (state.bitPerfectEnabled) {
+        // In Bit-Perfect mode, maintain volume at unity gain (1.0 / 0 dB) to prevent software digital bit reduction, deferring volume to the external DAC / hardware.
+        audio.volume = 1.0;
+        standbyAudio.volume = 1.0;
+        $('volume').value = 100;
+        if ($('volume-mobile')) $('volume-mobile').value = 100;
+        return;
+      }
       const linear = num / 100, volume = linear === 0 ? 0 : Math.pow(10, (-60 + linear * 60) / 20);
       const rgMult = (state.replayGainEnabled && Number.isFinite(state.replayGainMultiplier)) ? state.replayGainMultiplier : 1;
       const effectiveVolume = Math.max(0, Math.min(1, volume * rgMult));
@@ -7079,7 +7244,24 @@
         if ($('zone-current-name')) $('zone-current-name').textContent = currentZone ? (currentZone.name || currentZone.display_name) : 'Phòng nghe Audiophile';
         if ($('zone-current-desc')) $('zone-current-desc').textContent = currentZone ? (currentZone.description || '') : '';
       }
-      $('quality-badge').textContent = q.label; $('quality-badge').className = `rounded-md border px-2 py-1 text-[9px] font-medium uppercase tracking-wider ${q.tone}`; $('mobile-quality').textContent = q.label;
+      if (state.bitPerfectEnabled) {
+        const rateStr = track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : (state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(state.context.sampleRate % 1000 ? 1 : 0)} kHz` : '44.1 kHz');
+        const depthStr = track.bitDepth ? `${track.bitDepth}-bit` : '16-bit';
+        const bitPerfectText = `⚡ BIT-PERFECT DIRECT · ${rateStr} / ${depthStr}`;
+        $('quality-badge').textContent = bitPerfectText;
+        $('quality-badge').className = 'rounded-md border border-amber-400/50 bg-amber-500/20 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-amber-300';
+        $('mobile-quality').textContent = bitPerfectText;
+        if ($('room-quality')) {
+          $('room-quality').textContent = bitPerfectText;
+          $('room-quality').className = 'rounded-md border border-amber-400/50 bg-amber-500/20 px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-amber-300';
+        }
+      } else {
+        $('quality-badge').textContent = q.label; $('quality-badge').className = `rounded-md border px-2 py-1 text-[9px] font-medium uppercase tracking-wider ${q.tone}`; $('mobile-quality').textContent = q.label;
+        if ($('room-quality')) {
+          $('room-quality').textContent = q.label;
+          $('room-quality').className = `rounded-md border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider ${q.tone}`;
+        }
+      }
       $('room-title').textContent = room.title; $('room-artist').textContent = room.artist; $('room-album').textContent = room.album;
       renderRoomSignal(track); $('room-output').textContent = `Nguồn: ${room.sourceName}. AudioContext ${state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.${state.stereoBalance ? ` · Cân bằng: ${library.formatBalance(state.stereoBalance)}` : ''}${state.crossfeed ? ` · Crossfeed: ${library.formatCrossfeed(state.crossfeed)}` : ''}`;
       $('room-quality').textContent = q.label; $('room-quality').className = `rounded-md border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider ${q.tone}`;
@@ -8779,6 +8961,34 @@
         state.context.resume().catch(e => console.debug('AudioContext resume in playTrack:', e));
       }
 
+      // 2. Android Integration (FiiO M11S & Android Phones):
+      if (window.NocturneNative && window.NocturneNative.isBitPerfectSupported && state.bitPerfectEnabled) {
+        if (typeof window.NocturneNative.isBitPerfectSupported !== 'function' || window.NocturneNative.isBitPerfectSupported()) {
+          window.NocturneNative.startBitPerfectPlayback(track.url || track.src, track.sampleRate || 44100, track.bitDepth || 16);
+          state.isNativeBitPerfectPlaying = true;
+          state.isNativeBitPerfectPaused = false;
+          audio.pause();
+          standbyAudio.pause();
+          displayTrack(track);
+          $('play-button').textContent = 'Ⅱ';
+          if ($('room-play')) $('room-play').textContent = 'Ⅱ';
+          if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
+          if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+          recordHistory(track);
+          scheduleTrackRender();
+          return;
+        }
+      }
+
+      // 1. PC Desktop Bit-Perfect mode:
+      // Dynamically adapt AudioContext sampleRate to match the track's native sample rate (44.1, 48, 88.2, 96, 176.4, 192kHz): if state.context.sampleRate !== track.sampleRate, re-instantiate AudioContext({ sampleRate: track.sampleRate }).
+      if (state.bitPerfectEnabled && (!window.NocturneNative || !window.NocturneNative.isBitPerfectSupported)) {
+        if (track.sampleRate && state.context && state.context.sampleRate !== track.sampleRate) {
+          try { state.context.close(); } catch (_) {}
+          state.context = null;
+        }
+      }
+
       const resumeBanner = $('resume-session-banner');
       if (resumeBanner) {
         resumeBanner.classList.add('hidden');
@@ -8876,6 +9086,12 @@
         try { target.currentTime = track.cueStart; } catch (_) {}
       }
       target.volume = audio.volume; target.muted = false;
+      if (state.bitPerfectEnabled) {
+        // In Bit-Perfect mode, maintain volume at unity gain (1.0 / 0 dB) to prevent software digital bit reduction, deferring volume to the external DAC / hardware.
+        target.volume = 1.0;
+        audio.volume = 1.0;
+        standbyAudio.volume = 1.0;
+      }
       if (state.activeDeck) {
         const nextDeck = state.activeDeck === state.deckA ? state.deckB : state.deckA;
         const now = state.context ? state.context.currentTime : 0;
@@ -9883,7 +10099,8 @@
         subBassPunchIntensity: state.subBassPunchIntensity,
         tubeEmulationProfile: state.tubeEmulationProfile,
         dsdUltrasonicFilter: state.dsdUltrasonicFilter,
-        subBassPhaseProfile: state.subBassPhaseProfile
+        subBassPhaseProfile: state.subBassPhaseProfile,
+        bitPerfectEnabled: state.bitPerfectEnabled
       });
       const json = JSON.stringify(config, null, 2);
       const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
@@ -9937,6 +10154,10 @@
           if (s.subBassPhaseProfile) {
             localStorage.setItem('nocturne-sub-bass-phase', s.subBassPhaseProfile);
             applySubBassPhaseProfile(s.subBassPhaseProfile);
+          }
+          if (s.bitPerfectEnabled !== undefined) {
+            localStorage.setItem('nocturne-bitperfect-enabled', String(s.bitPerfectEnabled));
+            applyBitPerfectMode(s.bitPerfectEnabled);
           }
         }
         if (state.favorites && state.favorites.size) {
@@ -10883,7 +11104,31 @@
         }, { passive: true });
       });
     }
-    $('play-button').addEventListener('click', async () => { if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; state.playGeneration++; stopDsdWorker(false); $('play-button').textContent = '▶'; toast('Đã dừng giải mã DSD.'); return; } if (!audio.src) { const current = state.tracks.find(track => track.id === state.currentId); const next = current || state.tracks[0]; if (next) playTrack(next.id); return; } if (audio.paused) { try { if (state.context && state.context.state === 'suspended') await state.context.resume(); await audio.play(); } catch (error) { toast(error.message); } } else audio.pause(); });
+    $('play-button').addEventListener('click', async () => {
+      if (state.isNativeBitPerfectPlaying) {
+        if (state.isNativeBitPerfectPaused) {
+          if (typeof window !== 'undefined' && window.NocturneNative?.resumeBitPerfectPlayback) {
+            window.NocturneNative.resumeBitPerfectPlayback();
+          }
+          state.isNativeBitPerfectPaused = false;
+          $('play-button').textContent = 'Ⅱ';
+          if ($('room-play')) $('room-play').textContent = 'Ⅱ';
+          if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
+        } else {
+          if (typeof window !== 'undefined' && window.NocturneNative?.pauseBitPerfectPlayback) {
+            window.NocturneNative.pauseBitPerfectPlayback();
+          }
+          state.isNativeBitPerfectPaused = true;
+          $('play-button').textContent = '▶';
+          if ($('room-play')) $('room-play').textContent = '▶';
+          if ($('mini-play')) $('mini-play').textContent = '▶';
+        }
+        return;
+      }
+      if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; state.playGeneration++; stopDsdWorker(false); $('play-button').textContent = '▶'; toast('Đã dừng giải mã DSD.'); return; }
+      if (!audio.src) { const current = state.tracks.find(track => track.id === state.currentId); const next = current || state.tracks[0]; if (next) playTrack(next.id); return; }
+      if (audio.paused) { try { if (state.context && state.context.state === 'suspended') await state.context.resume(); await audio.play(); } catch (error) { toast(error.message); } } else audio.pause();
+    });
     $('previous-button').addEventListener('click', () => playNext(-1));
     $('next-button').addEventListener('click', () => playNext(1));
     $('room-play').addEventListener('click', () => $('play-button').click());
@@ -11397,10 +11642,14 @@
     });
     $('room-seek').addEventListener('change', event => {
       const curTrack = state.tracks.find(t => t.id === state.currentId);
-      if (curTrack && curTrack.cueStart !== undefined) {
-        audio.currentTime = curTrack.cueStart + (Number(event.currentTarget.value) / 1000 * curTrack.duration);
+      const ratio = Number(event.currentTarget.value) / 1000;
+      const dur = (curTrack && curTrack.cueStart !== undefined && curTrack.duration) ? curTrack.duration : (curTrack?.duration || audio.duration || 0);
+      if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative?.seekBitPerfectPlayback) {
+        window.NocturneNative.seekBitPerfectPlayback(Math.round(ratio * dur * 1000));
+      } else if (curTrack && curTrack.cueStart !== undefined) {
+        audio.currentTime = curTrack.cueStart + (ratio * curTrack.duration);
       } else if (Number.isFinite(audio.duration)) {
-        audio.currentTime = Number(event.currentTarget.value) / 1000 * audio.duration;
+        audio.currentTime = ratio * audio.duration;
       }
       updatePositionState();
     });
@@ -11742,10 +11991,14 @@
       });
       input.addEventListener('change', () => {
         const curTrack = state.tracks.find(t => t.id === state.currentId);
-        if (curTrack && curTrack.cueStart !== undefined) {
-          audio.currentTime = curTrack.cueStart + (Number(input.value) / 1000 * curTrack.duration);
+        const ratio = Number(input.value) / 1000;
+        const dur = (curTrack && curTrack.cueStart !== undefined && curTrack.duration) ? curTrack.duration : (curTrack?.duration || audio.duration || 0);
+        if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative?.seekBitPerfectPlayback) {
+          window.NocturneNative.seekBitPerfectPlayback(Math.round(ratio * dur * 1000));
+        } else if (curTrack && curTrack.cueStart !== undefined) {
+          audio.currentTime = curTrack.cueStart + (ratio * curTrack.duration);
         } else if (Number.isFinite(audio.duration)) {
-          audio.currentTime = Number(input.value) / 1000 * audio.duration;
+          audio.currentTime = ratio * audio.duration;
         }
         state.isSeeking = false;
         updatePositionState();
@@ -13165,6 +13418,8 @@
     if (!window.isSecureContext) console.info('Directory picker and cloud OAuth require HTTPS or localhost; use the file input fallback for local playback.');
     setupFiioIntegration();
     applyFiioDapMode(state.fiioDapMode);
+    setupBitPerfectIntegration();
+    applyBitPerfectMode(state.bitPerfectEnabled);
     restoreFiioCatalog();
     renderTracks();
     // Persist cloud catalog metadata locally; MSAL independently manages its own token cache.

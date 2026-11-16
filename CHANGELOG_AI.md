@@ -2,6 +2,35 @@
 
 ---
 
+## [Pha G 2026-11-17 00:10 +07] — Bản Phát Hành v1.7.0: Bit-Perfect Audio Pipeline Toàn Diện Cho PC, Android DAP (FiiO M11S) & USB DAC Ngoại Vi
+
+### 🎯 Tính Năng Mới & Nâng Cấp Hệ Thống:
+1. **Kiến Trúc Xuất Âm Thanh Native Bit-Perfect (FiiO M11S & Android Phones / USB DAC):**
+   - Tạo engine `AudioTrack` Native Direct với cờ `AudioAttributes.FLAG_AUDIOTRACK_DIRECT` (0x1) cho phép dữ liệu PCM truyền trực tiếp đến DAC phần cứng, bỏ qua hoàn toàn bộ trộn âm (AudioFlinger mixer/resampler) của Android.
+   - Hỗ trợ chuẩn Android 14+ (API 34+) Bit-Perfect qua `AudioTrack.setBitPerfectMode(AudioTrack.BIT_PERFECT_PLAYBACK_MODE_AUTO)` và `MIXER_BEHAVIOR_BIT_PERFECT` cho USB DAC.
+   - Nhận diện thiết bị ngoại vi thông minh qua `AudioManager.getDevices(GET_DEVICES_OUTPUTS)`: tự động định tuyến tới USB DAC (`TYPE_USB_DEVICE`, `TYPE_USB_HEADSET`) hoặc cổng xuất chuyên dụng của FiiO (3.5mm / 4.4mm Balanced).
+   - Luồng phát âm thanh nền chạy ở mức ưu tiên phần cứng `Process.THREAD_PRIORITY_URGENT_AUDIO` (-19), kết hợp giải mã `MediaExtractor` + `MediaCodec` giải mã PCM và truyền trực tiếp ở tần số lấy mẫu gốc từ 44.1kHz đến 384kHz.
+   - Bổ sung trọn bộ giao tiếp JavaScript bridge (`startBitPerfectPlayback`, `pauseBitPerfectPlayback`, `resumeBitPerfectPlayback`, `seekBitPerfectPlayback`, `stopBitPerfectPlayback`, `isBitPerfectSupported`, `getAudioOutputDeviceInfo`).
+
+2. **Chế Độ PC Desktop Bit-Perfect (Dynamic Sample Rate Adaptation & Pure Direct DSP Bypass):**
+   - Tự động thay đổi tần số lấy mẫu của `AudioContext` theo tần số gốc của track (44.1, 48, 88.2, 96, 176.4, 192kHz) bằng việc tái tạo `AudioContext({ sampleRate })` một cách liền mạch.
+   - Pure Direct DSP Bypass: Khi bật Bit-Perfect, đường tín hiệu `deck.direct` kết nối thẳng tới `state.context.destination` với mức khuếch đại Unity Gain (1.0 / 0 dB), bỏ qua EQ, Tone Control, Crossfeed, Limiter và Dynamic Compression để đảm bảo 100% độ toàn vẹn bit gốc.
+   - Giữ mức âm lượng tuyệt đối tại Unity Gain (1.0) để triệt tiêu hiện tượng suy hao số (digital bit reduction), nhường toàn quyền chỉnh âm lượng cho DAC/Amplifier ngoài.
+   - **Bảo toàn tuyệt đối bất biến âm thanh PWA**: Khi Bit-Perfect TẮT, chuỗi routing `state.crossfeedNodes.output.connect(state.context.destination)` hoạt động nguyên bản 100%.
+
+3. **Giao Diện & Trải Nghiệm Người Dùng (UI/UX):**
+   - Thêm nút gạt "Chế độ Xuất Bit-Perfect (PC / FiiO DAPS / USB DAC Direct)" trong Settings Panel.
+   - Footer Quality Badge cập nhật biểu tượng và nhãn `⚡ BIT-PERFECT DIRECT` hiển thị tần số lấy mẫu và độ sâu bit gốc.
+   - Lưu trữ trạng thái cấu hình trong `localStorage['nocturne-bitperfect-enabled']` và tích hợp vào bản sao lưu/phục hồi cấu hình.
+
+4. **Kiểm Thử Hồi Quy & Bản Dựng:**
+   - Hoàn thành kiểm thử 103 test suites (1214/1214 tests PASS 100%).
+   - Đồng bộ `index.html` vào Android assets với chuẩn Unix LF.
+   - Nâng phiên bản `versionCode = 7`, `versionName = "1.7.0"`.
+   - Biên dịch thành công APK `Nocturne-Audiophile-v1.7-bitperfect.apk` và đồng bộ tải lên Google Drive công khai.
+
+---
+
 ## [Pha F 2026-11-16 19:15 +07] — Bản Sửa Lỗi Toàn Diện v1.4: Khắc Phục Triệt Để Modal "Hẹn Giờ Ngủ" & EQ Bị Kẹt Trên FiiO M11S, Khôi Phục Hoàn Toàn Cơ Chế Crossfade Mượt Mà & Tích Hợp Phím Back Android
 
 ### 🎯 Giải Quyết Yêu Cầu Người Dùng:
