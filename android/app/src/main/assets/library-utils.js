@@ -691,11 +691,12 @@
     if (seconds <= 0) return false;
     const cur = Number(currentTime);
     const dur = Number(duration);
+    const lead = Number(options.leadMargin) || 0;
     if (!Number.isFinite(cur) || !Number.isFinite(dur) || dur <= seconds) return false;
     if (options.isPaused || options.isSliceWaiting) return false;
     if (options.repeatMode === 2) return false;
     if (options.hasNextTrack === false) return false;
-    return cur >= dur - seconds;
+    return cur >= dur - (seconds + lead);
   }
 
   // Pha C — giới hạn danh mục cloud trong IndexedDB: chỉ giữ maxEntries mục

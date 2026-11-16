@@ -1321,26 +1321,30 @@
         <section class="rounded-2xl border border-white/10 bg-white/[.025] p-4">
           <div class="flex items-center justify-between"><h3 class="text-sm font-medium">Google Drive</h3><span id="google-state" class="text-[10px] text-zinc-500">Chưa kết nối</span></div>
           <label class="mt-3 block text-[10px] text-zinc-400">Client ID <input id="google-client-id" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="...apps.googleusercontent.com"></label>
-          <button id="google-connect" class="mt-3 w-full rounded-lg bg-violet-500 px-3 py-2.5 text-xs font-medium hover:bg-violet-400">Tiếp tục với Google</button>
+          <button id="google-connect" class="mt-3 w-full rounded-lg bg-violet-500 px-3 py-2.5 text-xs font-medium hover:bg-violet-400">Tiếp tục với Google (Browser GIS)</button>
           <div class="mt-2.5 pt-2.5 border-t border-white/10">
-            <label class="block text-[10px] text-zinc-400">Hoặc dán Access Token trực tiếp (nhanh)
-              <input id="google-token-direct" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="ya29.a0... (Token từ gdrive/OAuth Playground)">
-            </label>
-            <button id="google-token-connect" type="button" class="mt-2 w-full rounded-lg border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-300 hover:bg-violet-500/20">Kết nối bằng Token</button>
+            <div class="flex items-center justify-between">
+              <label class="block text-[10px] text-violet-300 font-medium">Hoặc dán Access Token (Khuyên dùng cho Android/FiiO DAP)</label>
+              <button id="google-paste-btn" type="button" class="text-[10px] text-violet-400 hover:text-violet-200 underline">📋 Dán từ clipboard</button>
+            </div>
+            <input id="google-token-direct" autocomplete="off" class="mt-1.5 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="ya29.a0... (Token từ OAuth Playground)">
+            <button id="google-token-connect" type="button" class="mt-2 w-full rounded-lg border border-violet-400/40 bg-violet-500/20 px-3 py-2 text-xs font-medium text-violet-200 hover:bg-violet-500/30">Kết nối Google Drive bằng Token</button>
           </div>
-          <details class="mt-3"><summary class="cursor-pointer text-[10px] text-zinc-500">Thiết lập lần đầu (chỉ cần làm một lần)</summary><p class="mt-2 text-[10px] leading-4 text-zinc-500">Tạo OAuth Client ID kiểu Web application trong Google Cloud Console, bật Google Drive API và thêm https://appassets.androidplatform.net (hoặc domain web) vào Authorized JavaScript origins. Dán Client ID vào ô trên. API key không cần.</p></details>
+          <details class="mt-3"><summary class="cursor-pointer text-[10px] text-zinc-500">Hướng dẫn thiết lập Google Drive</summary><p class="mt-2 text-[10px] leading-4 text-zinc-500">1. Nếu dùng trên PC: Tạo Client ID trong Google Cloud Console và nhấn "Tiếp tục với Google".<br>2. Nếu dùng trên FiiO M11S / Android DAP: Vào <a href="https://developers.google.com/oauthplayground" target="_blank" class="text-violet-400 underline">OAuth Playground</a>, chọn Google Drive API v3 (drive.readonly), lấy Access Token và dán vào ô trên.</p></details>
         </section>
         <section class="rounded-2xl border border-white/10 bg-white/[.025] p-4">
           <div class="flex items-center justify-between"><h3 class="text-sm font-medium">OneDrive</h3><span id="microsoft-state" class="text-[10px] text-zinc-500">Chưa kết nối</span></div>
           <label class="mt-3 block text-[10px] text-zinc-400">Application (client) ID <input id="microsoft-client-id" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></label>
-          <button id="microsoft-connect" class="mt-3 w-full rounded-lg bg-sky-600 px-3 py-2.5 text-xs font-medium hover:bg-sky-500">Tiếp tục với Microsoft</button>
+          <button id="microsoft-connect" class="mt-3 w-full rounded-lg bg-sky-600 px-3 py-2.5 text-xs font-medium hover:bg-sky-500">Tiếp tục với Microsoft (MSAL)</button>
           <div class="mt-2.5 pt-2.5 border-t border-white/10">
-            <label class="block text-[10px] text-zinc-400">Hoặc dán Access Token trực tiếp (nhanh)
-              <input id="microsoft-token-direct" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-sky-400/50" placeholder="EwB... (Graph Access Token)">
-            </label>
-            <button id="microsoft-token-connect" type="button" class="mt-2 w-full rounded-lg border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-300 hover:bg-sky-500/20">Kết nối bằng Token</button>
+            <div class="flex items-center justify-between">
+              <label class="block text-[10px] text-sky-300 font-medium">Hoặc dán Access Token (Khuyên dùng cho Android/FiiO DAP)</label>
+              <button id="microsoft-paste-btn" type="button" class="text-[10px] text-sky-400 hover:text-sky-200 underline">📋 Dán từ clipboard</button>
+            </div>
+            <input id="microsoft-token-direct" autocomplete="off" class="mt-1.5 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-sky-400/50" placeholder="EwB... (Graph Access Token)">
+            <button id="microsoft-token-connect" type="button" class="mt-2 w-full rounded-lg border border-sky-400/40 bg-sky-500/20 px-3 py-2 text-xs font-medium text-sky-200 hover:bg-sky-500/30">Kết nối OneDrive bằng Token</button>
           </div>
-          <details class="mt-3"><summary class="cursor-pointer text-[10px] text-zinc-500">Thiết lập lần đầu (chỉ cần làm một lần)</summary><p class="mt-2 text-[10px] leading-4 text-zinc-500">Đăng ký app trong Microsoft Entra, thêm nền tảng SPA và địa chỉ website này làm redirect URI, rồi cấp quyền User.Read và Files.Read. Dán Application (client) ID vào ô trên.</p></details>
+          <details class="mt-3"><summary class="cursor-pointer text-[10px] text-zinc-500">Hướng dẫn thiết lập OneDrive</summary><p class="mt-2 text-[10px] leading-4 text-zinc-500">Đăng ký app trong Microsoft Entra (Azure AD), thêm nền tảng SPA và cấp quyền Files.Read. Trên DAP có thể dùng Microsoft Graph Explorer để lấy token dán trực tiếp.</p></details>
         </section>
         <section class="rounded-2xl border border-violet-500/20 bg-violet-500/[.03] p-4 md:col-span-2">
           <div class="flex items-center justify-between"><h3 class="text-sm font-medium text-violet-200">Subsonic / Navidrome (OpenSubsonic)</h3><span id="subsonic-status" class="text-[10px] text-zinc-500">Chưa kết nối</span></div>
@@ -3036,6 +3040,8 @@
     function releaseUnusedLocalUrl(track) {
       if (!track || track.source !== 'local' || !track.url) return;
       if (track.id === state.currentId) return;
+      // Chỉ thu hồi blob URL tạm thời; giữ nguyên URL stream nội bộ (FiiO SD card https://appassets...) để phát lại
+      if (!track.url.startsWith('blob:')) return;
       const absoluteUrl = new URL(track.url, location.href).href;
       if ([audio, standbyAudio].some(element => element.src === absoluteUrl)) return;
       releaseTrackUrl(track.url);
@@ -5006,7 +5012,12 @@
       } else if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') {
         oldDeck.router.gain.cancelScheduledValues(now);
       }
-      oldDeck.router.gain.setValueCurveAtTime(outCurve, now, duration);
+      try {
+        oldDeck.router.gain.setValueCurveAtTime(outCurve, now, duration);
+      } catch (errCurve) {
+        try { oldDeck.router.gain.linearRampToValueAtTime(0, now + duration); }
+        catch (_) { oldDeck.router.gain.setTargetAtTime(0, now, duration / 3); }
+      }
       try {
         if (typeof oldDeck.router.gain.setValueAtTime === 'function') {
           oldDeck.router.gain.setValueAtTime(0, now + duration);
@@ -5019,7 +5030,12 @@
       } else if (typeof newDeck.router.gain.cancelScheduledValues === 'function') {
         newDeck.router.gain.cancelScheduledValues(now);
       }
-      newDeck.router.gain.setValueCurveAtTime(inCurve, now, duration);
+      try {
+        newDeck.router.gain.setValueCurveAtTime(inCurve, now, duration);
+      } catch (errCurve) {
+        try { newDeck.router.gain.linearRampToValueAtTime(1, now + duration); }
+        catch (_) { newDeck.router.gain.setTargetAtTime(1, now, duration / 3); }
+      }
       try {
         if (typeof newDeck.router.gain.setValueAtTime === 'function') {
           newDeck.router.gain.setValueAtTime(1, now + duration);
@@ -9960,6 +9976,36 @@
       cloudStatus('microsoft', 'OneDrive đã đồng bộ', 'text-emerald-300');
       toast('Đã kết nối thành công OneDrive qua Access Token!');
     }));
+    $('google-paste-btn')?.addEventListener('click', async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text && $('google-token-direct')) {
+            $('google-token-direct').value = text.trim();
+            toast('Đã dán token Google Drive từ bộ nhớ tạm!');
+          }
+        } else {
+          toast('Hãy chạm giữ vào ô nhập để dán token.');
+        }
+      } catch (_) {
+        toast('Hãy chạm giữ vào ô nhập để dán token.');
+      }
+    });
+    $('microsoft-paste-btn')?.addEventListener('click', async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text && $('microsoft-token-direct')) {
+            $('microsoft-token-direct').value = text.trim();
+            toast('Đã dán token OneDrive từ bộ nhớ tạm!');
+          }
+        } else {
+          toast('Hãy chạm giữ vào ô nhập để dán token.');
+        }
+      } catch (_) {
+        toast('Hãy chạm giữ vào ô nhập để dán token.');
+      }
+    });
     $('play-url').addEventListener('click', () => {
       const url = $('direct-url').value.trim();
       try {
@@ -10005,6 +10051,40 @@
       }
     }
 
+    async function safeNativeFetch(url, options = {}) {
+      if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.httpFetch === 'function') {
+        try {
+          const method = (options.method || 'GET').toUpperCase();
+          const headers = options.headers || {};
+          let body = options.body;
+          if (typeof body === 'object' && body !== null && !(body instanceof FormData)) {
+            body = JSON.stringify(body);
+          }
+          const raw = window.NocturneNative.httpFetch(String(url), method, JSON.stringify(headers), body ? String(body) : '');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const status = parsed.status || 200;
+            const statusText = parsed.statusText || 'OK';
+            const respHeaders = parsed.headers || {};
+            const respBody = parsed.body || '';
+            return {
+              ok: status >= 200 && status < 300,
+              status,
+              statusText,
+              headers: {
+                get: (k) => respHeaders[k] || respHeaders[k.toLowerCase()] || null
+              },
+              text: async () => respBody,
+              json: async () => JSON.parse(respBody)
+            };
+          }
+        } catch (err) {
+          console.warn('Native httpFetch failed, falling back to standard fetch:', err);
+        }
+      }
+      return fetch(url, options);
+    }
+
     async function connectSubsonicServer() {
       let endpoint = ($('subsonic-endpoint') && $('subsonic-endpoint').value || '').trim();
       const user = ($('subsonic-user') && $('subsonic-user').value || '').trim();
@@ -10043,7 +10123,7 @@
         const pingUrl = typeof library?.buildSubsonicUrl === 'function'
           ? library.buildSubsonicUrl(endpoint, 'ping.view', {}, authConfig)
           : `${endpoint}/rest/ping.view?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}&v=1.16.1&c=nocturne&f=json`;
-        const pingRes = await fetch(pingUrl);
+        const pingRes = await safeNativeFetch(pingUrl);
         if (!pingRes.ok) throw new Error(`HTTP ${pingRes.status}`);
         const pingData = await pingRes.json().catch(() => null);
         if (pingData && pingData['subsonic-response'] && pingData['subsonic-response'].status === 'failed') {
@@ -10055,7 +10135,7 @@
         const songsUrl = typeof library?.buildSubsonicUrl === 'function'
           ? library.buildSubsonicUrl(endpoint, 'getRandomSongs.view', { size: 50 }, authConfig)
           : `${endpoint}/rest/getRandomSongs.view?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}&v=1.16.1&c=nocturne&f=json&size=50`;
-        const songsRes = await fetch(songsUrl);
+        const songsRes = await safeNativeFetch(songsUrl);
         if (!songsRes.ok) throw new Error(`HTTP ${songsRes.status}`);
         const songsData = await songsRes.json().catch(() => null);
 
@@ -10194,7 +10274,7 @@
         const headers = { 'Accept': 'application/json' };
         if (token) headers['X-Emby-Token'] = token;
 
-        const res = await fetch(queryUrl, { headers });
+        const res = await safeNativeFetch(queryUrl, { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json().catch(() => null);
 
@@ -11701,9 +11781,10 @@
               isPaused: element.paused,
               isSliceWaiting: Boolean(activeTrack && activeTrack.firstSlicePlayback && activeTrack.fullAudioPromise),
               repeatMode: state.repeat,
-              hasNextTrack: (typeof queueIndex === 'function' ? queueIndex() >= 0 : false)
+              hasNextTrack: (typeof queueIndex === 'function' ? queueIndex() >= 0 : false),
+              leadMargin: 0.5
             })
-          : (element === audio && !element.paused && state.crossfadeSeconds > 0 && Number.isFinite(element.duration) && element.duration > state.crossfadeSeconds && element.currentTime >= element.duration - state.crossfadeSeconds && !(activeTrack && activeTrack.firstSlicePlayback && activeTrack.fullAudioPromise) && (typeof queueIndex === 'function' ? queueIndex() >= 0 : true));
+          : (element === audio && !element.paused && state.crossfadeSeconds > 0 && Number.isFinite(element.duration) && element.duration > state.crossfadeSeconds && element.currentTime >= element.duration - state.crossfadeSeconds - 0.5 && !(activeTrack && activeTrack.firstSlicePlayback && activeTrack.fullAudioPromise) && (typeof queueIndex === 'function' ? queueIndex() >= 0 : true));
         if (element === audio && autoFadeEligible && state.autoCrossfadeGeneration !== state.playGeneration && !state.sleepAtTrackEnd) {
           state.autoCrossfadeGeneration = state.playGeneration;
           playNext(1, true);
@@ -12418,7 +12499,7 @@
       $('dsd-output-depth').value = String(state.dsdOutputDepth);
     } catch (error) { console.warn('Could not load saved DSD output settings:', error); }
     try {
-      const savedCrossfade = library.clampCrossfadeSeconds(localStorage.getItem('nocturne-crossfade-seconds'), 0);
+      const savedCrossfade = library.clampCrossfadeSeconds(localStorage.getItem('nocturne-crossfade-seconds') || ((typeof window !== 'undefined' && (window.isNativeAndroid || window.NocturneNative)) ? 2 : 0), 0);
       if ([0,1,2,3,5].includes(savedCrossfade)) state.crossfadeSeconds = savedCrossfade;
       $('crossfade-seconds').value = String(state.crossfadeSeconds);
     } catch (error) { console.warn('Could not load saved crossfade setting:', error); }

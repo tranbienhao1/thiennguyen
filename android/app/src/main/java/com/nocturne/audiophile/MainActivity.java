@@ -42,8 +42,19 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.SslErrorHandler;
+import android.net.http.SslError;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+import java.security.cert.X509Certificate;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -342,7 +353,7 @@ public class MainActivity extends AppCompatActivity {
     /**
      * Checks if a host belongs to private local network (LAN / localhost)
      */
-    private boolean isLocalOrPrivateNetwork(String host) {
+    private static boolean isLocalOrPrivateNetwork(String host) {
         if (host == null) return false;
         return host.equals("localhost") ||
                 host.equals("127.0.0.1") ||
@@ -354,7 +365,7 @@ public class MainActivity extends AppCompatActivity {
                 host.endsWith(".lan");
     }
 
-    private boolean isPrivate172(String host) {
+    private static boolean isPrivate172(String host) {
         String[] parts = host.split("\\.");
         if (parts.length >= 2) {
             try {
@@ -427,15 +438,43 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
+    private static SSLSocketFactory sTrustAllSslSocketFactory = null;
+    private static HostnameVerifier sTrustAllHostnameVerifier = null;
+
+    private static synchronized void initTrustAllSsl() {
+        if (sTrustAllSslSocketFactory == null) {
+            try {
+                TrustManager[] trustAllCerts = new TrustManager[]{
+                    new X509TrustManager() {
+                        public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                        public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+                        public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+                    }
+                };
+                SSLContext sc = SSLContext.getInstance("TLS");
+                sc.init(null, trustAllCerts, new java.security.SecureRandom());
+                sTrustAllSslSocketFactory = sc.getSocketFactory();
+                sTrustAllHostnameVerifier = (hostname, session) -> true;
+            } catch (Exception ignored) {}
+        }
+    }
+
     /**
-     * Proxies HTTP requests to local networks via native HttpURLConnection.
+     * Proxies HTTP & HTTPS requests to local networks via native HttpURLConnection.
      * Handles ALL HTTP methods (GET, POST, PUT, DELETE, HEAD, OPTIONS, PATCH) and forwards the request body.
-     * Injects permissive CORS headers so JavaScript fetch() never gets blocked.
+     * Injects permissive CORS headers and trusts local self-signed certs so JavaScript fetch() never gets blocked.
      */
     private WebResourceResponse proxyLocalHttpRequest(WebResourceRequest request) {
         try {
             URL url = new URL(request.getUrl().toString());
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            if (conn instanceof HttpsURLConnection && isLocalOrPrivateNetwork(url.getHost())) {
+                initTrustAllSsl();
+                if (sTrustAllSslSocketFactory != null) {
+                    ((HttpsURLConnection) conn).setSSLSocketFactory(sTrustAllSslSocketFactory);
+                    ((HttpsURLConnection) conn).setHostnameVerifier(sTrustAllHostnameVerifier);
+                }
+            }
             String method = request.getMethod();
             if (method == null || method.isEmpty()) method = "GET";
             method = method.toUpperCase(Locale.US);
@@ -606,13 +645,23 @@ public class MainActivity extends AppCompatActivity {
                     return new WebResourceResponse("text/plain", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(new byte[0]));
                 }
 
-                // Proxy local network HTTP requests for ALL methods (GET, POST, PUT, DELETE, HEAD, etc.) to bypass CORS restrictions
-                if ("http".equalsIgnoreCase(scheme) && isLocalOrPrivateNetwork(host)) {
+                // Proxy local network HTTP/HTTPS requests for ALL methods (GET, POST, PUT, DELETE, HEAD, etc.) to bypass CORS & self-signed cert restrictions
+                if (("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) && isLocalOrPrivateNetwork(host) && !"/local-media".equalsIgnoreCase(path)) {
                     WebResourceResponse proxied = proxyLocalHttpRequest(request);
                     if (proxied != null) return proxied;
                 }
 
                 return super.shouldInterceptRequest(view, request);
+            }
+
+            @Override
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                String host = error.getUrl() != null ? Uri.parse(error.getUrl()).getHost() : "";
+                if (isLocalOrPrivateNetwork(host)) {
+                    handler.proceed(); // Allow self-signed SSL certs for local NAS / Jellyfin / Subsonic
+                } else {
+                    super.onReceivedSslError(view, handler, error);
+                }
             }
 
             @Override
@@ -1722,6 +1771,13 @@ public class MainActivity extends AppCompatActivity {
             try {
                 URL url = new URL(urlString);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                if (conn instanceof HttpsURLConnection && isLocalOrPrivateNetwork(url.getHost())) {
+                    initTrustAllSsl();
+                    if (sTrustAllSslSocketFactory != null) {
+                        ((HttpsURLConnection) conn).setSSLSocketFactory(sTrustAllSslSocketFactory);
+                        ((HttpsURLConnection) conn).setHostnameVerifier(sTrustAllHostnameVerifier);
+                    }
+                }
                 String m = (method != null && !method.isEmpty()) ? method.toUpperCase(Locale.US) : "GET";
                 conn.setRequestMethod(m);
                 conn.setConnectTimeout(8000);
