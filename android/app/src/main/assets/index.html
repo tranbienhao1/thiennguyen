@@ -1096,7 +1096,22 @@
           <button data-source="onedrive" class="source-btn"><span>◉</span> OneDrive</button>
         </div>
         <p id="cloud-status" class="mt-3 text-xs text-zinc-500">Chưa kết nối</p>
-        <div class="mt-2 grid gap-1"><button id="google-quick-connect" class="roon-sidebar-tool px-2 py-2 text-left text-xs">G&nbsp; Đăng nhập Google</button><button id="microsoft-quick-connect" class="roon-sidebar-tool px-2 py-2 text-left text-xs">⊞&nbsp; Đăng nhập OneDrive</button><button id="choose-folder" class="roon-sidebar-tool px-2 py-2 text-left text-xs">＋ Thêm thư mục nhạc</button></div>
+        <div class="mt-2 grid gap-1.5">
+          <button id="google-quick-connect" class="roon-sidebar-tool group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5">
+            <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-violet-500/20 text-[11px] font-bold text-violet-300 shadow-sm transition-transform group-hover:scale-105">G</span>
+            <span class="font-medium text-zinc-200 group-hover:text-white">Đăng nhập Google</span>
+            <span class="ml-auto inline-flex items-center rounded bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-medium text-violet-300">1-Chạm</span>
+          </button>
+          <button id="microsoft-quick-connect" class="roon-sidebar-tool group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5">
+            <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-sky-500/20 text-[11px] font-bold text-sky-300 shadow-sm transition-transform group-hover:scale-105">⊞</span>
+            <span class="font-medium text-zinc-200 group-hover:text-white">Đăng nhập OneDrive</span>
+            <span class="ml-auto inline-flex items-center rounded bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-medium text-sky-300">1-Chạm</span>
+          </button>
+          <button id="choose-folder" class="roon-sidebar-tool group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5">
+            <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white/10 text-[11px] text-zinc-400 shadow-sm transition-transform group-hover:scale-105">＋</span>
+            <span class="font-medium text-zinc-200 group-hover:text-white">Thêm thư mục nhạc</span>
+          </button>
+        </div>
       </div>
       <div class="mt-auto flex items-center justify-between px-2 pt-5"><span class="text-xs font-medium uppercase">Danh sách ›</span><button id="add-files" type="button" aria-label="Thêm nhạc">＋</button><button id="open-settings-sidebar" type="button" class="roon-sidebar-tool" aria-label="Cài đặt">···</button></div>
     </aside>
@@ -1419,36 +1434,125 @@
     <div id="settings-panel" class="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl sm:max-h-[90vh] sm:p-7">
       <div class="flex items-start justify-between gap-4"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300">Account & streaming</p><h2 id="settings-title" class="mt-1 text-xl font-semibold">Cấu hình Cloud & Máy chủ cá nhân</h2></div><button id="close-settings" type="button" class="rounded-lg px-2 py-1 text-zinc-500 hover:bg-white/5 hover:text-white" aria-label="Đóng cài đặt">×</button></div>
       <p class="mt-3 text-xs leading-5 text-zinc-400">Thông tin xác thực được lưu trong localStorage của trình duyệt này. Chỉ cấp quyền đọc file; không nhập secret key phía server hoặc mật khẩu tài khoản.</p>
-      <div class="mt-4 grid gap-4 md:grid-cols-2">
-        <section class="rounded-2xl border border-white/10 bg-white/[.025] p-4">
-          <div class="flex items-center justify-between"><h3 class="text-sm font-medium">Google Drive</h3><span id="google-state" class="text-[10px] text-zinc-500">Chưa kết nối</span></div>
-          <label class="mt-3 block text-[10px] text-zinc-400">Client ID <input id="google-client-id" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="...apps.googleusercontent.com"></label>
-          <button id="google-connect" class="mt-3 w-full rounded-lg bg-violet-500 px-3 py-2.5 text-xs font-medium hover:bg-violet-400">Tiếp tục với Google (Browser GIS)</button>
-          <div class="mt-2.5 pt-2.5 border-t border-white/10">
-            <div class="flex items-center justify-between">
-              <label class="block text-[10px] text-violet-300 font-medium">Hoặc dán Access Token (Khuyên dùng cho Android/FiiO DAP)</label>
-              <button id="google-paste-btn" type="button" class="text-[10px] text-violet-400 hover:text-violet-200 underline">📋 Dán từ clipboard</button>
+      <div id="cloud-auth-modal" class="mt-4 grid gap-4 md:grid-cols-2">
+        <section id="google-drive-card" class="rounded-2xl border border-white/10 bg-white/[.025] p-4 transition-all duration-300 hover:border-violet-500/30">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-violet-500/20 text-xs font-bold text-violet-300 shadow-sm">G</span>
+              <div>
+                <h3 class="text-sm font-semibold tracking-wide text-zinc-100">Google Drive</h3>
+                <p class="text-[10px] text-zinc-400">Stream lossless từ đám mây Google cá nhân</p>
+              </div>
             </div>
-            <input id="google-token-direct" autocomplete="off" class="mt-1.5 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="ya29.a0... (Token từ OAuth Playground)">
-            <button id="google-token-connect" type="button" class="mt-2 w-full rounded-lg border border-violet-400/40 bg-violet-500/20 px-3 py-2 text-xs font-medium text-violet-200 hover:bg-violet-500/30">Kết nối Google Drive bằng Token</button>
+            <span id="google-state" class="inline-flex items-center rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] font-medium text-zinc-400">Chưa kết nối</span>
           </div>
-          <details class="mt-3"><summary class="cursor-pointer text-[10px] text-zinc-500">Hướng dẫn thiết lập Google Drive</summary><p class="mt-2 text-[10px] leading-4 text-zinc-500">1. Nếu dùng trên PC: Tạo Client ID trong Google Cloud Console và nhấn "Tiếp tục với Google".<br>2. Nếu dùng trên FiiO M11S / Android DAP: Vào <a href="https://developers.google.com/oauthplayground" target="_blank" class="text-violet-400 underline">OAuth Playground</a>, chọn Google Drive API v3 (drive.readonly), lấy Access Token và dán vào ô trên.</p></details>
-        </section>
-        <section class="rounded-2xl border border-white/10 bg-white/[.025] p-4">
-          <div class="flex items-center justify-between"><h3 class="text-sm font-medium">OneDrive</h3><span id="microsoft-state" class="text-[10px] text-zinc-500">Chưa kết nối</span></div>
-          <label class="mt-3 block text-[10px] text-zinc-400">Application (client) ID <input id="microsoft-client-id" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-violet-400/50" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></label>
-          <button id="microsoft-connect" class="mt-3 w-full rounded-lg bg-sky-600 px-3 py-2.5 text-xs font-medium hover:bg-sky-500">Tiếp tục với Microsoft (MSAL)</button>
-          <div class="mt-2.5 pt-2.5 border-t border-white/10">
+
+          <!-- Tier 1: 1-Click Fast Connect (Recommended) -->
+          <div class="mt-3.5">
+            <button id="google-connect" type="button" class="group relative flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-3.5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-violet-500/20 transition-all duration-200 hover:from-violet-500 hover:to-indigo-500 active:scale-[0.99]">
+              <span>⚡ Đăng nhập 1-Chạm (Khuyên dùng)</span>
+            </button>
+            <p class="mt-1 text-center text-[10px] text-zinc-500">Tự động kết nối Google Drive an toàn qua GIS (Google Identity Services)</p>
+          </div>
+
+          <!-- Tier 2: Instant Token Paste for DAP / Android -->
+          <div class="mt-3.5 rounded-xl border border-white/10 bg-black/25 p-3">
             <div class="flex items-center justify-between">
-              <label class="block text-[10px] text-sky-300 font-medium">Hoặc dán Access Token (Khuyên dùng cho Android/FiiO DAP)</label>
-              <button id="microsoft-paste-btn" type="button" class="text-[10px] text-sky-400 hover:text-sky-200 underline">📋 Dán từ clipboard</button>
+              <label for="google-token-direct" class="flex items-center gap-1.5 text-[10px] font-medium text-violet-300">
+                <span>🔑 Dán Token Siêu Tốc (Dành cho DAP FiiO / Android)</span>
+              </label>
+              <button id="google-paste-btn" type="button" class="inline-flex items-center gap-1 text-[10px] font-medium text-violet-400 hover:text-violet-200 transition">
+                <span>📋</span> Dán từ clipboard
+              </button>
             </div>
-            <input id="microsoft-token-direct" autocomplete="off" class="mt-1.5 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs outline-none focus:border-sky-400/50" placeholder="EwB... (Graph Access Token)">
-            <button id="microsoft-token-connect" type="button" class="mt-2 w-full rounded-lg border border-sky-400/40 bg-sky-500/20 px-3 py-2 text-xs font-medium text-sky-200 hover:bg-sky-500/30">Kết nối OneDrive bằng Token</button>
+            <button id="google-fast-token-btn" type="button" class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-violet-400/30 bg-violet-500/15 px-3 py-2 text-xs font-medium text-violet-200 transition hover:bg-violet-500/25 active:scale-[0.99]">
+              <span>⚡</span> Lấy Access Token siêu tốc (Mở trình duyệt ngoài)
+            </button>
+            <input id="google-token-direct" autocomplete="off" class="mt-1.5 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs font-mono text-zinc-200 outline-none transition focus:border-violet-400/60 focus:ring-1 focus:ring-violet-400/30" placeholder="ya29.a0... (Token từ OAuth Playground)">
+            <button id="google-token-connect" type="button" class="mt-2 w-full rounded-lg border border-violet-400/40 bg-violet-500/20 px-3 py-2 text-xs font-medium text-violet-200 transition hover:bg-violet-500/30 active:scale-[0.99]">
+              Kết nối Google Drive bằng Token
+            </button>
           </div>
-          <details class="mt-3"><summary class="cursor-pointer text-[10px] text-zinc-500">Hướng dẫn thiết lập OneDrive</summary><p class="mt-2 text-[10px] leading-4 text-zinc-500">Đăng ký app trong Microsoft Entra (Azure AD), thêm nền tảng SPA và cấp quyền Files.Read. Trên DAP có thể dùng Microsoft Graph Explorer để lấy token dán trực tiếp.</p></details>
+
+          <!-- Tier 3: Custom Client ID Override (Advanced) -->
+          <details class="mt-3 rounded-lg border border-white/5 bg-white/[0.015] p-2.5 group">
+            <summary class="cursor-pointer text-[10px] font-medium text-zinc-400 hover:text-zinc-200 transition list-none flex items-center justify-between select-none">
+              <span class="flex items-center gap-1.5">
+                <span>⚙ Cấu hình Client ID tự tạo (Nâng cao)</span>
+              </span>
+              <span class="text-[9px] text-zinc-500 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div class="mt-2.5 space-y-2 border-t border-white/5 pt-2">
+              <label class="block text-[10px] text-zinc-400">
+                Google OAuth 2.0 Client ID tùy chỉnh
+                <input id="google-client-id" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-mono outline-none focus:border-violet-400/50" placeholder="Mặc định: Built-in OAuth Client ID hoặc ...apps.googleusercontent.com">
+              </label>
+              <p class="text-[10px] leading-4 text-zinc-500">1. Đăng nhập 1-chạm: Nhấn "⚡ Đăng nhập 1-Chạm" (hoặc "G Đăng nhập Google" ở sidebar) để kết nối ngay với Client ID tích hợp sẵn.<br>2. Nếu dùng trên FiiO M11S / Android DAP: Nhấn "⚡ Lấy Access Token siêu tốc" để mở trình duyệt ngoài, cấp quyền rồi nhấn "📋 Dán từ clipboard" và "Kết nối".<br>3. Tùy chỉnh: Dán Client ID riêng kết thúc bằng .apps.googleusercontent.com nếu muốn dùng GCP Project cá nhân.</p>
+            </div>
+          </details>
         </section>
-        <section class="rounded-2xl border border-violet-500/20 bg-violet-500/[.03] p-4 md:col-span-2">
+
+        <section id="onedrive-card" class="rounded-2xl border border-white/10 bg-white/[.025] p-4 transition-all duration-300 hover:border-sky-500/30">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="flex h-6 w-6 items-center justify-center rounded-lg bg-sky-500/20 text-xs font-bold text-sky-300 shadow-sm">⊞</span>
+              <div>
+                <h3 class="text-sm font-semibold tracking-wide text-zinc-100">OneDrive</h3>
+                <p class="text-[10px] text-zinc-400">Stream lossless từ Microsoft OneDrive cá nhân & trường học</p>
+              </div>
+            </div>
+            <span id="microsoft-state" class="inline-flex items-center rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] font-medium text-zinc-400">Chưa kết nối</span>
+          </div>
+
+          <!-- Tier 1: 1-Click Fast Connect (Recommended) -->
+          <div class="mt-3.5">
+            <button id="microsoft-connect" type="button" class="group relative flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-3.5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-sky-500/20 transition-all duration-200 hover:from-sky-500 hover:to-blue-500 active:scale-[0.99]">
+              <span>⚡ Đăng nhập 1-Chạm (Khuyên dùng)</span>
+            </button>
+            <p class="mt-1 text-center text-[10px] text-zinc-500">Tự động kết nối OneDrive an toàn qua MSAL.js PKCE (Multi-Tenant Common)</p>
+          </div>
+
+          <!-- Tier 2: Instant Token Paste for DAP / Android -->
+          <div class="mt-3.5 rounded-xl border border-white/10 bg-black/25 p-3">
+            <div class="flex items-center justify-between">
+              <label for="microsoft-token-direct" class="flex items-center gap-1.5 text-[10px] font-medium text-sky-300">
+                <span>🔑 Dán Token Siêu Tốc (Dành cho DAP FiiO / Android)</span>
+              </label>
+              <button id="microsoft-paste-btn" type="button" class="inline-flex items-center gap-1 text-[10px] font-medium text-sky-400 hover:text-sky-200 transition">
+                <span>📋</span> Dán từ clipboard
+              </button>
+            </div>
+            <button id="microsoft-fast-token-btn" type="button" class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-sky-400/30 bg-sky-500/15 px-3 py-2 text-xs font-medium text-sky-200 transition hover:bg-sky-500/25 active:scale-[0.99]">
+              <span>⚡</span> Lấy Access Token siêu tốc (Mở Graph Explorer)
+            </button>
+            <input id="microsoft-token-direct" autocomplete="off" class="mt-1.5 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs font-mono text-zinc-200 outline-none transition focus:border-sky-400/60 focus:ring-1 focus:ring-sky-400/30" placeholder="EwB... (Graph Access Token hoặc dán cả chuỗi Bearer)">
+            <button id="microsoft-token-connect" type="button" class="mt-2 w-full rounded-lg border border-sky-400/40 bg-sky-500/20 px-3 py-2 text-xs font-medium text-sky-200 hover:bg-sky-500/30 transition active:scale-[0.99]">
+              Kết nối OneDrive bằng Token
+            </button>
+            <div class="mt-1.5 text-[10px] text-zinc-500">
+              Lấy token tại: <a href="https://developer.microsoft.com/en-us/graph/graph-explorer" target="_blank" rel="noopener" class="text-sky-400 hover:underline">Microsoft Graph Explorer</a> (quyền Files.Read)
+            </div>
+          </div>
+
+          <!-- Tier 3: Custom Client ID Override (Advanced) -->
+          <details class="mt-3 rounded-lg border border-white/5 bg-white/[0.015] p-2.5 group">
+            <summary class="cursor-pointer text-[10px] font-medium text-zinc-400 hover:text-zinc-200 transition list-none flex items-center justify-between select-none">
+              <span class="flex items-center gap-1.5">
+                <span>⚙ Cấu hình Client ID tự tạo (Nâng cao)</span>
+              </span>
+              <span class="text-[9px] text-zinc-500 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div class="mt-2.5 space-y-2 border-t border-white/5 pt-2">
+              <label class="block text-[10px] text-zinc-400">
+                Microsoft Application (client) ID tùy chỉnh
+                <input id="microsoft-client-id" autocomplete="off" class="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-mono outline-none focus:border-sky-400/50" placeholder="Mặc định: Built-in MSAL Multi-Tenant ID hoặc xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+              </label>
+              <p class="text-[10px] leading-4 text-zinc-500">1. Đăng nhập 1-chạm: Nhấn "⚡ Đăng nhập 1-Chạm" (hoặc "⊞ Đăng nhập OneDrive" ở sidebar) để kết nối ngay với Client ID tích hợp sẵn.<br>2. Nếu dùng trên FiiO M11S / Android DAP: Nhấn "⚡ Lấy Access Token siêu tốc" để mở Graph Explorer, lấy Access Token rồi nhấn "📋 Dán từ clipboard" và "Kết nối".<br>3. Tùy chỉnh: Đăng ký app trong Microsoft Entra (Azure AD), thêm nền tảng SPA và cấp quyền Files.Read nếu muốn dùng Application ID riêng.</p>
+            </div>
+          </details>
+        </section>
+      </div>
+      <section class="rounded-2xl border border-violet-500/20 bg-violet-500/[.03] p-4 md:col-span-2">
           <div class="flex items-center justify-between"><h3 class="text-sm font-medium text-violet-200">Subsonic / Navidrome (OpenSubsonic)</h3><span id="subsonic-status" class="text-[10px] text-zinc-500">Chưa kết nối</span></div>
           <p class="mt-1 text-[10px] leading-4 text-zinc-400">Kết nối máy chủ nhạc cá nhân (Navidrome, Gonic, LMS, Subsonic) qua chuẩn REST API. Không truyền dữ liệu qua bên thứ ba.</p>
           <div class="mt-3 grid gap-3 sm:grid-cols-3">
@@ -9981,11 +10085,23 @@
       }).catch(error => { googleScriptPromise = null; throw error; });
       return googleScriptPromise;
     }
+    const DEFAULT_GOOGLE_CLIENT_ID = '1082697841525-k8m18a2j6ovd2mfrkvd7j9a0o2i1b08g.apps.googleusercontent.com';
+    const GOOGLE_AUTH_FALLBACK_URL = 'https://developers.google.com/oauthplayground/#step1&scopes=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.readonly';
+
+    function openExternalAuth(url) {
+      if (window.NocturneNative?.openAuthInBrowser) {
+        window.NocturneNative.openAuthInBrowser(url);
+      } else {
+        const win = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!win) location.href = url;
+      }
+    }
+
     loadGoogleScript().catch(error => console.info('Google Identity Services unavailable until requested:', error.message || error));
     function requestGoogleToken({clientId = '', prompt = ''} = {}) {
       if (!window.isSecureContext) throw new Error('Google OAuth chỉ hoạt động trên HTTPS hoặc localhost. Hãy mở website bằng địa chỉ HTTPS; không dùng file:// hoặc địa chỉ IP không bảo mật.');
       const savedConfig = library.parseCloudConfig(localStorage.getItem('nocturne-google'));
-      const effectiveClientId = clientId || savedConfig.clientId;
+      const effectiveClientId = clientId || savedConfig.clientId || DEFAULT_GOOGLE_CLIENT_ID;
       if (!effectiveClientId) throw new Error('Vui lòng nhập Google OAuth 2.0 Client ID.');
       if (!window.google?.accounts?.oauth2) {
         loadGoogleScript().catch(error => console.warn('Could not load Google Identity Services:', error));
@@ -10003,6 +10119,7 @@
               if (!result || result.error || !result.access_token) return finish(reject, new Error(result?.error_description || result?.error || 'Google không trả về access token.'));
               state.googleToken = result.access_token;
               state.googleExpiresAt = Date.now() + (Number(result.expires_in) || 3600) * 1000;
+              try { localStorage.setItem('nocturne-google-token', state.googleToken); } catch (_) {}
               finish(resolve, state.googleToken);
             },
             error_callback: error => finish(reject, new Error(error?.message || `Không mở được cửa sổ OAuth của Google (${error?.type || 'lỗi popup'}). Cho phép popup cho website này rồi nhấn kết nối lại.`))
@@ -10015,12 +10132,17 @@
       if (state.googleToken && Date.now() < state.googleExpiresAt - 60000) return state.googleToken;
       throw new Error('Phiên Google Drive đã hết hạn. Nhấn “Tiếp tục với Google” để kết nối lại.');
     }
-    async function connectGoogle() {
-      const clientId = $('google-client-id').value.trim();
+    async function connectGoogle(overrideClientId) {
+      const savedConfig = library.parseCloudConfig(localStorage.getItem('nocturne-google'));
+      const inputVal = $('google-client-id')?.value?.trim();
+      const clientId = overrideClientId || inputVal || savedConfig.clientId || DEFAULT_GOOGLE_CLIENT_ID;
       if (!clientId) throw new Error('Nhập Google OAuth 2.0 Client ID trước.');
       if (!/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) { cloudStatus('google', 'Client ID không hợp lệ', 'text-rose-300'); throw new Error('Client ID không hợp lệ. Hãy dán ID kết thúc bằng .apps.googleusercontent.com (không phải API key).'); }
       if (!window.isSecureContext) { cloudStatus('google', 'Cần HTTPS hoặc localhost', 'text-rose-300'); throw new Error('Google OAuth chỉ hoạt động trên HTTPS hoặc localhost. Hãy mở website bằng địa chỉ HTTPS.'); }
       localStorage.setItem('nocturne-google', JSON.stringify({clientId}));
+      if ($('google-client-id') && $('google-client-id').value !== clientId) {
+        $('google-client-id').value = clientId;
+      }
       cloudStatus('google', 'Đang mở đăng nhập Google…', 'text-sky-300');
       try {
         if (!window.google?.accounts?.oauth2) {
@@ -10032,6 +10154,10 @@
         cloudStatus('google', 'Đã đồng bộ Google Drive', 'text-emerald-300');
       } catch (error) {
         cloudStatus('google', 'Google Drive · cần thử lại', 'text-amber-300');
+        const errText = String(error?.message || error || '').toLowerCase();
+        if (errText.includes('popup') || errText.includes('disallowed_useragent') || errText.includes('blocked') || window.isNativeAndroid) {
+          toast('Nếu gặp lỗi popup hoặc WebView (403), hãy dùng nút "⚡ Lấy Access Token siêu tốc" bên dưới!');
+        }
         throw error;
       }
     }
@@ -10127,10 +10253,27 @@
       await fetchCloudTrack(track, url, {headers:{Authorization:`Bearer ${token}`}}, 'Google Drive');
     }
 
+    const DEFAULT_MICROSOFT_CLIENT_ID = '9bb02422-a9b0-4592-8077-8c3aa2796e95';
+    function getMicrosoftClientId() {
+      const config = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
+      if (config.clientId && typeof config.clientId === 'string' && config.clientId.trim()) {
+        return config.clientId.trim();
+      }
+      const customInput = ($('microsoft-client-id')?.value || '').trim();
+      if (customInput) return customInput;
+      return DEFAULT_MICROSOFT_CLIENT_ID;
+    }
+
     async function connectMicrosoft() {
-      const clientId = $('microsoft-client-id').value.trim();
-      if (!clientId) throw new Error('Đăng nhập lần đầu: nhập Microsoft Client ID ở ô phía trên trước nhé.');
-      localStorage.setItem('nocturne-microsoft', JSON.stringify({clientId}));
+      const customInput = ($('microsoft-client-id')?.value || '').trim();
+      const config = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
+      const clientId = customInput || config.clientId || DEFAULT_MICROSOFT_CLIENT_ID;
+      if (customInput) {
+        localStorage.setItem('nocturne-microsoft', JSON.stringify({clientId: customInput}));
+      }
+      if ($('microsoft-client-id') && !$('microsoft-client-id').value) {
+        $('microsoft-client-id').value = clientId;
+      }
       if (!window.msal) throw new Error('Không tải được MSAL.js. Kiểm tra kết nối mạng và tải lại trang.');
       state.msal = null; state.msAccount = null;
       state.microsoftAccessToken = await getMicrosoftToken(true);
@@ -10139,12 +10282,30 @@
     }
     async function restoreMicrosoftSession() {
       const config = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
-      if (!config.clientId || !window.msal) return false;
+      const clientId = config.clientId || DEFAULT_MICROSOFT_CLIENT_ID;
+      const savedToken = (localStorage.getItem('nocturne-microsoft-token') || '').trim();
+      if (!window.msal && !savedToken) return false;
       try {
-        const token = await getMicrosoftToken(false);
-        await loadMicrosoftFiles(token);
-        cloudStatus('microsoft', 'OneDrive đã kết nối', 'text-emerald-300');
-        return true;
+        if (window.msal) {
+          if (!state.msal) {
+            state.msal = new msal.PublicClientApplication({auth:{clientId, authority:'https://login.microsoftonline.com/common', redirectUri:location.origin + location.pathname}, cache:{cacheLocation:'localStorage', storeAuthStateInCookie:false}});
+            await state.msal.initialize();
+            state.msAccount = state.msal.getAllAccounts()[0] || null;
+          }
+          if (state.msAccount) {
+            const token = await getMicrosoftToken(false);
+            await loadMicrosoftFiles(token);
+            cloudStatus('microsoft', 'OneDrive đã kết nối', 'text-emerald-300');
+            return true;
+          }
+        }
+        if (savedToken) {
+          state.microsoftAccessToken = savedToken;
+          await loadMicrosoftFiles(savedToken);
+          cloudStatus('microsoft', 'OneDrive đã kết nối', 'text-emerald-300');
+          return true;
+        }
+        return false;
       } catch (error) {
         console.info('OneDrive session needs interactive sign-in:', error.message || error);
         cloudStatus('microsoft', 'OneDrive · cần đăng nhập lại', 'text-amber-300');
@@ -10164,8 +10325,8 @@
     async function getMicrosoftToken(interactive = false) {
       if (!state.msal) {
         const config = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
-        if (!config.clientId) throw new Error('Vui lòng nhập Application (client) ID.');
-        state.msal = new msal.PublicClientApplication({auth:{clientId:config.clientId, authority:'https://login.microsoftonline.com/common', redirectUri:location.origin + location.pathname}, cache:{cacheLocation:'localStorage', storeAuthStateInCookie:false}});
+        const clientId = config.clientId || ($('microsoft-client-id')?.value || '').trim() || DEFAULT_MICROSOFT_CLIENT_ID;
+        state.msal = new msal.PublicClientApplication({auth:{clientId, authority:'https://login.microsoftonline.com/common', redirectUri:location.origin + location.pathname}, cache:{cacheLocation:'localStorage', storeAuthStateInCookie:false}});
         await state.msal.initialize();
         state.msAccount = state.msal.getAllAccounts()[0] || null;
       }
@@ -10177,10 +10338,12 @@
       try {
         const result = await state.msal.acquireTokenSilent({scopes:['Files.Read'], account:state.msAccount});
         state.microsoftAccessToken = result.accessToken;
+        if (result.expiresOn) state.microsoftExpiresAt = result.expiresOn.getTime();
       } catch (error) {
         if (!(error instanceof msal.InteractionRequiredAuthError) || !interactive) throw error;
         const result = await state.msal.acquireTokenPopup({scopes:['Files.Read'], account:state.msAccount});
         state.microsoftAccessToken = result.accessToken;
+        if (result.expiresOn) state.microsoftExpiresAt = result.expiresOn.getTime();
       }
       return state.microsoftAccessToken;
     }
@@ -10358,8 +10521,8 @@
       }
     }
     $('sidebar-toggle')?.addEventListener('click', () => setSidebarOpen(!sidebarIsOpen()));
-    $('sidebar-close')?.addEventListener('click', () => setSidebarOpen(false));
-    $('sidebar-backdrop')?.addEventListener('click', () => setSidebarOpen(false));
+    $('sidebar-close').addEventListener('click', () => setSidebarOpen(false));
+    $('sidebar-backdrop').addEventListener('click', () => setSidebarOpen(false));
     window.addEventListener('resize', () => {
       const isHidden = !sidebarIsOpen() || !isMobileViewport();
       const backdrop = $('sidebar-backdrop');
@@ -10981,18 +11144,47 @@
     ['google-client-id','microsoft-client-id'].forEach(id => $(id).addEventListener('input', () => { if ($('settings-error').classList.contains('hidden')) return; $('settings-error').classList.add('hidden'); }));
     $('google-quick-connect').addEventListener('click', () => runCloudLogin(async () => {
       const config = library.parseCloudConfig(localStorage.getItem('nocturne-google'));
-      if (!config.clientId) { showSettings(); $('google-client-id').focus(); throw new Error('Đăng nhập lần đầu? Dán Google Client ID vào phần Google Drive.'); }
-      $('google-client-id').value = config.clientId;
-      await connectGoogle();
+      const effectiveClientId = config.clientId || $('google-client-id')?.value.trim() || DEFAULT_GOOGLE_CLIENT_ID;
+      if ($('google-client-id') && !$('google-client-id').value) {
+        $('google-client-id').value = effectiveClientId;
+      }
+      try {
+        await connectGoogle(effectiveClientId);
+      } catch (error) {
+        console.info('Google 1-click fallback guidance:', error);
+        showSettings();
+        $('settings-error')?.classList.add('hidden');
+        toast('Nếu DAP hoặc trình duyệt chặn popup, hãy chọn [🔑 Dán Token Siêu Tốc] bên dưới');
+      }
     }));
     $('microsoft-quick-connect').addEventListener('click', () => runCloudLogin(async () => {
       const config = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
-      if (!config.clientId) { showSettings(); $('microsoft-client-id').focus(); throw new Error('Đăng nhập lần đầu? Dán Microsoft Client ID vào phần OneDrive.'); }
-      $('microsoft-client-id').value = config.clientId;
-      await connectMicrosoftAndHandleAuth();
+      const activeClientId = config.clientId || $('microsoft-client-id')?.value.trim() || DEFAULT_MICROSOFT_CLIENT_ID;
+      if ($('microsoft-client-id') && !$('microsoft-client-id').value) {
+        $('microsoft-client-id').value = activeClientId;
+      }
+      try {
+        await connectMicrosoftAndHandleAuth();
+      } catch (error) {
+        console.info('OneDrive 1-click fallback guidance:', error);
+        showSettings();
+        $('settings-error')?.classList.add('hidden');
+        toast('Nếu DAP hoặc trình duyệt chặn popup, hãy chọn [🔑 Dán Token Siêu Tốc] bên dưới');
+      }
     }));
     $('google-token-connect')?.addEventListener('click', () => runCloudLogin(async () => {
-      const token = ($('google-token-direct')?.value || '').trim();
+      let rawToken = ($('google-token-direct')?.value || '').trim();
+      if (!rawToken && navigator.clipboard?.readText) {
+        try {
+          const clip = (await navigator.clipboard.readText() || '').trim();
+          if (clip.startsWith('ya29.') || clip.toLowerCase().startsWith('bearer ya29.')) {
+            rawToken = clip;
+            if ($('google-token-direct')) $('google-token-direct').value = rawToken;
+          }
+        } catch (_) {}
+      }
+      let token = rawToken.trim();
+      token = token.replace(/^Bearer\s+/i, '').trim();
       if (!token) throw new Error('Vui lòng dán Access Token Google Drive trước');
       state.googleToken = token;
       state.googleExpiresAt = Date.now() + 3600 * 1000;
@@ -11002,23 +11194,21 @@
       cloudStatus('google', 'Đã đồng bộ Google Drive', 'text-emerald-300');
       toast('Đã kết nối thành công Google Drive qua Access Token!');
     }));
-    $('microsoft-token-connect')?.addEventListener('click', () => runCloudLogin(async () => {
-      const token = ($('microsoft-token-direct')?.value || '').trim();
-      if (!token) throw new Error('Vui lòng dán Access Token OneDrive trước');
-      state.microsoftAccessToken = token;
-      try { localStorage.setItem('nocturne-microsoft-token', token); } catch (_) {}
-      cloudStatus('microsoft', 'Đang quét OneDrive bằng token…', 'text-sky-300');
-      await loadMicrosoftFiles(token);
-      cloudStatus('microsoft', 'OneDrive đã đồng bộ', 'text-emerald-300');
-      toast('Đã kết nối thành công OneDrive qua Access Token!');
-    }));
+    $('google-fast-token-btn')?.addEventListener('click', () => {
+      openExternalAuth(GOOGLE_AUTH_FALLBACK_URL);
+      toast('Đang mở trình duyệt ngoài để lấy Google Token. Sau khi copy, quay lại đây và nhấn "📋 Dán từ clipboard"!');
+    });
     $('google-paste-btn')?.addEventListener('click', async () => {
       try {
         if (navigator.clipboard && navigator.clipboard.readText) {
           const text = await navigator.clipboard.readText();
-          if (text && $('google-token-direct')) {
-            $('google-token-direct').value = text.trim();
+          const cleanText = (text || '').trim().replace(/^Bearer\s+/i, '');
+          if (cleanText && $('google-token-direct')) {
+            $('google-token-direct').value = cleanText;
             toast('Đã dán token Google Drive từ bộ nhớ tạm!');
+            if (cleanText.startsWith('ya29.')) {
+              cloudStatus('google', 'Token sẵn sàng · Nhấn kết nối', 'text-sky-300');
+            }
           }
         } else {
           toast('Hãy chạm giữ vào ô nhập để dán token.');
@@ -11027,13 +11217,37 @@
         toast('Hãy chạm giữ vào ô nhập để dán token.');
       }
     });
+    $('microsoft-token-connect')?.addEventListener('click', () => runCloudLogin(async () => {
+      let rawToken = ($('microsoft-token-direct')?.value || '').trim();
+      if (!rawToken && navigator.clipboard?.readText) {
+        try {
+          const clip = (await navigator.clipboard.readText() || '').trim();
+          if (clip) {
+            rawToken = clip;
+            if ($('microsoft-token-direct')) $('microsoft-token-direct').value = rawToken;
+          }
+        } catch (_) {}
+      }
+      let token = rawToken.trim();
+      token = token.replace(/^Bearer\s+/i, '').trim();
+      if (!token) throw new Error('Vui lòng dán Access Token OneDrive trước');
+      state.microsoftAccessToken = token;
+      state.microsoftExpiresAt = Date.now() + 3600 * 1000;
+      try { localStorage.setItem('nocturne-microsoft-token', token); } catch (_) {}
+      cloudStatus('microsoft', 'Đang quét OneDrive bằng token…', 'text-sky-300');
+      await loadMicrosoftFiles(token);
+      cloudStatus('microsoft', 'OneDrive đã đồng bộ', 'text-emerald-300');
+      toast('Đã kết nối thành công OneDrive qua Access Token!');
+    }));
     $('microsoft-paste-btn')?.addEventListener('click', async () => {
       try {
         if (navigator.clipboard && navigator.clipboard.readText) {
           const text = await navigator.clipboard.readText();
-          if (text && $('microsoft-token-direct')) {
-            $('microsoft-token-direct').value = text.trim();
+          const cleanToken = (text || '').trim().replace(/^Bearer\s+/i, '');
+          if (cleanToken && $('microsoft-token-direct')) {
+            $('microsoft-token-direct').value = cleanToken;
             toast('Đã dán token OneDrive từ bộ nhớ tạm!');
+            cloudStatus('microsoft', 'Token sẵn sàng · Nhấn kết nối', 'text-sky-300');
           }
         } else {
           toast('Hãy chạm giữ vào ô nhập để dán token.');
@@ -11041,6 +11255,10 @@
       } catch (_) {
         toast('Hãy chạm giữ vào ô nhập để dán token.');
       }
+    });
+    $('microsoft-fast-token-btn')?.addEventListener('click', () => {
+      window.open('https://developer.microsoft.com/en-us/graph/graph-explorer', '_blank', 'noopener,noreferrer');
+      toast('Đang mở Microsoft Graph Explorer. Đăng nhập và copy Access Token rồi dán vào ô bên dưới!');
     });
     $('play-url').addEventListener('click', () => {
       const url = $('direct-url').value.trim();
@@ -12638,7 +12856,7 @@
       col.scrollTop = Math.max(0, state.viewScroll[state.activeView] || 0);
     }
     function setLibraryView(view) {
-      if (view === 'folders') { pickFolder(); if (isMobileViewport()) setSidebarOpen(false); return; }
+      if (view === 'folders') { pickFolder(); if (typeof isMobileViewport === 'function' && isMobileViewport()) setSidebarOpen(false); return; }
       saveViewScroll();
       const supported = ['home','albums','artists','songs','genres','history'];
       state.activeView = supported.includes(view) ? view : 'albums';
@@ -12648,7 +12866,7 @@
       state.groupBy = 'none';
       if (state.activeView === 'history' && !state.recentHistory.length) readHistory();
       renderTracks();
-      if (isMobileViewport()) setSidebarOpen(false);
+      if (typeof isMobileViewport === 'function' && isMobileViewport()) setSidebarOpen(false);
       restoreViewScroll();
     }
     document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => setLibraryView(button.dataset.view)));
@@ -13601,8 +13819,8 @@
       $('microsoft-client-id').value = microsoftConfig.clientId || '';
       const savedMsToken = localStorage.getItem('nocturne-microsoft-token');
       if (savedMsToken && $('microsoft-token-direct')) $('microsoft-token-direct').value = savedMsToken;
-      if (googleConfig.clientId || savedGoogleToken) { $('google-state').textContent = 'Sẵn sàng kết nối'; $('cloud-status').textContent = 'Google Drive · sẵn sàng'; }
-      if (microsoftConfig.clientId || savedMsToken) { $('microsoft-state').textContent = 'Sẵn sàng kết nối'; $('cloud-status').textContent = (googleConfig.clientId || savedGoogleToken) ? 'Google Drive / OneDrive · sẵn sàng' : 'OneDrive · sẵn sàng'; }
+      if (googleConfig.clientId || savedGoogleToken || DEFAULT_GOOGLE_CLIENT_ID) { $('google-state').textContent = googleConfig.clientId ? 'Client ID riêng · sẵn sàng' : 'Sẵn sàng kết nối'; $('cloud-status').textContent = 'Google Drive · sẵn sàng'; }
+      if (microsoftConfig.clientId || savedMsToken) { $('microsoft-state').textContent = 'Sẵn sàng kết nối'; $('cloud-status').textContent = (googleConfig.clientId || savedGoogleToken || DEFAULT_GOOGLE_CLIENT_ID) ? 'Google Drive / OneDrive · sẵn sàng' : 'OneDrive · sẵn sàng'; }
     } catch (error) { console.warn('Could not load saved cloud configuration:', error); }
     try {
       const savedSubsonic = localStorage.getItem('nocturne-subsonic-config');
