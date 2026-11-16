@@ -67,10 +67,10 @@ test('6. virtual-scroll.js Mobile & DAP Window Scroll Binding', () => {
   assert.ok(code.includes('this._scrollTarget = window;'), 'virtual-scroll must bind scrollTarget to window on mobile/DAP');
 });
 
-test('7. App Version Bump for Release v2.0.4', () => {
+test('7. App Version Bump for Release v2.0.5', () => {
   const gradle = fs.readFileSync(BUILD_GRADLE_PATH, 'utf8');
-  assert.ok(gradle.includes('versionCode = 14') || gradle.includes('versionCode = 13'), 'versionCode must be >= 13');
-  assert.ok(gradle.includes('versionName = "2.0.4"') || gradle.includes('versionName = "2.0.3"'), 'versionName must be >= 2.0.3');
+  assert.ok(gradle.includes('versionCode = 15') || gradle.includes('versionCode = 14') || gradle.includes('versionCode = 13'), 'versionCode must be >= 13');
+  assert.ok(gradle.includes('versionName = "2.0.5"') || gradle.includes('versionName = "2.0.4"') || gradle.includes('versionName = "2.0.3"'), 'versionName must be >= 2.0.3');
 });
 
 test('8. CRITICAL AUDIO GRAPH INVARIANT PRESERVATION', () => {
