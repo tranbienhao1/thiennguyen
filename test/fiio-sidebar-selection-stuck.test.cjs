@@ -67,10 +67,10 @@ test('6. virtual-scroll.js Mobile & DAP Window Scroll Binding', () => {
   assert.ok(code.includes('this._scrollTarget = window;'), 'virtual-scroll must bind scrollTarget to window on mobile/DAP');
 });
 
-test('7. App Version Bump for Release v2.0.2', () => {
+test('7. App Version Bump for Release v2.0.3', () => {
   const gradle = fs.readFileSync(BUILD_GRADLE_PATH, 'utf8');
-  assert.ok(gradle.includes('versionCode = 12'), 'versionCode must be bumped to 12');
-  assert.ok(gradle.includes('versionName = "2.0.2"'), 'versionName must be bumped to 2.0.2');
+  assert.ok(gradle.includes('versionCode = 13'), 'versionCode must be bumped to 13');
+  assert.ok(gradle.includes('versionName = "2.0.3"'), 'versionName must be bumped to 2.0.3');
 });
 
 test('8. CRITICAL AUDIO GRAPH INVARIANT PRESERVATION', () => {
@@ -85,4 +85,16 @@ test('9. Fast-Tap Direct Activation & Focus Outline Elimination for FiiO Touchsc
   assert.ok(html.includes('-webkit-tap-highlight-color: transparent !important'), 'CSS must disable webkit tap highlight color');
   assert.ok(html.includes('touchStartPos'), 'index.html must implement Fast-Tap touchStartPos tracking');
   assert.ok(html.includes('interactiveEl.click()'), 'Fast-Tap touchend listener must trigger interactiveEl.click() directly on tap');
+});
+
+test('10. Cache Busting & Service Worker Bypass for Native Android & FiiO M11S', () => {
+  const mainAct = fs.readFileSync(MAIN_ACTIVITY_PATH, 'utf8');
+  assert.ok(mainAct.includes('settings.setCacheMode(WebSettings.LOAD_NO_CACHE);'), 'MainActivity must disable disk HTTP caching');
+  assert.ok(mainAct.includes('mWebView.clearCache(true);'), 'MainActivity must clear WebView cache on startup');
+  assert.ok(mainAct.includes('caches.delete(k)'), 'Bridge must delete lingering CacheStorage');
+  assert.ok(mainAct.includes('r.unregister()'), 'Bridge must unregister lingering ServiceWorkers');
+
+  const html = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
+  assert.ok(html.includes('const isNative = typeof window !== \'undefined\' && (window.isNativeAndroid || window.NocturneNative || location.hostname === \'appassets.androidplatform.net\');'), 'index.html must detect native Android in registerServiceWorker');
+  assert.ok(html.includes('#autoeq-modal.hidden, #autoeq-modal[hidden]'), 'CSS must prevent autoeq-modal overlay trapping touches');
 });

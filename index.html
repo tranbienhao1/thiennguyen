@@ -55,9 +55,13 @@
     #metadata-modal.hidden, #metadata-modal[hidden],
     #listening-room.hidden, #listening-room[hidden],
     #roon-fullscreen-view.hidden, #roon-fullscreen-view[hidden],
+    #autoeq-modal.hidden, #autoeq-modal[hidden],
+    #command-palette-modal.hidden, #command-palette-modal[hidden],
     #settings-error.hidden,
     #drop-target.hidden {
       display: none !important;
+      pointer-events: none !important;
+      visibility: hidden !important;
     }
     #sidebar-backdrop.hidden, #sidebar-backdrop[hidden] {
       display: none !important;
@@ -2446,7 +2450,7 @@
   </div>
 
   <!-- Global Spotlight Command Palette (Ctrl+K, Cmd+K, /) -->
-  <div id="command-palette-modal" class="fixed inset-0 z-[90] hidden place-items-start justify-center bg-black/75 p-4 pt-16 sm:pt-24 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="palette-input">
+  <div id="command-palette-modal" class="fixed inset-0 z-[90] hidden place-items-start justify-center bg-black/75 p-4 pt-16 sm:pt-24 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="palette-input" hidden>
     <div class="w-full max-w-xl rounded-2xl border border-white/15 bg-zinc-900/95 shadow-2xl backdrop-blur-2xl overflow-hidden flex flex-col max-h-[80vh] transition-all">
       <div class="flex items-center gap-3 border-b border-white/10 px-4 py-3 bg-zinc-950/60">
         <span class="text-zinc-400 text-base">🔍</span>
@@ -10376,23 +10380,26 @@
         '#google-quick-connect, #microsoft-quick-connect, #open-settings-sidebar, #sidebar-more, #settings-trigger'
       );
       if (navItem && isMobileViewport()) {
-        setSidebarOpen(false);
+        setTimeout(() => setSidebarOpen(false), 50);
       }
     });
-    document.querySelectorAll('.source-btn').forEach(button => button.addEventListener('click', () => { if (isMobileViewport()) setSidebarOpen(false); }));
+    document.querySelectorAll('.source-btn').forEach(button => button.addEventListener('click', () => { if (isMobileViewport()) setTimeout(() => setSidebarOpen(false), 50); }));
     setSidebarOpen(!isMobileViewport());
 
     // Fast-tap direct activation for Android DAP & touchscreens
     // Bypasses Android WebView's focus/hover emulation delay (300ms) and double-tap requirement
     let touchStartPos = null;
     let touchStartTime = 0;
+    let touchStartTarget = null;
 
     document.addEventListener('touchstart', (e) => {
       if (e.touches && e.touches.length === 1) {
         touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
         touchStartTime = Date.now();
+        touchStartTarget = e.target;
       } else {
         touchStartPos = null;
+        touchStartTarget = null;
       }
     }, { passive: true });
 
@@ -10402,12 +10409,14 @@
       const dx = Math.abs(touch.clientX - touchStartPos.x);
       const dy = Math.abs(touch.clientY - touchStartPos.y);
       const dt = Date.now() - touchStartTime;
+      const initialTarget = touchStartTarget;
       touchStartPos = null;
+      touchStartTarget = null;
 
-      // Only handle clean taps (minimal movement < 12px, quick duration < 350ms)
-      if (dx < 12 && dy < 12 && dt < 350) {
-        const target = document.elementFromPoint(touch.clientX, touch.clientY);
-        const interactiveEl = target?.closest(
+      // Only handle clean taps (movement < 24px, duration < 500ms)
+      if (dx < 24 && dy < 24 && dt < 500) {
+        const target = initialTarget || e.target;
+        const interactiveEl = target?.closest?.(
           'button, a, .nav-link, .source-btn, .roon-stat, [data-view], [data-smart-playlist], ' +
           '[data-view-link], .star, [data-rating], #sidebar-close, #sidebar-toggle'
         );
@@ -14292,9 +14301,24 @@
   })();
   </script>
   <script>
-    // Đăng ký service worker để dùng offline: chỉ chạy trên HTTPS/localhost,
-    // lỗi đăng ký không bao giờ được làm hỏng app.
+    // Đăng ký service worker để dùng offline: chỉ chạy trên HTTPS/localhost cho trình duyệt Web/PWA.
+    // Đối với ứng dụng Native Android / FiiO M11S, tài nguyên đã nhúng trực tiếp trong APK (WebViewAssetLoader);
+    // chặn Service Worker và xóa sạch CacheStorage để ngăn chặn hoàn toàn hiện tượng kẹt cache khi cập nhật APK.
     (function registerServiceWorker() {
+      const isNative = typeof window !== 'undefined' && (window.isNativeAndroid || window.NocturneNative || location.hostname === 'appassets.androidplatform.net');
+      if (isNative) {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(regs => {
+            regs.forEach(r => r.unregister());
+          }).catch(() => {});
+        }
+        if (typeof caches !== 'undefined') {
+          caches.keys().then(keys => {
+            keys.forEach(k => caches.delete(k));
+          }).catch(() => {});
+        }
+        return;
+      }
       if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
       if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
       window.addEventListener('load', () => {
@@ -14464,7 +14488,7 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 20:00 +07 | Đã xong: Pha C - Nâng Cấp Đồng Bộ Ảnh Bài Hát Tức Thì & Khắc Phục Lỗi Giao Diện Theo Video / Ảnh Thực Tế (Instant Song Art Synchronization & Video-Reported Bug Fixes): (1) Nâng cấp đồng bộ ảnh bài hát tốc độ tức thì: instantResolveTrackCover (5 tầng fallback <1ms), instantPropagateCovers lan truyền O(N) bộ nhớ, broadcastCoverUpdate cập nhật trực tiếp DOM tất cả bề mặt UI bằng requestAnimationFrame không cần reload trang; (2) Sửa nút #fullscreen-play-btn ủy quyền $('play-button').click() đầy đủ AudioContext.resume() và đồng bộ icon ▶/⏸ hai chiều; (3) Khắc phục Sân khấu 3D Toàn màn hình (Goniometer 3D, Radar 3D, VU Meter) tiếp tục chạy vòng lặp và kết xuất trạng thái standby/idle mượt mà khi audio tạm dừng, không bị tối đen canvas; nạp dữ liệu time-domain thực tế; (4) Phông nền mờ ảo #fullscreen-bg-cover & #fullscreen-ambient-glow chuẩn hóa CSS filter blur 48px saturate 1.4 brightness 0.85 scale 1.18 rực rỡ và mềm mại; (5) Triệt tiêu hoàn toàn thanh cuộn dọc/ngang ở phần lời bài hát; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 32/32 tests video-reported-bugs.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 20:30 +07 | Đã xong: Pha C - Sửa Lỗi Kẹt Phát Nhạc Khi Kết Nối Server, Di Chuyển Nút EQ & Tối Ưu Kéo Thả Mini Player HUD Mượt 120fps (Server Playback Hang Fix, EQ Relocation & Mini HUD Smooth Dragging): (1) Khắc phục triệt để lỗi kẹt nút Play ở trạng thái "..." và thời gian 0:00/0:00: đồng bộ trường url từ src trong các bộ phân tích parseSubsonicSong, parseJellyfinItem, parseBlackCandySong; fallback track.url = track.url || track.src trong playTrack; bổ sung bộ đếm an toàn safety timer tự động giải phóng loading pulse sau 5s; gắn event listeners error/stalled/abort trên audio element khôi phục ngay trạng thái ▶ khi gặp sự cố; (2) Dời nút EQ (#eq-button) từ cụm công cụ bên phải sang vị trí thông thoáng, nổi bật tại .footer-left-col ngay cạnh tên bài hát và nút yêu thích; bổ sung shortcut #header-eq-btn trên thanh header; thiết lập pointer-events: none cho .footer-center-controls và pointer-events: auto cho các nút con, loại bỏ hoàn toàn hiện tượng che khuất nút bấm; (3) Tối ưu kéo thả Mini Player HUD (#mini-player-hud): loại bỏ transition-all khi drag bằng class is-dragging và transition: none, lưu cache kích thước offset dimensions tránh layout thrashing, điều phối vị trí bằng requestAnimationFrame và hỗ trợ cảm ứng touch mượt mà 120fps; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests eq-relocate-minihud-smooth.test.cjs PASS 100%, 1139/1139 toàn bộ test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
   <!-- AutoEQ Headphone Profile Selection Modal -->
-  <div id="autoeq-modal" class="fixed inset-0 z-[130] hidden flex items-center justify-center bg-black/80 backdrop-blur-md p-4" role="dialog" aria-modal="true" aria-labelledby="autoeq-modal-title">
+  <div id="autoeq-modal" class="fixed inset-0 z-[130] hidden flex items-center justify-center bg-black/80 backdrop-blur-md p-4" role="dialog" aria-modal="true" aria-labelledby="autoeq-modal-title" hidden>
     <div class="relative w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl flex flex-col max-h-[85vh]">
       <div class="flex items-center justify-between pb-3 border-b border-white/10">
         <div class="flex items-center gap-2">

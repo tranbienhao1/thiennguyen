@@ -160,6 +160,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         mWebView = findViewById(R.id.web_view);
+        mWebView.clearCache(true);
         mProgressBar = findViewById(R.id.loading_indicator);
 
         // 2. Initialize system services (PowerManager for WakeLock, AudioManager for Audio Focus, MediaSession & Notifications)
@@ -604,13 +605,16 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowFileAccessFromFileURLs(true);
 
         // 8. Cache mode & viewport
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        // Disable HTTP disk caching completely for local bundled assets to prevent stale updates on APK upgrade
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         // Ensure WebView on FiiO M11S (Android 10) matches physical screen dp bounds (360px viewport) without desktop zoom out
         settings.setUseWideViewPort(false);
         settings.setLoadWithOverviewMode(false);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
+        mWebView.setClickable(true);
+        mWebView.setFocusable(true);
 
         // 9. Hardware acceleration & rendering
         mWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
@@ -673,6 +677,12 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     super.onReceivedSslError(view, handler, error);
                 }
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                injectAndroidEnvironmentBridge();
             }
 
             @Override
@@ -812,6 +822,10 @@ public class MainActivity extends AppCompatActivity {
         String js = "window.isNativeAndroid = true;" +
                 "window.androidPlatformInfo = { platform: 'Android', sdk: " + Build.VERSION.SDK_INT +
                 ", isDapCompatible: true, supportsLegacyStorage: " + (Build.VERSION.SDK_INT <= 30) + " };" +
+                "try {" +
+                "  if (window.caches) { caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }); }" +
+                "  if (navigator.serviceWorker) { navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }); }" +
+                "} catch (e) {}" +
                 "if (window.dispatchEvent) { window.dispatchEvent(new CustomEvent('nocturne-native-ready')); }";
         mWebView.evaluateJavascript(js, null);
     }
