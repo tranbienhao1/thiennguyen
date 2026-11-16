@@ -1768,9 +1768,62 @@
     <section class="metadata-dialog flex max-h-[min(88dvh,780px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#191c1e] shadow-2xl">
       <header class="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-7"><div class="min-w-0"><p class="text-[10px] uppercase tracking-[.2em] text-sky-200">Music discovery · MusicBrainz</p><h2 id="metadata-title" class="mt-1 truncate text-lg font-semibold text-white sm:text-xl">Thông tin bài hát</h2><p id="metadata-subtitle" class="mt-1 truncate text-xs text-zinc-400"></p></div><button id="metadata-close" type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[.04] text-xl text-zinc-300 hover:bg-white/10" aria-label="Đóng tra cứu thông tin">×</button></header>
       <div class="metadata-search flex flex-wrap gap-2 px-5 pt-4 sm:px-7"><input id="metadata-query" type="search" class="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white outline-none placeholder:text-zinc-600" placeholder="Tìm tên khác hoặc phiên bản..." aria-label="Tìm metadata"><button id="metadata-search-button" type="button" class="rounded-lg bg-sky-200 px-4 py-2 text-xs font-semibold text-zinc-950 hover:bg-white">Tìm</button></div>
-      <nav id="metadata-tabs" class="flex gap-5 overflow-x-auto border-b border-white/10 px-5 pt-3 sm:px-7" role="tablist" aria-label="Loại thông tin"><button type="button" class="metadata-tab is-active" data-metadata-kind="track" role="tab" aria-selected="true">Bài hát</button><button type="button" class="metadata-tab" data-metadata-kind="album" role="tab" aria-selected="false">Album</button><button type="button" class="metadata-tab" data-metadata-kind="artist" role="tab" aria-selected="false">Nghệ sĩ</button></nav>
+      <nav id="metadata-tabs" class="flex gap-5 overflow-x-auto border-b border-white/10 px-5 pt-3 sm:px-7" role="tablist" aria-label="Loại thông tin"><button type="button" class="metadata-tab is-active" data-metadata-kind="track" role="tab" aria-selected="true">Bài hát</button><button type="button" class="metadata-tab" data-metadata-kind="album" role="tab" aria-selected="false">Album</button><button type="button" class="metadata-tab" data-metadata-kind="artist" role="tab" aria-selected="false">Nghệ sĩ</button><button type="button" id="metadata-tab-annotation" class="metadata-tab" data-metadata-kind="annotation" role="tab" aria-selected="false">Ghi chú (Liner Notes)</button></nav>
       <p id="metadata-status" class="px-5 py-3 text-xs text-zinc-400 sm:px-7" role="status" aria-live="polite">Đang tìm dữ liệu...</p>
-      <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-6 sm:px-7"><div id="metadata-results" class="metadata-results"></div><article id="metadata-detail" class="metadata-detail hidden"></article></div>
+      <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-6 sm:px-7">
+        <div id="metadata-results" class="metadata-results"></div>
+        <article id="metadata-detail" class="metadata-detail hidden"></article>
+        <div id="metadata-annotations-panel" class="hidden space-y-4 pt-3 text-xs">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-medium text-zinc-300 mb-1" for="annotation-rating-input">Đánh giá cá nhân (1 - 5 ★)</label>
+              <select id="annotation-rating-input" class="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-white outline-none focus:border-violet-500">
+                <option value="0">Chưa đánh giá</option>
+                <option value="1">★ 1/5</option>
+                <option value="2">★★ 2/5</option>
+                <option value="3">★★★ 3/5</option>
+                <option value="4">★★★★ 4/5</option>
+                <option value="5">★★★★★ 5/5 (Masterpiece)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-zinc-300 mb-1" for="annotation-score-input">Điểm Audiophile (0 - 100)</label>
+              <input id="annotation-score-input" type="number" min="0" max="100" placeholder="vd: 95" class="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-white outline-none focus:border-violet-500">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-medium text-zinc-300 mb-1" for="annotation-gear-input">Phối ghép Tai nghe / DAC khuyên dùng</label>
+              <input id="annotation-gear-input" type="text" placeholder="vd: Sennheiser HD600 + Schiit Tube Amp" class="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-white outline-none focus:border-violet-500">
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-zinc-300 mb-1" for="annotation-mastering-input">Chi tiết bản thu &amp; Master</label>
+              <input id="annotation-mastering-input" type="text" placeholder="vd: 1982 Japan 1st Pressing 24/96" class="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-white outline-none focus:border-violet-500">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-medium text-zinc-300 mb-1" for="annotation-venue-input">Phòng thu &amp; Năm phát hành</label>
+              <input id="annotation-venue-input" type="text" placeholder="vd: Abbey Road Studios, London · 1969" class="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-white outline-none focus:border-violet-500">
+            </div>
+            <div>
+              <label class="block text-[11px] font-medium text-zinc-300 mb-1" for="annotation-tags-input">Thẻ tâm trạng &amp; Chất âm (cách nhau bởi dấu phẩy)</label>
+              <input id="annotation-tags-input" type="text" placeholder="vd: acoustic, late-night, intimate, warm" class="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-white outline-none focus:border-violet-500">
+            </div>
+          </div>
+          <div>
+            <label class="block text-[11px] font-medium text-zinc-300 mb-1" for="annotation-notes-input">Ghi chú Cảm nhận Âm học &amp; Liner Notes</label>
+            <textarea id="annotation-notes-input" rows="4" placeholder="Nhập cảm nhận chi tiết về không gian âm nhạc, dải động, bản phối hoặc kỷ niệm cá nhân gắn liền với bài hát này..." class="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-white outline-none focus:border-violet-500"></textarea>
+          </div>
+          <div class="flex items-center justify-between pt-2 border-t border-white/10">
+            <button id="annotation-delete-btn" type="button" class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition">Xóa ghi chú</button>
+            <div class="flex items-center gap-2">
+              <span id="annotation-status" class="text-xs text-zinc-400"></span>
+              <button id="annotation-save-btn" type="button" class="rounded-lg bg-violet-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-violet-500 shadow-md transition">Lưu ghi chú 💾</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-5 py-3 text-[10px] text-zinc-500 sm:px-7"><span>Nguồn: <a href="https://musicbrainz.org/" target="_blank" rel="noopener noreferrer">MusicBrainz</a> · <a href="https://musicbrainz.org/doc/About/Data_License" target="_blank" rel="noopener noreferrer">giấy phép dữ liệu</a> · ảnh Cover Art Archive thuộc chủ sở hữu · tiểu sử từ Wikipedia (liên kết nguồn bên dưới).</span><button id="metadata-back" type="button" class="hidden rounded-md border border-white/10 px-3 py-1.5 text-zinc-300 hover:bg-white/5">← Kết quả</button></footer>
     </section>
   </div>
@@ -2163,6 +2216,24 @@
               <button id="zone-picker-btn" type="button" class="shrink-0 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-[11px] font-medium text-purple-200 transition hover:bg-purple-500/20 active:scale-95" aria-label="Đổi vùng phát">Đổi Vùng ▾</button>
             </div>
           </div>
+          <section id="room-liner-notes-card" class="mt-4 rounded-2xl border border-white/[.08] bg-white/[.03] p-4 text-xs" aria-label="Ghi chú bản thu và phối ghép">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-sm">📝</span>
+                <h3 class="font-medium text-zinc-200">Ghi chú Bản thu &amp; Phối ghép (Liner Notes)</h3>
+                <span id="room-liner-score-badge" class="hidden rounded border border-violet-400/30 bg-violet-500/10 px-2 py-0.5 text-[9px] font-mono text-violet-300"></span>
+              </div>
+              <button id="room-edit-liner-notes-btn" type="button" class="rounded-lg border border-white/10 px-2.5 py-1 text-[10px] text-zinc-300 hover:bg-white/10 hover:text-white transition">Chỉnh sửa ✎</button>
+            </div>
+            <div id="room-liner-notes-content" class="mt-2 text-xs leading-5 text-zinc-400 italic">
+              Chưa có ghi chú bản thu nào. Nhấn "Chỉnh sửa" để thêm cảm nhận âm nhạc, thiết bị phối ghép hoặc thông tin phát hành.
+            </div>
+            <div id="room-liner-meta-row" class="mt-2.5 flex flex-wrap gap-2 text-[10px] text-zinc-400">
+              <span id="room-liner-gear-tag" class="hidden rounded bg-white/5 px-2 py-0.5 border border-white/5 text-zinc-300">🎧 <span class="val"></span></span>
+              <span id="room-liner-mastering-tag" class="hidden rounded bg-white/5 px-2 py-0.5 border border-white/5 text-zinc-300">💽 <span class="val"></span></span>
+              <span id="room-liner-mood-tags" class="hidden rounded bg-white/5 px-2 py-0.5 border border-white/5 text-zinc-300">🏷️ <span class="val"></span></span>
+            </div>
+          </section>
           <section id="lyrics-card" class="mt-5 rounded-2xl border border-white/[.08] bg-white/[.03] p-4" aria-label="Lời bài hát"><div class="flex items-center justify-between"><div class="flex items-center gap-2"><h2 class="text-xs font-medium text-zinc-200">Lời bài hát</h2><span id="room-lyrics-source-badge" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono text-zinc-400">Chưa có</span></div><div class="flex items-center gap-1 text-[10px] text-zinc-400"><button id="room-lyrics-search-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Tìm trên LRCLIB">🔍 Tìm trên LRCLIB</button><button id="room-lyrics-edit-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Chỉnh sửa / Đồng bộ V2">✏️ Chỉnh sửa / Đồng bộ V2</button><button id="room-lyrics-refresh-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Tìm lại lời trực tuyến">🔄 Tìm lại</button><button id="room-lyrics-paste-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Dán nội dung .lrc">📋 Dán</button><button id="room-lyrics-export-btn" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10 text-zinc-300" title="Xuất file .lrc">💾 Xuất</button><button id="room-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Chậm hơn 0.5s">-0.5s</button><span id="room-lyrics-offset-badge" class="font-mono text-zinc-400 text-[10px] w-12 text-center" title="Bù trừ độ trễ lời bài hát">0ms</span><button id="room-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 hover:bg-white/10" title="Nhanh hơn 0.5s">+0.5s</button></div></div><div id="room-lyrics" class="mt-3 max-h-72 space-y-1 overflow-y-auto overflow-x-hidden text-sm leading-6 text-zinc-500 no-scrollbar"><p class="text-xs text-zinc-600">Chưa có lời đồng bộ (.lrc) cho bài này.</p></div></section>
           <div class="relative w-full group">
             <canvas id="waveform-canvas" class="w-full h-16 cursor-pointer rounded-sm mb-1" aria-label="Dạng sóng bài hát - nhấn để tua"></canvas>
@@ -2813,7 +2884,7 @@
     };
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false };
+    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackAnnotations: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-annotations') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false };
 
     function applyBitPerfectMode(enabled) {
       state.bitPerfectEnabled = Boolean(enabled);
@@ -3145,6 +3216,142 @@
       }
     }
 
+    function getTrackAnnotation(track) {
+      if (!track) return null;
+      const key = (typeof library !== 'undefined' && typeof library.buildTrackAnnotationKey === 'function')
+        ? library.buildTrackAnnotationKey(track)
+        : (track.id || 'unknown-track');
+      return (state.trackAnnotations && (state.trackAnnotations[key] || state.trackAnnotations[track.id])) || null;
+    }
+
+    function saveTrackAnnotation(track, annotationData) {
+      if (!track) return false;
+      const key = (typeof library !== 'undefined' && typeof library.buildTrackAnnotationKey === 'function')
+        ? library.buildTrackAnnotationKey(track)
+        : (track.id || 'unknown-track');
+      if (!state.trackAnnotations || typeof state.trackAnnotations !== 'object') {
+        state.trackAnnotations = {};
+      }
+      const normalized = (typeof library !== 'undefined' && typeof library.normalizeTrackAnnotation === 'function')
+        ? library.normalizeTrackAnnotation(annotationData)
+        : annotationData;
+      state.trackAnnotations[key] = normalized;
+      if (track.id && track.id !== key) {
+        state.trackAnnotations[track.id] = normalized;
+      }
+      try {
+        localStorage.setItem('nocturne-track-annotations', JSON.stringify(state.trackAnnotations));
+      } catch (e) {
+        console.warn('Could not save track annotations to localStorage:', e);
+      }
+      updateListeningRoomAnnotations(track);
+      if (typeof scheduleTrackRender === 'function') scheduleTrackRender();
+      return true;
+    }
+
+    function deleteTrackAnnotation(track) {
+      if (!track || !state.trackAnnotations) return false;
+      const key = (typeof library !== 'undefined' && typeof library.buildTrackAnnotationKey === 'function')
+        ? library.buildTrackAnnotationKey(track)
+        : (track.id || 'unknown-track');
+      delete state.trackAnnotations[key];
+      if (track.id) delete state.trackAnnotations[track.id];
+      try {
+        localStorage.setItem('nocturne-track-annotations', JSON.stringify(state.trackAnnotations));
+      } catch (e) {
+        console.warn('Could not delete track annotation from localStorage:', e);
+      }
+      updateListeningRoomAnnotations(track);
+      if (typeof scheduleTrackRender === 'function') scheduleTrackRender();
+      return true;
+    }
+
+    let activeAnnotationTrack = null;
+    function populateAnnotationForm(track) {
+      activeAnnotationTrack = track;
+      const ann = getTrackAnnotation(track);
+      const ratingSelect = $('annotation-rating-input');
+      const scoreInput = $('annotation-score-input');
+      const gearInput = $('annotation-gear-input');
+      const masteringInput = $('annotation-mastering-input');
+      const venueInput = $('annotation-venue-input');
+      const tagsInput = $('annotation-tags-input');
+      const notesInput = $('annotation-notes-input');
+      const statusSpan = $('annotation-status');
+
+      if (statusSpan) statusSpan.textContent = '';
+      if (ratingSelect) ratingSelect.value = ann ? (ann.personalRating || 0) : 0;
+      if (scoreInput) scoreInput.value = (ann && ann.audiophileScore) ? ann.audiophileScore : '';
+      if (gearInput) gearInput.value = (ann && ann.gearRecommendation) ? ann.gearRecommendation : '';
+      if (masteringInput) masteringInput.value = (ann && ann.masteringDetails) ? ann.masteringDetails : '';
+      if (venueInput) venueInput.value = (ann && ann.venueYear) ? ann.venueYear : '';
+      if (tagsInput) tagsInput.value = (ann && ann.moodTags && ann.moodTags.length) ? ann.moodTags.join(', ') : '';
+      if (notesInput) notesInput.value = (ann && ann.notes) ? ann.notes : '';
+    }
+
+    function updateListeningRoomAnnotations(track) {
+      const card = $('room-liner-notes-card');
+      if (!card) return;
+      const ann = getTrackAnnotation(track);
+      const scoreBadge = $('room-liner-score-badge');
+      const contentEl = $('room-liner-notes-content');
+      const gearTag = $('room-liner-gear-tag');
+      const masteringTag = $('room-liner-mastering-tag');
+      const moodTagsEl = $('room-liner-mood-tags');
+
+      if (!ann || (!ann.notes && !ann.gearRecommendation && !ann.masteringDetails && !ann.audiophileScore && (!ann.moodTags || !ann.moodTags.length))) {
+        if (scoreBadge) scoreBadge.classList.add('hidden');
+        if (contentEl) contentEl.textContent = 'Chưa có ghi chú bản thu nào. Nhấn "Chỉnh sửa" để thêm cảm nhận âm nhạc, thiết bị phối ghép hoặc thông tin phát hành.';
+        if (gearTag) gearTag.classList.add('hidden');
+        if (masteringTag) masteringTag.classList.add('hidden');
+        if (moodTagsEl) moodTagsEl.classList.add('hidden');
+        return;
+      }
+
+      if (scoreBadge) {
+        if (ann.audiophileScore > 0) {
+          scoreBadge.textContent = `🎯 ${ann.audiophileScore}/100`;
+          scoreBadge.classList.remove('hidden');
+        } else {
+          scoreBadge.classList.add('hidden');
+        }
+      }
+
+      if (contentEl) {
+        contentEl.textContent = ann.notes || 'Chưa có ghi chú chi tiết.';
+      }
+
+      if (gearTag) {
+        if (ann.gearRecommendation) {
+          const valEl = gearTag.querySelector('.val');
+          if (valEl) valEl.textContent = ann.gearRecommendation;
+          gearTag.classList.remove('hidden');
+        } else {
+          gearTag.classList.add('hidden');
+        }
+      }
+
+      if (masteringTag) {
+        if (ann.masteringDetails) {
+          const valEl = masteringTag.querySelector('.val');
+          if (valEl) valEl.textContent = ann.masteringDetails;
+          masteringTag.classList.remove('hidden');
+        } else {
+          masteringTag.classList.add('hidden');
+        }
+      }
+
+      if (moodTagsEl) {
+        if (ann.moodTags && ann.moodTags.length > 0) {
+          const valEl = moodTagsEl.querySelector('.val');
+          if (valEl) valEl.textContent = ann.moodTags.join(', ');
+          moodTagsEl.classList.remove('hidden');
+        } else {
+          moodTagsEl.classList.add('hidden');
+        }
+      }
+    }
+
     const SMART_PLAYLIST_RULES = {
       dsd: { format: 'dsd' },
       hires: { format: 'hires' },
@@ -3432,7 +3639,7 @@
     // Pha B — thời gian còn lại trong Phòng nghe: '-m:ss', '—' khi chưa biết tổng thời lượng.
     const formatRemainingTime = (current, duration) => Number.isFinite(duration) && duration > 0 ? `-${formatTime(Math.max(0, duration - (Number.isFinite(current) ? current : 0)))}` : '—';
     const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-    const metadataUI = window.NocturneMetadataUI.create({getElement:id => $(id), library, client:musicMetadata, formatTime});
+    const metadataUI = window.NocturneMetadataUI.create({getElement:id => $(id), library, client:musicMetadata, formatTime, onAnnotationSelect: track => populateAnnotationForm(track)});
     const id = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
     const sourceLabel = source => ({local:'LOCAL',google:'DRIVE',onedrive:'ONEDRIVE',url:'URL',Jellyfin:'JELLYFIN',Subsonic:'SUBSONIC'}[source] || (source ? String(source).toUpperCase() : ''));
     const filenameMetadata = library.parseFilenameMetadata;
@@ -5086,6 +5293,9 @@
         const badgeTitle = [audit, sliceCache].filter(Boolean).join(' · ');
         const trRating = typeof getTrackRating === 'function' ? getTrackRating(track) : (track.rating || 0);
         const trStars = (typeof library !== 'undefined' && typeof library.formatRating === 'function') ? library.formatRating(trRating) : '☆☆☆☆☆';
+        const trAnnotation = (typeof getTrackAnnotation === 'function') ? getTrackAnnotation(track) : null;
+        const annSummary = trAnnotation && typeof library !== 'undefined' && typeof library.formatAnnotationSummary === 'function' ? library.formatAnnotationSummary(trAnnotation) : '';
+        const annBadge = trAnnotation ? `<span class="track-annotation-indicator ml-1.5 inline-block text-[11px] text-violet-400 cursor-pointer select-none hover:opacity-80" data-annotation-track-id="${escapeHtml(track.id)}" title="Ghi chú: ${escapeHtml(annSummary)}">📝</span>` : '';
         const titleHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.title, state.query, {escape: true}) : escapeHtml(metadata.title);
         const artistHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.artist, state.query, {escape: true}) : escapeHtml(metadata.artist);
         const albumHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.album, state.query, {escape: true}) : escapeHtml(metadata.album);
@@ -5094,7 +5304,7 @@
         // đổi thành ▶ khi hover, tiêu đề text-sm rõ hơn nghệ sĩ text-xs,
         // huy hiệu chất lượng thành pill, thời lượng text-xs.
         return `<div role="button" tabindex="0" class="track-row${versionInfo.versionIndex > 0 ? ' track-version-row' : ''} ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[.06] ${versionInfo.versionIndex > 0 ? 'py-2 pl-10 pr-4' : 'px-4 py-2'} text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]" aria-label="Phát ${escapeHtml(metadata.title)} — ${escapeHtml(metadata.artist)}" data-track-index="${trackIndex + 1}" data-track-id="${escapeHtml(track.id)}">
-          <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${titleHtml}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${artistHtml}</span> <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
+          <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${titleHtml}${annBadge}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${artistHtml}</span> <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
           <span class="hidden truncate text-xs text-zinc-500 sm:block"><span class="album-link hover:underline cursor-pointer">${albumHtml}</span></span><span class="hidden sm:block"><span class="rounded-full border px-2 py-0.5 text-[9px] font-medium tracking-wide ${q.tone}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${q.label}</span></span><span class="flex items-center justify-end gap-1"><span class="track-rating hidden sm:inline-block mr-1 text-[11px] text-amber-400 cursor-pointer select-none hover:opacity-80" data-rating-track-id="${escapeHtml(track.id)}" title="Đánh giá: ${trRating}/5 sao">${trStars}</span>${versionInfo.versionIndex === 0 && versionInfo.versionGroup.versions.length > 1 ? `<button type="button" data-version-action="toggle" data-version-key="${escapeHtml(versionInfo.versionGroup.key)}" class="shrink-0 rounded-full border border-violet-400/40 px-2 py-0.5 text-[10px] font-medium text-violet-200 hover:bg-violet-400/10" aria-expanded="${expandedVersions.has(versionInfo.versionGroup.key)}" aria-label="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn' : 'Mở rộng'} ${versionInfo.versionGroup.versions.length} phiên bản của ${escapeHtml(metadata.title)}" title="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn các phiên bản' : 'Xem các phiên bản khác'}">${versionInfo.versionGroup.versions.length} phiên bản ${expandedVersions.has(versionInfo.versionGroup.key) ? '▴' : '▾'}</button>` : ''}<span class="text-right text-xs tabular-nums text-zinc-400">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button><button type="button" data-queue-action="play_next" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Phát tiếp theo" title="Phát tiếp theo">⏭</button><button type="button" data-queue-action="append" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Thêm vào cuối" title="Thêm vào cuối">➕</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
         </div>`;
       }
@@ -5132,6 +5342,12 @@
           if (typeof setTrackRating === 'function') setTrackRating(t, next);
         }));
         list.querySelectorAll('[data-metadata-action="open"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); metadataUI.open(trackById(button.dataset.metadataTrackId)); }));
+        list.querySelectorAll('[data-annotation-track-id]').forEach(button => button.addEventListener('click', event => {
+          event.stopPropagation();
+          const t = (typeof trackById === 'function') ? trackById(button.dataset.annotationTrackId) : null;
+          if (!t) return;
+          metadataUI.open(t, 'annotation');
+        }));
         list.querySelectorAll('[data-queue-action="play_next"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); handlePlayNext(button.dataset.trackId); }));
         list.querySelectorAll('[data-queue-action="append"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); handleAppendQueue(button.dataset.trackId); }));
         list.querySelectorAll('[data-queue-action="add"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); addToQueue(button.dataset.trackId); }));
@@ -5184,6 +5400,12 @@
         if (typeof setTrackRating === 'function') setTrackRating(t, next);
       }));
       list.querySelectorAll('[data-metadata-action="open"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); metadataUI.open(trackById(button.dataset.metadataTrackId)); }));
+      list.querySelectorAll('[data-annotation-track-id]').forEach(button => button.addEventListener('click', event => {
+        event.stopPropagation();
+        const t = (typeof trackById === 'function') ? trackById(button.dataset.annotationTrackId) : null;
+        if (!t) return;
+        metadataUI.open(t, 'annotation');
+      }));
       list.querySelectorAll('[data-queue-action="play_next"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); handlePlayNext(button.dataset.trackId); }));
       list.querySelectorAll('[data-queue-action="append"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); handleAppendQueue(button.dataset.trackId); }));
       list.querySelectorAll('[data-queue-action="add"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); addToQueue(button.dataset.trackId); }));
@@ -7800,6 +8022,7 @@
       const roomCover = $('room-cover'); roomCover.hidden = !track.cover; roomCover.src = track.cover || ''; $('room-cover-empty').classList.toggle('hidden', !!track.cover);
       $('favorite-button').classList.remove('hidden'); $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').classList.toggle('text-pink-300', isFavorite(track));
       updateRoomRating(track);
+      if (typeof updateListeningRoomAnnotations === 'function') updateListeningRoomAnnotations(track);
       if (typeof updateMiniPlayerHud === 'function') updateMiniPlayerHud(track);
       if ($('room-dr-badge')) {
         $('room-dr-badge').textContent = 'DR -- · Chờ tín hiệu';
@@ -10805,6 +11028,7 @@
         playlists: state.activeSmartPlaylist ? [state.activeSmartPlaylist] : [],
         recentHistory: state.recentHistory,
         trackRatings: state.trackRatings,
+        trackAnnotations: state.trackAnnotations,
         crossfadeSeconds: state.crossfadeSeconds,
         crossfadeCurve: state.crossfadeCurve,
         autoEqProfile: state.autoEqProfile,
@@ -10892,7 +11116,10 @@
         if (state.trackRatings && Object.keys(state.trackRatings).length) {
           try { localStorage.setItem('nocturne-track-ratings', JSON.stringify(state.trackRatings)); } catch (_) {}
         }
-        toast(`Khôi phục thành công: ${mergeResult.restoredFavoritesCount} yêu thích, ${mergeResult.restoredRatingsCount || 0} đánh giá sao, ${mergeResult.appliedSettingsCount} cài đặt.`);
+        if (state.trackAnnotations && Object.keys(state.trackAnnotations).length) {
+          try { localStorage.setItem('nocturne-track-annotations', JSON.stringify(state.trackAnnotations)); } catch (_) {}
+        }
+        toast(`Khôi phục thành công: ${mergeResult.restoredFavoritesCount} yêu thích, ${mergeResult.restoredRatingsCount || 0} đánh giá sao, ${mergeResult.restoredAnnotationsCount || 0} ghi chú, ${mergeResult.appliedSettingsCount} cài đặt.`);
       } catch (err) {
         toast(`Lỗi khôi phục cấu hình: ${err.message || err}`);
       } finally {
@@ -12894,6 +13121,65 @@
         }
       });
     }
+
+    $('room-edit-liner-notes-btn')?.addEventListener('click', () => {
+      const currentTrack = (typeof trackById === 'function') ? trackById(state.currentId) : (state.tracks || []).find(t => t.id === state.currentId);
+      if (currentTrack) {
+        metadataUI.open(currentTrack, 'annotation');
+      } else {
+        toast('Chưa có bài hát nào đang phát để thêm ghi chú.');
+      }
+    });
+
+    $('annotation-save-btn')?.addEventListener('click', () => {
+      const track = activeAnnotationTrack || (typeof metadataUI !== 'undefined' && metadataUI.getSessionTrack ? metadataUI.getSessionTrack() : null) || ((typeof trackById === 'function') ? trackById(state.currentId) : null);
+      if (!track) return toast('Không xác định được bài hát để lưu ghi chú.');
+      const rating = Number($('annotation-rating-input')?.value || 0);
+      const score = Number($('annotation-score-input')?.value || 0);
+      const gear = $('annotation-gear-input')?.value || '';
+      const mastering = $('annotation-mastering-input')?.value || '';
+      const venue = $('annotation-venue-input')?.value || '';
+      const tagsStr = $('annotation-tags-input')?.value || '';
+      const notes = $('annotation-notes-input')?.value || '';
+
+      const annotationData = {
+        personalRating: rating,
+        audiophileScore: score,
+        gearRecommendation: gear,
+        masteringDetails: mastering,
+        venueYear: venue,
+        moodTags: tagsStr,
+        notes: notes,
+        updatedAt: new Date().toISOString()
+      };
+
+      saveTrackAnnotation(track, annotationData);
+      if (rating > 0 && typeof setTrackRating === 'function') {
+        setTrackRating(track, rating);
+      }
+      const statusSpan = $('annotation-status');
+      if (statusSpan) {
+        statusSpan.textContent = 'Đã lưu ghi chú thành công!';
+        statusSpan.className = 'text-xs text-emerald-400 font-medium';
+        setTimeout(() => { if (statusSpan) statusSpan.textContent = ''; }, 3000);
+      }
+      toast('Đã lưu ghi chú bản thu (Liner Notes).');
+    });
+
+    $('annotation-delete-btn')?.addEventListener('click', () => {
+      const track = activeAnnotationTrack || (typeof metadataUI !== 'undefined' && metadataUI.getSessionTrack ? metadataUI.getSessionTrack() : null) || ((typeof trackById === 'function') ? trackById(state.currentId) : null);
+      if (!track) return;
+      deleteTrackAnnotation(track);
+      populateAnnotationForm(track);
+      const statusSpan = $('annotation-status');
+      if (statusSpan) {
+        statusSpan.textContent = 'Đã xóa ghi chú!';
+        statusSpan.className = 'text-xs text-rose-400 font-medium';
+        setTimeout(() => { if (statusSpan) statusSpan.textContent = ''; }, 3000);
+      }
+      toast('Đã xóa ghi chú bản thu.');
+    });
+
     $('back-button').addEventListener('click', () => { if (state.trackScope) { state.trackScope = null; state.currentCollectionEntry = null; $('album-hero')?.classList.add('hidden'); $('back-button').setAttribute('aria-label','Quay lại'); renderTracks(); } else setLibraryView('albums'); });
     $('open-settings-sidebar').addEventListener('click', showSettings);
     const hdrEq = $('header-eq-btn'); if (hdrEq) hdrEq.addEventListener('click', () => $('eq-button').click());
@@ -14704,6 +14990,7 @@
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 19:30 +07 | Đã xong: Nâng Cấp Khả Năng Đồng Bộ Ảnh Bìa Tức Thì Trong Toàn Bộ Ứng Dụng (Instantaneous Album Art Synchronization & Zero-Delay Cover Propagation): (1) Bộ pure helpers trong library-utils.js: buildAlbumKey chuẩn hóa khóa album "${artist}:::${album}", propagateAlbumCovers đồng bộ hai chiều ảnh bìa giữa mảng bài hát và coverMap chọn ảnh chất lượng cao nhất, resolveTrackCover giải quyết tức thì fallback từ coverMap hoặc sibling tracks, extractFolderArtCandidates nhận diện và chấm điểm ảnh bìa thư mục độc lập (cover.jpg, folder.jpg, front.png, v.v.); (2) index.html khởi tạo state.albumCovers từ bộ nhớ đệm localStorage 'nocturne-album-covers'; (3) addLocalFiles quét ảnh bìa thư mục, tạo object URL và gán ngay cho bài hát trong thư mục; (4) makeLocalTrack và mọi nguồn nạp nhạc (local, cloud, Subsonic, Jellyfin, Black Candy) kích hoạt syncAlbumCoversImmediate lan truyền ảnh bìa tức thì cho toàn bộ sibling tracks cùng album; (5) displayTrack gọi resolveTrackCover hiển thị ảnh bìa 0ms trên thanh dock footer, chế độ toàn màn hình, phòng nghe và MediaSession; (6) renderRecentActivity / renderRecentTracks dùng resolveTrackCover hiển thị ảnh bìa thay vì ký tự '♫'; (7) renderTracks và renderCollectionCards đồng bộ hoàn toàn ảnh bìa album; (8) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 14/14 tests instant-album-sync.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 20:00 +07 | Đã xong: Pha C - Nâng Cấp Đồng Bộ Ảnh Bài Hát Tức Thì & Khắc Phục Lỗi Giao Diện Theo Video / Ảnh Thực Tế (Instant Song Art Synchronization & Video-Reported Bug Fixes): (1) Nâng cấp đồng bộ ảnh bài hát tốc độ tức thì: instantResolveTrackCover (5 tầng fallback <1ms), instantPropagateCovers lan truyền O(N) bộ nhớ, broadcastCoverUpdate cập nhật trực tiếp DOM tất cả bề mặt UI bằng requestAnimationFrame không cần reload trang; (2) Sửa nút #fullscreen-play-btn ủy quyền $('play-button').click() đầy đủ AudioContext.resume() và đồng bộ icon ▶/⏸ hai chiều; (3) Khắc phục Sân khấu 3D Toàn màn hình (Goniometer 3D, Radar 3D, VU Meter) tiếp tục chạy vòng lặp và kết xuất trạng thái standby/idle mượt mà khi audio tạm dừng, không bị tối đen canvas; nạp dữ liệu time-domain thực tế; (4) Phông nền mờ ảo #fullscreen-bg-cover & #fullscreen-ambient-glow chuẩn hóa CSS filter blur 48px saturate 1.4 brightness 0.85 scale 1.18 rực rỡ và mềm mại; (5) Triệt tiêu hoàn toàn thanh cuộn dọc/ngang ở phần lời bài hát; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 32/32 tests video-reported-bugs.test.cjs PASS 100%, toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
     <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-15 20:30 +07 | Đã xong: Pha C - Sửa Lỗi Kẹt Phát Nhạc Khi Kết Nối Server, Di Chuyển Nút EQ & Tối Ưu Kéo Thả Mini Player HUD Mượt 120fps (Server Playback Hang Fix, EQ Relocation & Mini HUD Smooth Dragging): (1) Khắc phục triệt để lỗi kẹt nút Play ở trạng thái "..." và thời gian 0:00/0:00: đồng bộ trường url từ src trong các bộ phân tích parseSubsonicSong, parseJellyfinItem, parseBlackCandySong; fallback track.url = track.url || track.src trong playTrack; bổ sung bộ đếm an toàn safety timer tự động giải phóng loading pulse sau 5s; gắn event listeners error/stalled/abort trên audio element khôi phục ngay trạng thái ▶ khi gặp sự cố; (2) Dời nút EQ (#eq-button) từ cụm công cụ bên phải sang vị trí thông thoáng, nổi bật tại .footer-left-col ngay cạnh tên bài hát và nút yêu thích; bổ sung shortcut #header-eq-btn trên thanh header; thiết lập pointer-events: none cho .footer-center-controls và pointer-events: auto cho các nút con, loại bỏ hoàn toàn hiện tượng che khuất nút bấm; (3) Tối ưu kéo thả Mini Player HUD (#mini-player-hud): loại bỏ transition-all khi drag bằng class is-dragging và transition: none, lưu cache kích thước offset dimensions tránh layout thrashing, điều phối vị trí bằng requestAnimationFrame và hỗ trợ cảm ứng touch mượt mà 120fps; (4) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); 6/6 tests eq-relocate-minihud-smooth.test.cjs PASS 100%, 1139/1139 toàn bộ test suites PASS 100% | Lượt kế tiếp: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations) -->
+    <!-- [AUTO-SCHEDULE LOG] Lượt gần nhất: 2026-11-17 05:40 +07 | Đã xong: Pha C - Core Features & Thư Viện: Hệ Thống Ghi Chú Bản Thu & Quản Lý Metadata Âm Nhạc Cá Nhân Hóa (Per-Track Audiophile Liner Notes & Custom Metadata Annotations): (1) buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery thuần nhất; (2) Lưu trữ bền vững state.trackAnnotations trong localStorage['nocturne-track-annotations'] và đồng bộ sao lưu/phục hồi cấu hình exportAppConfiguration & mergeRestoredConfiguration; (3) Tích hợp tab Ghi chú (Liner Notes) trong #metadata-modal với form nhập Đánh giá cá nhân 1-5★, Điểm Audiophile 0-100, Phối ghép Tai nghe/DAC, Chi tiết Master & Bản thu, Thẻ tâm trạng & Cảm nhận âm học; (4) Thẻ Liner Notes trực quan #room-liner-notes-card trong Màn hình Đang phát (#listening-room) kèm nút chỉnh sửa 1-chạm; (5) Huy hiệu 📝 trong danh sách bài hát hiển thị tooltip tóm tắt và mở nhanh trình chỉnh sửa; (6) Bảo toàn nghiêm ngặt bất biến đồ thị âm thanh Web Audio API state.crossfeedNodes.output.connect(state.context.destination); toàn bộ regression tests PASS 100% | Lượt kế tiếp: Pha A - Audio Engine & DSP: ReplayGain & Loudness Normalization Chuẩn EBU R128 (Tự Động Cân Bằng Mức Âm Lượng Nhạc Lossless/DSD) -->
   <!-- AutoEQ Headphone Profile Selection Modal -->
   <div id="autoeq-modal" class="fixed inset-0 z-[130] hidden flex items-center justify-center bg-black/80 backdrop-blur-md p-4" role="dialog" aria-modal="true" aria-labelledby="autoeq-modal-title" hidden>
     <div class="relative w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl flex flex-col max-h-[85vh]">

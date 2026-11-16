@@ -4,7 +4,8 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.NocturneMetadataUI = api;
 })(typeof globalThis === 'object' ? globalThis : this, function () {
-  function create({getElement:$, library, client, formatTime = value => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2,'0')}`} = {}) {
+  function create(options = {}) {
+    const {getElement:$, library, client, formatTime = value => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2,'0')}`} = options;
     const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
     const session = {track:null,kind:'track',generation:0,history:[],locked:false,parentKind:''};
     const safeUrl = (value, hosts=[]) => { try { const u=new URL(value); return u.protocol==='https:' && hosts.some(h=>u.hostname===h || u.hostname.endsWith(`.${h}`)) ? u.href : ''; } catch(error) { return ''; } };
@@ -22,6 +23,10 @@
     const resetDetail = () => {
       $('metadata-results').classList.remove('hidden'); $('metadata-detail').classList.add('hidden');
       $('metadata-back').classList.add('hidden'); $('metadata-back').classList.remove('inline-flex');
+      const searchBar = typeof document !== 'undefined' && document.querySelector ? document.querySelector('.metadata-search') : null;
+      if (searchBar && searchBar.classList) searchBar.classList.remove('hidden');
+      const annPanel = $('metadata-annotations-panel');
+      if (annPanel && annPanel.classList) annPanel.classList.add('hidden');
     };
     const coverUrl = value => safeUrl(value,['coverartarchive.org','archive.org']);
     const summary = (kind,item) => {
@@ -32,7 +37,20 @@
     async function search() {
       if(!session.track || session.locked)return;
       const generation=++session.generation, kind=session.kind, query=$('metadata-query').value.trim();
-      resetDetail(); $('metadata-results').replaceChildren();
+      resetDetail();
+      if (kind === 'annotation') {
+        $('metadata-results').classList.add('hidden');
+        $('metadata-status').classList.add('hidden');
+        const searchBar = typeof document !== 'undefined' && document.querySelector ? document.querySelector('.metadata-search') : null;
+        if (searchBar && searchBar.classList) searchBar.classList.add('hidden');
+        const annPanel = $('metadata-annotations-panel');
+        if (annPanel && annPanel.classList) annPanel.classList.remove('hidden');
+        if (typeof options.onAnnotationSelect === 'function') {
+          options.onAnnotationSelect(session.track);
+        }
+        return;
+      }
+      $('metadata-results').replaceChildren();
       $('metadata-status').textContent=`Đang tìm ${kind==='track'?'bài hát':kind==='album'?'album':'nghệ sĩ'} trên MusicBrainz…`; $('metadata-status').classList.remove('hidden');
       try {
         const results=await client.search(kind,library.trackMetadata(session.track),query);
@@ -102,9 +120,9 @@
         $('metadata-status').classList.add('hidden');
       }
     }
-    function open(track) {
+    function open(track, initialTab) {
       if(!track)return;
-      session.track=track; session.kind='track'; session.locked=false; session.history=[]; session.currentItem=null;
+      session.track=track; session.kind=initialTab || 'track'; session.locked=false; session.history=[]; session.currentItem=null;
       document.querySelectorAll('[data-metadata-kind]').forEach(button=>{button.disabled=false;});
       $('metadata-tabs').classList.remove('hidden');
       $('metadata-query').placeholder='Tìm tên khác hoặc phiên bản...';
@@ -144,7 +162,7 @@
       session.kind=button.dataset.metadataKind; $('metadata-query').value=''; setTabs(); search();
     }));
     document.addEventListener('keydown',event=>{if(event.key==='Escape' && !$('metadata-modal').classList.contains('hidden'))close();});
-    return {open,close,search,detail};
+    return {open,close,search,detail,getSessionTrack:()=>session.track};
   }
   return {create};
 });
