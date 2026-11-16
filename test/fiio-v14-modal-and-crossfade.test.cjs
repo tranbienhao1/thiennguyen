@@ -8,10 +8,10 @@ const path = require('node:path');
 const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const mainActivityJava = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'com', 'nocturne', 'audiophile', 'MainActivity.java'), 'utf8');
 
-test('1. Offline CSS Resilience: .hidden and panels guaranteed hidden without Tailwind CDN', () => {
+test('1. Offline CSS Resilience: Modals and panels guaranteed hidden without Tailwind CDN', () => {
   assert.ok(
-    indexHtml.includes('.hidden, [hidden],') && indexHtml.includes('#sleep-panel.hidden, #sleep-panel[hidden]'),
-    'index.html must define authoritative .hidden and [hidden] rules in <style id="app-style">'
+    indexHtml.includes('#sleep-panel.hidden, #sleep-panel[hidden]') && indexHtml.includes('#eq-panel.hidden, #eq-panel[hidden]'),
+    'index.html must define authoritative modal rules in <style id="app-style">'
   );
   assert.ok(
     indexHtml.includes('id="sleep-panel"') && indexHtml.includes('role="dialog" aria-labelledby="sleep-title" hidden>'),
