@@ -2888,7 +2888,7 @@
     };
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackAnnotations: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-annotations') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false };
+    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackAnnotations: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-annotations') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false, zeroAllocScratchpad: (typeof library !== 'undefined' && library && typeof library.createZeroAllocFrameScratchpad === 'function') ? library.createZeroAllocFrameScratchpad(128) : null };
 
     function applyBitPerfectMode(enabled) {
       state.bitPerfectEnabled = Boolean(enabled);
@@ -6005,10 +6005,12 @@
         return;
       }
 
-      const data = new Uint8Array(analyser.frequencyBinCount);
+      const scratchpad = state.zeroAllocScratchpad || ((typeof library !== 'undefined' && library && typeof library.createZeroAllocFrameScratchpad === 'function') ? (state.zeroAllocScratchpad = library.createZeroAllocFrameScratchpad(analyser.frequencyBinCount)) : null);
+      if (scratchpad) scratchpad.resizeIfNeeded(analyser.frequencyBinCount);
+      const data = scratchpad ? scratchpad.freqBytes : new Uint8Array(analyser.frequencyBinCount);
       const bars = 32, gap = 2;
-      const timeData = new Uint8Array(analyser.fftSize);
-      const preTimeData = state.preLimiterAnalyser ? new Uint8Array(state.preLimiterAnalyser.fftSize) : null;
+      const timeData = scratchpad ? scratchpad.timeBytes : new Uint8Array(analyser.fftSize);
+      const preTimeData = state.preLimiterAnalyser ? (scratchpad && scratchpad.preLimiterTimeBytes.length === state.preLimiterAnalyser.fftSize ? scratchpad.preLimiterTimeBytes : new Uint8Array(state.preLimiterAnalyser.fftSize)) : null;
       let frame = 0;
       let lastDapDraw = 0;
       const draw = () => {
@@ -6055,6 +6057,9 @@
           if (roomGlow) { roomGlow.style.transform = 'scale(1)'; roomGlow.style.opacity = ''; }
           if (appBackdrop) { appBackdrop.style.transform = 'scale(1)'; appBackdrop.style.opacity = ''; }
         } else {
+          if (scratchpad) {
+            scratchpad.computeBandEnergies(data, timeData, state.context ? state.context.sampleRate : 44100);
+          }
           if (state.lyrics && state.lyrics.length) {
             updateLyricsHighlight();
           }
@@ -6115,11 +6120,13 @@
               footerDr.className = `hidden sm:inline-block rounded border px-1.5 py-0.5 text-[9px] font-medium ${drInfo.badgeClass}`;
             }
           }
+          let leftChannelTimeSample = null;
           if (state.leftAnalyser && state.rightAnalyser && typeof library !== 'undefined' && library && typeof library.calculateStereoPhaseCorrelation === 'function') {
-            const leftData = new Uint8Array(state.leftAnalyser.fftSize);
-            const rightData = new Uint8Array(state.rightAnalyser.fftSize);
+            const leftData = (scratchpad && scratchpad.leftTimeBytes.length === state.leftAnalyser.fftSize) ? scratchpad.leftTimeBytes : new Uint8Array(state.leftAnalyser.fftSize);
+            const rightData = (scratchpad && scratchpad.rightTimeBytes.length === state.rightAnalyser.fftSize) ? scratchpad.rightTimeBytes : new Uint8Array(state.rightAnalyser.fftSize);
             state.leftAnalyser.getByteTimeDomainData(leftData);
             state.rightAnalyser.getByteTimeDomainData(rightData);
+            leftChannelTimeSample = leftData;
             const phaseCorr = library.calculateStereoPhaseCorrelation(leftData, rightData);
             const roomPhase = $('room-phase-badge');
             if (roomPhase) {
@@ -6133,7 +6140,7 @@
             }
           }
           if (typeof library !== 'undefined' && library && typeof library.calculateInterSamplePeak === 'function') {
-            const timeSampleSource = (state.leftAnalyser) ? (typeof leftData !== 'undefined' ? leftData : data) : data;
+            const timeSampleSource = leftChannelTimeSample || timeData;
             if (timeSampleSource && timeSampleSource.length) {
               const tpInfo = library.calculateInterSamplePeak(timeSampleSource, 4);
               const tpText = library.formatTruePeakBadge(tpInfo.truePeakDbtp);
@@ -6225,7 +6232,7 @@
             });
           }
           if (state.visualizerMode === 'oscilloscope' && typeof library !== 'undefined' && library && typeof library.renderVisualizerOscilloscope === 'function') {
-            const oscBuf = new Uint8Array(analyser.frequencyBinCount);
+            const oscBuf = (scratchpad && scratchpad.oscBytes.length === analyser.frequencyBinCount) ? scratchpad.oscBytes : new Uint8Array(analyser.frequencyBinCount);
             analyser.getByteTimeDomainData(oscBuf);
             library.renderVisualizerOscilloscope(footerContext, {
               data: oscBuf,
@@ -6236,8 +6243,8 @@
               strokeWidth: 2
             });
           } else if (state.visualizerMode === 'vumeter' && typeof library !== 'undefined' && library && typeof library.renderVisualizerVuMeter === 'function') {
-            const leftBuf = (state.leftAnalyser) ? new Uint8Array(state.leftAnalyser.frequencyBinCount) : data;
-            const rightBuf = (state.rightAnalyser) ? new Uint8Array(state.rightAnalyser.frequencyBinCount) : data;
+            const leftBuf = (state.leftAnalyser) ? ((scratchpad && scratchpad.leftFreqBytes.length === state.leftAnalyser.frequencyBinCount) ? scratchpad.leftFreqBytes : new Uint8Array(state.leftAnalyser.frequencyBinCount)) : data;
+            const rightBuf = (state.rightAnalyser) ? ((scratchpad && scratchpad.rightFreqBytes.length === state.rightAnalyser.frequencyBinCount) ? scratchpad.rightFreqBytes : new Uint8Array(state.rightAnalyser.frequencyBinCount)) : data;
             if (state.leftAnalyser) state.leftAnalyser.getByteFrequencyData(leftBuf);
             if (state.rightAnalyser) state.rightAnalyser.getByteFrequencyData(rightBuf);
 
@@ -6341,8 +6348,8 @@
               let overR = false;
 
               if (isAudioActive) {
-                const leftBuf = (state.leftAnalyser) ? new Uint8Array(state.leftAnalyser.frequencyBinCount) : data;
-                const rightBuf = (state.rightAnalyser) ? new Uint8Array(state.rightAnalyser.frequencyBinCount) : data;
+                const leftBuf = (state.leftAnalyser) ? ((scratchpad && scratchpad.leftFreqBytes.length === state.leftAnalyser.frequencyBinCount) ? scratchpad.leftFreqBytes : new Uint8Array(state.leftAnalyser.frequencyBinCount)) : data;
+                const rightBuf = (state.rightAnalyser) ? ((scratchpad && scratchpad.rightFreqBytes.length === state.rightAnalyser.frequencyBinCount) ? scratchpad.rightFreqBytes : new Uint8Array(state.rightAnalyser.frequencyBinCount)) : data;
                 if (state.leftAnalyser) state.leftAnalyser.getByteFrequencyData(leftBuf);
                 if (state.rightAnalyser) state.rightAnalyser.getByteFrequencyData(rightBuf);
 
@@ -6387,8 +6394,8 @@
             } else if (state.fullscreenStageMode === 'vector' && typeof library.renderSpatialVectorCanvas === 'function') {
               let leftBuf = timeData, rightBuf = timeData;
               if (isAudioActive && state.leftAnalyser && state.rightAnalyser) {
-                leftBuf = new Uint8Array(state.leftAnalyser.fftSize);
-                rightBuf = new Uint8Array(state.rightAnalyser.fftSize);
+                leftBuf = (scratchpad && scratchpad.leftTimeBytes.length === state.leftAnalyser.fftSize) ? scratchpad.leftTimeBytes : new Uint8Array(state.leftAnalyser.fftSize);
+                rightBuf = (scratchpad && scratchpad.rightTimeBytes.length === state.rightAnalyser.fftSize) ? scratchpad.rightTimeBytes : new Uint8Array(state.rightAnalyser.fftSize);
                 state.leftAnalyser.getByteTimeDomainData(leftBuf);
                 state.rightAnalyser.getByteTimeDomainData(rightBuf);
               }
@@ -6410,8 +6417,8 @@
             } else if (state.fullscreenStageMode === 'radar' && typeof library.renderPolarRadarCanvas === 'function') {
               let leftBuf = timeData, rightBuf = timeData;
               if (isAudioActive && state.leftAnalyser && state.rightAnalyser) {
-                leftBuf = new Uint8Array(state.leftAnalyser.fftSize);
-                rightBuf = new Uint8Array(state.rightAnalyser.fftSize);
+                leftBuf = (scratchpad && scratchpad.leftTimeBytes.length === state.leftAnalyser.fftSize) ? scratchpad.leftTimeBytes : new Uint8Array(state.leftAnalyser.fftSize);
+                rightBuf = (scratchpad && scratchpad.rightTimeBytes.length === state.rightAnalyser.fftSize) ? scratchpad.rightTimeBytes : new Uint8Array(state.rightAnalyser.fftSize);
                 state.leftAnalyser.getByteTimeDomainData(leftBuf);
                 state.rightAnalyser.getByteTimeDomainData(rightBuf);
               }

@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 3,
-  "lastPhase": "UPGRADE",
-  "lastRunIso": "2026-11-17T20:06:35.000Z",
+  "cycleCount": 4,
+  "lastPhase": "OPTIMIZE",
+  "lastRunIso": "2026-11-17T20:14:25.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "OPT-01",
-      "phase": "OPTIMIZE",
-      "title": "Tối ưu vòng lặp đồng bộ lời bài hát và Visualizer 60fps không cấp phát bộ nhớ dư thừa (zero-allocation) trong timeupdate/requestAnimationFrame"
-    },
     {
       "id": "BUG-02",
       "phase": "BUG_HUNT",
@@ -48,6 +43,16 @@
       "id": "BUG-04",
       "phase": "BUG_HUNT",
       "title": "Kiểm tra hủy hàng đợi tuần tự SequentialQueue trong LrclibClient khi chuyển bài liên tục lúc đang chờ Retry-After 429"
+    },
+    {
+      "id": "UPG-04",
+      "phase": "UPGRADE",
+      "title": "Bổ sung bộ xuất nhập cấu hình âm thanh & danh sách phát có chữ ký kiểm tra toàn vẹn CRC32/SHA-256 cho chế độ Offline PWA"
+    },
+    {
+      "id": "OPT-04",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu OffscreenCanvas fallback và throttling thông minh cho VU Meter / Polar Radar khi chạy nền trên thiết bị FiiO DAP"
     }
   ],
   "completedTasks": [
@@ -66,6 +71,14 @@
       "completedAt": "2026-11-17T20:06:35.000Z",
       "verifiedThreeTier": true,
       "summary": "Bổ sung computeLrclibRetryDelayMs (HTTP 429/503 Retry-After giây & HTTP-date + exponential backoff + jitter 0..30%), parseLyricsfileYaml / serializeLyricsfileYaml (YAML 1.0 CJK/Unicode, instrumental, multi-word & voice overlap) và findActiveLyricStateBinary O(log N) Segment Max-Tree trong library-utils.js kèm test/autonomy-tailchain-cycles.test.cjs"
+    },
+    {
+      "id": "OPT-01",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu vòng lặp đồng bộ lời bài hát và Visualizer 60fps không cấp phát bộ nhớ dư thừa (zero-allocation) trong timeupdate/requestAnimationFrame",
+      "completedAt": "2026-11-17T20:14:25.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai createZeroAllocFrameScratchpad trong library-utils.js tái sử dụng TypedArray & telemetry struct (zero heap allocation mỗi frame 60fps) và tích hợp state.zeroAllocScratchpad vào vòng lặp Visualizer trong index.html (bảo toàn 100% bất biến đồ thị âm thanh)"
     }
   ]
 }

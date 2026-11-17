@@ -240,3 +240,115 @@ describe('Autonomy Tail-Chaining Cycle 1 — UPG-01 (LRCLIB Retry-After Jitter, 
     assert.ok(elapsedMs < 250, `Expected 1,000 binary lookups over 10k lines < 250ms, took ${elapsedMs.toFixed(2)}ms`);
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 2 — OPT-01 (Zero-Allocation 60fps Frame Scratchpad & Band Energy Analyzer)', () => {
+  it('reuses identical TypedArray & telemetry object references across 1,000 simulated 60fps frames', () => {
+    assert.equal(typeof lib.createZeroAllocFrameScratchpad, 'function');
+    const pad = lib.createZeroAllocFrameScratchpad(256);
+
+    assert.ok(pad.freqBytes instanceof Uint8Array && pad.freqBytes.length === 256);
+    assert.ok(pad.timeBytes instanceof Uint8Array && pad.timeBytes.length === 512);
+    assert.ok(pad.normalizedBins instanceof Float32Array && pad.normalizedBins.length === 256);
+    assert.ok(pad.timeFloats instanceof Float32Array && pad.timeFloats.length === 512);
+
+    const initialFreqRef = pad.freqBytes;
+    const initialTimeRef = pad.timeBytes;
+    const initialNormRef = pad.normalizedBins;
+    const initialTimeFloatRef = pad.timeFloats;
+    const initialLeftTimeRef = pad.leftTimeBytes;
+    const initialRightTimeRef = pad.rightTimeBytes;
+    const initialTelemetryRef = pad.telemetry;
+
+    const sampleLyrics = [
+      { start_ms: 0, end_ms: 5000, text: 'Intro', words: [{ start_ms: 0, end_ms: 2500, text: 'In' }, { start_ms: 2500, end_ms: 5000, text: 'tro' }] },
+      { start_ms: 5000, end_ms: 18000, text: 'Main verse', words: [{ start_ms: 5000, end_ms: 11000, text: 'Main ' }, { start_ms: 11000, end_ms: 18000, text: 'verse' }] }
+    ];
+
+    for (let frame = 0; frame < 1000; frame++) {
+      assert.equal(pad.resizeIfNeeded(256), false);
+      for (let i = 0; i < 256; i++) {
+        pad.freqBytes[i] = (i + frame) & 255;
+      }
+      for (let j = 0; j < 512; j++) {
+        pad.timeBytes[j] = 128 + Math.round(100 * Math.sin((2 * Math.PI * (j + frame)) / 64));
+      }
+      const tel = pad.computeBandEnergies(pad.freqBytes, pad.timeBytes, 48000);
+      const synced = pad.syncLyricsInPlace(sampleLyrics, frame * 16.6667);
+
+      assert.strictEqual(tel, initialTelemetryRef);
+      assert.strictEqual(synced, initialTelemetryRef);
+      assert.strictEqual(pad.freqBytes, initialFreqRef);
+      assert.strictEqual(pad.timeBytes, initialTimeRef);
+      assert.strictEqual(pad.normalizedBins, initialNormRef);
+      assert.strictEqual(pad.timeFloats, initialTimeFloatRef);
+      assert.strictEqual(pad.leftTimeBytes, initialLeftTimeRef);
+      assert.strictEqual(pad.rightTimeBytes, initialRightTimeRef);
+    }
+
+    assert.equal(pad.telemetry.frameCount, 1000);
+    assert.equal(pad.telemetry.activeLyricLine, 1);
+    assert.equal(pad.telemetry.activeLyricWord, 1);
+
+    // Resize only reallocates when FFT bin count actually changes
+    assert.equal(pad.resizeIfNeeded(512), true);
+    assert.equal(pad.binCount, 512);
+    assert.equal(pad.fftSize, 1024);
+    assert.equal(pad.freqBytes.length, 512);
+    assert.equal(pad.timeBytes.length, 1024);
+    const resizedFreqRef = pad.freqBytes;
+    assert.equal(pad.resizeIfNeeded(512), false);
+    assert.strictEqual(pad.freqBytes, resizedFreqRef);
+
+    // Verify computeBandEnergies source contains zero .map, .filter, spread, or new allocations
+    const fnBody = pad.computeBandEnergies.toString();
+    assert.equal(/\.map\s*\(|\.filter\s*\(|\.\.\.|new\s+(?:Uint8Array|Float32Array|Array|Object)/.test(fnBody), false);
+  });
+
+  it('computes accurate bass, mid, treble energies, RMS & peak, and wires state.zeroAllocScratchpad in index.html', () => {
+    const pad = lib.createZeroAllocFrameScratchpad(256); // fftSize=512; at 44100Hz binHz ≈ 86.13Hz
+
+    // Pure Bass (bins 1..3 -> ~86Hz..258Hz)
+    pad.freqBytes.fill(0);
+    pad.freqBytes[1] = 255;
+    pad.freqBytes[2] = 255;
+    pad.freqBytes[3] = 255;
+    pad.computeBandEnergies(pad.freqBytes, null, 44100);
+    assert.ok(pad.telemetry.bassEnergy > 0.99);
+    assert.equal(pad.telemetry.midEnergy, 0);
+    assert.equal(pad.telemetry.trebleEnergy, 0);
+
+    // Pure Mid (bins 4..46 -> ~344Hz..3962Hz)
+    pad.freqBytes.fill(0);
+    for (let i = 4; i <= 46; i++) pad.freqBytes[i] = 255;
+    pad.computeBandEnergies(pad.freqBytes, null, 44100);
+    assert.equal(pad.telemetry.bassEnergy, 0);
+    assert.ok(pad.telemetry.midEnergy > 0.99);
+    assert.equal(pad.telemetry.trebleEnergy, 0);
+
+    // Pure Treble (bins 47..255 -> >4000Hz)
+    pad.freqBytes.fill(0);
+    for (let i = 47; i < 256; i++) pad.freqBytes[i] = 255;
+    pad.computeBandEnergies(pad.freqBytes, null, 44100);
+    assert.equal(pad.telemetry.bassEnergy, 0);
+    assert.equal(pad.telemetry.midEnergy, 0);
+    assert.ok(pad.telemetry.trebleEnergy > 0.99);
+
+    // Full-scale Float32 sine wave time-domain RMS (~0.7071) & Peak (~1.0)
+    const sineTime = new Float32Array(512);
+    for (let j = 0; j < 512; j++) {
+      sineTime[j] = Math.sin((2 * Math.PI * 8 * j) / 512);
+    }
+    pad.computeBandEnergies(pad.freqBytes, sineTime, 44100);
+    assert.ok(Math.abs(pad.telemetry.rms - Math.SQRT1_2) < 0.01);
+    assert.ok(pad.telemetry.peak > 0.99);
+
+    // Verify index.html wiring & audio graph invariant preservation
+    const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    assert.ok(indexHtml.includes('zeroAllocScratchpad:'), 'state.zeroAllocScratchpad must be initialized in index.html');
+    assert.ok(indexHtml.includes('scratchpad.computeBandEnergies('), 'visualizer loop must compute band energies via scratchpad');
+    assert.ok(
+      indexHtml.includes('state.crossfeedNodes.output.connect(state.context.destination)'),
+      'CRITICAL INVARIANT must remain intact'
+    );
+  });
+});
