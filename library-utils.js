@@ -17198,5 +17198,447 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, signConfigurationBundle, verifyConfigurationBundle};
+  // ==========================================================================
+  // OPT-04 — OffscreenCanvas Safe Fallback & Adaptive FiiO DAP Frame Governor
+  // ==========================================================================
+  const GOVERNOR_TIER_DESKTOP = 'desktop_60fps';
+  const GOVERNOR_TIER_FIIO_DAP = 'fiio_dap_30fps';
+  const GOVERNOR_TIER_LOW_POWER = 'low_power_30fps';
+  const GOVERNOR_TIER_IDLE_SILENCE = 'idle_silence_15fps';
+  const GOVERNOR_TIER_PAUSED = 'paused_0fps';
+
+  function createAdaptiveCanvasRenderGovernor(options = {}) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const desktopFps = Number(opts.desktopFps) > 0 ? Number(opts.desktopFps) : 60;
+    const dapFps = Number(opts.dapFps) > 0 ? Number(opts.dapFps) : 30;
+    const idleFps = Number(opts.idleFps) > 0 ? Number(opts.idleFps) : 15;
+    const idleSilenceThresholdMs = Number.isFinite(Number(opts.idleSilenceThresholdMs)) && Number(opts.idleSilenceThresholdMs) >= 0
+      ? Number(opts.idleSilenceThresholdMs)
+      : 1500;
+    const frameToleranceMs = Number.isFinite(Number(opts.frameToleranceMs)) && Number(opts.frameToleranceMs) >= 0
+      ? Number(opts.frameToleranceMs)
+      : 0.25;
+    const silenceRmsThreshold = Number.isFinite(Number(opts.silenceRmsThreshold)) && Number(opts.silenceRmsThreshold) >= 0
+      ? Number(opts.silenceRmsThreshold)
+      : 0.0005;
+    const silencePeakThreshold = Number.isFinite(Number(opts.silencePeakThreshold)) && Number(opts.silencePeakThreshold) >= 0
+      ? Number(opts.silencePeakThreshold)
+      : 0.001;
+    const silenceEnergyThreshold = Number.isFinite(Number(opts.silenceEnergyThreshold)) && Number(opts.silenceEnergyThreshold) >= 0
+      ? Number(opts.silenceEnergyThreshold)
+      : 0.002;
+    const silenceDbThreshold = Number.isFinite(Number(opts.silenceDbThreshold))
+      ? Number(opts.silenceDbThreshold)
+      : -66;
+
+    const desktopIntervalMs = 1000 / desktopFps;
+    const dapIntervalMs = 1000 / dapFps;
+    const idleIntervalMs = 1000 / idleFps;
+
+    const winRef = opts.window || (typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : null));
+    const docRef = opts.document || (winRef && winRef.document ? winRef.document : (typeof document !== 'undefined' ? document : null));
+    const OffscreenCtor = opts.OffscreenCanvas !== undefined
+      ? opts.OffscreenCanvas
+      : (winRef && typeof winRef.OffscreenCanvas === 'function'
+        ? winRef.OffscreenCanvas
+        : (typeof OffscreenCanvas === 'function' ? OffscreenCanvas : null));
+
+    const preferOffscreen = opts.preferOffscreen !== false;
+    const surfaceCache = typeof WeakMap === 'function' ? new WeakMap() : null;
+
+    let configuredFiioDapMode = opts.fiioDapMode !== undefined
+      ? Boolean(opts.fiioDapMode)
+      : getFiioDapMode(opts.storage, winRef);
+    let configuredLowPowerMode = Boolean(opts.lowPowerMode || opts.batterySaver);
+    let configuredDocumentHidden = Boolean(opts.documentHidden);
+    let configuredModalOccluded = Boolean(opts.modalOccluded || opts.occluded);
+
+    let lastRenderMs = -1;
+    let silenceStartMs = -1;
+    let primarySurface = null;
+
+    // Pre-allocated zero-allocation state struct mutated in-place on hot path
+    const govState = {
+      targetFps: configuredDocumentHidden || configuredModalOccluded
+        ? 0
+        : ((configuredFiioDapMode || configuredLowPowerMode) ? dapFps : desktopFps),
+      frameIntervalMs: configuredDocumentHidden || configuredModalOccluded
+        ? Infinity
+        : ((configuredFiioDapMode || configuredLowPowerMode) ? dapIntervalMs : desktopIntervalMs),
+      tier: configuredDocumentHidden || configuredModalOccluded
+        ? GOVERNOR_TIER_PAUSED
+        : (configuredFiioDapMode ? GOVERNOR_TIER_FIIO_DAP : (configuredLowPowerMode ? GOVERNOR_TIER_LOW_POWER : GOVERNOR_TIER_DESKTOP)),
+      renderedFrames: 0,
+      skippedFrames: 0,
+      pausedFrames: 0,
+      lastRenderMs: -1,
+      silentDurationMs: 0,
+      fiioDapMode: configuredFiioDapMode,
+      lowPowerMode: configuredLowPowerMode,
+      documentHidden: configuredDocumentHidden,
+      modalOccluded: configuredModalOccluded,
+      isOffscreen: false,
+      surfaceMode: 'uninitialized',
+      fallbackReason: null
+    };
+
+    function acquire2dContextSafe(target, ctxAttrs) {
+      if (!target || typeof target.getContext !== 'function') return null;
+      try {
+        const ctx = target.getContext('2d', ctxAttrs);
+        if (ctx) return ctx;
+      } catch (_) {
+        // Fallback for older Android WebViews rejecting context attribute dictionaries
+      }
+      try {
+        return target.getContext('2d');
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function resolveCanvasSurface(canvas, surfaceOptions = {}) {
+      const sOpts = surfaceOptions && typeof surfaceOptions === 'object' ? surfaceOptions : {};
+      if (canvas && typeof canvas === 'object' && surfaceCache && surfaceCache.has(canvas)) {
+        const cached = surfaceCache.get(canvas);
+        primarySurface = cached;
+        govState.isOffscreen = cached.isOffscreen;
+        govState.surfaceMode = cached.mode;
+        govState.fallbackReason = cached.fallbackReason;
+        return cached;
+      }
+
+      const wantOffscreen = sOpts.preferOffscreen !== undefined ? Boolean(sOpts.preferOffscreen) : preferOffscreen;
+      const ctxAttrs = {
+        alpha: sOpts.alpha !== undefined ? Boolean(sOpts.alpha) : (opts.alpha !== false),
+        desynchronized: sOpts.desynchronized !== undefined
+          ? Boolean(sOpts.desynchronized)
+          : Boolean(opts.desynchronized)
+      };
+
+      let targetCanvas = null;
+      let ctx = null;
+      let isOffscreen = false;
+      let mode = 'unavailable';
+      let fallbackReason = null;
+
+      if (canvas && typeof canvas === 'object') {
+        if (OffscreenCtor && canvas instanceof OffscreenCtor) {
+          ctx = acquire2dContextSafe(canvas, ctxAttrs);
+          if (ctx) {
+            targetCanvas = canvas;
+            isOffscreen = true;
+            mode = 'offscreen';
+          } else {
+            fallbackReason = 'offscreen_2d_context_unavailable';
+          }
+        } else if (wantOffscreen) {
+          if (typeof canvas.transferControlToOffscreen === 'function') {
+            try {
+              const transferred = canvas.transferControlToOffscreen();
+              const offCtx = acquire2dContextSafe(transferred, ctxAttrs);
+              if (transferred && offCtx) {
+                targetCanvas = transferred;
+                ctx = offCtx;
+                isOffscreen = true;
+                mode = 'offscreen';
+              } else {
+                fallbackReason = 'offscreen_2d_context_null';
+              }
+            } catch (err) {
+              fallbackReason = (err && (err.name || err.message))
+                ? String(err.name || err.message)
+                : 'transferControlToOffscreen_failed';
+            }
+          } else {
+            fallbackReason = 'transferControlToOffscreen_unsupported';
+          }
+        } else {
+          fallbackReason = 'offscreen_disabled_by_config';
+        }
+
+        if (!ctx) {
+          const mainCtx = acquire2dContextSafe(canvas, ctxAttrs);
+          if (mainCtx) {
+            targetCanvas = canvas;
+            ctx = mainCtx;
+            isOffscreen = false;
+            mode = wantOffscreen ? 'main-thread-fallback' : 'main-thread';
+          } else if (!fallbackReason) {
+            fallbackReason = 'canvas_2d_context_unavailable';
+          }
+        }
+      } else {
+        const initW = Math.max(1, Math.floor(Number(sOpts.width || opts.width) || 300));
+        const initH = Math.max(1, Math.floor(Number(sOpts.height || opts.height) || 150));
+        if (wantOffscreen && typeof OffscreenCtor === 'function') {
+          try {
+            const standaloneOffscreen = new OffscreenCtor(initW, initH);
+            const offCtx = acquire2dContextSafe(standaloneOffscreen, ctxAttrs);
+            if (offCtx) {
+              targetCanvas = standaloneOffscreen;
+              ctx = offCtx;
+              isOffscreen = true;
+              mode = 'offscreen';
+            } else {
+              fallbackReason = 'standalone_offscreen_2d_null';
+            }
+          } catch (err) {
+            fallbackReason = (err && (err.name || err.message))
+              ? String(err.name || err.message)
+              : 'OffscreenCanvas_constructor_failed';
+          }
+        } else if (wantOffscreen) {
+          fallbackReason = 'OffscreenCanvas_unsupported';
+        }
+
+        if (!ctx && docRef && typeof docRef.createElement === 'function') {
+          try {
+            const domCanvas = docRef.createElement('canvas');
+            domCanvas.width = initW;
+            domCanvas.height = initH;
+            const domCtx = acquire2dContextSafe(domCanvas, ctxAttrs);
+            if (domCtx) {
+              targetCanvas = domCanvas;
+              ctx = domCtx;
+              isOffscreen = false;
+              mode = wantOffscreen ? 'main-thread-fallback' : 'main-thread';
+            }
+          } catch (_) {
+            if (!fallbackReason) fallbackReason = 'dom_canvas_creation_failed';
+          }
+        }
+      }
+
+      const surface = {
+        canvas: canvas || targetCanvas,
+        targetCanvas,
+        ctx,
+        isOffscreen,
+        mode,
+        fallbackReason,
+        resize(width, height) {
+          const w = Math.max(1, Math.floor(Number(width) || 1));
+          const h = Math.max(1, Math.floor(Number(height) || 1));
+          if (!targetCanvas) return false;
+          try {
+            if (targetCanvas.width !== w) targetCanvas.width = w;
+            if (targetCanvas.height !== h) targetCanvas.height = h;
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }
+      };
+
+      if (canvas && typeof canvas === 'object' && surfaceCache) {
+        surfaceCache.set(canvas, surface);
+      }
+      primarySurface = surface;
+      govState.isOffscreen = isOffscreen;
+      govState.surfaceMode = mode;
+      govState.fallbackReason = fallbackReason;
+      return surface;
+    }
+
+    if (opts.canvas) {
+      resolveCanvasSurface(opts.canvas, opts);
+    }
+
+    function evaluateFrameTargetInPlace(nowMs, telemetry) {
+      const t = telemetry && typeof telemetry === 'object' ? telemetry : null;
+      const safeNow = Number.isFinite(nowMs) ? nowMs : 0;
+
+      // 1. Resolve visibility & modal occlusion (0fps immediate pause)
+      let docHidden = configuredDocumentHidden;
+      if (t && t.documentHidden !== undefined) {
+        docHidden = Boolean(t.documentHidden);
+      } else if (typeof opts.isDocumentHiddenFn === 'function') {
+        docHidden = Boolean(opts.isDocumentHiddenFn());
+      } else if (docRef && (docRef.hidden === true || docRef.visibilityState === 'hidden')) {
+        docHidden = true;
+      }
+
+      let occluded = configuredModalOccluded;
+      if (t && (t.modalOccluded !== undefined || t.occluded !== undefined || t.surfaceVisible !== undefined)) {
+        if (t.modalOccluded !== undefined) occluded = Boolean(t.modalOccluded);
+        else if (t.occluded !== undefined) occluded = Boolean(t.occluded);
+        else if (t.surfaceVisible === false) occluded = true;
+      } else if (typeof opts.isOccludedFn === 'function') {
+        occluded = Boolean(opts.isOccludedFn());
+      }
+
+      const fiioMode = (t && t.fiioDapMode !== undefined) ? Boolean(t.fiioDapMode) : configuredFiioDapMode;
+      const lowPower = (t && (t.lowPowerMode !== undefined || t.batterySaver !== undefined))
+        ? Boolean(t.lowPowerMode !== undefined ? t.lowPowerMode : t.batterySaver)
+        : configuredLowPowerMode;
+
+      govState.documentHidden = docHidden;
+      govState.modalOccluded = occluded;
+      govState.fiioDapMode = fiioMode;
+      govState.lowPowerMode = lowPower;
+
+      if (docHidden || occluded) {
+        govState.targetFps = 0;
+        govState.frameIntervalMs = Infinity;
+        govState.tier = GOVERNOR_TIER_PAUSED;
+        return 0;
+      }
+
+      // 2. Resolve audio silence / idle duration (> 1.5s -> 15fps)
+      let silentDuration = 0;
+      if (t && (t.silentDurationMs !== undefined || t.idleMs !== undefined)) {
+        const explicitSilentMs = Number(t.silentDurationMs !== undefined ? t.silentDurationMs : t.idleMs);
+        silentDuration = Number.isFinite(explicitSilentMs) && explicitSilentMs > 0 ? explicitSilentMs : 0;
+        if (silentDuration > 0) {
+          silenceStartMs = safeNow - silentDuration;
+        } else {
+          silenceStartMs = -1;
+        }
+      } else if (t) {
+        let isCurrentlySilent = false;
+        let hasSignalTelemetry = false;
+
+        if (t.isSilent !== undefined) {
+          hasSignalTelemetry = true;
+          isCurrentlySilent = Boolean(t.isSilent);
+        } else if (t.audioPaused === true || t.isAudioActive === false || t.playing === false) {
+          hasSignalTelemetry = true;
+          isCurrentlySilent = true;
+        } else {
+          const hasRms = t.rms !== undefined && Number.isFinite(t.rms);
+          const hasPeak = t.peak !== undefined && Number.isFinite(t.peak);
+          const hasEnergy = t.overallEnergy !== undefined && Number.isFinite(t.overallEnergy);
+          const hasRmsDb = t.rmsDb !== undefined && Number.isFinite(t.rmsDb);
+
+          if (hasRms || hasPeak || hasEnergy || hasRmsDb) {
+            hasSignalTelemetry = true;
+            const rmsQuiet = !hasRms || t.rms < silenceRmsThreshold;
+            const peakQuiet = !hasPeak || t.peak < silencePeakThreshold;
+            const energyQuiet = !hasEnergy || t.overallEnergy < silenceEnergyThreshold;
+            const dbQuiet = !hasRmsDb || t.rmsDb <= silenceDbThreshold;
+            isCurrentlySilent = rmsQuiet && peakQuiet && energyQuiet && dbQuiet;
+          }
+        }
+
+        if (hasSignalTelemetry) {
+          if (isCurrentlySilent) {
+            if (silenceStartMs < 0 || safeNow < silenceStartMs) {
+              silenceStartMs = safeNow;
+            }
+            silentDuration = safeNow - silenceStartMs;
+          } else {
+            silenceStartMs = -1;
+            silentDuration = 0;
+          }
+        } else {
+          silenceStartMs = -1;
+          silentDuration = 0;
+        }
+      } else {
+        silenceStartMs = -1;
+        silentDuration = 0;
+      }
+
+      govState.silentDurationMs = silentDuration;
+
+      if (silentDuration > idleSilenceThresholdMs) {
+        govState.targetFps = idleFps;
+        govState.frameIntervalMs = idleIntervalMs;
+        govState.tier = GOVERNOR_TIER_IDLE_SILENCE;
+        return idleFps;
+      }
+
+      if (fiioMode) {
+        govState.targetFps = dapFps;
+        govState.frameIntervalMs = dapIntervalMs;
+        govState.tier = GOVERNOR_TIER_FIIO_DAP;
+        return dapFps;
+      }
+
+      if (lowPower) {
+        govState.targetFps = dapFps;
+        govState.frameIntervalMs = dapIntervalMs;
+        govState.tier = GOVERNOR_TIER_LOW_POWER;
+        return dapFps;
+      }
+
+      govState.targetFps = desktopFps;
+      govState.frameIntervalMs = desktopIntervalMs;
+      govState.tier = GOVERNOR_TIER_DESKTOP;
+      return desktopFps;
+    }
+
+    function resolveTargetFps(nowMs, telemetry) {
+      return evaluateFrameTargetInPlace(nowMs, telemetry);
+    }
+
+    function shouldRenderFrame(nowMs, telemetry) {
+      const safeNow = Number.isFinite(nowMs)
+        ? nowMs
+        : (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now());
+      const fps = evaluateFrameTargetInPlace(safeNow, telemetry);
+
+      if (fps <= 0) {
+        govState.skippedFrames += 1;
+        govState.pausedFrames += 1;
+        return false;
+      }
+
+      const interval = govState.frameIntervalMs;
+      if (lastRenderMs < 0 || safeNow < lastRenderMs) {
+        lastRenderMs = safeNow;
+        govState.lastRenderMs = safeNow;
+        govState.renderedFrames += 1;
+        return true;
+      }
+
+      const elapsed = safeNow - lastRenderMs;
+      if (elapsed + frameToleranceMs >= interval) {
+        lastRenderMs = safeNow;
+        govState.lastRenderMs = safeNow;
+        govState.renderedFrames += 1;
+        return true;
+      }
+
+      govState.skippedFrames += 1;
+      return false;
+    }
+
+    function setMode(patch = {}) {
+      if (!patch || typeof patch !== 'object') return govState;
+      if (patch.fiioDapMode !== undefined) configuredFiioDapMode = Boolean(patch.fiioDapMode);
+      if (patch.lowPowerMode !== undefined) configuredLowPowerMode = Boolean(patch.lowPowerMode);
+      if (patch.batterySaver !== undefined) configuredLowPowerMode = Boolean(patch.batterySaver);
+      if (patch.documentHidden !== undefined) configuredDocumentHidden = Boolean(patch.documentHidden);
+      if (patch.modalOccluded !== undefined) configuredModalOccluded = Boolean(patch.modalOccluded);
+      if (patch.occluded !== undefined) configuredModalOccluded = Boolean(patch.occluded);
+      evaluateFrameTargetInPlace(lastRenderMs >= 0 ? lastRenderMs : 0, null);
+      return govState;
+    }
+
+    function reset() {
+      lastRenderMs = -1;
+      silenceStartMs = -1;
+      govState.renderedFrames = 0;
+      govState.skippedFrames = 0;
+      govState.pausedFrames = 0;
+      govState.lastRenderMs = -1;
+      govState.silentDurationMs = 0;
+      evaluateFrameTargetInPlace(0, null);
+      return govState;
+    }
+
+    return {
+      shouldRenderFrame,
+      resolveTargetFps,
+      resolveCanvasSurface,
+      getSurface() { return primarySurface; },
+      getState() { return govState; },
+      setMode,
+      reset
+    };
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, signConfigurationBundle, verifyConfigurationBundle, createAdaptiveCanvasRenderGovernor};
 });

@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 15,
-  "lastPhase": "UPGRADE",
-  "lastRunIso": "2026-11-17T22:59:16.893Z",
+  "cycleCount": 16,
+  "lastPhase": "OPTIMIZE",
+  "lastRunIso": "2026-11-17T23:06:00.630Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "OPT-04",
-      "phase": "OPTIMIZE",
-      "title": "Tối ưu OffscreenCanvas fallback và throttling thông minh cho VU Meter / Polar Radar khi chạy nền trên thiết bị FiiO DAP"
-    },
     {
       "id": "BUG-05",
       "phase": "BUG_HUNT",
@@ -93,6 +88,16 @@
       "id": "BUG-10",
       "phase": "BUG_HUNT",
       "title": "Kiểm tra khử vòng tham chiếu và chuẩn hóa số thực đặc biệt (-0, NaN, Infinity) khi ký gói cấu hình EQ & danh sách phát tùy chỉnh"
+    },
+    {
+      "id": "UPG-10",
+      "phase": "UPGRADE",
+      "title": "Bổ sung hiển thị chỉ số FPS thực tế và chế độ kết xuất OffscreenCanvas / Main-Thread trong bảng Roon Signal Path & Listening Room Telemetry"
+    },
+    {
+      "id": "OPT-10",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu tái sử dụng leftTimeBytes / rightTimeBytes từ ZeroAllocFrameScratchpad cho bộ dựng hình 3D Acoustic Soundstage tránh cấp phát Uint8Array mỗi khung hình"
     }
   ],
   "completedTasks": [
@@ -183,6 +188,14 @@
       "completedAt": "2026-11-17T22:59:16.893Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai computeCrc32Hex (IEEE 802.3 bảng tra 256-entry), signConfigurationBundle và verifyConfigurationBundle (chuẩn hóa khóa JSON lồng nhau tất định + chữ ký kép CRC32+SHA-256 + tương thích ngược gói sao lưu chưa ký legacy) trong library-utils.js, tích hợp vào exportAppConfiguration / validateAndParseConfiguration / parseShareablePlaylistPayload kèm unit test biên trong test/autonomy-tailchain-cycles.test.cjs"
+    },
+    {
+      "id": "OPT-04",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu OffscreenCanvas fallback và throttling thông minh cho VU Meter / Polar Radar khi chạy nền trên thiết bị FiiO DAP",
+      "completedAt": "2026-11-17T23:06:00.630Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai createAdaptiveCanvasRenderGovernor trong library-utils.js hỗ trợ OffscreenCanvas 2D an toàn kèm WeakMap surface cache và fallback tự động về HTMLCanvasElement khi transferControlToOffscreen không hỗ trợ hoặc ném ngoại lệ trên Android WebView, kết hợp điều tiết khung hình zero-allocation shouldRenderFrame(nowMs, telemetry) theo 4 mức 60fps (desktop) / 30fps (fiioDapMode & lowPower) / 15fps (im lặng >1.5s) / 0fps (documentHidden & modalOccluded)"
     }
   ]
 }

@@ -2133,3 +2133,175 @@ describe('Autonomy Tail-Chaining Cycle 10 — UPG-04 (CRC32 + SHA-256 Signed Off
     assert.deepEqual(legacyParsed.config.favorites, ['legacy-track-1']);
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 11 — OPT-04 (OffscreenCanvas Safe Fallback & Adaptive FiiO DAP Frame Governor)', () => {
+  it('exposes OPT-04 createAdaptiveCanvasRenderGovernor on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.createAdaptiveCanvasRenderGovernor, 'function');
+
+    const sandbox = { library: { keepRefOpt04: 'dap' } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.createAdaptiveCanvasRenderGovernor, 'function');
+    assert.equal(typeof sandbox.library.createAdaptiveCanvasRenderGovernor, 'function');
+    assert.equal(sandbox.library.keepRefOpt04, 'dap');
+  });
+
+  it('resolves OffscreenCanvas 2D when supported and safely falls back to HTMLCanvasElement when transferControlToOffscreen throws or is missing', () => {
+    // 1. Supported transferControlToOffscreen + WeakMap deduplication (never calls transfer twice)
+    let transferCount = 0;
+    const mockOffscreenCtx = { kind: 'offscreen-2d', fillRect() {} };
+    const goodCanvas = {
+      width: 320,
+      height: 160,
+      transferControlToOffscreen() {
+        transferCount += 1;
+        if (transferCount > 1) {
+          throw Object.assign(new Error('Cannot transfer control more than once'), { name: 'InvalidStateError' });
+        }
+        return {
+          width: 320,
+          height: 160,
+          getContext(type) { return type === '2d' ? mockOffscreenCtx : null; }
+        };
+      },
+      getContext() {
+        throw new Error('Main-thread getContext should not be called when OffscreenCanvas succeeds');
+      }
+    };
+
+    const govOk = lib.createAdaptiveCanvasRenderGovernor({ canvas: goodCanvas });
+    const surf1 = govOk.getSurface();
+    const surf2 = govOk.resolveCanvasSurface(goodCanvas);
+    assert.equal(surf1.isOffscreen, true);
+    assert.equal(surf1.mode, 'offscreen');
+    assert.strictEqual(surf1.ctx, mockOffscreenCtx);
+    assert.strictEqual(surf1, surf2, 'Surface must be cached per HTMLCanvasElement');
+    assert.equal(transferCount, 1);
+    assert.equal(surf1.resize(640, 240), true);
+    assert.equal(surf1.targetCanvas.width, 640);
+    assert.equal(surf1.targetCanvas.height, 240);
+
+    // 2. Android WebView / already-bound canvas where transferControlToOffscreen throws InvalidStateError / NotSupportedError
+    const fallback2dCtx = { kind: 'main-thread-2d', clearRect() {} };
+    const throwingCanvas = {
+      width: 280,
+      height: 120,
+      transferControlToOffscreen() {
+        const err = new Error('OffscreenCanvas transfer unsupported in this WebView');
+        err.name = 'InvalidStateError';
+        throw err;
+      },
+      getContext(type) {
+        return type === '2d' ? fallback2dCtx : null;
+      }
+    };
+
+    const govFallback = lib.createAdaptiveCanvasRenderGovernor({ canvas: throwingCanvas });
+    const fbSurface = govFallback.getSurface();
+    assert.equal(fbSurface.isOffscreen, false);
+    assert.equal(fbSurface.mode, 'main-thread-fallback');
+    assert.equal(fbSurface.fallbackReason, 'InvalidStateError');
+    assert.strictEqual(fbSurface.ctx, fallback2dCtx);
+    assert.equal(govFallback.getState().isOffscreen, false);
+    assert.equal(govFallback.getState().surfaceMode, 'main-thread-fallback');
+
+    // 3. Legacy canvas with no transferControlToOffscreen method at all
+    const legacyCtx = { kind: 'legacy-2d' };
+    const legacyCanvas = {
+      width: 200,
+      height: 80,
+      getContext(type) { return type === '2d' ? legacyCtx : null; }
+    };
+    const legacySurface = govFallback.resolveCanvasSurface(legacyCanvas);
+    assert.equal(legacySurface.isOffscreen, false);
+    assert.equal(legacySurface.mode, 'main-thread-fallback');
+    assert.equal(legacySurface.fallbackReason, 'transferControlToOffscreen_unsupported');
+    assert.strictEqual(legacySurface.ctx, legacyCtx);
+  });
+
+  it('gates frames accurately across 60fps desktop, 30fps fiioDapMode/lowPower, 15fps >1.5s silence, and 0fps documentHidden/modalOccluded with zero allocations', () => {
+    const gov = lib.createAdaptiveCanvasRenderGovernor({
+      fiioDapMode: false,
+      idleSilenceThresholdMs: 1500
+    });
+    const stateRefBefore = gov.getState();
+
+    // Simulate 120Hz rAF callback ticks (120 ticks * 8.3333ms = 1,000ms)
+    // 1. Desktop active audio -> 60fps (renders 60 out of 120 ticks)
+    const activeSignal = { rms: 0.18, peak: 0.62, overallEnergy: 0.35, documentHidden: false, modalOccluded: false };
+    let desktopRendered = 0;
+    for (let i = 0; i < 120; i++) {
+      if (gov.shouldRenderFrame(i * (1000 / 120), activeSignal)) {
+        desktopRendered += 1;
+      }
+    }
+    assert.equal(gov.getState().targetFps, 60);
+    assert.equal(desktopRendered, 60, `Expected 60 rendered frames on desktop in 1s, got ${desktopRendered}`);
+
+    // 2. FiiO M11S DAP mode (fiioDapMode: true) -> 30fps (renders 30 out of 120 ticks)
+    gov.reset();
+    gov.setMode({ fiioDapMode: true });
+    let dapRendered = 0;
+    for (let i = 0; i < 120; i++) {
+      if (gov.shouldRenderFrame(1000 + i * (1000 / 120), activeSignal)) {
+        dapRendered += 1;
+      }
+    }
+    assert.equal(gov.getState().targetFps, 30);
+    assert.equal(gov.getState().tier, 'fiio_dap_30fps');
+    assert.equal(dapRendered, 30, `Expected 30 rendered frames in fiioDapMode in 1s, got ${dapRendered}`);
+
+    // Native FiiO window auto-detection also defaults to 30fps
+    const autoFiioGov = lib.createAdaptiveCanvasRenderGovernor({
+      window: { NocturneNative: {}, isNativeAndroid: true }
+    });
+    assert.equal(autoFiioGov.resolveTargetFps(0, activeSignal), 30);
+
+    // 3. Idle silence (> 1,500ms) -> stays 60fps during decay (< 1.5s), drops to 15fps after 1.5s, recovers to 60fps immediately on audio
+    gov.reset();
+    gov.setMode({ fiioDapMode: false });
+    const silentSignal = { rms: 0.00005, peak: 0.0001, overallEnergy: 0.0001, rmsDb: -86 };
+    gov.shouldRenderFrame(0, silentSignal); // starts silence clock at t=0
+    assert.equal(gov.resolveTargetFps(1400, silentSignal), 60, 'Decay window <= 1500ms must preserve full 60fps needle ballistics');
+    assert.equal(gov.resolveTargetFps(1501, silentSignal), 15, 'Silence > 1500ms must throttle down to 15fps');
+
+    let idleRendered = 0;
+    for (let i = 0; i < 60; i++) {
+      // 60Hz ticks from t=2000ms to t=2983.33ms while silent > 1.5s
+      if (gov.shouldRenderFrame(2000 + i * (1000 / 60), silentSignal)) {
+        idleRendered += 1;
+      }
+    }
+    assert.equal(gov.getState().targetFps, 15);
+    assert.equal(gov.getState().tier, 'idle_silence_15fps');
+    assert.equal(idleRendered, 15, `Expected 15 rendered frames in 1s during idle silence, got ${idleRendered}`);
+
+    // Instant wake back to 60fps when music transient hits
+    assert.equal(gov.resolveTargetFps(3100, activeSignal), 60);
+    assert.equal(gov.getState().silentDurationMs, 0);
+
+    // 4. Immediate 0fps pause when documentHidden === true or modalOccluded === true
+    let hiddenRendered = 0;
+    for (let i = 0; i < 60; i++) {
+      if (gov.shouldRenderFrame(4000 + i * 16.67, { rms: 0.25, documentHidden: true })) {
+        hiddenRendered += 1;
+      }
+      if (gov.shouldRenderFrame(5000 + i * 16.67, { rms: 0.25, modalOccluded: true })) {
+        hiddenRendered += 1;
+      }
+    }
+    assert.equal(hiddenRendered, 0, 'Must render 0 frames when documentHidden or modalOccluded is true');
+    assert.equal(gov.getState().targetFps, 0);
+    assert.equal(gov.getState().tier, 'paused_0fps');
+
+    // Immediate first-frame recovery when tab becomes visible again
+    assert.equal(gov.shouldRenderFrame(6100, activeSignal), true);
+    assert.equal(gov.getState().targetFps, 60);
+
+    // Pre-allocated state reference invariant (zero heap churn)
+    assert.strictEqual(gov.getState(), stateRefBefore);
+  });
+});
