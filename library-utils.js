@@ -14464,5 +14464,411 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore};
+  // ==========================================================================
+  // OPT-02 — Proactive OAuth Token Refresh Scheduler & Guarded Player Shortcuts
+  // ==========================================================================
+  const DEFAULT_OAUTH_REFRESH_LEAD_MS = 5 * 60 * 1000; // 5 minutes before expiresAt
+  const MAX_SAFE_TIMEOUT_MS = 0x7fffffff;
+
+  function createProactiveOAuthTokenRefreshScheduler(options = {}) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const leadTimeMs = opts.leadTimeMs !== undefined && Number.isFinite(Number(opts.leadTimeMs))
+      ? Math.max(0, Math.floor(Number(opts.leadTimeMs)))
+      : DEFAULT_OAUTH_REFRESH_LEAD_MS;
+    const minDelayMs = opts.minDelayMs !== undefined && Number.isFinite(Number(opts.minDelayMs))
+      ? Math.max(0, Math.floor(Number(opts.minDelayMs)))
+      : 0;
+    const autoReschedule = opts.autoReschedule !== false;
+    const refreshFn = typeof opts.refreshFn === 'function' ? opts.refreshFn : async () => null;
+    const onRefreshed = typeof opts.onRefreshed === 'function' ? opts.onRefreshed : null;
+    const onError = typeof opts.onError === 'function' ? opts.onError : null;
+    const nowFn = typeof opts.nowFn === 'function' ? opts.nowFn : () => Date.now();
+    const isOnlineFn = typeof opts.isOnlineFn === 'function'
+      ? opts.isOnlineFn
+      : () => (typeof navigator === 'object' && navigator && typeof navigator.onLine === 'boolean' ? navigator.onLine : true);
+    const setTimer = typeof opts.setTimer === 'function' ? opts.setTimer : (fn, ms) => setTimeout(fn, ms);
+    const clearTimer = typeof opts.clearTimer === 'function' ? opts.clearTimer : id => clearTimeout(id);
+    const eventTarget = opts.eventTarget !== undefined
+      ? opts.eventTarget
+      : (typeof globalThis === 'object' && globalThis && globalThis.window && typeof globalThis.window.addEventListener === 'function'
+        ? globalThis.window
+        : null);
+
+    let timerId = null;
+    let scheduledExpiresAt = 0;
+    let inFlightPromise = null;
+    let deferredWhileOffline = false;
+    let pausedOffline = false;
+    let scheduleGeneration = 0;
+    let refreshCount = 0;
+    let errorCount = 0;
+    let lastRefreshedAt = 0;
+
+    function clearPendingTimer() {
+      if (timerId !== null) {
+        clearTimer(timerId);
+        timerId = null;
+      }
+    }
+
+    function shouldRefreshSoon(expiresAt, nowMs = nowFn()) {
+      const exp = Number(expiresAt);
+      const now = Number(nowMs);
+      if (!Number.isFinite(exp) || exp <= 0 || !Number.isFinite(now)) return false;
+      return now >= exp - leadTimeMs;
+    }
+
+    function computeRefreshDelayMs(expiresAt, nowMs = nowFn()) {
+      const exp = Number(expiresAt);
+      const now = Number(nowMs);
+      if (!Number.isFinite(exp) || exp <= 0 || !Number.isFinite(now)) return null;
+      const targetAt = exp - leadTimeMs;
+      const rawDelay = targetAt - now;
+      return Math.min(MAX_SAFE_TIMEOUT_MS, Math.max(minDelayMs, Math.round(rawDelay)));
+    }
+
+    function extractNextExpiresAt(result, completedAt) {
+      if (!result || typeof result !== 'object') return 0;
+      if (Number.isFinite(Number(result.expiresAt)) && Number(result.expiresAt) > 0) {
+        return Math.floor(Number(result.expiresAt));
+      }
+      if (result.expiresOn instanceof Date && Number.isFinite(result.expiresOn.getTime())) {
+        return result.expiresOn.getTime();
+      }
+      if (Number.isFinite(Number(result.expires_in)) && Number(result.expires_in) > 0) {
+        return completedAt + Math.floor(Number(result.expires_in) * 1000);
+      }
+      if (Number.isFinite(Number(result.expiresInSeconds)) && Number(result.expiresInSeconds) > 0) {
+        return completedAt + Math.floor(Number(result.expiresInSeconds) * 1000);
+      }
+      return 0;
+    }
+
+    function refreshNow() {
+      if (inFlightPromise) return inFlightPromise;
+      if (!isOnlineFn()) {
+        pausedOffline = true;
+        deferredWhileOffline = true;
+        return Promise.resolve(null);
+      }
+      const genAtStart = scheduleGeneration;
+      inFlightPromise = (async () => {
+        try {
+          const result = await refreshFn();
+          const completedAt = nowFn();
+          refreshCount++;
+          lastRefreshedAt = completedAt;
+          deferredWhileOffline = false;
+          pausedOffline = false;
+          if (autoReschedule && genAtStart === scheduleGeneration) {
+            const nextExp = extractNextExpiresAt(result, completedAt);
+            if (nextExp > completedAt) {
+              scheduleRefresh(nextExp);
+            }
+          }
+          if (onRefreshed) onRefreshed(result);
+          return result;
+        } catch (err) {
+          errorCount++;
+          if (onError) onError(err);
+          throw err;
+        } finally {
+          inFlightPromise = null;
+        }
+      })();
+      return inFlightPromise;
+    }
+
+    function triggerBackgroundRefresh() {
+      if (!isOnlineFn()) {
+        pausedOffline = true;
+        deferredWhileOffline = true;
+        return;
+      }
+      refreshNow().catch(() => {});
+    }
+
+    function scheduleRefresh(expiresAt) {
+      clearPendingTimer();
+      scheduleGeneration++;
+      const exp = Number(expiresAt);
+      if (!Number.isFinite(exp) || exp <= 0) {
+        scheduledExpiresAt = 0;
+        deferredWhileOffline = false;
+        return { scheduled: false, pausedOffline: false, delayMs: null, expiresAt: 0, refreshAt: 0 };
+      }
+
+      scheduledExpiresAt = Math.floor(exp);
+      const now = nowFn();
+      const delayMs = computeRefreshDelayMs(scheduledExpiresAt, now);
+      const refreshAt = scheduledExpiresAt - leadTimeMs;
+
+      if (!isOnlineFn()) {
+        pausedOffline = true;
+        deferredWhileOffline = true;
+        return {
+          scheduled: false,
+          pausedOffline: true,
+          delayMs,
+          expiresAt: scheduledExpiresAt,
+          refreshAt
+        };
+      }
+
+      pausedOffline = false;
+      deferredWhileOffline = false;
+      const expectedGen = scheduleGeneration;
+      timerId = setTimer(() => {
+        timerId = null;
+        if (expectedGen !== scheduleGeneration) return;
+        triggerBackgroundRefresh();
+      }, delayMs);
+
+      if (timerId && typeof timerId === 'object' && typeof timerId.unref === 'function') {
+        timerId.unref();
+      }
+
+      return {
+        scheduled: true,
+        pausedOffline: false,
+        delayMs,
+        expiresAt: scheduledExpiresAt,
+        refreshAt
+      };
+    }
+
+    function handleOffline() {
+      pausedOffline = true;
+      if (timerId !== null || scheduledExpiresAt > 0) {
+        clearPendingTimer();
+        deferredWhileOffline = true;
+      }
+    }
+
+    function handleOnline() {
+      pausedOffline = false;
+      if (!isOnlineFn()) return;
+      const now = nowFn();
+      if (deferredWhileOffline && (scheduledExpiresAt <= 0 || shouldRefreshSoon(scheduledExpiresAt, now))) {
+        deferredWhileOffline = false;
+        triggerBackgroundRefresh();
+      } else if (scheduledExpiresAt > 0) {
+        deferredWhileOffline = false;
+        scheduleRefresh(scheduledExpiresAt);
+      }
+    }
+
+    function cancel() {
+      scheduleGeneration++;
+      clearPendingTimer();
+      scheduledExpiresAt = 0;
+      deferredWhileOffline = false;
+      pausedOffline = false;
+    }
+
+    function dispose() {
+      cancel();
+      if (eventTarget && typeof eventTarget.removeEventListener === 'function') {
+        eventTarget.removeEventListener('offline', handleOffline);
+        eventTarget.removeEventListener('online', handleOnline);
+      }
+    }
+
+    if (eventTarget && typeof eventTarget.addEventListener === 'function') {
+      eventTarget.addEventListener('offline', handleOffline);
+      eventTarget.addEventListener('online', handleOnline);
+    }
+
+    return {
+      leadTimeMs,
+      shouldRefreshSoon,
+      computeRefreshDelayMs,
+      scheduleRefresh,
+      refreshNow,
+      handleOffline,
+      handleOnline,
+      cancel,
+      dispose,
+      getState() {
+        return {
+          leadTimeMs,
+          scheduledExpiresAt,
+          hasActiveTimer: timerId !== null,
+          inFlight: inFlightPromise !== null,
+          deferredWhileOffline,
+          pausedOffline,
+          refreshCount,
+          errorCount,
+          lastRefreshedAt
+        };
+      }
+    };
+  }
+
+  function isSingleElementEditable(el) {
+    if (!el || typeof el !== 'object') return false;
+    const rawTag = el.tagName || el.nodeName;
+    if (typeof rawTag === 'string') {
+      const upper = rawTag.toUpperCase();
+      if (upper === 'INPUT' || upper === 'TEXTAREA' || upper === 'SELECT') return true;
+    }
+    if (el.isContentEditable === true) return true;
+    if (typeof el.contentEditable === 'string') {
+      const ce = el.contentEditable.toLowerCase().trim();
+      if (ce === 'true' || ce === 'plaintext-only') return true;
+    }
+    if (typeof el.getAttribute === 'function') {
+      const ceAttr = el.getAttribute('contenteditable');
+      if (ceAttr !== null && ceAttr !== undefined) {
+        const norm = String(ceAttr).toLowerCase().trim();
+        if (norm === '' || norm === 'true' || norm === 'plaintext-only') return true;
+      }
+      const roleAttr = el.getAttribute('role');
+      if (typeof roleAttr === 'string') {
+        const r = roleAttr.toLowerCase().trim();
+        if (r === 'textbox' || r === 'searchbox' || r === 'combobox' || r === 'spinbutton') return true;
+      }
+    } else if (typeof el.role === 'string') {
+      const r = el.role.toLowerCase().trim();
+      if (r === 'textbox' || r === 'searchbox' || r === 'combobox' || r === 'spinbutton') return true;
+    }
+    return false;
+  }
+
+  function isEditableKeyboardTarget(target, activeElement) {
+    const candidates = [target, activeElement];
+    for (let c = 0; c < candidates.length; c++) {
+      let node = candidates[c];
+      if (!node || typeof node !== 'object') continue;
+      if (typeof node.closest === 'function') {
+        try {
+          if (node.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"], [role="textbox"], [role="searchbox"], [role="combobox"]')) {
+            return true;
+          }
+        } catch (_) {}
+      }
+      let depth = 0;
+      while (node && typeof node === 'object' && depth < 24) {
+        if (isSingleElementEditable(node)) return true;
+        if (typeof node.contentEditable === 'string' && node.contentEditable.toLowerCase().trim() === 'false') {
+          break;
+        }
+        if (typeof node.getAttribute === 'function') {
+          const ceAttr = node.getAttribute('contenteditable');
+          if (ceAttr !== null && String(ceAttr).toLowerCase().trim() === 'false') break;
+        }
+        node = node.parentElement || node.parentNode || null;
+        depth++;
+      }
+    }
+    return false;
+  }
+
+  function isInteractiveButtonTarget(el) {
+    let node = el;
+    if (!node || typeof node !== 'object') return false;
+    if (typeof node.closest === 'function') {
+      try {
+        if (node.closest('button, a[href], summary, [role="button"]')) return true;
+      } catch (_) {}
+    }
+    let depth = 0;
+    while (node && typeof node === 'object' && depth < 12) {
+      const rawTag = node.tagName || node.nodeName;
+      if (typeof rawTag === 'string') {
+        const upper = rawTag.toUpperCase();
+        if (upper === 'BUTTON' || upper === 'A' || upper === 'SUMMARY') return true;
+      }
+      const role = typeof node.getAttribute === 'function' ? node.getAttribute('role') : node.role;
+      if (typeof role === 'string' && role.toLowerCase().trim() === 'button') return true;
+      node = node.parentElement || node.parentNode || null;
+      depth++;
+    }
+    return false;
+  }
+
+  const SHORTCUT_PLAY_PAUSE = Object.freeze({ action: 'togglePlayPause', key: 'Space', deltaSeconds: 0, preventDefault: true });
+  const SHORTCUT_SEEK_LEFT_5 = Object.freeze({ action: 'seek', key: 'ArrowLeft', deltaSeconds: -5, preventDefault: true });
+  const SHORTCUT_SEEK_RIGHT_5 = Object.freeze({ action: 'seek', key: 'ArrowRight', deltaSeconds: 5, preventDefault: true });
+  const SHORTCUT_SEEK_LEFT_10 = Object.freeze({ action: 'seek', key: 'ArrowLeft', deltaSeconds: -10, preventDefault: true });
+  const SHORTCUT_SEEK_RIGHT_10 = Object.freeze({ action: 'seek', key: 'ArrowRight', deltaSeconds: 10, preventDefault: true });
+  const SHORTCUT_SEEK_J_10 = Object.freeze({ action: 'seek', key: 'j', deltaSeconds: -10, preventDefault: true });
+  const SHORTCUT_SEEK_K_10 = Object.freeze({ action: 'seek', key: 'k', deltaSeconds: 10, preventDefault: true });
+  const SHORTCUT_MUTE = Object.freeze({ action: 'toggleMute', key: 'm', deltaSeconds: 0, preventDefault: true });
+  const SHORTCUT_LYRICS = Object.freeze({ action: 'toggleLyrics', key: 'l', deltaSeconds: 0, preventDefault: true });
+  const SHORTCUT_SEARCH_F = Object.freeze({ action: 'focusSearch', key: 'f', deltaSeconds: 0, preventDefault: true });
+  const SHORTCUT_SEARCH_SLASH = Object.freeze({ action: 'focusSearch', key: '/', deltaSeconds: 0, preventDefault: true });
+
+  function resolvePlayerKeyboardShortcut(eventLike, context) {
+    if (!eventLike || typeof eventLike !== 'object') return null;
+    if (eventLike.defaultPrevented === true || eventLike.isComposing === true || eventLike.keyCode === 229) {
+      return null;
+    }
+    if (eventLike.ctrlKey || eventLike.metaKey || eventLike.altKey) {
+      return null;
+    }
+    if (context && (context.disabled === true || context.modalOpen === true)) {
+      return null;
+    }
+
+    const activeElement = context && typeof context === 'object' ? context.activeElement : null;
+    const primaryTarget = (typeof eventLike.composedPath === 'function' ? eventLike.composedPath()?.[0] : null) || eventLike.target;
+    if (isEditableKeyboardTarget(primaryTarget, activeElement)) {
+      return null;
+    }
+
+    const rawKey = typeof eventLike.key === 'string' ? eventLike.key : '';
+    const rawCode = typeof eventLike.code === 'string' ? eventLike.code : '';
+
+    const hasCustomSteps = Boolean(
+      context &&
+      (context.arrowSeekSeconds !== undefined || context.jkSeekSeconds !== undefined)
+    );
+    const arrowStep = hasCustomSteps && Number.isFinite(Number(context.arrowSeekSeconds)) && Number(context.arrowSeekSeconds) > 0
+      ? Number(context.arrowSeekSeconds)
+      : 5;
+    const jkStep = hasCustomSteps && Number.isFinite(Number(context.jkSeekSeconds)) && Number(context.jkSeekSeconds) > 0
+      ? Number(context.jkSeekSeconds)
+      : 10;
+
+    if (rawCode === 'Space' || rawKey === ' ' || rawKey === 'Spacebar') {
+      if (!(context && context.allowInteractiveSpace === true) && (isInteractiveButtonTarget(primaryTarget) || isInteractiveButtonTarget(activeElement))) {
+        return null;
+      }
+      return SHORTCUT_PLAY_PAUSE;
+    }
+
+    if (rawKey === 'ArrowLeft') {
+      if (!hasCustomSteps) return eventLike.shiftKey ? SHORTCUT_SEEK_LEFT_10 : SHORTCUT_SEEK_LEFT_5;
+      return { action: 'seek', key: 'ArrowLeft', deltaSeconds: -(eventLike.shiftKey ? jkStep : arrowStep), preventDefault: true };
+    }
+    if (rawKey === 'ArrowRight') {
+      if (!hasCustomSteps) return eventLike.shiftKey ? SHORTCUT_SEEK_RIGHT_10 : SHORTCUT_SEEK_RIGHT_5;
+      return { action: 'seek', key: 'ArrowRight', deltaSeconds: eventLike.shiftKey ? jkStep : arrowStep, preventDefault: true };
+    }
+
+    if (rawKey === '/') {
+      return SHORTCUT_SEARCH_SLASH;
+    }
+
+    if (rawKey.length === 1) {
+      const ch = rawKey.charCodeAt(0) | 32; // zero-allocation ASCII lowercase
+      if (ch === 106) { // 'j'
+        return !hasCustomSteps ? SHORTCUT_SEEK_J_10 : { action: 'seek', key: 'j', deltaSeconds: -jkStep, preventDefault: true };
+      }
+      if (ch === 107) { // 'k'
+        if (context && context.kAction === 'togglePlayPause') {
+          return SHORTCUT_PLAY_PAUSE;
+        }
+        return !hasCustomSteps ? SHORTCUT_SEEK_K_10 : { action: 'seek', key: 'k', deltaSeconds: jkStep, preventDefault: true };
+      }
+      if (ch === 109) return SHORTCUT_MUTE;      // 'm'
+      if (ch === 108) return SHORTCUT_LYRICS;    // 'l'
+      if (ch === 102) return SHORTCUT_SEARCH_F;  // 'f'
+    }
+
+    return null;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut};
 });

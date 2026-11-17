@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 7,
-  "lastPhase": "UPGRADE",
-  "lastRunIso": "2026-11-17T21:00:36.812Z",
+  "cycleCount": 8,
+  "lastPhase": "OPTIMIZE",
+  "lastRunIso": "2026-11-17T21:09:41.790Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "OPT-02",
-      "phase": "OPTIMIZE",
-      "title": "Tối ưu tự động gia hạn Google Drive OAuth 2.0 Access Token ngầm trước khi hết hạn và cải thiện trải nghiệm phím tắt điều khiển trình phát"
-    },
     {
       "id": "BUG-03",
       "phase": "BUG_HUNT",
@@ -63,6 +58,16 @@
       "id": "BUG-06",
       "phase": "BUG_HUNT",
       "title": "Kiểm tra và xử lý đóng kết nối IndexedDB an toàn khi sự kiện versionchange xảy ra giữa nhiều tab PWA đang mở cùng lúc"
+    },
+    {
+      "id": "UPG-06",
+      "phase": "UPGRADE",
+      "title": "Hỗ trợ xuất/nhập bảng phím tắt tùy chỉnh và đồng bộ MediaSession seekbackward/seekforward theo bước tua đã chọn"
+    },
+    {
+      "id": "OPT-06",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu lưu đệm trạng thái hết hạn OAuth đa nguồn (Google Drive / Microsoft Entra / Subsonic / Jellyfin) tránh gọi làm mới thừa khi khởi động lạnh"
     }
   ],
   "completedTasks": [
@@ -105,6 +110,14 @@
       "completedAt": "2026-11-17T21:00:36.812Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai computeAudioFingerprint64k, computeAudioFingerprint64kAsync (Web Crypto SHA-256 64KB + :fileSize với fallback FIPS 180-4 thuần JS), computeFastFingerprintKey và createFingerprintLyricsCacheStore (IndexedDB + LRU in-memory fallback chống đổi tên file) trong library-utils.js kèm unit test biên trong test/autonomy-tailchain-cycles.test.cjs"
+    },
+    {
+      "id": "OPT-02",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu tự động gia hạn Google Drive OAuth 2.0 Access Token ngầm trước khi hết hạn và cải thiện trải nghiệm phím tắt điều khiển trình phát",
+      "completedAt": "2026-11-17T21:09:41.790Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai createProactiveOAuthTokenRefreshScheduler (cửa sổ làm mới sớm 5 phút, single-flight Promise deduplication, tạm dừng offline / phục hồi online) và resolvePlayerKeyboardShortcut / isEditableKeyboardTarget zero-allocation trong library-utils.js, tích hợp an toàn vào Google/Microsoft OAuth và Listening Room trong index.html"
     }
   ]
 }

@@ -10490,6 +10490,16 @@
     }
 
     loadGoogleScript().catch(error => console.info('Google Identity Services unavailable until requested:', error.message || error));
+    const googleOAuthRefreshScheduler = (typeof library !== 'undefined' && library && typeof library.createProactiveOAuthTokenRefreshScheduler === 'function')
+      ? library.createProactiveOAuthTokenRefreshScheduler({
+          leadTimeMs: 300000,
+          refreshFn: async () => {
+            if (!window.google?.accounts?.oauth2 || !window.isSecureContext) return null;
+            await requestGoogleToken({ prompt: '' });
+            return { accessToken: state.googleToken, expiresAt: state.googleExpiresAt };
+          }
+        })
+      : null;
     function requestGoogleToken({clientId = '', prompt = ''} = {}) {
       if (!window.isSecureContext) throw new Error('Google OAuth chỉ hoạt động trên HTTPS hoặc localhost. Hãy mở website bằng địa chỉ HTTPS; không dùng file:// hoặc địa chỉ IP không bảo mật.');
       const savedConfig = library.parseCloudConfig(localStorage.getItem('nocturne-google'));
@@ -10512,6 +10522,7 @@
               state.googleToken = result.access_token;
               state.googleExpiresAt = Date.now() + (Number(result.expires_in) || 3600) * 1000;
               try { localStorage.setItem('nocturne-google-token', state.googleToken); } catch (_) {}
+              if (googleOAuthRefreshScheduler) googleOAuthRefreshScheduler.scheduleRefresh(state.googleExpiresAt);
               finish(resolve, state.googleToken);
             },
             error_callback: error => finish(reject, new Error(error?.message || `Không mở được cửa sổ OAuth của Google (${error?.type || 'lỗi popup'}). Cho phép popup cho website này rồi nhấn kết nối lại.`))
@@ -10521,7 +10532,18 @@
       });
     }
     async function ensureGoogleToken() {
-      if (state.googleToken && Date.now() < state.googleExpiresAt - 60000) return state.googleToken;
+      if (state.googleToken && Date.now() < state.googleExpiresAt - 60000) {
+        if (googleOAuthRefreshScheduler && googleOAuthRefreshScheduler.shouldRefreshSoon(state.googleExpiresAt) && window.google?.accounts?.oauth2) {
+          googleOAuthRefreshScheduler.refreshNow().catch(() => {});
+        }
+        return state.googleToken;
+      }
+      if (googleOAuthRefreshScheduler && window.google?.accounts?.oauth2 && window.isSecureContext) {
+        try {
+          await googleOAuthRefreshScheduler.refreshNow();
+          if (state.googleToken && Date.now() < state.googleExpiresAt - 5000) return state.googleToken;
+        } catch (_) {}
+      }
       throw new Error('Phiên Google Drive đã hết hạn. Nhấn “Tiếp tục với Google” để kết nối lại.');
     }
     async function connectGoogle(overrideClientId) {
@@ -10714,6 +10736,16 @@
       if (!response.ok) throw new Error(`Microsoft Graph ${response.status}: ${await response.text()}`);
       return response.json();
     }
+    const microsoftOAuthRefreshScheduler = (typeof library !== 'undefined' && library && typeof library.createProactiveOAuthTokenRefreshScheduler === 'function')
+      ? library.createProactiveOAuthTokenRefreshScheduler({
+          leadTimeMs: 300000,
+          refreshFn: async () => {
+            if (!state.msal || !state.msAccount) return null;
+            const token = await getMicrosoftToken(false);
+            return { accessToken: token, expiresAt: state.microsoftExpiresAt || 0 };
+          }
+        })
+      : null;
     async function getMicrosoftToken(interactive = false) {
       if (!state.msal) {
         const config = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
@@ -10730,12 +10762,18 @@
       try {
         const result = await state.msal.acquireTokenSilent({scopes:['Files.Read'], account:state.msAccount});
         state.microsoftAccessToken = result.accessToken;
-        if (result.expiresOn) state.microsoftExpiresAt = result.expiresOn.getTime();
+        if (result.expiresOn) {
+          state.microsoftExpiresAt = result.expiresOn.getTime();
+          if (microsoftOAuthRefreshScheduler) microsoftOAuthRefreshScheduler.scheduleRefresh(state.microsoftExpiresAt);
+        }
       } catch (error) {
         if (!(error instanceof msal.InteractionRequiredAuthError) || !interactive) throw error;
         const result = await state.msal.acquireTokenPopup({scopes:['Files.Read'], account:state.msAccount});
         state.microsoftAccessToken = result.accessToken;
-        if (result.expiresOn) state.microsoftExpiresAt = result.expiresOn.getTime();
+        if (result.expiresOn) {
+          state.microsoftExpiresAt = result.expiresOn.getTime();
+          if (microsoftOAuthRefreshScheduler) microsoftOAuthRefreshScheduler.scheduleRefresh(state.microsoftExpiresAt);
+        }
       }
       return state.microsoftAccessToken;
     }
@@ -13143,8 +13181,11 @@
       }
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
       const target = event.target, tag = target && target.tagName;
+      const isEditableTarget = (typeof library !== 'undefined' && library && typeof library.isEditableKeyboardTarget === 'function')
+        ? library.isEditableKeyboardTarget(target, document.activeElement)
+        : (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || Boolean(target && target.isContentEditable));
       // Slash shortcut for Command Palette when not typing in an input
-      if (event.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT' && (!target || !target.isContentEditable)) {
+      if (event.key === '/' && !isEditableTarget) {
         event.preventDefault();
         if (typeof openCommandPalette === 'function') openCommandPalette();
         else if (window.UIOverlay?.openCommandPalette) window.UIOverlay.openCommandPalette();
@@ -13161,7 +13202,21 @@
       }
       if (event.key === 'Escape' && isSettingsOpen()) { event.preventDefault(); hideSettings(); return; }
       if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); toggleAmbientPanel(false); return; }
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target && target.isContentEditable) || (target && target.closest && target.closest('button, a, [role="button"]')) || !$('listening-room').classList.contains('hidden')) return;
+      if (isEditableTarget || (target && target.closest && target.closest('button, a, [role="button"]'))) return;
+      if (!$('listening-room').classList.contains('hidden')) {
+        const roomShortcut = (typeof library !== 'undefined' && library && typeof library.resolvePlayerKeyboardShortcut === 'function')
+          ? library.resolvePlayerKeyboardShortcut(event, { activeElement: document.activeElement })
+          : null;
+        if (roomShortcut) {
+          if (roomShortcut.preventDefault) event.preventDefault();
+          if (roomShortcut.action === 'togglePlayPause') $('play-button').click();
+          else if (roomShortcut.action === 'seek' && Number.isFinite(audio.duration)) seekByStep(roomShortcut.deltaSeconds);
+          else if (roomShortcut.action === 'toggleMute') toggleMute();
+          else if (roomShortcut.action === 'toggleLyrics') closeListeningRoom();
+          else if (roomShortcut.action === 'focusSearch') { closeListeningRoom(); $('search')?.focus(); }
+        }
+        return;
+      }
       if (!$('queue-panel').classList.contains('hidden')) { if (event.key.toLowerCase() === 'q') closeQueue(); return; }
       if (event.code === 'Space' || event.key.toLowerCase() === 'k') { event.preventDefault(); $('play-button').click(); }
       else if ((event.key === 'ArrowLeft' || event.key.toLowerCase() === 'j') && Number.isFinite(audio.duration)) { event.preventDefault(); seekByStep(-10); }

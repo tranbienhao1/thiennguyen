@@ -841,3 +841,214 @@ describe('Autonomy Tail-Chaining Cycle 4 — UPG-02 (SHA-256 64KB + file_size Fi
     assert.equal(reloaded.updatedAt, 1700000123456);
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 5 — OPT-02 (Proactive OAuth Token Refresh Scheduler & Guarded Player Keyboard Shortcuts)', () => {
+  it('exposes OPT-02 functions on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.createProactiveOAuthTokenRefreshScheduler, 'function');
+    assert.equal(typeof lib.resolvePlayerKeyboardShortcut, 'function');
+    assert.equal(typeof lib.isEditableKeyboardTarget, 'function');
+
+    const sandbox = { library: { sentinel: 'ok' } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.createProactiveOAuthTokenRefreshScheduler, 'function');
+    assert.equal(typeof sandbox.library.createProactiveOAuthTokenRefreshScheduler, 'function');
+    assert.equal(typeof sandbox.library.resolvePlayerKeyboardShortcut, 'function');
+    assert.equal(sandbox.library.sentinel, 'ok');
+  });
+
+  it('computes 5-minute proactive refresh lead window, deduplicates concurrent in-flight refreshes, and pauses/resumes across offline/online', async () => {
+    let now = 1_000_000;
+    let online = true;
+    let refreshCalls = 0;
+    let scheduledTimer = null;
+    const listeners = new Map();
+
+    const mockEventTarget = {
+      addEventListener(type, fn) { listeners.set(type, fn); },
+      removeEventListener(type) { listeners.delete(type); },
+      emit(type) { const fn = listeners.get(type); if (fn) fn(); }
+    };
+
+    let releaseRefresh = null;
+    const scheduler = lib.createProactiveOAuthTokenRefreshScheduler({
+      leadTimeMs: 300_000, // 5 minutes
+      nowFn: () => now,
+      isOnlineFn: () => online,
+      eventTarget: mockEventTarget,
+      setTimer: (fn, delayMs) => {
+        const handle = { id: Math.random(), fn, delayMs, cleared: false };
+        scheduledTimer = handle;
+        return handle;
+      },
+      clearTimer: handle => {
+        if (handle) handle.cleared = true;
+        if (scheduledTimer === handle) scheduledTimer = null;
+      },
+      refreshFn: () => {
+        refreshCalls++;
+        return new Promise(resolve => {
+          releaseRefresh = resolve;
+        });
+      }
+    });
+
+    const expiresAt = now + 3600_000; // +60 minutes (4,600,000)
+
+    // 1. shouldRefreshSoon checks 5-minute lead window accurately
+    assert.equal(scheduler.shouldRefreshSoon(0, now), false);
+    assert.equal(scheduler.shouldRefreshSoon(null, now), false);
+    assert.equal(scheduler.shouldRefreshSoon(expiresAt, expiresAt - 300_001), false);
+    assert.equal(scheduler.shouldRefreshSoon(expiresAt, expiresAt - 300_000), true);
+    assert.equal(scheduler.shouldRefreshSoon(expiresAt, expiresAt - 10_000), true);
+    assert.equal(scheduler.shouldRefreshSoon(expiresAt, expiresAt + 5_000), true);
+
+    // 2. scheduleRefresh arms timer exactly (60m - 5m = 55m = 3,300,000ms) ahead
+    const plan = scheduler.scheduleRefresh(expiresAt);
+    assert.equal(plan.scheduled, true);
+    assert.equal(plan.delayMs, 3_300_000);
+    assert.ok(scheduledTimer && scheduledTimer.delayMs === 3_300_000);
+
+    // 3. In-flight deduplication: 8 concurrent refreshNow() calls invoke refreshFn ONCE
+    const concurrentPromises = Array.from({ length: 8 }, () => scheduler.refreshNow());
+    assert.equal(refreshCalls, 1);
+    assert.equal(scheduler.getState().inFlight, true);
+
+    now = 4_300_000;
+    releaseRefresh({ access_token: 'ya29.refreshed_1', expires_in: 3600 });
+    const results = await Promise.all(concurrentPromises);
+    assert.equal(refreshCalls, 1);
+    for (const r of results) {
+      assert.equal(r.access_token, 'ya29.refreshed_1');
+    }
+    assert.equal(scheduler.getState().inFlight, false);
+    assert.equal(scheduler.getState().refreshCount, 1);
+    // Auto-rescheduled for next token cycle (now + 3600s - 300s = 3,300,000ms)
+    assert.equal(scheduler.getState().scheduledExpiresAt, 4_300_000 + 3_600_000);
+
+    // 4. Offline pause & Online resume inside lead window
+    const nearExpiry = now + 120_000; // only 2m remaining (< 5m lead)
+    scheduler.scheduleRefresh(nearExpiry);
+    online = false;
+    mockEventTarget.emit('offline');
+    assert.equal(scheduler.getState().pausedOffline, true);
+    assert.equal(scheduler.getState().hasActiveTimer, false);
+
+    // Calling refreshNow while offline defers without hitting network
+    const offlineAttempt = await scheduler.refreshNow();
+    assert.equal(offlineAttempt, null);
+    assert.equal(refreshCalls, 1);
+
+    // Coming back online immediately resumes deferred refresh!
+    online = true;
+    mockEventTarget.emit('online');
+    assert.equal(refreshCalls, 2);
+    releaseRefresh({ accessToken: 'ya29.after_online', expiresAt: now + 3_600_000 });
+    await new Promise(r => setImmediate(r));
+    assert.equal(scheduler.getState().refreshCount, 2);
+
+    // 5. cancel() & dispose() clean up timers and listeners
+    scheduler.cancel();
+    assert.equal(scheduler.getState().hasActiveTimer, false);
+    assert.equal(scheduler.getState().scheduledExpiresAt, 0);
+    scheduler.dispose();
+    assert.equal(listeners.size, 0);
+  });
+
+  it('resolves player keyboard shortcuts with zero allocation and strictly guards inputs, contenteditable & modifiers', () => {
+    // 1. Valid shortcuts on neutral body/div target
+    const bodyTarget = { tagName: 'BODY' };
+    const rSpace = lib.resolvePlayerKeyboardShortcut({ key: ' ', code: 'Space', target: bodyTarget });
+    assert.deepEqual(rSpace, { action: 'togglePlayPause', key: 'Space', deltaSeconds: 0, preventDefault: true });
+    // Frozen singleton reference (zero per-keypress allocation)
+    assert.strictEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: ' ', code: 'Space', target: bodyTarget }),
+      rSpace
+    );
+
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: 'ArrowLeft', target: bodyTarget }),
+      { action: 'seek', key: 'ArrowLeft', deltaSeconds: -5, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: 'ArrowRight', target: bodyTarget }),
+      { action: 'seek', key: 'ArrowRight', deltaSeconds: 5, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: 'ArrowRight', shiftKey: true, target: bodyTarget }),
+      { action: 'seek', key: 'ArrowRight', deltaSeconds: 10, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: 'j', target: bodyTarget }),
+      { action: 'seek', key: 'j', deltaSeconds: -10, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: 'K', shiftKey: true, target: bodyTarget }),
+      { action: 'seek', key: 'k', deltaSeconds: 10, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: 'M', target: bodyTarget }),
+      { action: 'toggleMute', key: 'm', deltaSeconds: 0, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: 'l', target: bodyTarget }),
+      { action: 'toggleLyrics', key: 'l', deltaSeconds: 0, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: 'f', target: bodyTarget }),
+      { action: 'focusSearch', key: 'f', deltaSeconds: 0, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: '/', target: bodyTarget }),
+      { action: 'focusSearch', key: '/', deltaSeconds: 0, preventDefault: true }
+    );
+
+    // 2. Strictly ignores <input>, <textarea>, <select>, and [contenteditable="true"] (including nested children!)
+    const editableTargets = [
+      { tagName: 'INPUT' },
+      { tagName: 'TEXTAREA' },
+      { tagName: 'SELECT' },
+      { tagName: 'DIV', isContentEditable: true },
+      { tagName: 'DIV', getAttribute: attr => (attr === 'contenteditable' ? 'true' : null) },
+      { tagName: 'SPAN', parentElement: { tagName: 'DIV', contentEditable: 'true' } },
+      { tagName: 'DIV', role: 'textbox' }
+    ];
+    for (const target of editableTargets) {
+      for (const key of [' ', 'ArrowLeft', 'ArrowRight', 'j', 'k', 'm', 'l', 'f', '/']) {
+        assert.equal(
+          lib.resolvePlayerKeyboardShortcut({ key, code: key === ' ' ? 'Space' : '', target }),
+          null,
+          `Must ignore '${key}' when focused inside editable target ${target.tagName}`
+        );
+        assert.equal(
+          lib.resolvePlayerKeyboardShortcut(
+            { key, code: key === ' ' ? 'Space' : '', target: bodyTarget },
+            { activeElement: target }
+          ),
+          null,
+          `Must ignore '${key}' when context.activeElement is editable ${target.tagName}`
+        );
+      }
+    }
+
+    // 3. Strictly ignores Ctrl / Meta / Alt modifier combinations (browser shortcut protection)
+    for (const mod of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }]) {
+      for (const key of [' ', 'ArrowLeft', 'ArrowRight', 'j', 'k', 'm', 'l', 'f', '/']) {
+        assert.equal(
+          lib.resolvePlayerKeyboardShortcut({ key, target: bodyTarget, ...mod }),
+          null,
+          `Must ignore '${key}' when modifier ${JSON.stringify(mod)} is held`
+        );
+      }
+    }
+
+    // 4. Verify index.html wiring and audio graph invariant
+    const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    assert.ok(indexHtml.includes('library.createProactiveOAuthTokenRefreshScheduler('));
+    assert.ok(indexHtml.includes('library.resolvePlayerKeyboardShortcut('));
+    assert.ok(indexHtml.includes('state.crossfeedNodes.output.connect(state.context.destination)'));
+  });
+});
