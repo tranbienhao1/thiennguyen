@@ -2305,3 +2305,273 @@ describe('Autonomy Tail-Chaining Cycle 11 — OPT-04 (OffscreenCanvas Safe Fallb
     assert.strictEqual(gov.getState(), stateRefBefore);
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 12 — BUG-05 (Safe ISO BMFF / MP4 / ALAC Atom Parser, 64-Bit Extended Boxes & Tail-moov Range 206 Detection)', () => {
+  function makeBox(type, payloadBytes) {
+    const body = payloadBytes instanceof Uint8Array ? payloadBytes : new Uint8Array(payloadBytes || 0);
+    const out = new Uint8Array(8 + body.byteLength);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, out.byteLength, false);
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(body, 8);
+    return out;
+  }
+
+  function concatBytes(...arrays) {
+    const total = arrays.reduce((acc, a) => acc + a.byteLength, 0);
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (const a of arrays) {
+      out.set(a, off);
+      off += a.byteLength;
+    }
+    return out;
+  }
+
+  function buildFtypBox(major = 'M4A ', compat = ['M4A ', 'mp42', 'isom']) {
+    const body = new Uint8Array(8 + compat.length * 4);
+    for (let i = 0; i < 4; i++) body[i] = major.charCodeAt(i);
+    // minor_version = 0 at 4..7
+    compat.forEach((brand, idx) => {
+      for (let i = 0; i < 4; i++) body[8 + idx * 4 + i] = brand.charCodeAt(i);
+    });
+    return makeBox('ftyp', body);
+  }
+
+  function buildMdhdBoxV0(timescale, duration32) {
+    const body = new Uint8Array(20);
+    const dv = new DataView(body.buffer);
+    body[0] = 0; // version 0
+    dv.setUint32(12, timescale, false);
+    dv.setUint32(16, duration32, false);
+    return makeBox('mdhd', body);
+  }
+
+  function buildMdhdBoxV1(timescale, duration64) {
+    const body = new Uint8Array(32);
+    const dv = new DataView(body.buffer);
+    body[0] = 1; // version 1 (64-bit duration)
+    dv.setUint32(20, timescale, false);
+    dv.setUint32(24, Math.floor(duration64 / 4294967296) >>> 0, false);
+    dv.setUint32(28, (duration64 >>> 0), false);
+    return makeBox('mdhd', body);
+  }
+
+  function buildAlacStsdBox({ sampleRate = 96000, bitDepth = 24, channels = 2, frameLength = 4096, avgBitRate = 2850000 } = {}) {
+    // Inner 'alac' FullBox: 4B version/flags + 24B ALACSpecificConfig Magic Cookie = 28B body (36B box)
+    const cookieBody = new Uint8Array(28);
+    const cdv = new DataView(cookieBody.buffer);
+    // cookieBody[0..3] = version 0 + flags 0
+    cdv.setUint32(4 + 0, frameLength, false);
+    cookieBody[4 + 4] = 0;        // compatibleVersion
+    cookieBody[4 + 5] = bitDepth; // bitDepth (24)
+    cookieBody[4 + 6] = 40;       // pb
+    cookieBody[4 + 7] = 10;       // mb
+    cookieBody[4 + 8] = 14;       // kb
+    cookieBody[4 + 9] = channels; // numChannels (2)
+    cdv.setUint16(4 + 10, 255, false);
+    cdv.setUint32(4 + 12, 16384, false);
+    cdv.setUint32(4 + 16, avgBitRate, false);
+    cdv.setUint32(4 + 20, sampleRate, false); // True 32-bit sampleRate (e.g. 96000 Hz)
+    const innerAlacBox = makeBox('alac', cookieBody);
+
+    // Outer 'alac' AudioSampleEntry: 28B header + innerAlacBox
+    // Intentionally set 16.16 fixed-point samplerate field to wrapped 30464 (96000 & 0xffff) to prove cookie wins!
+    const aseHeader = new Uint8Array(28);
+    const adv = new DataView(aseHeader.buffer);
+    adv.setUint16(6, 1, false);  // data_reference_index = 1
+    adv.setUint16(16, 2, false); // channelcount
+    adv.setUint16(18, 16, false); // legacy placeholder 16 in outer header while cookie has 24-bit!
+    adv.setUint32(24, ((sampleRate & 0xffff) << 16) >>> 0, false);
+    const outerAlacEntry = makeBox('alac', concatBytes(aseHeader, innerAlacBox));
+
+    // 'stsd' FullBox: 4B version/flags + 4B entry_count(1) + outerAlacEntry
+    const stsdHeader = new Uint8Array(8);
+    new DataView(stsdHeader.buffer).setUint32(4, 1, false);
+    return makeBox('stsd', concatBytes(stsdHeader, outerAlacEntry));
+  }
+
+  function buildMoovWithAlac({ sampleRate = 96000, bitDepth = 24, channels = 2, durationSeconds = 180, mdhdV1 = false } = {}) {
+    const totalSamples = Math.round(sampleRate * durationSeconds);
+    const mdhd = mdhdV1 ? buildMdhdBoxV1(sampleRate, totalSamples) : buildMdhdBoxV0(sampleRate, totalSamples);
+    const stsd = buildAlacStsdBox({ sampleRate, bitDepth, channels });
+    const stbl = makeBox('stbl', stsd);
+    const minf = makeBox('minf', stbl);
+    const mdia = makeBox('mdia', concatBytes(mdhd, minf));
+    const trak = makeBox('trak', mdia);
+    const udta = makeBox('udta', makeBox('meta', new Uint8Array(8)));
+    return makeBox('moov', concatBytes(trak, udta));
+  }
+
+  it('exposes BUG-05 parseSafeMp4AlacBoxMetadata on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.parseSafeMp4AlacBoxMetadata, 'function');
+
+    const sandbox = { library: { keepRefBug05: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.parseSafeMp4AlacBoxMetadata, 'function');
+    assert.equal(typeof sandbox.library.parseSafeMp4AlacBoxMetadata, 'function');
+    assert.equal(sandbox.library.keepRefBug05, true);
+  });
+
+  it('parses valid ftyp+moov ALAC 24-bit/96kHz Magic Cookie, mdhd v0 & v1 64-bit durations, and delegates from parseSafeAudioContainerMetadata', () => {
+    const ftyp = buildFtypBox('M4A ', ['M4A ', 'mp42', 'isom']);
+    const free = makeBox('free', new Uint8Array(16));
+    const moovV0 = buildMoovWithAlac({ sampleRate: 96000, bitDepth: 24, channels: 2, durationSeconds: 215.5, mdhdV1: false });
+    const mdat = makeBox('mdat', new Uint8Array(64));
+    const fastStartM4a = concatBytes(ftyp, free, moovV0, mdat);
+
+    const parsedDirect = lib.parseSafeMp4AlacBoxMetadata(fastStartM4a, fastStartM4a.byteLength);
+    assert.equal(parsedDirect.valid, true);
+    assert.equal(parsedDirect.containerValid, true);
+    assert.equal(parsedDirect.format, 'ALAC');
+    assert.equal(parsedDirect.container, 'M4A');
+    assert.equal(parsedDirect.codec, 'alac');
+    assert.equal(parsedDirect.sampleRate, 96000);
+    assert.equal(parsedDirect.bitDepth, 24);
+    assert.equal(parsedDirect.channels, 2);
+    assert.equal(parsedDirect.frameLength, 4096);
+    assert.equal(parsedDirect.mdhdVersion, 0);
+    assert.ok(Math.abs(parsedDirect.durationSeconds - 215.5) < 1e-6);
+    assert.equal(parsedDirect.needsTailRange, false);
+    assert.equal(parsedDirect.truncated, false);
+    assert.equal(parsedDirect.error, null);
+    assert.ok(parsedDirect.alacCookie && parsedDirect.alacCookie.sampleRate === 96000 && parsedDirect.alacCookie.bitDepth === 24);
+
+    // Delegation via parseSafeAudioContainerMetadata (including after an ID3v2 header!)
+    const delegated = lib.parseSafeAudioContainerMetadata(fastStartM4a);
+    assert.equal(delegated.valid, true);
+    assert.equal(delegated.format, 'ALAC');
+    assert.equal(delegated.sampleRate, 96000);
+    assert.equal(delegated.bitDepth, 24);
+    assert.equal(delegated.channels, 2);
+
+    // Verify mdhd v1 64-bit duration (> 2^32 sample units at 192kHz: 7 hours = 4,838,400,000 samples!)
+    const moovV1 = buildMoovWithAlac({ sampleRate: 192000, bitDepth: 24, channels: 2, durationSeconds: 25200, mdhdV1: true });
+    const hiResLongM4a = concatBytes(ftyp, moovV1, mdat);
+    const parsedV1 = lib.parseSafeMp4AlacBoxMetadata(hiResLongM4a);
+    assert.equal(parsedV1.valid, true);
+    assert.equal(parsedV1.sampleRate, 192000);
+    assert.equal(parsedV1.bitDepth, 24);
+    assert.equal(parsedV1.mdhdVersion, 1);
+    assert.equal(parsedV1.durationUnits, 192000 * 25200);
+    assert.equal(parsedV1.durationSeconds, 25200);
+  });
+
+  it('detects 64-bit largesize=1 mdat before moov on HTTP 206 head slices and computes exact tail Range coordinates', () => {
+    const ftyp = buildFtypBox('M4A ', ['M4A ', 'isom']); // 8 + 8 + 8 = 24 bytes
+    assert.equal(ftyp.byteLength, 24);
+
+    // Build 64-bit extended mdat header (size32 = 1, 16-byte header) declaring a 5,000,000,000-byte (>4 GiB) mdat payload!
+    const largeMdatSize = 5_000_000_000;
+    const mdatHeader64 = new Uint8Array(16 + 88); // only first 104 bytes of mdat included in HTTP 206 head slice
+    const mdv = new DataView(mdatHeader64.buffer);
+    mdv.setUint32(0, 1, false); // largesize === 1 indicator
+    for (let i = 0; i < 4; i++) mdatHeader64[4 + i] = 'mdat'.charCodeAt(i);
+    mdv.setUint32(8, Math.floor(largeMdatSize / 4294967296) >>> 0, false);
+    mdv.setUint32(12, (largeMdatSize >>> 0), false);
+
+    const headSlice206 = concatBytes(ftyp, mdatHeader64); // 128-byte HTTP 206 Partial Content head slice
+    const tailMoov = buildMoovWithAlac({ sampleRate: 96000, bitDepth: 24, channels: 2, durationSeconds: 312.25 });
+    const totalCloudFileSize = ftyp.byteLength + largeMdatSize + tailMoov.byteLength;
+
+    // Step 1: Parse HTTP 206 head slice -> must NOT throw RangeError, must report needsTailRange: true & exact tail coordinates!
+    const headRes = lib.parseSafeAudioContainerMetadata(headSlice206, totalCloudFileSize);
+    assert.equal(headRes.valid, false);
+    assert.equal(headRes.containerValid, true);
+    assert.equal(headRes.hasFtyp, true);
+    assert.equal(headRes.hasMdat, true);
+    assert.equal(headRes.hasMoov, false);
+    assert.equal(headRes.mdatBeforeMoov, true);
+    assert.equal(headRes.used64BitBox, true);
+    assert.equal(headRes.mdatOffset, 24);
+    assert.equal(headRes.mdatSize, 5_000_000_000);
+    assert.equal(headRes.needsTailRange, true);
+    assert.equal(headRes.recommendedTailOffset, 5_000_000_024);
+    assert.equal(headRes.recommendedTailLength, tailMoov.byteLength);
+    assert.equal(
+      headRes.recommendedRangeHeader,
+      `bytes=${5_000_000_024}-${5_000_000_024 + tailMoov.byteLength - 1}`
+    );
+
+    // Step 2: Feed the fetched HTTP 206 tail slice (starting directly at moov!) back into parseSafeMp4AlacBoxMetadata
+    const tailRes = lib.parseSafeMp4AlacBoxMetadata(tailMoov, totalCloudFileSize);
+    assert.equal(tailRes.valid, true);
+    assert.equal(tailRes.format, 'ALAC');
+    assert.equal(tailRes.sampleRate, 96000);
+    assert.equal(tailRes.bitDepth, 24);
+    assert.equal(tailRes.channels, 2);
+    assert.equal(tailRes.durationSeconds, 312.25);
+    assert.equal(tailRes.needsTailRange, false);
+  });
+
+  it('enforces zero-loop protection on corrupted boxSize=0 / boxSize=3 / largesize<16 and never throws on 5-byte truncated slices', () => {
+    const ftyp = buildFtypBox('M4A ', ['M4A ']);
+
+    // 1. Corrupted boxSize = 0 after ftyp -> instant return (<10ms), 0 infinite loop!
+    const zeroBox = new Uint8Array(16);
+    for (let i = 0; i < 4; i++) zeroBox[4 + i] = 'free'.charCodeAt(i); // size = 0!
+    const t0 = performance.now();
+    const resZero = lib.parseSafeMp4AlacBoxMetadata(concatBytes(ftyp, zeroBox));
+    assert.ok(performance.now() - t0 < 15, 'boxSize=0 must terminate immediately without looping');
+    assert.equal(resZero.valid, false);
+    assert.equal(resZero.corruptedBox, true);
+    assert.equal(resZero.error, 'invalid_mp4_box_size');
+
+    // 2. Corrupted boxSize = 3 (< 8 minimum header size) -> instant return, 0 infinite loop!
+    const size3Box = new Uint8Array(16);
+    new DataView(size3Box.buffer).setUint32(0, 3, false);
+    for (let i = 0; i < 4; i++) size3Box[4 + i] = 'moov'.charCodeAt(i);
+    const t3 = performance.now();
+    const resSize3 = lib.parseSafeMp4AlacBoxMetadata(concatBytes(ftyp, size3Box));
+    assert.ok(performance.now() - t3 < 15, 'boxSize=3 must terminate immediately without looping');
+    assert.equal(resSize3.valid, false);
+    assert.equal(resSize3.corruptedBox, true);
+    assert.equal(resSize3.error, 'invalid_mp4_box_size');
+
+    // 3. Corrupted 64-bit largesize = 8 (< 16 minimum extended header size)
+    const badLarge = new Uint8Array(24);
+    const bdv = new DataView(badLarge.buffer);
+    bdv.setUint32(0, 1, false);
+    for (let i = 0; i < 4; i++) badLarge[4 + i] = 'mdat'.charCodeAt(i);
+    bdv.setUint32(8, 0, false);
+    bdv.setUint32(12, 8, false); // < 16!
+    const resBadLarge = lib.parseSafeMp4AlacBoxMetadata(concatBytes(ftyp, badLarge));
+    assert.equal(resBadLarge.valid, false);
+    assert.equal(resBadLarge.corruptedBox, true);
+    assert.equal(resBadLarge.error, 'invalid_mp4_largesize');
+
+    // 4. Truncated 5-byte slice & unaligned DataView slice
+    const truncated5 = new Uint8Array([0x00, 0x00, 0x00, 0x1c, 0x66]); // 5 bytes ('f' of 'ftyp')
+    const res5 = lib.parseSafeMp4AlacBoxMetadata(truncated5, 1048576);
+    assert.equal(res5.valid, false);
+    assert.equal(res5.truncated, true);
+    assert.equal(res5.needsTailRange, false);
+    assert.equal(res5.byteLength, 5);
+    assert.equal(res5.error, 'truncated_mp4_box_header');
+
+    const res5Delegated = lib.parseSafeAudioContainerMetadata(truncated5, 1048576);
+    assert.equal(res5Delegated.valid, false);
+    assert.equal(res5Delegated.truncated, true);
+    assert.equal(res5Delegated.byteLength, 5);
+
+    // 5. Exhaustive byte-by-byte truncation fuzz across an entire valid ALAC M4A container -> 0 RangeError throws!
+    const fullValid = concatBytes(
+      ftyp,
+      buildMoovWithAlac({ sampleRate: 88200, bitDepth: 24, channels: 2, durationSeconds: 45 }),
+      makeBox('mdat', new Uint8Array(32))
+    );
+    const unalignedBacking = new Uint8Array(fullValid.byteLength + 11);
+    unalignedBacking.set(fullValid, 7);
+    for (let cut = 0; cut <= fullValid.byteLength; cut++) {
+      const subView = new DataView(unalignedBacking.buffer, 7, cut);
+      assert.doesNotThrow(() => {
+        lib.parseSafeMp4AlacBoxMetadata(subView, fullValid.byteLength);
+        lib.parseSafeAudioContainerMetadata(subView, fullValid.byteLength);
+      }, `Must never throw RangeError at truncation length ${cut}`);
+    }
+  });
+});

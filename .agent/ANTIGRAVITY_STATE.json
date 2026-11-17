@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 16,
-  "lastPhase": "OPTIMIZE",
-  "lastRunIso": "2026-11-17T23:06:00.630Z",
+  "cycleCount": 17,
+  "lastPhase": "BUG_HUNT",
+  "lastRunIso": "2026-11-17T23:20:53.991Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "BUG-05",
-      "phase": "BUG_HUNT",
-      "title": "Kiểm tra điều kiện biên hộp nguyên tử MP4/ALAC (moov/trak/mdia/stsd/alac) khi stream lát đầu Range 206 chưa chứa hộp moov ở cuối file"
-    },
     {
       "id": "UPG-05",
       "phase": "UPGRADE",
@@ -98,6 +93,16 @@
       "id": "OPT-10",
       "phase": "OPTIMIZE",
       "title": "Tối ưu tái sử dụng leftTimeBytes / rightTimeBytes từ ZeroAllocFrameScratchpad cho bộ dựng hình 3D Acoustic Soundstage tránh cấp phát Uint8Array mỗi khung hình"
+    },
+    {
+      "id": "BUG-11",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra trích xuất hộp ilst/covr và thẻ ReplayGain ITUNNORM bên trong moov/udta/meta của file ALAC .m4a khi duyệt qua CloudRangeFileReader"
+    },
+    {
+      "id": "UPG-11",
+      "phase": "UPGRADE",
+      "title": "Tích hợp tự động gọi lát đuôi HTTP 206 Range (recommendedRangeHeader) trong luồng fetchAudioFirstSlice khi phát hiện MP4/ALAC có needsTailRange=true"
     }
   ],
   "completedTasks": [
@@ -196,6 +201,14 @@
       "completedAt": "2026-11-17T23:06:00.630Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai createAdaptiveCanvasRenderGovernor trong library-utils.js hỗ trợ OffscreenCanvas 2D an toàn kèm WeakMap surface cache và fallback tự động về HTMLCanvasElement khi transferControlToOffscreen không hỗ trợ hoặc ném ngoại lệ trên Android WebView, kết hợp điều tiết khung hình zero-allocation shouldRenderFrame(nowMs, telemetry) theo 4 mức 60fps (desktop) / 30fps (fiioDapMode & lowPower) / 15fps (im lặng >1.5s) / 0fps (documentHidden & modalOccluded)"
+    },
+    {
+      "id": "BUG-05",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra điều kiện biên hộp nguyên tử MP4/ALAC (moov/trak/mdia/stsd/alac) khi stream lát đầu Range 206 chưa chứa hộp moov ở cuối file",
+      "completedAt": "2026-11-17T23:20:53.991Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai parseSafeMp4AlacBoxMetadata và mở rộng parseSafeAudioContainerMetadata trong library-utils.js: duyệt an toàn cây hộp nguyên tử ISO BMFF (ftyp/moov/trak/mdia/mdhd v0 32-bit & v1 64-bit/minf/stbl/stsd/alac Magic Cookie 24-byte/mp4a/fLaC/mdat/free/udta), hỗ trợ hộp mở rộng 64-bit largesize===1, chống vòng lặp vô hạn khi boxSize<8 hoặc boxSize===0, và phát hiện chính xác needsTailRange + tọa độ HTTP 206 Range khi mdat đứng trước moov ở cuối file"
     }
   ]
 }
