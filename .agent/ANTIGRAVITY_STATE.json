@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 11,
-  "lastPhase": "UPGRADE",
-  "lastRunIso": "2026-11-17T22:01:05.000Z",
+  "cycleCount": 12,
+  "lastPhase": "OPTIMIZE",
+  "lastRunIso": "2026-11-17T22:10:25.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "OPT-03",
-      "phase": "OPTIMIZE",
-      "title": "Tối ưu bộ nhớ đệm Segment Max-Tree cho danh sách lời bài hát dài (>5.000 dòng karaoke đa giọng bè) bằng TypedArray tái sử dụng"
-    },
     {
       "id": "BUG-04",
       "phase": "BUG_HUNT",
@@ -78,6 +73,16 @@
       "id": "BUG-08",
       "phase": "BUG_HUNT",
       "title": "Kiểm tra đồng bộ thời lượng duration_ms giữa thẻ [length:] trong LRC và thời lượng giải mã thực tế của AudioBuffer khi đóng góp lên LRCLIB"
+    },
+    {
+      "id": "UPG-08",
+      "phase": "UPGRADE",
+      "title": "Bổ sung chế độ hiển thị đồng thời đa giọng bè (Lead + Backing Vocal Lanes) trong Listening Room & Fullscreen Karaoke sử dụng TypedLyricSegmentIndex"
+    },
+    {
+      "id": "OPT-08",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu chia sẻ bộ đệm TypedLyricBufferPool toàn cục giữa Lyric Reader và Visualizer 60fps tránh cấp phát lại khi tua nhanh"
     }
   ],
   "completedTasks": [
@@ -144,6 +149,14 @@
       "completedAt": "2026-11-17T22:01:05.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai verifyLrclibPowTarget (so sánh big-endian 32-byte hash <= target), solveLrclibChallengeAsync / solveLrclibChallengeSync (Web Crypto SHA-256 theo lô không chặn luồng UI + hủy tức thì qua AbortSignal + fallback SHA-256 thuần JS) và buildLrclibPublishPayload (chuẩn hóa metadata/lời bài hát & tạo đặc tả X-Publish-Token POST /api/publish) trong library-utils.js kèm unit test trong test/autonomy-tailchain-cycles.test.cjs"
+    },
+    {
+      "id": "OPT-03",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu bộ nhớ đệm Segment Max-Tree cho danh sách lời bài hát dài (>5.000 dòng karaoke đa giọng bè) bằng TypedArray tái sử dụng",
+      "completedAt": "2026-11-17T22:10:25.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai createTypedLyricBufferPool và createTypedLyricSegmentIndex biên dịch >5.000 dòng karaoke đa giọng bè vào các mảng phẳng Float64Array/Int32Array (startMs, endMs, maxEndSubtreeMs, sortedOrder, wordOffsets, wordStartMs, wordEndMs) với tái sử dụng ArrayBuffer qua chuyển bài, truy vấn queryActiveAt O(log N) zero-allocation và tích hợp vào findActiveLyricStateBinary / createZeroAllocFrameScratchpad"
     }
   ]
 }

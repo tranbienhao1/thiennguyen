@@ -1460,3 +1460,230 @@ describe('Autonomy Tail-Chaining Cycle 7 — UPG-03 (LRCLIB SHA-256 Proof-of-Wor
     );
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 8 — OPT-03 (TypedArray Segment Max-Tree Index for 5000+ Multi-Voice Karaoke Lines)', () => {
+  function buildSixThousandMultiVoiceFixture() {
+    // 6,000 lines total:
+    // - Lines 0..5996: sequential + periodic overlapping duet/backing harmonies (4 words each)
+    // - Lines 5997..5999: explicit 3-voice overlapping duet/harmony chorus at [1500000ms .. 1508000ms], placed at tail (out-of-order!)
+    const lines = new Array(6000);
+    for (let i = 0; i < 5997; i++) {
+      const baseStart = 1000 + i * 500;
+      const isHarmony = i % 10 === 5;
+      const lineStart = isHarmony ? baseStart - 250 : baseStart;
+      const lineEnd = isHarmony ? lineStart + 900 : lineStart + 480;
+      const step = (lineEnd - lineStart) / 4;
+      lines[i] = {
+        start_ms: lineStart,
+        end_ms: lineEnd,
+        text: isHarmony ? `(Backing ${i})` : `Lead line ${i}`,
+        voice: isHarmony ? 'backing' : 'lead',
+        backing: isHarmony,
+        words: [
+          { start_ms: lineStart, end_ms: lineStart + step, text: 'w0 ' },
+          { start_ms: lineStart + step, end_ms: lineStart + step * 2, text: 'w1 ' },
+          { start_ms: lineStart + step * 2, end_ms: lineStart + step * 3, text: 'w2 ' },
+          { start_ms: lineStart + step * 3, end_ms: lineEnd, text: 'w3' }
+        ]
+      };
+    }
+
+    // Explicit out-of-order 3-part duet + harmony chorus spanning t = 1,503,500ms:
+    // Note: sequential line around 1,503,500ms may also overlap; these 3 have exact known indices 5997, 5998, 5999!
+    lines[5997] = {
+      start_ms: 4000000, // Chorale Finale lead [4,000,000 .. 4,008,000]
+      end_ms: 4008000,
+      text: 'Duet Lead Finale',
+      voice: 'lead',
+      words: [
+        { start_ms: 4000000, end_ms: 4002000, text: 'Duet ' },
+        { start_ms: 4002000, end_ms: 4005000, text: 'Lead ' },
+        { start_ms: 4005000, end_ms: 4008000, text: 'Finale' }
+      ]
+    };
+    lines[5998] = {
+      start_ms: 4001000, // Duet Counter-Melody backing 1 [4,001,000 .. 4,006,000]
+      end_ms: 4006000,
+      text: '(Counter-Melody Harmony 1)',
+      voice: 'backing',
+      backing: true,
+      words: [
+        { start_ms: 4001000, end_ms: 4003000, text: '(Counter ' },
+        { start_ms: 4003000, end_ms: 4006000, text: 'Harmony)' }
+      ]
+    };
+    lines[5999] = {
+      start_ms: 4002500, // Choir Soprano backing 2 [4,002,500 .. 4,007,500]
+      end_ms: 4007500,
+      text: '(Soprano Descant 2)',
+      voice: 'harmony',
+      words: [
+        { start_ms: 4002500, end_ms: 4004000, text: '(Soprano ' },
+        { start_ms: 4004000, end_ms: 4007500, text: 'Descant)' }
+      ]
+    };
+
+    return { lines, durationMs: 4020000 };
+  }
+
+  it('exposes OPT-03 TypedArray Segment Max-Tree APIs on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.createTypedLyricSegmentIndex, 'function');
+    assert.equal(typeof lib.createTypedLyricBufferPool, 'function');
+
+    const sandbox = { library: { keepOpt03: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.createTypedLyricSegmentIndex, 'function');
+    assert.equal(typeof sandbox.library.createTypedLyricSegmentIndex, 'function');
+    assert.equal(typeof sandbox.library.createTypedLyricBufferPool, 'function');
+    assert.equal(sandbox.library.keepOpt03, true);
+  });
+
+  it('compiles 6,000 multi-voice karaoke lines into flat TypedArrays and resolves 0ms, overlapping duet chorus & duration_ms in O(log N) with zero allocations', () => {
+    const { lines, durationMs } = buildSixThousandMultiVoiceFixture();
+    const pool = lib.createTypedLyricBufferPool(128, 512);
+    const idx = lib.createTypedLyricSegmentIndex(lines, pool);
+
+    // 1. Verify flat Float64Array / Int32Array typed buffers
+    assert.equal(idx.lineCount, 6000);
+    assert.ok(idx.startMs instanceof Float64Array && idx.startMs.length === 6000);
+    assert.ok(idx.endMs instanceof Float64Array && idx.endMs.length === 6000);
+    assert.ok(idx.maxEndSubtreeMs instanceof Float64Array && idx.maxEndSubtreeMs.length === 16384); // 2 * 8192
+    assert.ok(idx.sortedOrder instanceof Int32Array && idx.sortedOrder.length === 6000);
+    assert.ok(idx.wordOffsets instanceof Int32Array && idx.wordOffsets.length === 6001);
+    assert.ok(idx.wordStartMs instanceof Float64Array && idx.wordStartMs.length === idx.wordCount);
+    assert.ok(idx.wordEndMs instanceof Float64Array && idx.wordEndMs.length === idx.wordCount);
+    assert.equal(idx.wordCount, 5997 * 4 + 3 + 2 + 2);
+
+    // 2. Reusable outResult struct with zero per-query object allocations
+    const out = idx.createQueryResult();
+    const origActiveLinesRef = out.activeLineIndices;
+    const origActiveWordsRef = out.activeWordIndices;
+    const origActiveVoicesRef = out.activeVoiceFlags;
+    const origActiveProgRef = out.activeProgress;
+
+    // Boundary 1: 0ms (before first line at 1000ms)
+    const rZero = idx.queryActiveAt(0, out);
+    assert.strictEqual(rZero, out);
+    assert.equal(out.activeCount, 0);
+    assert.equal(out.lineIndex, -1);
+    assert.equal(out.wordIndex, -1);
+    assert.equal(out.leadLineIndex, -1);
+    assert.equal(out.backingLineIndex, -1);
+    assert.equal(out.progress, 0);
+
+    // Boundary 2: Overlapping 3-voice duet + harmony chorus at t = 4,003,500ms
+    // Lead 5997: word 1 ('Lead ' [4002000..4005000], progress 0.5)
+    // Backing 5998: word 1 ('Harmony)' [4003000..4006000], progress 500/3000)
+    // Backing 5999: word 0 ('(Soprano ' [4002500..4004000], progress 1000/1500)
+    const rChorus = idx.queryActiveAt(4003500, out);
+    assert.strictEqual(rChorus, out);
+    assert.equal(out.activeCount, 3);
+    assert.equal(out.leadCount, 1);
+    assert.equal(out.backingCount, 2);
+    assert.deepEqual(Array.from(out.activeLineIndices.subarray(0, out.activeCount)), [5997, 5998, 5999]);
+    assert.deepEqual(Array.from(out.activeWordIndices.subarray(0, out.activeCount)), [1, 1, 0]);
+    assert.equal(out.leadLineIndex, 5997);
+    assert.equal(out.leadWordIndex, 1);
+    assert.equal(out.backingLineIndex, 5999);
+    assert.equal(out.backingWordIndex, 0);
+    assert.ok(Math.abs(out.activeProgress[0] - 0.5) < 1e-6);
+
+    // After backing 5998 (end 4006000) & 5999 (end 4007500) finish, Lead 5997 [4000000..4008000] still active at 4,007,750ms!
+    idx.queryActiveAt(4007750, out);
+    assert.equal(out.activeCount, 1);
+    assert.equal(out.activeLineIndices[0], 5997);
+    assert.equal(out.activeWordIndices[0], 2);
+
+    // Boundary 3: At track duration_ms (4,020,000ms, past all end_ms)
+    idx.queryActiveAt(durationMs, out);
+    assert.equal(out.activeCount, 0);
+    assert.equal(out.strictLineIndex, -1);
+    assert.equal(out.heldLineIndex, 5999);
+    assert.equal(out.lineIndex, 5999);
+    assert.equal(out.progress, 1);
+
+    idx.queryActiveAt(durationMs, out, true); // strict = true
+    assert.equal(out.activeCount, 0);
+    assert.equal(out.lineIndex, -1);
+    assert.equal(out.wordIndex, -1);
+
+    // Integration with findActiveLyricStateBinary(typedIndex, t)
+    const stateFromTyped = lib.findActiveLyricStateBinary(idx, 4007750);
+    assert.equal(stateFromTyped.lineIndex, 5997);
+    assert.equal(stateFromTyped.activeLine.text, 'Duet Lead Finale');
+    assert.equal(stateFromTyped.wordIndex, 2);
+    assert.equal(stateFromTyped.activeWord.text, 'Finale');
+
+    // 3. Benchmark 5,000 O(log N) queries over 6,000 multi-voice lines + verify identical TypedArray references
+    const startNs = process.hrtime.bigint();
+    for (let q = 0; q < 5000; q++) {
+      const queryMs = (q * 803) % durationMs;
+      const res = idx.queryActiveAt(queryMs, out);
+      assert.strictEqual(res, out);
+    }
+    const elapsedMs = Number(process.hrtime.bigint() - startNs) / 1e6;
+    assert.ok(elapsedMs < 250, `Expected 5,000 zero-alloc queries over 6,000 lines < 250ms, took ${elapsedMs.toFixed(2)}ms`);
+    assert.strictEqual(out.activeLineIndices, origActiveLinesRef);
+    assert.strictEqual(out.activeWordIndices, origActiveWordsRef);
+    assert.strictEqual(out.activeVoiceFlags, origActiveVoicesRef);
+    assert.strictEqual(out.activeProgress, origActiveProgRef);
+  });
+
+  it('reuses underlying ArrayBuffers across track switches via reusablePool and grows cleanly when needed', () => {
+    const { lines: track6k } = buildSixThousandMultiVoiceFixture();
+    const pool = lib.createTypedLyricBufferPool(8192, 32768);
+
+    // Track 1: 6,000 lines
+    const idx1 = lib.createTypedLyricSegmentIndex(track6k, pool);
+    const bufStart1 = idx1.startMs.buffer;
+    const bufEnd1 = idx1.endMs.buffer;
+    const bufTree1 = idx1.maxEndSubtreeMs.buffer;
+    const bufOrder1 = idx1.sortedOrder.buffer;
+    const bufWordOff1 = idx1.wordOffsets.buffer;
+    const bufWordStart1 = idx1.wordStartMs.buffer;
+    const bufWordEnd1 = idx1.wordEndMs.buffer;
+    const allocsAfter1 = pool.allocationCount;
+
+    // Track 2: Switch to 2,400-line track -> 100% zero ArrayBuffer reallocation!
+    const track2400 = track6k.slice(0, 2400);
+    const idx2 = lib.createTypedLyricSegmentIndex(track2400, pool);
+    assert.equal(idx2.lineCount, 2400);
+    assert.strictEqual(idx2.startMs.buffer, bufStart1);
+    assert.strictEqual(idx2.endMs.buffer, bufEnd1);
+    assert.strictEqual(idx2.maxEndSubtreeMs.buffer, bufTree1);
+    assert.strictEqual(idx2.sortedOrder.buffer, bufOrder1);
+    assert.strictEqual(idx2.wordOffsets.buffer, bufWordOff1);
+    assert.strictEqual(idx2.wordStartMs.buffer, bufWordStart1);
+    assert.strictEqual(idx2.wordEndMs.buffer, bufWordEnd1);
+    assert.equal(pool.allocationCount, allocsAfter1);
+    assert.ok(pool.reuseCount >= 1);
+
+    // Track 3: Switch to 5,500-line track passing idx2 directly as reusablePool -> still zero reallocation!
+    const track5500 = track6k.slice(0, 5500);
+    const idx3 = lib.createTypedLyricSegmentIndex(track5500, idx2);
+    assert.equal(idx3.lineCount, 5500);
+    assert.strictEqual(idx3.startMs.buffer, bufStart1);
+    assert.strictEqual(idx3.wordStartMs.buffer, bufWordStart1);
+    assert.equal(pool.allocationCount, allocsAfter1);
+
+    // Track 4: Switch to 9,000-line mega-track (> 8,192 capacity) -> grows geometrically cleanly
+    const track9000 = Array.from({ length: 9000 }, (_, i) => ({
+      start_ms: i * 250,
+      end_ms: i * 250 + 220,
+      text: `Opera line ${i}`,
+      words: [{ start_ms: i * 250, end_ms: i * 250 + 220, text: 'Aria' }]
+    }));
+    const idx4 = lib.createTypedLyricSegmentIndex(track9000, pool);
+    assert.equal(idx4.lineCount, 9000);
+    assert.equal(pool.lineCapacity, 16384);
+    assert.equal(pool.allocationCount, allocsAfter1 + 1);
+    const q = idx4.queryActiveAt(8999 * 250 + 50);
+    assert.equal(q.activeCount, 1);
+    assert.equal(q.lineIndex, 8999);
+    assert.equal(q.wordIndex, 0);
+  });
+});
