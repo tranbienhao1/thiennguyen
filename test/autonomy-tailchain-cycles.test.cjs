@@ -1052,3 +1052,192 @@ describe('Autonomy Tail-Chaining Cycle 5 — OPT-02 (Proactive OAuth Token Refre
     assert.ok(indexHtml.includes('state.crossfeedNodes.output.connect(state.context.destination)'));
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 6 — BUG-03 (Nyquist Biquad Clamping & AudioNode Graph sampleRate Reconciliation)', () => {
+  it('exposes BUG-03 functions on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.validateAndClampAudioGraphParams, 'function');
+    assert.equal(typeof lib.reconcileAudioNodeGraphForSampleRate, 'function');
+
+    const sandbox = { library: { keepRef: 'intact' } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.validateAndClampAudioGraphParams, 'function');
+    assert.equal(typeof sandbox.library.validateAndClampAudioGraphParams, 'function');
+    assert.equal(typeof sandbox.library.reconcileAudioNodeGraphForSampleRate, 'function');
+    assert.equal(sandbox.library.keepRef, 'intact');
+  });
+
+  it('clamps Parametric EQ, Crossfeed, Tone & Ultrasonic frequencies strictly below Nyquist across 44.1kHz, 48kHz, 88.2kHz, 176.4kHz & 384kHz', () => {
+    const sampleRates = [
+      [44100, 22050, 21829],
+      [48000, 24000, 23760],
+      [88200, 44100, 43659],
+      [176400, 88200, 87318],
+      [384000, 192000, 190080]
+    ];
+
+    for (const [sr, expectedNyquist, expectedMaxSafe] of sampleRates) {
+      const res = lib.validateAndClampAudioGraphParams({
+        type: 'highshelf',
+        frequency: 250000,
+        gain: 9,
+        q: 0.707,
+        bands: [
+          { id: 1, type: 'lowshelf', frequency: 60, gain: 4, q: 0.707 },
+          { id: 2, type: 'highshelf', frequency: 22050, gain: 6, q: 0.707 },
+          { id: 3, type: 'peaking', frequency: 40000, gain: 3, q: 1.4 },
+          { id: 4, type: 'lowpass', frequency: 96000, gain: 0, q: 0.707 },
+          { id: 5, type: 'highshelf', frequency: 220000, gain: 5, q: 0.8 }
+        ],
+        crossfeed: { cutoffHz: 30000, delaySeconds: 0.0003, crossGain: 0.25 },
+        tone: { bassFreqHz: 100, trebleFreqHz: 25000, bassGainDb: 3, trebleGainDb: 4 },
+        ultrasonicCutoffHz: 96000
+      }, sr);
+
+      assert.equal(res.sampleRate, sr);
+      assert.equal(res.nyquistHz, expectedNyquist);
+      assert.equal(res.maxSafeFreqHz, expectedMaxSafe);
+      assert.ok(res.maxSafeFreqHz < res.nyquistHz, `Max safe ${res.maxSafeFreqHz} must be strictly < Nyquist ${res.nyquistHz}`);
+      assert.equal(res.frequency, expectedMaxSafe);
+      assert.equal(res.polesStable, true, `All biquad poles must satisfy Jury stability criterion at ${sr} Hz`);
+
+      for (const band of res.bands) {
+        assert.ok(band.frequency <= expectedMaxSafe && band.frequency < expectedNyquist);
+        assert.equal(band.polesStable, true);
+      }
+
+      // Verify exact frequency preservation when below maxSafeFreqHz vs clamped when above
+      if (sr === 44100) {
+        assert.equal(res.bands[1].frequency, 21829); // 22050 clamped to 21829!
+        assert.equal(res.bands[2].frequency, 21829); // 40000 clamped to 21829!
+        assert.equal(res.ultrasonicCutoffHz, 21829); // 96000 clamped to 21829!
+        assert.equal(res.tone.trebleFreqHz, 21829);  // 25000 clamped to 21829!
+      } else if (sr === 88200) {
+        assert.equal(res.bands[1].frequency, 22050); // valid on 88.2kHz!
+        assert.equal(res.bands[2].frequency, 40000); // valid on 88.2kHz!
+        assert.equal(res.bands[3].frequency, 43659); // 96000 clamped to 43659!
+      } else if (sr === 176400) {
+        assert.equal(res.bands[3].frequency, 87318); // 96000 clamped to 87318!
+      } else if (sr === 384000) {
+        assert.equal(res.bands[3].frequency, 96000);  // 96kHz preserved on 384kHz!
+        assert.equal(res.bands[4].frequency, 190080); // 220kHz clamped to 190080!
+      }
+    }
+  });
+
+  it('reconciles live AudioNode graphs across 176.4kHz -> 44.1kHz transitions, prevents InvalidAccessError, and detects cross-context nodes', () => {
+    function createStrictMockBiquad(ctx, initialHz, initialQ = 0.707, initialGain = 0) {
+      const nyquist = ctx.sampleRate / 2;
+      const makeFreqParam = init => {
+        let val = init;
+        return {
+          get value() { return val; },
+          set value(next) {
+            if (next >= nyquist || next <= 0) {
+              const err = new Error(`InvalidAccessError: frequency ${next} >= Nyquist ${nyquist}`);
+              err.name = 'InvalidAccessError';
+              throw err;
+            }
+            val = next;
+          },
+          setTargetAtTime(next) {
+            if (next >= nyquist || next <= 0) {
+              const err = new Error(`InvalidAccessError: setTargetAtTime ${next} >= Nyquist ${nyquist}`);
+              err.name = 'InvalidAccessError';
+              throw err;
+            }
+            val = next;
+          },
+          cancelScheduledValues() {}
+        };
+      };
+      return {
+        context: ctx,
+        type: 'highshelf',
+        disconnected: false,
+        frequency: makeFreqParam(Math.min(initialHz, Math.floor(nyquist - 1))),
+        Q: { value: initialQ, setTargetAtTime(v) { this.value = v; }, cancelScheduledValues() {} },
+        gain: { value: initialGain, setTargetAtTime(v) { this.value = v; }, cancelScheduledValues() {} },
+        disconnect() { this.disconnected = true; }
+      };
+    }
+
+    // 1. Active 44.1kHz AudioContext receiving Hi-Res 32kHz / 96kHz band & ultrasonic configs -> 0 throws!
+    const ctx44k = { sampleRate: 44100, currentTime: 1.25, destination: { id: 'dest44k' } };
+    const eqHighShelf = createStrictMockBiquad(ctx44k, 12000, 0.707, 4);
+    const cfFilterL = createStrictMockBiquad(ctx44k, 700, 0.707, 0);
+    const cfFilterR = createStrictMockBiquad(ctx44k, 700, 0.707, 0);
+    const ultraFilter = createStrictMockBiquad(ctx44k, 20000, 0.707, 0);
+    // Simulate stale high cutoff stored before context downshift
+    ultraFilter.frequency = {
+      _val: 96000,
+      get value() { return this._val; },
+      set value(v) {
+        if (v >= 22050) throw Object.assign(new Error('InvalidAccessError'), { name: 'InvalidAccessError' });
+        this._val = v;
+      },
+      setTargetAtTime(v) {
+        if (v >= 22050) throw Object.assign(new Error('InvalidAccessError'), { name: 'InvalidAccessError' });
+        this._val = v;
+      },
+      cancelScheduledValues() {}
+    };
+
+    const graphHealthy = {
+      context: ctx44k,
+      bands: [{ id: 1, type: 'highshelf', frequency: 32000, gain: 4, q: 0.707 }],
+      deckA: { filters: [eqHighShelf], router: { context: ctx44k }, preamp: { context: ctx44k }, direct: { context: ctx44k } },
+      crossfeedNodes: {
+        input: { context: ctx44k },
+        output: { context: ctx44k },
+        filterL: cfFilterL,
+        filterR: cfFilterR
+      },
+      dsdUltrasonicNodes: {
+        input: { context: ctx44k },
+        output: { context: ctx44k },
+        filter: ultraFilter
+      }
+    };
+
+    const report44k = lib.reconcileAudioNodeGraphForSampleRate(graphHealthy, 44100);
+    assert.equal(report44k.valid, true);
+    assert.equal(report44k.needsRebuild, false);
+    assert.equal(report44k.contextMismatchCount, 0);
+    assert.equal(eqHighShelf.frequency.value, 21829);
+    assert.equal(ultraFilter.frequency.value, 21829);
+    assert.ok(report44k.clampedNodeCount >= 2);
+
+    // 2. Cross-context node mismatch detection (stale 176.4kHz DSD context nodes inside new 44.1kHz context)
+    const oldCtx176k = { sampleRate: 176400, currentTime: 42.0 };
+    const staleLimiter = { context: oldCtx176k, disconnected: false, disconnect() { this.disconnected = true; } };
+    const staleFilter = createStrictMockBiquad(oldCtx176k, 40000);
+
+    const mixedGraph = {
+      context: ctx44k,
+      limiter: staleLimiter,
+      filters: [staleFilter],
+      bands: [{ id: 1, type: 'peaking', frequency: 40000, gain: 3, q: 1 }]
+    };
+
+    const mismatchReport = lib.reconcileAudioNodeGraphForSampleRate(mixedGraph, 44100);
+    assert.equal(mismatchReport.valid, false);
+    assert.equal(mismatchReport.needsRebuild, true);
+    assert.equal(mismatchReport.contextMismatchCount, 2);
+    assert.equal(staleLimiter.disconnected, true);
+    assert.equal(staleFilter.disconnected, true);
+    assert.equal(mismatchReport.mismatchedNodes[0].nodeSampleRate, 176400);
+    assert.equal(mismatchReport.mismatchedNodes[0].activeSampleRate, 44100);
+
+    // 3. CRITICAL INVARIANT strictly preserved in index.html
+    const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    assert.ok(indexHtml.includes('library.reconcileAudioNodeGraphForSampleRate('));
+    assert.ok(
+      indexHtml.includes('state.crossfeedNodes.output.connect(state.context.destination)'),
+      'CRITICAL INVARIANT: state.crossfeedNodes.output.connect(state.context.destination) must remain 100% intact'
+    );
+  });
+});

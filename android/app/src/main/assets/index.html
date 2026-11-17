@@ -5843,6 +5843,9 @@
       [state.deckA, state.deckB].filter(Boolean).forEach(rebuildDeckRoute);
       state.filters = state.deckA ? state.deckA.filters : [];
       state.bands.forEach((band, index) => [state.deckA, state.deckB].forEach(deck => { const filter = deck.filters[index]; filter.type = band.type; filter.frequency.setTargetAtTime(band.frequency, state.context.currentTime, .015); filter.Q.setTargetAtTime(band.q, state.context.currentTime, .015); filter.gain.setTargetAtTime(band.gain, state.context.currentTime, .015); }));
+      if (typeof library !== 'undefined' && library && typeof library.reconcileAudioNodeGraphForSampleRate === 'function' && state.context.sampleRate) {
+        library.reconcileAudioNodeGraphForSampleRate(state, state.context.sampleRate);
+      }
       const maxBoost = state.bands.reduce((max, band) => Math.max(max, band.gain), 0), effectivePreamp = Math.max(-60, Math.min(0, -maxBoost + (Number($('eq-preamp').value) || 0)));
       const enabled = $('eq-enabled').checked;
       const phaseMult = state.phaseInvert ? -1 : 1;
@@ -5954,6 +5957,9 @@
       state.toneNodes = createToneNodes(state.context);
       state.deckA = attachAudioElement(audio); state.deckB = attachAudioElement(standbyAudio); state.activeDeck = state.deckA;
       rebuildAudioRoutes();
+      if (typeof library !== 'undefined' && library && typeof library.reconcileAudioNodeGraphForSampleRate === 'function') {
+        library.reconcileAudioNodeGraphForSampleRate(state, state.context.sampleRate);
+      }
       document.addEventListener('visibilitychange', () => { if (document.hidden || (audio.paused && !(state.isFullscreen && state.fullscreenViewMode === 'stage'))) setVisualizerRunning(false); else setVisualizerRunning(true); });
     }
     // Pha B — đo peak trước/sau limiter: analyser phụ trước limiter cho
@@ -6968,9 +6974,10 @@
     function createDsdUltrasonicNodes(ctx) {
       if (!ctx) return null;
       try {
+        const maxSafeHz = Math.max(10, Math.floor((Number(ctx.sampleRate) || 44100) * 0.495));
         const filter = ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.value = 96000;
+        filter.frequency.value = Math.min(96000, maxSafeHz);
         filter.Q.value = 0.707;
         const input = ctx.createGain();
         const output = ctx.createGain();
@@ -6989,10 +6996,11 @@
         : { id: 'bypass', name: 'Bypass', badge: 'BYPASS', description: '', cutoffHz: 0, qFactor: 0.707 };
 
       if (state.dsdUltrasonicNodes && state.dsdUltrasonicNodes.filter) {
+        const maxSafeHz = Math.max(10, Math.floor(((state.context && state.context.sampleRate) || 44100) * 0.495));
         if (filter.id === 'bypass' || !filter.cutoffHz) {
-          state.dsdUltrasonicNodes.filter.frequency.value = 96000;
+          state.dsdUltrasonicNodes.filter.frequency.value = Math.min(96000, maxSafeHz);
         } else {
-          state.dsdUltrasonicNodes.filter.frequency.value = filter.cutoffHz;
+          state.dsdUltrasonicNodes.filter.frequency.value = Math.min(filter.cutoffHz, maxSafeHz);
           state.dsdUltrasonicNodes.filter.Q.value = filter.qFactor || 0.707;
         }
       }

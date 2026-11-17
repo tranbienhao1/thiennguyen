@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 8,
-  "lastPhase": "OPTIMIZE",
-  "lastRunIso": "2026-11-17T21:09:41.790Z",
+  "cycleCount": 9,
+  "lastPhase": "BUG_HUNT",
+  "lastRunIso": "2026-11-17T21:19:59.136Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "BUG-03",
-      "phase": "BUG_HUNT",
-      "title": "Kiểm tra và bảo vệ kết nối AudioNode Graph (Crossfeed / Parametric EQ / Limiter) khi sampleRate thay đổi đột ngột giữa track PCM 44.1kHz và DSD128 176.4kHz"
-    },
     {
       "id": "UPG-03",
       "phase": "UPGRADE",
@@ -68,6 +63,16 @@
       "id": "OPT-06",
       "phase": "OPTIMIZE",
       "title": "Tối ưu lưu đệm trạng thái hết hạn OAuth đa nguồn (Google Drive / Microsoft Entra / Subsonic / Jellyfin) tránh gọi làm mới thừa khi khởi động lạnh"
+    },
+    {
+      "id": "BUG-07",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra tái tạo Impulse Response của ConvolverNode (Room Acoustics) khi AudioContext đổi sampleRate tránh sai lệch thời gian vang RT60"
+    },
+    {
+      "id": "UPG-07",
+      "phase": "UPGRADE",
+      "title": "Hỗ trợ hiển thị biểu đồ đáp tuyến biên độ-pha thực tế theo sampleRate hiện hành (44.1kHz–384kHz) trong bảng Parametric EQ"
     }
   ],
   "completedTasks": [
@@ -118,6 +123,14 @@
       "completedAt": "2026-11-17T21:09:41.790Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai createProactiveOAuthTokenRefreshScheduler (cửa sổ làm mới sớm 5 phút, single-flight Promise deduplication, tạm dừng offline / phục hồi online) và resolvePlayerKeyboardShortcut / isEditableKeyboardTarget zero-allocation trong library-utils.js, tích hợp an toàn vào Google/Microsoft OAuth và Listening Room trong index.html"
+    },
+    {
+      "id": "BUG-03",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra và bảo vệ kết nối AudioNode Graph (Crossfeed / Parametric EQ / Limiter) khi sampleRate thay đổi đột ngột giữa track PCM 44.1kHz và DSD128 176.4kHz",
+      "completedAt": "2026-11-17T21:19:59.136Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai validateAndClampAudioGraphParams (kẹp tần số < floor(sampleRate * 0.495) + kiểm tra ổn định cực IIR Jury bậc 2 trên 44.1/48/88.2/176.4/384kHz) và reconcileAudioNodeGraphForSampleRate (phát hiện lệch AudioContext node.context !== activeContext, chống lỗi InvalidAccessError) trong library-utils.js, tích hợp an toàn vào setupAudio/rebuildAudioRoutes/DSD Ultrasonic trong index.html"
     }
   ]
 }
