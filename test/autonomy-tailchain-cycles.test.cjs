@@ -1918,3 +1918,218 @@ describe('Autonomy Tail-Chaining Cycle 9 — BUG-04 (Abortable Sequential LRCLIB
     );
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 10 — UPG-04 (CRC32 + SHA-256 Signed Offline PWA Configuration & Playlist Verifier)', () => {
+  it('exposes UPG-04 functions on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.computeCrc32Hex, 'function');
+    assert.equal(typeof lib.signConfigurationBundle, 'function');
+    assert.equal(typeof lib.verifyConfigurationBundle, 'function');
+
+    const sandbox = { library: { keepRefUpg04: 7 } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.computeCrc32Hex, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.signConfigurationBundle, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.verifyConfigurationBundle, 'function');
+    assert.equal(typeof sandbox.library.computeCrc32Hex, 'function');
+    assert.equal(typeof sandbox.library.signConfigurationBundle, 'function');
+    assert.equal(typeof sandbox.library.verifyConfigurationBundle, 'function');
+    assert.equal(sandbox.library.keepRefUpg04, 7);
+  });
+
+  it('computes exact IEEE 802.3 CRC32 standard test vectors across strings, Uint8Array, ArrayBuffer, and DataView slices', () => {
+    // Standard IEEE 802.3 CRC32 check value for ASCII "123456789" -> "cbf43926"
+    assert.equal(lib.computeCrc32Hex('123456789'), 'cbf43926');
+    assert.equal(lib.computeCrc32Hex(new Uint8Array([0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39])), 'cbf43926');
+
+    // Empty inputs -> "00000000"
+    assert.equal(lib.computeCrc32Hex(''), '00000000');
+    assert.equal(lib.computeCrc32Hex(new Uint8Array(0)), '00000000');
+    assert.equal(lib.computeCrc32Hex(null), '00000000');
+    assert.equal(lib.computeCrc32Hex(undefined), '00000000');
+
+    // Offset DataView / subarray slice isolation
+    const padded = new Uint8Array([0xff, 0xee, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0xaa]);
+    const subView = new DataView(padded.buffer, 2, 9);
+    assert.equal(lib.computeCrc32Hex(subView), 'cbf43926');
+    assert.equal(lib.computeCrc32Hex(padded.subarray(2, 11).buffer.slice(2, 11)), 'cbf43926');
+
+    // UTF-8 Vietnamese & CJK consistency between string and encoded Buffer
+    const utf8Text = 'Nhạc Lossless Việt Nam — 夜の音楽 🎵';
+    const utf8Buf = Buffer.from(utf8Text, 'utf8');
+    const crcStr = lib.computeCrc32Hex(utf8Text);
+    const crcBuf = lib.computeCrc32Hex(utf8Buf);
+    assert.match(crcStr, /^[0-9a-f]{8}$/);
+    assert.equal(crcStr, crcBuf);
+  });
+
+  it('produces identical canonical CRC32 + SHA-256 digests regardless of nested object key order', () => {
+    const bundleOrderA = {
+      version: 1,
+      appName: 'Nocturne',
+      playlists: [
+        {
+          name: 'Audiophile Reference',
+          id: 'pl-1',
+          tracks: [
+            { sampleRate: 192000, bitDepth: 24, title: 'Take Five', id: 't-1' },
+            { id: 't-2', title: 'Blue in Green', bitDepth: 24, sampleRate: 96000 }
+          ]
+        }
+      ],
+      settings: {
+        toneTreble: -1.5,
+        toneBass: 2.0,
+        eqBands: [
+          { q: 0.707, gain: 3.5, frequency: 60, type: 'lowshelf' },
+          { type: 'peaking', frequency: 3500, gain: -2.0, q: 1.414 }
+        ],
+        autoEqProfile: 'harman'
+      }
+    };
+
+    const bundleOrderB = {
+      settings: {
+        autoEqProfile: 'harman',
+        eqBands: [
+          { type: 'lowshelf', frequency: 60, gain: 3.5, q: 0.707 },
+          { q: 1.414, gain: -2.0, frequency: 3500, type: 'peaking' }
+        ],
+        toneBass: 2.0,
+        toneTreble: -1.5
+      },
+      appName: 'Nocturne',
+      playlists: [
+        {
+          tracks: [
+            { id: 't-1', title: 'Take Five', bitDepth: 24, sampleRate: 192000 },
+            { sampleRate: 96000, id: 't-2', bitDepth: 24, title: 'Blue in Green' }
+          ],
+          id: 'pl-1',
+          name: 'Audiophile Reference'
+        }
+      ],
+      version: 1
+    };
+
+    const fixedTimestamp = '2026-11-17T22:55:00.000Z';
+    const signedA = lib.signConfigurationBundle(bundleOrderA, { signedAt: fixedTimestamp });
+    const signedB = lib.signConfigurationBundle(bundleOrderB, { signedAt: fixedTimestamp });
+
+    assert.equal(signedA.integrity.algorithm, 'crc32+sha256');
+    assert.equal(signedA.integrity.signedAt, fixedTimestamp);
+    assert.match(signedA.integrity.crc32, /^[0-9a-f]{8}$/);
+    assert.match(signedA.integrity.sha256, /^[0-9a-f]{64}$/);
+    assert.ok(signedA.integrity.canonicalByteLength > 100);
+    assert.deepEqual(signedA.integrity, signedB.integrity, 'Canonicalization must be 100% independent of key insertion order');
+
+    // Re-signing an already signed bundle ignores old integrity field and yields identical digests
+    const reSigned = lib.signConfigurationBundle(signedA, { signedAt: '2026-11-18T00:00:00.000Z' });
+    assert.equal(reSigned.integrity.crc32, signedA.integrity.crc32);
+    assert.equal(reSigned.integrity.sha256, signedA.integrity.sha256);
+    assert.equal(reSigned.integrity.canonicalByteLength, signedA.integrity.canonicalByteLength);
+
+    // Verify JSON round-trip with pretty-printed indentation
+    const prettyJson = JSON.stringify(signedB, null, 4);
+    const verified = lib.verifyConfigurationBundle(prettyJson);
+    assert.equal(verified.valid, true);
+    assert.equal(verified.signed, true);
+    assert.equal(verified.legacy, false);
+    assert.equal(verified.reason, null);
+    assert.deepEqual(verified.integrity, signedA.integrity);
+  });
+
+  it('detects tampering in EQ bands, playlist items, or checksum headers and preserves legacy unsigned backups', () => {
+    const exported = lib.exportAppConfiguration({
+      favorites: new Set(['fav-1', 'fav-2']),
+      playlists: [
+        {
+          id: 'pl-dsd',
+          name: 'DSD128 Masters',
+          tracks: [{ id: 'dsd-01', title: 'Kind of Blue', sampleRate: 5644800, bitDepth: 1 }]
+        }
+      ],
+      autoEqProfile: 'harman',
+      toneBass: 3.0,
+      crossfeed: 0.35
+    });
+    exported.settings.eqBands = [
+      { id: 1, type: 'lowshelf', frequency: 80, gain: 4.0, q: 0.707 },
+      { id: 2, type: 'peaking', frequency: 2500, gain: -1.5, q: 1.2 }
+    ];
+    const signedBundle = lib.signConfigurationBundle(exported, { signedAt: '2026-11-17T22:56:00.000Z' });
+
+    // 1. Untampered signed bundle passes both verifyConfigurationBundle & validateAndParseConfiguration
+    const okVerify = lib.verifyConfigurationBundle(JSON.stringify(signedBundle));
+    assert.equal(okVerify.valid, true);
+    assert.equal(okVerify.signed, true);
+    assert.equal(okVerify.legacy, false);
+
+    const okParsed = lib.validateAndParseConfiguration(JSON.stringify(signedBundle));
+    assert.equal(okParsed.isValid, true);
+    assert.equal(okParsed.signed, true);
+    assert.equal(okParsed.legacy, false);
+
+    // 2. Minimal 1-bit / single-LSB mutation in EQ band gain (4.0 -> 4.0000001)
+    const tamperedEq = JSON.parse(JSON.stringify(signedBundle));
+    tamperedEq.settings.eqBands[0].gain = 4.0000001;
+    const eqRes = lib.verifyConfigurationBundle(JSON.stringify(tamperedEq));
+    assert.equal(eqRes.valid, false);
+    assert.equal(eqRes.signed, true);
+    assert.equal(eqRes.reason, 'checksum_mismatch');
+    const eqValidated = lib.validateAndParseConfiguration(JSON.stringify(tamperedEq));
+    assert.equal(eqValidated.isValid, false);
+    assert.equal(eqValidated.reason, 'checksum_mismatch');
+
+    // 3. Minimal mutation in playlist item (1-bit char flip 'Kind of Blue' -> 'Kind of Bluf')
+    const tamperedPlaylist = JSON.parse(JSON.stringify(signedBundle));
+    tamperedPlaylist.playlists[0].tracks[0].title = 'Kind of Bluf';
+    const plRes = lib.verifyConfigurationBundle(tamperedPlaylist);
+    assert.equal(plRes.valid, false);
+    assert.equal(plRes.signed, true);
+    assert.equal(plRes.reason, 'checksum_mismatch');
+
+    // Also test signed standalone shareable playlist bundle tamper detection
+    const sharePlaylist = lib.signConfigurationBundle(
+      lib.buildShareablePlaylistPayload('Hi-Res Vocal', [{ id: 'v1', title: 'Mùa Thu Cho Em', artist: 'Khánh Ly', duration: 285 }])
+    );
+    assert.equal(lib.parseShareablePlaylistPayload(JSON.stringify(sharePlaylist)).isValid, true);
+    const badSharePlaylist = JSON.parse(JSON.stringify(sharePlaylist));
+    badSharePlaylist.tracks[0].duration = 284; // 1-bit flip in duration (285 ^ 1 = 284)
+    const badShareRes = lib.parseShareablePlaylistPayload(JSON.stringify(badSharePlaylist));
+    assert.equal(badShareRes.isValid, false);
+    assert.equal(badShareRes.reason, 'checksum_mismatch');
+
+    // 4. Corrupted JSON & malformed binary input -> reason: 'corrupted_json'
+    for (const bad of ['', '   ', '{ "appName": "Nocturne", broken', '[]', 'null', '42', new Uint8Array([0xff, 0xfe, 0xfd])]) {
+      const badRes = lib.verifyConfigurationBundle(bad);
+      assert.equal(badRes.valid, false);
+      assert.equal(badRes.signed, false);
+      assert.equal(badRes.reason, 'corrupted_json');
+    }
+
+    // 5. Legacy unsigned backup (pre-UPG-04) remains 100% valid with { valid: true, signed: false, legacy: true }
+    const legacyUnsignedJson = JSON.stringify({
+      appName: 'Nocturne',
+      version: 1,
+      exportedAt: '2026-10-01T00:00:00.000Z',
+      favorites: ['legacy-track-1'],
+      playlists: [{ id: 'legacy-pl', name: 'Old Backup' }],
+      settings: { autoEqProfile: 'vocal', crossfeed: 0.25 }
+    });
+    const legacyVer = lib.verifyConfigurationBundle(legacyUnsignedJson);
+    assert.equal(legacyVer.valid, true);
+    assert.equal(legacyVer.signed, false);
+    assert.equal(legacyVer.legacy, true);
+    assert.equal(legacyVer.reason, null);
+
+    const legacyParsed = lib.validateAndParseConfiguration(legacyUnsignedJson);
+    assert.equal(legacyParsed.isValid, true);
+    assert.equal(legacyParsed.signed, false);
+    assert.equal(legacyParsed.legacy, true);
+    assert.deepEqual(legacyParsed.config.favorites, ['legacy-track-1']);
+  });
+});

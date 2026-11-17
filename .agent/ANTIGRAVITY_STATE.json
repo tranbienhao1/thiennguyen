@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 14,
-  "lastPhase": "BUG_HUNT",
-  "lastRunIso": "2026-11-17T22:44:29.034Z",
+  "cycleCount": 15,
+  "lastPhase": "UPGRADE",
+  "lastRunIso": "2026-11-17T22:59:16.893Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "UPG-04",
-      "phase": "UPGRADE",
-      "title": "Bổ sung bộ xuất nhập cấu hình âm thanh & danh sách phát có chữ ký kiểm tra toàn vẹn CRC32/SHA-256 cho chế độ Offline PWA"
-    },
     {
       "id": "OPT-04",
       "phase": "OPTIMIZE",
@@ -88,6 +83,16 @@
       "id": "UPG-09",
       "phase": "UPGRADE",
       "title": "Bổ sung hiển thị tiến trình giải Proof-of-Work SHA-256 theo lô kèm nút hủy tức thì trong hộp thoại Lyric Editor V2"
+    },
+    {
+      "id": "OPT-09",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu luồng băm CRC32+SHA-256 theo khối (chunked streaming) cho gói sao lưu Offline PWA lớn (>50.000 bài hát) không chặn khung hình UI"
+    },
+    {
+      "id": "BUG-10",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra khử vòng tham chiếu và chuẩn hóa số thực đặc biệt (-0, NaN, Infinity) khi ký gói cấu hình EQ & danh sách phát tùy chỉnh"
     }
   ],
   "completedTasks": [
@@ -170,6 +175,14 @@
       "completedAt": "2026-11-17T22:23:20.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai createAbortableSequentialRequestQueue trong library-utils.js, nâng cấp SequentialQueue/LrclibClient trong lrclib-client.js và tích hợp AbortController + supersedePrevious vào triggerLyricsFetch trong index.html, đảm bảo hủy tức thì (<20ms) giấc ngủ 429 Retry-After bằng clearTimeout (0 timer treo) và loại bỏ tác vụ cũ khỏi hàng đợi khi chuyển bài liên tục"
+    },
+    {
+      "id": "UPG-04",
+      "phase": "UPGRADE",
+      "title": "Bổ sung bộ xuất nhập cấu hình âm thanh & danh sách phát có chữ ký kiểm tra toàn vẹn CRC32/SHA-256 cho chế độ Offline PWA",
+      "completedAt": "2026-11-17T22:59:16.893Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai computeCrc32Hex (IEEE 802.3 bảng tra 256-entry), signConfigurationBundle và verifyConfigurationBundle (chuẩn hóa khóa JSON lồng nhau tất định + chữ ký kép CRC32+SHA-256 + tương thích ngược gói sao lưu chưa ký legacy) trong library-utils.js, tích hợp vào exportAppConfiguration / validateAndParseConfiguration / parseShareablePlaylistPayload kèm unit test biên trong test/autonomy-tailchain-cycles.test.cjs"
     }
   ]
 }
