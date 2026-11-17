@@ -16427,5 +16427,397 @@
     return createSpecWithToken(publishToken);
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex};
+  // ==========================================================================
+  // BUG-04 — Abortable Sequential LRCLIB Queue & Instant Retry-After Cancellation
+  // ==========================================================================
+  function createSequentialQueueAbortError(reason) {
+    if (reason instanceof Error && reason.name === 'AbortError') return reason;
+    const message = typeof reason === 'string' && reason.trim()
+      ? reason.trim()
+      : 'Sequential request aborted';
+    const err = new Error(message);
+    err.name = 'AbortError';
+    err.code = 'ABORT_ERR';
+    return err;
+  }
+
+  function createLightweightAbortController() {
+    if (typeof AbortController === 'function') {
+      return new AbortController();
+    }
+    const listeners = new Set();
+    const signal = {
+      aborted: false,
+      reason: undefined,
+      addEventListener(type, fn) {
+        if (type === 'abort' && typeof fn === 'function') listeners.add(fn);
+      },
+      removeEventListener(type, fn) {
+        if (type === 'abort' && typeof fn === 'function') listeners.delete(fn);
+      }
+    };
+    return {
+      signal,
+      abort(reason) {
+        if (signal.aborted) return;
+        signal.aborted = true;
+        signal.reason = reason !== undefined ? reason : createSequentialQueueAbortError('Aborted');
+        const snapshot = Array.from(listeners);
+        listeners.clear();
+        for (let i = 0; i < snapshot.length; i++) {
+          try { snapshot[i](); } catch (_) {}
+        }
+      }
+    };
+  }
+
+  function createAbortableSequentialRequestQueue(options = {}) {
+    const opts = typeof options === 'number'
+      ? { minSpacingMs: options }
+      : (options && typeof options === 'object' ? options : {});
+
+    const rawSpacing = opts.minSpacingMs !== undefined ? opts.minSpacingMs : opts.spacingMs;
+    const minSpacingMs = rawSpacing !== undefined && Number.isFinite(Number(rawSpacing))
+      ? Math.max(0, Math.floor(Number(rawSpacing)))
+      : 250;
+    const nowFn = typeof opts.nowFn === 'function' ? opts.nowFn : () => Date.now();
+    const setTimer = typeof opts.setTimer === 'function' ? opts.setTimer : (fn, ms) => setTimeout(fn, ms);
+    const clearTimer = typeof opts.clearTimer === 'function' ? opts.clearTimer : id => clearTimeout(id);
+    const getExternalGeneration = typeof opts.getGeneration === 'function' ? opts.getGeneration : null;
+
+    let supersedeGeneration = opts.initialGeneration !== undefined && Number.isFinite(Number(opts.initialGeneration))
+      ? Math.max(0, Math.floor(Number(opts.initialGeneration)))
+      : 0;
+    let lastOutboundTime = 0;
+    let activeEntry = null;
+    const pendingQueue = [];
+    const activeTimers = new Set();
+
+    let completedCount = 0;
+    let abortedCount = 0;
+    let evictedCount = 0;
+
+    function currentGen() {
+      if (getExternalGeneration) {
+        const ext = Number(getExternalGeneration());
+        if (Number.isFinite(ext) && ext > supersedeGeneration) {
+          supersedeGeneration = Math.floor(ext);
+        }
+      }
+      return supersedeGeneration;
+    }
+
+    function abortableSleep(delayMs, signal = null, fallbackReason = 'Aborted during Retry-After sleep') {
+      const waitMs = Math.max(0, Math.round(Number(delayMs) || 0));
+      if (signal && signal.aborted) {
+        return Promise.reject(createSequentialQueueAbortError(signal.reason || fallbackReason));
+      }
+      if (waitMs <= 0) {
+        return Promise.resolve();
+      }
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        let timerHandle = null;
+
+        const detach = () => {
+          if (timerHandle !== null) {
+            activeTimers.delete(timerHandle);
+            timerHandle = null;
+          }
+          if (signal && typeof signal.removeEventListener === 'function') {
+            signal.removeEventListener('abort', onAbort);
+          }
+        };
+
+        const onAbort = () => {
+          if (settled) return;
+          settled = true;
+          if (timerHandle !== null) {
+            clearTimer(timerHandle);
+          }
+          detach();
+          reject(createSequentialQueueAbortError((signal && signal.reason) || fallbackReason));
+        };
+
+        if (signal && typeof signal.addEventListener === 'function') {
+          signal.addEventListener('abort', onAbort, { once: true });
+        }
+        if (signal && signal.aborted) {
+          onAbort();
+          return;
+        }
+
+        timerHandle = setTimer(() => {
+          if (settled) return;
+          settled = true;
+          detach();
+          resolve();
+        }, waitMs);
+
+        activeTimers.add(timerHandle);
+      });
+    }
+
+    async function waitForSpacing(signal = null) {
+      if (signal && signal.aborted) {
+        throw createSequentialQueueAbortError(signal.reason || 'Aborted before spacing wait');
+      }
+      if (minSpacingMs > 0 && lastOutboundTime > 0) {
+        const now = nowFn();
+        const elapsed = now - lastOutboundTime;
+        if (elapsed < minSpacingMs) {
+          await abortableSleep(minSpacingMs - elapsed, signal, 'Aborted while waiting for outbound rate-limit spacing');
+        }
+      }
+      if (signal && signal.aborted) {
+        throw createSequentialQueueAbortError(signal.reason || 'Aborted after spacing wait');
+      }
+      lastOutboundTime = nowFn();
+    }
+
+    function abortEntryImmediately(entry, reason, wasQueued) {
+      if (!entry || entry.aborted) return;
+      entry.aborted = true;
+      entry.detachExternal();
+      const abortErr = createSequentialQueueAbortError(reason);
+      entry.taskController.abort(abortErr);
+
+      if (wasQueued) {
+        const idx = pendingQueue.indexOf(entry);
+        if (idx !== -1) {
+          pendingQueue.splice(idx, 1);
+        }
+        evictedCount++;
+      }
+
+      if (!entry.settled) {
+        entry.settled = true;
+        abortedCount++;
+        entry.reject(abortErr);
+      }
+
+      if (activeEntry === entry) {
+        activeEntry = null;
+        pumpQueue();
+      }
+    }
+
+    function sweepStaleEntries(reason = 'Superseded by newer track generation') {
+      const gen = currentGen();
+      // 1. Evict all stale waiting entries from pendingQueue in reverse/forward pass
+      for (let i = pendingQueue.length - 1; i >= 0; i--) {
+        const queued = pendingQueue[i];
+        if (!queued.ignoreSupersede && queued.generation < gen) {
+          abortEntryImmediately(queued, reason, true);
+        }
+      }
+      // 2. Immediately abort active running/sleeping entry if stale
+      if (activeEntry && !activeEntry.ignoreSupersede && activeEntry.generation < gen) {
+        abortEntryImmediately(activeEntry, reason, false);
+      }
+    }
+
+    function advanceGeneration(reason = 'Superseded by newer track generation') {
+      supersedeGeneration = currentGen() + 1;
+      sweepStaleEntries(reason);
+      return supersedeGeneration;
+    }
+
+    function setGeneration(nextGeneration, reason = 'Superseded by generation update') {
+      const parsed = Math.floor(Number(nextGeneration));
+      if (Number.isFinite(parsed) && parsed > supersedeGeneration) {
+        supersedeGeneration = parsed;
+        sweepStaleEntries(reason);
+      }
+      return supersedeGeneration;
+    }
+
+    function cancelAll(reason = 'Queue cancelled') {
+      supersedeGeneration = currentGen() + 1;
+      while (pendingQueue.length > 0) {
+        const entry = pendingQueue.pop();
+        abortEntryImmediately(entry, reason, true);
+      }
+      if (activeEntry) {
+        abortEntryImmediately(activeEntry, reason, false);
+      }
+    }
+
+    function executeEntry(entry) {
+      const sig = entry.taskController.signal;
+      const context = {
+        signal: sig,
+        generation: entry.generation,
+        isAborted: () => entry.aborted || sig.aborted || (!entry.ignoreSupersede && entry.generation < currentGen()),
+        throwIfAborted: () => {
+          if (entry.aborted || sig.aborted) {
+            throw createSequentialQueueAbortError(sig.reason);
+          }
+          if (!entry.ignoreSupersede && entry.generation < currentGen()) {
+            abortEntryImmediately(entry, 'Superseded by newer generation', false);
+            throw createSequentialQueueAbortError('Superseded by newer generation');
+          }
+        },
+        sleep: (ms) => abortableSleep(ms, sig, 'Aborted during Retry-After sleep'),
+        waitRetryAfter: (ms) => abortableSleep(ms, sig, 'Aborted during 429 Retry-After backoff'),
+        waitForSpacing: () => waitForSpacing(sig),
+        markOutbound: () => { lastOutboundTime = nowFn(); }
+      };
+
+      Promise.resolve()
+        .then(() => {
+          context.throwIfAborted();
+          return entry.fn(context);
+        })
+        .then(
+          result => {
+            entry.detachExternal();
+            const wasActive = activeEntry === entry;
+            if (wasActive) activeEntry = null;
+            if (!entry.settled) {
+              if (entry.aborted || sig.aborted) {
+                entry.settled = true;
+                abortedCount++;
+                entry.reject(createSequentialQueueAbortError(sig.reason));
+              } else {
+                entry.settled = true;
+                completedCount++;
+                entry.resolve(result);
+              }
+            }
+            if (wasActive) pumpQueue();
+          },
+          err => {
+            entry.detachExternal();
+            const wasActive = activeEntry === entry;
+            if (wasActive) activeEntry = null;
+            if (!entry.settled) {
+              entry.settled = true;
+              if (entry.aborted || sig.aborted || (err && err.name === 'AbortError')) {
+                abortedCount++;
+                entry.reject(createSequentialQueueAbortError(err));
+              } else {
+                entry.reject(err);
+              }
+            }
+            if (wasActive) pumpQueue();
+          }
+        );
+    }
+
+    function pumpQueue() {
+      sweepStaleEntries();
+      while (activeEntry === null && pendingQueue.length > 0) {
+        const next = pendingQueue.shift();
+        if (!next || next.aborted || next.settled) continue;
+        if (!next.ignoreSupersede && next.generation < currentGen()) {
+          abortEntryImmediately(next, 'Superseded while queued', false);
+          continue;
+        }
+        activeEntry = next;
+        executeEntry(next);
+      }
+    }
+
+    function enqueue(fn, taskOptions = {}) {
+      if (typeof fn !== 'function') {
+        return Promise.reject(new TypeError('enqueue requires a task function'));
+      }
+      const tOpts = taskOptions && typeof taskOptions === 'object' ? taskOptions : {};
+      const externalSignal = tOpts.signal && typeof tOpts.signal === 'object' ? tOpts.signal : null;
+      const ignoreSupersede = Boolean(tOpts.ignoreSupersede || tOpts.pinned);
+
+      if (externalSignal && externalSignal.aborted) {
+        abortedCount++;
+        return Promise.reject(createSequentialQueueAbortError(externalSignal.reason));
+      }
+
+      if (tOpts.supersedePrevious === true) {
+        advanceGeneration(tOpts.supersedeReason || 'Superseded by newer request');
+      } else {
+        sweepStaleEntries();
+      }
+
+      const activeGen = currentGen();
+      const entryGeneration = (tOpts.generation !== undefined && Number.isFinite(Number(tOpts.generation)))
+        ? Math.floor(Number(tOpts.generation))
+        : (tOpts.supersedeGeneration !== undefined && Number.isFinite(Number(tOpts.supersedeGeneration))
+          ? Math.floor(Number(tOpts.supersedeGeneration))
+          : activeGen);
+
+      if (!ignoreSupersede && entryGeneration < activeGen) {
+        abortedCount++;
+        evictedCount++;
+        return Promise.reject(createSequentialQueueAbortError('Task generation already superseded'));
+      }
+
+      return new Promise((resolve, reject) => {
+        const taskController = createLightweightAbortController();
+        const entry = {
+          fn,
+          generation: entryGeneration,
+          ignoreSupersede,
+          taskController,
+          aborted: false,
+          settled: false,
+          resolve,
+          reject,
+          detachExternal: () => {}
+        };
+
+        if (externalSignal && typeof externalSignal.addEventListener === 'function') {
+          const onExternalAbort = () => {
+            const isQueued = pendingQueue.includes(entry);
+            abortEntryImmediately(entry, externalSignal.reason || 'Aborted via AbortSignal', isQueued);
+          };
+          externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+          entry.detachExternal = () => {
+            externalSignal.removeEventListener('abort', onExternalAbort);
+            entry.detachExternal = () => {};
+          };
+          if (externalSignal.aborted) {
+            onExternalAbort();
+            return;
+          }
+        }
+
+        pendingQueue.push(entry);
+        pumpQueue();
+      });
+    }
+
+    const queueApi = {
+      spacingMs: minSpacingMs,
+      minSpacingMs,
+      get lastOutboundTime() { return lastOutboundTime; },
+      set lastOutboundTime(v) { lastOutboundTime = Number(v) || 0; },
+      get generation() { return currentGen(); },
+      get pendingCount() { return pendingQueue.length; },
+      get activeTimerCount() { return activeTimers.size; },
+      enqueue,
+      sleep: abortableSleep,
+      waitRetryAfter: abortableSleep,
+      waitForSpacing,
+      advanceGeneration,
+      supersede: advanceGeneration,
+      setGeneration,
+      cancelAll,
+      getGeneration: currentGen,
+      getStats() {
+        return {
+          pendingCount: pendingQueue.length,
+          inFlightCount: activeEntry ? 1 : 0,
+          activeTimerCount: activeTimers.size,
+          generation: currentGen(),
+          completedCount,
+          abortedCount,
+          evictedCount
+        };
+      }
+    };
+
+    return queueApi;
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue};
 });

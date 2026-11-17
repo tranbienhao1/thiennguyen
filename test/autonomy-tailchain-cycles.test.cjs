@@ -1687,3 +1687,234 @@ describe('Autonomy Tail-Chaining Cycle 8 — OPT-03 (TypedArray Segment Max-Tree
     assert.equal(q.wordIndex, 0);
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 9 — BUG-04 (Abortable Sequential LRCLIB Queue & Instant 429 Retry-After Cancellation)', () => {
+  const LrclibClient = require(path.join(ROOT, 'lrclib-client.js'));
+
+  it('exposes BUG-04 createAbortableSequentialRequestQueue on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.createAbortableSequentialRequestQueue, 'function');
+
+    const sandbox = { library: { keepBug04: 'ok' } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.createAbortableSequentialRequestQueue, 'function');
+    assert.equal(typeof sandbox.library.createAbortableSequentialRequestQueue, 'function');
+    assert.equal(sandbox.library.keepBug04, 'ok');
+  });
+
+  it('aborts a 60-second 429 Retry-After sleep in <20ms, evicts queued tasks, and leaves 0 dangling timers', async () => {
+    const liveTimers = new Set();
+    let clearedCount = 0;
+
+    const queue = lib.createAbortableSequentialRequestQueue({
+      minSpacingMs: 0,
+      setTimer(fn, ms) {
+        const handle = setTimeout(() => {
+          liveTimers.delete(handle);
+          fn();
+        }, ms);
+        liveTimers.add(handle);
+        return handle;
+      },
+      clearTimer(handle) {
+        if (liveTimers.delete(handle)) {
+          clearedCount++;
+        }
+        clearTimeout(handle);
+      }
+    });
+
+    let enteredSixtySecSleep = null;
+    const sleepEnteredPromise = new Promise(resolve => { enteredSixtySecSleep = resolve; });
+    const executedTracks = [];
+
+    // Track 1 enters a 60-second (60,000ms) Retry-After sleep
+    const pTrack1 = queue.enqueue(async ctx => {
+      executedTracks.push(1);
+      enteredSixtySecSleep();
+      await ctx.waitRetryAfter(60000);
+      return 'track-1-should-never-finish';
+    });
+
+    // Tracks 2..9 queue behind Track 1 while Track 1 is sleeping
+    const queuedPromises = [];
+    for (let t = 2; t <= 9; t++) {
+      queuedPromises.push(
+        queue.enqueue(async () => {
+          executedTracks.push(t);
+          return `track-${t}`;
+        })
+      );
+    }
+
+    await sleepEnteredPromise;
+    assert.equal(liveTimers.size, 1, '60-second Retry-After timer must be armed before abort');
+    assert.equal(queue.getStats().activeTimerCount, 1);
+    assert.equal(queue.getStats().pendingCount, 8);
+
+    // Measure exact cancellation & eviction latency when Track 10 supersedes Tracks 1..9!
+    const abortStartMs = performance.now();
+    const pTrack10 = queue.enqueue(
+      async ctx => {
+        ctx.throwIfAborted();
+        executedTracks.push(10);
+        return 'track-10-lyrics-ready';
+      },
+      { supersedePrevious: true }
+    );
+
+    const [r1, ...rQueued] = await Promise.allSettled([pTrack1, ...queuedPromises]);
+    const abortElapsedMs = performance.now() - abortStartMs;
+
+    assert.ok(
+      abortElapsedMs < 20,
+      `Expected 60-second Retry-After sleep + 8 queued tasks to abort in <20ms, took ${abortElapsedMs.toFixed(2)}ms`
+    );
+    assert.equal(r1.status, 'rejected');
+    assert.equal(r1.reason.name, 'AbortError');
+    for (const rq of rQueued) {
+      assert.equal(rq.status, 'rejected');
+      assert.equal(rq.reason.name, 'AbortError');
+    }
+
+    const track10Result = await pTrack10;
+    assert.equal(track10Result, 'track-10-lyrics-ready');
+
+    // Tracks 2..9 were evicted before ever executing, and 0 timers remain dangling!
+    assert.deepEqual(executedTracks, [1, 10]);
+    assert.equal(liveTimers.size, 0, 'Must leave 0 dangling timers in JS event loop');
+    assert.equal(queue.getStats().activeTimerCount, 0);
+    assert.equal(queue.getStats().pendingCount, 0);
+    assert.equal(queue.getStats().inFlightCount, 0);
+    assert.equal(queue.getStats().evictedCount, 8);
+    assert.ok(clearedCount >= 1, 'clearTimeout must be called on cancelled Retry-After timer');
+
+    // Individual AbortSignal cancellation on a queued task also evicts in <20ms without disturbing other tasks
+    let releaseBlocker = null;
+    const blockerStarted = new Promise(r => {
+      queue.enqueue(async () => {
+        r();
+        await new Promise(res => { releaseBlocker = res; });
+        return 'blocker-done';
+      });
+    });
+    await blockerStarted;
+
+    const singleAc = new AbortController();
+    const tSingleStart = performance.now();
+    const pAbortedQueued = queue.enqueue(async () => 'never', { signal: singleAc.signal });
+    const pSurvivingQueued = queue.enqueue(async () => 'survivor-ok');
+
+    singleAc.abort('skip_single');
+    await assert.rejects(() => pAbortedQueued, err => err && err.name === 'AbortError');
+    const singleAbortMs = performance.now() - tSingleStart;
+    assert.ok(singleAbortMs < 20, `Queued AbortSignal cancellation must settle in <20ms, took ${singleAbortMs.toFixed(2)}ms`);
+
+    releaseBlocker();
+    assert.equal(await pSurvivingQueued, 'survivor-ok');
+    assert.equal(liveTimers.size, 0);
+  });
+
+  it('prevents head-of-line blocking in LrclibClient when skipping 10 tracks during HTTP 429 Retry-After: 60', async () => {
+    const liveClientTimers = new Set();
+    let entered429Backoff = null;
+    const on429BackoffArmed = new Promise(resolve => { entered429Backoff = resolve; });
+    const outboundTrackCalls = [];
+
+    const client = new LrclibClient.LrclibClient({
+      minSpacingMs: 0,
+      maxRetries: 3,
+      jitterRatio: 0,
+      setTimer(fn, ms) {
+        const id = setTimeout(() => {
+          liveClientTimers.delete(id);
+          fn();
+        }, ms);
+        liveClientTimers.add(id);
+        if (ms >= 60000 && entered429Backoff) {
+          const cb = entered429Backoff;
+          entered429Backoff = null;
+          queueMicrotask(cb);
+        }
+        return id;
+      },
+      clearTimer(id) {
+        liveClientTimers.delete(id);
+        clearTimeout(id);
+      },
+      fetch: async url => {
+        const parsed = new URL(url);
+        const trackName = parsed.searchParams.get('track_name');
+        outboundTrackCalls.push(trackName);
+
+        if (trackName === 'Track 1') {
+          return {
+            status: 429,
+            ok: false,
+            headers: { get: h => (h.toLowerCase() === 'retry-after' ? '60' : null) },
+            json: async () => ({ error: 'Too Many Requests' }),
+            text: async () => 'Too Many Requests'
+          };
+        }
+        return {
+          status: 200,
+          ok: true,
+          headers: { get: () => null },
+          json: async () => ({
+            id: 1010,
+            trackName,
+            artistName: 'Nocturne Artist',
+            syncedLyrics: `[00:01.00] Synced lyrics for ${trackName}`,
+            plainLyrics: `Synced lyrics for ${trackName}`,
+            instrumental: false
+          }),
+          text: async () => ''
+        };
+      }
+    });
+
+    // Track 1 hits 429 Retry-After: 60s
+    const p1 = client.getLyrics({ trackName: 'Track 1', artistName: 'Nocturne Artist', supersedePrevious: true });
+    await on429BackoffArmed;
+    assert.equal(liveClientTimers.size, 1, '60s Retry-After timer should be active for Track 1');
+
+    // Rapidly skip Tracks 2..10 while Track 1 was sleeping 60s!
+    const tSkipStart = performance.now();
+    const skippedPromises = [p1];
+    for (let i = 2; i <= 9; i++) {
+      skippedPromises.push(
+        client.getLyrics({ trackName: `Track ${i}`, artistName: 'Nocturne Artist', supersedePrevious: true })
+      );
+    }
+    const p10 = client.getLyrics({ trackName: 'Track 10', artistName: 'Nocturne Artist', supersedePrevious: true });
+
+    const settledSkipped = await Promise.allSettled(skippedPromises);
+    const skipAbortElapsedMs = performance.now() - tSkipStart;
+    assert.ok(
+      skipAbortElapsedMs < 20,
+      `Skipping Tracks 1..9 during 60s Retry-After must abort all stale requests in <20ms, took ${skipAbortElapsedMs.toFixed(2)}ms`
+    );
+    for (const s of settledSkipped) {
+      assert.equal(s.status, 'rejected');
+      assert.equal(s.reason.name, 'AbortError');
+    }
+
+    const finalLyrics = await p10;
+    assert.ok(finalLyrics);
+    assert.equal(finalLyrics.trackName, 'Track 10');
+    assert.equal(finalLyrics.syncedLyrics, '[00:01.00] Synced lyrics for Track 10');
+    assert.equal(liveClientTimers.size, 0, '0 dangling Retry-After timers may remain');
+    assert.equal(client.queue.getStats().activeTimerCount, 0);
+
+    // Verify index.html wiring & Web Audio destination invariant
+    const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    assert.ok(indexHtml.includes('supersedePrevious: isForegroundTrack'));
+    assert.ok(
+      indexHtml.includes('state.crossfeedNodes.output.connect(state.context.destination)'),
+      'CRITICAL INVARIANT must remain intact'
+    );
+  });
+});

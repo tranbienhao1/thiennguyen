@@ -426,60 +426,358 @@
     throw new Error('No crypto provider available for LRCLIB PoW challenge');
   }
 
-  // --- Sequential Rate-Limiting Queue ---
-  class SequentialQueue {
-    constructor(spacingMs = DEFAULT_MIN_SPACING_MS) {
-      this.spacingMs = spacingMs;
-      this.lastOutboundTime = 0;
-      this._chain = Promise.resolve();
-    }
+  // --- Abortable Sequential Rate-Limiting Queue (BUG-04 Hardened) ---
+  function _makeAbortError(reason) {
+    if (reason instanceof Error && reason.name === 'AbortError') return reason;
+    const msg = typeof reason === 'string' && reason.trim()
+      ? reason.trim()
+      : 'LRCLIB request aborted';
+    const err = new Error(msg);
+    err.name = 'AbortError';
+    err.code = 'ABORT_ERR';
+    return err;
+  }
 
-    enqueue(fn) {
-      const run = async () => {
-        return await fn();
-      };
-      const result = this._chain.then(run, run);
-      this._chain = result.catch(() => {});
-      return result;
-    }
-
-    async waitForSpacing() {
-      const now = Date.now();
-      const elapsed = now - this.lastOutboundTime;
-      if (elapsed < this.spacingMs) {
-        const wait = this.spacingMs - elapsed;
-        await new Promise(r => setTimeout(r, wait));
+  function _resolveExternalAbortableQueueFactory() {
+    if (typeof globalThis === 'object' && globalThis) {
+      if (globalThis.NocturneLibrary && typeof globalThis.NocturneLibrary.createAbortableSequentialRequestQueue === 'function') {
+        return globalThis.NocturneLibrary.createAbortableSequentialRequestQueue;
       }
-      this.lastOutboundTime = Date.now();
+      if (globalThis.library && typeof globalThis.library.createAbortableSequentialRequestQueue === 'function') {
+        return globalThis.library.createAbortableSequentialRequestQueue;
+      }
+    }
+    if (typeof require === 'function') {
+      try {
+        const lib = require('./library-utils.js');
+        if (lib && typeof lib.createAbortableSequentialRequestQueue === 'function') {
+          return lib.createAbortableSequentialRequestQueue;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  function _createFallbackAbortableQueue(options = {}) {
+    const opts = typeof options === 'number' ? { minSpacingMs: options } : (options || {});
+    const minSpacingMs = opts.minSpacingMs !== undefined ? Math.max(0, Number(opts.minSpacingMs) || 0) : DEFAULT_MIN_SPACING_MS;
+    const nowFn = typeof opts.nowFn === 'function' ? opts.nowFn : () => Date.now();
+    const setTimer = typeof opts.setTimer === 'function' ? opts.setTimer : (fn, ms) => setTimeout(fn, ms);
+    const clearTimer = typeof opts.clearTimer === 'function' ? opts.clearTimer : id => clearTimeout(id);
+
+    let generation = 0;
+    let lastOutboundTime = 0;
+    let activeEntry = null;
+    const pending = [];
+    const activeTimers = new Set();
+    let completedCount = 0;
+    let abortedCount = 0;
+    let evictedCount = 0;
+
+    function abortableSleep(delayMs, signal = null, reason = 'Aborted during Retry-After sleep') {
+      const waitMs = Math.max(0, Math.round(Number(delayMs) || 0));
+      if (signal && signal.aborted) return Promise.reject(_makeAbortError(signal.reason || reason));
+      if (waitMs <= 0) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        let tid = null;
+        const cleanup = () => {
+          if (tid !== null) { activeTimers.delete(tid); tid = null; }
+          if (signal && typeof signal.removeEventListener === 'function') signal.removeEventListener('abort', onAbort);
+        };
+        const onAbort = () => {
+          if (settled) return;
+          settled = true;
+          if (tid !== null) clearTimer(tid);
+          cleanup();
+          reject(_makeAbortError((signal && signal.reason) || reason));
+        };
+        if (signal && typeof signal.addEventListener === 'function') signal.addEventListener('abort', onAbort, { once: true });
+        if (signal && signal.aborted) { onAbort(); return; }
+        tid = setTimer(() => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve();
+        }, waitMs);
+        activeTimers.add(tid);
+      });
+    }
+
+    async function waitForSpacing(signal = null) {
+      if (signal && signal.aborted) throw _makeAbortError(signal.reason);
+      if (minSpacingMs > 0 && lastOutboundTime > 0) {
+        const elapsed = nowFn() - lastOutboundTime;
+        if (elapsed < minSpacingMs) {
+          await abortableSleep(minSpacingMs - elapsed, signal, 'Aborted during spacing wait');
+        }
+      }
+      if (signal && signal.aborted) throw _makeAbortError(signal.reason);
+      lastOutboundTime = nowFn();
+    }
+
+    function abortEntry(entry, reason, queued) {
+      if (!entry || entry.aborted) return;
+      entry.aborted = true;
+      entry.detach();
+      const err = _makeAbortError(reason);
+      entry.ctrl.abort(err);
+      if (queued) {
+        const idx = pending.indexOf(entry);
+        if (idx !== -1) pending.splice(idx, 1);
+        evictedCount++;
+      }
+      if (!entry.settled) {
+        entry.settled = true;
+        abortedCount++;
+        entry.reject(err);
+      }
+      if (activeEntry === entry) {
+        activeEntry = null;
+        pump();
+      }
+    }
+
+    function sweep(reason = 'Superseded') {
+      for (let i = pending.length - 1; i >= 0; i--) {
+        if (!pending[i].ignoreSupersede && pending[i].generation < generation) {
+          abortEntry(pending[i], reason, true);
+        }
+      }
+      if (activeEntry && !activeEntry.ignoreSupersede && activeEntry.generation < generation) {
+        abortEntry(activeEntry, reason, false);
+      }
+    }
+
+    function advanceGeneration(reason = 'Superseded') {
+      generation++;
+      sweep(reason);
+      return generation;
+    }
+
+    function cancelAll(reason = 'Queue cancelled') {
+      generation++;
+      while (pending.length) abortEntry(pending.pop(), reason, true);
+      if (activeEntry) abortEntry(activeEntry, reason, false);
+    }
+
+    function pump() {
+      sweep();
+      while (!activeEntry && pending.length > 0) {
+        const next = pending.shift();
+        if (!next || next.aborted || next.settled) continue;
+        activeEntry = next;
+        const sig = next.ctrl.signal;
+        const ctx = {
+          signal: sig,
+          generation: next.generation,
+          isAborted: () => next.aborted || sig.aborted || (!next.ignoreSupersede && next.generation < generation),
+          throwIfAborted: () => { if (next.aborted || sig.aborted) throw _makeAbortError(sig.reason); },
+          sleep: ms => abortableSleep(ms, sig),
+          waitRetryAfter: ms => abortableSleep(ms, sig),
+          waitForSpacing: () => waitForSpacing(sig)
+        };
+        Promise.resolve()
+          .then(() => { ctx.throwIfAborted(); return next.fn(ctx); })
+          .then(
+            res => {
+              next.detach();
+              const wasActive = activeEntry === next;
+              if (wasActive) activeEntry = null;
+              if (!next.settled) { next.settled = true; completedCount++; next.resolve(res); }
+              if (wasActive) pump();
+            },
+            err => {
+              next.detach();
+              const wasActive = activeEntry === next;
+              if (wasActive) activeEntry = null;
+              if (!next.settled) {
+                next.settled = true;
+                if (next.aborted || sig.aborted || (err && err.name === 'AbortError')) {
+                  abortedCount++;
+                  next.reject(_makeAbortError(err));
+                } else {
+                  next.reject(err);
+                }
+              }
+              if (wasActive) pump();
+            }
+          );
+      }
+    }
+
+    function enqueue(fn, taskOptions = {}) {
+      const tOpts = taskOptions || {};
+      const extSig = tOpts.signal || null;
+      const ignoreSupersede = Boolean(tOpts.ignoreSupersede || tOpts.pinned);
+      if (extSig && extSig.aborted) {
+        abortedCount++;
+        return Promise.reject(_makeAbortError(extSig.reason));
+      }
+      if (tOpts.supersedePrevious === true) advanceGeneration('Superseded by newer request');
+      const entryGen = Number.isFinite(Number(tOpts.generation)) ? Math.floor(Number(tOpts.generation)) : generation;
+      if (!ignoreSupersede && entryGen < generation) {
+        abortedCount++;
+        evictedCount++;
+        return Promise.reject(_makeAbortError('Superseded before execution'));
+      }
+      return new Promise((resolve, reject) => {
+        const ctrl = new AbortController();
+        const entry = { fn, generation: entryGen, ignoreSupersede, ctrl, aborted: false, settled: false, resolve, reject, detach: () => {} };
+        if (extSig && typeof extSig.addEventListener === 'function') {
+          const onAbort = () => abortEntry(entry, extSig.reason || 'Aborted', pending.includes(entry));
+          extSig.addEventListener('abort', onAbort, { once: true });
+          entry.detach = () => { extSig.removeEventListener('abort', onAbort); entry.detach = () => {}; };
+          if (extSig.aborted) { onAbort(); return; }
+        }
+        pending.push(entry);
+        pump();
+      });
+    }
+
+    return {
+      spacingMs: minSpacingMs,
+      minSpacingMs,
+      get generation() { return generation; },
+      get pendingCount() { return pending.length; },
+      get activeTimerCount() { return activeTimers.size; },
+      enqueue,
+      sleep: abortableSleep,
+      waitRetryAfter: abortableSleep,
+      waitForSpacing,
+      advanceGeneration,
+      supersede: advanceGeneration,
+      cancelAll,
+      getGeneration: () => generation,
+      getStats: () => ({
+        pendingCount: pending.length,
+        inFlightCount: activeEntry ? 1 : 0,
+        activeTimerCount: activeTimers.size,
+        generation,
+        completedCount,
+        abortedCount,
+        evictedCount
+      })
+    };
+  }
+
+  class SequentialQueue {
+    constructor(spacingOrOptions = DEFAULT_MIN_SPACING_MS) {
+      const factory = _resolveExternalAbortableQueueFactory() || _createFallbackAbortableQueue;
+      const opts = typeof spacingOrOptions === 'number'
+        ? { minSpacingMs: spacingOrOptions }
+        : (spacingOrOptions || {});
+      this._delegate = factory(opts);
+      this.spacingMs = this._delegate.minSpacingMs;
+    }
+
+    enqueue(fn, taskOptions = {}) {
+      return this._delegate.enqueue(fn, taskOptions);
+    }
+
+    waitForSpacing(signal = null) {
+      return this._delegate.waitForSpacing(signal);
+    }
+
+    sleep(delayMs, signal = null) {
+      return this._delegate.sleep(delayMs, signal);
+    }
+
+    advanceGeneration(reason) {
+      return this._delegate.advanceGeneration(reason);
+    }
+
+    supersede(reason) {
+      return this._delegate.advanceGeneration(reason);
+    }
+
+    cancelAll(reason) {
+      return this._delegate.cancelAll(reason);
+    }
+
+    getGeneration() {
+      return this._delegate.getGeneration();
+    }
+
+    getStats() {
+      return this._delegate.getStats();
     }
   }
 
-  // --- Core Request Execution with 429/503 Retries ---
-  async function _executeFetch(client, url, fetchOptions, attempt = 0) {
-    await client.queue.waitForSpacing();
+  function _racePromiseWithSignal(promise, signal) {
+    if (!signal || typeof signal.addEventListener !== 'function') return promise;
+    if (signal.aborted) return Promise.reject(_makeAbortError(signal.reason));
+    return new Promise((resolve, reject) => {
+      let done = false;
+      const onAbort = () => {
+        if (done) return;
+        done = true;
+        reject(_makeAbortError(signal.reason));
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+      promise.then(
+        val => {
+          if (done) return;
+          done = true;
+          signal.removeEventListener('abort', onAbort);
+          resolve(val);
+        },
+        err => {
+          if (done) return;
+          done = true;
+          signal.removeEventListener('abort', onAbort);
+          reject(err);
+        }
+      );
+    });
+  }
+
+  // --- Core Request Execution with Abortable 429/503 Retries ---
+  async function _executeFetch(client, url, fetchOptions, attempt = 0, ctx = null) {
+    const taskSignal = (ctx && ctx.signal) || (fetchOptions && fetchOptions.signal) || null;
+    if (taskSignal && taskSignal.aborted) {
+      throw _makeAbortError(taskSignal.reason);
+    }
+
+    await client.queue.waitForSpacing(taskSignal);
+
+    if (taskSignal && taskSignal.aborted) {
+      throw _makeAbortError(taskSignal.reason);
+    }
 
     const fetchImpl = client.fetch || (typeof fetch === 'function' ? fetch.bind(globalThis) : null);
     if (!fetchImpl) {
       throw new Error('fetch implementation is not available in current environment');
     }
 
+    const outboundOpts = (fetchOptions && fetchOptions.signal)
+      ? { ...fetchOptions, signal: taskSignal || fetchOptions.signal }
+      : fetchOptions;
+
     let response;
     try {
-      response = await fetchImpl(url, fetchOptions);
+      response = await _racePromiseWithSignal(Promise.resolve(fetchImpl(url, outboundOpts)), taskSignal);
     } catch (networkErr) {
+      if ((networkErr && networkErr.name === 'AbortError') || (taskSignal && taskSignal.aborted)) {
+        throw _makeAbortError(networkErr);
+      }
       if (attempt < client.maxRetries) {
         const delayMs = calculateRetryDelay(null, attempt, client.options);
-        await new Promise(r => setTimeout(r, delayMs));
-        return _executeFetch(client, url, fetchOptions, attempt + 1);
+        await client.queue.sleep(delayMs, taskSignal);
+        return _executeFetch(client, url, fetchOptions, attempt + 1, ctx);
       }
       throw networkErr;
+    }
+
+    if (taskSignal && taskSignal.aborted) {
+      throw _makeAbortError(taskSignal.reason);
     }
 
     if (response.status === 429 || response.status === 503) {
       if (attempt < client.maxRetries) {
         const delayMs = calculateRetryDelay(response, attempt, client.options);
-        await new Promise(r => setTimeout(r, delayMs));
-        return _executeFetch(client, url, fetchOptions, attempt + 1);
+        await client.queue.sleep(delayMs, taskSignal);
+        return _executeFetch(client, url, fetchOptions, attempt + 1, ctx);
       }
       const err = new Error(`LRCLIB HTTP ${response.status}: Rate limit / Service unavailable after ${attempt} retries`);
       err.status = response.status;
@@ -499,11 +797,37 @@
       this.minSpacingMs = options.minSpacingMs !== undefined ? options.minSpacingMs : DEFAULT_MIN_SPACING_MS;
       this.maxRetries = options.maxRetries !== undefined ? options.maxRetries : DEFAULT_MAX_RETRIES;
       this.options = options;
-      this.queue = new SequentialQueue(this.minSpacingMs);
+      this.queue = new SequentialQueue({
+        minSpacingMs: this.minSpacingMs,
+        nowFn: options.nowFn,
+        setTimer: options.setTimer,
+        clearTimer: options.clearTimer
+      });
     }
 
-    fetchWithRetry(url, fetchOptions = {}) {
-      return this.queue.enqueue(() => _executeFetch(this, url, fetchOptions, 0));
+    supersedePending(reason = 'Track switched') {
+      return this.queue.advanceGeneration(reason);
+    }
+
+    cancelAll(reason = 'Client requests cancelled') {
+      this.queue.cancelAll(reason);
+    }
+
+    fetchWithRetry(url, fetchOptions = {}, queueOptions = {}) {
+      const qOpts = queueOptions && typeof queueOptions === 'object' ? queueOptions : {};
+      const fOpts = fetchOptions && typeof fetchOptions === 'object' ? { ...fetchOptions } : {};
+      const signal = qOpts.signal || fOpts.signal || null;
+      const supersedePrevious = Boolean(qOpts.supersedePrevious || fOpts.supersedePrevious);
+      const ignoreSupersede = Boolean(qOpts.ignoreSupersede || qOpts.pinned);
+      const generation = qOpts.generation;
+      if ('supersedePrevious' in fOpts) {
+        delete fOpts.supersedePrevious;
+      }
+
+      return this.queue.enqueue(
+        ctx => _executeFetch(this, url, fOpts, 0, ctx),
+        { signal, supersedePrevious, ignoreSupersede, generation }
+      );
     }
 
     async getLyrics(params = {}) {
@@ -518,6 +842,16 @@
         throw new Error('trackName is required to get lyrics');
       }
 
+      const signal = params.signal || null;
+      const reqGeneration = params.supersedePrevious === true
+        ? this.queue.advanceGeneration('Superseded by newer getLyrics track')
+        : (params.generation !== undefined ? params.generation : this.queue.getGeneration());
+      const queueTaskOpts = {
+        signal,
+        generation: reqGeneration,
+        ignoreSupersede: Boolean(params.ignoreSupersede || params.pinned)
+      };
+
       const buildUrl = (includeAlbum) => {
         const url = new URL('/api/get', this.baseUrl);
         url.searchParams.set('track_name', trackName);
@@ -529,14 +863,16 @@
         return url.toString();
       };
 
+      const reqHeaders = {
+        'Lrclib-Client': this.userAgent,
+        'Accept': 'application/json'
+      };
+      const baseFetchOpts = signal
+        ? { method: 'GET', headers: reqHeaders, signal }
+        : { method: 'GET', headers: reqHeaders };
+
       const firstUrl = buildUrl(Boolean(albumName));
-      const firstRes = await this.fetchWithRetry(firstUrl, {
-        method: 'GET',
-        headers: {
-          'Lrclib-Client': this.userAgent,
-          'Accept': 'application/json'
-        }
-      });
+      const firstRes = await this.fetchWithRetry(firstUrl, baseFetchOpts, queueTaskOpts);
 
       if (firstRes.status === 200) {
         const data = await firstRes.json();
@@ -546,13 +882,7 @@
       // Fallback without albumName if not found (404) and albumName was provided
       if (firstRes.status === 404 && albumName) {
         const fallbackUrl = buildUrl(false);
-        const fallbackRes = await this.fetchWithRetry(fallbackUrl, {
-          method: 'GET',
-          headers: {
-            'Lrclib-Client': this.userAgent,
-            'Accept': 'application/json'
-          }
-        });
+        const fallbackRes = await this.fetchWithRetry(fallbackUrl, baseFetchOpts, queueTaskOpts);
 
         if (fallbackRes.status === 200) {
           const data = await fallbackRes.json();
@@ -587,6 +917,23 @@
       if (artist) params.set('artist_name', artist);
       if (album) params.set('album_name', album);
 
+      const signal = opts.signal || null;
+      const reqGeneration = opts.supersedePrevious === true
+        ? this.queue.advanceGeneration('Superseded by newer searchLyrics query')
+        : (opts.generation !== undefined ? opts.generation : this.queue.getGeneration());
+      const queueTaskOpts = {
+        signal,
+        generation: reqGeneration,
+        ignoreSupersede: Boolean(opts.ignoreSupersede || opts.pinned)
+      };
+      const reqHeaders = {
+        'Lrclib-Client': this.userAgent,
+        'Accept': 'application/json'
+      };
+      const baseFetchOpts = signal
+        ? { method: 'GET', headers: reqHeaders, signal }
+        : { method: 'GET', headers: reqHeaders };
+
       const qs = params.toString();
 
       // Try /api/v2/search first
@@ -594,13 +941,7 @@
       let tryFallback = false;
 
       try {
-        const res = await this.fetchWithRetry(v2Url, {
-          method: 'GET',
-          headers: {
-            'Lrclib-Client': this.userAgent,
-            'Accept': 'application/json'
-          }
-        });
+        const res = await this.fetchWithRetry(v2Url, baseFetchOpts, queueTaskOpts);
 
         if (res.status === 200) {
           const list = await res.json();
@@ -612,19 +953,14 @@
           tryFallback = true;
         }
       } catch (err) {
+        if (err && err.name === 'AbortError') throw err;
         tryFallback = true;
       }
 
       // Fallback to /api/search
       if (tryFallback) {
         const v1Url = `${this.baseUrl}/api/search${qs ? `?${qs}` : ''}`;
-        const v1Res = await this.fetchWithRetry(v1Url, {
-          method: 'GET',
-          headers: {
-            'Lrclib-Client': this.userAgent,
-            'Accept': 'application/json'
-          }
-        });
+        const v1Res = await this.fetchWithRetry(v1Url, baseFetchOpts, queueTaskOpts);
 
         if (v1Res.status === 200) {
           const list = await v1Res.json();
@@ -642,18 +978,27 @@
       return [];
     }
 
-    async getLyricsById(id) {
+    async getLyricsById(id, options = {}) {
       if (id === undefined || id === null) {
         throw new Error('id is required to get lyrics by id');
       }
 
+      const opts = options && typeof options === 'object' ? options : {};
+      const signal = opts.signal || null;
+      const reqHeaders = {
+        'Lrclib-Client': this.userAgent,
+        'Accept': 'application/json'
+      };
+      const baseFetchOpts = signal
+        ? { method: 'GET', headers: reqHeaders, signal }
+        : { method: 'GET', headers: reqHeaders };
+
       const url = `${this.baseUrl}/api/get/${encodeURIComponent(id)}`;
-      const res = await this.fetchWithRetry(url, {
-        method: 'GET',
-        headers: {
-          'Lrclib-Client': this.userAgent,
-          'Accept': 'application/json'
-        }
+      const res = await this.fetchWithRetry(url, baseFetchOpts, {
+        signal,
+        supersedePrevious: Boolean(opts.supersedePrevious),
+        generation: opts.generation,
+        ignoreSupersede: Boolean(opts.ignoreSupersede || opts.pinned)
       });
 
       if (res.status === 200) {
@@ -668,20 +1013,28 @@
       throw new Error(`LRCLIB getLyricsById failed with status ${res.status}`);
     }
 
-    async publishLyrics(payload) {
+    async publishLyrics(payload, options = {}) {
       if (!payload || typeof payload !== 'object') {
         throw new Error('payload is required to publish lyrics');
       }
 
-      // 1. Request challenge
+      const opts = options && typeof options === 'object' ? options : {};
+      const signal = opts.signal || null;
+
+      // 1. Request challenge (pinned so track-switch background skips don't accidentally cancel an explicit user publish unless signal aborts!)
       const challengeUrl = `${this.baseUrl}/api/request-challenge`;
-      const challengeRes = await this.fetchWithRetry(challengeUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Lrclib-Client': this.userAgent,
-          'Accept': 'application/json'
-        }
+      const challengeHeaders = {
+        'Content-Type': 'application/json',
+        'Lrclib-Client': this.userAgent,
+        'Accept': 'application/json'
+      };
+      const challengeFetchOpts = signal
+        ? { method: 'POST', headers: challengeHeaders, signal }
+        : { method: 'POST', headers: challengeHeaders };
+
+      const challengeRes = await this.fetchWithRetry(challengeUrl, challengeFetchOpts, {
+        signal,
+        pinned: true
       });
 
       if (!challengeRes.ok) {
@@ -713,23 +1066,35 @@
         } catch (e) {}
       }
 
+      if (signal && signal.aborted) {
+        throw _makeAbortError(signal.reason);
+      }
+
       if (solver) {
         nonce = await solver(prefix, target);
       } else {
         nonce = await solveLrclibPoWFallback(prefix, target);
       }
 
+      if (signal && signal.aborted) {
+        throw _makeAbortError(signal.reason);
+      }
+
       // 3. Post to /api/publish
       const publishUrl = `${this.baseUrl}/api/publish`;
-      const publishRes = await this.fetchWithRetry(publishUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Lrclib-Client': this.userAgent,
-          'X-Publish-Token': `${prefix}:${nonce}`,
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(payload)
+      const publishHeaders = {
+        'Content-Type': 'application/json',
+        'Lrclib-Client': this.userAgent,
+        'X-Publish-Token': `${prefix}:${nonce}`,
+        'Accept': 'application/json'
+      };
+      const publishFetchOpts = signal
+        ? { method: 'POST', headers: publishHeaders, body: JSON.stringify(payload), signal }
+        : { method: 'POST', headers: publishHeaders, body: JSON.stringify(payload) };
+
+      const publishRes = await this.fetchWithRetry(publishUrl, publishFetchOpts, {
+        signal,
+        pinned: true
       });
 
       if (!publishRes.ok) {
@@ -760,9 +1125,12 @@
 
   LrclibClient.getLyrics = (params) => defaultClient.getLyrics(params);
   LrclibClient.searchLyrics = (query, filter) => defaultClient.searchLyrics(query, filter);
-  LrclibClient.getLyricsById = (id) => defaultClient.getLyricsById(id);
-  LrclibClient.publishLyrics = (payload) => defaultClient.publishLyrics(payload);
-  LrclibClient.fetchWithRetry = (url, options) => defaultClient.fetchWithRetry(url, options);
+  LrclibClient.getLyricsById = (id, options) => defaultClient.getLyricsById(id, options);
+  LrclibClient.publishLyrics = (payload, options) => defaultClient.publishLyrics(payload, options);
+  LrclibClient.fetchWithRetry = (url, options, queueOptions) => defaultClient.fetchWithRetry(url, options, queueOptions);
+  LrclibClient.supersedePending = (reason) => defaultClient.supersedePending(reason);
+  LrclibClient.cancelAll = (reason) => defaultClient.cancelAll(reason);
+  LrclibClient.SequentialQueue = SequentialQueue;
 
   LrclibClient.openLyricsVault = openLyricsVault;
   LrclibClient.saveLyricsToVault = saveLyricsToVault;

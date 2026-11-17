@@ -7626,9 +7626,21 @@
         fsContainer.appendChild(row);
       }
     }
+    let _activeLyricsFetchController = null;
     async function triggerLyricsFetch(track) {
       const forceRefresh = arguments.length > 1 ? Boolean(arguments[1]) : false;
       if (!track) return;
+
+      const isForegroundTrack = state.currentId === track.id;
+      let localFetchController = _activeLyricsFetchController;
+      if (isForegroundTrack && typeof AbortController === 'function') {
+        if (_activeLyricsFetchController) {
+          try { _activeLyricsFetchController.abort('track_switched'); } catch (_) {}
+        }
+        localFetchController = new AbortController();
+        _activeLyricsFetchController = localFetchController;
+      }
+      const fetchSignal = localFetchController ? localFetchController.signal : undefined;
 
       const container = $('room-lyrics');
       const meta = (typeof library !== 'undefined' && library.trackMetadata) ? library.trackMetadata(track) : { title: track.title, artist: track.artist, album: track.album };
@@ -7754,6 +7766,7 @@
       }
 
       try {
+        if (fetchSignal && fetchSignal.aborted) return;
         const client = (typeof window !== 'undefined' && window.LrclibClient) ? window.LrclibClient : (typeof LrclibClient !== 'undefined' ? LrclibClient : null);
         const dur = Math.round(Number(track.duration) || 0);
         let lrc = null;
@@ -7766,7 +7779,9 @@
               trackName: cleaned.title,
               artistName: cleaned.artist || meta.artist || '',
               albumName: meta.album || track.album || '',
-              duration: dur > 0 ? dur : undefined
+              duration: dur > 0 ? dur : undefined,
+              signal: fetchSignal,
+              supersedePrevious: isForegroundTrack
             });
             if (lrclibResult && (lrclibResult.syncedLyrics || lrclibResult.plainLyrics)) {
               lrc = lrclibResult.syncedLyrics || lrclibResult.plainLyrics;
@@ -7775,13 +7790,20 @@
                 matchScore = library.scoreLyricsCandidateMatch(track, lrclibResult).matchScore;
               }
             }
-          } catch (_) {}
+          } catch (clientErr) {
+            if ((clientErr && clientErr.name === 'AbortError') || (fetchSignal && fetchSignal.aborted)) {
+              return;
+            }
+          }
         }
+
+        if (fetchSignal && fetchSignal.aborted) return;
 
         if (!lrc) {
           let url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleaned.title)}&artist_name=${encodeURIComponent(cleaned.artist || '')}`;
           if (dur > 0) url += `&duration=${dur}`;
-          const resp = await fetch(url).catch(() => null);
+          const resp = await fetch(url, fetchSignal ? { signal: fetchSignal } : undefined).catch(() => null);
+          if (fetchSignal && fetchSignal.aborted) return;
 
           if (resp && resp.ok) {
             const data = await resp.json();
@@ -7792,7 +7814,11 @@
               matchScore = scored.matchScore;
             }
           } else {
-            const searchResp = await fetch(`https://lrclib.net/api/search?q=${encodeURIComponent((cleaned.artist ? cleaned.artist + ' ' : '') + cleaned.title)}`).catch(() => null);
+            const searchResp = await fetch(
+              `https://lrclib.net/api/search?q=${encodeURIComponent((cleaned.artist ? cleaned.artist + ' ' : '') + cleaned.title)}`,
+              fetchSignal ? { signal: fetchSignal } : undefined
+            ).catch(() => null);
+            if (fetchSignal && fetchSignal.aborted) return;
             if (searchResp && searchResp.ok) {
               const list = await searchResp.json();
               if (Array.isArray(list) && list.length > 0) {

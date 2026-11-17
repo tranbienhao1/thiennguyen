@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 12,
-  "lastPhase": "OPTIMIZE",
-  "lastRunIso": "2026-11-17T22:10:25.000Z",
+  "cycleCount": 13,
+  "lastPhase": "BUG_HUNT",
+  "lastRunIso": "2026-11-17T22:23:20.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "BUG-04",
-      "phase": "BUG_HUNT",
-      "title": "Kiểm tra hủy hàng đợi tuần tự SequentialQueue trong LrclibClient khi chuyển bài liên tục lúc đang chờ Retry-After 429"
-    },
     {
       "id": "UPG-04",
       "phase": "UPGRADE",
@@ -83,6 +78,16 @@
       "id": "OPT-08",
       "phase": "OPTIMIZE",
       "title": "Tối ưu chia sẻ bộ đệm TypedLyricBufferPool toàn cục giữa Lyric Reader và Visualizer 60fps tránh cấp phát lại khi tua nhanh"
+    },
+    {
+      "id": "BUG-09",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra hủy tải ngầm scheduleQueueLyricsPreload khi người dùng bật chế độ ngoại tuyến hoặc xóa hàng đợi phát nhạc"
+    },
+    {
+      "id": "UPG-09",
+      "phase": "UPGRADE",
+      "title": "Bổ sung hiển thị tiến trình giải Proof-of-Work SHA-256 theo lô kèm nút hủy tức thì trong hộp thoại Lyric Editor V2"
     }
   ],
   "completedTasks": [
@@ -157,6 +162,14 @@
       "completedAt": "2026-11-17T22:10:25.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai createTypedLyricBufferPool và createTypedLyricSegmentIndex biên dịch >5.000 dòng karaoke đa giọng bè vào các mảng phẳng Float64Array/Int32Array (startMs, endMs, maxEndSubtreeMs, sortedOrder, wordOffsets, wordStartMs, wordEndMs) với tái sử dụng ArrayBuffer qua chuyển bài, truy vấn queryActiveAt O(log N) zero-allocation và tích hợp vào findActiveLyricStateBinary / createZeroAllocFrameScratchpad"
+    },
+    {
+      "id": "BUG-04",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra hủy hàng đợi tuần tự SequentialQueue trong LrclibClient khi chuyển bài liên tục lúc đang chờ Retry-After 429",
+      "completedAt": "2026-11-17T22:23:20.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai createAbortableSequentialRequestQueue trong library-utils.js, nâng cấp SequentialQueue/LrclibClient trong lrclib-client.js và tích hợp AbortController + supersedePrevious vào triggerLyricsFetch trong index.html, đảm bảo hủy tức thì (<20ms) giấc ngủ 429 Retry-After bằng clearTimeout (0 timer treo) và loại bỏ tác vụ cũ khỏi hàng đợi khi chuyển bài liên tục"
     }
   ]
 }
