@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 2,
-  "lastPhase": "BUG_HUNT",
-  "lastRunIso": "2026-11-17T19:47:30.000Z",
+  "cycleCount": 3,
+  "lastPhase": "UPGRADE",
+  "lastRunIso": "2026-11-17T20:06:35.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "UPG-01",
-      "phase": "UPGRADE",
-      "title": "Hoàn thiện module LRCLIB Client (GET /api/get, /api/v2/search, xử lý 429 Retry-After + jitter) và bộ đọc LRC / Lyricsfile YAML 1.0 đồng bộ từng từ bằng Binary Search"
-    },
     {
       "id": "OPT-01",
       "phase": "OPTIMIZE",
@@ -43,6 +38,16 @@
       "id": "UPG-03",
       "phase": "UPGRADE",
       "title": "Tích hợp Proof-of-Work SHA-256挑戰 (POST /api/request-challenge -> POST /api/publish) chuẩn LRCLIB bằng Web Crypto API trong Lyric Editor V2"
+    },
+    {
+      "id": "OPT-03",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu bộ nhớ đệm Segment Max-Tree cho danh sách lời bài hát dài (>5.000 dòng karaoke đa giọng bè) bằng TypedArray tái sử dụng"
+    },
+    {
+      "id": "BUG-04",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra hủy hàng đợi tuần tự SequentialQueue trong LrclibClient khi chuyển bài liên tục lúc đang chờ Retry-After 429"
     }
   ],
   "completedTasks": [
@@ -53,6 +58,14 @@
       "completedAt": "2026-11-17T19:47:30.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai safeRevokeObjectUrlRegistry, createAbortableTrackLoader và validateBinaryAudioHeaderBounds trong library-utils.js kèm bộ unit test biên trong test/schedule-30m-system.test.cjs"
+    },
+    {
+      "id": "UPG-01",
+      "phase": "UPGRADE",
+      "title": "Hoàn thiện module LRCLIB Client (GET /api/get, /api/v2/search, xử lý 429 Retry-After + jitter) và bộ đọc LRC / Lyricsfile YAML 1.0 đồng bộ từng từ bằng Binary Search",
+      "completedAt": "2026-11-17T20:06:35.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Bổ sung computeLrclibRetryDelayMs (HTTP 429/503 Retry-After giây & HTTP-date + exponential backoff + jitter 0..30%), parseLyricsfileYaml / serializeLyricsfileYaml (YAML 1.0 CJK/Unicode, instrumental, multi-word & voice overlap) và findActiveLyricStateBinary O(log N) Segment Max-Tree trong library-utils.js kèm test/autonomy-tailchain-cycles.test.cjs"
     }
   ]
 }
