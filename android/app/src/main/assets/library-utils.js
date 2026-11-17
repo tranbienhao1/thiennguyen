@@ -15258,5 +15258,751 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate};
+  // ==========================================================================
+  // UPG-03 — LRCLIB SHA-256 Proof-of-Work Solver & Publish Payload Builder
+  // ==========================================================================
+  const LRCLIB_DEFAULT_BASE_URL = 'https://lrclib.net';
+  const LRCLIB_DEFAULT_CLIENT_HEADER = 'Nocturne-HiRes-Player (https://github.com/tranbienhao1/thiennguyen)';
+  const POW_SHA256_PAD = new Uint8Array(256);
+  const POW_SHA256_DV = new DataView(POW_SHA256_PAD.buffer);
+  const POW_HEX_TABLE = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, '0'));
+
+  function createLrclibAbortError(reason) {
+    if (reason instanceof Error && reason.name === 'AbortError') return reason;
+    const message = typeof reason === 'string' && reason.trim()
+      ? reason.trim()
+      : 'LRCLIB Proof-of-Work challenge aborted';
+    const err = new Error(message);
+    err.name = 'AbortError';
+    err.code = 'ABORT_ERR';
+    return err;
+  }
+
+  function hexNibbleValue(charCode) {
+    if (charCode >= 48 && charCode <= 57) return charCode - 48;       // '0'..'9'
+    if (charCode >= 97 && charCode <= 102) return charCode - 87;      // 'a'..'f'
+    if (charCode >= 65 && charCode <= 70) return charCode - 55;       // 'A'..'F'
+    return -1;
+  }
+
+  function parseStrictTargetHexBytes(targetHex) {
+    if (typeof targetHex !== 'string') return null;
+    let cleaned = targetHex.trim();
+    if (cleaned.startsWith('0x') || cleaned.startsWith('0X')) {
+      cleaned = cleaned.slice(2);
+    }
+    if (cleaned.length !== 64) return null;
+    const out = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+      const hi = hexNibbleValue(cleaned.charCodeAt(i * 2));
+      const lo = hexNibbleValue(cleaned.charCodeAt(i * 2 + 1));
+      if (hi < 0 || lo < 0) return null;
+      out[i] = (hi << 4) | lo;
+    }
+    return out;
+  }
+
+  function normalizeBytes32ForPow(input) {
+    if (!input) return null;
+    if (input instanceof Uint8Array) {
+      return input.byteLength === 32 ? input : null;
+    }
+    if (input instanceof ArrayBuffer) {
+      return input.byteLength === 32 ? new Uint8Array(input) : null;
+    }
+    if (ArrayBuffer.isView(input)) {
+      return input.byteLength === 32
+        ? new Uint8Array(input.buffer, input.byteOffset, 32)
+        : null;
+    }
+    if (typeof input === 'string') {
+      return parseStrictTargetHexBytes(input);
+    }
+    if (Array.isArray(input) && input.length === 32) {
+      const out = new Uint8Array(32);
+      for (let i = 0; i < 32; i++) {
+        const v = input[i];
+        if (!Number.isInteger(v) || v < 0 || v > 255) return null;
+        out[i] = v;
+      }
+      return out;
+    }
+    return null;
+  }
+
+  function bytes32ToHexLower(bytes32) {
+    let hex = '';
+    for (let i = 0; i < 32; i++) {
+      hex += POW_HEX_TABLE[bytes32[i]];
+    }
+    return hex;
+  }
+
+  function sha256BytesInto(inputU8, inputLen, out32) {
+    const len = inputLen >>> 0;
+    const paddedLen = Math.ceil((len + 9) / 64) * 64;
+    let padded;
+    let dv;
+    if (paddedLen <= POW_SHA256_PAD.byteLength) {
+      padded = POW_SHA256_PAD;
+      dv = POW_SHA256_DV;
+      padded.fill(0, 0, paddedLen);
+    } else {
+      padded = new Uint8Array(paddedLen);
+      dv = new DataView(padded.buffer);
+    }
+    if (len > 0) {
+      padded.set(inputU8.subarray(0, len), 0);
+    }
+    padded[len] = 0x80;
+    const bitLen = len * 8;
+    dv.setUint32(paddedLen - 8, Math.floor(bitLen / 0x100000000) >>> 0, false);
+    dv.setUint32(paddedLen - 4, bitLen >>> 0, false);
+
+    let h0 = 0x6a09e667;
+    let h1 = 0xbb67ae85;
+    let h2 = 0x3c6ef372;
+    let h3 = 0xa54ff53a;
+    let h4 = 0x510e527f;
+    let h5 = 0x9b05688c;
+    let h6 = 0x1f83d9ab;
+    let h7 = 0x5be0cd19;
+
+    const w = SHA256_W;
+    for (let offset = 0; offset < paddedLen; offset += 64) {
+      for (let i = 0; i < 16; i++) {
+        w[i] = dv.getUint32(offset + i * 4, false);
+      }
+      for (let i = 16; i < 64; i++) {
+        const x = w[i - 15];
+        const s0 = ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+        const y = w[i - 2];
+        const s1 = ((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10);
+        w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+      }
+
+      let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+      for (let i = 0; i < 64; i++) {
+        const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+        const ch = (e & f) ^ ((~e) & g);
+        const temp1 = (h + S1 + ch + SHA256_K[i] + w[i]) >>> 0;
+        const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+        const maj = (a & b) ^ (a & c) ^ (b & c);
+        const temp2 = (S0 + maj) >>> 0;
+
+        h = g;
+        g = f;
+        f = e;
+        e = (d + temp1) >>> 0;
+        d = c;
+        c = b;
+        b = a;
+        a = (temp1 + temp2) >>> 0;
+      }
+
+      h0 = (h0 + a) >>> 0;
+      h1 = (h1 + b) >>> 0;
+      h2 = (h2 + c) >>> 0;
+      h3 = (h3 + d) >>> 0;
+      h4 = (h4 + e) >>> 0;
+      h5 = (h5 + f) >>> 0;
+      h6 = (h6 + g) >>> 0;
+      h7 = (h7 + h) >>> 0;
+    }
+
+    const words = [h0, h1, h2, h3, h4, h5, h6, h7];
+    for (let i = 0; i < 8; i++) {
+      const v = words[i];
+      const base = i * 4;
+      out32[base] = (v >>> 24) & 0xff;
+      out32[base + 1] = (v >>> 16) & 0xff;
+      out32[base + 2] = (v >>> 8) & 0xff;
+      out32[base + 3] = v & 0xff;
+    }
+    return out32;
+  }
+
+  function encodeUtf8Bytes(str) {
+    if (typeof TextEncoder === 'function') {
+      return new TextEncoder().encode(str);
+    }
+    const bytes = [];
+    for (let i = 0; i < str.length; i++) {
+      let code = str.charCodeAt(i);
+      if (code < 0x80) {
+        bytes.push(code);
+      } else if (code < 0x800) {
+        bytes.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
+      } else if (code >= 0xd800 && code <= 0xdbff && i + 1 < str.length) {
+        const low = str.charCodeAt(++i);
+        const cp = 0x10000 + (((code & 0x3ff) << 10) | (low & 0x3ff));
+        bytes.push(
+          0xf0 | (cp >> 18),
+          0x80 | ((cp >> 12) & 0x3f),
+          0x80 | ((cp >> 6) & 0x3f),
+          0x80 | (cp & 0x3f)
+        );
+      } else {
+        bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
+      }
+    }
+    return new Uint8Array(bytes);
+  }
+
+  function writeAsciiUint(targetBuf, offset, num) {
+    if (num === 0) {
+      targetBuf[offset] = 48;
+      return offset + 1;
+    }
+    const s = String(num);
+    for (let i = 0; i < s.length; i++) {
+      targetBuf[offset + i] = s.charCodeAt(i);
+    }
+    return offset + s.length;
+  }
+
+  function verifyLrclibPowTarget(hashBytes, targetHex) {
+    const hashU8 = normalizeBytes32ForPow(hashBytes);
+    if (!hashU8) return false;
+    const targetU8 = typeof targetHex === 'string'
+      ? parseStrictTargetHexBytes(targetHex)
+      : normalizeBytes32ForPow(targetHex);
+    if (!targetU8) return false;
+
+    for (let i = 0; i < 32; i++) {
+      const hb = hashU8[i];
+      const tb = targetU8[i];
+      if (hb < tb) return true;
+      if (hb > tb) return false;
+    }
+    return true;
+  }
+
+  function resolvePowArgs(prefixOrChallenge, targetHex, options) {
+    let prefix = prefixOrChallenge;
+    let target = targetHex;
+    let opts = options && typeof options === 'object' ? options : {};
+
+    if (
+      prefixOrChallenge &&
+      typeof prefixOrChallenge === 'object' &&
+      !Array.isArray(prefixOrChallenge) &&
+      typeof prefixOrChallenge.prefix === 'string' &&
+      (targetHex === undefined || (typeof targetHex === 'object' && targetHex !== null && !ArrayBuffer.isView(targetHex)))
+    ) {
+      prefix = prefixOrChallenge.prefix;
+      target = prefixOrChallenge.target !== undefined ? prefixOrChallenge.target : prefixOrChallenge.targetHex;
+      if (targetHex && typeof targetHex === 'object') opts = targetHex;
+    }
+
+    if (typeof prefix !== 'string' || prefix.length === 0) {
+      throw new TypeError('Invalid LRCLIB PoW prefix: expected a non-empty string');
+    }
+    if (typeof target !== 'string') {
+      throw new TypeError('Invalid LRCLIB PoW targetHex: expected a 64-character hex string');
+    }
+    const targetBytes = parseStrictTargetHexBytes(target);
+    if (!targetBytes) {
+      throw new Error('Invalid LRCLIB PoW targetHex: expected a valid 64-character SHA-256 hex string');
+    }
+
+    const startNonce = opts.startNonce !== undefined && Number.isFinite(Number(opts.startNonce))
+      ? Math.max(0, Math.floor(Number(opts.startNonce)))
+      : 0;
+    const maxIterations = opts.maxIterations !== undefined && Number.isFinite(Number(opts.maxIterations)) && Number(opts.maxIterations) > 0
+      ? Math.max(1, Math.floor(Number(opts.maxIterations)))
+      : 10000000;
+    const batchSize = opts.batchSize !== undefined && Number.isFinite(Number(opts.batchSize)) && Number(opts.batchSize) > 0
+      ? Math.max(1, Math.min(8192, Math.floor(Number(opts.batchSize))))
+      : 256;
+    const concurrency = opts.concurrency !== undefined && Number.isFinite(Number(opts.concurrency)) && Number(opts.concurrency) > 0
+      ? Math.max(1, Math.min(batchSize, Math.min(128, Math.floor(Number(opts.concurrency)))))
+      : Math.min(batchSize, 64);
+    const signal = opts.signal && typeof opts.signal === 'object' ? opts.signal : null;
+    const nowFn = typeof opts.nowFn === 'function'
+      ? opts.nowFn
+      : () => (typeof performance === 'object' && performance && typeof performance.now === 'function' ? performance.now() : Date.now());
+
+    return {
+      prefix,
+      targetBytes,
+      startNonce,
+      maxIterations,
+      batchSize,
+      concurrency,
+      signal,
+      nowFn,
+      opts
+    };
+  }
+
+  function solveLrclibChallengeSync(prefix, targetHex, options = {}) {
+    const {
+      prefix: resolvedPrefix,
+      targetBytes,
+      startNonce,
+      maxIterations,
+      signal,
+      nowFn
+    } = resolvePowArgs(prefix, targetHex, options);
+
+    if (signal && signal.aborted) {
+      throw createLrclibAbortError(signal.reason);
+    }
+
+    const startedAt = nowFn();
+    const prefixBytes = encodeUtf8Bytes(resolvedPrefix);
+    const scratchInput = new Uint8Array(prefixBytes.length + 24);
+    scratchInput.set(prefixBytes, 0);
+    const digest32 = new Uint8Array(32);
+
+    let nonce = startNonce;
+    let iterations = 0;
+
+    while (iterations < maxIterations) {
+      if (signal && (iterations & 255) === 0 && signal.aborted) {
+        throw createLrclibAbortError(signal.reason);
+      }
+      const totalLen = writeAsciiUint(scratchInput, prefixBytes.length, nonce);
+      sha256BytesInto(scratchInput, totalLen, digest32);
+      iterations++;
+
+      if (verifyLrclibPowTarget(digest32, targetBytes)) {
+        const hashHex = bytes32ToHexLower(digest32);
+        return {
+          nonce,
+          publishToken: `${resolvedPrefix}:${nonce}`,
+          hashHex,
+          iterations,
+          elapsedMs: Math.max(0, nowFn() - startedAt)
+        };
+      }
+      nonce++;
+    }
+
+    const limitErr = new Error(`LRCLIB PoW maxIterations (${maxIterations}) exceeded without finding a valid nonce`);
+    limitErr.code = 'POW_MAX_ITERATIONS_EXCEEDED';
+    throw limitErr;
+  }
+
+  function waitYieldWithAbort(signal, yieldDelayMs = 0) {
+    return new Promise((resolve, reject) => {
+      if (signal && signal.aborted) {
+        reject(createLrclibAbortError(signal.reason));
+        return;
+      }
+      let settled = false;
+      let timerId = null;
+      const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        if (timerId !== null) clearTimeout(timerId);
+        if (signal && typeof signal.removeEventListener === 'function') {
+          signal.removeEventListener('abort', onAbort);
+        }
+        reject(createLrclibAbortError(signal.reason));
+      };
+      if (signal && typeof signal.addEventListener === 'function') {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+      timerId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        if (signal && typeof signal.removeEventListener === 'function') {
+          signal.removeEventListener('abort', onAbort);
+        }
+        resolve();
+      }, yieldDelayMs);
+    });
+  }
+
+  async function solveLrclibChallengeAsync(prefix, targetHex, options = {}) {
+    const {
+      prefix: resolvedPrefix,
+      targetBytes,
+      startNonce,
+      maxIterations,
+      batchSize,
+      concurrency,
+      signal,
+      nowFn,
+      opts
+    } = resolvePowArgs(prefix, targetHex, options);
+
+    if (signal && signal.aborted) {
+      throw createLrclibAbortError(signal.reason);
+    }
+
+    const startedAt = nowFn();
+    const prefixBytes = encodeUtf8Bytes(resolvedPrefix);
+    const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : null;
+    const yieldDelayMs = opts.yieldDelayMs !== undefined && Number.isFinite(Number(opts.yieldDelayMs))
+      ? Math.max(0, Math.floor(Number(opts.yieldDelayMs)))
+      : 0;
+
+    let subtle = null;
+    if (opts.forceSyncFallback !== true) {
+      if (opts.subtle !== undefined) {
+        subtle = opts.subtle;
+      } else if (typeof globalThis === 'object' && globalThis && globalThis.crypto && globalThis.crypto.subtle) {
+        subtle = globalThis.crypto.subtle;
+      }
+    }
+
+    let useWebCrypto = Boolean(subtle && typeof subtle.digest === 'function');
+    const syncScratch = new Uint8Array(prefixBytes.length + 24);
+    syncScratch.set(prefixBytes, 0);
+    const syncDigest32 = new Uint8Array(32);
+
+    let nonce = startNonce;
+    let iterations = 0;
+
+    while (iterations < maxIterations) {
+      if (signal && signal.aborted) {
+        throw createLrclibAbortError(signal.reason);
+      }
+
+      const macroTarget = Math.min(batchSize, maxIterations - iterations);
+      let processedInMacro = 0;
+
+      while (processedInMacro < macroTarget) {
+        if (signal && signal.aborted) {
+          throw createLrclibAbortError(signal.reason);
+        }
+
+        if (useWebCrypto) {
+          const chunkCount = Math.min(concurrency, macroTarget - processedInMacro);
+          const candidateNonces = new Array(chunkCount);
+          const digestPromises = new Array(chunkCount);
+
+          for (let i = 0; i < chunkCount; i++) {
+            const candidate = nonce + i;
+            candidateNonces[i] = candidate;
+            const nonceStr = String(candidate);
+            const buf = new Uint8Array(prefixBytes.length + nonceStr.length);
+            buf.set(prefixBytes, 0);
+            for (let c = 0; c < nonceStr.length; c++) {
+              buf[prefixBytes.length + c] = nonceStr.charCodeAt(c);
+            }
+            digestPromises[i] = subtle.digest('SHA-256', buf);
+          }
+
+          let digests;
+          try {
+            if (signal && typeof signal.addEventListener === 'function') {
+              let removeAbort = null;
+              const abortRace = new Promise((_, reject) => {
+                if (signal.aborted) {
+                  reject(createLrclibAbortError(signal.reason));
+                  return;
+                }
+                const handler = () => reject(createLrclibAbortError(signal.reason));
+                signal.addEventListener('abort', handler, { once: true });
+                removeAbort = () => signal.removeEventListener('abort', handler);
+              });
+              try {
+                digests = await Promise.race([Promise.all(digestPromises), abortRace]);
+              } finally {
+                if (removeAbort) removeAbort();
+              }
+            } else {
+              digests = await Promise.all(digestPromises);
+            }
+          } catch (err) {
+            if (err && err.name === 'AbortError') throw err;
+            if (signal && signal.aborted) throw createLrclibAbortError(signal.reason);
+            // Web Crypto unavailable or rejected cleanly -> switch seamlessly to pure-JS SHA-256
+            useWebCrypto = false;
+            continue;
+          }
+
+          if (signal && signal.aborted) {
+            throw createLrclibAbortError(signal.reason);
+          }
+
+          for (let i = 0; i < chunkCount; i++) {
+            iterations++;
+            const hashU8 = new Uint8Array(digests[i]);
+            if (verifyLrclibPowTarget(hashU8, targetBytes)) {
+              const winningNonce = candidateNonces[i];
+              return {
+                nonce: winningNonce,
+                publishToken: `${resolvedPrefix}:${winningNonce}`,
+                hashHex: bytes32ToHexLower(hashU8),
+                iterations,
+                elapsedMs: Math.max(0, nowFn() - startedAt)
+              };
+            }
+          }
+
+          nonce += chunkCount;
+          processedInMacro += chunkCount;
+        } else {
+          const remaining = macroTarget - processedInMacro;
+          for (let i = 0; i < remaining; i++) {
+            if (signal && (i & 63) === 0 && signal.aborted) {
+              throw createLrclibAbortError(signal.reason);
+            }
+            const candidate = nonce;
+            const totalLen = writeAsciiUint(syncScratch, prefixBytes.length, candidate);
+            sha256BytesInto(syncScratch, totalLen, syncDigest32);
+            iterations++;
+            nonce++;
+            if (verifyLrclibPowTarget(syncDigest32, targetBytes)) {
+              return {
+                nonce: candidate,
+                publishToken: `${resolvedPrefix}:${candidate}`,
+                hashHex: bytes32ToHexLower(syncDigest32),
+                iterations,
+                elapsedMs: Math.max(0, nowFn() - startedAt)
+              };
+            }
+          }
+          processedInMacro += remaining;
+        }
+      }
+
+      if (onProgress) {
+        onProgress({ iterations, nonce });
+      }
+
+      if (iterations < maxIterations) {
+        await waitYieldWithAbort(signal, yieldDelayMs);
+      }
+    }
+
+    const limitErr = new Error(`LRCLIB PoW maxIterations (${maxIterations}) exceeded without finding a valid nonce`);
+    limitErr.code = 'POW_MAX_ITERATIONS_EXCEEDED';
+    throw limitErr;
+  }
+
+  function formatPublishLrcTimestamp(ms) {
+    const clamped = Math.max(0, Math.round(Number(ms) || 0));
+    const minutes = Math.floor(clamped / 60000);
+    const seconds = Math.floor((clamped % 60000) / 1000);
+    const hundredths = Math.floor((clamped % 1000) / 10);
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
+  }
+
+  function normalizeLyricPublishText(raw) {
+    if (typeof raw !== 'string') return '';
+    return raw
+      .replace(/^\uFEFF/, '')
+      .replace(/\r\n|\r/g, '\n')
+      .split('\n')
+      .map(line => line.replace(/[ \t]+$/g, ''))
+      .join('\n')
+      .trim();
+  }
+
+  function derivePlainLyricsFromSyncedLrc(syncedText) {
+    if (typeof syncedText !== 'string' || !syncedText) return '';
+    const out = [];
+    const lines = syncedText.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      if (/^\[(?:ti|ar|al|au|by|length|offset|re|ve|id)\s*:[^\]]*\]$/i.test(line)) {
+        continue;
+      }
+      if (!/\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\]/.test(line) && /^\[[a-zA-Z]+\s*:[^\]]*\]$/.test(line)) {
+        continue;
+      }
+      const stripped = line
+        .replace(/\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\]/g, '')
+        .replace(/<\d{1,3}:\d{2}(?:[.:]\d{1,3})?>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      out.push(stripped);
+    }
+    return out.join('\n').trim();
+  }
+
+  function normalizePublishTokenString(tokenCandidate) {
+    if (tokenCandidate === undefined || tokenCandidate === null || tokenCandidate === '') {
+      return null;
+    }
+    if (typeof tokenCandidate === 'object') {
+      if (typeof tokenCandidate.publishToken === 'string' && tokenCandidate.publishToken.trim()) {
+        return normalizePublishTokenString(tokenCandidate.publishToken);
+      }
+      if (typeof tokenCandidate.prefix === 'string' && tokenCandidate.prefix && tokenCandidate.nonce !== undefined && tokenCandidate.nonce !== null && String(tokenCandidate.nonce) !== '') {
+        return normalizePublishTokenString(`${tokenCandidate.prefix}:${tokenCandidate.nonce}`);
+      }
+      throw new Error('Invalid X-Publish-Token object: expected { publishToken } or { prefix, nonce }');
+    }
+    const str = String(tokenCandidate).trim();
+    const colonIdx = str.indexOf(':');
+    if (colonIdx <= 0 || colonIdx === str.length - 1 || /\s/.test(str)) {
+      throw new Error('Invalid X-Publish-Token format: expected "<prefix>:<nonce>"');
+    }
+    return str;
+  }
+
+  function buildLrclibPublishPayload(trackMeta, lyricsData, options = {}) {
+    if (!trackMeta || typeof trackMeta !== 'object') {
+      throw new TypeError('trackMeta object is required to build LRCLIB publish payload');
+    }
+    const opts = options && typeof options === 'object' ? options : {};
+    const lyrObj = lyricsData && typeof lyricsData === 'object' && !Array.isArray(lyricsData) ? lyricsData : null;
+
+    const trackName = normalize(
+      trackMeta.trackName ?? trackMeta.track_name ?? trackMeta.title ?? trackMeta.name ??
+      (lyrObj && lyrObj.metadata && lyrObj.metadata.title) ?? ''
+    );
+    const artistName = normalize(
+      trackMeta.artistName ?? trackMeta.artist_name ?? trackMeta.artist ??
+      (lyrObj && lyrObj.metadata && lyrObj.metadata.artist) ?? ''
+    );
+    const rawAlbum = normalize(
+      trackMeta.albumName ?? trackMeta.album_name ?? trackMeta.album ??
+      (lyrObj && lyrObj.metadata && lyrObj.metadata.album) ?? ''
+    );
+    const albumName = rawAlbum === UNKNOWN_ALBUM ? '' : rawAlbum;
+
+    if (!trackName) {
+      throw new Error('trackName is required for LRCLIB publish payload');
+    }
+    if (!artistName) {
+      throw new Error('artistName is required for LRCLIB publish payload');
+    }
+
+    let rawDurationSec = NaN;
+    if (trackMeta.duration !== undefined && trackMeta.duration !== null && trackMeta.duration !== '') {
+      rawDurationSec = Number(trackMeta.duration);
+    } else if (trackMeta.durationSeconds !== undefined && trackMeta.durationSeconds !== null) {
+      rawDurationSec = Number(trackMeta.durationSeconds);
+    } else if (trackMeta.durationMs !== undefined && trackMeta.durationMs !== null) {
+      rawDurationSec = Number(trackMeta.durationMs) / 1000;
+    } else if (trackMeta.duration_ms !== undefined && trackMeta.duration_ms !== null) {
+      rawDurationSec = Number(trackMeta.duration_ms) / 1000;
+    } else if (lyrObj && lyrObj.metadata && lyrObj.metadata.duration_ms !== undefined) {
+      rawDurationSec = Number(lyrObj.metadata.duration_ms) / 1000;
+    }
+
+    const duration = Math.round(rawDurationSec);
+    if (!Number.isFinite(rawDurationSec) || !Number.isFinite(duration) || duration <= 0) {
+      throw new Error('duration must be a positive number of seconds for LRCLIB publish payload');
+    }
+
+    const isInstrumental = Boolean(
+      trackMeta.instrumental === true ||
+      (lyrObj && (lyrObj.instrumental === true || (lyrObj.metadata && lyrObj.metadata.instrumental === true)))
+    );
+
+    let syncedLyrics = '';
+    let plainLyrics = '';
+
+    if (!isInstrumental) {
+      if (typeof lyricsData === 'string') {
+        const cleanedStr = normalizeLyricPublishText(lyricsData);
+        if (/\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\]/.test(cleanedStr)) {
+          syncedLyrics = cleanedStr;
+          plainLyrics = derivePlainLyricsFromSyncedLrc(cleanedStr);
+        } else {
+          plainLyrics = cleanedStr;
+        }
+      } else if (Array.isArray(lyricsData)) {
+        const builtLines = [];
+        const builtPlain = [];
+        for (let i = 0; i < lyricsData.length; i++) {
+          const item = lyricsData[i];
+          if (!item) continue;
+          const tMs = item.start_ms !== undefined ? Number(item.start_ms) : Number(item.time || 0) * 1000;
+          const text = normalize(item.text ?? '');
+          builtLines.push(`[${formatPublishLrcTimestamp(tMs)}]${text}`);
+          builtPlain.push(text);
+        }
+        syncedLyrics = builtLines.join('\n').trim();
+        plainLyrics = builtPlain.join('\n').trim();
+      } else if (lyrObj) {
+        const rawSynced = lyrObj.syncedLyrics ?? lyrObj.synced_lyrics ?? lyrObj.lrc ?? '';
+        const rawPlain = lyrObj.plainLyrics ?? lyrObj.plain_lyrics ?? lyrObj.plain ?? '';
+        syncedLyrics = normalizeLyricPublishText(rawSynced);
+        plainLyrics = normalizeLyricPublishText(rawPlain);
+
+        if (!syncedLyrics && Array.isArray(lyrObj.lines) && lyrObj.lines.length > 0) {
+          const builtLines = [];
+          for (let i = 0; i < lyrObj.lines.length; i++) {
+            const item = lyrObj.lines[i];
+            if (!item) continue;
+            const tMs = item.start_ms !== undefined ? Number(item.start_ms) : Number(item.time || 0) * 1000;
+            builtLines.push(`[${formatPublishLrcTimestamp(tMs)}]${normalize(item.text ?? '')}`);
+          }
+          syncedLyrics = builtLines.join('\n').trim();
+        }
+        if (!plainLyrics && syncedLyrics) {
+          plainLyrics = derivePlainLyricsFromSyncedLrc(syncedLyrics);
+        }
+        if (!plainLyrics && Array.isArray(lyrObj.lines) && lyrObj.lines.length > 0) {
+          plainLyrics = lyrObj.lines.map(item => normalize(item && item.text ? item.text : '')).join('\n').trim();
+        }
+      }
+
+      if (!plainLyrics && !syncedLyrics) {
+        throw new Error('Lyrics content (plainLyrics or syncedLyrics) is required unless track is instrumental');
+      }
+    }
+
+    let publishToken = null;
+    if (opts.publishToken !== undefined && opts.publishToken !== null && opts.publishToken !== '') {
+      publishToken = normalizePublishTokenString(opts.publishToken);
+    } else if (opts.prefix && opts.nonce !== undefined && opts.nonce !== null) {
+      publishToken = normalizePublishTokenString(`${opts.prefix}:${opts.nonce}`);
+    } else if (lyrObj && lyrObj.publishToken !== undefined && lyrObj.publishToken !== null && lyrObj.publishToken !== '') {
+      publishToken = normalizePublishTokenString(lyrObj.publishToken);
+    } else if (lyrObj && lyrObj.prefix && lyrObj.nonce !== undefined && lyrObj.nonce !== null) {
+      publishToken = normalizePublishTokenString(`${lyrObj.prefix}:${lyrObj.nonce}`);
+    } else if (trackMeta.publishToken !== undefined && trackMeta.publishToken !== null && trackMeta.publishToken !== '') {
+      publishToken = normalizePublishTokenString(trackMeta.publishToken);
+    }
+
+    const baseUrl = String(opts.baseUrl || LRCLIB_DEFAULT_BASE_URL).replace(/\/+$/, '');
+    const userAgent = String(opts.userAgent || LRCLIB_DEFAULT_CLIENT_HEADER).trim() || LRCLIB_DEFAULT_CLIENT_HEADER;
+    const url = `${baseUrl}/api/publish`;
+
+    const body = {
+      trackName,
+      artistName,
+      albumName,
+      duration,
+      plainLyrics,
+      syncedLyrics
+    };
+    const jsonBody = JSON.stringify(body);
+
+    function createSpecWithToken(resolvedToken) {
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Lrclib-Client': userAgent
+      };
+      if (resolvedToken) {
+        headers['X-Publish-Token'] = resolvedToken;
+      }
+      return {
+        trackName,
+        artistName,
+        albumName,
+        duration,
+        instrumental: isInstrumental,
+        plainLyrics,
+        syncedLyrics,
+        publishToken: resolvedToken || null,
+        url,
+        method: 'POST',
+        headers,
+        body,
+        jsonBody,
+        withPublishToken(nextToken) {
+          const normalizedNext = normalizePublishTokenString(nextToken);
+          return createSpecWithToken(normalizedNext);
+        }
+      };
+    }
+
+    return createSpecWithToken(publishToken);
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, buildLrclibPublishPayload};
 });

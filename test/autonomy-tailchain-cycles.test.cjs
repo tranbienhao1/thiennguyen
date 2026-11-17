@@ -1241,3 +1241,222 @@ describe('Autonomy Tail-Chaining Cycle 6 — BUG-03 (Nyquist Biquad Clamping & A
     );
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 7 — UPG-03 (LRCLIB SHA-256 Proof-of-Work Solver & Publish Payload Builder)', () => {
+  const nodeCrypto = require('node:crypto');
+
+  it('exposes UPG-03 functions on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.verifyLrclibPowTarget, 'function');
+    assert.equal(typeof lib.solveLrclibChallengeAsync, 'function');
+    assert.equal(typeof lib.solveLrclibChallengeSync, 'function');
+    assert.equal(typeof lib.buildLrclibPublishPayload, 'function');
+
+    const sandbox = { library: { preserveFlag: 'upg03' } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.verifyLrclibPowTarget, 'function');
+    assert.equal(typeof sandbox.library.verifyLrclibPowTarget, 'function');
+    assert.equal(typeof sandbox.library.solveLrclibChallengeAsync, 'function');
+    assert.equal(typeof sandbox.library.solveLrclibChallengeSync, 'function');
+    assert.equal(typeof sandbox.library.buildLrclibPublishPayload, 'function');
+    assert.equal(sandbox.library.preserveFlag, 'upg03');
+  });
+
+  it('verifyLrclibPowTarget performs exact 32-byte big-endian comparison (hash <= target) and rejects malformed inputs', () => {
+    const targetHex = '0000ff8000000000000000000000000000000000000000000000000000000010';
+    const exactBytes = Uint8Array.from(Buffer.from(targetHex, 'hex'));
+
+    // 1. Exact equality (hash === target) satisfies hash <= target
+    assert.equal(lib.verifyLrclibPowTarget(exactBytes, targetHex), true);
+    assert.equal(lib.verifyLrclibPowTarget(exactBytes.buffer, '0x' + targetHex.toUpperCase()), true);
+
+    // 2. Strictly smaller at MSB, middle byte, and final LSB (-1)
+    const smallerLsb = new Uint8Array(exactBytes);
+    smallerLsb[31] = 0x0f;
+    assert.equal(lib.verifyLrclibPowTarget(smallerLsb, targetHex), true);
+
+    const smallerMid = new Uint8Array(exactBytes);
+    smallerMid[2] = 0xfe;
+    smallerMid[31] = 0xff; // trailing byte larger, but earlier big-endian byte 2 is smaller
+    assert.equal(lib.verifyLrclibPowTarget(smallerMid, targetHex), true);
+
+    // 3. Strictly larger at final LSB (+1) or MSB
+    const largerLsb = new Uint8Array(exactBytes);
+    largerLsb[31] = 0x11;
+    assert.equal(lib.verifyLrclibPowTarget(largerLsb, targetHex), false);
+
+    const largerMsb = new Uint8Array(exactBytes);
+    largerMsb[0] = 0x01;
+    assert.equal(lib.verifyLrclibPowTarget(largerMsb, targetHex), false);
+
+    // 4. Offset DataView view into larger backing buffer
+    const backing = new Uint8Array(64);
+    backing.set(smallerLsb, 12);
+    assert.equal(lib.verifyLrclibPowTarget(new DataView(backing.buffer, 12, 32), targetHex), true);
+
+    // 5. Malformed inputs return false safely without throwing
+    assert.equal(lib.verifyLrclibPowTarget(null, targetHex), false);
+    assert.equal(lib.verifyLrclibPowTarget(new Uint8Array(31), targetHex), false);
+    assert.equal(lib.verifyLrclibPowTarget(exactBytes, ''), false);
+    assert.equal(lib.verifyLrclibPowTarget(exactBytes, '00ff'), false);
+    assert.equal(lib.verifyLrclibPowTarget(exactBytes, 'zz' + targetHex.slice(2)), false);
+  });
+
+  it('solveLrclibChallengeAsync & solveLrclibChallengeSync solve realistic targets, cancel mid-solve via AbortController, and reject invalid targets', async () => {
+    const easyTarget = '00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+    const prefix = 'lrclib-upg03-challenge-';
+
+    // 1. Web Crypto async solver + pure-JS sync solver find exact lowest valid nonce
+    const asyncSolved = await lib.solveLrclibChallengeAsync(prefix, easyTarget, { batchSize: 64 });
+    const syncSolved = lib.solveLrclibChallengeSync(prefix, easyTarget);
+    const fallbackAsyncSolved = await lib.solveLrclibChallengeAsync(
+      { prefix, target: easyTarget },
+      { forceSyncFallback: true, batchSize: 32 }
+    );
+
+    assert.equal(Number.isInteger(asyncSolved.nonce), true);
+    assert.equal(asyncSolved.publishToken, `${prefix}:${asyncSolved.nonce}`);
+    assert.equal(asyncSolved.iterations, asyncSolved.nonce + 1);
+    assert.ok(asyncSolved.elapsedMs >= 0);
+
+    const expectedDigest = nodeCrypto.createHash('sha256').update(`${prefix}${asyncSolved.nonce}`).digest();
+    assert.equal(asyncSolved.hashHex, expectedDigest.toString('hex'));
+    assert.equal(lib.verifyLrclibPowTarget(expectedDigest, easyTarget), true);
+
+    assert.equal(syncSolved.nonce, asyncSolved.nonce);
+    assert.equal(syncSolved.publishToken, asyncSolved.publishToken);
+    assert.equal(syncSolved.hashHex, asyncSolved.hashHex);
+    assert.equal(fallbackAsyncSolved.nonce, asyncSolved.nonce);
+    assert.equal(fallbackAsyncSolved.publishToken, asyncSolved.publishToken);
+
+    // Verify all prior nonces [0 .. nonce - 1] indeed did NOT satisfy target
+    for (let n = 0; n < asyncSolved.nonce; n++) {
+      const prevDigest = nodeCrypto.createHash('sha256').update(`${prefix}${n}`).digest();
+      assert.equal(lib.verifyLrclibPowTarget(prevDigest, easyTarget), false);
+    }
+
+    // 2. Pre-aborted AbortController rejects immediately
+    const preAborted = new AbortController();
+    preAborted.abort('already_cancelled');
+    await assert.rejects(
+      () => lib.solveLrclibChallengeAsync(prefix, easyTarget, { signal: preAborted.signal }),
+      err => err && err.name === 'AbortError'
+    );
+
+    // 3. Mid-solve AbortController cancellation during batched solve
+    const midAbortController = new AbortController();
+    const impossibleTarget = '0000000000000000000000000000000000000000000000000000000000000000';
+    let progressBatches = 0;
+    const t0 = performance.now();
+    await assert.rejects(
+      () => lib.solveLrclibChallengeAsync(prefix, impossibleTarget, {
+        batchSize: 16,
+        concurrency: 8,
+        maxIterations: 500000,
+        signal: midAbortController.signal,
+        onProgress() {
+          progressBatches++;
+          if (progressBatches >= 2) {
+            midAbortController.abort('user_closed_editor');
+          }
+        }
+      }),
+      err => err && err.name === 'AbortError'
+    );
+    const abortElapsed = performance.now() - t0;
+    assert.ok(progressBatches >= 2, 'Solver must have executed at least 2 batches before mid-solve abort');
+    assert.ok(abortElapsed < 500, `Mid-solve AbortController cancellation must complete rapidly, took ${abortElapsed.toFixed(1)}ms`);
+
+    // 4. Invalid prefix / invalid targetHex / maxIterations exhaustion reject cleanly
+    await assert.rejects(
+      () => lib.solveLrclibChallengeAsync('', easyTarget),
+      /Invalid LRCLIB PoW prefix/
+    );
+    await assert.rejects(
+      () => lib.solveLrclibChallengeAsync(prefix, 'not-a-64-char-hex-target'),
+      /Invalid LRCLIB PoW targetHex/
+    );
+    await assert.rejects(
+      () => lib.solveLrclibChallengeAsync(prefix, 'zzzz' + easyTarget.slice(4)),
+      /Invalid LRCLIB PoW targetHex/
+    );
+    await assert.rejects(
+      () => lib.solveLrclibChallengeAsync(prefix, impossibleTarget, { maxIterations: 32, batchSize: 16 }),
+      err => err && err.code === 'POW_MAX_ITERATIONS_EXCEEDED'
+    );
+  });
+
+  it('buildLrclibPublishPayload normalizes metadata & lyrics, derives plainLyrics, and constructs X-Publish-Token POST /api/publish spec', async () => {
+    const challenge = await lib.solveLrclibChallengeAsync(
+      'pub-tok-99-',
+      '0fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+    );
+
+    const spec = lib.buildLrclibPublishPayload(
+      {
+        title: '  Clair   de Lune (Hi-Res Master)  ',
+        artist: ' Claude Debussy ',
+        album: ' Suite Bergamasque ',
+        duration_ms: 302400
+      },
+      {
+        syncedLyrics: '[ti:Clair de Lune]\r\n[ar:Claude Debussy]\r\n[00:05.00]<00:05.00>Soft <00:06.20>moonlight   \r\n[00:10.50]Over still water\r\n'
+      },
+      { publishToken: challenge.publishToken }
+    );
+
+    assert.equal(spec.url, 'https://lrclib.net/api/publish');
+    assert.equal(spec.method, 'POST');
+    assert.equal(spec.headers['Content-Type'], 'application/json');
+    assert.equal(spec.headers['X-Publish-Token'], challenge.publishToken);
+    assert.ok(spec.headers['Lrclib-Client'].includes('Nocturne-HiRes-Player'));
+
+    assert.deepEqual(spec.body, {
+      trackName: 'Clair de Lune (Hi-Res Master)',
+      artistName: 'Claude Debussy',
+      albumName: 'Suite Bergamasque',
+      duration: 302,
+      plainLyrics: 'Soft moonlight\nOver still water',
+      syncedLyrics: '[ti:Clair de Lune]\n[ar:Claude Debussy]\n[00:05.00]<00:05.00>Soft <00:06.20>moonlight\n[00:10.50]Over still water'
+    });
+    assert.deepEqual(JSON.parse(spec.jsonBody), spec.body);
+
+    // Deferred token attachment via withPublishToken() + placeholder album cleanup + instrumental track
+    const instDraft = lib.buildLrclibPublishPayload(
+      { trackName: 'Orion', artistName: 'Metallica', albumName: '—', duration: 507 },
+      { instrumental: true, syncedLyrics: '[00:01.00]should be cleared' }
+    );
+    assert.equal(instDraft.albumName, '');
+    assert.equal(instDraft.plainLyrics, '');
+    assert.equal(instDraft.syncedLyrics, '');
+    assert.equal(instDraft.headers['X-Publish-Token'], undefined);
+
+    const signedInst = instDraft.withPublishToken(challenge);
+    assert.equal(signedInst.headers['X-Publish-Token'], challenge.publishToken);
+
+    // Validation rejections
+    assert.throws(
+      () => lib.buildLrclibPublishPayload({ artistName: 'A', duration: 180 }, { plainLyrics: 'Hi' }),
+      /trackName is required/
+    );
+    assert.throws(
+      () => lib.buildLrclibPublishPayload({ trackName: 'T', duration: 180 }, { plainLyrics: 'Hi' }),
+      /artistName is required/
+    );
+    assert.throws(
+      () => lib.buildLrclibPublishPayload({ trackName: 'T', artistName: 'A', duration: 0 }, { plainLyrics: 'Hi' }),
+      /duration must be a positive number/
+    );
+    assert.throws(
+      () => lib.buildLrclibPublishPayload({ trackName: 'T', artistName: 'A', duration: 180 }, {}),
+      /Lyrics content/
+    );
+    assert.throws(
+      () => lib.buildLrclibPublishPayload({ trackName: 'T', artistName: 'A', duration: 180 }, { plainLyrics: 'Hi' }, { publishToken: 'malformed_no_colon' }),
+      /Invalid X-Publish-Token/
+    );
+  });
+});
