@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 6,
-  "lastPhase": "BUG_HUNT",
-  "lastRunIso": "2026-11-17T20:44:33.580Z",
+  "cycleCount": 7,
+  "lastPhase": "UPGRADE",
+  "lastRunIso": "2026-11-17T21:00:36.812Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "UPG-02",
-      "phase": "UPGRADE",
-      "title": "Bổ sung cache lời bài hát và metadata vào IndexedDB bằng khóa băm SHA-256 64KB đầu file + file_size theo kiến trúc lrcget"
-    },
     {
       "id": "OPT-02",
       "phase": "OPTIMIZE",
@@ -58,6 +53,16 @@
       "id": "UPG-05",
       "phase": "UPGRADE",
       "title": "Tích hợp đọc thẻ ReplayGain / EBU R128 trực tiếp từ khối VORBIS_COMMENT của FLAC và ID3v2 của DSF trong luồng quét thư viện nhanh"
+    },
+    {
+      "id": "OPT-05",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu đọc lát đầu 64KB zero-copy cho FileSystemFileHandle và Cloud Range 206 khi tính khóa băm fingerprint lời bài hát"
+    },
+    {
+      "id": "BUG-06",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra và xử lý đóng kết nối IndexedDB an toàn khi sự kiện versionchange xảy ra giữa nhiều tab PWA đang mở cùng lúc"
     }
   ],
   "completedTasks": [
@@ -92,6 +97,14 @@
       "completedAt": "2026-11-17T20:22:00.000Z",
       "verifiedThreeTier": true,
       "summary": "Bổ sung parseSafeAudioContainerMetadata trong library-utils.js hỗ trợ FLAC, WAV, RF64 (ds64), AIFF (80-bit IEEE 754), DSF (LSB-first DSD64/128/256) và DFF (MSB-first), bỏ qua an toàn METADATA_BLOCK_PICTURE tràn lát & JUNK/bext/LIST lẻ byte với 0 lỗi RangeError; gia cố thêm kiểm tra độ dài chunk PROP trong dsd-worker.js"
+    },
+    {
+      "id": "UPG-02",
+      "phase": "UPGRADE",
+      "title": "Bổ sung cache lời bài hát và metadata vào IndexedDB bằng khóa băm SHA-256 64KB đầu file + file_size theo kiến trúc lrcget",
+      "completedAt": "2026-11-17T21:00:36.812Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai computeAudioFingerprint64k, computeAudioFingerprint64kAsync (Web Crypto SHA-256 64KB + :fileSize với fallback FIPS 180-4 thuần JS), computeFastFingerprintKey và createFingerprintLyricsCacheStore (IndexedDB + LRU in-memory fallback chống đổi tên file) trong library-utils.js kèm unit test biên trong test/autonomy-tailchain-cycles.test.cjs"
     }
   ]
 }

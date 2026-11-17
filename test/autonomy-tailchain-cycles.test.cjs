@@ -613,3 +613,231 @@ describe('Autonomy Tail-Chaining Cycle 3 — BUG-02 (Safe FLAC/WAV/RF64/AIFF/DSF
     }
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 4 — UPG-02 (SHA-256 64KB + file_size Fingerprint & Rename-Resilient Lyrics/Metadata Cache)', () => {
+  const nodeCrypto = require('node:crypto');
+
+  function createMockIndexedDB() {
+    const dbs = new Map();
+    return {
+      open(name, version = 1) {
+        const req = { result: null, onupgradeneeded: null, onsuccess: null, onerror: null };
+        queueMicrotask(() => {
+          let dbEntry = dbs.get(name);
+          const isNew = !dbEntry || dbEntry.version < version;
+          if (!dbEntry) {
+            dbEntry = { version, stores: new Map() };
+            dbs.set(name, dbEntry);
+          } else {
+            dbEntry.version = version;
+          }
+          const db = {
+            objectStoreNames: {
+              contains: s => dbEntry.stores.has(s)
+            },
+            createObjectStore(s, opts = {}) {
+              const map = new Map();
+              dbEntry.stores.set(s, { keyPath: opts.keyPath || 'fingerprintKey', map });
+              return {};
+            },
+            transaction(s) {
+              const storeRec = dbEntry.stores.get(s);
+              const tx = { oncomplete: null, onerror: null, onabort: null };
+              const objStore = {
+                get(key) {
+                  const r = { result: undefined, onsuccess: null, onerror: null };
+                  queueMicrotask(() => {
+                    r.result = storeRec && storeRec.map.has(key) ? structuredClone(storeRec.map.get(key)) : undefined;
+                    if (r.onsuccess) r.onsuccess();
+                    if (tx.oncomplete) tx.oncomplete();
+                  });
+                  return r;
+                },
+                put(val) {
+                  const k = val[storeRec.keyPath];
+                  storeRec.map.set(k, structuredClone(val));
+                  queueMicrotask(() => { if (tx.oncomplete) tx.oncomplete(); });
+                  return {};
+                },
+                delete(key) {
+                  storeRec.map.delete(key);
+                  queueMicrotask(() => { if (tx.oncomplete) tx.oncomplete(); });
+                  return {};
+                },
+                clear() {
+                  storeRec.map.clear();
+                  queueMicrotask(() => { if (tx.oncomplete) tx.oncomplete(); });
+                  return {};
+                }
+              };
+              return Object.assign(tx, { objectStore: () => objStore });
+            }
+          };
+          req.result = db;
+          if (isNew && req.onupgradeneeded) req.onupgradeneeded();
+          if (req.onsuccess) req.onsuccess();
+        });
+        return req;
+      },
+      _dbs: dbs
+    };
+  }
+
+  it('exposes UPG-02 functions on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.computeAudioFingerprint64k, 'function');
+    assert.equal(typeof lib.computeAudioFingerprint64kAsync, 'function');
+    assert.equal(typeof lib.computeFastFingerprintKey, 'function');
+    assert.equal(typeof lib.createFingerprintLyricsCacheStore, 'function');
+
+    const sandbox = { library: { keepExisting: 42 } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.computeAudioFingerprint64k, 'function');
+    assert.equal(typeof sandbox.library.computeAudioFingerprint64kAsync, 'function');
+    assert.equal(typeof sandbox.library.computeFastFingerprintKey, 'function');
+    assert.equal(typeof sandbox.library.createFingerprintLyricsCacheStore, 'function');
+    assert.equal(sandbox.library.keepExisting, 42);
+  });
+
+  it('computes exact SHA-256 64KB + :fileSize keys across 0-byte, <64KB, >64KB, and renamed files', async () => {
+    // 1. 0-byte file
+    const emptySync = lib.computeAudioFingerprint64k(new Uint8Array(0), 0);
+    const emptyAsync = await lib.computeAudioFingerprint64kAsync(new Blob([]), 0);
+    const expectedZeroHex = nodeCrypto.createHash('sha256').update(Buffer.from(':0')).digest('hex');
+    assert.equal(emptySync.sampledBytes, 0);
+    assert.equal(emptySync.fileSize, 0);
+    assert.equal(emptySync.hashHex, expectedZeroHex);
+    assert.equal(emptySync.fingerprintKey, `sha256-64k:${expectedZeroHex.slice(0, 16)}:0`);
+    assert.deepEqual(emptyAsync, emptySync);
+
+    // 2. <64KB file (12,345 bytes)
+    const smallBytes = new Uint8Array(12345);
+    for (let i = 0; i < smallBytes.length; i++) smallBytes[i] = (i * 31 + 7) & 0xff;
+    const expectedSmallHex = nodeCrypto.createHash('sha256')
+      .update(Buffer.concat([Buffer.from(smallBytes), Buffer.from(':12345')]))
+      .digest('hex');
+    const smallAsync = await lib.computeAudioFingerprint64kAsync(new Blob([smallBytes]));
+    const smallSync = lib.computeAudioFingerprint64k(smallBytes);
+    assert.equal(smallAsync.sampledBytes, 12345);
+    assert.equal(smallAsync.fileSize, 12345);
+    assert.equal(smallAsync.hashHex, expectedSmallHex);
+    assert.deepEqual(smallSync, smallAsync);
+    assert.equal(lib.computeFastFingerprintKey(smallBytes, 12345), smallAsync.fingerprintKey);
+
+    // 3. >64KB file (140,000 bytes) + rename resilience
+    const largeBytes = new Uint8Array(140000);
+    for (let i = 0; i < largeBytes.length; i++) largeBytes[i] = (i * 131 + 17) & 0xff;
+
+    const originalFile = Object.assign(new Blob([largeBytes], { type: 'audio/flac' }), {
+      name: '01 - Original Track Name.flac',
+      path: '/Music/Original/01 - Original Track Name.flac'
+    });
+    const renamedFile = Object.assign(new Blob([largeBytes], { type: 'audio/flac' }), {
+      name: '99 - Completely Renamed Master Edition.flac',
+      path: '/Archive/Lossless/99 - Completely Renamed Master Edition.flac'
+    });
+
+    const fpOriginal = await lib.computeAudioFingerprint64kAsync(originalFile);
+    const fpRenamed = await lib.computeAudioFingerprint64kAsync(renamedFile);
+    const fpSyncHead = lib.computeAudioFingerprint64k(largeBytes.subarray(0, 65536), largeBytes.byteLength);
+
+    assert.equal(fpOriginal.sampledBytes, 65536);
+    assert.equal(fpOriginal.fileSize, 140000);
+    assert.deepEqual(fpRenamed, fpOriginal, 'Renaming a file MUST preserve exact 64KB SHA-256 + fileSize fingerprint');
+    assert.deepEqual(fpSyncHead, fpOriginal);
+
+    // Changing fileSize alters fingerprint even with identical 64KB head
+    const fpDiffSize = lib.computeAudioFingerprint64k(largeBytes.subarray(0, 65536), 140001);
+    assert.notEqual(fpDiffSize.fingerprintKey, fpOriginal.fingerprintKey);
+  });
+
+  it('stores rename-resilient lyrics/metadata with LRU eviction & IndexedDB persistence', async () => {
+    // 1. In-memory LRU fallback in Node with maxEntries = 3
+    let clock = 1700000000000;
+    const memStore = lib.createFingerprintLyricsCacheStore({
+      maxEntries: 3,
+      indexedDB: null,
+      nowFn: () => ++clock
+    });
+    assert.equal(memStore.getStats().backend, 'memory-lru');
+
+    const audioA = new Uint8Array(80000).fill(0xaa);
+    const audioB = new Uint8Array(80000).fill(0xbb);
+    const audioC = new Uint8Array(80000).fill(0xcc);
+    const audioD = new Uint8Array(80000).fill(0xdd);
+
+    const { fingerprint: fpA } = await memStore.setByAudio(new Blob([audioA]), audioA.byteLength, {
+      syncedLyrics: '[00:01.00] First line A',
+      plainLyrics: 'First line A',
+      instrumental: false,
+      metadata: { title: 'Song A', artist: 'Artist A', sampleRate: 96000 }
+    });
+    const fpB = await lib.computeAudioFingerprint64kAsync(audioB, audioB.byteLength);
+    const fpC = await lib.computeAudioFingerprint64kAsync(audioC, audioC.byteLength);
+    const fpD = await lib.computeAudioFingerprint64kAsync(audioD, audioD.byteLength);
+
+    await memStore.set(fpB.fingerprintKey, {
+      syncedLyrics: '[00:02.00] Line B',
+      plainLyrics: 'Line B',
+      instrumental: false,
+      metadata: { title: 'Song B' }
+    });
+    await memStore.set(fpC.fingerprintKey, {
+      lyricsRaw: '',
+      syncedLyrics: '',
+      plainLyrics: '',
+      instrumental: true,
+      metadata: { title: 'Song C (Instrumental)' }
+    });
+
+    // Touch A (simulate lookup after file rename -> same binary audioA) so B becomes LRU victim!
+    const renamedLookup = await memStore.getByAudio(new Blob([audioA]), audioA.byteLength);
+    assert.ok(renamedLookup.entry);
+    assert.equal(renamedLookup.entry.syncedLyrics, '[00:01.00] First line A');
+    assert.equal(renamedLookup.entry.metadata.sampleRate, 96000);
+
+    // Insert D -> maxEntries=3 must evict B while preserving C, A, D
+    await memStore.set(fpD.fingerprintKey, {
+      syncedLyrics: '[00:04.00] Line D',
+      plainLyrics: 'Line D',
+      instrumental: false,
+      metadata: { title: 'Song D' }
+    });
+
+    assert.equal(await memStore.get(fpB.fingerprintKey), null, 'Least-recently-used entry B must be evicted');
+    assert.ok(await memStore.get(fpA.fingerprintKey), 'Recently accessed entry A must survive LRU eviction');
+    assert.equal((await memStore.get(fpC.fingerprintKey)).instrumental, true);
+    assert.equal((await memStore.get(fpD.fingerprintKey)).metadata.title, 'Song D');
+    assert.equal(memStore.getStats().evictions, 1);
+
+    // 2. IndexedDB-backed persistence across cold reload
+    const mockIdb = createMockIndexedDB();
+    const idbStore1 = lib.createFingerprintLyricsCacheStore({
+      indexedDB: mockIdb,
+      maxEntries: 2
+    });
+    assert.equal(idbStore1.getStats().backend, 'indexeddb+lru');
+    await idbStore1.set(fpA.fingerprintKey, {
+      lyricsRaw: '[00:05.00] Persisted in IDB',
+      syncedLyrics: '[00:05.00] Persisted in IDB',
+      plainLyrics: 'Persisted in IDB',
+      instrumental: false,
+      metadata: { album: 'Hi-Res Vault' },
+      updatedAt: 1700000123456
+    });
+
+    // Fresh store instance (empty memory map) reads seamlessly from IndexedDB
+    const idbStore2 = lib.createFingerprintLyricsCacheStore({
+      indexedDB: mockIdb,
+      maxEntries: 2
+    });
+    const reloaded = await idbStore2.get(fpA.fingerprintKey);
+    assert.ok(reloaded);
+    assert.equal(reloaded.syncedLyrics, '[00:05.00] Persisted in IDB');
+    assert.equal(reloaded.metadata.album, 'Hi-Res Vault');
+    assert.equal(reloaded.updatedAt, 1700000123456);
+  });
+});
