@@ -13402,5 +13402,587 @@
     return pad;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad};
+  // ── BUG-02: Deep Safe Container Metadata Parser (FLAC / WAV / RF64 / AIFF / DSF / DFF) ──
+  function decodeIeee80ExtendedFloat(u8, offset) {
+    if (!u8 || offset < 0 || offset + 10 > u8.byteLength) return 0;
+    const sign = (u8[offset] & 0x80) ? -1 : 1;
+    const exponent = ((u8[offset] & 0x7f) << 8) | u8[offset + 1];
+    const hiMantissa = (
+      (u8[offset + 2] * 16777216) +
+      (u8[offset + 3] << 16) +
+      (u8[offset + 4] << 8) +
+      u8[offset + 5]
+    ) >>> 0;
+    const loMantissa = (
+      (u8[offset + 6] * 16777216) +
+      (u8[offset + 7] << 16) +
+      (u8[offset + 8] << 8) +
+      u8[offset + 9]
+    ) >>> 0;
+    if (exponent === 0 && hiMantissa === 0 && loMantissa === 0) return 0;
+    if (exponent === 0x7fff) return 0;
+    const value = (hiMantissa * Math.pow(2, exponent - 16383 - 31)) +
+      (loMantissa * Math.pow(2, exponent - 16383 - 63));
+    return Number.isFinite(value) ? sign * value : 0;
+  }
+
+  function resolveDsdRateLabel(sampleRate) {
+    if (!Number.isFinite(sampleRate) || sampleRate <= 0) return '';
+    for (const base of [44100, 48000]) {
+      const mult = sampleRate / base;
+      if (Number.isInteger(mult) && mult >= 32 && (mult & (mult - 1)) === 0) {
+        return `DSD${mult}`;
+      }
+    }
+    return 'DSD';
+  }
+
+  function parseSafeAudioContainerMetadata(buffer) {
+    const emptyResult = (error = 'empty_buffer', byteLength = 0, truncated = true, format = 'UNKNOWN') => ({
+      valid: false,
+      format,
+      sampleRate: 0,
+      channels: 0,
+      bitDepth: 0,
+      durationSeconds: 0,
+      byteLength,
+      truncated,
+      error
+    });
+
+    if (!buffer) return emptyResult('empty_buffer', 0, true);
+
+    let u8 = null;
+    try {
+      if (buffer instanceof Uint8Array) {
+        u8 = buffer;
+      } else if (ArrayBuffer.isView(buffer) && buffer.buffer instanceof ArrayBuffer) {
+        u8 = new Uint8Array(buffer.buffer, buffer.byteOffset || 0, buffer.byteLength || 0);
+      } else if (buffer instanceof ArrayBuffer) {
+        u8 = new Uint8Array(buffer);
+      } else if (Array.isArray(buffer)) {
+        u8 = Uint8Array.from(buffer);
+      } else {
+        return emptyResult('invalid_buffer_type', 0, true);
+      }
+    } catch (_) {
+      return emptyResult('invalid_buffer_view', 0, true);
+    }
+
+    const byteLength = u8.byteLength;
+    if (byteLength === 0) return emptyResult('empty_buffer', 0, true);
+
+    const view = new DataView(u8.buffer, u8.byteOffset, byteLength);
+    const hasBytes = (offset, length) =>
+      Number.isInteger(offset) && Number.isInteger(length) && offset >= 0 && length >= 0 && (offset + length) <= byteLength;
+
+    const ascii = (offset, length) => {
+      if (!hasBytes(offset, length)) return '';
+      let out = '';
+      for (let i = 0; i < length; i++) {
+        out += String.fromCharCode(u8[offset + i]);
+      }
+      return out;
+    };
+
+    const u16LE = off => hasBytes(off, 2) ? view.getUint16(off, true) : null;
+    const u16BE = off => hasBytes(off, 2) ? view.getUint16(off, false) : null;
+    const u32LE = off => hasBytes(off, 4) ? view.getUint32(off, true) : null;
+    const u32BE = off => hasBytes(off, 4) ? view.getUint32(off, false) : null;
+    const u64LE = off => {
+      if (!hasBytes(off, 8)) return null;
+      const lo = view.getUint32(off, true);
+      const hi = view.getUint32(off + 4, true);
+      const combined = hi * 4294967296 + lo;
+      return Number.isSafeInteger(combined) ? combined : Number.MAX_SAFE_INTEGER;
+    };
+    const u64BE = off => {
+      if (!hasBytes(off, 8)) return null;
+      const hi = view.getUint32(off, false);
+      const lo = view.getUint32(off + 4, false);
+      const combined = hi * 4294967296 + lo;
+      return Number.isSafeInteger(combined) ? combined : Number.MAX_SAFE_INTEGER;
+    };
+
+    let baseOffset = 0;
+    if (hasBytes(0, 3) && ascii(0, 3) === 'ID3') {
+      if (!hasBytes(0, 10)) {
+        return emptyResult('truncated_id3_header', byteLength, true, 'ID3');
+      }
+      const id3Size = ((u8[6] & 0x7f) << 21) | ((u8[7] & 0x7f) << 14) | ((u8[8] & 0x7f) << 7) | (u8[9] & 0x7f);
+      const id3Footer = (u8[5] & 0x10) ? 10 : 0;
+      baseOffset = 10 + id3Size + id3Footer;
+      if (baseOffset >= byteLength) {
+        return emptyResult('truncated_id3_body', byteLength, true, 'ID3');
+      }
+    }
+
+    if (!hasBytes(baseOffset, 4)) {
+      return emptyResult('truncated_magic_header', byteLength, true, 'UNKNOWN');
+    }
+
+    const magic = ascii(baseOffset, 4);
+
+    // 1. FLAC ('fLaC')
+    if (magic === 'fLaC') {
+      let pos = baseOffset + 4;
+      let sampleRate = 0;
+      let channels = 0;
+      let bitDepth = 0;
+      let totalSamples = 0;
+      let hasStreamInfo = false;
+      let truncated = false;
+      let skippedPictureBlocks = 0;
+      let audioOffset = -1;
+
+      for (let b = 0; b < 256; b++) {
+        if (!hasBytes(pos, 4)) {
+          truncated = true;
+          break;
+        }
+        const headerByte = u8[pos];
+        const isLast = (headerByte & 0x80) !== 0;
+        const blockType = headerByte & 0x7f;
+        const blockLen = (u8[pos + 1] << 16) | (u8[pos + 2] << 8) | u8[pos + 3];
+        const bodyOffset = pos + 4;
+        const blockEnd = bodyOffset + blockLen;
+
+        if (blockType === 127) {
+          return {
+            valid: hasStreamInfo,
+            format: 'FLAC',
+            sampleRate,
+            channels,
+            bitDepth,
+            totalSamples,
+            durationSeconds: sampleRate > 0 && totalSamples > 0 ? totalSamples / sampleRate : 0,
+            byteLength,
+            truncated,
+            skippedPictureBlocks,
+            error: 'invalid_flac_block_type_127'
+          };
+        }
+
+        if (blockType === 0) {
+          if (!hasBytes(bodyOffset, 34) || blockLen < 34) {
+            return {
+              valid: false,
+              format: 'FLAC',
+              sampleRate: 0,
+              channels: 0,
+              bitDepth: 0,
+              durationSeconds: 0,
+              byteLength,
+              truncated: true,
+              skippedPictureBlocks,
+              error: 'truncated_flac_streaminfo'
+            };
+          }
+          sampleRate = (u8[bodyOffset + 10] << 12) | (u8[bodyOffset + 11] << 4) | (u8[bodyOffset + 12] >> 4);
+          channels = ((u8[bodyOffset + 12] >> 1) & 0x07) + 1;
+          bitDepth = (((u8[bodyOffset + 12] & 0x01) << 4) | (u8[bodyOffset + 13] >> 4)) + 1;
+          const samplesHi = u8[bodyOffset + 13] & 0x0f;
+          const samplesLo = view.getUint32(bodyOffset + 14, false);
+          totalSamples = samplesHi * 4294967296 + samplesLo;
+          hasStreamInfo = sampleRate > 0 && channels > 0 && bitDepth > 0;
+        } else if (blockType === 6) {
+          skippedPictureBlocks += 1;
+        }
+
+        if (!hasBytes(bodyOffset, blockLen)) {
+          truncated = true;
+          break;
+        }
+
+        pos = blockEnd;
+        if (isLast) {
+          audioOffset = pos;
+          break;
+        }
+      }
+
+      if (!hasStreamInfo) {
+        return {
+          valid: false,
+          format: 'FLAC',
+          sampleRate: 0,
+          channels: 0,
+          bitDepth: 0,
+          durationSeconds: 0,
+          byteLength,
+          truncated: true,
+          skippedPictureBlocks,
+          error: 'missing_or_truncated_flac_streaminfo'
+        };
+      }
+
+      return {
+        valid: true,
+        format: 'FLAC',
+        sampleRate,
+        channels,
+        bitDepth,
+        totalSamples,
+        durationSeconds: sampleRate > 0 && totalSamples > 0 ? totalSamples / sampleRate : 0,
+        audioOffset,
+        skippedPictureBlocks,
+        byteLength,
+        truncated
+      };
+    }
+
+    // 2. WAV / RF64 ('RIFF' / 'RF64' / 'BW64' ... 'WAVE')
+    if (magic === 'RIFF' || magic === 'RF64' || magic === 'BW64') {
+      const containerFormat = (magic === 'RF64' || magic === 'BW64') ? 'RF64' : 'WAV';
+      if (!hasBytes(baseOffset, 12) || ascii(baseOffset + 8, 4) !== 'WAVE') {
+        return emptyResult('truncated_or_invalid_wave_header', byteLength, !hasBytes(baseOffset, 12), containerFormat);
+      }
+
+      let pos = baseOffset + 12;
+      let sampleRate = 0;
+      let channels = 0;
+      let bitDepth = 0;
+      let byteRate = 0;
+      let audioFormat = 0;
+      let hasFmt = false;
+      let dataOffset = -1;
+      let dataSize = 0;
+      let rf64DataSize = null;
+      let truncated = false;
+      const skippedChunks = [];
+
+      for (let c = 0; c < 512 && pos < byteLength; c++) {
+        if (!hasBytes(pos, 8)) {
+          truncated = true;
+          break;
+        }
+        const chunkId = ascii(pos, 4);
+        const chunkSize32 = u32LE(pos + 4);
+        const bodyOffset = pos + 8;
+
+        if (chunkId === 'ds64') {
+          if (chunkSize32 >= 28 && hasBytes(bodyOffset, 28)) {
+            rf64DataSize = u64LE(bodyOffset + 8);
+          } else if (!hasBytes(bodyOffset, chunkSize32)) {
+            truncated = true;
+            break;
+          }
+        } else if (chunkId === 'fmt ') {
+          if (chunkSize32 < 16 || !hasBytes(bodyOffset, 16)) {
+            return emptyResult('truncated_wav_fmt_chunk', byteLength, true, containerFormat);
+          }
+          audioFormat = u16LE(bodyOffset);
+          channels = u16LE(bodyOffset + 2);
+          sampleRate = u32LE(bodyOffset + 4);
+          byteRate = u32LE(bodyOffset + 8);
+          bitDepth = u16LE(bodyOffset + 14);
+          if (audioFormat === 0xfffe && chunkSize32 >= 40 && hasBytes(bodyOffset, 40)) {
+            const validBits = u16LE(bodyOffset + 18);
+            if (validBits > 0) bitDepth = validBits;
+          }
+          hasFmt = sampleRate > 0 && channels > 0;
+          if (!hasBytes(bodyOffset, chunkSize32)) {
+            truncated = true;
+            break;
+          }
+        } else if (chunkId === 'data') {
+          dataOffset = bodyOffset;
+          dataSize = (chunkSize32 === 0xffffffff && rf64DataSize !== null) ? rf64DataSize : chunkSize32;
+          if (!hasBytes(bodyOffset, dataSize)) {
+            truncated = true;
+          }
+          break;
+        } else {
+          skippedChunks.push(chunkId.trim());
+          if (!hasBytes(bodyOffset, chunkSize32)) {
+            truncated = true;
+            break;
+          }
+        }
+
+        const paddedStep = chunkSize32 + (chunkSize32 & 1);
+        const nextPos = bodyOffset + paddedStep;
+        if (nextPos <= pos) break;
+        pos = nextPos;
+      }
+
+      if (!hasFmt) {
+        return {
+          valid: false,
+          format: containerFormat,
+          sampleRate: 0,
+          channels: 0,
+          bitDepth: 0,
+          durationSeconds: 0,
+          skippedChunks,
+          byteLength,
+          truncated: true,
+          error: 'missing_wav_fmt_chunk'
+        };
+      }
+
+      const effectiveBytesPerSec = byteRate > 0
+        ? byteRate
+        : (channels > 0 && bitDepth > 0 && sampleRate > 0 ? sampleRate * channels * (bitDepth / 8) : 0);
+      const durationSeconds = (effectiveBytesPerSec > 0 && dataSize > 0) ? (dataSize / effectiveBytesPerSec) : 0;
+
+      return {
+        valid: true,
+        format: containerFormat,
+        audioFormat,
+        sampleRate,
+        channels,
+        bitDepth,
+        durationSeconds,
+        dataOffset,
+        dataSize,
+        skippedChunks,
+        byteLength,
+        truncated
+      };
+    }
+
+    // 3. AIFF / AIFC ('FORM' ... 'AIFF' / 'AIFC')
+    if (magic === 'FORM') {
+      if (!hasBytes(baseOffset, 12)) {
+        return emptyResult('truncated_aiff_form_header', byteLength, true, 'AIFF');
+      }
+      const formType = ascii(baseOffset + 8, 4);
+      if (formType !== 'AIFF' && formType !== 'AIFC') {
+        return emptyResult('unsupported_iff_form_type', byteLength, false, 'UNKNOWN');
+      }
+
+      let pos = baseOffset + 12;
+      let sampleRate = 0;
+      let channels = 0;
+      let bitDepth = 0;
+      let sampleFrames = 0;
+      let hasComm = false;
+      let dataOffset = -1;
+      let truncated = false;
+
+      for (let c = 0; c < 512 && pos < byteLength; c++) {
+        if (!hasBytes(pos, 8)) {
+          truncated = true;
+          break;
+        }
+        const chunkId = ascii(pos, 4);
+        const chunkSize = u32BE(pos + 4);
+        const bodyOffset = pos + 8;
+
+        if (chunkId === 'COMM') {
+          if (chunkSize < 18 || !hasBytes(bodyOffset, 18)) {
+            return emptyResult('truncated_aiff_comm_chunk', byteLength, true, 'AIFF');
+          }
+          channels = u16BE(bodyOffset);
+          sampleFrames = u32BE(bodyOffset + 2);
+          bitDepth = u16BE(bodyOffset + 6);
+          sampleRate = Math.round(decodeIeee80ExtendedFloat(u8, bodyOffset + 8));
+          hasComm = sampleRate > 0 && channels > 0;
+        } else if (chunkId === 'SSND') {
+          if (hasBytes(bodyOffset, 8)) {
+            const ssndOffset = u32BE(bodyOffset) || 0;
+            dataOffset = bodyOffset + 8 + ssndOffset;
+          } else {
+            dataOffset = bodyOffset;
+          }
+          if (!hasBytes(bodyOffset, chunkSize)) {
+            truncated = true;
+          }
+          break;
+        }
+
+        if (!hasBytes(bodyOffset, chunkSize)) {
+          truncated = true;
+          break;
+        }
+        const nextPos = bodyOffset + chunkSize + (chunkSize & 1);
+        if (nextPos <= pos) break;
+        pos = nextPos;
+      }
+
+      if (!hasComm) {
+        return emptyResult('missing_aiff_comm_chunk', byteLength, true, 'AIFF');
+      }
+
+      return {
+        valid: true,
+        format: 'AIFF',
+        sampleRate,
+        channels,
+        bitDepth,
+        sampleFrames,
+        durationSeconds: sampleRate > 0 && sampleFrames > 0 ? sampleFrames / sampleRate : 0,
+        dataOffset,
+        byteLength,
+        truncated
+      };
+    }
+
+    // 4. DSF ('DSD ' — Sony DSF LSB-first / MSB-optional container)
+    if (magic === 'DSD ') {
+      if (!hasBytes(baseOffset, 28)) {
+        return emptyResult('truncated_dsf_dsd_chunk', byteLength, true, 'DSF');
+      }
+      const dsdHeaderSize = u64LE(baseOffset + 4);
+      const declaredTotalSize = u64LE(baseOffset + 12);
+      const fmtOffset = baseOffset + (dsdHeaderSize >= 28 && dsdHeaderSize <= 1024 ? dsdHeaderSize : 28);
+
+      if (!hasBytes(fmtOffset, 52) || ascii(fmtOffset, 4) !== 'fmt ') {
+        return emptyResult('truncated_dsf_fmt_chunk', byteLength, !hasBytes(fmtOffset, 52), 'DSF');
+      }
+      const fmtChunkSize = u64LE(fmtOffset + 4);
+      const channels = u32LE(fmtOffset + 24);
+      const sampleRate = u32LE(fmtOffset + 28);
+      const bitsPerSample = u32LE(fmtOffset + 32);
+      const totalSamples = u64LE(fmtOffset + 36);
+      const blockSizePerChannel = u32LE(fmtOffset + 44);
+
+      if (!sampleRate || !channels) {
+        return emptyResult('invalid_dsf_fmt_parameters', byteLength, false, 'DSF');
+      }
+
+      const dataHeaderOffset = fmtOffset + (fmtChunkSize >= 52 && fmtChunkSize <= 65536 ? fmtChunkSize : 52);
+      let dataOffset = -1;
+      let dataSize = 0;
+      let truncated = declaredTotalSize > byteLength;
+
+      if (hasBytes(dataHeaderOffset, 12) && ascii(dataHeaderOffset, 4) === 'data') {
+        const rawDataChunkSize = u64LE(dataHeaderOffset + 4);
+        dataOffset = dataHeaderOffset + 12;
+        dataSize = rawDataChunkSize >= 12 ? rawDataChunkSize - 12 : 0;
+        if (!hasBytes(dataOffset, dataSize)) {
+          truncated = true;
+        }
+      } else {
+        truncated = true;
+      }
+
+      return {
+        valid: true,
+        format: 'DSF',
+        dsdRateLabel: resolveDsdRateLabel(sampleRate),
+        bitOrder: bitsPerSample === 8 ? 'msb' : 'lsb',
+        sampleRate,
+        channels,
+        bitDepth: 1,
+        bitsPerSample,
+        totalSamples,
+        blockSizePerChannel,
+        durationSeconds: sampleRate > 0 && totalSamples > 0 ? totalSamples / sampleRate : 0,
+        dataOffset,
+        dataSize,
+        byteLength,
+        truncated
+      };
+    }
+
+    // 5. DFF ('FRM8' ... 'DSD ' — Philips DSDIFF MSB-first container)
+    if (magic === 'FRM8') {
+      if (!hasBytes(baseOffset, 16) || ascii(baseOffset + 12, 4) !== 'DSD ') {
+        return emptyResult('truncated_or_invalid_dff_header', byteLength, !hasBytes(baseOffset, 16), 'DFF');
+      }
+      const frm8Size = u64BE(baseOffset + 4);
+      const declaredEnd = baseOffset + 12 + (frm8Size || 0);
+      let pos = baseOffset + 16;
+      let sampleRate = 0;
+      let channels = 0;
+      let compression = 'DSD ';
+      let dataOffset = -1;
+      let dataSize = 0;
+      let truncated = declaredEnd > byteLength;
+
+      for (let c = 0; c < 512 && pos < byteLength; c++) {
+        if (!hasBytes(pos, 12)) {
+          truncated = true;
+          break;
+        }
+        const chunkId = ascii(pos, 4);
+        const chunkSize = u64BE(pos + 4);
+        const bodyOffset = pos + 12;
+
+        if (chunkId === 'DSD ' || chunkId === 'DST ') {
+          if (chunkId === 'DST ') compression = 'DST ';
+          dataOffset = bodyOffset;
+          dataSize = chunkSize;
+          if (!hasBytes(bodyOffset, chunkSize)) {
+            truncated = true;
+          }
+          break;
+        }
+
+        if (chunkId === 'PROP') {
+          if (chunkSize >= 4 && hasBytes(bodyOffset, 4) && ascii(bodyOffset, 4) === 'SND ') {
+            const propLimit = Math.min(byteLength, bodyOffset + chunkSize);
+            let subPos = bodyOffset + 4;
+            for (let s = 0; s < 128 && subPos < propLimit; s++) {
+              if (subPos + 12 > propLimit) {
+                truncated = true;
+                break;
+              }
+              const subId = ascii(subPos, 4);
+              const subSize = u64BE(subPos + 4);
+              const subBody = subPos + 12;
+              if (subBody + subSize > propLimit) {
+                truncated = true;
+                break;
+              }
+              if (subId === 'FS  ' && subSize >= 4) {
+                sampleRate = u32BE(subBody) || 0;
+              } else if (subId === 'CHNL' && subSize >= 2) {
+                channels = u16BE(subBody) || 0;
+              } else if (subId === 'CMPR' && subSize >= 4) {
+                compression = ascii(subBody, 4);
+              }
+              const nextSub = subBody + subSize + (subSize & 1);
+              if (nextSub <= subPos) break;
+              subPos = nextSub;
+            }
+          } else if (!hasBytes(bodyOffset, chunkSize)) {
+            truncated = true;
+            break;
+          }
+        }
+
+        if (!hasBytes(bodyOffset, chunkSize)) {
+          truncated = true;
+          break;
+        }
+        const nextPos = bodyOffset + chunkSize + (chunkSize & 1);
+        if (nextPos <= pos) break;
+        pos = nextPos;
+      }
+
+      if (!sampleRate && dataOffset >= 0) sampleRate = 2822400;
+      if (!channels && dataOffset >= 0) channels = 2;
+
+      if (!sampleRate || !channels) {
+        return emptyResult('missing_dff_prop_audio_info', byteLength, true, 'DFF');
+      }
+
+      const durationSeconds = (dataSize > 0 && channels > 0 && sampleRate > 0 && compression === 'DSD ')
+        ? (dataSize * 8) / (channels * sampleRate)
+        : 0;
+
+      return {
+        valid: true,
+        format: 'DFF',
+        dsdRateLabel: resolveDsdRateLabel(sampleRate),
+        bitOrder: 'msb',
+        compression: compression.trim(),
+        sampleRate,
+        channels,
+        bitDepth: 1,
+        durationSeconds,
+        dataOffset,
+        dataSize,
+        byteLength,
+        truncated
+      };
+    }
+
+    return emptyResult('unsupported_container_format', byteLength, false, 'UNKNOWN');
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata};
 });

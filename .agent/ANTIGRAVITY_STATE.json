@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 4,
-  "lastPhase": "OPTIMIZE",
-  "lastRunIso": "2026-11-17T20:14:25.000Z",
+  "cycleCount": 5,
+  "lastPhase": "BUG_HUNT",
+  "lastRunIso": "2026-11-17T20:22:00.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "BUG-02",
-      "phase": "BUG_HUNT",
-      "title": "Kiểm tra điều kiện biên DataView khi parse header nhị phân FLAC (STREAMINFO/PICTURE), WAV (fmt/data) và DSD (.dsf LSB-first / .dff MSB-first)"
-    },
     {
       "id": "UPG-02",
       "phase": "UPGRADE",
@@ -53,6 +48,16 @@
       "id": "OPT-04",
       "phase": "OPTIMIZE",
       "title": "Tối ưu OffscreenCanvas fallback và throttling thông minh cho VU Meter / Polar Radar khi chạy nền trên thiết bị FiiO DAP"
+    },
+    {
+      "id": "BUG-05",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra điều kiện biên hộp nguyên tử MP4/ALAC (moov/trak/mdia/stsd/alac) khi stream lát đầu Range 206 chưa chứa hộp moov ở cuối file"
+    },
+    {
+      "id": "UPG-05",
+      "phase": "UPGRADE",
+      "title": "Tích hợp đọc thẻ ReplayGain / EBU R128 trực tiếp từ khối VORBIS_COMMENT của FLAC và ID3v2 của DSF trong luồng quét thư viện nhanh"
     }
   ],
   "completedTasks": [
@@ -79,6 +84,14 @@
       "completedAt": "2026-11-17T20:14:25.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai createZeroAllocFrameScratchpad trong library-utils.js tái sử dụng TypedArray & telemetry struct (zero heap allocation mỗi frame 60fps) và tích hợp state.zeroAllocScratchpad vào vòng lặp Visualizer trong index.html (bảo toàn 100% bất biến đồ thị âm thanh)"
+    },
+    {
+      "id": "BUG-02",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra điều kiện biên DataView khi parse header nhị phân FLAC (STREAMINFO/PICTURE), WAV (fmt/data) và DSD (.dsf LSB-first / .dff MSB-first)",
+      "completedAt": "2026-11-17T20:22:00.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Bổ sung parseSafeAudioContainerMetadata trong library-utils.js hỗ trợ FLAC, WAV, RF64 (ds64), AIFF (80-bit IEEE 754), DSF (LSB-first DSD64/128/256) và DFF (MSB-first), bỏ qua an toàn METADATA_BLOCK_PICTURE tràn lát & JUNK/bext/LIST lẻ byte với 0 lỗi RangeError; gia cố thêm kiểm tra độ dài chunk PROP trong dsd-worker.js"
     }
   ]
 }

@@ -175,20 +175,24 @@ async function parseDff(file,view) {
   let rate=0,channels=0,compression='',dataOffset=0,dataSize=0,offset=16;
   while(offset+12<=rootEnd) {
     if(offset+12>file.size) throw Error('Header DSDIFF bị cắt.');
-    const head=new DataView(await file.slice(offset,offset+12).arrayBuffer());
+    const headBuf=await file.slice(offset,offset+12).arrayBuffer();
+    if(headBuf.byteLength!==12) throw Error('Header DSDIFF bị cắt.');
+    const head=new DataView(headBuf);
     const id=text(head,0,4),size=u64(head,4,false),payload=offset+12;
     if(payload+size>rootEnd) throw Error('Chunk DSDIFF vượt quá kích thước FRM8.');
     if(id==='DST ') compression='DST ';
     if(id==='DSD '||id==='DST ') {dataOffset=payload;dataSize=size;break;}
-    if(id==='PROP') {
+    if(id==='PROP'&&size>=4) {
       const kind=new Uint8Array(await file.slice(payload,payload+4).arrayBuffer());
-      if(text(new DataView(kind.buffer),0,4)==='SND ') for(let child=payload+4;child+12<=payload+size;) {
-        const childHead=new DataView(await file.slice(child,child+12).arrayBuffer());
+      if(kind.byteLength===4&&text(new DataView(kind.buffer,kind.byteOffset,kind.byteLength),0,4)==='SND ') for(let child=payload+4;child+12<=payload+size;) {
+        const childBuf=await file.slice(child,child+12).arrayBuffer();
+        if(childBuf.byteLength!==12) throw Error('Chunk con PROP DSDIFF không hợp lệ.');
+        const childHead=new DataView(childBuf);
         const sub=text(childHead,0,4),length=u64(childHead,4,false),data=child+12;
         if(data+length>payload+size) throw Error('Chunk con PROP DSDIFF không hợp lệ.');
-        if(sub==='FS  '&&length>=4) {const bytes=await file.slice(data,data+4).arrayBuffer();rate=new DataView(bytes).getUint32(0,false);}
-        if(sub==='CHNL'&&length>=2) {const bytes=await file.slice(data,data+2).arrayBuffer();channels=new DataView(bytes).getUint16(0,false);}
-        if(sub==='CMPR'&&length>=4) {const bytes=new Uint8Array(await file.slice(data,data+4).arrayBuffer());compression=String.fromCharCode(...bytes);}
+        if(sub==='FS  '&&length>=4) {const bytes=await file.slice(data,data+4).arrayBuffer();if(bytes.byteLength<4)throw Error('Chunk con PROP DSDIFF không hợp lệ.');rate=new DataView(bytes).getUint32(0,false);}
+        if(sub==='CHNL'&&length>=2) {const bytes=await file.slice(data,data+2).arrayBuffer();if(bytes.byteLength<2)throw Error('Chunk con PROP DSDIFF không hợp lệ.');channels=new DataView(bytes).getUint16(0,false);}
+        if(sub==='CMPR'&&length>=4) {const bytes=new Uint8Array(await file.slice(data,data+4).arrayBuffer());if(bytes.byteLength<4)throw Error('Chunk con PROP DSDIFF không hợp lệ.');compression=String.fromCharCode(...bytes);}
         child+=12+length+(length&1);
       }
     }
