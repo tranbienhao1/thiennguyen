@@ -331,9 +331,11 @@
     body.settings-open { overflow:hidden!important; }
     #settings-modal { z-index:100!important;position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;overscroll-behavior:contain;border:0;padding:0;color:inherit; }
     #settings-modal::backdrop { background:rgba(0,0,0,.75);backdrop-filter:blur(4px); }
-    #settings-modal>div { border-color:#ffffff12;border-radius:16px;background:#191c1e;overscroll-behavior:contain; }
-    #settings-modal[open] { display:flex; }
+    #settings-modal>div,#settings-panel { display:block!important;width:100%;max-width:44rem;box-sizing:border-box;border-color:#ffffff12;border-radius:16px;background:#191c1e;overscroll-behavior:contain; }
+    #settings-modal[open] { display:flex;flex-direction:column;align-items:center;justify-content:center; }
     #settings-modal:not([open]) { display:none; }
+    @keyframes fastTokenPulse { 0%,100% { box-shadow:0 0 0 0 rgba(56,189,248,0); } 50% { box-shadow:0 0 0 3px rgba(56,189,248,.45),0 0 18px rgba(56,189,248,.3); } }
+    .fast-token-highlight { animation:fastTokenPulse 1.1s ease-in-out 3;border-color:rgba(56,189,248,.8)!important; }
 
     #settings-modal>div>div:first-child { position:sticky;top:0;z-index:2;margin:-1.25rem -1.25rem 0;padding:1rem 1.25rem;background:#191c1e;border-bottom:1px solid #ffffff12; }
     #settings-modal #close-settings { display:inline-grid;min-width:44px;min-height:44px;place-items:center;flex:none;border:1px solid #ffffff18;background:#ffffff08;color:#e6e8e9;font-size:19px;line-height:1;cursor:pointer; }
@@ -918,6 +920,7 @@
         box-sizing: border-box !important;
       }
       #settings-modal > div, #settings-panel {
+        display: block !important;
         max-height: calc(100dvh - 1.5rem) !important;
         max-height: min(90vh, calc(100dvh - 1.5rem)) !important;
         overflow-y: auto !important;
@@ -925,6 +928,7 @@
         padding: 16px !important;
         border-radius: 18px !important;
         width: 100% !important;
+        max-width: 44rem !important;
         box-sizing: border-box !important;
       }
       #settings-modal input, #settings-modal select, #settings-modal button {
@@ -1430,8 +1434,8 @@
   <audio id="audio" crossorigin="anonymous" preload="auto"></audio>
   <audio id="preload-audio" crossorigin="anonymous" preload="auto" muted class="hidden" aria-hidden="true"></audio>
 
-  <dialog id="settings-modal" class="fixed inset-0 z-[80] items-center justify-center overflow-y-auto bg-transparent p-3 sm:p-4" aria-modal="true" aria-labelledby="settings-title">
-    <div id="settings-panel" class="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl sm:max-h-[90vh] sm:p-7">
+  <dialog id="settings-modal" class="fixed inset-0 z-[80] flex-col items-center justify-center overflow-y-auto bg-transparent p-3 sm:p-4" aria-modal="true" aria-labelledby="settings-title">
+    <div id="settings-panel" class="my-auto block max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl sm:max-h-[90vh] sm:p-7">
       <div class="flex items-start justify-between gap-4"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300">Account & streaming</p><h2 id="settings-title" class="mt-1 text-xl font-semibold">Cấu hình Cloud & Máy chủ cá nhân</h2></div><button id="close-settings" type="button" class="rounded-lg px-2 py-1 text-zinc-500 hover:bg-white/5 hover:text-white" aria-label="Đóng cài đặt">×</button></div>
       <p class="mt-3 text-xs leading-5 text-zinc-400">Thông tin xác thực được lưu trong localStorage của trình duyệt này. Chỉ cấp quyền đọc file; không nhập secret key phía server hoặc mật khẩu tài khoản.</p>
       <div id="cloud-auth-modal" class="mt-4 grid gap-4 md:grid-cols-2">
@@ -1456,7 +1460,7 @@
           </div>
 
           <!-- Tier 2: Instant Token Paste for DAP / Android -->
-          <div class="mt-3.5 rounded-xl border border-white/10 bg-black/25 p-3">
+          <div id="google-fast-token-box" class="mt-3.5 rounded-xl border border-white/10 bg-black/25 p-3 transition-all duration-300">
             <div class="flex items-center justify-between">
               <label for="google-token-direct" class="flex items-center gap-1.5 text-[10px] font-medium text-violet-300">
                 <span>🔑 Dán Token Siêu Tốc (Dành cho DAP FiiO / Android)</span>
@@ -1468,7 +1472,7 @@
             <button id="google-fast-token-btn" type="button" class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-violet-400/30 bg-violet-500/15 px-3 py-2 text-xs font-medium text-violet-200 transition hover:bg-violet-500/25 active:scale-[0.99]">
               <span>⚡</span> Lấy Access Token siêu tốc (Mở trình duyệt ngoài)
             </button>
-            <input id="google-token-direct" autocomplete="off" class="mt-1.5 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs font-mono text-zinc-200 outline-none transition focus:border-violet-400/60 focus:ring-1 focus:ring-violet-400/30" placeholder="ya29.a0... (Token từ OAuth Playground)">
+            <input id="google-token-direct" autocomplete="off" class="mt-1.5 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs font-mono text-zinc-200 outline-none transition focus:border-violet-400/60 focus:ring-1 focus:ring-violet-400/30" placeholder="ya29.a0... (Token, Bearer, URL #access_token= hoặc JSON)">
             <button id="google-token-connect" type="button" class="mt-2 w-full rounded-lg border border-violet-400/40 bg-violet-500/20 px-3 py-2 text-xs font-medium text-violet-200 transition hover:bg-violet-500/30 active:scale-[0.99]">
               Kết nối Google Drive bằng Token
             </button>
@@ -1513,7 +1517,7 @@
           </div>
 
           <!-- Tier 2: Instant Token Paste for DAP / Android -->
-          <div class="mt-3.5 rounded-xl border border-white/10 bg-black/25 p-3">
+          <div id="microsoft-fast-token-box" class="mt-3.5 rounded-xl border border-white/10 bg-black/25 p-3 transition-all duration-300">
             <div class="flex items-center justify-between">
               <label for="microsoft-token-direct" class="flex items-center gap-1.5 text-[10px] font-medium text-sky-300">
                 <span>🔑 Dán Token Siêu Tốc (Dành cho DAP FiiO / Android)</span>
@@ -1525,7 +1529,7 @@
             <button id="microsoft-fast-token-btn" type="button" class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-sky-400/30 bg-sky-500/15 px-3 py-2 text-xs font-medium text-sky-200 transition hover:bg-sky-500/25 active:scale-[0.99]">
               <span>⚡</span> Lấy Access Token siêu tốc (Mở Graph Explorer)
             </button>
-            <input id="microsoft-token-direct" autocomplete="off" class="mt-1.5 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs font-mono text-zinc-200 outline-none transition focus:border-sky-400/60 focus:ring-1 focus:ring-sky-400/30" placeholder="EwB... (Graph Access Token hoặc dán cả chuỗi Bearer)">
+            <input id="microsoft-token-direct" autocomplete="off" class="mt-1.5 w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs font-mono text-zinc-200 outline-none transition focus:border-sky-400/60 focus:ring-1 focus:ring-sky-400/30" placeholder="EwB... (Graph Access Token, Bearer, URL hoặc JSON)">
             <button id="microsoft-token-connect" type="button" class="mt-2 w-full rounded-lg border border-sky-400/40 bg-sky-500/20 px-3 py-2 text-xs font-medium text-sky-200 hover:bg-sky-500/30 transition active:scale-[0.99]">
               Kết nối OneDrive bằng Token
             </button>
@@ -10319,6 +10323,165 @@
       }
     }
 
+    function parseCloudAuthTokenInputFallback(rawInput, provider = 'generic') {
+      const str = String(rawInput || '').trim();
+      if (!str) return { token: '', expiresInSeconds: 3600, sourceFormat: 'empty', isValidFormat: false };
+      if ((str.startsWith('{') && str.endsWith('}')) || str.includes('"access_token"')) {
+        try {
+          const obj = JSON.parse(str);
+          const tok = String(obj.access_token || obj.accessToken || obj.token || '').trim().replace(/^Bearer\s+/i, '').trim();
+          const exp = Number(obj.expires_in || obj.expiresIn) || 3600;
+          if (tok) return { token: tok, expiresInSeconds: exp, sourceFormat: 'json', isValidFormat: tok.length >= 16 };
+        } catch (_) {
+          const m = str.match(/"access_token"\s*:\s*"([^"]+)"/i);
+          if (m && m[1]) {
+            const tok = m[1].trim().replace(/^Bearer\s+/i, '').trim();
+            return { token: tok, expiresInSeconds: 3600, sourceFormat: 'json', isValidFormat: tok.length >= 16 };
+          }
+        }
+      }
+      if (/access_token=/i.test(str) || /^https?:\/\//i.test(str)) {
+        const qIdx = str.indexOf('#') >= 0 ? str.indexOf('#') + 1 : (str.indexOf('?') >= 0 ? str.indexOf('?') + 1 : 0);
+        const queryPart = str.slice(qIdx);
+        const params = new URLSearchParams(queryPart);
+        const urlTok = (params.get('access_token') || '').trim().replace(/^Bearer\s+/i, '').trim();
+        const exp = Number(params.get('expires_in')) || 3600;
+        if (urlTok) return { token: urlTok, expiresInSeconds: exp, sourceFormat: 'url', isValidFormat: urlTok.length >= 16 };
+      }
+      const unquoted = str.replace(/^['"]+|['"]+$/g, '').trim();
+      const isBearer = /^Bearer\s+/i.test(unquoted);
+      const clean = unquoted.replace(/^Bearer\s+/i, '').trim();
+      const valid = clean.length >= 16 && !/\s/.test(clean) && (
+        provider === 'google' ? (clean.startsWith('ya29.') || clean.length >= 20) : true
+      );
+      return { token: clean, expiresInSeconds: 3600, sourceFormat: isBearer ? 'bearer' : 'raw', isValidFormat: valid };
+    }
+
+    function diagnoseCloudAuthErrorFallback(provider, errorInput, env = {}) {
+      const msg = String(errorInput?.message || errorInput?.error_description || errorInput?.error || errorInput || '').trim();
+      const lower = msg.toLowerCase();
+      const providerName = provider === 'microsoft' ? 'OneDrive (Microsoft)' : 'Google Drive';
+      const fastTokenTool = provider === 'microsoft' ? 'Microsoft Graph Explorer' : 'Google OAuth Playground';
+      if (env && env.isSecureContext === false) {
+        return {
+          code: 'insecure_context',
+          title: `${providerName} yêu cầu kết nối HTTPS hoặc localhost`,
+          reasonVi: 'Trình duyệt chặn OAuth 2.0 trên kết nối HTTP không bảo mật.',
+          actionVi: 'Hãy mở ứng dụng qua địa chỉ HTTPS hoặc dùng mục [🔑 Dán Token Siêu Tốc] bên dưới.',
+          recommendFastToken: true
+        };
+      }
+      if (/disallowed_useragent|webview|embedded/i.test(lower) || env?.isNativeAndroid) {
+        return {
+          code: 'webview_disallowed',
+          title: `${providerName} chặn đăng nhập trực tiếp trong WebView (DAP / Android)`,
+          reasonVi: 'Chính sách bảo mật OAuth không cho phép mở cửa sổ đăng nhập bên trong WebView nhúng trên máy nghe nhạc FiiO / Android.',
+          actionVi: `Hãy nhấn nút "⚡ Lấy Access Token siêu tốc (${fastTokenTool})" ở mục [🔑 Dán Token Siêu Tốc] ngay bên dưới để mở trình duyệt ngoài và dán token!`,
+          recommendFastToken: true
+        };
+      }
+      if (/unauthorized_client|not enabled for consumers|invalid_client|oauth client was not found|aadsts700016|aadsts70002|personal microsoft accounts/i.test(lower)) {
+        return {
+          code: 'unauthorized_consumer_client',
+          title: `Client ID mặc định bị từ chối cho tài khoản ${providerName} cá nhân`,
+          reasonVi: 'Ứng dụng OAuth mặc định chưa được kích hoạt cho tài khoản cá nhân (Consumer) hoặc bị giới hạn tenant.',
+          actionVi: `Cách nhanh nhất (10 giây): Dùng mục [🔑 Dán Token Siêu Tốc] ngay bên dưới — nhấn "⚡ Lấy Access Token siêu tốc", copy token từ ${fastTokenTool} rồi nhấn "📋 Dán từ clipboard"! (Hoặc nhập Client ID riêng ở mục ⚙ Nâng cao).`,
+          recommendFastToken: true
+        };
+      }
+      if (/access_denied|403|not completed the google verification process|test user/i.test(lower)) {
+        return {
+          code: 'testing_or_access_denied',
+          title: `${providerName} từ chối quyền truy cập (403 / Chế độ Testing)`,
+          reasonVi: 'OAuth Project đang ở chế độ Testing (chưa thêm email vào Test Users) hoặc bạn chưa tích chọn quyền đọc file.',
+          actionVi: `Hãy dùng ngay mục [🔑 Dán Token Siêu Tốc] bên dưới qua ${fastTokenTool} để kết nối tức thì không cần cấu hình Cloud Console!`,
+          recommendFastToken: true
+        };
+      }
+      if (/origin_mismatch|redirect_uri|invalid_request|aadsts50011/i.test(lower)) {
+        return {
+          code: 'origin_or_redirect_mismatch',
+          title: `Lệch địa chỉ Redirect URI / JavaScript Origin (${providerName})`,
+          reasonVi: `Địa chỉ tên miền hiện tại (${location.origin}) chưa được khai báo trong danh sách cho phép của Client ID.`,
+          actionVi: `Hãy dùng mục [🔑 Dán Token Siêu Tốc] ngay bên dưới để lấy token qua ${fastTokenTool} và kết nối ngay lập tức!`,
+          recommendFastToken: true
+        };
+      }
+      if (/popup_window_error|popup_blocked|popup|user_cancelled|blocked/i.test(lower)) {
+        return {
+          code: 'popup_blocked',
+          title: `Cửa sổ đăng nhập ${providerName} bị chặn hoặc đã đóng`,
+          reasonVi: 'Trình duyệt hoặc thiết bị DAP đã chặn cửa sổ bật lên (popup) OAuth.',
+          actionVi: 'Hãy cho phép popup hoặc dùng ngay mục [🔑 Dán Token Siêu Tốc] bên dưới để dán Access Token trực tiếp!',
+          recommendFastToken: true
+        };
+      }
+      return {
+        code: 'generic',
+        title: `Không thể hoàn tất đăng nhập 1-Chạm ${providerName}`,
+        reasonVi: msg || 'Cửa sổ xác thực OAuth gặp sự cố hoặc bị từ chối.',
+        actionVi: `Hãy sử dụng mục [🔑 Dán Token Siêu Tốc] ngay bên dưới (qua ${fastTokenTool}) để kết nối nhanh trong 10 giây!`,
+        recommendFastToken: true
+      };
+    }
+
+    if (library) {
+      if (typeof library.parseCloudAuthTokenInput !== 'function') library.parseCloudAuthTokenInput = parseCloudAuthTokenInputFallback;
+      if (typeof library.diagnoseCloudAuthError !== 'function') library.diagnoseCloudAuthError = diagnoseCloudAuthErrorFallback;
+    }
+
+    function parseCloudToken(rawInput, provider = 'generic') {
+      const fn = (typeof library?.parseCloudAuthTokenInput === 'function')
+        ? library.parseCloudAuthTokenInput
+        : parseCloudAuthTokenInputFallback;
+      return fn(rawInput, provider);
+    }
+
+    function diagnoseCloudError(provider, errorInput) {
+      const fn = (typeof library?.diagnoseCloudAuthError === 'function')
+        ? library.diagnoseCloudAuthError
+        : diagnoseCloudAuthErrorFallback;
+      const customId = $(provider === 'microsoft' ? 'microsoft-client-id' : 'google-client-id')?.value?.trim();
+      return fn(provider, errorInput, {
+        isNativeAndroid: Boolean(window.isNativeAndroid || window.NocturneNative),
+        isSecureContext: window.isSecureContext !== false,
+        hasCustomClientId: Boolean(customId && customId !== DEFAULT_GOOGLE_CLIENT_ID && customId !== DEFAULT_MICROSOFT_CLIENT_ID)
+      });
+    }
+
+    function focusAndHighlightFastToken(provider) {
+      const isMs = provider === 'microsoft';
+      const inputEl = $(isMs ? 'microsoft-token-direct' : 'google-token-direct');
+      const boxEl = $(isMs ? 'microsoft-fast-token-box' : 'google-fast-token-box') || inputEl?.closest('div');
+      if (boxEl) {
+        boxEl.classList.remove('fast-token-highlight');
+        void boxEl.offsetWidth;
+        boxEl.classList.add('fast-token-highlight');
+        try { boxEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+      }
+      if (inputEl) {
+        setTimeout(() => {
+          try { inputEl.focus({ preventScroll: true }); } catch (_) { try { inputEl.focus(); } catch (__) {} }
+        }, 120);
+      }
+    }
+
+    function handleCloudAuthFallback(provider, error) {
+      const diag = diagnoseCloudError(provider, error);
+      showSettings({ clearError: false });
+      $('settings-error')?.classList.add('hidden');
+      const errEl = $('settings-error');
+      if (errEl) {
+        errEl.textContent = `💡 ${diag.title}: ${diag.reasonVi} → ${diag.actionVi}`;
+        errEl.className = 'mt-3 rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-xs text-amber-200 leading-5';
+        errEl.classList.remove('hidden');
+      }
+      cloudStatus(provider === 'microsoft' ? 'microsoft' : 'google', 'Dùng Dán Token Siêu Tốc bên dưới', 'text-amber-300');
+      toast(`${diag.title} — ${diag.actionVi}`);
+      focusAndHighlightFastToken(provider);
+      return false;
+    }
+
     loadGoogleScript().catch(error => console.info('Google Identity Services unavailable until requested:', error.message || error));
     function requestGoogleToken({clientId = '', prompt = ''} = {}) {
       if (!window.isSecureContext) throw new Error('Google OAuth chỉ hoạt động trên HTTPS hoặc localhost. Hãy mở website bằng địa chỉ HTTPS; không dùng file:// hoặc địa chỉ IP không bảo mật.');
@@ -11281,7 +11444,8 @@
     async function runCloudLogin(connect) {
       $('settings-error').classList.add('hidden');
       try {
-        await connect();
+        const result = await connect();
+        if (result === false) return;
         if (isSettingsOpen()) hideSettings();
       } catch (error) {
         if (!isSettingsOpen()) return;
@@ -11365,8 +11529,20 @@
       toast(next > 0 ? `Đã bật crossfade ${next} giây.` : 'Đã tắt crossfade.');
       return next;
     }
-    $('google-connect').addEventListener('click', () => runCloudLogin(connectGoogle));
-    $('microsoft-connect').addEventListener('click', () => runCloudLogin(connectMicrosoftAndHandleAuth));
+    $('google-connect').addEventListener('click', () => runCloudLogin(async () => {
+      try {
+        await connectGoogle();
+      } catch (error) {
+        return handleCloudAuthFallback('google', error);
+      }
+    }));
+    $('microsoft-connect').addEventListener('click', () => runCloudLogin(async () => {
+      try {
+        await connectMicrosoftAndHandleAuth();
+      } catch (error) {
+        return handleCloudAuthFallback('microsoft', error);
+      }
+    }));
     ['google-client-id','microsoft-client-id'].forEach(id => $(id).addEventListener('input', () => { if ($('settings-error').classList.contains('hidden')) return; $('settings-error').classList.add('hidden'); }));
     $('google-quick-connect').addEventListener('click', () => runCloudLogin(async () => {
       const config = library.parseCloudConfig(localStorage.getItem('nocturne-google'));
@@ -11381,6 +11557,7 @@
         showSettings();
         $('settings-error')?.classList.add('hidden');
         toast('Nếu DAP hoặc trình duyệt chặn popup, hãy chọn [🔑 Dán Token Siêu Tốc] bên dưới');
+        return handleCloudAuthFallback('google', error);
       }
     }));
     $('microsoft-quick-connect').addEventListener('click', () => runCloudLogin(async () => {
@@ -11396,24 +11573,41 @@
         showSettings();
         $('settings-error')?.classList.add('hidden');
         toast('Nếu DAP hoặc trình duyệt chặn popup, hãy chọn [🔑 Dán Token Siêu Tốc] bên dưới');
+        return handleCloudAuthFallback('microsoft', error);
       }
     }));
+    let pendingExternalTokenProvider = null;
+    let pendingExternalTokenAt = 0;
+    $('google-token-direct')?.addEventListener('change', event => {
+      const parsed = parseCloudToken(event.target.value, 'google');
+      if (parsed.token && parsed.sourceFormat !== 'raw') event.target.value = parsed.token;
+    });
+    $('microsoft-token-direct')?.addEventListener('change', event => {
+      const parsed = parseCloudToken(event.target.value, 'microsoft');
+      if (parsed.token && parsed.sourceFormat !== 'raw') event.target.value = parsed.token;
+    });
     $('google-token-connect')?.addEventListener('click', () => runCloudLogin(async () => {
       let rawToken = ($('google-token-direct')?.value || '').trim();
       if (!rawToken && navigator.clipboard?.readText) {
         try {
           const clip = (await navigator.clipboard.readText() || '').trim();
-          if (clip.startsWith('ya29.') || clip.toLowerCase().startsWith('bearer ya29.')) {
-            rawToken = clip;
+          const clipParsed = parseCloudToken(clip, 'google');
+          if ((clipParsed.isValidFormat && clipParsed.token) || clip.startsWith('ya29.') || clip.toLowerCase().startsWith('bearer ya29.')) {
+            rawToken = clipParsed.token || clip;
             if ($('google-token-direct')) $('google-token-direct').value = rawToken;
           }
         } catch (_) {}
       }
-      let token = rawToken.trim();
+      const parsed = parseCloudToken(rawToken, 'google');
+      let token = (parsed.token || rawToken).trim();
       token = token.replace(/^Bearer\s+/i, '').trim();
       if (!token) throw new Error('Vui lòng dán Access Token Google Drive trước');
+      if ($('google-token-direct')) $('google-token-direct').value = token;
       state.googleToken = token;
       state.googleExpiresAt = Date.now() + 3600 * 1000;
+      if (parsed.expiresInSeconds && parsed.expiresInSeconds !== 3600) {
+        state.googleExpiresAt = Date.now() + parsed.expiresInSeconds * 1000;
+      }
       try { localStorage.setItem('nocturne-google-token', token); } catch (_) {}
       cloudStatus('google', 'Đang quét Google Drive bằng token…', 'text-sky-300');
       await loadGoogleFiles();
@@ -11421,6 +11615,8 @@
       toast('Đã kết nối thành công Google Drive qua Access Token!');
     }));
     $('google-fast-token-btn')?.addEventListener('click', () => {
+      pendingExternalTokenProvider = 'google';
+      pendingExternalTokenAt = Date.now();
       openExternalAuth(GOOGLE_AUTH_FALLBACK_URL);
       toast('Đang mở trình duyệt ngoài để lấy Google Token. Sau khi copy, quay lại đây và nhấn "📋 Dán từ clipboard"!');
     });
@@ -11428,18 +11624,21 @@
       try {
         if (navigator.clipboard && navigator.clipboard.readText) {
           const text = await navigator.clipboard.readText();
-          const cleanText = (text || '').trim().replace(/^Bearer\s+/i, '');
+          const parsed = parseCloudToken(text, 'google');
+          const cleanText = (parsed.token || text || '').trim().replace(/^Bearer\s+/i, '');
           if (cleanText && $('google-token-direct')) {
             $('google-token-direct').value = cleanText;
             toast('Đã dán token Google Drive từ bộ nhớ tạm!');
-            if (cleanText.startsWith('ya29.')) {
+            if (parsed.isValidFormat || cleanText.startsWith('ya29.')) {
               cloudStatus('google', 'Token sẵn sàng · Nhấn kết nối', 'text-sky-300');
             }
           }
         } else {
+          $('google-token-direct')?.focus();
           toast('Hãy chạm giữ vào ô nhập để dán token.');
         }
       } catch (_) {
+        $('google-token-direct')?.focus();
         toast('Hãy chạm giữ vào ô nhập để dán token.');
       }
     });
@@ -11448,17 +11647,23 @@
       if (!rawToken && navigator.clipboard?.readText) {
         try {
           const clip = (await navigator.clipboard.readText() || '').trim();
-          if (clip) {
-            rawToken = clip;
+          const clipParsed = parseCloudToken(clip, 'microsoft');
+          if (clipParsed.token || clip) {
+            rawToken = clipParsed.token || clip;
             if ($('microsoft-token-direct')) $('microsoft-token-direct').value = rawToken;
           }
         } catch (_) {}
       }
-      let token = rawToken.trim();
+      const parsed = parseCloudToken(rawToken, 'microsoft');
+      let token = (parsed.token || rawToken).trim();
       token = token.replace(/^Bearer\s+/i, '').trim();
       if (!token) throw new Error('Vui lòng dán Access Token OneDrive trước');
+      if ($('microsoft-token-direct')) $('microsoft-token-direct').value = token;
       state.microsoftAccessToken = token;
       state.microsoftExpiresAt = Date.now() + 3600 * 1000;
+      if (parsed.expiresInSeconds && parsed.expiresInSeconds !== 3600) {
+        state.microsoftExpiresAt = Date.now() + parsed.expiresInSeconds * 1000;
+      }
       try { localStorage.setItem('nocturne-microsoft-token', token); } catch (_) {}
       cloudStatus('microsoft', 'Đang quét OneDrive bằng token…', 'text-sky-300');
       await loadMicrosoftFiles(token);
@@ -11469,22 +11674,56 @@
       try {
         if (navigator.clipboard && navigator.clipboard.readText) {
           const text = await navigator.clipboard.readText();
-          const cleanToken = (text || '').trim().replace(/^Bearer\s+/i, '');
+          const parsed = parseCloudToken(text, 'microsoft');
+          const cleanToken = (parsed.token || text || '').trim().replace(/^Bearer\s+/i, '');
           if (cleanToken && $('microsoft-token-direct')) {
             $('microsoft-token-direct').value = cleanToken;
             toast('Đã dán token OneDrive từ bộ nhớ tạm!');
             cloudStatus('microsoft', 'Token sẵn sàng · Nhấn kết nối', 'text-sky-300');
           }
         } else {
+          $('microsoft-token-direct')?.focus();
           toast('Hãy chạm giữ vào ô nhập để dán token.');
         }
       } catch (_) {
+        $('microsoft-token-direct')?.focus();
         toast('Hãy chạm giữ vào ô nhập để dán token.');
       }
     });
     $('microsoft-fast-token-btn')?.addEventListener('click', () => {
-      window.open('https://developer.microsoft.com/en-us/graph/graph-explorer', '_blank', 'noopener,noreferrer');
+      pendingExternalTokenProvider = 'microsoft';
+      pendingExternalTokenAt = Date.now();
+      openExternalAuth('https://developer.microsoft.com/en-us/graph/graph-explorer');
       toast('Đang mở Microsoft Graph Explorer. Đăng nhập và copy Access Token rồi dán vào ô bên dưới!');
+    });
+    async function checkPendingExternalTokenOnReturn() {
+      if (!pendingExternalTokenProvider) return;
+      if (Date.now() - pendingExternalTokenAt > 15 * 60 * 1000) {
+        pendingExternalTokenProvider = null;
+        return;
+      }
+      const provider = pendingExternalTokenProvider;
+      pendingExternalTokenProvider = null;
+      const inputId = provider === 'microsoft' ? 'microsoft-token-direct' : 'google-token-direct';
+      const label = provider === 'microsoft' ? 'OneDrive' : 'Google Drive';
+      focusAndHighlightFastToken(provider);
+      try {
+        if (navigator.clipboard?.readText) {
+          const clip = (await navigator.clipboard.readText() || '').trim();
+          const parsed = parseCloudToken(clip, provider);
+          if (parsed.isValidFormat && parsed.token) {
+            if ($(inputId)) $(inputId).value = parsed.token;
+            cloudStatus(provider, 'Đã nhận diện Token từ clipboard · Nhấn kết nối', 'text-sky-300');
+            toast(`Đã tự động điền Access Token ${label} từ clipboard! Nhấn nút Kết nối bằng Token.`);
+            return;
+          }
+        }
+      } catch (_) {}
+      toast(`Đã quay lại! Hãy nhấn "📋 Dán từ clipboard" & "Kết nối ${label} bằng Token".`);
+    }
+    window.addEventListener('focus', () => { checkPendingExternalTokenOnReturn(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkPendingExternalTokenOnReturn();
     });
     $('play-url').addEventListener('click', () => {
       const url = $('direct-url').value.trim();

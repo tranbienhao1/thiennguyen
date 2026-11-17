@@ -15,6 +15,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.AudioFocusRequest;
@@ -35,6 +37,8 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.PowerManager;
 import android.util.Log;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -52,7 +56,9 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.SslErrorHandler;
 import android.net.http.SslError;
+import android.widget.FrameLayout;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import javax.net.ssl.HostnameVerifier;
@@ -723,8 +729,14 @@ public class MainActivity extends AppCompatActivity {
             public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg) {
                 // Creates a dedicated modal popup WebView for Google & Microsoft OAuth
                 final Dialog popupDialog = new Dialog(MainActivity.this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen);
+                final FrameLayout popupContainer = new FrameLayout(MainActivity.this);
+                popupContainer.setLayoutParams(new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT));
+                popupContainer.setBackgroundColor(Color.parseColor("#111315"));
+
                 final WebView popupWebView = new WebView(MainActivity.this);
-                popupWebView.setLayoutParams(new ViewGroup.LayoutParams(
+                popupWebView.setLayoutParams(new FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -739,6 +751,8 @@ public class MainActivity extends AppCompatActivity {
 
                 CookieManager.getInstance().setAcceptCookie(true);
                 CookieManager.getInstance().setAcceptThirdPartyCookies(popupWebView, true);
+
+                final boolean[] redirectedExternal = {false};
 
                 popupWebView.setWebViewClient(new WebViewClient() {
                     @Override
@@ -761,7 +775,42 @@ public class MainActivity extends AppCompatActivity {
 
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                        Uri uri = request != null ? request.getUrl() : null;
+                        if (uri != null) {
+                            String urlStr = uri.toString();
+                            String host = uri.getHost() != null ? uri.getHost().toLowerCase(Locale.US) : "";
+                            String path = uri.getPath() != null ? uri.getPath().toLowerCase(Locale.US) : "";
+                            if (host.contains("developer.microsoft.com") ||
+                                    (host.contains("developers.google.com") && path.contains("/oauthplayground")) ||
+                                    urlStr.contains("developer.microsoft.com") ||
+                                    urlStr.contains("developers.google.com/oauthplayground")) {
+                                if (!redirectedExternal[0]) {
+                                    redirectedExternal[0] = true;
+                                    openExternalBrowser(uri.toString());
+                                }
+                                if (popupDialog.isShowing()) {
+                                    popupDialog.dismiss();
+                                }
+                                return true;
+                            }
+                        }
                         return false;
+                    }
+
+                    @Override
+                    public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                        if (url != null && (url.contains("developer.microsoft.com") || url.contains("developers.google.com/oauthplayground"))) {
+                            view.stopLoading();
+                            if (!redirectedExternal[0]) {
+                                redirectedExternal[0] = true;
+                                openExternalBrowser(url);
+                            }
+                            if (popupDialog.isShowing()) {
+                                popupDialog.dismiss();
+                            }
+                            return;
+                        }
+                        super.onPageStarted(view, url, favicon);
                     }
                 });
 
@@ -776,7 +825,43 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
 
-                popupDialog.setContentView(popupWebView);
+                // Sleek floating top-right dark pill close button ("✕ Đóng") so FiiO M11S users are never trapped in fullscreen OAuth error popups
+                float density = getResources().getDisplayMetrics().density;
+                TextView closeBtn = new TextView(MainActivity.this);
+                closeBtn.setText("✕ Đóng");
+                closeBtn.setTextColor(Color.parseColor("#F4F4F6"));
+                closeBtn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+                closeBtn.setTypeface(Typeface.DEFAULT_BOLD);
+                closeBtn.setGravity(Gravity.CENTER);
+                int padH = (int) (14 * density);
+                int padV = (int) (8 * density);
+                closeBtn.setPadding(padH, padV, padH, padV);
+                closeBtn.setMinHeight((int) (40 * density));
+
+                GradientDrawable pillBg = new GradientDrawable();
+                pillBg.setShape(GradientDrawable.RECTANGLE);
+                pillBg.setCornerRadius(999f * density);
+                pillBg.setColor(Color.parseColor("#D918181B"));
+                pillBg.setStroke(Math.max(1, (int) (1 * density)), Color.parseColor("#4DFFFFFF"));
+                closeBtn.setBackground(pillBg);
+                closeBtn.setElevation(12f * density);
+                closeBtn.setOnClickListener(v -> {
+                    if (popupDialog.isShowing()) {
+                        popupDialog.dismiss();
+                    }
+                });
+
+                FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        Gravity.TOP | Gravity.END);
+                int margin = (int) (16 * density);
+                closeParams.setMargins(margin, margin, margin, margin);
+
+                popupContainer.addView(popupWebView);
+                popupContainer.addView(closeBtn, closeParams);
+
+                popupDialog.setContentView(popupContainer);
                 popupDialog.setOnDismissListener(dialog -> {
                     popupWebView.destroy();
                     mActivePopupDialog = null;
@@ -828,6 +913,23 @@ public class MainActivity extends AppCompatActivity {
                 "} catch (e) {}" +
                 "if (window.dispatchEvent) { window.dispatchEvent(new CustomEvent('nocturne-native-ready')); }";
         mWebView.evaluateJavascript(js, null);
+    }
+
+    /**
+     * Opens an external URL in the system default browser (e.g., Chrome for OAuth Playground / Graph Explorer)
+     */
+    public void openExternalBrowser(String url) {
+        if (url == null || url.isEmpty()) return;
+        runOnUiThread(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } catch (Exception e) {
+                Log.w(TAG, "Cannot open external browser: " + e.getMessage());
+                Toast.makeText(MainActivity.this, "Cannot open browser: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     /**
