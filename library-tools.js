@@ -739,6 +739,94 @@
   // 5. Cloud & Local Settings Sync (Backup & Safe Restore)
   // =========================================================================
 
+  function _resolveNocturneLibraryTools() {
+    if (typeof window !== 'undefined' && window.NocturneLibrary) return window.NocturneLibrary;
+    if (typeof globalThis !== 'undefined' && globalThis.NocturneLibrary) return globalThis.NocturneLibrary;
+    if (typeof window !== 'undefined' && window.library) return window.library;
+    if (typeof globalThis !== 'undefined' && globalThis.library) return globalThis.library;
+    if (typeof require === 'function') {
+      try { return require('./library-utils.js'); } catch (_) {}
+    }
+    return null;
+  }
+
+  function _normalizeSettingsFiniteNumber(raw, fallback = 0) {
+    if (raw === null || raw === undefined || raw === '') return fallback;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return fallback;
+    return Object.is(n, -0) ? 0 : n;
+  }
+
+  function _fallbackSanitizeCycleSafe(val, ancestors = new Set()) {
+    if (val === null) return null;
+    const t = typeof val;
+    if (t === 'boolean' || t === 'string') return val;
+    if (t === 'number') {
+      if (!Number.isFinite(val)) return null;
+      return Object.is(val, -0) ? 0 : val;
+    }
+    if (t === 'bigint') return val.toString();
+    if (t === 'undefined' || t === 'function' || t === 'symbol') return undefined;
+    if (t !== 'object') return String(val);
+    if (ancestors.has(val)) return undefined;
+    ancestors.add(val);
+    try {
+      if (val instanceof Set) {
+        return Array.from(val).map(item => {
+          const r = _fallbackSanitizeCycleSafe(item, ancestors);
+          return r === undefined ? null : r;
+        });
+      }
+      if (val instanceof Map) {
+        const out = {};
+        const keys = [];
+        const tmp = new Map();
+        for (const [mk, mv] of val.entries()) {
+          if (mk === undefined || typeof mk === 'symbol' || typeof mk === 'function') continue;
+          const ks = typeof mk === 'bigint' ? mk.toString() : String(Object.is(mk, -0) ? 0 : mk);
+          keys.push(ks);
+          tmp.set(ks, mv);
+        }
+        keys.sort();
+        for (const k of keys) {
+          const rv = _fallbackSanitizeCycleSafe(tmp.get(k), ancestors);
+          if (rv !== undefined) out[k] = rv;
+        }
+        return out;
+      }
+      if (ArrayBuffer.isView(val)) {
+        if (val instanceof DataView) {
+          return Array.from(new Uint8Array(val.buffer, val.byteOffset || 0, val.byteLength || 0));
+        }
+        const arr = new Array(val.length >>> 0);
+        for (let i = 0; i < arr.length; i++) {
+          const elem = val[i];
+          if (typeof elem === 'bigint') arr[i] = elem.toString();
+          else {
+            const n = Number(elem);
+            arr[i] = !Number.isFinite(n) ? null : (Object.is(n, -0) ? 0 : n);
+          }
+        }
+        return arr;
+      }
+      if (Array.isArray(val)) {
+        return val.map(item => {
+          const r = _fallbackSanitizeCycleSafe(item, ancestors);
+          return r === undefined ? null : r;
+        });
+      }
+      const out = {};
+      const keys = Object.keys(val).sort();
+      for (const k of keys) {
+        const rv = _fallbackSanitizeCycleSafe(val[k], ancestors);
+        if (rv !== undefined) out[k] = rv;
+      }
+      return out;
+    } finally {
+      ancestors.delete(val);
+    }
+  }
+
   /**
    * Exports PEQ presets, favorites, custom lyrics, and playback preferences to formatted JSON.
    * @param {Object} state - Player application state
@@ -747,13 +835,15 @@
    */
   function exportUserSettings(state = {}, options = {}) {
     const s = state || {};
+    const opts = options && typeof options === 'object' ? options : {};
+    const libMod = _resolveNocturneLibraryTools();
 
     // 1. PEQ Settings & Presets
-    const peqBands = Array.isArray(s.bands) ? s.bands.map(b => ({
-      id: b.id,
-      freq: Number(b.freq) || 1000,
-      gain: Number(b.gain) || 0,
-      q: Number(b.q) || 1.0,
+    const peqBands = Array.isArray(s.bands) ? s.bands.filter(b => b && typeof b === 'object').map(b => ({
+      id: typeof b.id === 'bigint' ? b.id.toString() : b.id,
+      freq: _normalizeSettingsFiniteNumber(b.freq, 1000) || 1000,
+      gain: _normalizeSettingsFiniteNumber(b.gain, 0),
+      q: _normalizeSettingsFiniteNumber(b.q, 1.0) || 1.0,
       type: b.type || 'peaking',
       enabled: b.enabled !== false
     })) : [];
@@ -762,9 +852,10 @@
       Array.isArray(s.userEqPresets) ? s.userEqPresets : []
     );
 
+    const rawPreamp = s.eqPreamp !== undefined ? s.eqPreamp : (s.preampGain !== undefined ? s.preampGain : 0);
     const peq = {
       enabled: Boolean(s.eqEnabled),
-      preamp: Number(s.eqPreamp || s.preampGain || 0),
+      preamp: _normalizeSettingsFiniteNumber(rawPreamp, 0),
       bands: peqBands,
       presets: peqPresets
     };
@@ -774,13 +865,15 @@
       ? Array.from(s.favorites)
       : (Array.isArray(s.favorites) ? s.favorites : []);
 
-    const trackRatings = (s.trackRatings && typeof s.trackRatings === 'object')
-      ? { ...s.trackRatings }
-      : {};
+    const trackRatings = s.trackRatings instanceof Map
+      ? s.trackRatings
+      : ((s.trackRatings && typeof s.trackRatings === 'object') ? { ...s.trackRatings } : {});
 
     // 3. Custom Lyrics
     let customLyrics = {};
-    if (s.customLyrics && typeof s.customLyrics === 'object') {
+    if (s.customLyrics instanceof Map) {
+      customLyrics = s.customLyrics;
+    } else if (s.customLyrics && typeof s.customLyrics === 'object') {
       customLyrics = { ...s.customLyrics };
     } else if (typeof localStorage !== 'undefined') {
       try {
@@ -791,20 +884,20 @@
 
     // 4. Playback Preferences & DSP
     const playbackPreferences = {
-      crossfadeSeconds: Number.isFinite(Number(s.crossfadeSeconds)) ? Number(s.crossfadeSeconds) : 0,
+      crossfadeSeconds: _normalizeSettingsFiniteNumber(s.crossfadeSeconds, 0),
       crossfadeCurve: s.crossfadeCurve || 'equal-power',
-      crossfeed: Number.isFinite(Number(s.crossfeed)) ? Number(s.crossfeed) : 0,
+      crossfeed: _normalizeSettingsFiniteNumber(s.crossfeed, 0),
       crossfeedPreset: s.crossfeedPreset || 'bauer',
-      toneBass: Number.isFinite(Number(s.toneBass)) ? Number(s.toneBass) : 0,
-      toneTreble: Number.isFinite(Number(s.toneTreble)) ? Number(s.toneTreble) : 0,
-      stereoBalance: Number.isFinite(Number(s.stereoBalance)) ? Number(s.stereoBalance) : 0,
+      toneBass: _normalizeSettingsFiniteNumber(s.toneBass, 0),
+      toneTreble: _normalizeSettingsFiniteNumber(s.toneTreble, 0),
+      stereoBalance: _normalizeSettingsFiniteNumber(s.stereoBalance, 0),
       replayGainEnabled: Boolean(s.replayGainEnabled),
       replayGainMode: s.replayGainMode || 'track',
       loudnessStandard: s.loudnessStandard || 'audiophile-album',
       roomAcousticProfile: s.roomAcousticProfile || 'bypass',
-      roomAcousticWet: Number.isFinite(Number(s.roomAcousticWet)) ? Number(s.roomAcousticWet) : 0.2,
+      roomAcousticWet: _normalizeSettingsFiniteNumber(s.roomAcousticWet, 0.2),
       subBassPunchProfile: s.subBassPunchProfile || 'off',
-      subBassPunchIntensity: Number.isFinite(Number(s.subBassPunchIntensity)) ? Number(s.subBassPunchIntensity) : 1.0,
+      subBassPunchIntensity: _normalizeSettingsFiniteNumber(s.subBassPunchIntensity, 1.0),
       subBassPhaseProfile: s.subBassPhaseProfile || 'bypass',
       tubeEmulationProfile: s.tubeEmulationProfile || 'off',
       dsdUltrasonicFilter: s.dsdUltrasonicFilter || 'bypass',
@@ -815,16 +908,16 @@
       ambientStageMode: s.ambientStageMode || 'reactive',
       bitPerfectEnabled: Boolean(s.bitPerfectEnabled),
       shuffle: Boolean(s.shuffle),
-      repeat: Number(s.repeat) || 0,
+      repeat: _normalizeSettingsFiniteNumber(s.repeat, 0),
       autoplay: s.autoplay !== false,
       roonRadio: s.roonRadio !== false
     };
 
-    const payload = {
+    const rawPayload = {
       app: 'nocturne',
       type: 'user-settings-backup',
       version: 1,
-      exportedAt: new Date().toISOString(),
+      exportedAt: typeof opts.exportedAt === 'string' && opts.exportedAt.trim() ? opts.exportedAt.trim() : new Date().toISOString(),
       peq,
       favorites,
       trackRatings,
@@ -832,8 +925,21 @@
       playbackPreferences
     };
 
-    const indent = Number.isInteger(options.indent) ? options.indent : 2;
-    return JSON.stringify(payload, null, indent);
+    let safePayload;
+    if (libMod && typeof libMod.canonicalizeConfigPayloadSafe === 'function') {
+      safePayload = libMod.canonicalizeConfigPayloadSafe(rawPayload, opts).value;
+    } else {
+      safePayload = _fallbackSanitizeCycleSafe(rawPayload, new Set());
+    }
+
+    if (opts.sign === true && libMod && typeof libMod.signConfigurationBundle === 'function') {
+      safePayload = libMod.signConfigurationBundle(safePayload, {
+        signedAt: safePayload.exportedAt
+      });
+    }
+
+    const indent = Number.isInteger(opts.indent) ? opts.indent : 2;
+    return JSON.stringify(safePayload, null, indent);
   }
 
   /**
@@ -865,13 +971,30 @@
       };
     }
 
-    if (!parsed || typeof parsed !== 'object') {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return {
         isValid: false,
         restoredCount: null,
         settings: null,
         error: 'Dữ liệu sao lưu không phải là một đối tượng JSON hợp lệ'
       };
+    }
+
+    if (Object.prototype.hasOwnProperty.call(parsed, 'integrity') && parsed.integrity !== undefined) {
+      const libMod = _resolveNocturneLibraryTools();
+      if (libMod && typeof libMod.verifyConfigurationBundle === 'function') {
+        const verified = libMod.verifyConfigurationBundle(parsed, options);
+        if (!verified.valid) {
+          return {
+            isValid: false,
+            signed: true,
+            reason: verified.reason,
+            restoredCount: null,
+            settings: null,
+            error: 'Lỗi kiểm tra toàn vẹn dữ liệu sao lưu cài đặt (CRC32/SHA-256 checksum mismatch)'
+          };
+        }
+      }
     }
 
     const hasApp = parsed.app === 'nocturne' || parsed.appName === 'Nocturne';

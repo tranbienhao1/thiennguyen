@@ -5993,3 +5993,196 @@ describe('Autonomy Tail-Chaining Cycle 26 — OPT-09 (Chunked Non-Blocking Strea
     assert.ok(yieldedChunks < 500, `Stream must abort early right after signal fires (processed only ${yieldedChunks} of 50,000 chunks)`);
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 27 — BUG-10 (Cycle-Safe DAG-Preserving & IEEE-754 Canonical Config Signing)', () => {
+  it('exposes BUG-10 canonicalizeConfigPayloadSafe & normalizeSpecialConfigNumber on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.canonicalizeConfigPayloadSafe, 'function');
+    assert.equal(typeof lib.normalizeSpecialConfigNumber, 'function');
+
+    const sandbox = { library: { keepRefBug10: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.canonicalizeConfigPayloadSafe, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.normalizeSpecialConfigNumber, 'function');
+    assert.equal(typeof sandbox.library.canonicalizeConfigPayloadSafe, 'function');
+    assert.equal(sandbox.library.keepRefBug10, true);
+  });
+
+  it('prunes self-references, mutual cycles, array cycles & cyclic toJSON() while strictly preserving shared non-cyclic DAG diamond nodes', () => {
+    // 1. Shared non-cyclic DAG diamond (must NOT be pruned as a cycle!)
+    const sharedEqBand = { id: 'harman_sub', freq: 65, gain: -0, q: 0.707 };
+    const dagBundle = {
+      appName: 'Nocturne',
+      leftChannelEq: sharedEqBand,
+      rightChannelEq: sharedEqBand,
+      backupStages: [sharedEqBand, { fallbackRef: sharedEqBand }]
+    };
+
+    const dagRes = lib.canonicalizeConfigPayloadSafe(dagBundle);
+    assert.equal(dagRes.hasCycles, false, 'Shared DAG diamond must NOT be flagged as a cycle');
+    assert.equal(dagRes.stats.prunedCycleCount, 0);
+    assert.equal(dagRes.stats.sharedDagReuseCount, 3, '3 shared DAG sibling visits must be counted & preserved');
+    assert.deepEqual(dagRes.value.leftChannelEq, { freq: 65, gain: 0, id: 'harman_sub', q: 0.707 });
+    assert.deepEqual(dagRes.value.rightChannelEq, { freq: 65, gain: 0, id: 'harman_sub', q: 0.707 });
+    assert.deepEqual(dagRes.value.backupStages[0], { freq: 65, gain: 0, id: 'harman_sub', q: 0.707 });
+    assert.deepEqual(dagRes.value.backupStages[1].fallbackRef, { freq: 65, gain: 0, id: 'harman_sub', q: 0.707 });
+    assert.equal(Object.is(dagRes.value.leftChannelEq.gain, 0), true);
+    assert.equal(Object.is(dagRes.value.leftChannelEq.gain, -0), false);
+
+    // 2. True cyclic graphs: self-reference + mutual A<->B cycle + array cycle + self-returning toJSON()
+    const nodeA = { name: 'EQ Stage A', gainDb: 3.5 };
+    const nodeB = { name: 'EQ Stage B', gainDb: -1.5, prev: nodeA };
+    nodeA.next = nodeB; // Mutual cycle: nodeA.next.prev === nodeA
+    nodeA.self = nodeA; // Direct self-reference
+
+    const cyclicToJson = {
+      label: 'rogue',
+      toJSON() { return this; }
+    };
+
+    const cyclicPlaylist = { id: 'pl_cyclic', name: 'Cyclic Mix', tracks: [{ id: 't1', title: 'Track 1' }] };
+    cyclicPlaylist.tracks.push(cyclicPlaylist); // Array back-edge cycle
+
+    const cyclicRoot = {
+      appName: 'Nocturne',
+      eqGraph: nodeA,
+      playlists: [cyclicPlaylist],
+      rogue: cyclicToJson
+    };
+
+    const cycRes = lib.canonicalizeConfigPayloadSafe(cyclicRoot);
+    assert.equal(cycRes.hasCycles, true);
+    assert.ok(cycRes.stats.prunedCycleCount >= 4, `Expected >= 4 pruned cyclic back-edges, got ${cycRes.stats.prunedCycleCount}`);
+    assert.equal('self' in cycRes.value.eqGraph, false, 'Cyclic object property must be omitted cleanly by default');
+    assert.equal('prev' in cycRes.value.eqGraph.next, false, 'Mutual cyclic back-edge must be omitted cleanly');
+    assert.equal(cycRes.value.eqGraph.next.name, 'EQ Stage B', 'Non-cyclic fields of nodeB must be preserved');
+    assert.equal(cycRes.value.playlists[0].tracks[0].title, 'Track 1');
+    assert.equal(cycRes.value.playlists[0].tracks[1], null, 'Cyclic array element must be replaced with null');
+    assert.equal('rogue' in cycRes.value, false, 'Self-returning toJSON() cycle must be omitted safely');
+
+    // Sentinel policy option
+    const sentinelRes = lib.canonicalizeConfigPayloadSafe(nodeA, { cyclePolicy: 'sentinel' });
+    assert.equal(sentinelRes.value.self, '[Circular]');
+    assert.equal(sentinelRes.value.next.prev, '[Circular]');
+
+    // Sign -> JSON.stringify -> Verify roundtrip on cyclic graph!
+    const signedCyclic = lib.signConfigurationBundle(cyclicRoot, { signedAt: '2026-11-18T06:20:00.000Z' });
+    const jsonText = JSON.stringify(signedCyclic, null, 2);
+    const verifiedCyclic = lib.verifyConfigurationBundle(jsonText);
+    assert.equal(verifiedCyclic.valid, true, 'Signed cyclic bundle must pass CRC32+SHA-256 verification after JSON roundtrip');
+    assert.equal(verifiedCyclic.signed, true);
+  });
+
+  it('normalizes IEEE-754 -0 -> +0, NaN/±Infinity (null/zero/clamp), BigInt, Map, Set & TypedArray deterministically across library-utils and library-tools', async () => {
+    const libraryTools = require(path.join(ROOT, 'library-tools.js'));
+
+    // 1. Verify +0 vs -0 digest & Object.is parity + Map insertion-order independence
+    const mapOrder1 = new Map([['zeta', 2.5], ['alpha', -0], ['beta', 100n]]);
+    const mapOrder2 = new Map([['beta', 100n], ['zeta', 2.5], ['alpha', +0]]);
+
+    const payloadNegZero = {
+      preamp: -0,
+      boxedZero: new Number(-0),
+      curve: new Float32Array([-0, 1.5, NaN, Infinity, -Infinity]),
+      tags: new Set(['audiophile', 'dsd']),
+      counter: 9007199254740993n,
+      routing: mapOrder1
+    };
+
+    const payloadPosZero = {
+      routing: mapOrder2,
+      counter: '9007199254740993',
+      tags: ['audiophile', 'dsd'],
+      curve: [0, 1.5, null, null, null],
+      boxedZero: 0,
+      preamp: +0
+    };
+
+    const canonNeg = lib.canonicalizeConfigPayloadSafe(payloadNegZero);
+    const canonPos = lib.canonicalizeConfigPayloadSafe(payloadPosZero);
+
+    assert.equal(canonNeg.canonicalJson, canonPos.canonicalJson, '-0, boxed -0, Float32Array, BigInt, Set & Map must canonicalize identically regardless of key order');
+    assert.equal(canonNeg.crc32, canonPos.crc32);
+    assert.equal(canonNeg.sha256, canonPos.sha256);
+    assert.equal(Object.is(canonNeg.value.preamp, 0), true);
+    assert.equal(Object.is(canonNeg.value.preamp, -0), false);
+    assert.equal(Object.is(canonNeg.value.curve[0], 0), true);
+    assert.equal(Object.is(canonNeg.value.curve[0], -0), false);
+    assert.ok(canonNeg.stats.normalizedNegZeroCount >= 4);
+    assert.equal(canonNeg.stats.normalizedNonFiniteCount, 3);
+    assert.equal(canonNeg.stats.normalizedBigIntCount, 2);
+    assert.equal(canonNeg.stats.convertedSetCount, 1);
+    assert.equal(canonNeg.stats.convertedMapCount, 1);
+    assert.equal(canonNeg.stats.convertedTypedArrayCount, 1);
+
+    // 2. Verify nonFinitePolicy: 'clamp' and 'zero'
+    const clamped = lib.canonicalizeConfigPayloadSafe(
+      { nanVal: NaN, hiVal: Infinity, loVal: -Infinity, negZero: -0 },
+      { nonFinitePolicy: 'clamp', clampNan: 0, clampMax: 24, clampMin: -24 }
+    );
+    assert.deepEqual(clamped.value, { hiVal: 24, loVal: -24, nanVal: 0, negZero: 0 });
+    assert.equal(Object.is(clamped.value.negZero, 0), true);
+
+    const zeroed = lib.canonicalizeConfigPayloadSafe(
+      { a: NaN, b: Infinity, c: -Infinity },
+      { nonFinitePolicy: 'zero' }
+    );
+    assert.deepEqual(zeroed.value, { a: 0, b: 0, c: 0 });
+
+    // 3. Verify sync & async bundle signing roundtrip on exotic types (Set, Map, Float32Array, BigInt, -0)
+    const syncSignedExotic = lib.signConfigurationBundle(payloadNegZero, { signedAt: '2026-11-18T06:22:00.000Z' });
+    const asyncSignedExotic = await lib.signConfigurationBundleAsync(payloadNegZero, { signedAt: '2026-11-18T06:22:00.000Z' });
+    assert.deepEqual(asyncSignedExotic.integrity, syncSignedExotic.integrity);
+    const exoticJson = JSON.stringify(syncSignedExotic);
+    const exoticVerify = lib.verifyConfigurationBundle(exoticJson);
+    assert.equal(exoticVerify.valid, true, 'Set/Map/TypedArray/BigInt signed bundle must survive JSON.stringify -> verifyConfigurationBundle');
+
+    // 4. Verify libraryTools.exportUserSettings & importUserSettings with cyclic EQ presets, -0, NaN/Infinity, BigInt, Map, Float32Array & optional signing
+    const cyclicPreset = {
+      id: 42n,
+      name: 'Cyclic Harman Curve',
+      gains: new Float32Array([-0, 3.5, NaN, Infinity]),
+      extraMap: new Map([['headphone', 'HD800S']])
+    };
+    cyclicPreset.parentPreset = cyclicPreset;
+
+    const sharedBand = { id: 'shared_1', freq: 100, gain: -0, q: 0.7 };
+    const exoticState = {
+      eqEnabled: true,
+      eqPreamp: -0,
+      bands: [sharedBand, { id: 2n, freq: NaN, gain: Infinity, q: -Infinity }],
+      eqPresets: [cyclicPreset, { id: 'dag_copy', refA: sharedBand, refB: sharedBand }],
+      favorites: new Set(['trk_a', 'trk_b']),
+      trackRatings: new Map([['trk_a', 5], ['trk_b', 4]]),
+      toneBass: -0,
+      roomAcousticWet: NaN,
+      subBassPunchIntensity: Infinity
+    };
+
+    const exportedJson = libraryTools.exportUserSettings(exoticState, {
+      sign: true,
+      exportedAt: '2026-11-18T06:25:00.000Z'
+    });
+    const parsedSettings = JSON.parse(exportedJson);
+    assert.equal(parsedSettings.integrity.algorithm, 'crc32+sha256');
+    assert.equal(lib.verifyConfigurationBundle(exportedJson).valid, true);
+    assert.equal('parentPreset' in parsedSettings.peq.presets[0], false, 'Cyclic preset back-edge must be pruned');
+    assert.equal(parsedSettings.peq.presets[0].id, '42');
+    assert.deepEqual(parsedSettings.peq.presets[0].gains, [0, 3.5, null, null]);
+    assert.deepEqual(parsedSettings.peq.presets[1].refA, parsedSettings.peq.presets[1].refB, 'Shared DAG nodes in presets must be preserved');
+
+    const restoredTarget = {};
+    const importOk = libraryTools.importUserSettings(exportedJson, restoredTarget, { persist: false });
+    assert.equal(importOk.isValid, true);
+    assert.equal(restoredTarget.trackRatings.trk_a, 5);
+
+    // Tamper signed settings JSON -> importUserSettings rejects with checksum mismatch!
+    parsedSettings.playbackPreferences.toneBass = 9;
+    const importTampered = libraryTools.importUserSettings(JSON.stringify(parsedSettings), {}, { persist: false });
+    assert.equal(importTampered.isValid, false);
+    assert.equal(importTampered.reason, 'checksum_mismatch');
+  });
+});

@@ -6282,8 +6282,14 @@
     const trackRatings = (configSource.trackRatings && typeof configSource.trackRatings === 'object') ? configSource.trackRatings : {};
     const trackAnnotations = (configSource.trackAnnotations && typeof configSource.trackAnnotations === 'object') ? configSource.trackAnnotations : {};
 
+    const normFiniteNum = (raw, fallback = 0) => {
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return fallback;
+      return Object.is(n, -0) ? 0 : n;
+    };
+
     const settings = {
-      crossfadeSeconds: Number(configSource.crossfadeSeconds) || 0,
+      crossfadeSeconds: normFiniteNum(configSource.crossfadeSeconds, 0),
       crossfadeCurve: configSource.crossfadeCurve || 'equal-power',
       autoEqProfile: configSource.autoEqProfile || 'none',
       visualizerTheme: configSource.visualizerTheme || 'cyber',
@@ -6292,18 +6298,25 @@
       ambientStageMode: configSource.ambientStageMode || 'reactive',
       limiterMode: configSource.limiterMode || 'transparent',
       roomAcousticProfile: configSource.roomAcousticProfile || 'bypass',
-      roomAcousticWet: Number.isFinite(Number(configSource.roomAcousticWet)) ? Number(configSource.roomAcousticWet) : 0.2,
-      toneBass: Number(configSource.toneBass) || 0,
-      toneTreble: Number(configSource.toneTreble) || 0,
-      stereoBalance: Number(configSource.stereoBalance) || 0,
-      crossfeed: Number(configSource.crossfeed) || 0,
+      roomAcousticWet: normFiniteNum(configSource.roomAcousticWet, 0.2),
+      toneBass: normFiniteNum(configSource.toneBass, 0),
+      toneTreble: normFiniteNum(configSource.toneTreble, 0),
+      stereoBalance: normFiniteNum(configSource.stereoBalance, 0),
+      crossfeed: normFiniteNum(configSource.crossfeed, 0),
       replayGainEnabled: Boolean(configSource.replayGainEnabled),
       subBassPunchProfile: configSource.subBassPunchProfile || 'off',
-      subBassPunchIntensity: Number.isFinite(Number(configSource.subBassPunchIntensity)) ? Number(configSource.subBassPunchIntensity) : 1.0,
+      subBassPunchIntensity: normFiniteNum(configSource.subBassPunchIntensity, 1.0),
       tubeEmulationProfile: configSource.tubeEmulationProfile || 'off',
       dsdUltrasonicFilter: configSource.dsdUltrasonicFilter || 'bypass',
       subBassPhaseProfile: configSource.subBassPhaseProfile || 'bypass'
     };
+
+    if (configSource.eqBands !== undefined) {
+      settings.eqBands = configSource.eqBands;
+    }
+    if (configSource.eqPresets !== undefined) {
+      settings.eqPresets = configSource.eqPresets;
+    }
 
     const baseConfig = {
       appName: 'Nocturne',
@@ -6318,7 +6331,7 @@
     };
 
     if (configSource && configSource.sign === false) {
-      return baseConfig;
+      return canonicalizeConfigPayloadSafe(baseConfig).value;
     }
     return signConfigurationBundle(baseConfig, { signedAt: baseConfig.exportedAt });
   }
@@ -7536,7 +7549,7 @@
     }
 
     const name = String(playlistName || options.name || 'Danh sách phát Nocturne').trim() || 'Danh sách phát Nocturne';
-    return {
+    const playlistBundle = {
       version: 1,
       app: 'nocturne',
       type: 'playlist',
@@ -7544,15 +7557,23 @@
       name,
       description: String(options.description || 'Được chia sẻ từ Nocturne Audiophile Web Player').trim(),
       trackCount: cleanTracks.length,
-      totalDuration: Math.round(totalDuration),
+      totalDuration: Object.is(Math.round(totalDuration), -0) ? 0 : Math.round(totalDuration),
       tracks: cleanTracks
     };
+    if (options && options.metadata !== undefined) {
+      playlistBundle.metadata = canonicalizeConfigPayloadSafe(options.metadata).value;
+    }
+    if (options && options.sign === true) {
+      return signConfigurationBundle(playlistBundle, { signedAt: playlistBundle.createdAt });
+    }
+    return playlistBundle;
   }
 
   function encodeShareablePlaylistLink(payload, baseUrl = '') {
     if (!payload || typeof payload !== 'object') return '';
     try {
-      const jsonStr = JSON.stringify(payload);
+      const safePayload = canonicalizeConfigPayloadSafe(payload).value;
+      const jsonStr = JSON.stringify(safePayload);
       let base64 = '';
       if (typeof btoa === 'function') {
         base64 = btoa(unescape(encodeURIComponent(jsonStr)));
@@ -7878,11 +7899,11 @@
     return `Nạp đệm: ${loaded}/${total} đoạn (${mb} MB · ${percent}%)`;
   }
 
-  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v2.1.0') {
+  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v2.1.1') {
     const validRoutes = Array.isArray(routes) ? routes.filter(r => typeof r === 'string' && r.trim().length > 0) : [];
     const normalized = [...new Set(validRoutes.map(r => r.trim()))];
     return {
-      version: String(version || 'nocturne-v2.1.0'),
+      version: String(version || 'nocturne-v2.1.1'),
       generatedAt: Date.now(),
       routes: normalized,
       count: normalized.length
@@ -19423,62 +19444,534 @@
     return finalCrc.toString(16).padStart(8, '0');
   }
 
-  function canonicalizeJsonValue(value, visited) {
-    let val = value;
-    if (val !== null && typeof val === 'object' && typeof val.toJSON === 'function') {
-      val = val.toJSON();
-    }
-    if (val === null) return 'null';
+  // ==========================================================================
+  // BUG-10 — Cycle-Safe DAG-Preserving & IEEE-754 Canonical Config Sanitizer
+  // ==========================================================================
+  const PRUNED_OBJECT_PROP_SENTINEL = Symbol('nocturne_pruned_cycle_prop');
 
-    const t = typeof val;
-    if (t === 'boolean') return val ? 'true' : 'false';
-    if (t === 'string') return JSON.stringify(val);
+  function normalizeSpecialConfigNumber(num, options = {}) {
+    const opts = options && typeof options === 'object' ? options : {};
+    if (typeof num !== 'number') return num;
+    if (Object.is(num, -0)) return 0;
+    if (Number.isFinite(num)) return num;
+
+    const nonFinitePolicy = typeof opts.nonFinitePolicy === 'string'
+      ? opts.nonFinitePolicy
+      : 'null';
+    if (nonFinitePolicy === 'zero') {
+      return 0;
+    }
+    if (nonFinitePolicy === 'clamp') {
+      if (Number.isNaN(num)) {
+        const nanFb = opts.clampNan !== undefined ? Number(opts.clampNan) : 0;
+        return Number.isFinite(nanFb) ? (Object.is(nanFb, -0) ? 0 : nanFb) : 0;
+      }
+      if (num > 0) {
+        const maxFb = opts.clampMax !== undefined ? Number(opts.clampMax) : Number.MAX_SAFE_INTEGER;
+        return Number.isFinite(maxFb) ? (Object.is(maxFb, -0) ? 0 : maxFb) : Number.MAX_SAFE_INTEGER;
+      }
+      const minFb = opts.clampMin !== undefined ? Number(opts.clampMin) : -Number.MAX_SAFE_INTEGER;
+      return Number.isFinite(minFb) ? (Object.is(minFb, -0) ? 0 : minFb) : -Number.MAX_SAFE_INTEGER;
+    }
+    return null;
+  }
+
+  function unboxPrimitiveWrapper(val) {
+    if (val === null || typeof val !== 'object') return val;
+    if (val instanceof Number || val instanceof String || val instanceof Boolean) {
+      return val.valueOf();
+    }
+    return val;
+  }
+
+  function canonicalizeConfigPayloadSafe(value, options = {}) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const cyclePolicy = typeof opts.cyclePolicy === 'string' ? opts.cyclePolicy : 'omit';
+    const cycleSentinel = opts.cycleSentinel !== undefined ? String(opts.cycleSentinel) : '[Circular]';
+    const nonFinitePolicy = typeof opts.nonFinitePolicy === 'string' ? opts.nonFinitePolicy : 'null';
+    const mapPolicy = typeof opts.mapPolicy === 'string' ? opts.mapPolicy : 'object';
+    const maxDepth = Number.isFinite(Number(opts.maxDepth)) && Number(opts.maxDepth) > 0
+      ? Math.max(4, Math.floor(Number(opts.maxDepth)))
+      : 256;
+
+    const ancestors = new Set();
+    const completedObjects = new WeakSet();
+    const stats = {
+      prunedCycleCount: 0,
+      cyclePaths: [],
+      sharedDagReuseCount: 0,
+      normalizedNegZeroCount: 0,
+      normalizedNonFiniteCount: 0,
+      normalizedBigIntCount: 0,
+      convertedSetCount: 0,
+      convertedMapCount: 0,
+      convertedTypedArrayCount: 0
+    };
+
+    function handleCycleDetected(pathStr, inArray) {
+      if (cyclePolicy === 'throw') {
+        throw new TypeError(`Circular reference detected at ${pathStr} in configuration bundle`);
+      }
+      stats.prunedCycleCount++;
+      if (stats.cyclePaths.length < 64) {
+        stats.cyclePaths.push(pathStr);
+      }
+      if (cyclePolicy === 'sentinel') {
+        return { norm: cycleSentinel, json: JSON.stringify(cycleSentinel), omitProp: false };
+      }
+      if (cyclePolicy === 'null' || inArray) {
+        const arrRepl = (inArray && opts.arrayCycleReplacement !== undefined)
+          ? opts.arrayCycleReplacement
+          : null;
+        if (arrRepl === null) {
+          return { norm: null, json: 'null', omitProp: false };
+        }
+        const sRepl = String(arrRepl);
+        return { norm: sRepl, json: JSON.stringify(sRepl), omitProp: false };
+      }
+      // Default cyclePolicy === 'omit' on object property
+      return { norm: PRUNED_OBJECT_PROP_SENTINEL, json: undefined, omitProp: true };
+    }
+
+    function walk(rawInput, pathStr, depth, inArray) {
+      let val = unboxPrimitiveWrapper(rawInput);
+
+      // Guard rawInput object in ancestors BEFORE calling custom .toJSON() in case .toJSON() returns `this`!
+      let rawTracked = null;
+      if (val !== null && typeof val === 'object') {
+        if (ancestors.has(val)) {
+          return handleCycleDetected(pathStr, inArray);
+        }
+        if (typeof val.toJSON === 'function') {
+          ancestors.add(val);
+          rawTracked = val;
+          try {
+            val = unboxPrimitiveWrapper(val.toJSON());
+          } catch (_) {
+            val = null;
+          }
+          if (val !== rawTracked && val !== null && typeof val === 'object' && ancestors.has(val)) {
+            ancestors.delete(rawTracked);
+            return handleCycleDetected(pathStr, inArray);
+          }
+          if (val === rawTracked) {
+            ancestors.delete(rawTracked);
+            return handleCycleDetected(pathStr, inArray);
+          }
+        }
+      }
+
+      try {
+        if (val === null) {
+          return { norm: null, json: 'null', omitProp: false };
+        }
+
+        const t = typeof val;
+        if (t === 'boolean') {
+          return { norm: val, json: val ? 'true' : 'false', omitProp: false };
+        }
+        if (t === 'string') {
+          return { norm: val, json: JSON.stringify(val), omitProp: false };
+        }
+        if (t === 'number') {
+          if (Object.is(val, -0)) {
+            stats.normalizedNegZeroCount++;
+            return { norm: 0, json: '0', omitProp: false };
+          }
+          if (!Number.isFinite(val)) {
+            stats.normalizedNonFiniteCount++;
+            const replaced = normalizeSpecialConfigNumber(val, opts);
+            if (replaced === null) {
+              return { norm: null, json: 'null', omitProp: false };
+            }
+            return { norm: replaced, json: JSON.stringify(replaced), omitProp: false };
+          }
+          return { norm: val, json: JSON.stringify(val), omitProp: false };
+        }
+        if (t === 'bigint') {
+          stats.normalizedBigIntCount++;
+          const dec = val.toString();
+          return { norm: dec, json: JSON.stringify(dec), omitProp: false };
+        }
+        if (t === 'undefined' || t === 'function' || t === 'symbol') {
+          if (inArray) {
+            return { norm: null, json: 'null', omitProp: false };
+          }
+          return { norm: PRUNED_OBJECT_PROP_SENTINEL, json: undefined, omitProp: true };
+        }
+
+        if (depth > maxDepth) {
+          if (inArray) return { norm: null, json: 'null', omitProp: false };
+          return { norm: PRUNED_OBJECT_PROP_SENTINEL, json: undefined, omitProp: true };
+        }
+
+        if (ancestors.has(val)) {
+          return handleCycleDetected(pathStr, inArray);
+        }
+
+        if (completedObjects.has(val)) {
+          // Shared non-cyclic DAG node (e.g. diamond graph) — NOT a cycle! Preserve completely!
+          stats.sharedDagReuseCount++;
+        }
+
+        ancestors.add(val);
+        try {
+          // 1. TypedArray / DataView / ArrayBuffer -> normalized JSON Array
+          if (val instanceof ArrayBuffer) {
+            stats.convertedTypedArrayCount++;
+            const u8 = new Uint8Array(val);
+            const normArr = new Array(u8.byteLength);
+            const jsonItems = new Array(u8.byteLength);
+            for (let i = 0; i < u8.byteLength; i++) {
+              const b = u8[i];
+              normArr[i] = b;
+              jsonItems[i] = String(b);
+            }
+            return { norm: normArr, json: `[${jsonItems.join(',')}]`, omitProp: false };
+          }
+
+          if (ArrayBuffer.isView(val)) {
+            stats.convertedTypedArrayCount++;
+            if (val instanceof DataView) {
+              const u8 = new Uint8Array(val.buffer, val.byteOffset || 0, val.byteLength || 0);
+              const normArr = new Array(u8.byteLength);
+              const jsonItems = new Array(u8.byteLength);
+              for (let i = 0; i < u8.byteLength; i++) {
+                const b = u8[i];
+                normArr[i] = b;
+                jsonItems[i] = String(b);
+              }
+              return { norm: normArr, json: `[${jsonItems.join(',')}]`, omitProp: false };
+            }
+
+            const len = val.length >>> 0;
+            const normArr = new Array(len);
+            const jsonItems = new Array(len);
+            for (let i = 0; i < len; i++) {
+              const elem = val[i];
+              if (typeof elem === 'bigint') {
+                stats.normalizedBigIntCount++;
+                const dec = elem.toString();
+                normArr[i] = dec;
+                jsonItems[i] = JSON.stringify(dec);
+              } else {
+                const n = Number(elem);
+                if (Object.is(n, -0)) {
+                  stats.normalizedNegZeroCount++;
+                  normArr[i] = 0;
+                  jsonItems[i] = '0';
+                } else if (!Number.isFinite(n)) {
+                  stats.normalizedNonFiniteCount++;
+                  const rep = normalizeSpecialConfigNumber(n, opts);
+                  normArr[i] = rep;
+                  jsonItems[i] = rep === null ? 'null' : JSON.stringify(rep);
+                } else {
+                  normArr[i] = n;
+                  jsonItems[i] = JSON.stringify(n);
+                }
+              }
+            }
+            return { norm: normArr, json: `[${jsonItems.join(',')}]`, omitProp: false };
+          }
+
+          // 2. Set -> normalized Array
+          if (val instanceof Set) {
+            stats.convertedSetCount++;
+            const rawItems = Array.from(val);
+            const normArr = new Array(rawItems.length);
+            const jsonItems = new Array(rawItems.length);
+            for (let i = 0; i < rawItems.length; i++) {
+              const child = walk(rawItems[i], `${pathStr}[${i}]`, depth + 1, true);
+              normArr[i] = child.omitProp ? null : child.norm;
+              jsonItems[i] = child.json === undefined ? 'null' : child.json;
+            }
+            return { norm: normArr, json: `[${jsonItems.join(',')}]`, omitProp: false };
+          }
+
+          // 3. Map -> deterministic sorted Object (default) or sorted [key, val] entries
+          if (val instanceof Map) {
+            stats.convertedMapCount++;
+            if (mapPolicy === 'entries') {
+              const pairs = [];
+              let mIdx = 0;
+              for (const [mk, mv] of val.entries()) {
+                const kRes = walk(mk, `${pathStr}.key(${mIdx})`, depth + 1, true);
+                const vRes = walk(mv, `${pathStr}.val(${mIdx})`, depth + 1, true);
+                const kJson = kRes.json === undefined ? 'null' : kRes.json;
+                const vJson = vRes.json === undefined ? 'null' : vRes.json;
+                pairs.push({
+                  kJson,
+                  normPair: [kRes.omitProp ? null : kRes.norm, vRes.omitProp ? null : vRes.norm],
+                  pairJson: `[${kJson},${vJson}]`
+                });
+                mIdx++;
+              }
+              pairs.sort((a, b) => (a.kJson < b.kJson ? -1 : (a.kJson > b.kJson ? 1 : 0)));
+              return {
+                norm: pairs.map(p => p.normPair),
+                json: `[${pairs.map(p => p.pairJson).join(',')}]`,
+                omitProp: false
+              };
+            }
+
+            const entriesByKey = new Map();
+            let mIdx = 0;
+            for (const [mk, mv] of val.entries()) {
+              let keyStr;
+              if (typeof mk === 'string') {
+                keyStr = mk;
+              } else if (typeof mk === 'number') {
+                if (Object.is(mk, -0)) {
+                  stats.normalizedNegZeroCount++;
+                  keyStr = '0';
+                } else {
+                  keyStr = String(mk);
+                }
+              } else if (typeof mk === 'bigint') {
+                stats.normalizedBigIntCount++;
+                keyStr = mk.toString();
+              } else if (typeof mk === 'boolean' || mk === null) {
+                keyStr = String(mk);
+              } else if (typeof mk === 'symbol' || typeof mk === 'function' || mk === undefined) {
+                mIdx++;
+                continue;
+              } else {
+                const keyWalk = walk(mk, `${pathStr}.mapKey(${mIdx})`, depth + 1, true);
+                keyStr = keyWalk.json !== undefined ? keyWalk.json : String(mk);
+              }
+              entriesByKey.set(keyStr, { rawVal: mv, idx: mIdx });
+              mIdx++;
+            }
+
+            const sortedMapKeys = Array.from(entriesByKey.keys()).sort();
+            const normObj = {};
+            const jsonParts = [];
+            for (let i = 0; i < sortedMapKeys.length; i++) {
+              const k = sortedMapKeys[i];
+              const entry = entriesByKey.get(k);
+              const child = walk(entry.rawVal, `${pathStr}.${k}`, depth + 1, false);
+              if (!child.omitProp && child.json !== undefined) {
+                normObj[k] = child.norm;
+                jsonParts.push(`${JSON.stringify(k)}:${child.json}`);
+              }
+            }
+            return { norm: normObj, json: `{${jsonParts.join(',')}}`, omitProp: false };
+          }
+
+          // 4. Array
+          if (Array.isArray(val)) {
+            const len = val.length;
+            const normArr = new Array(len);
+            const jsonItems = new Array(len);
+            for (let i = 0; i < len; i++) {
+              const child = walk(val[i], `${pathStr}[${i}]`, depth + 1, true);
+              normArr[i] = child.omitProp ? null : child.norm;
+              jsonItems[i] = child.json === undefined ? 'null' : child.json;
+            }
+            return { norm: normArr, json: `[${jsonItems.join(',')}]`, omitProp: false };
+          }
+
+          // 5. RegExp / Error -> safe plain representation instead of empty `{}`
+          if (val instanceof RegExp) {
+            const s = val.toString();
+            return { norm: s, json: JSON.stringify(s), omitProp: false };
+          }
+
+          // 6. Plain / Custom Object (sorted keys)
+          const keys = Object.keys(val).sort();
+          const normObj = {};
+          const jsonParts = [];
+          for (let i = 0; i < keys.length; i++) {
+            const k = keys[i];
+            const rawProp = val[k];
+            if (rawProp === undefined || typeof rawProp === 'function' || typeof rawProp === 'symbol') {
+              continue;
+            }
+            const child = walk(rawProp, `${pathStr}.${k}`, depth + 1, false);
+            if (!child.omitProp && child.json !== undefined) {
+              normObj[k] = child.norm;
+              jsonParts.push(`${JSON.stringify(k)}:${child.json}`);
+            }
+          }
+          return { norm: normObj, json: `{${jsonParts.join(',')}}`, omitProp: false };
+        } finally {
+          ancestors.delete(val);
+          completedObjects.add(val);
+        }
+      } finally {
+        if (rawTracked !== null) {
+          ancestors.delete(rawTracked);
+          completedObjects.add(rawTracked);
+        }
+      }
+    }
+
+    const rootWalk = walk(value, '$', 0, false);
+    const normalizedRoot = rootWalk.omitProp ? undefined : rootWalk.norm;
+    const canonicalJson = rootWalk.json === undefined ? 'null' : rootWalk.json;
+    const canonicalBytes = encodeUtf8BytesForIntegrity(canonicalJson);
+    const crc32 = computeCrc32Hex(canonicalBytes);
+    const sha256 = sha256HexSync(canonicalBytes);
+
+    return {
+      value: normalizedRoot,
+      canonicalJson,
+      canonicalBytes,
+      canonicalByteLength: canonicalBytes.byteLength,
+      crc32,
+      sha256,
+      hasCycles: stats.prunedCycleCount > 0,
+      stats
+    };
+  }
+
+  function _needsSafeSubtreeNormalization(rootVal, ancestors = new Set()) {
+    if (rootVal === null) return false;
+    const t = typeof rootVal;
+    if (t === 'boolean' || t === 'string') return false;
     if (t === 'number') {
-      if (!Number.isFinite(val)) return 'null';
-      if (Object.is(val, -0)) return '0';
-      return JSON.stringify(val);
+      return Object.is(rootVal, -0) || !Number.isFinite(rootVal);
     }
-    if (t === 'bigint') {
-      return JSON.stringify(val.toString());
+    if (t === 'bigint' || t === 'function' || t === 'symbol' || t === 'undefined') {
+      return true;
     }
-    if (t === 'undefined' || t === 'function' || t === 'symbol') {
-      return undefined;
+    if (t !== 'object') return false;
+    if (
+      rootVal instanceof Set ||
+      rootVal instanceof Map ||
+      rootVal instanceof ArrayBuffer ||
+      ArrayBuffer.isView(rootVal) ||
+      rootVal instanceof Number ||
+      rootVal instanceof String ||
+      rootVal instanceof Boolean ||
+      rootVal instanceof RegExp ||
+      typeof rootVal.toJSON === 'function'
+    ) {
+      return true;
     }
+    if (ancestors.has(rootVal)) {
+      return true;
+    }
+    ancestors.add(rootVal);
+    try {
+      if (Array.isArray(rootVal)) {
+        for (let i = 0; i < rootVal.length; i++) {
+          if (_needsSafeSubtreeNormalization(rootVal[i], ancestors)) return true;
+        }
+        return false;
+      }
+      const keys = Object.keys(rootVal);
+      for (let i = 0; i < keys.length; i++) {
+        const v = rootVal[keys[i]];
+        if (v === undefined || typeof v === 'function' || typeof v === 'symbol') return true;
+        if (_needsSafeSubtreeNormalization(v, ancestors)) return true;
+      }
+      return false;
+    } finally {
+      ancestors.delete(rootVal);
+    }
+  }
 
-    if (visited.has(val)) {
-      throw new TypeError('Circular reference cannot be canonicalized in configuration bundle');
+  function sanitizeConfigBundleCow(cleanBundle, options = {}) {
+    if (!_needsSafeSubtreeNormalization(cleanBundle, new Set())) {
+      return cleanBundle;
     }
-    visited.add(val);
+    return canonicalizeConfigPayloadSafe(cleanBundle, options).value;
+  }
+
+  function canonicalizeJsonValue(value, visited, options = {}) {
+    const ancestors = visited instanceof Set ? visited : new Set();
+    let val = unboxPrimitiveWrapper(value);
+    let rawTracked = null;
+    if (val !== null && typeof val === 'object') {
+      if (ancestors.has(val)) {
+        return undefined;
+      }
+      if (typeof val.toJSON === 'function') {
+        ancestors.add(val);
+        rawTracked = val;
+        try {
+          val = unboxPrimitiveWrapper(val.toJSON());
+        } catch (_) {
+          val = null;
+        }
+        if (val === rawTracked || (val !== null && typeof val === 'object' && ancestors.has(val))) {
+          ancestors.delete(rawTracked);
+          return undefined;
+        }
+      }
+    }
 
     try {
-      if (val instanceof Set) {
-        val = Array.from(val);
-      }
-      if (Array.isArray(val)) {
-        const items = new Array(val.length);
-        for (let i = 0; i < val.length; i++) {
-          const serializedElem = canonicalizeJsonValue(val[i], visited);
-          items[i] = serializedElem === undefined ? 'null' : serializedElem;
+      if (val === null) return 'null';
+
+      const t = typeof val;
+      if (t === 'boolean') return val ? 'true' : 'false';
+      if (t === 'string') return JSON.stringify(val);
+      if (t === 'number') {
+        if (Object.is(val, -0)) return '0';
+        if (!Number.isFinite(val)) {
+          const rep = normalizeSpecialConfigNumber(val, options);
+          return rep === null ? 'null' : JSON.stringify(rep);
         }
-        return `[${items.join(',')}]`;
+        return JSON.stringify(val);
+      }
+      if (t === 'bigint') {
+        return JSON.stringify(val.toString());
+      }
+      if (t === 'undefined' || t === 'function' || t === 'symbol') {
+        return undefined;
       }
 
-      const keys = Object.keys(val).sort();
-      const parts = [];
-      for (let i = 0; i < keys.length; i++) {
-        const k = keys[i];
-        const rawProp = val[k];
-        if (rawProp === undefined || typeof rawProp === 'function' || typeof rawProp === 'symbol') {
-          continue;
-        }
-        const serializedProp = canonicalizeJsonValue(rawProp, visited);
-        if (serializedProp !== undefined) {
-          parts.push(`${JSON.stringify(k)}:${serializedProp}`);
-        }
+      if (ancestors.has(val)) {
+        return undefined;
       }
-      return `{${parts.join(',')}}`;
+
+      if (
+        val instanceof Map ||
+        val instanceof ArrayBuffer ||
+        ArrayBuffer.isView(val) ||
+        val instanceof RegExp
+      ) {
+        return canonicalizeConfigPayloadSafe(val, options).canonicalJson;
+      }
+
+      ancestors.add(val);
+      try {
+        let arrCandidate = val;
+        if (arrCandidate instanceof Set) {
+          arrCandidate = Array.from(arrCandidate);
+        }
+        if (Array.isArray(arrCandidate)) {
+          const items = new Array(arrCandidate.length);
+          for (let i = 0; i < arrCandidate.length; i++) {
+            const serializedElem = canonicalizeJsonValue(arrCandidate[i], ancestors, options);
+            items[i] = serializedElem === undefined ? 'null' : serializedElem;
+          }
+          return `[${items.join(',')}]`;
+        }
+
+        const keys = Object.keys(val).sort();
+        const parts = [];
+        for (let i = 0; i < keys.length; i++) {
+          const k = keys[i];
+          const rawProp = val[k];
+          if (rawProp === undefined || typeof rawProp === 'function' || typeof rawProp === 'symbol') {
+            continue;
+          }
+          const serializedProp = canonicalizeJsonValue(rawProp, ancestors, options);
+          if (serializedProp !== undefined) {
+            parts.push(`${JSON.stringify(k)}:${serializedProp}`);
+          }
+        }
+        return `{${parts.join(',')}}`;
+      } finally {
+        ancestors.delete(val);
+      }
     } finally {
-      visited.delete(val);
+      if (rawTracked !== null) {
+        ancestors.delete(rawTracked);
+      }
     }
   }
 
@@ -19494,12 +19987,24 @@
     return clean;
   }
 
-  function computeCanonicalBundleDigests(cleanBundle) {
-    const canonicalJson = canonicalizeJsonValue(cleanBundle, new Set());
+  function computeCanonicalBundleDigests(cleanBundle, options = {}) {
+    if (_needsSafeSubtreeNormalization(cleanBundle, new Set())) {
+      const safe = canonicalizeConfigPayloadSafe(cleanBundle, options);
+      return {
+        value: safe.value,
+        canonicalJson: safe.canonicalJson,
+        canonicalBytes: safe.canonicalBytes,
+        canonicalByteLength: safe.canonicalByteLength,
+        crc32: safe.crc32,
+        sha256: safe.sha256
+      };
+    }
+    const canonicalJson = canonicalizeJsonValue(cleanBundle, new Set(), options);
     const canonicalBytes = encodeUtf8BytesForIntegrity(canonicalJson);
     const crc32 = computeCrc32Hex(canonicalBytes);
     const sha256 = sha256HexSync(canonicalBytes);
     return {
+      value: cleanBundle,
       canonicalJson,
       canonicalBytes,
       canonicalByteLength: canonicalBytes.byteLength,
@@ -19531,7 +20036,8 @@
 
     const opts = options && typeof options === 'object' ? options : {};
     const cleanPayload = stripBundleIntegrity(payload);
-    const digests = computeCanonicalBundleDigests(cleanPayload);
+    const digests = computeCanonicalBundleDigests(cleanPayload, opts);
+    const safePayload = digests.value || cleanPayload;
     const signedAt = (typeof opts.signedAt === 'string' && opts.signedAt.trim())
       ? opts.signedAt.trim()
       : (typeof opts.nowFn === 'function' ? new Date(opts.nowFn()).toISOString() : new Date().toISOString());
@@ -19544,7 +20050,7 @@
       signedAt
     };
 
-    return Object.assign({}, cleanPayload, { integrity });
+    return Object.assign({}, safePayload, { integrity });
   }
 
   function verifyConfigurationBundle(bundleOrJson, options = {}) {
@@ -20170,9 +20676,10 @@
       await feedByteChunkSliced(view, view.byteLength, 1);
     } else if (isPlainBundleObject || opts.canonicalize === true) {
       // Streaming Canonical JSON Pipeline for 50,000+ track backup bundles (0 monolithic string allocation!)
-      const rootTarget = isPlainBundleObject && opts.stripIntegrity !== false
+      const rawRootTarget = isPlainBundleObject && opts.stripIntegrity !== false
         ? stripBundleIntegrity(chunksOrSource)
         : chunksOrSource;
+      const rootTarget = sanitizeConfigBundleCow(rawRootTarget, opts);
 
       const textParts = [];
       let bufferedChars = 0;
@@ -20459,8 +20966,9 @@
     }
 
     const opts = options && typeof options === 'object' ? options : {};
-    const cleanPayload = stripBundleIntegrity(payload);
-    const digests = await computeChunkedBackupIntegrityAsync(cleanPayload, {
+    const rawCleanPayload = stripBundleIntegrity(payload);
+    const safeCleanPayload = sanitizeConfigBundleCow(rawCleanPayload, opts);
+    const digests = await computeChunkedBackupIntegrityAsync(safeCleanPayload, {
       ...opts,
       canonicalize: true,
       stripIntegrity: false
@@ -20477,7 +20985,7 @@
       signedAt
     };
 
-    return Object.assign({}, cleanPayload, { integrity });
+    return Object.assign({}, safeCleanPayload, { integrity });
   }
 
   async function verifyConfigurationBundleAsync(bundleOrJson, options = {}) {
@@ -25430,5 +25938,5 @@
     return result;
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, reconcileLyricDurationWithAudio, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, signConfigurationBundle, verifyConfigurationBundle, createStreamingCrc32Hasher, createStreamingSha256Hasher, createStreamingDualIntegrityHasher, computeChunkedBackupIntegrityAsync, signConfigurationBundleAsync, verifyConfigurationBundleAsync, createAdaptiveCanvasRenderGovernor, parseSafeMp4AlacBoxMetadata, computeAntiClippingLinearGain, extractBinaryReplayGainTags, readHeadSlice64kZeroCopy, computeSourceFingerprint64kAsync, createResilientIndexedDbManager, normalizeCustomKeymapConfig, exportCustomKeymapBundle, importCustomKeymapBundle, computeMediaSessionSeekOffset, createMultiProviderSessionVault, synthesizeSampleRateInvariantImpulseResponse, reconcileConvolverImpulseForSampleRate, computeBiquadCoefficientsCookbook, evaluateParametricEqResponseCurve, createPreallocatedPowAsciiScratchpad, createLrclibPowWorkerRunner, estimatePowTargetExpectedHashes, formatPowProgressStatus, createPowProgressController, classifyLyricVocalRole, resolveMultiVoiceLyricLanes, getSharedLyricSegmentCoordinator, createPreloadLifecycleController};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, reconcileLyricDurationWithAudio, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, normalizeSpecialConfigNumber, canonicalizeConfigPayloadSafe, signConfigurationBundle, verifyConfigurationBundle, createStreamingCrc32Hasher, createStreamingSha256Hasher, createStreamingDualIntegrityHasher, computeChunkedBackupIntegrityAsync, signConfigurationBundleAsync, verifyConfigurationBundleAsync, createAdaptiveCanvasRenderGovernor, parseSafeMp4AlacBoxMetadata, computeAntiClippingLinearGain, extractBinaryReplayGainTags, readHeadSlice64kZeroCopy, computeSourceFingerprint64kAsync, createResilientIndexedDbManager, normalizeCustomKeymapConfig, exportCustomKeymapBundle, importCustomKeymapBundle, computeMediaSessionSeekOffset, createMultiProviderSessionVault, synthesizeSampleRateInvariantImpulseResponse, reconcileConvolverImpulseForSampleRate, computeBiquadCoefficientsCookbook, evaluateParametricEqResponseCurve, createPreallocatedPowAsciiScratchpad, createLrclibPowWorkerRunner, estimatePowTargetExpectedHashes, formatPowProgressStatus, createPowProgressController, classifyLyricVocalRole, resolveMultiVoiceLyricLanes, getSharedLyricSegmentCoordinator, createPreloadLifecycleController};
 });

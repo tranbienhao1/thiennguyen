@@ -1,9 +1,9 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 37,
-  "lastPhase": "OPTIMIZE",
-  "lastRunIso": "2026-11-18T06:18:09.837Z",
+  "cycleCount": 38,
+  "lastPhase": "BUG_HUNT",
+  "lastRunIso": "2026-11-18T06:31:00.688Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
@@ -18,11 +18,6 @@
     "updatedAt": "2026-11-18T05:19:08.511Z"
   },
   "pendingQueue": [
-    {
-      "id": "BUG-10",
-      "phase": "BUG_HUNT",
-      "title": "Kiểm tra khử vòng tham chiếu và chuẩn hóa số thực đặc biệt (-0, NaN, Infinity) khi ký gói cấu hình EQ & danh sách phát tùy chỉnh"
-    },
     {
       "id": "UPG-10",
       "phase": "UPGRADE",
@@ -182,6 +177,16 @@
       "id": "OPT-20",
       "phase": "OPTIMIZE",
       "title": "Tối ưu tái sử dụng bộ đệm mã hóa TextEncoder.encodeInto 64KB cố định trong createStreamingDualIntegrityHasher giảm áp lực GC khi xuất >100.000 bài hát"
+    },
+    {
+      "id": "BUG-21",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra làm sạch khóa đối tượng đặc biệt (__proto__, constructor, prototype) khi khôi phục gói cấu hình JSON từ nguồn chia sẻ bên ngoài tránh prototype pollution"
+    },
+    {
+      "id": "UPG-21",
+      "phase": "UPGRADE",
+      "title": "Bổ sung báo cáo chẩn đoán chi tiết (cyclePaths, normalizedNegZeroCount, normalizedNonFiniteCount) khi xuất/nhập cấu hình EQ nâng cao trong hộp thoại Settings Sync"
     }
   ],
   "completedTasks": [
@@ -400,6 +405,14 @@
       "completedAt": "2026-11-18T06:18:09.837Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai createStreamingCrc32Hasher, createStreamingSha256Hasher, createStreamingDualIntegrityHasher, computeChunkedBackupIntegrityAsync, signConfigurationBundleAsync và verifyConfigurationBundleAsync trong library-utils.js: băm gia tăng FIPS 180-4 64-byte + CRC32 không cấp phát chuỗi lớn đơn khối, nhường khung hình hợp tác <8ms giữ mượt 60fps trên >50.000 bài hát kèm hỗ trợ AbortSignal và đồng nhất 100% chữ ký với băm đơn khối"
+    },
+    {
+      "id": "BUG-10",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra khử vòng tham chiếu và chuẩn hóa số thực đặc biệt (-0, NaN, Infinity) khi ký gói cấu hình EQ & danh sách phát tùy chỉnh",
+      "completedAt": "2026-11-18T06:31:00.688Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai normalizeSpecialConfigNumber và canonicalizeConfigPayloadSafe trong library-utils.js (khử chu trình tham chiếu tự thân/tương hỗ/toJSON bằng tập tổ tiên nhưng giữ nguyên 100% nút DAG dùng chung hình thoi, chuẩn hóa IEEE-754 -0 -> +0, NaN/±Infinity, BigInt, Map, Set, TypedArray), tích hợp vào signConfigurationBundle/signConfigurationBundleAsync/exportAppConfiguration/encodeShareablePlaylistLink cùng exportUserSettings/importUserSettings trong library-tools.js và nâng sw.js CACHE_VERSION lên v2.1.1"
     }
   ]
 }
