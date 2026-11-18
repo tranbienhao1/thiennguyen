@@ -5234,3 +5234,172 @@ describe('Autonomy Tail-Chaining Cycle 23 — OPT-08 (Shared Global TypedLyricBu
     assert.equal(coord.pool.allocationCount, allocCount1);
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 24 — BUG-09 (Queue Lyrics Preload Lifecycle Controller: Offline & Queue-Clear Cancellation)', () => {
+  it('exposes BUG-09 createPreloadLifecycleController on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.createPreloadLifecycleController, 'function');
+
+    const sandbox = { library: { keepRefBug09: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.createPreloadLifecycleController, 'function');
+    assert.equal(typeof sandbox.library.createPreloadLifecycleController, 'function');
+    assert.equal(sandbox.library.keepRefBug09, true);
+  });
+
+  it('cancels pending stagger/debounce timers & aborts in-flight AbortControllers immediately on offline and queue_cleared with 0 dangling timers', async () => {
+    let nextTimerId = 1;
+    const liveTimers = new Map();
+    const setTimeoutFake = (fn, ms) => {
+      const id = nextTimerId++;
+      liveTimers.set(id, { fn, ms });
+      return id;
+    };
+    const clearTimeoutFake = (id) => {
+      liveTimers.delete(id);
+    };
+
+    const eventListeners = {};
+    const mockWindow = {
+      addEventListener(type, fn) { (eventListeners[type] ||= []).push(fn); },
+      removeEventListener(type, fn) {
+        if (!eventListeners[type]) return;
+        eventListeners[type] = eventListeners[type].filter(f => f !== fn);
+      },
+      emit(type) { (eventListeners[type] || []).forEach(fn => fn({ type })); }
+    };
+
+    const ctrl = lib.createPreloadLifecycleController({
+      setTimeout: setTimeoutFake,
+      clearTimeout: clearTimeoutFake,
+      eventTarget: mockWindow,
+      delayMs: 3000,
+      staggerMs: 400
+    });
+
+    const queue = [
+      { id: 'cur', title: 'Now Playing', lyricsText: '[00:01.00]Current' },
+      { id: 'q1', title: 'Upcoming One' },
+      { id: 'q2', title: 'Upcoming Two' }
+    ];
+
+    let executedIds = [];
+    const targets = lib.scheduleQueueLyricsPreload(queue, 'cur', {
+      maxPreload: 2,
+      lifecycleController: ctrl,
+      staggerMs: 400,
+      onPreloadTrack: (track) => { executedIds.push(track.id); }
+    });
+    assert.equal(targets.length, 2);
+    assert.equal(ctrl.pendingTimerCount, 2);
+    assert.equal(liveTimers.size, 2);
+
+    // 1. User clears playback queue BEFORE 3000ms timer fires -> instant clearTimeout, 0 dangling timers!
+    const clearRes = ctrl.cancelAll('queue_cleared');
+    assert.equal(clearRes.reason, 'queue_cleared');
+    assert.equal(clearRes.cancelledTimers, 2);
+    assert.equal(clearRes.abortedControllers, 1);
+    assert.equal(ctrl.pendingTimerCount, 0);
+    assert.equal(ctrl.activeControllerCount, 0);
+    assert.equal(liveTimers.size, 0, 'Must leave 0 dangling timers after queue_cleared');
+    assert.deepEqual(executedIds, []);
+
+    // 2. Schedule another preload batch, fire first staggered timer so an async fetch is in-flight, then transition OFFLINE!
+    let inFlightSignal = null;
+    let resolveInFlight = null;
+    const batch2 = ctrl.scheduleBatch(
+      [{ id: 'q3', title: 'Track Three' }, { id: 'q4', title: 'Track Four' }],
+      (track, ctx) => {
+        executedIds.push(track.id);
+        inFlightSignal = ctx.signal;
+        return new Promise((resolve) => { resolveInFlight = resolve; });
+      },
+      { delayMs: 3000, staggerMs: 500 }
+    );
+    assert.equal(batch2.scheduled, true);
+    assert.equal(liveTimers.size, 2);
+
+    // Fire only the first timer (q3 enters in-flight network request; q4 timer is still pending!)
+    const [firstTimerId, firstTimerObj] = liveTimers.entries().next().value;
+    liveTimers.delete(firstTimerId);
+    firstTimerObj.fn();
+
+    assert.deepEqual(executedIds, ['q3']);
+    assert.equal(liveTimers.size, 1, 'Second staggered timer is still waiting');
+    assert.ok(inFlightSignal && inFlightSignal.aborted === false);
+
+    // Browser transitions offline -> cancels remaining timer AND aborts in-flight fetch immediately!
+    mockWindow.emit('offline');
+    assert.equal(ctrl.isOnline(), false);
+    assert.equal(liveTimers.size, 0, 'Remaining stagger timer must be cancelled immediately on offline');
+    assert.equal(ctrl.pendingTimerCount, 0);
+    assert.equal(ctrl.activeControllerCount, 0);
+    assert.equal(inFlightSignal.aborted, true, 'In-flight preload AbortSignal must abort immediately on offline');
+    assert.equal(inFlightSignal.reason, 'offline');
+    if (resolveInFlight) resolveInFlight();
+  });
+
+  it('enforces offline guard (skips scheduling while offline) and automatically resumes when online returns + verifies index.html wiring', async () => {
+    let nextId = 100;
+    const timers = new Map();
+    const ctrl = lib.createPreloadLifecycleController({
+      setTimeout: (fn, ms) => { const id = nextId++; timers.set(id, fn); return id; },
+      clearTimeout: (id) => { timers.delete(id); },
+      delayMs: 1000
+    });
+
+    const queue = [
+      { id: 'now', title: 'Playing', lyricsText: '[00:01.00]Lyrics' },
+      { id: 'next1', title: 'Offline Candidate' }
+    ];
+
+    // Switch offline
+    ctrl.onOffline('offline');
+    assert.equal(ctrl.isOnline(), false);
+
+    let networkCalls = 0;
+    const skippedTargets = lib.scheduleQueueLyricsPreload(queue, 'now', {
+      lifecycleController: ctrl,
+      onPreloadTrack: () => { networkCalls++; }
+    });
+    assert.deepEqual(skippedTargets, []);
+    assert.equal(timers.size, 0, 'Must create 0 timers while offline');
+    assert.equal(networkCalls, 0);
+
+    const directSkipped = ctrl.scheduleBatch([{ id: 'next1' }], () => { networkCalls++; });
+    assert.equal(directSkipped.scheduled, false);
+    assert.equal(directSkipped.skippedReason, 'offline');
+    assert.equal(timers.size, 0);
+
+    // Return online -> automatically resumes eligibility!
+    ctrl.onOnline();
+    assert.equal(ctrl.isOnline(), true);
+
+    const resumedTargets = lib.scheduleQueueLyricsPreload(queue, 'now', {
+      lifecycleController: ctrl,
+      onPreloadTrack: () => { networkCalls++; }
+    });
+    assert.equal(resumedTargets.length, 1);
+    assert.equal(resumedTargets[0].id, 'next1');
+    assert.equal(timers.size, 1);
+
+    // Run scheduled timer to completion -> 0 dangling timers & 0 active controllers afterward
+    const [tid, tfn] = timers.entries().next().value;
+    timers.delete(tid);
+    tfn();
+    assert.equal(networkCalls, 1);
+    assert.equal(ctrl.pendingTimerCount, 0);
+    assert.equal(ctrl.activeControllerCount, 0);
+
+    // Verify index.html wiring for queue-clear, offline, online & audio graph invariant
+    const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    assert.ok(html.includes('createPreloadLifecycleController'), 'index.html must wire createPreloadLifecycleController');
+    assert.ok(html.includes("lyricsPreloadLifecycle.cancelAll('queue_cleared')"), 'index.html must cancel preload on queue_cleared');
+    assert.ok(html.includes("lyricsPreloadLifecycle.onOffline('offline')"), 'index.html must cancel preload on offline');
+    assert.ok(html.includes('lyricsPreloadLifecycle.onOnline()'), 'index.html must resume preload eligibility on online');
+    assert.ok(html.includes('state.crossfeedNodes.output.connect(state.context.destination)'));
+  });
+});

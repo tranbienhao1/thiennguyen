@@ -2891,7 +2891,7 @@
     };
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackAnnotations: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-annotations') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false, zeroAllocScratchpad: (typeof library !== 'undefined' && library && typeof library.createZeroAllocFrameScratchpad === 'function') ? library.createZeroAllocFrameScratchpad(128) : null };
+    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackAnnotations: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-annotations') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false, zeroAllocScratchpad: (typeof library !== 'undefined' && library && typeof library.createZeroAllocFrameScratchpad === 'function') ? library.createZeroAllocFrameScratchpad(128) : null, lyricsPreloadLifecycle: (typeof library !== 'undefined' && library && typeof library.createPreloadLifecycleController === 'function') ? library.createPreloadLifecycleController({ delayMs: 3000 }) : null };
 
     function applyBitPerfectMode(enabled) {
       state.bitPerfectEnabled = Boolean(enabled);
@@ -3722,7 +3722,7 @@
       ++state.preloadGeneration; state.preloadTrackId = null; state.preloadReadyUrl = null; state.preloadBusyId = null; standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load();
       releaseUnusedCloudUrl(oldPreload);
     }
-    window.addEventListener('beforeunload', () => { if (typeof savePlaybackSession === 'function') savePlaybackSession(true); for (const url of state.objectUrls) URL.revokeObjectURL(url); state.objectUrls.clear(); });
+    window.addEventListener('beforeunload', () => { if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.cancelAll('unload'); if (typeof savePlaybackSession === 'function') savePlaybackSession(true); for (const url of state.objectUrls) URL.revokeObjectURL(url); state.objectUrls.clear(); });
     function normalizeCoverImage(cover) {
       return new Promise(resolve => {
         if (typeof cover !== 'string' || !cover.startsWith('data:image')) return resolve(cover || null);
@@ -4100,6 +4100,7 @@
       });
     }
     function clearCloudCatalog() {
+      if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.cancelAll('queue_cleared');
       return new Promise((resolve, reject) => {
         try {
           const store = catalogTransaction('readwrite');
@@ -7682,12 +7683,25 @@
       }
     }
     let _activeLyricsFetchController = null;
+    let _fallbackLyricsPreloadLifecycle = null;
     async function triggerLyricsFetch(track) {
       const forceRefresh = arguments.length > 1 ? Boolean(arguments[1]) : false;
+      const preloadOptions = (arguments.length > 2 && arguments[2] && typeof arguments[2] === 'object') ? arguments[2] : null;
       if (!track) return;
 
+      const preloadLifecycle = (state && state.lyricsPreloadLifecycle)
+        ? state.lyricsPreloadLifecycle
+        : (_fallbackLyricsPreloadLifecycle || (
+          typeof library !== 'undefined' && library && typeof library.createPreloadLifecycleController === 'function'
+            ? (_fallbackLyricsPreloadLifecycle = library.createPreloadLifecycleController({ delayMs: 3000 }))
+            : null
+        ));
+      if (state && !state.lyricsPreloadLifecycle && preloadLifecycle) {
+        state.lyricsPreloadLifecycle = preloadLifecycle;
+      }
+
       const isForegroundTrack = state.currentId === track.id;
-      let localFetchController = _activeLyricsFetchController;
+      let localFetchController = null;
       if (isForegroundTrack && typeof AbortController === 'function') {
         if (_activeLyricsFetchController) {
           try { _activeLyricsFetchController.abort('track_switched'); } catch (_) {}
@@ -7695,7 +7709,10 @@
         localFetchController = new AbortController();
         _activeLyricsFetchController = localFetchController;
       }
-      const fetchSignal = localFetchController ? localFetchController.signal : undefined;
+      const fetchSignal = (preloadOptions && preloadOptions.signal)
+        ? preloadOptions.signal
+        : (localFetchController ? localFetchController.signal : undefined);
+      if (fetchSignal && fetchSignal.aborted) return;
 
       const container = $('room-lyrics');
       const meta = (typeof library !== 'undefined' && library.trackMetadata) ? library.trackMetadata(track) : { title: track.title, artist: track.artist, album: track.album };
@@ -7751,14 +7768,18 @@
         } catch (_) {}
 
         if (track.lyricsVaultEntry) {
-          renderLyrics(track.lyricsVaultEntry.lrcText || track.lyricsVaultEntry.lrc, track.lyricsVaultEntry);
+          if (state.currentId === track.id) {
+            renderLyrics(track.lyricsVaultEntry.lrcText || track.lyricsVaultEntry.lrc, track.lyricsVaultEntry);
+          }
           return;
         }
         if (track.lyricsText) {
           const entry = (typeof library.createLyricsVaultEntry === 'function')
             ? library.createLyricsVaultEntry(track, track.lyricsText, { source: 'local' })
             : null;
-          renderLyrics(track.lyricsText, entry);
+          if (state.currentId === track.id) {
+            renderLyrics(track.lyricsText, entry);
+          }
           return;
         }
 
@@ -7797,26 +7818,36 @@
             if (valResult.isValid) {
               track.lyricsText = vaultParsed.lrcText;
               track.lyricsVaultEntry = vaultParsed;
-              renderLyrics(vaultParsed.lrcText, vaultParsed);
+              if (state.currentId === track.id) {
+                renderLyrics(vaultParsed.lrcText, vaultParsed);
+              }
               return;
             }
           }
           const legacyCached = localStorage.getItem(`nocturne-lyrics-${track.id}`);
           if (legacyCached) {
             track.lyricsText = legacyCached;
-            renderLyrics(legacyCached);
+            if (state.currentId === track.id) {
+              renderLyrics(legacyCached);
+            }
             return;
           }
         } catch (_) {}
       }
 
+      if (!isForegroundTrack) {
+        const offlineNow = (preloadLifecycle && !preloadLifecycle.isOnline()) ||
+          (typeof navigator !== 'undefined' && navigator && navigator.onLine === false);
+        if (offlineNow || (fetchSignal && fetchSignal.aborted)) return;
+      }
+
       // Priority 3: If not cached and online, auto-match from LRCLIB
-      if (container) {
+      if (isForegroundTrack && container) {
         container.innerHTML = '<p class="text-xs text-violet-300 animate-pulse">Đang tìm lời đồng bộ (.lrc) mờ trực tuyến qua LRCLIB...</p>';
       }
 
       if (!cleaned.title) {
-        renderLyrics('');
+        if (isForegroundTrack) renderLyrics('');
         return;
       }
 
@@ -7899,7 +7930,7 @@
           }
         }
 
-        if (lrc && state.currentId === track.id) {
+        if (lrc && !(fetchSignal && fetchSignal.aborted)) {
           const sanitizedLrc = (typeof library.normalizeAndSanitizeLrc === 'function')
             ? library.normalizeAndSanitizeLrc(lrc)
             : lrc;
@@ -7943,17 +7974,36 @@
             localStorage.setItem(`nocturne-lyrics-${track.id}`, sanitizedLrc);
           } catch (_) {}
 
-          renderLyrics(sanitizedLrc, vaultEntry);
-          toast(`Đã tìm thấy lời đồng bộ (.lrc) cho “${meta.title}” (${matchScore}% khớp)`);
+          if (state.currentId === track.id) {
+            renderLyrics(sanitizedLrc, vaultEntry);
+            toast(`Đã tìm thấy lời đồng bộ (.lrc) cho “${meta.title}” (${matchScore}% khớp)`);
 
-          // Background preload next queue items
-          if (typeof library.scheduleQueueLyricsPreload === 'function' && Array.isArray(state.queue)) {
-            const preloadTargets = library.scheduleQueueLyricsPreload(state.queue, state.currentId, { maxPreload: 2 });
-            setTimeout(() => {
-              for (const pt of preloadTargets) {
-                if (pt && !pt.lyricsText) triggerLyricsFetch(pt, false).catch(() => {});
+            // Background preload next queue items (managed & cancellable via PreloadLifecycleController)
+            const queueCandidates = (Array.isArray(state.queue) && state.queue.length > 0)
+              ? state.queue
+              : (typeof queueTracks === 'function' ? queueTracks() : []);
+            if (typeof library.scheduleQueueLyricsPreload === 'function' && Array.isArray(queueCandidates)) {
+              const preloadTargets = library.scheduleQueueLyricsPreload(queueCandidates, state.currentId, {
+                maxPreload: 2,
+                lifecycleController: preloadLifecycle,
+                delayMs: 3000,
+                onPreloadTrack: (pt, batchCtx) => {
+                  if (!pt || pt.lyricsText) return;
+                  if (batchCtx && batchCtx.signal && batchCtx.signal.aborted) return;
+                  return triggerLyricsFetch(pt, false, {
+                    signal: batchCtx ? batchCtx.signal : undefined,
+                    isPreload: true
+                  }).catch(() => {});
+                }
+              });
+              if (!preloadLifecycle && preloadTargets.length > 0 && (typeof navigator === 'undefined' || !navigator || navigator.onLine !== false)) {
+                setTimeout(() => {
+                  for (const pt of preloadTargets) {
+                    if (pt && !pt.lyricsText) triggerLyricsFetch(pt, false).catch(() => {});
+                  }
+                }, 3000);
               }
-            }, 3000);
+            }
           }
         } else if (state.currentId === track.id) {
           renderLyrics('');
@@ -8473,6 +8523,12 @@
     }
     function removeFromQueue(trackId) {
       state.queueTrackIds = state.queueTrackIds.filter(item => item !== trackId);
+      if (Array.isArray(state.queue)) {
+        state.queue = state.queue.filter(item => (item && item.id ? item.id : item) !== trackId);
+      }
+      if ((!state.queueTrackIds || state.queueTrackIds.length === 0) && (!state.queue || state.queue.length === 0) && state.lyricsPreloadLifecycle) {
+        state.lyricsPreloadLifecycle.cancelAll('queue_cleared');
+      }
       refreshQueueRows();
       if (state.currentId && audio.src) preloadNext(true);
     }
@@ -13015,7 +13071,7 @@
     $('sleep-button-mobile').addEventListener('click', () => { const p = $('sleep-panel'); const isHidden = p.classList.toggle('hidden'); p.hidden = isHidden; });
     $('queue-close').addEventListener('click', closeQueue);
     $('queue-backdrop').addEventListener('click', closeQueue);
-    $('queue-clear').addEventListener('click', () => { state.queueTrackIds = []; renderQueue(); renderTracks(); if (state.currentId && audio.src) preloadNext(true); });
+    $('queue-clear').addEventListener('click', () => { state.queueTrackIds = []; state.queue = []; if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.cancelAll('queue_cleared'); renderQueue(); renderTracks(); if (state.currentId && audio.src) preloadNext(true); });
     $('queue-add-library').addEventListener('click', () => { closeQueue(); $('track-list').scrollIntoView({behavior:'smooth', block:'start'}); toast('Nhấn ＋ ở một bài hát để thêm vào Phát tiếp theo.'); });
     $('sonic-flow-btn')?.addEventListener('click', () => {
       const qTracks = queueTracks();
@@ -15205,16 +15261,19 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForAppUpdate(); });
     window.addEventListener('focus', checkForAppUpdate);
     window.addEventListener('online', () => {
+      if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.onOnline();
       updateNetworkStatus(true);
       toast('Đã kết nối Internet trở lại.');
       checkForAppUpdate();
       if (state.currentId) preloadNext(true);
     });
     window.addEventListener('offline', () => {
+      if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.onOffline('offline');
       updateNetworkStatus(false);
       toast('Mất kết nối mạng. Đang ở chế độ Ngoại tuyến.');
     });
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.onOffline('offline');
       updateNetworkStatus(false);
     }
 

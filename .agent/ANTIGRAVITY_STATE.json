@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 32,
-  "lastPhase": "OPTIMIZE",
-  "lastRunIso": "2026-11-18T03:20:09.710Z",
+  "cycleCount": 33,
+  "lastPhase": "BUG_HUNT",
+  "lastRunIso": "2026-11-18T03:25:55.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "BUG-09",
-      "phase": "BUG_HUNT",
-      "title": "Kiểm tra hủy tải ngầm scheduleQueueLyricsPreload khi người dùng bật chế độ ngoại tuyến hoặc xóa hàng đợi phát nhạc"
-    },
     {
       "id": "UPG-09",
       "phase": "UPGRADE",
@@ -158,6 +153,16 @@
       "id": "OPT-18",
       "phase": "OPTIMIZE",
       "title": "Tối ưu thu hẹp bộ đệm TypedLyricBufferPool có điều kiện (adaptive shrink) sau khi rời khỏi bản giao hưởng/opera >10.000 dòng về bài hát thông thường để hoàn trả RAM"
+    },
+    {
+      "id": "BUG-19",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra hủy bộ hẹn giờ tải trước lời bài hát khi người dùng kéo thả sắp xếp lại toàn bộ thứ tự hàng đợi phát (reorderQueueByIds / Sonic Flow)"
+    },
+    {
+      "id": "UPG-19",
+      "phase": "UPGRADE",
+      "title": "Bổ sung huy hiệu trạng thái nạp trước lời bài hát hàng đợi (PreloadLifecycleController stats) trong thanh tóm tắt #queue-metrics-bar"
     }
   ],
   "completedTasks": [
@@ -352,6 +357,14 @@
       "completedAt": "2026-11-18T03:13:05.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai getSharedLyricSegmentCoordinator (điều phối viên đơn bản quản lý 1 TypedLyricBufferPool toàn cục kết hợp WeakMap & poolEpoch chống ghi đè chéo) và tích hợp vào findActiveLyricStateBinary, resolveMultiVoiceLyricLanes và ZeroAllocFrameScratchpad.syncLyricsInPlace, đảm bảo chỉ biên dịch đúng 1 lần duy nhất cho mỗi bài hát trên 500+ truy vấn xen kẽ Visualizer 60fps + tua nhanh và tái sử dụng nguyên vẹn ArrayBuffer khi chuyển bài"
+    },
+    {
+      "id": "BUG-09",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra hủy tải ngầm scheduleQueueLyricsPreload khi người dùng bật chế độ ngoại tuyến hoặc xóa hàng đợi phát nhạc",
+      "completedAt": "2026-11-18T03:24:00.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai createPreloadLifecycleController và nâng cấp scheduleQueueLyricsPreload trong library-utils.js, đồng thời tích hợp vào triggerLyricsFetch, queue-clear, removeFromQueue, clearCloudCatalog và sự kiện offline/online trong index.html: hủy tức thì mọi bộ hẹn giờ setTimeout chờ nạp trước cùng AbortController đang bay khi mất mạng hoặc xóa hàng đợi (0 timer treo, không ghi đè DOM bài đang phát) và tự động khôi phục khi có mạng trở lại"
     }
   ]
 }
