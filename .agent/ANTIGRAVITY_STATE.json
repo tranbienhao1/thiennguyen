@@ -9,13 +9,13 @@
     "warnings": []
   },
   "androidRelease": {
-    "versionName": "2.1.1",
-    "versionCode": 21,
+    "versionName": "2.1.2",
+    "versionCode": 22,
     "latestApkDriveId": "1bDzxPuN_ZzYALj47r9v6Z5xGfYIuK45q",
     "latestApkDriveUrl": "https://drive.google.com/file/d/1bDzxPuN_ZzYALj47r9v6Z5xGfYIuK45q/view?usp=drivesdk",
-    "versionedApkDriveId": "1zW6hIaSX5lQKtGD8HZmhK_dvZfJE0wax",
-    "versionedApkDriveUrl": "https://drive.google.com/file/d/1zW6hIaSX5lQKtGD8HZmhK_dvZfJE0wax/view?usp=drivesdk",
-    "updatedAt": "2026-11-18T06:38:46.149Z"
+    "versionedApkDriveId": "1kA1k8D8vNAGhwfaqu1P0KCxBZeeNQbb5",
+    "versionedApkDriveUrl": "https://drive.google.com/file/d/1kA1k8D8vNAGhwfaqu1P0KCxBZeeNQbb5/view?usp=drivesdk",
+    "updatedAt": "2026-11-18T07:41:06.434Z"
   },
   "pendingQueue": [
     {
