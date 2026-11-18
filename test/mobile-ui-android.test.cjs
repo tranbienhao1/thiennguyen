@@ -213,4 +213,49 @@ test('Mobile UI & Android DAP Optimization Verification Suite', async (t) => {
       'CRITICAL INVARIANT: state.crossfeedNodes.output.connect(state.context.destination) must be strictly maintained'
     );
   });
+
+  await t.test('9. Mobile Vertical Touch Scroll Unblocking & Decluttered 2-Row Player Bar (v2.0.9)', () => {
+    // Document-level vertical touch scrolling unblocked (no dual html+body overflow-x:hidden trap, no #app-shell overflow:hidden trap)
+    assert.match(
+      indexHtml,
+      /html\s*\{[^}]*overflow-y:\s*auto\s*!important/i,
+      'html must explicitly allow vertical scrolling on mobile viewports'
+    );
+    assert.match(
+      indexHtml,
+      /body:not\(\.settings-open\):not\(\.metadata-open\)\s*\{[^}]*overflow-x:\s*clip\s*!important[^}]*touch-action:\s*pan-y\s+pinch-zoom\s*!important/is,
+      'body (when modals closed) must use overflow-x: clip and touch-action: pan-y pinch-zoom to avoid dual scroll container trapping'
+    );
+    assert.match(
+      indexHtml,
+      /#app-shell\s*\{[^}]*display:\s*block\s*!important[^}]*overflow:\s*visible\s*!important[^}]*overflow-y:\s*visible\s*!important/is,
+      '#app-shell on mobile must reset overflow: hidden to overflow-y: visible so document scrolls smoothly'
+    );
+    assert.match(
+      indexHtml,
+      /#content-col\s*\{[^}]*overflow-y:\s*visible\s*!important[^}]*overscroll-behavior-y:\s*auto\s*!important/is,
+      '#content-col on mobile must release internal scroll containment so touch pan chains naturally'
+    );
+
+    // Spacious 2-Row Mobile Player Bar decluttering
+    assert.match(
+      indexHtml,
+      /footer\.glass\s+#shuffle-button,\s*footer\.glass\s+#repeat-button\s*\{[^}]*display:\s*none\s*!important/i,
+      'Mobile footer must hide secondary shuffle/repeat buttons on <768px to give song title & primary transport breathing room'
+    );
+    assert.match(
+      indexHtml,
+      /#autoplay-button-mobile,\s*#sleep-button-mobile,\s*#ambient-button-mobile\s*\{[^}]*display:\s*none\s*!important/i,
+      'Mobile seek row must hide secondary clutter buttons so #seek-mobile gets full thumb-scrubbing width'
+    );
+
+    // Android Native WebView vertical scroll readiness
+    const mainActivityPath = path.join(rootDir, 'android', 'app', 'src', 'main', 'java', 'com', 'nocturne', 'audiophile', 'MainActivity.java');
+    const mainActivityJava = fs.readFileSync(mainActivityPath, 'utf8');
+    assert.ok(
+      mainActivityJava.includes('mWebView.setVerticalScrollBarEnabled(true);') &&
+      mainActivityJava.includes('mWebView.setScrollContainer(true);'),
+      'MainActivity WebView must enable vertical scroll bar and scroll container'
+    );
+  });
 });

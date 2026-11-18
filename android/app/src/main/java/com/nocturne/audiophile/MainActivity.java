@@ -621,6 +621,11 @@ public class MainActivity extends AppCompatActivity {
         settings.setDisplayZoomControls(false);
         mWebView.setClickable(true);
         mWebView.setFocusable(true);
+        mWebView.setFocusableInTouchMode(true);
+        mWebView.setVerticalScrollBarEnabled(true);
+        mWebView.setHorizontalScrollBarEnabled(false);
+        mWebView.setScrollContainer(true);
+        mWebView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
 
         // 9. Hardware acceleration & rendering
         mWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);

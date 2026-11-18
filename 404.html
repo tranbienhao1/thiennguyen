@@ -292,9 +292,9 @@
     #quality-badge { border-radius:5px; } footer button.rounded-lg { border-color:#ffffff12;background:#ffffff05; }
     footer button.rounded-lg:hover { background:#ffffff10; }
     #listening-room { background:radial-gradient(ellipse at 26% 48%,#263136 0,transparent 40%),rgba(16,18,20,.98); }
-    #ambient-glow { pointer-events:none;position:absolute;inset:0;border-radius:inherit;opacity:0;transition:opacity 0.8s ease,background 1.5s ease,transform 0.1s ease-out;z-index:0; }
+    #ambient-glow { pointer-events:none!important;position:absolute;inset:0;border-radius:inherit;opacity:0;transition:opacity 0.8s ease,background 1.5s ease,transform 0.1s ease-out;z-index:0; }
     #ambient-glow.active { opacity:1; }
-    #app-ambient-backdrop { pointer-events:none;position:fixed;inset:0;opacity:0;transition:opacity 1.2s ease,background 1.5s ease,transform 0.12s ease-out;z-index:0; }
+    #app-ambient-backdrop { pointer-events:none!important;position:fixed;inset:0;opacity:0;transition:opacity 1.2s ease,background 1.5s ease,transform 0.12s ease-out;z-index:0; }
     #app-ambient-backdrop.active { opacity:0.35; }
     #metadata-modal:not(.hidden) { display:flex; }
     .metadata-dialog a { color:#a8d9ec;text-decoration:underline;text-underline-offset:3px; }
@@ -336,7 +336,7 @@
     #settings-modal::backdrop { background:rgba(0,0,0,.75);backdrop-filter:blur(4px); }
     #settings-modal>div,#settings-panel { display:block!important;width:100%;max-width:44rem;box-sizing:border-box;border-color:#ffffff12;border-radius:16px;background:#191c1e;overscroll-behavior:contain; }
     #settings-modal[open] { display:flex;flex-direction:column;align-items:center;justify-content:center; }
-    #settings-modal:not([open]) { display:none; }
+    #settings-modal:not([open]) { display:none!important;pointer-events:none!important;visibility:hidden!important; }
     @keyframes fastTokenPulse { 0%,100% { box-shadow:0 0 0 0 rgba(56,189,248,0); } 50% { box-shadow:0 0 0 3px rgba(56,189,248,.45),0 0 18px rgba(56,189,248,.3); } }
     .fast-token-highlight { animation:fastTokenPulse 1.1s ease-in-out 3;border-color:rgba(56,189,248,.8)!important; }
 
@@ -457,13 +457,14 @@
     footer.player-idle .footer-main-container{display:flex;align-items:center;justify-content:center;width:100%;height:88px}
     footer.player-idle>div>div>div:not(.audio-zone-empty), footer.player-idle .footer-player-row>div:not(.audio-zone-empty){display:none!important}
     @media (max-width:767.98px){
-      footer.glass.player-idle .footer-main-container{height:auto!important}
-      footer.glass.player-idle .footer-player-row>div{display:flex!important}
-      footer.glass.player-idle .audio-zone-empty{display:none!important}
+      footer.glass.player-idle .footer-main-container{height:auto!important;display:flex!important;flex-direction:column!important}
+      footer.glass.player-idle .footer-main-container>div:last-child{display:flex!important}
+      footer.glass.player-idle .footer-player-row>.footer-left-col,footer.glass.player-idle .footer-player-row>.footer-center-controls{display:flex!important}
+      footer.glass.player-idle .footer-player-row>.footer-right-tools,footer.glass.player-idle .audio-zone-empty{display:none!important}
     }
     body.fiio-dap-mode footer.glass.player-idle .footer-main-container{height:auto!important}
-    body.fiio-dap-mode footer.glass.player-idle .footer-player-row>div{display:flex!important}
-    body.fiio-dap-mode footer.glass.player-idle .audio-zone-empty{display:none!important}
+    body.fiio-dap-mode footer.glass.player-idle .footer-player-row>.footer-left-col,body.fiio-dap-mode footer.glass.player-idle .footer-player-row>.footer-center-controls{display:flex!important}
+    body.fiio-dap-mode footer.glass.player-idle .footer-player-row>.footer-right-tools,body.fiio-dap-mode footer.glass.player-idle .audio-zone-empty{display:none!important}
     footer.player-idle .audio-zone-empty{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
     footer.player-idle .audio-zone-empty button{min-width:240px;height:51px;padding:0 27px;border:0;border-radius:999px;background:var(--roon-accent);color:#fff;font-size:16px}
     #zone-idle-pill{background:#5265a2!important;color:#fff!important;padding:8px 24px!important;border-radius:9999px!important;font-size:13px!important;font-weight:500!important;border:none!important;box-shadow:0 4px 14px rgba(0,0,0,0.4)!important;min-width:auto!important;height:auto!important}
@@ -481,8 +482,54 @@
   </style>
   <style id="roon-collection-mobile">
     @media(max-width:1023.98px){
+      /* Single-container document scrolling on tablets & phones: eliminate #app-shell / #content-col vertical scroll traps */
+      html {
+        height: auto !important;
+        min-height: 100% !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+      }
+      body:not(.settings-open):not(.metadata-open) {
+        height: auto !important;
+        min-height: 100dvh !important;
+        overflow-y: visible !important;
+        overflow-x: clip !important;
+        touch-action: pan-y pinch-zoom !important;
+        overscroll-behavior-y: auto !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+      }
       #sidebar-close{display:inline-grid}
-      #app-shell{height:calc(100dvh - 104px);min-height:360px}
+      #app-shell {
+        display: block !important;
+        height: auto !important;
+        min-height: 100dvh !important;
+        max-height: none !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+        overflow: visible !important;
+        overflow-y: visible !important;
+        overflow-x: clip !important;
+        box-sizing: border-box !important;
+      }
+      #content-col {
+        display: block !important;
+        height: auto !important;
+        min-height: 100dvh !important;
+        max-height: none !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+        overflow: visible !important;
+        overflow-y: visible !important;
+        overflow-x: clip !important;
+        overscroll-behavior: auto !important;
+        overscroll-behavior-y: auto !important;
+        box-sizing: border-box !important;
+        padding-bottom: calc(148px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+      }
       #sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(300px,86vw);height:100dvh;max-height:100dvh;transform:translateX(0);box-sizing:border-box;touch-action:manipulation}
       body.sidebar-collapsed #sidebar{transform:translateX(-105%) !important;opacity:0 !important;pointer-events:none !important;visibility:hidden !important}
       body:not(.sidebar-collapsed) #sidebar{transform:translateX(0);opacity:1;visibility:visible !important;pointer-events:auto !important}
@@ -495,26 +542,52 @@
       .roon-stat-grid{gap:12px}.roon-stat{min-height:112px;padding:16px}.roon-stat-value{font-size:29px}
     }
     @media(max-width:767.98px){
-      /* Prevent horizontal scrolling & overflow on Android phones / DAPs (360px-412px viewports) */
-      html, body {
+      /* Prevent horizontal scrolling & unlock native vertical touch scrolling on phones / DAPs (360px-412px viewports) */
+      html {
+        height: auto !important;
+        min-height: 100% !important;
+        overflow-y: auto !important;
         overflow-x: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+      }
+      body:not(.settings-open):not(.metadata-open) {
+        height: auto !important;
+        min-height: 100dvh !important;
+        overflow-y: visible !important;
+        overflow-x: clip !important;
+        touch-action: pan-y pinch-zoom !important;
+        overscroll-behavior-y: auto !important;
         width: 100% !important;
         max-width: 100vw !important;
       }
       #app-shell {
+        display: block !important;
         height: auto !important;
         min-height: 100dvh !important;
+        max-height: none !important;
         width: 100% !important;
         max-width: 100vw !important;
-        overflow-x: hidden !important;
+        overflow: visible !important;
+        overflow-y: visible !important;
+        overflow-x: clip !important;
         box-sizing: border-box !important;
       }
       #content-col {
+        display: block !important;
+        height: auto !important;
+        min-height: 100dvh !important;
+        max-height: none !important;
         width: 100% !important;
         max-width: 100vw !important;
-        overflow-x: hidden !important;
+        overflow: visible !important;
+        overflow-y: visible !important;
+        overflow-x: clip !important;
+        overscroll-behavior: auto !important;
+        overscroll-behavior-y: auto !important;
         box-sizing: border-box !important;
-        padding-bottom: calc(128px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+        padding-bottom: calc(148px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
       }
 
       /* Safe-area insets & Touch Ergonomics for Header */
@@ -666,44 +739,56 @@
         white-space: nowrap !important;
       }
 
-      /* Docked Mobile Footer Player Bar */
+      /* Spacious, Thumb-Friendly 2-Row Mobile Docked Footer Player Bar */
       footer.glass {
         position: fixed !important;
         bottom: 0 !important;
         left: 0 !important;
         right: 0 !important;
-        width: 100vw !important;
+        width: 100% !important;
         max-width: 100vw !important;
         height: auto !important;
-        min-height: calc(80px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
-        padding-bottom: calc(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)) + 3px) !important;
+        min-height: calc(92px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+        padding: 8px 14px calc(8px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) 14px !important;
         box-sizing: border-box !important;
         z-index: 40 !important;
-        background: rgba(21, 21, 21, 0.96) !important;
-        backdrop-filter: blur(20px) !important;
-        -webkit-backdrop-filter: blur(20px) !important;
+        background: rgba(20, 22, 25, 0.96) !important;
+        backdrop-filter: blur(22px) !important;
+        -webkit-backdrop-filter: blur(22px) !important;
         border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
-        box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5) !important;
+        box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.52) !important;
+      }
+      footer.glass #footer-telemetry-strip {
+        display: none !important;
       }
       footer.glass .footer-main-container {
         height: auto !important;
         max-width: 100% !important;
-        padding: 0 10px !important;
+        padding: 0 !important;
         width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 4px !important;
         box-sizing: border-box !important;
       }
+      footer.glass .footer-main-container > div:first-child,
       footer.glass .footer-player-row {
         display: flex !important;
         align-items: center !important;
         justify-content: space-between !important;
-        height: 60px !important;
-        min-height: 60px !important;
-        gap: 6px !important;
+        height: 58px !important;
+        min-height: 58px !important;
+        gap: 10px !important;
         width: 100% !important;
         box-sizing: border-box !important;
       }
+      /* Hide desktop right tools & trailing inline volume wrapper on phones (< 768px) */
+      footer.glass .footer-right-tools,
+      footer.glass .footer-player-row > div:last-child {
+        display: none !important;
+      }
 
-      /* Left col: Cover & High-Contrast Typography */
+      /* Row 1 Left: 46x46 Cover + Wide Readable Song Title & Artist */
       footer.glass .footer-left-col {
         width: auto !important;
         max-width: none !important;
@@ -711,14 +796,18 @@
         min-width: 0 !important;
         display: flex !important;
         align-items: center !important;
-        gap: 10px !important;
+        gap: 12px !important;
         overflow: hidden !important;
       }
+      footer.glass .footer-left-col #favorite-button,
+      footer.glass .footer-left-col #eq-button {
+        display: none !important;
+      }
       footer.glass #player-cover {
-        width: 44px !important;
-        height: 44px !important;
-        min-width: 44px !important;
-        border-radius: 8px !important;
+        width: 46px !important;
+        height: 46px !important;
+        min-width: 46px !important;
+        border-radius: 12px !important;
         flex-shrink: 0 !important;
         touch-action: manipulation !important;
       }
@@ -726,29 +815,30 @@
         min-width: 0 !important;
         flex: 1 1 auto !important;
         overflow: hidden !important;
+        padding: 2px 0 !important;
         touch-action: manipulation !important;
       }
       footer.glass #now-title {
-        font-size: 13.5px !important;
+        font-size: 14px !important;
         font-weight: 600 !important;
         color: #ffffff !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         white-space: nowrap !important;
-        line-height: 1.25 !important;
+        line-height: 1.3 !important;
       }
       footer.glass #now-artist {
-        font-size: 11px !important;
-        color: #9da5a9 !important;
+        font-size: 12px !important;
+        color: #a1a1aa !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         white-space: nowrap !important;
-        line-height: 1.25 !important;
-        margin-top: 1px !important;
+        line-height: 1.3 !important;
+        margin-top: 2px !important;
         max-width: 100% !important;
       }
 
-      /* Center controls: Prev, Play/Pause, Next thumb targets */
+      /* Row 1 Right: Clean 3-Button Primary Transport (Prev, Crisp 46px Play, Next) */
       footer.glass .footer-center-controls {
         flex: 0 0 auto !important;
         min-width: 0 !important;
@@ -761,21 +851,28 @@
       footer.glass .footer-center-controls > div:first-child {
         display: flex !important;
         align-items: center !important;
-        gap: 2px !important;
+        gap: 4px !important;
+      }
+      footer.glass .footer-center-controls > div:last-child {
+        display: none !important;
+      }
+      footer.glass #shuffle-button, footer.glass #repeat-button {
+        display: none !important;
       }
       footer.glass #play-button {
-        width: 44px !important;
-        height: 44px !important;
+        width: 46px !important;
+        height: 46px !important;
         min-width: 44px !important;
-        min-height: 44px !important;
+        min-height: 46px !important;
+        flex-shrink: 0 !important;
         display: grid !important;
         place-items: center !important;
         border-radius: 50% !important;
         font-size: 17px !important;
         margin: 0 2px !important;
         background: #ffffff !important;
-        color: #000000 !important;
-        box-shadow: 0 3px 12px rgba(0,0,0,0.4) !important;
+        color: #09090b !important;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.45) !important;
         touch-action: manipulation !important;
       }
       footer.glass #previous-button, footer.glass #next-button {
@@ -783,36 +880,31 @@
         height: 44px !important;
         min-width: 44px !important;
         min-height: 44px !important;
+        flex-shrink: 0 !important;
         display: inline-grid !important;
         place-items: center !important;
-        font-size: 24px !important;
-        color: #e5e7eb !important;
+        border-radius: 9999px !important;
+        font-size: 25px !important;
+        color: #f4f4f5 !important;
         padding: 0 !important;
         touch-action: manipulation !important;
       }
-      footer.glass #shuffle-button, footer.glass #repeat-button {
-        min-width: 38px !important;
-        min-height: 44px !important;
-        display: inline-grid !important;
-        place-items: center !important;
-        font-size: 15px !important;
-        touch-action: manipulation !important;
-      }
 
-      /* Smooth Touch-Scrubbing Seek Bar */
+      /* Row 2: Full-Width Touch-Scrubbing Seek Bar + 1-Tap Queue Button */
       footer.glass .footer-main-container > div:last-child {
         display: flex !important;
         align-items: center !important;
-        gap: 5px !important;
-        padding: 2px 0 4px 0 !important;
+        gap: 8px !important;
+        padding: 2px 2px 4px 2px !important;
         width: 100% !important;
+        box-sizing: border-box !important;
       }
       #seek-mobile {
         flex: 1 1 auto !important;
         min-width: 0 !important;
-        height: 24px !important;
+        height: 26px !important;
         cursor: pointer !important;
-        touch-action: manipulation !important;
+        touch-action: pan-x !important;
         accent-color: #92cce2 !important;
       }
       #seek-mobile::-webkit-slider-runnable-track {
@@ -832,21 +924,35 @@
         box-shadow: 0 1px 6px rgba(0,0,0,0.5) !important;
       }
       #current-time-mobile, #duration-mobile {
-        font-size: 10.5px !important;
-        color: #9ca3af !important;
+        font-size: 11px !important;
+        color: #a1a1aa !important;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
-        tabular-nums: tabular-nums !important;
-        min-width: 32px !important;
+        font-variant-numeric: tabular-nums !important;
+        min-width: 34px !important;
+        flex-shrink: 0 !important;
       }
-      #queue-button-mobile, #autoplay-button-mobile, #sleep-button-mobile, #ambient-button-mobile {
+      #duration-mobile {
+        text-align: right !important;
+      }
+      #queue-button-mobile {
+        width: 38px !important;
+        height: 34px !important;
         min-width: 38px !important;
-        min-height: 38px !important;
+        min-height: 34px !important;
+        flex-shrink: 0 !important;
         display: inline-grid !important;
         place-items: center !important;
+        border-radius: 9px !important;
+        background: rgba(255, 255, 255, 0.06) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
         font-size: 14px !important;
-        color: #9da3a7 !important;
+        color: #e4e4e7 !important;
         padding: 0 !important;
+        margin-left: 2px !important;
         touch-action: manipulation !important;
+      }
+      #autoplay-button-mobile, #sleep-button-mobile, #ambient-button-mobile {
+        display: none !important;
       }
 
       /* Fullscreen Room / Now Playing modal */
@@ -11195,6 +11301,14 @@
       }
     }, { passive: true });
 
+    document.addEventListener('touchmove', (e) => {
+      if (!touchStartPos || !e.touches || e.touches.length !== 1) return;
+      if (Math.abs(e.touches[0].clientX - touchStartPos.x) > 10 || Math.abs(e.touches[0].clientY - touchStartPos.y) > 10) {
+        touchStartPos = null;
+        touchStartTarget = null;
+      }
+    }, { passive: true });
+
     document.addEventListener('touchend', (e) => {
       if (!touchStartPos || !e.changedTouches || e.changedTouches.length !== 1) return;
       const touch = e.changedTouches[0];
@@ -11205,9 +11319,10 @@
       touchStartPos = null;
       touchStartTarget = null;
 
-      // Only handle clean taps (movement < 24px, duration < 500ms)
-      if (dx < 24 && dy < 24 && dt < 500) {
+      // Only handle clean taps (movement < 12px, duration < 450ms) so vertical scrolling is never intercepted
+      if (dx < 12 && dy < 12 && dt < 450) {
         const target = initialTarget || e.target;
+        if (target?.closest?.('input, select, textarea, .seek-range')) return;
         const interactiveEl = target?.closest?.(
           'button, a, .nav-link, .source-btn, .roon-stat, [data-view], [data-smart-playlist], ' +
           '[data-view-link], .star, [data-rating], #sidebar-close, #sidebar-toggle'
@@ -13574,12 +13689,19 @@
     function saveViewScroll() {
       const col = $('content-col');
       if (!col || !state.activeView) return;
+      if (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1023.98px)').matches) {
+        state.viewScroll[state.activeView] = Math.max(0, window.scrollY || window.pageYOffset || col.scrollTop || 0);
+        return;
+      }
       state.viewScroll[state.activeView] = Math.max(0, col.scrollTop || 0);
     }
     function restoreViewScroll() {
       const col = $('content-col');
       if (!col) return;
       col.scrollTop = Math.max(0, state.viewScroll[state.activeView] || 0);
+      if (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1023.98px)').matches && typeof window.scrollTo === 'function') {
+        window.scrollTo(0, col.scrollTop);
+      }
     }
     function setLibraryView(view) {
       if (view === 'folders') { pickFolder(); if (typeof isMobileViewport === 'function' && isMobileViewport()) setSidebarOpen(false); return; }
