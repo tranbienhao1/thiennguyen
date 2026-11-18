@@ -4177,17 +4177,32 @@
           // duyệt ẩn khi máy chủ không expose nên không dùng nó để kết
           // luận lát đã là toàn file (xem library-utils.js).
           const firstSlice = await library.fetchAudioFirstSlice(url, {...options, expectedTotalBytes: Number(track.size) || 0}, provider);
-          const sliceBlob = library.normalizeAudioBlob(firstSlice.blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, firstSlice.blob.type);
-          const sliceUrl = URL.createObjectURL(sliceBlob);
-          track.url = sliceUrl;
-          // Pha D — ghi lại bài này phát từ lát đầu hay máy chủ đã trả
-          // toàn file, để time-to-first-audio hiển thị đúng nguồn phát.
-          track.firstSlicePlayback = !firstSlice.complete;
-          track.lastSlicePosition = null;
-          state.objectUrls.add(sliceUrl);
-          if (firstSlice.complete) finishCloudMetadataInBackground(track, sliceBlob);
-          else { cacheFirstSlice(track, sliceBlob, firstSlice.totalBytes); upgradeSliceToFullAudio(track, sliceUrl, url, options, provider).catch(error => console.warn('Could not finish downloading the full audio file in the background:', error.message || error)); }
-          return sliceUrl;
+          const sliceMoovMeta = firstSlice && (firstSlice.tailMoovMetadata || firstSlice.headMoovMetadata);
+          if (sliceMoovMeta && typeof library.applyMp4SliceMetadataToTrack === 'function') {
+            const enriched = library.applyMp4SliceMetadataToTrack(track, sliceMoovMeta);
+            if (track.cover && typeof normalizeCoverImage === 'function') {
+              try { track.cover = await normalizeCoverImage(track.cover); } catch (_) {}
+            }
+            if (enriched) {
+              if (track.cover && typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(track.cover, track);
+              if (typeof scheduleTrackRender === 'function') scheduleTrackRender();
+              if (track.id === state.currentId && typeof displayTrack === 'function') displayTrack(track);
+            }
+          }
+          if (firstSlice && firstSlice.moovAtTail) track.moovAtTail = true;
+          if (!(firstSlice && firstSlice.moovAtTail && !firstSlice.complete)) {
+            const sliceBlob = library.normalizeAudioBlob(firstSlice.blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, firstSlice.blob.type);
+            const sliceUrl = URL.createObjectURL(sliceBlob);
+            track.url = sliceUrl;
+            // Pha D — ghi lại bài này phát từ lát đầu hay máy chủ đã trả
+            // toàn file, để time-to-first-audio hiển thị đúng nguồn phát.
+            track.firstSlicePlayback = !firstSlice.complete;
+            track.lastSlicePosition = null;
+            state.objectUrls.add(sliceUrl);
+            if (firstSlice.complete) finishCloudMetadataInBackground(track, sliceBlob);
+            else { cacheFirstSlice(track, sliceBlob, firstSlice.totalBytes); upgradeSliceToFullAudio(track, sliceUrl, url, options, provider).catch(error => console.warn('Could not finish downloading the full audio file in the background:', error.message || error)); }
+            return sliceUrl;
+          }
         } catch (error) { console.debug('First-slice playback unavailable, downloading the full file instead:', error.message || error); }
         let blob;
         try { blob = await library.fetchAudioBlob(url, options, provider); }
@@ -10789,6 +10804,14 @@
         if (playBtn && playBtn.textContent === '…') playBtn.textContent = '▶';
         toast('Không có URL phát cho bài hát này.');
         return;
+      }
+      if (track.moovAtTail && track.firstSlicePlayback && (track.fullAudioPromise || track.fullAudioUrl)) {
+        displayTrack(track);
+        if (track.fullAudioPromise) {
+          try { await track.fullAudioPromise; } catch (_) {}
+        }
+        if (generation !== state.playGeneration) return;
+        if (track.fullAudioUrl) { track.url = track.fullAudioUrl; track.firstSlicePlayback = false; track.fullAudioUrl = null; }
       }
       const playUrl = new URL(track.url, location.href).href;
       if (state.context.state === 'suspended') await state.context.resume();

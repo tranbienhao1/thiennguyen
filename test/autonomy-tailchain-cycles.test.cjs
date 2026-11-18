@@ -6818,3 +6818,395 @@ describe('Autonomy Tail-Chaining Cycle 30 — BUG-11 (Bounds-Safe MP4/ALAC ilst,
     assert.equal(lib.parseMp4IlstMetadataSafe(backing.subarray(5, 45)).corruptedBox, true);
   });
 });
+
+// ============================================================================
+// Cycle 31 (UPG-11): Automatic HTTP 206 Tail-moov Range Probe in fetchAudioFirstSlice
+// ============================================================================
+describe('Cycle 31 (UPG-11): Automatic HTTP 206 Tail-moov Range Probe in fetchAudioFirstSlice & fetchCloudTrack', () => {
+  function catBytes(...arrays) {
+    let total = 0;
+    for (const a of arrays) total += a.byteLength;
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (const a of arrays) {
+      out.set(a, off);
+      off += a.byteLength;
+    }
+    return out;
+  }
+
+  function box32(type, body) {
+    const payload = body instanceof Uint8Array ? body : new Uint8Array(body || 0);
+    const out = new Uint8Array(8 + payload.byteLength);
+    new DataView(out.buffer).setUint32(0, out.byteLength, false);
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(payload, 8);
+    return out;
+  }
+
+  function dataBox(typeIndicator, rawBytes) {
+    const hdr = new Uint8Array(8);
+    new DataView(hdr.buffer).setUint32(0, typeIndicator, false);
+    return box32('data', catBytes(hdr, rawBytes));
+  }
+
+  function textTagBox(fourCC, str) {
+    return box32(fourCC, dataBox(1, new TextEncoder().encode(str)));
+  }
+
+  function freeformTagBox(mean, name, value) {
+    const meanBytes = catBytes(new Uint8Array(4), new TextEncoder().encode(mean));
+    const nameBytes = catBytes(new Uint8Array(4), new TextEncoder().encode(name));
+    return box32(
+      '----',
+      catBytes(box32('mean', meanBytes), box32('name', nameBytes), dataBox(1, new TextEncoder().encode(value)))
+    );
+  }
+
+  function makeAlacMoov({
+    sampleRate = 192000,
+    bitDepth = 24,
+    channels = 2,
+    durationSec = 245,
+    title = 'Tail Moov Nocturne',
+    artist = 'Thiên Nguyễn',
+    album = 'Hi-Res Cloud Sessions',
+    rgGain = '-5.25 dB',
+    rgPeak = '0.875000',
+    jpegCover = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9])
+  } = {}) {
+    const mdhdBody = new Uint8Array(20);
+    const mdv = new DataView(mdhdBody.buffer);
+    mdv.setUint32(12, sampleRate, false);
+    mdv.setUint32(16, Math.round(sampleRate * durationSec), false);
+    const mdhd = box32('mdhd', mdhdBody);
+
+    const cookie = new Uint8Array(28);
+    const cdv = new DataView(cookie.buffer);
+    cdv.setUint32(4, 4096, false);
+    cookie[9] = bitDepth;
+    cookie[13] = channels;
+    cdv.setUint32(24, sampleRate, false);
+    const innerAlac = box32('alac', cookie);
+
+    const ase = new Uint8Array(28);
+    const adv = new DataView(ase.buffer);
+    adv.setUint16(6, 1, false);
+    adv.setUint16(16, channels, false);
+    adv.setUint16(18, bitDepth, false);
+    adv.setUint32(24, ((sampleRate & 0xffff) << 16) >>> 0, false);
+    const outerAlac = box32('alac', catBytes(ase, innerAlac));
+
+    const stsdHdr = new Uint8Array(8);
+    new DataView(stsdHdr.buffer).setUint32(4, 1, false);
+    const stsd = box32('stsd', catBytes(stsdHdr, outerAlac));
+    const trak = box32('trak', box32('mdia', catBytes(mdhd, box32('minf', box32('stbl', stsd)))));
+
+    const ilst = box32(
+      'ilst',
+      catBytes(
+        textTagBox('\xa9nam', title),
+        textTagBox('\xa9ART', artist),
+        textTagBox('\xa9alb', album),
+        box32('covr', dataBox(13, jpegCover)),
+        freeformTagBox('com.apple.iTunes', 'replaygain_track_gain', rgGain),
+        freeformTagBox('com.apple.iTunes', 'replaygain_track_peak', rgPeak),
+        freeformTagBox(
+          'com.apple.iTunes',
+          'iTunNORM',
+          ' 00000FA0 00000FA0 00002710 00002710 00000000 00000000 00007000 00007000 00000000 00000000'
+        )
+      )
+    );
+    const meta = box32('meta', catBytes(new Uint8Array(4), ilst));
+    return box32('moov', catBytes(trak, box32('udta', meta)));
+  }
+
+  it('automatically probes HTTP 206 recommendedRangeHeader when MP4/ALAC head slice is mdat-first (needsTailRange=true)', async () => {
+    assert.equal(typeof lib.probeMp4TailMoovRangeAsync, 'function');
+    assert.equal(typeof lib.applyMp4SliceMetadataToTrack, 'function');
+    assert.equal(typeof lib.parseAudioBinaryHeaderSafe, 'function');
+
+    const ftyp = box32('ftyp', new TextEncoder().encode('M4A \x00\x00\x00\x00M4A isom'));
+    const tailMoov = makeAlacMoov();
+    const virtualMdatSize = 24 * 1024 * 1024; // 24 MiB mdat BEFORE moov!
+    const mdatHeader = new Uint8Array(8);
+    new DataView(mdatHeader.buffer).setUint32(0, virtualMdatSize, false);
+    for (let i = 0; i < 4; i++) mdatHeader[4 + i] = 'mdat'.charCodeAt(i);
+
+    const moovStart = ftyp.byteLength + virtualMdatSize;
+    const totalSize = moovStart + tailMoov.byteLength;
+    const expectedTailRange = `bytes=${moovStart}-${totalSize - 1}`;
+
+    const observedRequests = [];
+    const prevFetch = global.fetch;
+    global.fetch = async (url, reqOpts) => {
+      const rangeHdr = reqOpts.headers.Range || reqOpts.headers.range;
+      observedRequests.push({ url, range: rangeHdr, auth: reqOpts.headers.Authorization });
+      const m = rangeHdr.match(/^bytes=(\d+)-(\d+)$/);
+      const start = Number(m[1]);
+      const end = Math.min(Number(m[2]), totalSize - 1);
+      const len = end - start + 1;
+      const slice = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        const pos = start + i;
+        if (pos < ftyp.byteLength) slice[i] = ftyp[pos];
+        else if (pos < ftyp.byteLength + 8) slice[i] = mdatHeader[pos - ftyp.byteLength];
+        else if (pos >= moovStart && pos < totalSize) slice[i] = tailMoov[pos - moovStart];
+      }
+      return {
+        ok: true,
+        status: 206,
+        headers: {
+          get(name) {
+            const lower = String(name).toLowerCase();
+            if (lower === 'content-type') return 'audio/mp4';
+            if (lower === 'content-length') return String(len);
+            // Simulate Google Drive cross-origin hidden Content-Range!
+            return null;
+          }
+        },
+        blob: async () => new Blob([slice], { type: 'audio/mp4' }),
+        arrayBuffer: async () => slice.buffer
+      };
+    };
+
+    try {
+      const res = await lib.fetchAudioFirstSlice(
+        'https://www.googleapis.com/drive/v3/files/alac_tail_1?alt=media',
+        { headers: { Authorization: 'Bearer gdrive-oauth' }, expectedTotalBytes: totalSize },
+        'Google Drive'
+      );
+
+      assert.equal(observedRequests.length, 2, 'Must issue 1 head slice request + 1 automatic HTTP 206 tail moov request');
+      assert.equal(observedRequests[0].range, 'bytes=0-1048575');
+      assert.equal(observedRequests[1].range, expectedTailRange);
+      assert.equal(observedRequests[1].auth, 'Bearer gdrive-oauth', 'Tail Range probe must preserve Authorization headers');
+
+      assert.equal(res.complete, false);
+      assert.equal(res.totalBytes, totalSize);
+      assert.equal(res.needsTailRange, true);
+      assert.equal(res.moovAtTail, true);
+      assert.equal(res.recommendedRangeHeader, expectedTailRange);
+      assert.equal(res.tailMoovProbed, true);
+      assert.equal(res.tailMoovRangeHeader, expectedTailRange);
+      assert.ok(res.tailMoovMetadata && res.tailMoovMetadata.valid);
+      assert.equal(res.tailMoovMetadata.format, 'ALAC');
+      assert.equal(res.tailMoovMetadata.codec, 'alac');
+      assert.equal(res.tailMoovMetadata.sampleRate, 192000);
+      assert.equal(res.tailMoovMetadata.bitDepth, 24);
+      assert.equal(res.tailMoovMetadata.channels, 2);
+      assert.equal(res.tailMoovMetadata.duration, 245);
+      assert.equal(res.tailMoovMetadata.title, 'Tail Moov Nocturne');
+      assert.equal(res.tailMoovMetadata.artist, 'Thiên Nguyễn');
+      assert.equal(res.tailMoovMetadata.album, 'Hi-Res Cloud Sessions');
+      assert.equal(res.tailMoovMetadata.replayGainTrackGain, -5.25);
+      assert.equal(res.tailMoovMetadata.replayGainTrackPeak, 0.875);
+      assert.ok(res.tailMoovMetadata.cover && res.tailMoovMetadata.cover.startsWith('data:image/jpeg;base64,'));
+    } finally {
+      if (prevFetch === undefined) delete global.fetch;
+      else global.fetch = prevFetch;
+    }
+  });
+
+  it('keeps moov-first faststart MP4/ALAC on the 1-request fast path (0 extra Range requests) and degrades safely on 416 tail failure', async () => {
+    const ftyp = box32('ftyp', new TextEncoder().encode('M4A \x00\x00\x00\x00M4A isom'));
+    const frontMoov = makeAlacMoov({ sampleRate: 96000, bitDepth: 24, durationSec: 180, title: 'Faststart ALAC' });
+    const virtualMdatSize = 16 * 1024 * 1024;
+    const mdatHeader = new Uint8Array(8);
+    new DataView(mdatHeader.buffer).setUint32(0, virtualMdatSize, false);
+    for (let i = 0; i < 4; i++) mdatHeader[4 + i] = 'mdat'.charCodeAt(i);
+
+    const faststartPrefix = catBytes(ftyp, frontMoov, mdatHeader);
+    const totalFastSize = ftyp.byteLength + frontMoov.byteLength + virtualMdatSize;
+
+    const fastCalls = [];
+    const prevFetch = global.fetch;
+    global.fetch = async (_url, reqOpts) => {
+      const rangeHdr = reqOpts.headers.Range || reqOpts.headers.range;
+      fastCalls.push(rangeHdr);
+      const m = rangeHdr.match(/^bytes=(\d+)-(\d+)$/);
+      const start = Number(m[1]);
+      const end = Number(m[2]);
+      const len = end - start + 1;
+      const slice = new Uint8Array(len);
+      if (start === 0) {
+        slice.set(faststartPrefix.subarray(0, Math.min(len, faststartPrefix.byteLength)), 0);
+      }
+      return {
+        ok: true,
+        status: 206,
+        headers: {
+          get(name) {
+            const lower = String(name).toLowerCase();
+            if (lower === 'content-type') return 'audio/mp4';
+            if (lower === 'content-range') return `bytes ${start}-${end}/${totalFastSize}`;
+            if (lower === 'content-length') return String(len);
+            return null;
+          }
+        },
+        blob: async () => new Blob([slice], { type: 'audio/mp4' }),
+        arrayBuffer: async () => slice.buffer
+      };
+    };
+
+    try {
+      const fastRes = await lib.fetchAudioFirstSlice('https://cloud.example/faststart.m4a', {}, 'Cloud');
+      assert.equal(fastCalls.length, 1, 'Faststart MP4 with moov in head slice must issue 0 extra Range requests');
+      assert.equal(fastCalls[0], 'bytes=0-1048575');
+      assert.equal(fastRes.moovAtTail, false);
+      assert.equal(fastRes.needsTailRange, false);
+      assert.equal(fastRes.tailMoovProbed, false);
+      assert.equal(fastRes.tailMoovMetadata, null);
+      assert.ok(fastRes.headMoovMetadata && fastRes.headMoovMetadata.valid);
+      assert.equal(fastRes.headMoovMetadata.sampleRate, 96000);
+      assert.equal(fastRes.headMoovMetadata.title, 'Faststart ALAC');
+
+      // Tail-moov file whose server rejects the tail Range with HTTP 416 must degrade cleanly without throwing!
+      const tailPrefix = catBytes(ftyp, mdatHeader);
+      const tailTotal = ftyp.byteLength + virtualMdatSize + 4096;
+      let callCount = 0;
+      global.fetch = async (_url, reqOpts) => {
+        callCount++;
+        const rangeHdr = reqOpts.headers.Range || reqOpts.headers.range;
+        if (rangeHdr.startsWith('bytes=0-')) {
+          const slice = new Uint8Array(1048576);
+          slice.set(tailPrefix, 0);
+          return {
+            ok: true,
+            status: 206,
+            headers: {
+              get(name) {
+                const lower = String(name).toLowerCase();
+                if (lower === 'content-type') return 'audio/mp4';
+                if (lower === 'content-range') return `bytes 0-1048575/${tailTotal}`;
+                return null;
+              }
+            },
+            blob: async () => new Blob([slice], { type: 'audio/mp4' })
+          };
+        }
+        return { ok: false, status: 416, headers: { get: () => null }, text: async () => 'Unsatisfiable' };
+      };
+
+      const degraded = await lib.fetchAudioFirstSlice('https://cloud.example/broken-tail.m4a', {}, 'Cloud');
+      assert.equal(callCount, 2);
+      assert.equal(degraded.moovAtTail, true);
+      assert.equal(degraded.tailMoovProbed, false);
+      assert.equal(degraded.tailMoovMetadata, null);
+    } finally {
+      if (prevFetch === undefined) delete global.fetch;
+      else global.fetch = prevFetch;
+    }
+  });
+
+  it('enriches fetchCloudTrack immediately from tailMoovMetadata and bypasses doomed head-only slice playback when moovAtTail=true', async () => {
+    const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const fetchStart = indexHtml.indexOf('async function fetchCloudTrack(track, url, options, provider) {');
+    const fetchEnd = indexHtml.indexOf('const mediaErrorMessage = error => {', fetchStart);
+    assert.ok(fetchStart >= 0 && fetchEnd > fetchStart);
+
+    const calls = { queued: [], cached: [], upgraded: [], fullFetches: 0 };
+    const state = { objectUrls: new Set(), currentId: 'cloud-alac-tail' };
+    let urlSeq = 0;
+    class FakeURL extends URL {
+      static createObjectURL() {
+        return `blob:https://nocturne.example/${++urlSeq}`;
+      }
+      static revokeObjectURL() {}
+    }
+
+    const mockLibrary = {
+      applyMp4SliceMetadataToTrack: lib.applyMp4SliceMetadataToTrack,
+      normalizeAudioBlob: blob => blob,
+      fetchAudioFirstSlice: async () => ({
+        blob: { type: 'audio/mp4', size: 1048576 },
+        totalBytes: 25169920,
+        complete: false,
+        moovAtTail: true,
+        needsTailRange: true,
+        tailMoovProbed: true,
+        tailMoovMetadata: {
+          valid: true,
+          hasMoov: true,
+          hasIlst: true,
+          format: 'ALAC',
+          codec: 'alac',
+          sampleRate: 192000,
+          bitDepth: 24,
+          channels: 2,
+          duration: 245,
+          title: 'Enriched From Tail 206',
+          artist: 'Thiên Nguyễn',
+          album: 'Lossless Cloud',
+          cover: 'data:image/jpeg;base64,/9j/4AAQ',
+          iTunNORM: ' 00000FA0 00000FA0 00002710 00002710 00000000 00000000 00007000 00007000 00000000 00000000',
+          replayGainTrackGain: -5.25,
+          replayGainTrackPeak: 0.875
+        }
+      }),
+      fetchAudioBlob: async () => {
+        calls.fullFetches++;
+        return { type: 'audio/mp4', size: 25169920 };
+      }
+    };
+
+    const fetchCloudTrack = new Function(
+      'library',
+      'queueCloudMetadata',
+      'state',
+      'URL',
+      'finishCloudMetadataInBackground',
+      'upgradeSliceToFullAudio',
+      'getMicrosoftToken',
+      'getCachedFirstSlice',
+      'cacheFirstSlice',
+      'isGraphContentUrl',
+      `${indexHtml.slice(fetchStart, fetchEnd)}\nreturn fetchCloudTrack;`
+    )(
+      mockLibrary,
+      tracks => calls.queued.push(...tracks.map(t => t.id)),
+      state,
+      FakeURL,
+      () => {},
+      async () => { calls.upgraded.push('unexpected'); },
+      async () => 'token',
+      async () => null,
+      (_t, b) => { calls.cached.push(b); },
+      u => typeof u === 'string' && u.startsWith('https://graph.microsoft.com/')
+    );
+
+    const track = {
+      id: 'cloud-alac-tail',
+      source: 'google',
+      name: '01 - Raw Track.m4a',
+      title: 'Raw Track',
+      artist: 'Nghệ sĩ không xác định',
+      album: '—',
+      format: 'M4A',
+      size: 25169920,
+      metadataLoaded: false,
+      cover: null
+    };
+
+    const playableUrl = await fetchCloudTrack(track, 'https://example.com/alac.m4a', {}, 'Google Drive');
+    assert.equal(playableUrl, 'blob:https://nocturne.example/1');
+    assert.equal(calls.fullFetches, 1, 'moovAtTail must proceed directly to full playable blob without creating a doomed mdat-only slice URL');
+    assert.equal(calls.cached.length, 0, 'Unplayable moov-less head slice must NOT be written into IndexedDB slice cache');
+    assert.equal(calls.upgraded.length, 0, 'upgradeSliceToFullAudio must not duplicate fullAudioBlob download');
+    assert.equal(track.firstSlicePlayback, false);
+    assert.equal(track.moovAtTail, true);
+    assert.equal(track.format, 'ALAC');
+    assert.equal(track.sampleRate, 192000);
+    assert.equal(track.bitDepth, 24);
+    assert.equal(track.channels, 2);
+    assert.equal(track.duration, 245);
+    assert.equal(track.title, 'Enriched From Tail 206');
+    assert.equal(track.artist, 'Thiên Nguyễn');
+    assert.equal(track.album, 'Lossless Cloud');
+    assert.equal(track.cover, 'data:image/jpeg;base64,/9j/4AAQ');
+    assert.equal(track.replayGainTrackGain, -5.25);
+    assert.equal(track.replayGainTrackPeak, 0.875);
+    assert.equal(track.metadataLoaded, true);
+  });
+});

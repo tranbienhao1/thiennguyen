@@ -1,9 +1,9 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 42,
-  "lastPhase": "BUG_HUNT",
-  "lastRunIso": "2026-11-18T07:35:35.707Z",
+  "cycleCount": 43,
+  "lastPhase": "UPGRADE",
+  "lastRunIso": "2026-11-18T08:07:05.780Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
@@ -18,11 +18,6 @@
     "updatedAt": "2026-11-18T07:41:06.434Z"
   },
   "pendingQueue": [
-    {
-      "id": "UPG-11",
-      "phase": "UPGRADE",
-      "title": "Tích hợp tự động gọi lát đuôi HTTP 206 Range (recommendedRangeHeader) trong luồng fetchAudioFirstSlice khi phát hiện MP4/ALAC có needsTailRange=true"
-    },
     {
       "id": "OPT-11",
       "phase": "OPTIMIZE",
@@ -202,6 +197,16 @@
       "id": "UPG-23",
       "phase": "UPGRADE",
       "title": "Bổ sung hiển thị nguồn chuẩn hóa độ to (ReplayGain 2.0 vs EBU R128 vs Apple SoundCheck iTunNORM) trong bảng chi tiết Signal Path & EQ Loudness"
+    },
+    {
+      "id": "OPT-23",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu tái sử dụng bộ đệm đọc hộp nguyên tử MP4/ALAC (probeMp4TailMoovRangeAsync) với cache theo ETag/size tránh gọi lại lát đuôi khi chuyển nhanh qua lại trong cùng phiên"
+    },
+    {
+      "id": "BUG-24",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra xử lý hộp free/skip/uuid nằm xen giữa mdat 64-bit và moov ở cuối file ALAC .m4a khi máy chủ Cloud ẩn header Content-Range do CORS"
     }
   ],
   "completedTasks": [
@@ -452,6 +457,14 @@
       "completedAt": "2026-11-18T07:35:35.707Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai parseAppleSoundCheckItunNorm (chuyển đổi 10 từ hex Apple SoundCheck sang dB ReplayGain & peak 32768-base kèm kẹp chống clipping) và parseMp4IlstMetadataSafe trong library-utils.js (duyệt an toàn hộp 64-bit largesize===1, size===0 EOF, meta FullBox +4B vs bare container, ©nam/©ART/©alb/trkn/covr JPEG-PNG/---- iTunNORM & replaygain_track_gain), sửa lỗi khử byte NUL \\0 và bổ sung readRemoteMp4Ilst nhảy qua mdat 64-bit trong cloud-metadata.js, tích hợp vào readAudioMetadata/makeLocalTrack/enrichCloudTrack và nâng sw.js CACHE_VERSION lên v2.1.2"
+    },
+    {
+      "id": "UPG-11",
+      "phase": "UPGRADE",
+      "title": "Tích hợp tự động gọi lát đuôi HTTP 206 Range (recommendedRangeHeader) trong luồng fetchAudioFirstSlice khi phát hiện MP4/ALAC có needsTailRange=true",
+      "completedAt": "2026-11-18T08:07:05.780Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai probeMp4TailMoovRangeAsync, applyMp4SliceMetadataToTrack và parseAudioBinaryHeaderSafe trong library-utils.js kết hợp nâng cấp fetchAudioFirstSlice & fetchCloudTrack trong index.html: tự động phát hiện MP4/ALAC có mdat đứng trước moov (needsTailRange=true), gọi HTTP 206 recommendedRangeHeader lấy metadata kỹ thuật/ảnh bìa/ReplayGain tức thì và bỏ qua lát đầu thiếu moov không gây lỗi NotSupportedError"
     }
   ]
 }
