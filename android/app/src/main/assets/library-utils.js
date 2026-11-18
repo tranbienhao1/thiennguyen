@@ -15343,6 +15343,10 @@
       return null;
     }
 
+    if (context && (context.customKeymap != null || context.seekSteps != null)) {
+      return resolveCustomPlayerKeyboardShortcut(eventLike, context, primaryTarget, activeElement);
+    }
+
     const rawKey = typeof eventLike.key === 'string' ? eventLike.key : '';
     const rawCode = typeof eventLike.code === 'string' ? eventLike.code : '';
 
@@ -19873,5 +19877,796 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, signConfigurationBundle, verifyConfigurationBundle, createAdaptiveCanvasRenderGovernor, parseSafeMp4AlacBoxMetadata, computeAntiClippingLinearGain, extractBinaryReplayGainTags, readHeadSlice64kZeroCopy, computeSourceFingerprint64kAsync, createResilientIndexedDbManager};
+  // ==========================================================================
+  // UPG-06 — Custom Keymap Export/Import & MediaSession Seek Step Sync
+  // ==========================================================================
+  const SEEK_STEP_FINE_MIN = 1;
+  const SEEK_STEP_FINE_MAX = 30;
+  const SEEK_STEP_FINE_DEFAULT = 5;
+  const SEEK_STEP_COARSE_MIN = 5;
+  const SEEK_STEP_COARSE_MAX = 120;
+  const SEEK_STEP_COARSE_DEFAULT = 10;
+
+  const DEFAULT_CUSTOM_KEYMAP_BINDINGS = Object.freeze({
+    togglePlayPause: 'Space',
+    seekBackwardFine: 'ArrowLeft',
+    seekForwardFine: 'ArrowRight',
+    seekBackwardCoarse: 'j',
+    seekForwardCoarse: 'k',
+    toggleMute: 'm',
+    toggleLyrics: 'l',
+    focusSearch: 'f'
+  });
+
+  const CANONICAL_KEYMAP_ACTIONS = Object.freeze({
+    toggleplaypause: 'togglePlayPause',
+    playpause: 'togglePlayPause',
+    play_pause: 'togglePlayPause',
+    seekbackwardfine: 'seekBackwardFine',
+    seekbackward: 'seekBackwardFine',
+    seekleft: 'seekBackwardFine',
+    arrowleftseek: 'seekBackwardFine',
+    seekforwardfine: 'seekForwardFine',
+    seekforward: 'seekForwardFine',
+    seekright: 'seekForwardFine',
+    arrowrightseek: 'seekForwardFine',
+    seekbackwardcoarse: 'seekBackwardCoarse',
+    seekbackcoarse: 'seekBackwardCoarse',
+    seekbackwardlarge: 'seekBackwardCoarse',
+    seekforwardcoarse: 'seekForwardCoarse',
+    seekaheadcoarse: 'seekForwardCoarse',
+    seekforwardlarge: 'seekForwardCoarse',
+    togglemute: 'toggleMute',
+    mute: 'toggleMute',
+    togglelyrics: 'toggleLyrics',
+    lyrics: 'toggleLyrics',
+    focussearch: 'focusSearch',
+    search: 'focusSearch',
+    focussearchalt: 'focusSearchAlt',
+    nexttrack: 'nextTrack',
+    previoustrack: 'previousTrack',
+    prevtrack: 'previousTrack',
+    volumeup: 'volumeUp',
+    volumedown: 'volumeDown',
+    togglequeue: 'toggleQueue',
+    toggleminiplayer: 'toggleMiniPlayer',
+    cycleeqpreset: 'cycleEqPreset',
+    togglecrossfade: 'toggleCrossfade'
+  });
+
+  const RESERVED_DANGEROUS_KEYS_LOWER = new Set([
+    'tab', 'escape', 'esc', 'enter', 'return', 'backspace', 'delete', 'del', 'insert',
+    'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12',
+    'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f20', 'f21', 'f22', 'f23', 'f24',
+    'shift', 'control', 'ctrl', 'alt', 'altgraph', 'meta', 'os', 'super', 'hyper', 'win',
+    'cmd', 'command', 'capslock', 'numlock', 'scrolllock', 'contextmenu', 'printscreen',
+    'pause', 'dead', 'unidentified', 'process', 'compose', 'kanamode', 'convert', 'nonconvert',
+    'browserback', 'browserforward', 'browserrefresh', 'browserstop', 'browserhome',
+    'browserfavorites', 'browsersearch', 'power', 'sleep', 'wakeup', 'fn', 'fnlock'
+  ]);
+
+  const ASCII_LOWER_CHARS = Object.freeze([
+    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+    'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
+  ]);
+
+  const CUSTOM_KEYMAP_WEAK_CACHE = typeof WeakMap === 'function' ? new WeakMap() : null;
+
+  function clampSeekStepFine(val) {
+    if (val === undefined || val === null || val === '' || typeof val === 'boolean') {
+      return SEEK_STEP_FINE_DEFAULT;
+    }
+    const num = Number(val);
+    if (!Number.isFinite(num)) return SEEK_STEP_FINE_DEFAULT;
+    return Math.min(SEEK_STEP_FINE_MAX, Math.max(SEEK_STEP_FINE_MIN, num));
+  }
+
+  function clampSeekStepCoarse(val) {
+    if (val === undefined || val === null || val === '' || typeof val === 'boolean') {
+      return SEEK_STEP_COARSE_DEFAULT;
+    }
+    const num = Number(val);
+    if (!Number.isFinite(num)) return SEEK_STEP_COARSE_DEFAULT;
+    return Math.min(SEEK_STEP_COARSE_MAX, Math.max(SEEK_STEP_COARSE_MIN, num));
+  }
+
+  function normalizeCustomShortcutKeyToken(rawKey) {
+    if (typeof rawKey !== 'string') {
+      return { ok: false, reason: 'invalid_key', normalizedKey: null };
+    }
+    if (rawKey === ' ') {
+      return { ok: true, reason: null, normalizedKey: 'Space' };
+    }
+    if (rawKey === '\t') {
+      return { ok: false, reason: 'reserved_key', normalizedKey: 'Tab' };
+    }
+    if (rawKey === '\r' || rawKey === '\n') {
+      return { ok: false, reason: 'reserved_key', normalizedKey: 'Enter' };
+    }
+    if (rawKey === '\x1b') {
+      return { ok: false, reason: 'reserved_key', normalizedKey: 'Escape' };
+    }
+
+    const trimmed = rawKey.trim();
+    if (!trimmed) {
+      return { ok: false, reason: 'invalid_key', normalizedKey: null };
+    }
+
+    const lower = trimmed.toLowerCase();
+    if (lower === 'space' || lower === 'spacebar') {
+      return { ok: true, reason: null, normalizedKey: 'Space' };
+    }
+    if (lower === 'arrowleft' || lower === 'left') {
+      return { ok: true, reason: null, normalizedKey: 'ArrowLeft' };
+    }
+    if (lower === 'arrowright' || lower === 'right') {
+      return { ok: true, reason: null, normalizedKey: 'ArrowRight' };
+    }
+    if (lower === 'arrowup' || lower === 'up') {
+      return { ok: true, reason: null, normalizedKey: 'ArrowUp' };
+    }
+    if (lower === 'arrowdown' || lower === 'down') {
+      return { ok: true, reason: null, normalizedKey: 'ArrowDown' };
+    }
+    if (lower === 'home') {
+      return { ok: true, reason: null, normalizedKey: 'Home' };
+    }
+    if (lower === 'end') {
+      return { ok: true, reason: null, normalizedKey: 'End' };
+    }
+    if (lower === 'pageup') {
+      return { ok: true, reason: null, normalizedKey: 'PageUp' };
+    }
+    if (lower === 'pagedown') {
+      return { ok: true, reason: null, normalizedKey: 'PageDown' };
+    }
+
+    if (RESERVED_DANGEROUS_KEYS_LOWER.has(lower)) {
+      const displayReserved = /^f\d+$/.test(lower)
+        ? lower.toUpperCase()
+        : trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+      return { ok: false, reason: 'reserved_key', normalizedKey: displayReserved };
+    }
+
+    // Reject dangerous modifier chords (e.g. Ctrl+W, Ctrl+R, Alt+F4, Meta+Q, Shift+Tab)
+    if (trimmed.length > 1 && trimmed.includes('+')) {
+      const parts = lower.split('+').map(p => p.trim()).filter(Boolean);
+      for (let i = 0; i < parts.length; i++) {
+        if (RESERVED_DANGEROUS_KEYS_LOWER.has(parts[i])) {
+          return { ok: false, reason: 'reserved_key', normalizedKey: trimmed };
+        }
+      }
+      return { ok: false, reason: 'invalid_key', normalizedKey: trimmed };
+    }
+
+    // Single printable non-control character
+    if (trimmed.length === 1) {
+      const code = trimmed.charCodeAt(0);
+      if (code <= 0x1f || code === 0x7f) {
+        return { ok: false, reason: 'reserved_key', normalizedKey: trimmed };
+      }
+      if (code >= 65 && code <= 90) {
+        return { ok: true, reason: null, normalizedKey: ASCII_LOWER_CHARS[code - 65] };
+      }
+      return { ok: true, reason: null, normalizedKey: trimmed };
+    }
+
+    return { ok: false, reason: 'invalid_key', normalizedKey: trimmed };
+  }
+
+  function buildKeymapFrozenDescriptors(bindings, keyToAction, fineStep, coarseStep) {
+    const baseMap = Object.create(null);
+    const shiftMap = Object.create(null);
+    const keys = Object.keys(keyToAction);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const canonicalAction = keyToAction[key];
+      if (canonicalAction === 'seekBackwardFine') {
+        baseMap[key] = Object.freeze({ action: 'seek', key, deltaSeconds: -fineStep, preventDefault: true });
+        shiftMap[key] = Object.freeze({ action: 'seek', key, deltaSeconds: -coarseStep, preventDefault: true });
+      } else if (canonicalAction === 'seekForwardFine') {
+        baseMap[key] = Object.freeze({ action: 'seek', key, deltaSeconds: fineStep, preventDefault: true });
+        shiftMap[key] = Object.freeze({ action: 'seek', key, deltaSeconds: coarseStep, preventDefault: true });
+      } else if (canonicalAction === 'seekBackwardCoarse') {
+        const desc = Object.freeze({ action: 'seek', key, deltaSeconds: -coarseStep, preventDefault: true });
+        baseMap[key] = desc;
+        shiftMap[key] = desc;
+      } else if (canonicalAction === 'seekForwardCoarse') {
+        const desc = Object.freeze({ action: 'seek', key, deltaSeconds: coarseStep, preventDefault: true });
+        baseMap[key] = desc;
+        shiftMap[key] = desc;
+      } else {
+        const mappedAction = canonicalAction === 'focusSearchAlt' ? 'focusSearch' : canonicalAction;
+        const desc = Object.freeze({ action: mappedAction, key, deltaSeconds: 0, preventDefault: true });
+        baseMap[key] = desc;
+        shiftMap[key] = desc;
+      }
+    }
+    if (!keyToAction['/'] && bindings.focusSearch !== null && bindings.focusSearchAlt === undefined) {
+      baseMap['/'] = SHORTCUT_SEARCH_SLASH;
+      shiftMap['/'] = SHORTCUT_SEARCH_SLASH;
+    }
+    return { baseMap, shiftMap };
+  }
+
+  function normalizeCustomKeymapConfig(rawKeymap) {
+    if (rawKeymap && typeof rawKeymap === 'object' && rawKeymap._isNormalizedCustomKeymap === true) {
+      return rawKeymap;
+    }
+
+    const conflicts = [];
+    const rejectedReservedKeys = [];
+    const invalidEntries = [];
+    const errors = [];
+
+    let rawBindingsSource = null;
+    let rawSeekSource = null;
+
+    if (rawKeymap !== null && rawKeymap !== undefined) {
+      if (typeof rawKeymap !== 'object' || Array.isArray(rawKeymap)) {
+        errors.push('Custom keymap configuration must be a plain object.');
+      } else {
+        if (rawKeymap.seekSteps && typeof rawKeymap.seekSteps === 'object' && !Array.isArray(rawKeymap.seekSteps)) {
+          rawSeekSource = rawKeymap.seekSteps;
+        } else if (
+          rawKeymap.seekStepFineSec !== undefined ||
+          rawKeymap.seekStepCoarseSec !== undefined ||
+          rawKeymap.arrowSeekSeconds !== undefined ||
+          rawKeymap.jkSeekSeconds !== undefined
+        ) {
+          rawSeekSource = rawKeymap;
+        }
+
+        if (rawKeymap.bindings && typeof rawKeymap.bindings === 'object' && !Array.isArray(rawKeymap.bindings)) {
+          rawBindingsSource = rawKeymap.bindings;
+        } else if (rawKeymap.keymap && typeof rawKeymap.keymap === 'object' && !Array.isArray(rawKeymap.keymap)) {
+          rawBindingsSource = rawKeymap.keymap;
+        } else {
+          rawBindingsSource = rawKeymap;
+        }
+      }
+    }
+
+    const fineRaw = rawSeekSource
+      ? (rawSeekSource.seekStepFineSec !== undefined
+        ? rawSeekSource.seekStepFineSec
+        : (rawSeekSource.fine !== undefined ? rawSeekSource.fine : rawSeekSource.arrowSeekSeconds))
+      : undefined;
+    const coarseRaw = rawSeekSource
+      ? (rawSeekSource.seekStepCoarseSec !== undefined
+        ? rawSeekSource.seekStepCoarseSec
+        : (rawSeekSource.coarse !== undefined ? rawSeekSource.coarse : rawSeekSource.jkSeekSeconds))
+      : undefined;
+
+    const seekStepFineSec = clampSeekStepFine(fineRaw);
+    const seekStepCoarseSec = clampSeekStepCoarse(coarseRaw);
+
+    const META_WRAPPER_KEYS = new Set([
+      'schema', 'version', 'exportedAt', 'signedAt', 'integrity',
+      'seekSteps', 'seekStepFineSec', 'seekStepCoarseSec', 'arrowSeekSeconds', 'jkSeekSeconds',
+      'bindings', 'keymap', 'name', 'profileName', 'description'
+    ]);
+
+    const explicitAssignments = Object.create(null);
+    const explicitKeyOwners = Object.create(null);
+    const explicitUnboundActions = new Set();
+
+    if (rawBindingsSource) {
+      const entryKeys = Object.keys(rawBindingsSource);
+      for (let i = 0; i < entryKeys.length; i++) {
+        const rawAction = entryKeys[i];
+        if (rawBindingsSource === rawKeymap && META_WRAPPER_KEYS.has(rawAction)) {
+          continue;
+        }
+        const canonicalAction = CANONICAL_KEYMAP_ACTIONS[String(rawAction).toLowerCase().trim()];
+        if (!canonicalAction) {
+          invalidEntries.push({ action: rawAction, rawKey: rawBindingsSource[rawAction], reason: 'unknown_action' });
+          errors.push(`Unknown player shortcut action "${rawAction}".`);
+          continue;
+        }
+
+        const rawVal = rawBindingsSource[rawAction];
+        if (rawVal === null || rawVal === false) {
+          explicitUnboundActions.add(canonicalAction);
+          explicitAssignments[canonicalAction] = null;
+          continue;
+        }
+
+        const parsedKey = normalizeCustomShortcutKeyToken(rawVal);
+        if (!parsedKey.ok) {
+          if (parsedKey.reason === 'reserved_key') {
+            rejectedReservedKeys.push({
+              action: canonicalAction,
+              rawKey: rawVal,
+              normalizedKey: parsedKey.normalizedKey,
+              reason: 'reserved_key'
+            });
+            errors.push(`Key "${parsedKey.normalizedKey || rawVal}" is a browser/OS reserved key and cannot be bound to "${canonicalAction}".`);
+          } else {
+            invalidEntries.push({
+              action: canonicalAction,
+              rawKey: rawVal,
+              reason: 'invalid_key'
+            });
+            errors.push(`Invalid key "${String(rawVal)}" for action "${canonicalAction}".`);
+          }
+          continue;
+        }
+
+        const normKey = parsedKey.normalizedKey;
+        const priorOwner = explicitKeyOwners[normKey];
+        if (priorOwner && priorOwner !== canonicalAction) {
+          conflicts.push({
+            action: canonicalAction,
+            conflictingWith: priorOwner,
+            key: normKey,
+            reason: 'duplicate_key'
+          });
+          errors.push(`Conflicting key "${normKey}": assigned to both "${priorOwner}" and "${canonicalAction}".`);
+          continue;
+        }
+
+        explicitKeyOwners[normKey] = canonicalAction;
+        explicitAssignments[canonicalAction] = normKey;
+      }
+    }
+
+    const bindings = {};
+    const defaultActions = Object.keys(DEFAULT_CUSTOM_KEYMAP_BINDINGS);
+    for (let i = 0; i < defaultActions.length; i++) {
+      const act = defaultActions[i];
+      if (explicitUnboundActions.has(act)) {
+        bindings[act] = null;
+      } else if (explicitAssignments[act] !== undefined) {
+        bindings[act] = explicitAssignments[act];
+      } else {
+        const defKey = DEFAULT_CUSTOM_KEYMAP_BINDINGS[act];
+        // Vacate default key if an explicit custom override claimed it for another action
+        bindings[act] = (explicitKeyOwners[defKey] && explicitKeyOwners[defKey] !== act) ? null : defKey;
+      }
+    }
+
+    const customActionNames = Object.keys(explicitAssignments);
+    for (let i = 0; i < customActionNames.length; i++) {
+      const act = customActionNames[i];
+      if (!(act in bindings)) {
+        bindings[act] = explicitAssignments[act];
+      }
+    }
+
+    const keyToAction = Object.create(null);
+    const finalActions = Object.keys(bindings);
+    for (let i = 0; i < finalActions.length; i++) {
+      const act = finalActions[i];
+      const key = bindings[act];
+      if (typeof key === 'string' && key) {
+        keyToAction[key] = act;
+      }
+    }
+
+    let isDefault = seekStepFineSec === SEEK_STEP_FINE_DEFAULT && seekStepCoarseSec === SEEK_STEP_COARSE_DEFAULT;
+    if (isDefault) {
+      if (finalActions.length !== defaultActions.length) {
+        isDefault = false;
+      } else {
+        for (let i = 0; i < defaultActions.length; i++) {
+          const act = defaultActions[i];
+          if (bindings[act] !== DEFAULT_CUSTOM_KEYMAP_BINDINGS[act]) {
+            isDefault = false;
+            break;
+          }
+        }
+      }
+    }
+
+    const valid =
+      errors.length === 0 &&
+      conflicts.length === 0 &&
+      rejectedReservedKeys.length === 0 &&
+      invalidEntries.length === 0;
+
+    const seekSteps = Object.freeze({
+      seekStepFineSec,
+      seekStepCoarseSec
+    });
+    const frozenBindings = Object.freeze(bindings);
+    const descriptors = buildKeymapFrozenDescriptors(frozenBindings, keyToAction, seekStepFineSec, seekStepCoarseSec);
+
+    const result = {
+      valid,
+      isValid: valid,
+      isDefault,
+      bindings: frozenBindings,
+      keyToAction,
+      seekSteps,
+      seekStepFineSec,
+      seekStepCoarseSec,
+      conflicts,
+      rejectedReservedKeys,
+      invalidEntries,
+      errors
+    };
+
+    Object.defineProperty(result, '_isNormalizedCustomKeymap', {
+      value: true,
+      enumerable: false
+    });
+    Object.defineProperty(result, '_descriptors', {
+      value: descriptors,
+      enumerable: false
+    });
+
+    return result;
+  }
+
+  function exportCustomKeymapBundle(keymap, seekStepOptions) {
+    const opts = seekStepOptions && typeof seekStepOptions === 'object' && !Array.isArray(seekStepOptions)
+      ? seekStepOptions
+      : {};
+
+    let rawInput = {};
+    if (keymap && typeof keymap === 'object' && !Array.isArray(keymap)) {
+      const baseBindings = keymap.bindings && typeof keymap.bindings === 'object'
+        ? keymap.bindings
+        : keymap;
+      const mergedSeek = Object.assign(
+        {},
+        keymap.seekSteps && typeof keymap.seekSteps === 'object' ? keymap.seekSteps : {},
+        opts.seekSteps && typeof opts.seekSteps === 'object' ? opts.seekSteps : opts
+      );
+      rawInput = {
+        bindings: baseBindings,
+        seekSteps: mergedSeek
+      };
+    } else if (keymap !== undefined && keymap !== null) {
+      throw new TypeError('Custom keymap must be an object or null/undefined.');
+    } else {
+      rawInput = {
+        bindings: DEFAULT_CUSTOM_KEYMAP_BINDINGS,
+        seekSteps: opts.seekSteps && typeof opts.seekSteps === 'object' ? opts.seekSteps : opts
+      };
+    }
+
+    const normalized = normalizeCustomKeymapConfig(rawInput);
+    if (!normalized.valid && opts.allowSanitized !== true) {
+      const err = new Error(normalized.errors[0] || 'Invalid custom keymap configuration');
+      err.code = normalized.rejectedReservedKeys.length > 0
+        ? 'RESERVED_KEY_REJECTED'
+        : (normalized.conflicts.length > 0 ? 'KEYMAP_CONFLICT' : 'INVALID_KEYMAP');
+      err.conflicts = normalized.conflicts;
+      err.rejectedReservedKeys = normalized.rejectedReservedKeys;
+      err.details = normalized;
+      throw err;
+    }
+
+    const exportedAt = (typeof opts.exportedAt === 'string' && opts.exportedAt.trim())
+      ? opts.exportedAt.trim()
+      : new Date().toISOString();
+
+    const unsignedBundle = {
+      schema: 'nocturne.custom-keymap.v1',
+      version: 1,
+      exportedAt,
+      bindings: Object.assign({}, normalized.bindings),
+      seekSteps: {
+        seekStepFineSec: normalized.seekStepFineSec,
+        seekStepCoarseSec: normalized.seekStepCoarseSec
+      }
+    };
+
+    return signConfigurationBundle(unsignedBundle, { signedAt: exportedAt });
+  }
+
+  function importCustomKeymapBundle(jsonOrObj) {
+    const makeFailure = (reason, errorMsg, extra = {}) => ({
+      valid: false,
+      isValid: false,
+      signed: Boolean(extra.signed),
+      reason,
+      config: null,
+      bindings: null,
+      seekSteps: extra.seekSteps || {
+        seekStepFineSec: SEEK_STEP_FINE_DEFAULT,
+        seekStepCoarseSec: SEEK_STEP_COARSE_DEFAULT
+      },
+      seekStepFineSec: extra.seekSteps ? extra.seekSteps.seekStepFineSec : SEEK_STEP_FINE_DEFAULT,
+      seekStepCoarseSec: extra.seekSteps ? extra.seekSteps.seekStepCoarseSec : SEEK_STEP_COARSE_DEFAULT,
+      conflicts: extra.conflicts || [],
+      rejectedReservedKeys: extra.rejectedReservedKeys || [],
+      errors: extra.errors || [errorMsg],
+      error: errorMsg
+    });
+
+    if (jsonOrObj === null || jsonOrObj === undefined) {
+      return makeFailure('corrupted_json', 'Empty custom keymap bundle input');
+    }
+
+    let parsed = null;
+    if (typeof jsonOrObj === 'string') {
+      const trimmed = jsonOrObj.trim();
+      if (!trimmed) {
+        return makeFailure('corrupted_json', 'Empty JSON string');
+      }
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch (err) {
+        return makeFailure('corrupted_json', err && err.message ? err.message : 'Invalid JSON syntax');
+      }
+    } else if (jsonOrObj instanceof Uint8Array || ArrayBuffer.isView(jsonOrObj) || jsonOrObj instanceof ArrayBuffer) {
+      try {
+        const view = jsonOrObj instanceof Uint8Array
+          ? jsonOrObj
+          : (ArrayBuffer.isView(jsonOrObj)
+            ? new Uint8Array(jsonOrObj.buffer, jsonOrObj.byteOffset || 0, jsonOrObj.byteLength || 0)
+            : new Uint8Array(jsonOrObj));
+        if (view.byteLength === 0) {
+          return makeFailure('corrupted_json', 'Empty binary keymap bundle');
+        }
+        const text = typeof TextDecoder === 'function'
+          ? new TextDecoder('utf-8', { fatal: true }).decode(view)
+          : String.fromCharCode(...view);
+        parsed = JSON.parse(text);
+      } catch (err) {
+        return makeFailure('corrupted_json', err && err.message ? err.message : 'Corrupted binary keymap bundle');
+      }
+    } else if (typeof jsonOrObj === 'object' && !Array.isArray(jsonOrObj)) {
+      parsed = jsonOrObj;
+    } else {
+      return makeFailure('corrupted_json', 'Custom keymap bundle must be a JSON string or plain object');
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return makeFailure('corrupted_json', 'Decoded custom keymap bundle must be a plain object');
+    }
+
+    const hasIntegrity = Object.prototype.hasOwnProperty.call(parsed, 'integrity') && parsed.integrity !== undefined;
+    if (hasIntegrity) {
+      const verified = verifyConfigurationBundle(parsed);
+      if (!verified.valid) {
+        return makeFailure(verified.reason || 'checksum_mismatch', verified.error || 'Keymap bundle integrity verification failed', {
+          signed: true
+        });
+      }
+    }
+
+    const normalized = normalizeCustomKeymapConfig(parsed);
+    if (!normalized.valid) {
+      const reason = normalized.rejectedReservedKeys.length > 0
+        ? 'reserved_key'
+        : (normalized.conflicts.length > 0 ? 'duplicate_key' : 'invalid_keybinding');
+      return makeFailure(reason, normalized.errors[0] || 'Invalid custom keymap configuration', {
+        signed: hasIntegrity,
+        seekSteps: normalized.seekSteps,
+        conflicts: normalized.conflicts,
+        rejectedReservedKeys: normalized.rejectedReservedKeys,
+        errors: normalized.errors
+      });
+    }
+
+    return {
+      valid: true,
+      isValid: true,
+      signed: hasIntegrity,
+      reason: null,
+      config: normalized,
+      bindings: normalized.bindings,
+      seekSteps: normalized.seekSteps,
+      seekStepFineSec: normalized.seekStepFineSec,
+      seekStepCoarseSec: normalized.seekStepCoarseSec,
+      conflicts: [],
+      rejectedReservedKeys: [],
+      errors: [],
+      error: null
+    };
+  }
+
+  function getCachedNormalizedKeymap(rawKeymap) {
+    if (!rawKeymap || typeof rawKeymap !== 'object') {
+      return normalizeCustomKeymapConfig(null);
+    }
+    if (rawKeymap._isNormalizedCustomKeymap === true) {
+      return rawKeymap;
+    }
+    if (CUSTOM_KEYMAP_WEAK_CACHE) {
+      const cached = CUSTOM_KEYMAP_WEAK_CACHE.get(rawKeymap);
+      if (cached) return cached;
+      const computed = normalizeCustomKeymapConfig(rawKeymap);
+      CUSTOM_KEYMAP_WEAK_CACHE.set(rawKeymap, computed);
+      return computed;
+    }
+    return normalizeCustomKeymapConfig(rawKeymap);
+  }
+
+  function normalizeKeyboardEventKeyFast(rawKey, rawCode) {
+    if (rawCode === 'Space' || rawKey === ' ' || rawKey === 'Spacebar') {
+      return 'Space';
+    }
+    if (
+      rawKey === 'ArrowLeft' ||
+      rawKey === 'ArrowRight' ||
+      rawKey === 'ArrowUp' ||
+      rawKey === 'ArrowDown' ||
+      rawKey === 'Home' ||
+      rawKey === 'End' ||
+      rawKey === 'PageUp' ||
+      rawKey === 'PageDown'
+    ) {
+      return rawKey;
+    }
+    if (rawKey.length === 1) {
+      const code = rawKey.charCodeAt(0);
+      if (code <= 0x1f || code === 0x7f) return null;
+      if (code >= 65 && code <= 90) return ASCII_LOWER_CHARS[code - 65];
+      return rawKey;
+    }
+    return null;
+  }
+
+  function resolveCustomPlayerKeyboardShortcut(eventLike, context, primaryTarget, activeElement) {
+    const rawKey = typeof eventLike.key === 'string' ? eventLike.key : '';
+    const rawCode = typeof eventLike.code === 'string' ? eventLike.code : '';
+    const eventKey = normalizeKeyboardEventKeyFast(rawKey, rawCode);
+    if (!eventKey) return null;
+
+    if (eventKey === 'Space') {
+      if (!(context && context.allowInteractiveSpace === true) && (isInteractiveButtonTarget(primaryTarget) || isInteractiveButtonTarget(activeElement))) {
+        return null;
+      }
+    }
+
+    const normMap = getCachedNormalizedKeymap(context.customKeymap);
+
+    const seekOverride = context.seekSteps && typeof context.seekSteps === 'object' ? context.seekSteps : null;
+    const hasExplicitStepOverride = Boolean(
+      seekOverride ||
+      context.arrowSeekSeconds !== undefined ||
+      context.jkSeekSeconds !== undefined
+    );
+
+    if (!hasExplicitStepOverride) {
+      if (context.kAction === 'togglePlayPause' && eventKey === 'k' && normMap.bindings.seekForwardCoarse === 'k') {
+        return SHORTCUT_PLAY_PAUSE;
+      }
+      const table = eventLike.shiftKey ? normMap._descriptors.shiftMap : normMap._descriptors.baseMap;
+      return table[eventKey] || null;
+    }
+
+    const fineCandidate = seekOverride
+      ? (seekOverride.seekStepFineSec !== undefined
+        ? seekOverride.seekStepFineSec
+        : (seekOverride.fine !== undefined ? seekOverride.fine : seekOverride.arrowSeekSeconds))
+      : context.arrowSeekSeconds;
+    const coarseCandidate = seekOverride
+      ? (seekOverride.seekStepCoarseSec !== undefined
+        ? seekOverride.seekStepCoarseSec
+        : (seekOverride.coarse !== undefined ? seekOverride.coarse : seekOverride.jkSeekSeconds))
+      : context.jkSeekSeconds;
+
+    const fineStep = fineCandidate !== undefined ? clampSeekStepFine(fineCandidate) : normMap.seekStepFineSec;
+    const coarseStep = coarseCandidate !== undefined ? clampSeekStepCoarse(coarseCandidate) : normMap.seekStepCoarseSec;
+
+    if (fineStep === normMap.seekStepFineSec && coarseStep === normMap.seekStepCoarseSec) {
+      if (context.kAction === 'togglePlayPause' && eventKey === 'k' && normMap.bindings.seekForwardCoarse === 'k') {
+        return SHORTCUT_PLAY_PAUSE;
+      }
+      const table = eventLike.shiftKey ? normMap._descriptors.shiftMap : normMap._descriptors.baseMap;
+      return table[eventKey] || null;
+    }
+
+    const canonicalAction = normMap.keyToAction[eventKey] ||
+      (eventKey === '/' && normMap.bindings.focusSearch !== null && normMap.bindings.focusSearchAlt === undefined
+        ? 'focusSearch'
+        : null);
+    if (!canonicalAction) return null;
+
+    if (canonicalAction === 'seekBackwardFine') {
+      return { action: 'seek', key: eventKey, deltaSeconds: -(eventLike.shiftKey ? coarseStep : fineStep), preventDefault: true };
+    }
+    if (canonicalAction === 'seekForwardFine') {
+      return { action: 'seek', key: eventKey, deltaSeconds: eventLike.shiftKey ? coarseStep : fineStep, preventDefault: true };
+    }
+    if (canonicalAction === 'seekBackwardCoarse') {
+      return { action: 'seek', key: eventKey, deltaSeconds: -coarseStep, preventDefault: true };
+    }
+    if (canonicalAction === 'seekForwardCoarse') {
+      if (context.kAction === 'togglePlayPause' && eventKey === 'k' && normMap.bindings.seekForwardCoarse === 'k') {
+        return SHORTCUT_PLAY_PAUSE;
+      }
+      return { action: 'seek', key: eventKey, deltaSeconds: coarseStep, preventDefault: true };
+    }
+
+    const table = eventLike.shiftKey ? normMap._descriptors.shiftMap : normMap._descriptors.baseMap;
+    return table[eventKey] || {
+      action: canonicalAction === 'focusSearchAlt' ? 'focusSearch' : canonicalAction,
+      key: eventKey,
+      deltaSeconds: 0,
+      preventDefault: true
+    };
+  }
+
+  function computeMediaSessionSeekOffset(details, configuredSeekStepSec, currentTime, duration) {
+    let direction = 1;
+    if (typeof details === 'string') {
+      const lower = details.toLowerCase();
+      if (lower.includes('back') || lower === 'rewind') direction = -1;
+    } else if (details && typeof details === 'object') {
+      if (typeof details.action === 'string') {
+        const lowerAct = details.action.toLowerCase();
+        if (lowerAct.includes('back') || lowerAct === 'rewind') direction = -1;
+      } else if (typeof details.direction === 'string') {
+        const lowerDir = details.direction.toLowerCase();
+        if (lowerDir.startsWith('back') || lowerDir === ' -1' || lowerDir === 'left') direction = -1;
+      } else if (Number.isFinite(Number(details.seekOffset)) && Number(details.seekOffset) < 0) {
+        direction = -1;
+      } else if (Number.isFinite(Number(configuredSeekStepSec)) && Number(configuredSeekStepSec) < 0) {
+        direction = -1;
+      }
+    } else if (Number.isFinite(Number(configuredSeekStepSec)) && Number(configuredSeekStepSec) < 0) {
+      direction = -1;
+    }
+
+    const osRawOffset = (details && typeof details === 'object' && details.seekOffset !== undefined && details.seekOffset !== null && typeof details.seekOffset !== 'boolean')
+      ? Number(details.seekOffset)
+      : NaN;
+    const usedOsSeekOffset = Number.isFinite(osRawOffset) && Math.abs(osRawOffset) > 0;
+
+    let stepSec = SEEK_STEP_COARSE_DEFAULT;
+    let source = 'default_seek_step';
+
+    if (usedOsSeekOffset) {
+      stepSec = Math.abs(osRawOffset);
+      source = 'os_seek_offset';
+    } else if (configuredSeekStepSec && typeof configuredSeekStepSec === 'object') {
+      const candidate = configuredSeekStepSec.seekStepCoarseSec !== undefined
+        ? configuredSeekStepSec.seekStepCoarseSec
+        : (configuredSeekStepSec.seekStepSec !== undefined
+          ? configuredSeekStepSec.seekStepSec
+          : configuredSeekStepSec.seekStepFineSec);
+      const num = Number(candidate);
+      if (Number.isFinite(num) && Math.abs(num) > 0) {
+        stepSec = Math.min(SEEK_STEP_COARSE_MAX, Math.max(SEEK_STEP_FINE_MIN, Math.abs(num)));
+        source = 'configured_seek_step';
+      }
+    } else if (configuredSeekStepSec !== undefined && configuredSeekStepSec !== null && configuredSeekStepSec !== '' && typeof configuredSeekStepSec !== 'boolean') {
+      const num = Number(configuredSeekStepSec);
+      if (Number.isFinite(num) && Math.abs(num) > 0) {
+        stepSec = Math.min(SEEK_STEP_COARSE_MAX, Math.max(SEEK_STEP_FINE_MIN, Math.abs(num)));
+        source = 'configured_seek_step';
+      }
+    }
+
+    const rawCurrent = Number(currentTime);
+    const safeCurrent = Number.isFinite(rawCurrent) ? Math.max(0, rawCurrent) : 0;
+
+    const rawDuration = (duration === undefined || duration === null || typeof duration === 'boolean')
+      ? NaN
+      : Number(duration);
+    const hasFiniteDuration = Number.isFinite(rawDuration) && rawDuration >= 0;
+    const upperBound = hasFiniteDuration ? rawDuration : Infinity;
+
+    const clampedCurrent = Math.min(upperBound, safeCurrent);
+    const signedOffsetSec = direction * stepSec;
+    const unclampedTarget = clampedCurrent + signedOffsetSec;
+    const targetTime = Math.min(upperBound, Math.max(0, unclampedTarget));
+    const appliedDeltaSec = targetTime - clampedCurrent;
+
+    return {
+      action: direction < 0 ? 'seekbackward' : 'seekforward',
+      direction,
+      stepSec,
+      seekOffset: stepSec,
+      signedOffsetSec,
+      appliedDeltaSec,
+      currentTime: clampedCurrent,
+      targetTime,
+      duration: hasFiniteDuration ? rawDuration : null,
+      usedOsSeekOffset,
+      source,
+      clamped: targetTime !== unclampedTarget,
+      clampedAtZero: targetTime === 0 && unclampedTarget < 0,
+      clampedAtDuration: hasFiniteDuration && targetTime === rawDuration && unclampedTarget > rawDuration
+    };
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, signConfigurationBundle, verifyConfigurationBundle, createAdaptiveCanvasRenderGovernor, parseSafeMp4AlacBoxMetadata, computeAntiClippingLinearGain, extractBinaryReplayGainTags, readHeadSlice64kZeroCopy, computeSourceFingerprint64kAsync, createResilientIndexedDbManager, normalizeCustomKeymapConfig, exportCustomKeymapBundle, importCustomKeymapBundle, computeMediaSessionSeekOffset};
 });

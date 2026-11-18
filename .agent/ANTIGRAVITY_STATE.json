@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 22,
-  "lastPhase": "BUG_HUNT",
-  "lastRunIso": "2026-11-18T00:52:03.787Z",
+  "cycleCount": 23,
+  "lastPhase": "UPGRADE",
+  "lastRunIso": "2026-11-18T01:02:30.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "UPG-06",
-      "phase": "UPGRADE",
-      "title": "Hỗ trợ xuất/nhập bảng phím tắt tùy chỉnh và đồng bộ MediaSession seekbackward/seekforward theo bước tua đã chọn"
-    },
     {
       "id": "OPT-06",
       "phase": "OPTIMIZE",
@@ -118,6 +113,16 @@
       "id": "UPG-13",
       "phase": "UPGRADE",
       "title": "Bổ sung chỉ báo trạng thái kết nối lưu trữ ngoại tuyến (IndexedDB phiên bản hiện hành, số lần tự phục hồi kết nối, dung lượng đệm) trong bảng Storage Audit"
+    },
+    {
+      "id": "OPT-13",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu lưu đệm descriptor phím tắt tùy chỉnh và trạng thái bước tua MediaSession trong localStorage tránh parse JSON lặp lại mỗi lần mở phòng nghe"
+    },
+    {
+      "id": "BUG-14",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra đồng bộ biên thời gian tua MediaSession seekbackward/seekforward với phân đoạn track ảo CUE sheet (cueStart..cueEnd) tránh tràn sang bài kế tiếp"
     }
   ],
   "completedTasks": [
@@ -248,6 +253,14 @@
       "completedAt": "2026-11-18T00:19:00.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai createResilientIndexedDbManager trong library-utils.js và tích hợp bảo vệ vòng đời đa tab (onversionchange tự đóng db + xóa dbPromise, onclose, onblocked + blockedTimeoutMs, tự nâng effectiveVersion chống VersionError và tự mở lại trong suốt khi gặp InvalidStateError) cho createFingerprintLyricsCacheStore, openDatabase/catalogTransaction/sliceCacheTransaction trong index.html, openCoverArtCache trong library-tools.js và openLyricsVault trong lrclib-client.js"
+    },
+    {
+      "id": "UPG-06",
+      "phase": "UPGRADE",
+      "title": "Hỗ trợ xuất/nhập bảng phím tắt tùy chỉnh và đồng bộ MediaSession seekbackward/seekforward theo bước tua đã chọn",
+      "completedAt": "2026-11-18T01:02:30.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai normalizeCustomKeymapConfig, exportCustomKeymapBundle, importCustomKeymapBundle (ký kiểm tra toàn vẹn CRC32+SHA-256, chống trùng khóa, từ chối phím hệ thống Tab/Escape/F5/F12/Ctrl+W/Alt+F4, kẹp seekStepFineSec 1..30s & seekStepCoarseSec 5..120s), computeMediaSessionSeekOffset (ưu tiên details.seekOffset của OS, fallback seekStepSec cấu hình, kẹp [0, duration]) và mở rộng resolvePlayerKeyboardShortcut hỗ trợ customKeymap & seekSteps zero-allocation trong library-utils.js"
     }
   ]
 }

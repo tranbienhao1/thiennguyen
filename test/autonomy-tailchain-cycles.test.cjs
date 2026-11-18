@@ -3526,3 +3526,294 @@ describe('BUG-06 — Multi-Tab IndexedDB versionchange Auto-Close & Transparent 
     assert.ok(lrclibClient.includes('db.onversionchange'), 'lrclib-client.js openLyricsVault() must attach db.onversionchange');
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 16 — UPG-06 (Custom Keymap Export/Import & MediaSession Seek Step Sync)', () => {
+  it('exposes UPG-06 functions on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.normalizeCustomKeymapConfig, 'function');
+    assert.equal(typeof lib.exportCustomKeymapBundle, 'function');
+    assert.equal(typeof lib.importCustomKeymapBundle, 'function');
+    assert.equal(typeof lib.computeMediaSessionSeekOffset, 'function');
+
+    const sandbox = { library: { keepRefUpg06: 'ok' } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    for (const fnName of [
+      'normalizeCustomKeymapConfig',
+      'exportCustomKeymapBundle',
+      'importCustomKeymapBundle',
+      'computeMediaSessionSeekOffset'
+    ]) {
+      assert.equal(typeof sandbox.NocturneLibrary[fnName], 'function');
+      assert.equal(typeof sandbox.library[fnName], 'function');
+    }
+    assert.equal(sandbox.library.keepRefUpg06, 'ok');
+  });
+
+  it('exports & imports signed custom keymap bundles, clamps seekStepFineSec (1..30) & seekStepCoarseSec (5..120), and rejects reserved/conflicting keys', () => {
+    // 1. Default & boundary clamping for seekStepFineSec (1..30, default 5) and seekStepCoarseSec (5..120, default 10)
+    const defaults = lib.normalizeCustomKeymapConfig(null);
+    assert.equal(defaults.valid, true);
+    assert.equal(defaults.isDefault, true);
+    assert.equal(defaults.seekStepFineSec, 5);
+    assert.equal(defaults.seekStepCoarseSec, 10);
+
+    const clampedLow = lib.normalizeCustomKeymapConfig({
+      seekSteps: { seekStepFineSec: -5, seekStepCoarseSec: 1 }
+    });
+    assert.equal(clampedLow.valid, true);
+    assert.equal(clampedLow.seekStepFineSec, 1);
+    assert.equal(clampedLow.seekStepCoarseSec, 5);
+
+    const clampedHigh = lib.normalizeCustomKeymapConfig({
+      seekSteps: { seekStepFineSec: 999, seekStepCoarseSec: 500 }
+    });
+    assert.equal(clampedHigh.valid, true);
+    assert.equal(clampedHigh.seekStepFineSec, 30);
+    assert.equal(clampedHigh.seekStepCoarseSec, 120);
+
+    const clampedNaN = lib.normalizeCustomKeymapConfig({
+      seekSteps: { seekStepFineSec: NaN, seekStepCoarseSec: true }
+    });
+    assert.equal(clampedNaN.seekStepFineSec, 5);
+    assert.equal(clampedNaN.seekStepCoarseSec, 10);
+
+    // 2. Clean export -> JSON round-trip import with CRC32+SHA-256 signature
+    const bundle = lib.exportCustomKeymapBundle(
+      {
+        togglePlayPause: 'p',
+        seekBackwardFine: '[',
+        seekForwardFine: ']',
+        seekBackwardCoarse: 'a',
+        seekForwardCoarse: 'd',
+        toggleMute: 'u',
+        toggleLyrics: 'y',
+        focusSearch: 's',
+        nextTrack: 'n'
+      },
+      { seekStepFineSec: 3, seekStepCoarseSec: 15, exportedAt: '2026-11-18T00:50:00.000Z' }
+    );
+
+    assert.equal(bundle.schema, 'nocturne.custom-keymap.v1');
+    assert.equal(bundle.integrity.algorithm, 'crc32+sha256');
+    assert.deepEqual(bundle.seekSteps, { seekStepFineSec: 3, seekStepCoarseSec: 15 });
+
+    const importedJson = lib.importCustomKeymapBundle(JSON.stringify(bundle, null, 2));
+    assert.equal(importedJson.valid, true);
+    assert.equal(importedJson.signed, true);
+    assert.equal(importedJson.reason, null);
+    assert.equal(importedJson.seekStepFineSec, 3);
+    assert.equal(importedJson.seekStepCoarseSec, 15);
+    assert.equal(importedJson.bindings.togglePlayPause, 'p');
+    assert.equal(importedJson.bindings.seekBackwardFine, '[');
+    assert.equal(importedJson.bindings.nextTrack, 'n');
+
+    const importedBytes = lib.importCustomKeymapBundle(Buffer.from(JSON.stringify(bundle), 'utf8'));
+    assert.equal(importedBytes.valid, true);
+    assert.deepEqual(importedBytes.bindings, importedJson.bindings);
+
+    // Tampered signed bundle -> checksum_mismatch
+    const tampered = JSON.parse(JSON.stringify(bundle));
+    tampered.bindings.toggleMute = 'z';
+    const tamperedRes = lib.importCustomKeymapBundle(JSON.stringify(tampered));
+    assert.equal(tamperedRes.valid, false);
+    assert.equal(tamperedRes.reason, 'checksum_mismatch');
+
+    // Corrupted JSON -> corrupted_json
+    assert.equal(lib.importCustomKeymapBundle('{broken json').reason, 'corrupted_json');
+    assert.equal(lib.importCustomKeymapBundle('').reason, 'corrupted_json');
+
+    // 3. Reject dangerous browser/OS reserved keys (Tab, Escape, F5, F12, Enter, Backspace, Meta, Ctrl+W, Alt+F4)
+    for (const reserved of ['Tab', 'Escape', 'F5', 'F12', 'f1', 'Enter', 'Backspace', 'Delete', 'Meta', 'Ctrl+W', 'Alt+F4', '\t', '\x1b']) {
+      const normRes = lib.normalizeCustomKeymapConfig({ toggleMute: reserved });
+      assert.equal(normRes.valid, false, `Reserved key ${JSON.stringify(reserved)} must be rejected`);
+      assert.equal(normRes.rejectedReservedKeys.length, 1);
+
+      assert.throws(
+        () => lib.exportCustomKeymapBundle({ toggleMute: reserved }),
+        err => err && err.code === 'RESERVED_KEY_REJECTED'
+      );
+
+      const impRes = lib.importCustomKeymapBundle({ bindings: { toggleMute: reserved } });
+      assert.equal(impRes.valid, false);
+      assert.equal(impRes.reason, 'reserved_key');
+    }
+
+    // 4. Reject duplicate / conflicting key assignments (including case-insensitive 'X' vs 'x' and ' ' vs 'Space')
+    const dupLetter = lib.normalizeCustomKeymapConfig({ toggleMute: 'x', toggleLyrics: 'X' });
+    assert.equal(dupLetter.valid, false);
+    assert.equal(dupLetter.conflicts.length, 1);
+    assert.equal(dupLetter.conflicts[0].key, 'x');
+
+    assert.throws(
+      () => lib.exportCustomKeymapBundle({ togglePlayPause: 'Space', toggleMute: ' ' }),
+      err => err && err.code === 'KEYMAP_CONFLICT'
+    );
+
+    const dupImport = lib.importCustomKeymapBundle(
+      JSON.stringify({
+        bindings: {
+          togglePlayPause: 'Space',
+          seekBackwardFine: 'ArrowLeft',
+          seekForwardFine: 'ArrowLeft'
+        }
+      })
+    );
+    assert.equal(dupImport.valid, false);
+    assert.equal(dupImport.reason, 'duplicate_key');
+    assert.equal(dupImport.conflicts.length, 1);
+  });
+
+  it('extends resolvePlayerKeyboardShortcut with customKeymap & seekSteps while preserving zero-allocation singletons on default keymaps', () => {
+    const bodyTarget = { tagName: 'BODY' };
+
+    // 1. Default keymap returns exact frozen singleton references (zero allocation)
+    const defSpaceA = lib.resolvePlayerKeyboardShortcut({ key: ' ', code: 'Space', target: bodyTarget });
+    const defSpaceB = lib.resolvePlayerKeyboardShortcut({ key: ' ', code: 'Space', target: bodyTarget });
+    assert.strictEqual(defSpaceA, defSpaceB);
+    assert.equal(Object.isFrozen(defSpaceA), true);
+
+    const defLeftA = lib.resolvePlayerKeyboardShortcut({ key: 'ArrowLeft', target: bodyTarget });
+    const defLeftB = lib.resolvePlayerKeyboardShortcut({ key: 'ArrowLeft', target: bodyTarget });
+    assert.strictEqual(defLeftA, defLeftB);
+    assert.equal(defLeftA.deltaSeconds, -5);
+
+    // 2. Custom keymap + custom seekSteps (clamped & Shift-promoted) + WeakMap cached frozen descriptors
+    const customConfig = {
+      bindings: {
+        togglePlayPause: 'p',
+        seekBackwardFine: 'a',
+        seekForwardFine: 'd',
+        seekBackwardCoarse: '[',
+        seekForwardCoarse: ']',
+        toggleMute: 'u',
+        nextTrack: 'n'
+      },
+      seekSteps: {
+        seekStepFineSec: 3,
+        seekStepCoarseSec: 20
+      }
+    };
+
+    const p1 = lib.resolvePlayerKeyboardShortcut({ key: 'P', target: bodyTarget }, { customKeymap: customConfig });
+    const p2 = lib.resolvePlayerKeyboardShortcut({ key: 'p', target: bodyTarget }, { customKeymap: customConfig });
+    assert.deepEqual(p1, { action: 'togglePlayPause', key: 'p', deltaSeconds: 0, preventDefault: true });
+    assert.strictEqual(p1, p2, 'Repeated custom keymap lookups must reuse WeakMap-cached frozen descriptor');
+
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: 'a', target: bodyTarget }, { customKeymap: customConfig }),
+      { action: 'seek', key: 'a', deltaSeconds: -3, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: 'd', shiftKey: true, target: bodyTarget }, { customKeymap: customConfig }),
+      { action: 'seek', key: 'd', deltaSeconds: 20, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: '[', target: bodyTarget }, { customKeymap: customConfig }),
+      { action: 'seek', key: '[', deltaSeconds: -20, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut({ key: 'n', target: bodyTarget }, { customKeymap: customConfig }),
+      { action: 'nextTrack', key: 'n', deltaSeconds: 0, preventDefault: true }
+    );
+
+    // Context-level seekSteps override with clamping (0.2 -> 1s fine, 999 -> 120s coarse)
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut(
+        { key: 'ArrowLeft', target: bodyTarget },
+        { seekSteps: { seekStepFineSec: 0.2, seekStepCoarseSec: 999 } }
+      ),
+      { action: 'seek', key: 'ArrowLeft', deltaSeconds: -1, preventDefault: true }
+    );
+    assert.deepEqual(
+      lib.resolvePlayerKeyboardShortcut(
+        { key: 'j', target: bodyTarget },
+        { seekSteps: { seekStepFineSec: 0.2, seekStepCoarseSec: 999 } }
+      ),
+      { action: 'seek', key: 'j', deltaSeconds: -120, preventDefault: true }
+    );
+
+    // Editable input & interactive button guards still apply strictly
+    assert.equal(
+      lib.resolvePlayerKeyboardShortcut({ key: 'p', target: { tagName: 'INPUT' } }, { customKeymap: customConfig }),
+      null
+    );
+  });
+
+  it('computeMediaSessionSeekOffset prefers explicit OS seekOffset, falls back to configured seekStepSec, and clamps strictly within [0, duration]', () => {
+    // 1. OS explicitly supplies details.seekOffset -> overrides user configured step
+    const osForward = lib.computeMediaSessionSeekOffset(
+      { action: 'seekforward', seekOffset: 30 },
+      10,
+      45,
+      240
+    );
+    assert.equal(osForward.usedOsSeekOffset, true);
+    assert.equal(osForward.source, 'os_seek_offset');
+    assert.equal(osForward.stepSec, 30);
+    assert.equal(osForward.targetTime, 75);
+    assert.equal(osForward.appliedDeltaSec, 30);
+    assert.equal(osForward.clamped, false);
+
+    // 2. OS omits seekOffset -> falls back to user configured seekStepSec (or seekSteps object)
+    const cfgBack = lib.computeMediaSessionSeekOffset(
+      { action: 'seekbackward' },
+      15,
+      45,
+      240
+    );
+    assert.equal(cfgBack.usedOsSeekOffset, false);
+    assert.equal(cfgBack.source, 'configured_seek_step');
+    assert.equal(cfgBack.stepSec, 15);
+    assert.equal(cfgBack.signedOffsetSec, -15);
+    assert.equal(cfgBack.targetTime, 30);
+    assert.equal(cfgBack.clamped, false);
+
+    const cfgObjForward = lib.computeMediaSessionSeekOffset(
+      { action: 'seekforward', seekOffset: 0 },
+      { seekStepCoarseSec: 25, seekStepFineSec: 5 },
+      100,
+      240
+    );
+    assert.equal(cfgObjForward.usedOsSeekOffset, false);
+    assert.equal(cfgObjForward.stepSec, 25);
+    assert.equal(cfgObjForward.targetTime, 125);
+
+    // 3. Clamping at 0s boundary
+    const clampZero = lib.computeMediaSessionSeekOffset(
+      { action: 'seekbackward' },
+      15,
+      4.2,
+      180
+    );
+    assert.equal(clampZero.targetTime, 0);
+    assert.ok(Math.abs(clampZero.appliedDeltaSec - (-4.2)) < 1e-9);
+    assert.equal(clampZero.clamped, true);
+    assert.equal(clampZero.clampedAtZero, true);
+    assert.equal(clampZero.clampedAtDuration, false);
+
+    // 4. Clamping at duration boundary
+    const clampEnd = lib.computeMediaSessionSeekOffset(
+      { action: 'seekforward', seekOffset: 20 },
+      10,
+      172.5,
+      180
+    );
+    assert.equal(clampEnd.targetTime, 180);
+    assert.ok(Math.abs(clampEnd.appliedDeltaSec - 7.5) < 1e-9);
+    assert.equal(clampEnd.clamped, true);
+    assert.equal(clampEnd.clampedAtZero, false);
+    assert.equal(clampEnd.clampedAtDuration, true);
+
+    // 5. Edge cases: duration = 0, currentTime > duration, and live stream Infinity duration
+    const zeroDur = lib.computeMediaSessionSeekOffset({ action: 'seekforward' }, 10, 0, 0);
+    assert.equal(zeroDur.targetTime, 0);
+    assert.equal(zeroDur.clampedAtDuration, true);
+
+    const liveStream = lib.computeMediaSessionSeekOffset({ action: 'seekforward' }, 12, 50, Infinity);
+    assert.equal(liveStream.targetTime, 62);
+    assert.equal(liveStream.duration, null);
+  });
+});
