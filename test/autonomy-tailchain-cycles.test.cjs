@@ -3817,3 +3817,207 @@ describe('Autonomy Tail-Chaining Cycle 16 — UPG-06 (Custom Keymap Export/Impor
     assert.equal(liveStream.duration, null);
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 17 — OPT-06 (Multi-Provider Cold-Start Session Expiry Vault & Zero-Waste Wakeup)', () => {
+  function createMockLocalStorage(initialEntries = {}) {
+    const map = new Map(Object.entries(initialEntries));
+    let getCount = 0;
+    let setCount = 0;
+    let removeCount = 0;
+    return {
+      getItem(k) {
+        getCount++;
+        return map.has(k) ? map.get(k) : null;
+      },
+      setItem(k, v) {
+        setCount++;
+        map.set(k, String(v));
+      },
+      removeItem(k) {
+        removeCount++;
+        map.delete(k);
+      },
+      rawMap: map,
+      counts() {
+        return { getCount, setCount, removeCount };
+      }
+    };
+  }
+
+  it('exposes OPT-06 createMultiProviderSessionVault on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.createMultiProviderSessionVault, 'function');
+
+    const sandbox = { library: { keepRefOpt06: 42 } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.createMultiProviderSessionVault, 'function');
+    assert.equal(typeof sandbox.library.createMultiProviderSessionVault, 'function');
+    assert.equal(sandbox.library.keepRefOpt06, 42);
+  });
+
+  it('persists all 5 providers in 1 compact JSON entry and evaluates cold-start matrix in 1 storage read & 1 parse', () => {
+    const t0 = 1_763_424_000_000;
+    const storage = createMockLocalStorage();
+
+    // Populate session ledger prior to simulated cold restart
+    const writer = lib.createMultiProviderSessionVault(storage, { nowFn: () => t0 });
+    writer.recordSession('google', {
+      accessTokenPresent: true,
+      expiresAt: t0 + 45 * 60_000, // 45 min remaining (> 5m margin)
+      verifiedAt: t0,
+      accountHint: 'audiophile@gmail.com',
+      lastStatus: 'connected'
+    });
+    writer.recordSession('microsoft', {
+      accessTokenPresent: true,
+      expiresAt: t0 + 4 * 60_000, // 4 min remaining (<= 5m lead window)
+      verifiedAt: t0,
+      accountHint: 'hi-res@outlook.com',
+      lastStatus: 'connected'
+    });
+    writer.recordSession('subsonic', {
+      accessTokenPresent: true,
+      verifiedAt: t0,
+      accountHint: 'navidrome.local',
+      lastStatus: 'connected'
+    });
+    writer.recordSession('jellyfin', {
+      accessTokenPresent: true,
+      verifiedAt: t0,
+      accountHint: 'jellyfin.lan',
+      lastStatus: 'connected'
+    });
+    // blackcandy intentionally left never connected!
+
+    // Verify single compact JSON entry with exact persisted fields
+    assert.equal(storage.rawMap.size, 1);
+    const rawJson = storage.rawMap.get(writer.storageKey);
+    const rawParsed = JSON.parse(rawJson);
+    assert.deepEqual(Object.keys(rawParsed.providers).sort(), ['google', 'jellyfin', 'microsoft', 'subsonic']);
+    for (const field of ['accessTokenPresent', 'expiresAt', 'verifiedAt', 'accountHint', 'lastStatus']) {
+      assert.equal(Object.prototype.hasOwnProperty.call(rawParsed.providers.google, field), true);
+    }
+
+    // Simulate cold launch with a fresh vault instance over persisted storage
+    const beforeColdCounts = storage.counts();
+    const coldVault = lib.createMultiProviderSessionVault(storage, { nowFn: () => t0 });
+
+    assert.equal(coldVault.evaluateColdStartAction('google', t0), 'reuse_cached_token');
+    assert.equal(coldVault.evaluateColdStartAction('microsoft', t0), 'silent_refresh');
+    assert.equal(coldVault.evaluateColdStartAction('subsonic', t0), 'static_credentials_ready');
+    assert.equal(coldVault.evaluateColdStartAction('jellyfin', t0), 'static_credentials_ready');
+    assert.equal(coldVault.evaluateColdStartAction('blackcandy', t0), 'skip_unconfigured');
+
+    // BlackCandy connected later -> static_credentials_ready; expired Microsoft -> silent_refresh
+    const allAtExpiredMs = coldVault.evaluateAllColdStartActions(t0 + 20 * 60_000);
+    assert.deepEqual(allAtExpiredMs, {
+      google: 'reuse_cached_token',
+      microsoft: 'silent_refresh',
+      subsonic: 'static_credentials_ready',
+      jellyfin: 'static_credentials_ready',
+      blackcandy: 'skip_unconfigured'
+    });
+
+    const afterColdCounts = storage.counts();
+    assert.equal(afterColdCounts.getCount - beforeColdCounts.getCount, 1, 'Cold launch across all 5 providers must perform exactly 1 storage getItem');
+    assert.equal(coldVault.getStats().storageReads, 1);
+    assert.equal(coldVault.getStats().storageParses, 1);
+
+    // Connect BlackCandy, then disconnect Subsonic, and test expired non-refreshable OAuth token
+    coldVault.recordSession('blackcandy', {
+      accessTokenPresent: true,
+      accountHint: 'blackcandy.home',
+      lastStatus: 'connected'
+    }, t0);
+    assert.equal(coldVault.evaluateColdStartAction('blackcandy', t0), 'static_credentials_ready');
+
+    coldVault.clearProvider('subsonic', t0);
+    assert.equal(coldVault.evaluateColdStartAction('subsonic', t0), 'skip_unconfigured');
+
+    coldVault.recordSession('google', {
+      accessTokenPresent: true,
+      expiresAt: t0 - 1000,
+      verifiedAt: t0 - 3600_000,
+      refreshCapable: false,
+      lastStatus: 'expired'
+    }, t0);
+    assert.equal(coldVault.evaluateColdStartAction('google', t0), 'skip_unconfigured');
+  });
+
+  it('recovers cleanly from corrupted JSON entries and enforces clock-skew safety on rewound or runaway system clocks', () => {
+    const key = 'nocturne-multi-provider-session-vault-v1';
+
+    // 1. Corrupted JSON payloads never crash cold start and self-heal to skip_unconfigured
+    for (const badPayload of ['{"v":1,"providers":{broken', 'null', '[]', '42', '{"v":1,"providers":[]}', 12345]) {
+      const corruptStorage = createMockLocalStorage({ [key]: badPayload });
+      const vault = lib.createMultiProviderSessionVault(corruptStorage);
+      assert.equal(vault.getStats().corruptRecoveries, 1);
+      for (const p of ['google', 'microsoft', 'subsonic', 'jellyfin', 'blackcandy']) {
+        assert.equal(vault.evaluateColdStartAction(p, 1_763_424_000_000), 'skip_unconfigured');
+      }
+      assert.equal(corruptStorage.rawMap.has(key), false, 'Corrupted storage entry should be cleaned up automatically');
+    }
+
+    // 2. Clock-skew safety: backward system clock jump (verifiedAt is 30 min ahead of current system clock)
+    const verifiedTime = 1_763_424_000_000;
+    const skewStorage = createMockLocalStorage();
+    const skewVault = lib.createMultiProviderSessionVault(skewStorage, {
+      clockSkewToleranceMs: 60_000,
+      clockSkewMs: 30_000 // extra 30s explicit clock-skew safety buffer
+    });
+
+    skewVault.recordSession('google', {
+      accessTokenPresent: true,
+      verifiedAt: verifiedTime,
+      expiresAt: verifiedTime + 60 * 60_000, // 1 hour after verifiedAt
+      accountHint: 'ntp-skew@gmail.com',
+      lastStatus: 'connected'
+    }, verifiedTime);
+
+    // Small jitter within 60s tolerance (e.g. 15s behind verifiedAt) still reuses cached token safely
+    assert.equal(skewVault.evaluateColdStartAction('google', verifiedTime - 15_000), 'reuse_cached_token');
+
+    // System clock rewound by 30 minutes (< verifiedAt - 60s tolerance) -> distrusts cached expiry and forces silent_refresh!
+    const rewoundDetail = skewVault.evaluateColdStartDetail('google', verifiedTime - 30 * 60_000);
+    assert.equal(rewoundDetail.clockSkewDetected, true);
+    assert.equal(rewoundDetail.action, 'silent_refresh');
+    assert.equal(skewVault.evaluateColdStartAction('google', verifiedTime - 30 * 60_000), 'silent_refresh');
+
+    // Explicit clockSkewMs (30s) + 5m safetyMarginMs = 330s effective lead window:
+    // At 5m 15s remaining (315s <= 330s), triggers proactive silent_refresh!
+    assert.equal(
+      skewVault.evaluateColdStartAction('google', verifiedTime + 60 * 60_000 - 315_000),
+      'silent_refresh'
+    );
+    // At 6m remaining (360s > 330s), reuses cached token!
+    assert.equal(
+      skewVault.evaluateColdStartAction('google', verifiedTime + 60 * 60_000 - 360_000),
+      'reuse_cached_token'
+    );
+
+    // Absurd >1-year future OAuth expiry caused by runaway forward clock at issue time -> clockSkewDetected: true -> silent_refresh
+    skewVault.recordSession('microsoft', {
+      accessTokenPresent: true,
+      verifiedAt: verifiedTime,
+      expiresAt: verifiedTime + 5 * 365 * 24 * 3600 * 1000,
+      accountHint: 'runaway-clock@live.com',
+      lastStatus: 'connected'
+    }, verifiedTime);
+    const runawayDetail = skewVault.evaluateColdStartDetail('microsoft', verifiedTime + 1000);
+    assert.equal(runawayDetail.clockSkewDetected, true);
+    assert.equal(runawayDetail.action, 'silent_refresh');
+
+    // Unix-seconds expiresAt (e.g. 1763427600 instead of ms) auto-normalizes to ms cleanly
+    skewVault.recordSession('google', {
+      accessTokenPresent: true,
+      verifiedAt: 1_763_424_000,
+      expiresAt: 1_763_427_600,
+      accountHint: 'seconds-epoch@gmail.com'
+    }, verifiedTime);
+    assert.equal(skewVault.getProviderSession('google').expiresAt, 1_763_427_600_000);
+    assert.equal(skewVault.evaluateColdStartAction('google', verifiedTime + 10 * 60_000), 'reuse_cached_token');
+  });
+});

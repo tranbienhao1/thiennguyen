@@ -20668,5 +20668,593 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, signConfigurationBundle, verifyConfigurationBundle, createAdaptiveCanvasRenderGovernor, parseSafeMp4AlacBoxMetadata, computeAntiClippingLinearGain, extractBinaryReplayGainTags, readHeadSlice64kZeroCopy, computeSourceFingerprint64kAsync, createResilientIndexedDbManager, normalizeCustomKeymapConfig, exportCustomKeymapBundle, importCustomKeymapBundle, computeMediaSessionSeekOffset};
+  // ==========================================================================
+  // OPT-06 — Multi-Provider Cold-Start Session Expiry Vault & Zero-Waste Wakeup
+  // ==========================================================================
+  const MULTI_PROVIDER_VAULT_DEFAULT_KEY = 'nocturne-multi-provider-session-vault-v1';
+  const MULTI_PROVIDER_SAFETY_MARGIN_MS = 5 * 60 * 1000; // 5 minutes
+  const MULTI_PROVIDER_CLOCK_SKEW_TOLERANCE_MS = 60 * 1000; // 60 seconds
+  const MULTI_PROVIDER_MAX_OAUTH_HORIZON_MS = 365 * 24 * 60 * 60 * 1000; // 1 year sanity ceiling
+
+  const MULTI_PROVIDER_CANONICAL_IDS = Object.freeze([
+    'google',
+    'microsoft',
+    'subsonic',
+    'jellyfin',
+    'blackcandy'
+  ]);
+
+  const MULTI_PROVIDER_ALIASES = Object.freeze({
+    google: 'google',
+    gdrive: 'google',
+    google_drive: 'google',
+    googledrive: 'google',
+    microsoft: 'microsoft',
+    onedrive: 'microsoft',
+    entra: 'microsoft',
+    msal: 'microsoft',
+    microsoft_entra: 'microsoft',
+    subsonic: 'subsonic',
+    navidrome: 'subsonic',
+    jellyfin: 'jellyfin',
+    blackcandy: 'blackcandy',
+    black_candy: 'blackcandy'
+  });
+
+  const OAUTH_SESSION_PROVIDERS = new Set(['google', 'microsoft']);
+  const STATIC_SERVER_PROVIDERS = new Set(['subsonic', 'jellyfin', 'blackcandy']);
+  const UNCONFIGURED_STATUSES = new Set(['unconfigured', 'disconnected', 'revoked', 'logged_out', 'cleared']);
+
+  function normalizeSessionProviderId(rawProvider) {
+    if (typeof rawProvider !== 'string') return null;
+    const key = rawProvider.toLowerCase().trim();
+    return MULTI_PROVIDER_ALIASES[key] || null;
+  }
+
+  function normalizeVaultEpochMs(rawValue, allowNull = false) {
+    if (rawValue === null || rawValue === undefined || rawValue === '' || typeof rawValue === 'boolean') {
+      return allowNull ? null : 0;
+    }
+    const num = Number(rawValue);
+    if (!Number.isFinite(num) || num <= 0) {
+      return allowNull ? null : 0;
+    }
+    // Auto-normalize Unix seconds (1e9 .. 1e11) to milliseconds
+    if (num >= 1e9 && num < 1e11) {
+      return Math.floor(num * 1000);
+    }
+    return Math.floor(num);
+  }
+
+  function sanitizeAccountHint(rawHint) {
+    if (typeof rawHint !== 'string') return '';
+    const trimmed = rawHint.trim();
+    if (!trimmed) return '';
+    // Never persist accidental long bearer tokens inside accountHint
+    if (/^(?:Bearer\s+|ya29\.|eyJ[A-Za-z0-9_-]{20,})/i.test(trimmed)) {
+      return '';
+    }
+    return trimmed.length > 128 ? trimmed.slice(0, 128) : trimmed;
+  }
+
+  function createStorageAdapter(storageLike) {
+    const fallbackMap = new Map();
+    if (!storageLike || typeof storageLike !== 'object') {
+      return {
+        get(key) {
+          return fallbackMap.has(key) ? fallbackMap.get(key) : null;
+        },
+        set(key, val) {
+          fallbackMap.set(key, String(val));
+        },
+        remove(key) {
+          fallbackMap.delete(key);
+        }
+      };
+    }
+
+    if (typeof storageLike.getItem === 'function' && typeof storageLike.setItem === 'function') {
+      return {
+        get(key) {
+          try {
+            return storageLike.getItem(key);
+          } catch (_) {
+            return fallbackMap.has(key) ? fallbackMap.get(key) : null;
+          }
+        },
+        set(key, val) {
+          const str = String(val);
+          fallbackMap.set(key, str);
+          try {
+            storageLike.setItem(key, str);
+          } catch (_) {}
+        },
+        remove(key) {
+          fallbackMap.delete(key);
+          try {
+            if (typeof storageLike.removeItem === 'function') {
+              storageLike.removeItem(key);
+            } else {
+              storageLike.setItem(key, '');
+            }
+          } catch (_) {}
+        }
+      };
+    }
+
+    if (storageLike instanceof Map) {
+      return {
+        get(key) {
+          return storageLike.has(key) ? storageLike.get(key) : null;
+        },
+        set(key, val) {
+          storageLike.set(key, String(val));
+        },
+        remove(key) {
+          storageLike.delete(key);
+        }
+      };
+    }
+
+    return {
+      get(key) {
+        return Object.prototype.hasOwnProperty.call(storageLike, key) ? storageLike[key] : null;
+      },
+      set(key, val) {
+        storageLike[key] = String(val);
+      },
+      remove(key) {
+        delete storageLike[key];
+      }
+    };
+  }
+
+  function sanitizePersistedProviderEntry(provider, rawEntry) {
+    if (!rawEntry || typeof rawEntry !== 'object' || Array.isArray(rawEntry)) {
+      return null;
+    }
+    const accessTokenPresent = Boolean(rawEntry.accessTokenPresent);
+    const expiresAt = normalizeVaultEpochMs(rawEntry.expiresAt, true);
+    const verifiedAt = normalizeVaultEpochMs(rawEntry.verifiedAt, false);
+    const accountHint = sanitizeAccountHint(rawEntry.accountHint);
+    const rawStatus = typeof rawEntry.lastStatus === 'string' && rawEntry.lastStatus.trim()
+      ? rawEntry.lastStatus.toLowerCase().trim()
+      : (accessTokenPresent ? 'connected' : 'unconfigured');
+
+    const defaultRefreshCapable = OAUTH_SESSION_PROVIDERS.has(provider)
+      ? !UNCONFIGURED_STATUSES.has(rawStatus) && (accessTokenPresent || Boolean(accountHint) || rawStatus === 'expired' || rawStatus === 'refresh_required')
+      : false;
+    const refreshCapable = typeof rawEntry.refreshCapable === 'boolean'
+      ? rawEntry.refreshCapable
+      : defaultRefreshCapable;
+
+    return {
+      accessTokenPresent,
+      expiresAt,
+      verifiedAt,
+      accountHint,
+      lastStatus: rawStatus,
+      refreshCapable
+    };
+  }
+
+  function createMultiProviderSessionVault(storageLike, options = {}) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const storageKey = typeof opts.storageKey === 'string' && opts.storageKey.trim()
+      ? opts.storageKey.trim()
+      : MULTI_PROVIDER_VAULT_DEFAULT_KEY;
+
+    const rawSafetyMargin = opts.safetyMarginMs !== undefined ? opts.safetyMarginMs : opts.leadTimeMs;
+    const safetyMarginMs = Number.isFinite(Number(rawSafetyMargin)) && Number(rawSafetyMargin) >= 0
+      ? Math.floor(Number(rawSafetyMargin))
+      : MULTI_PROVIDER_SAFETY_MARGIN_MS;
+
+    const clockSkewToleranceMs = Number.isFinite(Number(opts.clockSkewToleranceMs)) && Number(opts.clockSkewToleranceMs) >= 0
+      ? Math.floor(Number(opts.clockSkewToleranceMs))
+      : MULTI_PROVIDER_CLOCK_SKEW_TOLERANCE_MS;
+
+    const explicitClockSkewBufferMs = Number.isFinite(Number(opts.clockSkewMs)) && Number(opts.clockSkewMs) > 0
+      ? Math.floor(Number(opts.clockSkewMs))
+      : 0;
+
+    const maxOAuthHorizonMs = Number.isFinite(Number(opts.maxOAuthHorizonMs)) && Number(opts.maxOAuthHorizonMs) > 0
+      ? Math.floor(Number(opts.maxOAuthHorizonMs))
+      : MULTI_PROVIDER_MAX_OAUTH_HORIZON_MS;
+
+    const nowFn = typeof opts.nowFn === 'function' ? opts.nowFn : () => Date.now();
+    const adapter = createStorageAdapter(storageLike);
+
+    let storageReads = 0;
+    let storageParses = 0;
+    let storageWrites = 0;
+    let corruptRecoveries = 0;
+    let hydrated = false;
+    let updatedAt = 0;
+    let providersLedger = Object.create(null);
+
+    function resetEmptyLedger() {
+      updatedAt = 0;
+      providersLedger = Object.create(null);
+    }
+
+    function hydrateOnce() {
+      if (hydrated) return;
+      hydrated = true;
+      storageReads++;
+
+      const raw = adapter.get(storageKey);
+      if (raw === null || raw === undefined || raw === '') {
+        resetEmptyLedger();
+        return;
+      }
+
+      if (typeof raw !== 'string') {
+        corruptRecoveries++;
+        resetEmptyLedger();
+        if (opts.repairCorruptedOnRead !== false) {
+          adapter.remove(storageKey);
+        }
+        return;
+      }
+
+      storageParses++;
+      let parsed = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (_) {
+        corruptRecoveries++;
+        resetEmptyLedger();
+        if (opts.repairCorruptedOnRead !== false) {
+          adapter.remove(storageKey);
+        }
+        return;
+      }
+
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        corruptRecoveries++;
+        resetEmptyLedger();
+        if (opts.repairCorruptedOnRead !== false) {
+          adapter.remove(storageKey);
+        }
+        return;
+      }
+
+      const rawProviders = parsed.providers && typeof parsed.providers === 'object' && !Array.isArray(parsed.providers)
+        ? parsed.providers
+        : null;
+      if (!rawProviders) {
+        corruptRecoveries++;
+        resetEmptyLedger();
+        if (opts.repairCorruptedOnRead !== false) {
+          adapter.remove(storageKey);
+        }
+        return;
+      }
+
+      updatedAt = normalizeVaultEpochMs(parsed.updatedAt, false);
+      const nextLedger = Object.create(null);
+      for (let i = 0; i < MULTI_PROVIDER_CANONICAL_IDS.length; i++) {
+        const pid = MULTI_PROVIDER_CANONICAL_IDS[i];
+        if (Object.prototype.hasOwnProperty.call(rawProviders, pid)) {
+          const clean = sanitizePersistedProviderEntry(pid, rawProviders[pid]);
+          if (clean) {
+            nextLedger[pid] = clean;
+          }
+        }
+      }
+      providersLedger = nextLedger;
+    }
+
+    function persistLedger(nowOverride) {
+      const ts = normalizeVaultEpochMs(nowOverride, true) ?? normalizeVaultEpochMs(nowFn(), false);
+      updatedAt = ts;
+      const serializedProviders = {};
+      for (let i = 0; i < MULTI_PROVIDER_CANONICAL_IDS.length; i++) {
+        const pid = MULTI_PROVIDER_CANONICAL_IDS[i];
+        const entry = providersLedger[pid];
+        if (entry) {
+          serializedProviders[pid] = {
+            accessTokenPresent: entry.accessTokenPresent,
+            expiresAt: entry.expiresAt,
+            verifiedAt: entry.verifiedAt,
+            accountHint: entry.accountHint,
+            lastStatus: entry.lastStatus,
+            refreshCapable: entry.refreshCapable
+          };
+        }
+      }
+      const compactJson = JSON.stringify({
+        v: 1,
+        updatedAt: ts,
+        providers: serializedProviders
+      });
+      storageWrites++;
+      adapter.set(storageKey, compactJson);
+    }
+
+    function recordSession(provider, sessionPatch = {}, nowOverride) {
+      hydrateOnce();
+      const pid = normalizeSessionProviderId(provider);
+      if (!pid) {
+        throw new TypeError(`Unsupported session vault provider: "${String(provider)}"`);
+      }
+      const patch = sessionPatch && typeof sessionPatch === 'object' ? sessionPatch : {};
+      const nowMs = normalizeVaultEpochMs(nowOverride, true) ?? normalizeVaultEpochMs(nowFn(), false);
+      const prev = providersLedger[pid] || null;
+
+      const accessTokenPresent = patch.accessTokenPresent !== undefined
+        ? Boolean(patch.accessTokenPresent)
+        : (patch.accessToken !== undefined ? Boolean(patch.accessToken) : (prev ? prev.accessTokenPresent : false));
+
+      const verifiedAt = patch.verifiedAt !== undefined
+        ? normalizeVaultEpochMs(patch.verifiedAt, false)
+        : (accessTokenPresent ? nowMs : (prev ? prev.verifiedAt : nowMs));
+
+      let expiresAt = prev ? prev.expiresAt : null;
+      if (patch.expiresAt !== undefined) {
+        expiresAt = normalizeVaultEpochMs(patch.expiresAt, true);
+      } else if (patch.expiresInSec !== undefined && Number.isFinite(Number(patch.expiresInSec)) && Number(patch.expiresInSec) > 0) {
+        expiresAt = verifiedAt + Math.floor(Number(patch.expiresInSec) * 1000);
+      } else if (STATIC_SERVER_PROVIDERS.has(pid) && expiresAt === null) {
+        expiresAt = null;
+      }
+
+      const accountHint = patch.accountHint !== undefined
+        ? sanitizeAccountHint(patch.accountHint)
+        : (prev ? prev.accountHint : '');
+
+      const lastStatus = typeof patch.lastStatus === 'string' && patch.lastStatus.trim()
+        ? patch.lastStatus.toLowerCase().trim()
+        : (accessTokenPresent ? 'connected' : (prev ? prev.lastStatus : 'unconfigured'));
+
+      const refreshCapable = typeof patch.refreshCapable === 'boolean'
+        ? patch.refreshCapable
+        : (OAUTH_SESSION_PROVIDERS.has(pid)
+          ? (!UNCONFIGURED_STATUSES.has(lastStatus) && (accessTokenPresent || Boolean(accountHint) || (prev ? prev.refreshCapable : false)))
+          : false);
+
+      const entry = {
+        accessTokenPresent,
+        expiresAt,
+        verifiedAt,
+        accountHint,
+        lastStatus,
+        refreshCapable
+      };
+
+      providersLedger[pid] = entry;
+      persistLedger(nowMs);
+      return Object.assign({}, entry);
+    }
+
+    function clearProvider(provider, nowOverride) {
+      hydrateOnce();
+      const pid = normalizeSessionProviderId(provider);
+      if (!pid) return false;
+      const had = Boolean(providersLedger[pid]);
+      delete providersLedger[pid];
+      persistLedger(nowOverride);
+      return had;
+    }
+
+    function clearAll() {
+      hydrated = true;
+      resetEmptyLedger();
+      adapter.remove(storageKey);
+    }
+
+    function getProviderSession(provider) {
+      hydrateOnce();
+      const pid = normalizeSessionProviderId(provider);
+      if (!pid || !providersLedger[pid]) return null;
+      return Object.assign({}, providersLedger[pid]);
+    }
+
+    function evaluateColdStartDetail(provider, nowOverride) {
+      hydrateOnce();
+      const pid = normalizeSessionProviderId(provider);
+      const rawNow = nowOverride !== undefined ? Number(nowOverride) : Number(nowFn());
+      const nowMs = Number.isFinite(rawNow) && rawNow > 0 ? Math.floor(rawNow) : Date.now();
+
+      if (!pid) {
+        return {
+          provider: null,
+          action: 'skip_unconfigured',
+          remainingMs: null,
+          clockSkewDetected: false,
+          entry: null
+        };
+      }
+
+      const entry = providersLedger[pid] || null;
+      if (!entry || UNCONFIGURED_STATUSES.has(entry.lastStatus)) {
+        return {
+          provider: pid,
+          action: 'skip_unconfigured',
+          remainingMs: null,
+          clockSkewDetected: false,
+          entry: entry ? Object.assign({}, entry) : null
+        };
+      }
+
+      const effectiveMarginMs = safetyMarginMs + explicitClockSkewBufferMs;
+      const backwardClockSkew = entry.verifiedAt > 0 && (nowMs + clockSkewToleranceMs < entry.verifiedAt);
+
+      // Personal static-token servers: Subsonic, Jellyfin, BlackCandy
+      if (STATIC_SERVER_PROVIDERS.has(pid)) {
+        if (!entry.accessTokenPresent) {
+          return {
+            provider: pid,
+            action: entry.refreshCapable ? 'silent_refresh' : 'skip_unconfigured',
+            remainingMs: null,
+            clockSkewDetected: backwardClockSkew,
+            entry: Object.assign({}, entry)
+          };
+        }
+
+        if (entry.expiresAt === null || entry.expiresAt === 0) {
+          return {
+            provider: pid,
+            action: 'static_credentials_ready',
+            remainingMs: Infinity,
+            clockSkewDetected: backwardClockSkew,
+            entry: Object.assign({}, entry)
+          };
+        }
+
+        const remainingMs = entry.expiresAt - nowMs;
+        if (!backwardClockSkew && remainingMs > effectiveMarginMs) {
+          return {
+            provider: pid,
+            action: 'static_credentials_ready',
+            remainingMs,
+            clockSkewDetected: false,
+            entry: Object.assign({}, entry)
+          };
+        }
+
+        return {
+          provider: pid,
+          action: entry.refreshCapable ? 'silent_refresh' : (remainingMs > 0 && !backwardClockSkew ? 'static_credentials_ready' : 'skip_unconfigured'),
+          remainingMs,
+          clockSkewDetected: backwardClockSkew,
+          entry: Object.assign({}, entry)
+        };
+      }
+
+      // OAuth 2.0 providers: Google Drive & Microsoft Entra
+      if (!entry.accessTokenPresent) {
+        return {
+          provider: pid,
+          action: entry.refreshCapable ? 'silent_refresh' : 'skip_unconfigured',
+          remainingMs: entry.expiresAt ? entry.expiresAt - nowMs : null,
+          clockSkewDetected: backwardClockSkew,
+          entry: Object.assign({}, entry)
+        };
+      }
+
+      if (entry.expiresAt === null || entry.expiresAt <= 0) {
+        return {
+          provider: pid,
+          action: entry.refreshCapable ? 'silent_refresh' : 'skip_unconfigured',
+          remainingMs: 0,
+          clockSkewDetected: backwardClockSkew,
+          entry: Object.assign({}, entry)
+        };
+      }
+
+      const remainingMs = entry.expiresAt - nowMs;
+      const absurdFutureHorizon = remainingMs > maxOAuthHorizonMs;
+      const clockSkewDetected = backwardClockSkew || absurdFutureHorizon;
+
+      if (clockSkewDetected) {
+        return {
+          provider: pid,
+          action: entry.refreshCapable ? 'silent_refresh' : 'skip_unconfigured',
+          remainingMs,
+          clockSkewDetected: true,
+          entry: Object.assign({}, entry)
+        };
+      }
+
+      if (remainingMs > effectiveMarginMs) {
+        return {
+          provider: pid,
+          action: 'reuse_cached_token',
+          remainingMs,
+          clockSkewDetected: false,
+          entry: Object.assign({}, entry)
+        };
+      }
+
+      if (entry.refreshCapable) {
+        return {
+          provider: pid,
+          action: 'silent_refresh',
+          remainingMs,
+          clockSkewDetected: false,
+          entry: Object.assign({}, entry)
+        };
+      }
+
+      return {
+        provider: pid,
+        action: 'skip_unconfigured',
+        remainingMs,
+        clockSkewDetected: false,
+        entry: Object.assign({}, entry)
+      };
+    }
+
+    function evaluateColdStartAction(provider, nowMs) {
+      return evaluateColdStartDetail(provider, nowMs).action;
+    }
+
+    function evaluateAllColdStartActions(nowMs) {
+      hydrateOnce();
+      const summary = {};
+      for (let i = 0; i < MULTI_PROVIDER_CANONICAL_IDS.length; i++) {
+        const pid = MULTI_PROVIDER_CANONICAL_IDS[i];
+        summary[pid] = evaluateColdStartDetail(pid, nowMs).action;
+      }
+      return summary;
+    }
+
+    function reloadFromStorage() {
+      hydrated = false;
+      hydrateOnce();
+      return getSnapshot();
+    }
+
+    function getSnapshot() {
+      hydrateOnce();
+      const copy = {};
+      for (let i = 0; i < MULTI_PROVIDER_CANONICAL_IDS.length; i++) {
+        const pid = MULTI_PROVIDER_CANONICAL_IDS[i];
+        if (providersLedger[pid]) {
+          copy[pid] = Object.assign({}, providersLedger[pid]);
+        }
+      }
+      return {
+        version: 1,
+        storageKey,
+        updatedAt,
+        providers: copy
+      };
+    }
+
+    // Eager single-parse hydration on vault initialization
+    hydrateOnce();
+
+    return {
+      storageKey,
+      safetyMarginMs,
+      clockSkewToleranceMs,
+      recordSession,
+      updateProvider: recordSession,
+      setProviderSession: recordSession,
+      clearProvider,
+      removeProvider: clearProvider,
+      clearAll,
+      getProviderSession,
+      getSnapshot,
+      reloadFromStorage,
+      evaluateColdStartAction,
+      evaluateColdStartDetail,
+      evaluateAllColdStartActions,
+      getStats() {
+        return {
+          storageKey,
+          safetyMarginMs,
+          clockSkewToleranceMs,
+          storageReads,
+          storageParses,
+          storageWrites,
+          corruptRecoveries
+        };
+      }
+    };
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, signConfigurationBundle, verifyConfigurationBundle, createAdaptiveCanvasRenderGovernor, parseSafeMp4AlacBoxMetadata, computeAntiClippingLinearGain, extractBinaryReplayGainTags, readHeadSlice64kZeroCopy, computeSourceFingerprint64kAsync, createResilientIndexedDbManager, normalizeCustomKeymapConfig, exportCustomKeymapBundle, importCustomKeymapBundle, computeMediaSessionSeekOffset, createMultiProviderSessionVault};
 });

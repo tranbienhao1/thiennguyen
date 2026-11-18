@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 23,
-  "lastPhase": "UPGRADE",
-  "lastRunIso": "2026-11-18T01:02:30.000Z",
+  "cycleCount": 24,
+  "lastPhase": "OPTIMIZE",
+  "lastRunIso": "2026-11-18T01:10:55.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "OPT-06",
-      "phase": "OPTIMIZE",
-      "title": "Tối ưu lưu đệm trạng thái hết hạn OAuth đa nguồn (Google Drive / Microsoft Entra / Subsonic / Jellyfin) tránh gọi làm mới thừa khi khởi động lạnh"
-    },
     {
       "id": "BUG-07",
       "phase": "BUG_HUNT",
@@ -123,6 +118,16 @@
       "id": "BUG-14",
       "phase": "BUG_HUNT",
       "title": "Kiểm tra đồng bộ biên thời gian tua MediaSession seekbackward/seekforward với phân đoạn track ảo CUE sheet (cueStart..cueEnd) tránh tràn sang bài kế tiếp"
+    },
+    {
+      "id": "UPG-14",
+      "phase": "UPGRADE",
+      "title": "Bổ sung bảng chẩn đoán phiên kết nối đa nguồn (Google Drive / Microsoft Entra / Subsonic / Jellyfin / BlackCandy) hiển thị thời gian hết hạn và trạng thái khởi động lạnh từ Session Vault"
+    },
+    {
+      "id": "OPT-14",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu đồng bộ trạng thái MultiProviderSessionVault qua sự kiện storage đa tab tránh hai tab PWA cùng gọi silent_refresh trùng lặp"
     }
   ],
   "completedTasks": [
@@ -261,6 +266,14 @@
       "completedAt": "2026-11-18T01:02:30.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai normalizeCustomKeymapConfig, exportCustomKeymapBundle, importCustomKeymapBundle (ký kiểm tra toàn vẹn CRC32+SHA-256, chống trùng khóa, từ chối phím hệ thống Tab/Escape/F5/F12/Ctrl+W/Alt+F4, kẹp seekStepFineSec 1..30s & seekStepCoarseSec 5..120s), computeMediaSessionSeekOffset (ưu tiên details.seekOffset của OS, fallback seekStepSec cấu hình, kẹp [0, duration]) và mở rộng resolvePlayerKeyboardShortcut hỗ trợ customKeymap & seekSteps zero-allocation trong library-utils.js"
+    },
+    {
+      "id": "OPT-06",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu lưu đệm trạng thái hết hạn OAuth đa nguồn (Google Drive / Microsoft Entra / Subsonic / Jellyfin) tránh gọi làm mới thừa khi khởi động lạnh",
+      "completedAt": "2026-11-18T01:10:55.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai createMultiProviderSessionVault trong library-utils.js gom trạng thái phiên của google, microsoft, subsonic, jellyfin và blackcandy vào 1 mục JSON nhỏ gọn duy nhất (chỉ 1 lần đọc & 1 lần parse khi khởi động lạnh), phân loại chính xác reuse_cached_token (>5 phút), silent_refresh (<=5 phút hoặc hết hạn có refresh), skip_unconfigured (chưa kết nối, ngăn đánh thức MSAL/GIS thừa) và static_credentials_ready, kèm tự phục hồi JSON hỏng và bảo vệ lệch đồng hồ hệ thống"
     }
   ]
 }
