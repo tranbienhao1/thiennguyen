@@ -4881,3 +4881,217 @@ describe('Autonomy Tail-Chaining Cycle 21 — BUG-08 (LRC [length:] vs Decoded A
     assert.equal(fromLrcLengthSpec.plainLyrics, 'Closing theme');
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 22 — UPG-08 (Simultaneous Lead / Duet / Backing Multi-Voice Lyric Lanes via TypedLyricSegmentIndex)', () => {
+  it('exposes UPG-08 resolveMultiVoiceLyricLanes & classifyLyricVocalRole on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.resolveMultiVoiceLyricLanes, 'function');
+    assert.equal(typeof lib.classifyLyricVocalRole, 'function');
+
+    const sandbox = { library: { keepRefUpg08: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.resolveMultiVoiceLyricLanes, 'function');
+    assert.equal(typeof sandbox.library.resolveMultiVoiceLyricLanes, 'function');
+    assert.equal(typeof sandbox.library.classifyLyricVocalRole, 'function');
+    assert.equal(sandbox.library.keepRefUpg08, true);
+  });
+
+  it('resolves simultaneous Lead (v1/lead/default), Duet (v2/duet), and Backing (bg/backing/parenthesized) vocal lanes with per-lane word progress', () => {
+    const multiVoiceLines = [
+      {
+        start_ms: 1000,
+        end_ms: 7000,
+        voice: 'v1',
+        text: 'We rise into the neon night',
+        words: [
+          { start_ms: 1000, end_ms: 3000, text: 'We rise ' },
+          { start_ms: 3000, end_ms: 5000, text: 'into the ' },
+          { start_ms: 5000, end_ms: 7000, text: 'neon night' }
+        ]
+      },
+      {
+        start_ms: 2500,
+        end_ms: 5500,
+        voice: 'v2',
+        text: 'Side by side in harmony',
+        words: [
+          { start_ms: 2500, end_ms: 4000, text: 'Side by side ' },
+          { start_ms: 4000, end_ms: 5500, text: 'in harmony' }
+        ]
+      },
+      {
+        start_ms: 3000,
+        end_ms: 5000,
+        voice: 'bg',
+        text: 'Ooh-ahh choir',
+        words: [
+          { start_ms: 3000, end_ms: 3800, text: 'Ooh-ahh ' },
+          { start_ms: 3800, end_ms: 5000, text: 'choir' }
+        ]
+      },
+      {
+        start_ms: 3500,
+        end_ms: 6000,
+        text: '(ooh... shimmering echo)'
+      },
+      {
+        start_ms: 8000,
+        end_ms: 10000,
+        text: '(Verse 2) Default lead vocal without explicit voice'
+      }
+    ];
+
+    assert.equal(lib.classifyLyricVocalRole(multiVoiceLines[0]), 'lead');
+    assert.equal(lib.classifyLyricVocalRole(multiVoiceLines[1]), 'duet');
+    assert.equal(lib.classifyLyricVocalRole(multiVoiceLines[2]), 'backing');
+    assert.equal(lib.classifyLyricVocalRole(multiVoiceLines[3]), 'backing');
+    assert.equal(lib.classifyLyricVocalRole(multiVoiceLines[4]), 'lead');
+
+    // 1. Before first line (t = 200ms)
+    const before = lib.resolveMultiVoiceLyricLanes(multiVoiceLines, 200);
+    assert.equal(before.leadLane, null);
+    assert.deepEqual(before.duetLanes, []);
+    assert.deepEqual(before.backingLanes, []);
+    assert.deepEqual(before.activeLineIndices, []);
+    assert.equal(before.hasOverlappingVocals, false);
+
+    // 2. Solo Lead (t = 2000ms -> word 0 [1000..3000], progress 0.5)
+    const soloLead = lib.resolveMultiVoiceLyricLanes(multiVoiceLines, 2000);
+    assert.equal(soloLead.hasOverlappingVocals, false);
+    assert.deepEqual(soloLead.activeLineIndices, [0]);
+    assert.ok(soloLead.leadLane);
+    assert.equal(soloLead.leadLane.lineIndex, 0);
+    assert.equal(soloLead.leadLane.wordIndex, 0);
+    assert.ok(Math.abs(soloLead.leadLane.wordProgress - 0.5) < 1e-6);
+    assert.deepEqual(soloLead.duetLanes, []);
+    assert.deepEqual(soloLead.backingLanes, []);
+
+    // 3. 4-Way Simultaneous Overlap at t = 4400ms:
+    // - Lead (idx 0): word 1 ('into the ' [3000..5000]) -> wordProgress = (4400-3000)/2000 = 0.7
+    // - Duet (idx 1): word 1 ('in harmony' [4000..5500]) -> wordProgress = (4400-4000)/1500 = 4/15
+    // - Backing bg (idx 2): word 1 ('choir' [3800..5000]) -> wordProgress = (4400-3800)/1200 = 0.5
+    // - Backing parenthesized (idx 3): no words [3500..6000] -> wordIndex = -1, wordProgress = (4400-3500)/2500 = 0.36
+    const overlap = lib.resolveMultiVoiceLyricLanes(multiVoiceLines, 4400);
+    assert.equal(overlap.hasOverlappingVocals, true);
+    assert.deepEqual(overlap.activeLineIndices, [0, 1, 2, 3]);
+
+    assert.ok(overlap.leadLane);
+    assert.equal(overlap.leadLane.role, 'lead');
+    assert.equal(overlap.leadLane.lineIndex, 0);
+    assert.equal(overlap.leadLane.wordIndex, 1);
+    assert.ok(Math.abs(overlap.leadLane.wordProgress - 0.7) < 1e-6);
+
+    assert.equal(overlap.duetLanes.length, 1);
+    assert.equal(overlap.duetLanes[0].role, 'duet');
+    assert.equal(overlap.duetLanes[0].lineIndex, 1);
+    assert.equal(overlap.duetLanes[0].wordIndex, 1);
+    assert.ok(Math.abs(overlap.duetLanes[0].wordProgress - (400 / 1500)) < 1e-6);
+
+    assert.equal(overlap.backingLanes.length, 2);
+    assert.equal(overlap.backingLanes[0].lineIndex, 2);
+    assert.equal(overlap.backingLanes[0].wordIndex, 1);
+    assert.ok(Math.abs(overlap.backingLanes[0].wordProgress - 0.5) < 1e-6);
+    assert.equal(overlap.backingLanes[1].lineIndex, 3);
+    assert.equal(overlap.backingLanes[1].wordIndex, -1);
+    assert.ok(Math.abs(overlap.backingLanes[1].wordProgress - 0.36) < 1e-6);
+  });
+
+  it('reuses outLanes in-place with zero array/slot reallocation and enriches Listening Room & Fullscreen Karaoke DOM safely', () => {
+    const segIdx = lib.createTypedLyricSegmentIndex([
+      { start_ms: 1000, end_ms: 5000, voice: 'lead', text: 'Lead vocal' },
+      { start_ms: 1500, end_ms: 4500, voice: 'duet', text: 'Duet vocal' },
+      { start_ms: 2000, end_ms: 4000, text: '(ooh backing)' }
+    ]);
+
+    const outLanes = {};
+    const first = lib.resolveMultiVoiceLyricLanes(segIdx, 2500, outLanes);
+    assert.strictEqual(first, outLanes);
+    const backingArrRef = outLanes.backingLanes;
+    const duetArrRef = outLanes.duetLanes;
+    const activeIdxArrRef = outLanes.activeLineIndices;
+    const leadObjRef = outLanes.leadLane;
+
+    for (let step = 0; step < 500; step++) {
+      const t = 1000 + ((step * 37) % 4500);
+      const res = lib.resolveMultiVoiceLyricLanes(segIdx, t, outLanes);
+      assert.strictEqual(res, outLanes);
+      assert.strictEqual(res.backingLanes, backingArrRef);
+      assert.strictEqual(res.duetLanes, duetArrRef);
+      assert.strictEqual(res.activeLineIndices, activeIdxArrRef);
+    }
+    const checkAgain = lib.resolveMultiVoiceLyricLanes(segIdx, 2600, outLanes);
+    assert.strictEqual(checkAgain.leadLane, leadObjRef);
+
+    // Verify index.html Listening Room & Fullscreen Karaoke lane enrichment preserves single .lyric-line-active
+    const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const renderStart = html.indexOf('function renderLyrics(');
+    const displayStart = html.indexOf('function displayTrack(', renderStart);
+    assert.ok(renderStart > 0 && displayStart > renderStart);
+    const snippet = html.slice(renderStart, displayStart);
+
+    const makeEl = tag => {
+      const classes = new Set();
+      return {
+        tagName: tag.toUpperCase(),
+        className: '',
+        textContent: '',
+        dataset: {},
+        style: {},
+        children: [],
+        listeners: {},
+        classList: {
+          add: c => classes.add(c),
+          remove: c => classes.delete(c),
+          toggle: (c, force) => { if (force) classes.add(c); else classes.delete(c); },
+          contains: c => classes.has(c)
+        },
+        appendChild(ch) { this.children.push(ch); return ch; },
+        addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); },
+        querySelectorAll(sel) {
+          if (sel === '.lyric-line') return this.children.filter(c => c.classList.contains('lyric-line'));
+          if (sel === '.fs-lyric-line') return this.children.filter(c => String(c.className).includes('fs-lyric-line'));
+          return [];
+        },
+        getBoundingClientRect() { return { top: 10, bottom: 38, left: 0, right: 200, width: 200, height: 28 }; },
+        scrollIntoView() {}
+      };
+    };
+
+    const roomContainer = makeEl('div');
+    const fsContainer = makeEl('div');
+    const stateStub = { lyrics: [], lyricIndex: -1 };
+    const audioStub = { currentTime: 12.5, duration: 180 };
+    const fns = new Function(
+      'state', '$', 'library', 'audio', 'document', 'updatePositionState',
+      `${snippet}\nreturn { renderLyrics, renderFullscreenLyrics, updateLyricsHighlight };`
+    )(
+      stateStub,
+      id => (id === 'room-lyrics' ? roomContainer : (id === 'fullscreen-lyrics-scroll' ? fsContainer : null)),
+      lib,
+      audioStub,
+      { createElement: makeEl, createTextNode: txt => ({ textContent: txt }) },
+      () => {}
+    );
+
+    // Same-timestamp lead + parenthesized backing vocal in LRC
+    fns.renderLyrics('[00:10.00]Lead chorus vocal\n[00:10.00](ooh backing harmony)\n[00:16.00]Next verse');
+    assert.equal(roomContainer.children.length, 3);
+    assert.equal(fsContainer.children.length, 3);
+    assert.equal(roomContainer.children[0].dataset.vocalLane, 'lead');
+    assert.equal(roomContainer.children[1].dataset.vocalLane, 'backing');
+
+    fns.updateLyricsHighlight();
+    // Exactly 1 row has .lyric-line-active (index 1), while overlapping rows carry vocal lane classes/attributes!
+    const activeRows = roomContainer.children.filter(r => r.classList.contains('lyric-line-active'));
+    assert.equal(activeRows.length, 1);
+    assert.equal(roomContainer.children[1].classList.contains('lyric-line-backing'), true);
+    assert.equal(roomContainer.children[0].classList.contains('lyric-line-overlap-active'), true);
+    assert.equal(roomContainer.children[0].dataset.vocalOverlap, 'true');
+    assert.equal(roomContainer.children[1].dataset.vocalOverlap, 'true');
+    assert.equal(fsContainer.children[1].classList.contains('lyric-line-backing'), true);
+    assert.equal(fsContainer.children[0].style.opacity, '0.88');
+  });
+});

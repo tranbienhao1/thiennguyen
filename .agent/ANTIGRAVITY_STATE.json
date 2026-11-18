@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 29,
-  "lastPhase": "BUG_HUNT",
-  "lastRunIso": "2026-11-18T02:38:38.573Z",
+  "cycleCount": 30,
+  "lastPhase": "UPGRADE",
+  "lastRunIso": "2026-11-18T03:04:30.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "UPG-08",
-      "phase": "UPGRADE",
-      "title": "Bổ sung chế độ hiển thị đồng thời đa giọng bè (Lead + Backing Vocal Lanes) trong Listening Room & Fullscreen Karaoke sử dụng TypedLyricSegmentIndex"
-    },
     {
       "id": "OPT-08",
       "phase": "OPTIMIZE",
@@ -148,6 +143,16 @@
       "id": "UPG-17",
       "phase": "UPGRADE",
       "title": "Bổ sung cảnh báo trực quan độ lệch thời lượng [length:] so với AudioBuffer và nút tự động chuẩn hóa 1 chạm ngay trong hộp thoại xuất bản LRCLIB"
+    },
+    {
+      "id": "OPT-17",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu tiền phân loại vai trò giọng hát (classifyLyricVocalRole) ngay trong mảng Uint8Array của TypedLyricBufferPool tránh kiểm tra chuỗi lặp lại khi có hàng trăm câu bè chồng lấp"
+    },
+    {
+      "id": "BUG-18",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra tự động cuộn mượt cụm câu hát đồng thời (Lead + Duet/Backing) vào khung nhìn Listening Room khi câu bè nằm cách xa câu chính trên danh sách LRC không liên kề"
     }
   ],
   "completedTasks": [
@@ -326,6 +331,14 @@
       "completedAt": "2026-11-18T02:38:38.573Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai reconcileLyricDurationWithAudio (phân tích thẻ [length: mm:ss.xx] / mm:ss / hh:mm:ss cho cả bản thu dài >1 giờ cùng maxTimestampMs dòng/từ, đối chiếu thời lượng AudioBuffer thực tế phát hiện lệch driftMs > 2s, cảnh báo hoặc kẹp timestamp tràn đuôi bài hát và chuẩn hóa lại [length:] khớp thời lượng giải mã) và tích hợp vào buildLrclibPublishPayload tương thích ngược 100% trong library-utils.js"
+    },
+    {
+      "id": "UPG-08",
+      "phase": "UPGRADE",
+      "title": "Bổ sung chế độ hiển thị đồng thời đa giọng bè (Lead + Backing Vocal Lanes) trong Listening Room & Fullscreen Karaoke sử dụng TypedLyricSegmentIndex",
+      "completedAt": "2026-11-18T03:04:30.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai classifyLyricVocalRole và resolveMultiVoiceLyricLanes trong library-utils.js (phân giải đồng thời các làn Lead v1/lead/mặc định, Duet v2/duet và Backing bg/backing/ngoặc đơn kèm wordIndex & wordProgress 0..1 trên TypedLyricSegmentIndex, hỗ trợ tái sử dụng outLanes zero-allocation) và tích hợp đánh dấu lyric-line-backing / lyric-line-duet / data-vocal-lane an toàn cho Listening Room & Fullscreen Karaoke trong index.html"
     }
   ]
 }

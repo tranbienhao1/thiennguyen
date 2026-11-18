@@ -327,6 +327,9 @@
     .lyric-line-active .lyric-word { color:#a1a1aa;opacity:.65; }
     .lyric-line-active .lyric-word.lyric-word-sung { color:#fff!important;opacity:1;text-shadow:none; }
     .lyric-line-active .lyric-word.lyric-word-active { color:#c4b5fd!important;font-weight:700;opacity:1;text-shadow:0 0 10px rgba(167,139,250,.8),0 0 20px rgba(139,92,246,.5);transform:scale(1.05); }
+    .lyric-line-backing { color:#cbd5e1;font-style:italic;padding-left:14px;background:rgba(148,163,184,.08);border-left:2px solid rgba(167,139,250,.45); }
+    .lyric-line-duet { color:#e0e7ff;font-weight:500;background:rgba(99,102,241,.12);border-left:2px solid rgba(129,140,248,.65); }
+    .lyric-line-overlap-active { color:#f4f4f5;background:rgba(255,255,255,.07); }
     #room-lyrics { scroll-behavior:smooth; }
     body.settings-open { overflow:hidden!important; }
     #settings-modal { z-index:100!important;position:fixed;inset:0;width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;overscroll-behavior:contain;border:0;padding:0;color:inherit; }
@@ -7603,6 +7606,9 @@
         const row = document.createElement('p');
         row.className = 'lyric-line';
         row.classList.add('lyric-line');
+        if (row.dataset && typeof library !== 'undefined' && library && typeof library.classifyLyricVocalRole === 'function') {
+          row.dataset.vocalLane = library.classifyLyricVocalRole(line);
+        }
         if (line.words && Array.isArray(line.words) && line.words.length > 0) {
           for (let w = 0; w < line.words.length; w++) {
             const word = line.words[w];
@@ -7656,6 +7662,9 @@
       for (const line of state.lyrics) {
         const row = document.createElement('p');
         row.className = 'fs-lyric-line text-lg sm:text-xl font-medium text-zinc-400 py-1.5 transition-all duration-300 cursor-pointer hover:text-white rounded-lg px-3 max-w-full break-words';
+        if (row.dataset && typeof library !== 'undefined' && library && typeof library.classifyLyricVocalRole === 'function') {
+          row.dataset.vocalLane = library.classifyLyricVocalRole(line);
+        }
         row.textContent = line.text;
         const lineTimeSec = Number.isFinite(line.time) ? line.time : (Number.isFinite(line.start_ms) ? (line.start_ms / 1000) : NaN);
         if (Number.isFinite(lineTimeSec)) {
@@ -8050,6 +8059,60 @@
                 span.classList.toggle('lyric-word-active', w === wordIndex);
               });
             }
+          }
+        }
+      }
+
+      if (library && typeof library.resolveMultiVoiceLyricLanes === 'function') {
+        if (!state.multiVoiceLanesScratch || typeof state.multiVoiceLanesScratch !== 'object') {
+          state.multiVoiceLanesScratch = {};
+        }
+        const multiLanes = library.resolveMultiVoiceLyricLanes(state.lyrics, currentMs, state.multiVoiceLanesScratch);
+        const hasOverlap = Boolean(multiLanes && multiLanes.hasOverlappingVocals);
+        const overlapRows = container.querySelectorAll('.lyric-line');
+        if (overlapRows && overlapRows.length) {
+          overlapRows.forEach((row, rIdx) => {
+            const lineObj = state.lyrics[rIdx];
+            const role = (library && typeof library.classifyLyricVocalRole === 'function')
+              ? library.classifyLyricVocalRole(lineObj)
+              : 'lead';
+            if (row.dataset) {
+              row.dataset.vocalLane = role;
+            }
+            const isSimultaneous = hasOverlap && multiLanes.activeLineIndices.indexOf(rIdx) !== -1;
+            row.classList.toggle('lyric-line-backing', isSimultaneous && role === 'backing');
+            row.classList.toggle('lyric-line-duet', isSimultaneous && role === 'duet');
+            row.classList.toggle('lyric-line-overlap-active', isSimultaneous && rIdx !== index);
+            if (row.dataset) {
+              if (isSimultaneous) row.dataset.vocalOverlap = 'true';
+              else delete row.dataset.vocalOverlap;
+            }
+          });
+        }
+        const fsOverlapScroll = typeof $ === 'function' ? $('fullscreen-lyrics-scroll') : null;
+        if (fsOverlapScroll && typeof fsOverlapScroll.querySelectorAll === 'function') {
+          const fsOverlapRows = fsOverlapScroll.querySelectorAll('.fs-lyric-line');
+          if (fsOverlapRows && fsOverlapRows.length) {
+            fsOverlapRows.forEach((fsRow, rIdx) => {
+              const lineObj = state.lyrics[rIdx];
+              const role = (library && typeof library.classifyLyricVocalRole === 'function')
+                ? library.classifyLyricVocalRole(lineObj)
+                : 'lead';
+              if (fsRow.dataset) {
+                fsRow.dataset.vocalLane = role;
+              }
+              const isSimultaneous = hasOverlap && multiLanes.activeLineIndices.indexOf(rIdx) !== -1;
+              fsRow.classList.toggle('lyric-line-backing', isSimultaneous && role === 'backing');
+              fsRow.classList.toggle('lyric-line-duet', isSimultaneous && role === 'duet');
+              fsRow.classList.toggle('lyric-line-overlap-active', isSimultaneous && rIdx !== index);
+              if (fsRow.dataset) {
+                if (isSimultaneous) fsRow.dataset.vocalOverlap = 'true';
+                else delete fsRow.dataset.vocalOverlap;
+              }
+              if (isSimultaneous && rIdx !== index && fsRow.style) {
+                fsRow.style.opacity = '0.88';
+              }
+            });
           }
         }
       }
