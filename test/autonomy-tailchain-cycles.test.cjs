@@ -2575,3 +2575,379 @@ describe('Autonomy Tail-Chaining Cycle 12 — BUG-05 (Safe ISO BMFF / MP4 / ALAC
     }
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ATOMIC CYCLE 13 — UPG-05: Binary FLAC VORBIS_COMMENT & DSF ID3v2 ReplayGain/R128 Extractor
+// ═════════════════════════════════════════════════════════════════════════════
+describe('UPG-05 — Binary FLAC VORBIS_COMMENT & DSF ID3v2 ReplayGain 2.0 / EBU R128 Extractor', () => {
+  function concatU8(...arrays) {
+    const total = arrays.reduce((acc, a) => acc + a.byteLength, 0);
+    const out = new Uint8Array(total);
+    let offset = 0;
+    for (const arr of arrays) {
+      out.set(arr, offset);
+      offset += arr.byteLength;
+    }
+    return out;
+  }
+
+  function encodeSyncsafe32(val) {
+    return new Uint8Array([
+      (val >>> 21) & 0x7f,
+      (val >>> 14) & 0x7f,
+      (val >>> 7) & 0x7f,
+      val & 0x7f
+    ]);
+  }
+
+  function buildFlacMetadataBlock(blockType, isLast, bodyBytes) {
+    const header = new Uint8Array(4);
+    header[0] = (isLast ? 0x80 : 0x00) | (blockType & 0x7f);
+    header[1] = (bodyBytes.byteLength >>> 16) & 0xff;
+    header[2] = (bodyBytes.byteLength >>> 8) & 0xff;
+    header[3] = bodyBytes.byteLength & 0xff;
+    return concatU8(header, bodyBytes);
+  }
+
+  function buildFlacStreamInfoBody({ sampleRate = 96000, channels = 2, bitDepth = 24, totalSamples = 96000 * 180 } = {}) {
+    const b = new Uint8Array(34);
+    const dv = new DataView(b.buffer);
+    dv.setUint16(0, 4096, false);
+    dv.setUint16(2, 4096, false);
+    b[10] = (sampleRate >>> 12) & 0xff;
+    b[11] = (sampleRate >>> 4) & 0xff;
+    b[12] = ((sampleRate & 0x0f) << 4) | (((channels - 1) & 0x07) << 1) | (((bitDepth - 1) >>> 4) & 0x01);
+    b[13] = (((bitDepth - 1) & 0x0f) << 4) | (Math.floor(totalSamples / 4294967296) & 0x0f);
+    dv.setUint32(14, totalSamples >>> 0, false);
+    return b;
+  }
+
+  function buildVorbisCommentBody(vendorStr, commentList) {
+    const te = new TextEncoder();
+    const vendorBytes = te.encode(vendorStr);
+    const encodedComments = commentList.map(c => te.encode(c));
+    let totalLen = 4 + vendorBytes.byteLength + 4;
+    for (const ec of encodedComments) totalLen += 4 + ec.byteLength;
+
+    const out = new Uint8Array(totalLen);
+    const dv = new DataView(out.buffer);
+    let pos = 0;
+    dv.setUint32(pos, vendorBytes.byteLength, true);
+    pos += 4;
+    out.set(vendorBytes, pos);
+    pos += vendorBytes.byteLength;
+    dv.setUint32(pos, encodedComments.length, true);
+    pos += 4;
+    for (const ec of encodedComments) {
+      dv.setUint32(pos, ec.byteLength, true);
+      pos += 4;
+      out.set(ec, pos);
+      pos += ec.byteLength;
+    }
+    return out;
+  }
+
+  function encodeUtf16String(str, littleEndian, withBom) {
+    const out = new Uint8Array((withBom ? 2 : 0) + str.length * 2);
+    let p = 0;
+    if (withBom) {
+      out[p++] = littleEndian ? 0xff : 0xfe;
+      out[p++] = littleEndian ? 0xfe : 0xff;
+    }
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      if (littleEndian) {
+        out[p++] = code & 0xff;
+        out[p++] = (code >>> 8) & 0xff;
+      } else {
+        out[p++] = (code >>> 8) & 0xff;
+        out[p++] = code & 0xff;
+      }
+    }
+    return out;
+  }
+
+  function buildId3v24TxxxFrame(key, val, encoding = 0x03, { littleEndian = true } = {}) {
+    const te = new TextEncoder();
+    let payload;
+    if (encoding === 0x03 || encoding === 0x00) {
+      const kBytes = te.encode(key);
+      const vBytes = te.encode(val);
+      payload = concatU8(new Uint8Array([encoding]), kBytes, new Uint8Array([0x00]), vBytes, new Uint8Array([0x00]));
+    } else if (encoding === 0x01) {
+      const kBytes = encodeUtf16String(key, littleEndian, true);
+      const vBytes = encodeUtf16String(val, littleEndian, true);
+      payload = concatU8(new Uint8Array([0x01]), kBytes, new Uint8Array([0x00, 0x00]), vBytes, new Uint8Array([0x00, 0x00]));
+    } else {
+      const kBytes = encodeUtf16String(key, false, false);
+      const vBytes = encodeUtf16String(val, false, false);
+      payload = concatU8(new Uint8Array([0x02]), kBytes, new Uint8Array([0x00, 0x00]), vBytes);
+    }
+
+    const header = new Uint8Array(10);
+    for (let i = 0; i < 4; i++) header[i] = 'TXXX'.charCodeAt(i);
+    header.set(encodeSyncsafe32(payload.byteLength), 4);
+    return concatU8(header, payload);
+  }
+
+  function buildId3v24Tag(framesBytes, paddingBytes = 8) {
+    const body = concatU8(...framesBytes, new Uint8Array(paddingBytes));
+    const header = new Uint8Array(10);
+    header[0] = 0x49; // 'I'
+    header[1] = 0x44; // 'D'
+    header[2] = 0x33; // '3'
+    header[3] = 4;    // v2.4
+    header[4] = 0;
+    header[5] = 0;
+    header.set(encodeSyncsafe32(body.byteLength), 6);
+    return concatU8(header, body);
+  }
+
+  function buildDsfWithTrailingId3(id3TagBytes, audioPayloadBytes = 64) {
+    // 28B 'DSD ' + 52B 'fmt ' + (12B + audioPayloadBytes) 'data' + trailing ID3v2
+    const id3Offset = 28 + 52 + 12 + audioPayloadBytes;
+    const totalSize = id3Offset + (id3TagBytes ? id3TagBytes.byteLength : 0);
+
+    const dsdChunk = new Uint8Array(28);
+    const dsdDv = new DataView(dsdChunk.buffer);
+    for (let i = 0; i < 4; i++) dsdChunk[i] = 'DSD '.charCodeAt(i);
+    dsdDv.setUint32(4, 28, true);
+    dsdDv.setUint32(12, totalSize >>> 0, true);
+    dsdDv.setUint32(20, id3TagBytes ? (id3Offset >>> 0) : 0, true);
+
+    const fmtChunk = new Uint8Array(52);
+    const fmtDv = new DataView(fmtChunk.buffer);
+    for (let i = 0; i < 4; i++) fmtChunk[i] = 'fmt '.charCodeAt(i);
+    fmtDv.setUint32(4, 52, true);
+    fmtDv.setUint32(12, 1, true);
+    fmtDv.setUint32(20, 2, true);
+    fmtDv.setUint32(24, 2, true);
+    fmtDv.setUint32(28, 2822400, true);
+    fmtDv.setUint32(32, 1, true);
+    fmtDv.setUint32(36, 2822400 * 60, true);
+    fmtDv.setUint32(44, 4096, true);
+
+    const dataChunk = new Uint8Array(12 + audioPayloadBytes);
+    const dataDv = new DataView(dataChunk.buffer);
+    for (let i = 0; i < 4; i++) dataChunk[i] = 'data'.charCodeAt(i);
+    dataDv.setUint32(4, 12 + audioPayloadBytes, true);
+
+    return id3TagBytes
+      ? concatU8(dsdChunk, fmtChunk, dataChunk, id3TagBytes)
+      : concatU8(dsdChunk, fmtChunk, dataChunk);
+  }
+
+  it('exposes extractBinaryReplayGainTags & computeAntiClippingLinearGain on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.extractBinaryReplayGainTags, 'function');
+    assert.equal(typeof lib.computeAntiClippingLinearGain, 'function');
+
+    const sandbox = { library: { keepRefUpg05: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.extractBinaryReplayGainTags, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.computeAntiClippingLinearGain, 'function');
+    assert.equal(typeof sandbox.library.extractBinaryReplayGainTags, 'function');
+    assert.equal(typeof sandbox.library.computeAntiClippingLinearGain, 'function');
+    assert.equal(sandbox.library.keepRefUpg05, true);
+  });
+
+  it('computes exact anti-clipping peak limiter linear gain across boost, attenuation, preamp, and zero/overshoot peaks', () => {
+    // 1. Attenuation (-6 dB, peak 0.98) -> unclipped 10^(-6/20)
+    const gAtten = lib.computeAntiClippingLinearGain(-6, 0.98, 0);
+    assert.ok(Math.abs(gAtten - Math.pow(10, -6 / 20)) < 1e-9);
+
+    // 2. Positive boost (+6 dB ≈ 1.995x) with peak 0.8 -> clamped to 1 / 0.8 = 1.25
+    const gClamped = lib.computeAntiClippingLinearGain(6, 0.8, 0);
+    assert.ok(Math.abs(gClamped - 1.25) < 1e-9);
+
+    // 3. Positive boost with preamp (+2 dB + +4 dB = +6 dB) with peak 0.75 -> clamped to 1 / 0.75 = 1.333333...
+    const gPreampClamped = lib.computeAntiClippingLinearGain(2, 0.75, 4);
+    assert.ok(Math.abs(gPreampClamped - (1 / 0.75)) < 1e-9);
+
+    // 4. Inter-sample true peak overshoot > 1.0 (gain 0 dB, peakLinear 1.25) -> attenuated to 0.8!
+    const gTruePeakOvershoot = lib.computeAntiClippingLinearGain(0, 1.25, 0);
+    assert.ok(Math.abs(gTruePeakOvershoot - 0.8) < 1e-9);
+
+    // 5. Degenerate zero / negative / undefined peakLinear never produces Infinity or NaN
+    const gZeroPeak = lib.computeAntiClippingLinearGain(6, 0, 0);
+    assert.ok(Number.isFinite(gZeroPeak) && Math.abs(gZeroPeak - Math.pow(10, 6 / 20)) < 1e-9);
+    const gNegPeak = lib.computeAntiClippingLinearGain(6, -0.5, 0);
+    assert.ok(Number.isFinite(gNegPeak) && Math.abs(gNegPeak - Math.pow(10, 6 / 20)) < 1e-9);
+    const gUndefPeak = lib.computeAntiClippingLinearGain(6, undefined, 0);
+    assert.equal(gUndefPeak, 1.0);
+  });
+
+  it('extracts ReplayGain 2.0 & EBU R128 Q7.8 (+5 dB reference shift) from FLAC VORBIS_COMMENT blocks', () => {
+    const flacMagic = new TextEncoder().encode('fLaC');
+    const streamInfo = buildFlacMetadataBlock(0, false, buildFlacStreamInfoBody());
+
+    // Case A: Standard ReplayGain 2.0 Vorbis Comments + Unicode tags
+    const vcBodyRg = buildVorbisCommentBody('reference libFLAC 1.4.3', [
+      'TITLE=Đêm Huyền Diệu 夜曲',
+      'ARTIST=Thiên Nguyễn',
+      'REPLAYGAIN_TRACK_GAIN=-6.50 dB',
+      'REPLAYGAIN_TRACK_PEAK=0.988553',
+      'REPLAYGAIN_ALBUM_GAIN=+3.20 dB',
+      'REPLAYGAIN_ALBUM_PEAK=0.800000'
+    ]);
+    const flacRg = concatU8(flacMagic, streamInfo, buildFlacMetadataBlock(4, true, vcBodyRg));
+
+    const resRg = lib.extractBinaryReplayGainTags(flacRg);
+    assert.equal(resRg.valid, true);
+    assert.equal(resRg.format, 'FLAC');
+    assert.equal(resRg.source, 'vorbis_comment');
+    assert.equal(resRg.hasReplayGain, true);
+    assert.equal(resRg.hasTrackGain, true);
+    assert.equal(resRg.hasAlbumGain, true);
+    assert.equal(resRg.hasTrackPeak, true);
+    assert.equal(resRg.hasAlbumPeak, true);
+    assert.equal(resRg.r128ReferenceAdjusted, false);
+    assert.equal(resRg.trackGain, -6.5);
+    assert.equal(resRg.trackPeak, 0.988553);
+    assert.equal(resRg.albumGain, 3.2);
+    assert.equal(resRg.albumPeak, 0.8);
+    // Album gain +3.2 dB (1.4454x) * 0.8 peak = 1.156 > 1.0 -> anti-clipping clamps albumLinearGain to 1/0.8 = 1.25!
+    assert.ok(Math.abs(resRg.albumLinearGain - 1.25) < 1e-9);
+    assert.ok(Math.abs(resRg.trackLinearGain - Math.pow(10, -6.5 / 20)) < 1e-9);
+
+    // Seamless compatibility with computeReplayGainMultiplier & calculateDynamicReplayGain
+    const multRes = lib.computeReplayGainMultiplier(resRg, { enabled: true, mode: 'album', preventClipping: true });
+    assert.equal(multRes.isClipped, true);
+    assert.ok(Math.abs(multRes.multiplier - 1.25) < 1e-6);
+
+    // Case B: EBU R128 Q7.8 fixed-point tags in FLAC VORBIS_COMMENT (R128_TRACK_GAIN=-1920 -> -7.5 dB @ -23 LUFS -> -2.5 dB @ -18 LUFS)
+    const vcBodyR128 = buildVorbisCommentBody('Lavf60.16.100', [
+      'R128_TRACK_GAIN=-1920',
+      'R128_ALBUM_GAIN=512',
+      'REPLAYGAIN_TRACK_PEAK=0.500000'
+    ]);
+    const flacR128 = concatU8(flacMagic, streamInfo, buildFlacMetadataBlock(4, true, vcBodyR128));
+
+    const resR128 = lib.extractBinaryReplayGainTags(flacR128);
+    assert.equal(resR128.valid, true);
+    assert.equal(resR128.hasReplayGain, true);
+    assert.equal(resR128.hasR128, true);
+    assert.equal(resR128.hasR128TrackGain, true);
+    assert.equal(resR128.hasR128AlbumGain, true);
+    assert.equal(resR128.r128ReferenceAdjusted, true);
+    assert.equal(resR128.r128TrackGainQ78, -1920);
+    assert.equal(resR128.r128TrackGainDb, -7.5);
+    assert.equal(resR128.trackGain, -2.5); // -7.5 dB + 5.0 dB Opus/FLAC R128 -> ReplayGain 2.0 adjustment
+    assert.equal(resR128.r128AlbumGainQ78, 512);
+    assert.equal(resR128.r128AlbumGainDb, 2.0);
+    assert.equal(resR128.albumGain, 7.0); // +2.0 dB + 5.0 dB = +7.0 dB (clamped by peak 0.5 -> 2.0 linear)
+    assert.ok(Math.abs(resR128.albumLinearGain - 2.0) < 1e-9);
+
+    // Raw -23 LUFS opt-out check
+    const resR128Raw = lib.extractBinaryReplayGainTags(flacR128, { applyR128Plus5Db: false });
+    assert.equal(resR128Raw.r128ReferenceAdjusted, false);
+    assert.equal(resR128Raw.trackGain, -7.5);
+    assert.equal(resR128Raw.albumGain, 2.0);
+  });
+
+  it('extracts ReplayGain & R128 TXXX frames (UTF-8, UTF-16LE BOM, UTF-16BE BOM, ISO-8859-1) from DSF trailing ID3v2.4 pointer', () => {
+    const id3Tag = buildId3v24Tag([
+      // UTF-8 (0x03)
+      buildId3v24TxxxFrame('REPLAYGAIN_TRACK_GAIN', '-4.75 dB', 0x03),
+      // UTF-16LE with BOM (0x01, FF FE) — note 'R' (0x52 0x00) tests aligned 2-byte null scanning!
+      buildId3v24TxxxFrame('REPLAYGAIN_TRACK_PEAK', '0.912500', 0x01, { littleEndian: true }),
+      // UTF-16BE with BOM (0x01, FE FF)
+      buildId3v24TxxxFrame('REPLAYGAIN_ALBUM_GAIN', '-8.25 dB', 0x01, { littleEndian: false }),
+      // ISO-8859-1 (0x00)
+      buildId3v24TxxxFrame('REPLAYGAIN_ALBUM_PEAK', '0.965000', 0x00),
+      // UTF-16BE without BOM (0x02) for R128 Q7.8
+      buildId3v24TxxxFrame('R128_TRACK_GAIN', '-2496', 0x02)
+    ]);
+
+    const dsfFull = buildDsfWithTrailingId3(id3Tag, 128);
+    const resDsf = lib.extractBinaryReplayGainTags(dsfFull);
+    assert.equal(resDsf.valid, true);
+    assert.equal(resDsf.format, 'DSF');
+    assert.equal(resDsf.source, 'dsf_id3v2');
+    assert.equal(resDsf.id3Version, '2.4.0');
+    assert.equal(resDsf.id3Offset, 28 + 52 + 12 + 128);
+    assert.equal(resDsf.needsTailId3Range, false);
+    assert.equal(resDsf.truncated, false);
+    assert.equal(resDsf.hasReplayGain, true);
+    assert.equal(resDsf.trackGain, -4.75);
+    assert.equal(resDsf.trackPeak, 0.9125);
+    assert.equal(resDsf.albumGain, -8.25);
+    assert.equal(resDsf.albumPeak, 0.965);
+    assert.equal(resDsf.r128TrackGainQ78, -2496);
+    assert.equal(resDsf.r128TrackGainDb, -9.75);
+
+    // Head-only 64B slice of DSF where ID3 pointer is past slice end -> flags needsTailId3Range cleanly!
+    const headOnlyDsf = dsfFull.subarray(0, 80);
+    const resHead = lib.extractBinaryReplayGainTags(headOnlyDsf);
+    assert.equal(resHead.valid, true);
+    assert.equal(resHead.format, 'DSF');
+    assert.equal(resHead.truncated, true);
+    assert.equal(resHead.needsTailId3Range, true);
+    assert.equal(resHead.id3Offset, 28 + 52 + 12 + 128);
+    assert.equal(resHead.hasReplayGain, false);
+
+    // Passing the fetched trailing ID3v2 slice directly also parses cleanly!
+    const resTailId3 = lib.extractBinaryReplayGainTags(id3Tag);
+    assert.equal(resTailId3.valid, true);
+    assert.equal(resTailId3.format, 'ID3');
+    assert.equal(resTailId3.source, 'id3v2');
+    assert.equal(resTailId3.trackGain, -4.75);
+    assert.equal(resTailId3.albumGain, -8.25);
+  });
+
+  it('survives truncated VORBIS_COMMENT / ID3v2 TXXX frames and adversarial 0xffffffff counts with 0 RangeErrors', () => {
+    const flacMagic = new TextEncoder().encode('fLaC');
+    const vcBody = buildVorbisCommentBody('test-vendor', [
+      'REPLAYGAIN_TRACK_GAIN=-5.25 dB',
+      'REPLAYGAIN_TRACK_PEAK=0.950000',
+      'REPLAYGAIN_ALBUM_GAIN=-6.00 dB'
+    ]);
+    const fullFlac = concatU8(flacMagic, buildFlacMetadataBlock(4, true, vcBody));
+
+    const fullDsf = buildDsfWithTrailingId3(
+      buildId3v24Tag([
+        buildId3v24TxxxFrame('REPLAYGAIN_TRACK_GAIN', '-3.50 dB', 0x01, { littleEndian: true }),
+        buildId3v24TxxxFrame('REPLAYGAIN_ALBUM_GAIN', '-4.00 dB', 0x03)
+      ]),
+      32
+    );
+
+    // Byte-by-byte truncation fuzz on unaligned DataView for both FLAC and DSF -> 0 RangeError!
+    for (const sample of [fullFlac, fullDsf]) {
+      const backing = new Uint8Array(sample.byteLength + 9);
+      backing.set(sample, 5);
+      for (let cut = 0; cut <= sample.byteLength; cut++) {
+        const view = new DataView(backing.buffer, 5, cut);
+        assert.doesNotThrow(() => {
+          const r = lib.extractBinaryReplayGainTags(view);
+          assert.equal(typeof r.trackLinearGain, 'number');
+          assert.ok(Number.isFinite(r.trackLinearGain));
+        }, `Must never throw RangeError at cut=${cut}`);
+      }
+    }
+
+    // Partial FLAC VORBIS_COMMENT truncated right inside the 3rd comment still preserves the 1st and 2nd comments!
+    const partialFlac = fullFlac.subarray(0, fullFlac.byteLength - 6);
+    const partialRes = lib.extractBinaryReplayGainTags(partialFlac);
+    assert.equal(partialRes.valid, true);
+    assert.equal(partialRes.truncated, true);
+    assert.equal(partialRes.hasTrackGain, true);
+    assert.equal(partialRes.trackGain, -5.25);
+    assert.equal(partialRes.trackPeak, 0.95);
+
+    // Adversarial Vorbis commentCount = 0xffffffff must terminate in < 15ms without CPU hang
+    const advBody = new Uint8Array(12);
+    const advDv = new DataView(advBody.buffer);
+    advDv.setUint32(0, 0, true);          // vendorLen = 0
+    advDv.setUint32(4, 0xffffffff, true); // adversarial 4 billion comments!
+    const advFlac = concatU8(flacMagic, buildFlacMetadataBlock(4, true, advBody));
+    const t0 = performance.now();
+    const advRes = lib.extractBinaryReplayGainTags(advFlac);
+    assert.ok(performance.now() - t0 < 20);
+    assert.equal(advRes.truncated, true);
+    assert.equal(advRes.hasReplayGain, false);
+  });
+});

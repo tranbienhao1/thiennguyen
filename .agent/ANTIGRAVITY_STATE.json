@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 18,
-  "lastPhase": "BUG_HUNT",
-  "lastRunIso": "2026-11-17T23:40:47.563Z",
+  "cycleCount": 19,
+  "lastPhase": "UPGRADE",
+  "lastRunIso": "2026-11-18T00:01:00.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "UPG-05",
-      "phase": "UPGRADE",
-      "title": "Tích hợp đọc thẻ ReplayGain / EBU R128 trực tiếp từ khối VORBIS_COMMENT của FLAC và ID3v2 của DSF trong luồng quét thư viện nhanh"
-    },
     {
       "id": "OPT-05",
       "phase": "OPTIMIZE",
@@ -103,6 +98,16 @@
       "id": "UPG-11",
       "phase": "UPGRADE",
       "title": "Tích hợp tự động gọi lát đuôi HTTP 206 Range (recommendedRangeHeader) trong luồng fetchAudioFirstSlice khi phát hiện MP4/ALAC có needsTailRange=true"
+    },
+    {
+      "id": "OPT-11",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu gộp yêu cầu HTTP 206 lát đuôi ID3v2 của file DSF lớn (needsTailId3Range) với cache metadata để tránh gọi mạng lặp lại khi mở lại album DSD"
+    },
+    {
+      "id": "BUG-12",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra xử lý khung RVA2 (ID3v2.4 Relative Volume Adjustment nhị phân) song song với TXXX khi quét file WAV/AIFF gắn thẻ ID3v2"
     }
   ],
   "completedTasks": [
@@ -209,6 +214,14 @@
       "completedAt": "2026-11-17T23:20:53.991Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai parseSafeMp4AlacBoxMetadata và mở rộng parseSafeAudioContainerMetadata trong library-utils.js: duyệt an toàn cây hộp nguyên tử ISO BMFF (ftyp/moov/trak/mdia/mdhd v0 32-bit & v1 64-bit/minf/stbl/stsd/alac Magic Cookie 24-byte/mp4a/fLaC/mdat/free/udta), hỗ trợ hộp mở rộng 64-bit largesize===1, chống vòng lặp vô hạn khi boxSize<8 hoặc boxSize===0, và phát hiện chính xác needsTailRange + tọa độ HTTP 206 Range khi mdat đứng trước moov ở cuối file"
+    },
+    {
+      "id": "UPG-05",
+      "phase": "UPGRADE",
+      "title": "Tích hợp đọc thẻ ReplayGain / EBU R128 trực tiếp từ khối VORBIS_COMMENT của FLAC và ID3v2 của DSF trong luồng quét thư viện nhanh",
+      "completedAt": "2026-11-18T00:01:00.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai extractBinaryReplayGainTags và computeAntiClippingLinearGain trong library-utils.js (kèm hỗ trợ R128 trong parseReplayGain): trích xuất an toàn không tràn biên thẻ ReplayGain 2.0 và EBU R128 Q7.8 (+5 dB dịch chuẩn tham chiếu Opus/FLAC R128 -23 LUFS sang -18 LUFS) trực tiếp từ FLAC VORBIS_COMMENT (type 4, UTF-8 LE) và DSF ID3v2 (con trỏ 64-bit offset 20, TXXX ID3v2.2/2.3/2.4 syncsafe, ISO-8859-1/UTF-16LE/UTF-16BE BOM/UTF-8)"
     }
   ]
 }
