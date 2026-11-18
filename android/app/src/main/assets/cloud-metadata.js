@@ -14,6 +14,7 @@
 })(typeof globalThis === 'object' ? globalThis : this, function (root, getLib) {
   const MAX_RANGE = 8 * 1024 * 1024, MAX_TOTAL = 16 * 1024 * 1024;
   const MP4_HINT_RE = /\.(?:m4a|mp4|m4b|alac)(?:$|[?#])/i;
+  const DSF_HINT_RE = /\.dsf(?:$|[?#])/i;
 
   function isMp4SourceHint(source) {
     if (!source || typeof source !== 'object') return false;
@@ -21,6 +22,15 @@
     if (MP4_HINT_RE.test(nameOrUrl)) return true;
     const mime = String(source.mimeType || source.type || '').toLowerCase();
     return mime.includes('mp4') || mime.includes('m4a') || mime.includes('alac');
+  }
+
+  function isDsfSourceHint(source) {
+    if (!source || typeof source !== 'object') return false;
+    if (String(source.format || '').toUpperCase() === 'DSF') return true;
+    const nameOrUrl = String(source.name || source.filename || source.url || '');
+    if (DSF_HINT_RE.test(nameOrUrl)) return true;
+    const mime = String(source.mimeType || source.type || '').toLowerCase();
+    return mime.includes('dsf') || mime.includes('x-dsf') || mime.includes('dsd');
   }
 
   function makeRangeReader(fetchImpl, options = {}, limits = {}) {
@@ -260,6 +270,123 @@
     return convertParsedMp4ToRemoteTags(ilstRes, techRes);
   }
 
+  const inflightDsfHeadProbes = new Map();
+
+  function convertParsedDsfToRemoteTags(headInfo, id3Meta) {
+    const out = { format: 'DSF', bitDepth: 1 };
+    if (headInfo && typeof headInfo === 'object') {
+      if (headInfo.sampleRate > 0) out.sampleRate = headInfo.sampleRate;
+      if (headInfo.channels > 0) out.channels = headInfo.channels;
+      if (headInfo.durationSeconds > 0) out.duration = headInfo.durationSeconds;
+      if (headInfo.dsdRateLabel) out.dsdRateLabel = headInfo.dsdRateLabel;
+      if (headInfo.metadataPointer >= 0) out.metadataPointer = headInfo.metadataPointer;
+    }
+    if (id3Meta && id3Meta.valid) {
+      if (id3Meta.title) out.title = id3Meta.title;
+      if (id3Meta.artist) out.artist = id3Meta.artist;
+      if (id3Meta.album) out.album = id3Meta.album;
+      if (id3Meta.albumArtist) {
+        out.albumartist = id3Meta.albumArtist;
+        out.albumArtist = id3Meta.albumArtist;
+      }
+      if (id3Meta.track) out.track = id3Meta.track;
+      if (id3Meta.genre) out.genre = id3Meta.genre;
+      if (id3Meta.year) out.year = id3Meta.year;
+      if (id3Meta.lyrics) out.lyrics = id3Meta.lyrics;
+      if (id3Meta.picture) out.picture = id3Meta.picture;
+      if (id3Meta.cover) out.cover = id3Meta.cover;
+      if (id3Meta.hasReplayGain) {
+        out.hasReplayGain = true;
+        out.replayGainSource = id3Meta.replayGainSource;
+        out.replayGainTrackGain = id3Meta.replayGainTrackGain;
+        out.replayGainTrackPeak = id3Meta.replayGainTrackPeak;
+        if (id3Meta.replayGainAlbumGain !== undefined) {
+          out.replayGainAlbumGain = id3Meta.replayGainAlbumGain;
+          out.replayGainAlbumPeak = id3Meta.replayGainAlbumPeak;
+        }
+      }
+    }
+    return out;
+  }
+
+  async function readRemoteDsfMetadata(source, options = {}, limits = {}) {
+    if (!source || !source.url || !(Number(source.size) > 0)) {
+      throw new Error('A cloud URL and file size are required for tag ranges.');
+    }
+    const lib = typeof getLib === 'function' ? getLib() : null;
+    if (!lib || typeof lib.fetchDsfTailId3CoalescedAsync !== 'function') {
+      throw new Error('DSF tail ID3 coalesced fetcher is unavailable.');
+    }
+    const fileSize = Math.floor(Number(source.size));
+    const maxRange = Math.max(1, Number(limits.maxRangeBytes) || MAX_RANGE);
+    const cache = (limits && limits.dsfCache) || lib.getSharedDsfTailMetadataCache();
+    const fetchImpl = limits.fetch || (typeof fetch === 'function' && fetch.bind(globalThis));
+
+    let headInfo = typeof cache.getHeaderInfo === 'function' ? cache.getHeaderInfo(source, fileSize) : null;
+    let metadataPointer = Math.floor(
+      Number(source.metadataPointer !== undefined ? source.metadataPointer : (headInfo && headInfo.metadataPointer)) || 0
+    );
+
+    if (metadataPointer <= 0 && !headInfo) {
+      if (typeof fetchImpl !== 'function') {
+        throw new Error('Fetch is unavailable for metadata ranges.');
+      }
+      const identity = String(source.remoteId || source.url || source.id || '').trim();
+      const headKey = `${identity}:${fileSize}`;
+      let headPromise = inflightDsfHeadProbes.get(headKey);
+      if (!headPromise) {
+        headPromise = (async () => {
+          const FileReader = makeRangeReader(fetchImpl, options, limits);
+          const reader = new FileReader(source);
+          const probeLen = Math.min(fileSize, maxRange, Math.max(92, Number(limits.headProbeBytes) || 512));
+          const headBytes = await loadReaderRangeAsync(reader, 0, probeLen - 1);
+          const parsedHead = lib.parseSafeAudioContainerMetadata(headBytes, fileSize);
+          if (!parsedHead || !parsedHead.valid || parsedHead.format !== 'DSF') {
+            throw new Error('Invalid or unrecognized DSF container header.');
+          }
+          let inlineId3 = null;
+          if (parsedHead.metadataPointer > 0 && parsedHead.metadataPointer < headBytes.byteLength) {
+            inlineId3 = lib.extractDsfTailId3Metadata(headBytes.subarray(parsedHead.metadataPointer));
+          }
+          const storedHead = {
+            sampleRate: parsedHead.sampleRate,
+            channels: parsedHead.channels,
+            durationSeconds: parsedHead.durationSeconds,
+            dsdRateLabel: parsedHead.dsdRateLabel,
+            metadataPointer: parsedHead.metadataPointer || 0
+          };
+          if (typeof cache.setHeaderInfo === 'function') {
+            cache.setHeaderInfo(source, fileSize, storedHead);
+          }
+          if (inlineId3 && inlineId3.valid && parsedHead.metadataPointer > 0) {
+            const inlineKey = cache.buildKey(source, fileSize, parsedHead.metadataPointer);
+            if (inlineKey) cache.set(inlineKey, inlineId3);
+          }
+          return storedHead;
+        })();
+        inflightDsfHeadProbes.set(headKey, headPromise);
+      }
+      try {
+        headInfo = await headPromise;
+        metadataPointer = headInfo.metadataPointer || 0;
+      } finally {
+        if (inflightDsfHeadProbes.get(headKey) === headPromise) {
+          inflightDsfHeadProbes.delete(headKey);
+        }
+      }
+    }
+
+    if (metadataPointer <= 0 || metadataPointer >= fileSize) {
+      return convertParsedDsfToRemoteTags(headInfo, null);
+    }
+
+    const tailRes = await lib.fetchDsfTailId3CoalescedAsync(
+      { ...source, fileSize, metadataPointer },
+      { ...options, fetch: fetchImpl, cache, maxTailBytes: maxRange }
+    );
+    return convertParsedDsfToRemoteTags(headInfo, tailRes && tailRes.metadata);
+  }
+
   function isFatalTransportOrSafetyError(err) {
     const msg = String((err && err.message) || err || '');
     return (
@@ -272,6 +399,9 @@
   }
 
   function readRemoteTags(jsmediatags, source, options = {}, limits = {}) {
+    if (isDsfSourceHint(source)) {
+      return readRemoteDsfMetadata(source, options, limits);
+    }
     const mp4Hint = isMp4SourceHint(source);
     if (!jsmediatags || typeof jsmediatags.Reader !== 'function') {
       if (mp4Hint) {
@@ -306,5 +436,5 @@
       return readRemoteMp4Ilst(source, options, limits);
     });
   }
-  return {readRemoteTags, readRemoteMp4Ilst, makeRangeReader, MAX_RANGE, MAX_TOTAL};
+  return {readRemoteTags, readRemoteMp4Ilst, readRemoteDsfMetadata, makeRangeReader, MAX_RANGE, MAX_TOTAL};
 });

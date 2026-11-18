@@ -3011,13 +3011,13 @@
       if (track.source === 'google') {
         const token = await ensureGoogleToken();
         const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.remoteId)}?alt=media`;
-        return cloudMetadata.readRemoteTags(window.jsmediatags, {url, size:track.size, name:track.name, mimeType:track.mimeType}, {headers:{Authorization:`Bearer ${token}`}});
+        return cloudMetadata.readRemoteTags(window.jsmediatags, {url, remoteId:track.remoteId, size:track.size, name:track.name, mimeType:track.mimeType, format:track.format, metadataPointer:track.dsfMetadataPointer}, {headers:{Authorization:`Bearer ${token}`}});
       }
       const token = state.microsoftAccessToken || await getMicrosoftToken(false);
       const item = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}`, token);
       const url = item['@microsoft.graph.downloadUrl'];
       if (!url) throw new Error('OneDrive did not provide its temporary download URL for range-based tag reading.');
-      return cloudMetadata.readRemoteTags(window.jsmediatags, {url, size:track.size, name:track.name, mimeType:track.mimeType});
+      return cloudMetadata.readRemoteTags(window.jsmediatags, {url, remoteId:track.remoteId, size:track.size, name:track.name, mimeType:track.mimeType, format:track.format, metadataPointer:track.dsfMetadataPointer});
     }
     async function googleThumbnail(track) {
       let thumbnailUrl = track.thumbnailUrl;
@@ -3083,7 +3083,11 @@
         if (tags.bitDepth > 0 && !track.bitDepth) track.bitDepth = tags.bitDepth;
         if (tags.channels > 0 && !track.channels) track.channels = tags.channels;
         if (tags.duration > 0 && !track.duration) track.duration = tags.duration;
+        if (tags.metadataPointer > 0) track.dsfMetadataPointer = tags.metadataPointer;
+        if (tags.lyrics && !track.lyricsText) track.lyricsText = tags.lyrics;
         if (tags.format === 'ALAC' && (!track.format || track.format === 'M4A')) track.format = 'ALAC';
+        if (tags.format === 'DSF' && (!track.format || track.format === 'DSF')) { track.format = 'DSF'; track.isDsd = true; }
+        if (!cover && typeof tags.cover === 'string' && tags.cover.startsWith('data:image')) cover = tags.cover;
         if (cover) track.cover = await normalizeCoverImage(cover);
         else if (track.cover === undefined) track.cover = null;
         if (track.cover) {

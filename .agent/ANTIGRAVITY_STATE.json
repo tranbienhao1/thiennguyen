@@ -2,8 +2,8 @@
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
   "cycleCount": 44,
-  "lastPhase": "UPGRADE",
-  "lastRunIso": "2026-11-18T08:11:02.298Z",
+  "lastPhase": "OPTIMIZE",
+  "lastRunIso": "2026-11-18T08:18:44.135Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
@@ -18,11 +18,6 @@
     "updatedAt": "2026-11-18T07:41:06.434Z"
   },
   "pendingQueue": [
-    {
-      "id": "OPT-11",
-      "phase": "OPTIMIZE",
-      "title": "Tối ưu gộp yêu cầu HTTP 206 lát đuôi ID3v2 của file DSF lớn (needsTailId3Range) với cache metadata để tránh gọi mạng lặp lại khi mở lại album DSD"
-    },
     {
       "id": "BUG-12",
       "phase": "BUG_HUNT",
@@ -207,6 +202,16 @@
       "id": "BUG-24",
       "phase": "BUG_HUNT",
       "title": "Kiểm tra xử lý hộp free/skip/uuid nằm xen giữa mdat 64-bit và moov ở cuối file ALAC .m4a khi máy chủ Cloud ẩn header Content-Range do CORS"
+    },
+    {
+      "id": "UPG-24",
+      "phase": "UPGRADE",
+      "title": "Bổ sung đọc thẻ metadata DIAR/DITI bên trong chunk PROP/DIIN của file Philips DSDIFF (.dff) song song với ID3v2 mở rộng ở cuối file"
+    },
+    {
+      "id": "OPT-24",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu gộp trước (batch warm-up) danh sách con trỏ metadataPointer DSF khi người dùng cuộn qua lưới Album DSD trên Google Drive/OneDrive"
     }
   ],
   "completedTasks": [
@@ -465,6 +470,14 @@
       "completedAt": "2026-11-18T08:07:05.780Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai probeMp4TailMoovRangeAsync, applyMp4SliceMetadataToTrack và parseAudioBinaryHeaderSafe trong library-utils.js kết hợp nâng cấp fetchAudioFirstSlice & fetchCloudTrack trong index.html: tự động phát hiện MP4/ALAC có mdat đứng trước moov (needsTailRange=true), gọi HTTP 206 recommendedRangeHeader lấy metadata kỹ thuật/ảnh bìa/ReplayGain tức thì và bỏ qua lát đầu thiếu moov không gây lỗi NotSupportedError"
+    },
+    {
+      "id": "OPT-11",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu gộp yêu cầu HTTP 206 lát đuôi ID3v2 của file DSF lớn (needsTailId3Range) với cache metadata để tránh gọi mạng lặp lại khi mở lại album DSD",
+      "completedAt": "2026-11-18T08:18:44.135Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai extractDsfTailId3Metadata, buildDsfTailCacheKey, createDsfTailMetadataCache và fetchDsfTailId3CoalescedAsync trong library-utils.js kết hợp readRemoteDsfMetadata trong cloud-metadata.js: gộp các yêu cầu đồng thời cho cùng bài DSF về 1 lệnh HTTP 206 Range duy nhất theo khóa (remoteId || url):fileSize:metadataPointer, tự vô hiệu hóa khi đổi size/pointer và phục vụ 0-RTT từ bộ đệm LRU bền vững khi mở lại album DSD"
     }
   ]
 }

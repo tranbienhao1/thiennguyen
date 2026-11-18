@@ -7210,3 +7210,357 @@ describe('Cycle 31 (UPG-11): Automatic HTTP 206 Tail-moov Range Probe in fetchAu
     assert.equal(track.metadataLoaded, true);
   });
 });
+
+// ============================================================================
+// Cycle 32 (OPT-11): Coalesced HTTP 206 DSF Tail ID3v2 Metadata Cache
+// ============================================================================
+describe('Cycle 32 (OPT-11): Coalesced HTTP 206 DSF Tail ID3v2 Metadata Cache & Cloud Integration', () => {
+  const cloudMeta = require(path.join(ROOT, 'cloud-metadata.js'));
+
+  function syncsafe32Bytes(n) {
+    return new Uint8Array([
+      (n >>> 21) & 0x7f,
+      (n >>> 14) & 0x7f,
+      (n >>> 7) & 0x7f,
+      n & 0x7f
+    ]);
+  }
+
+  function joinBytes(...parts) {
+    let len = 0;
+    for (const p of parts) len += p.byteLength;
+    const out = new Uint8Array(len);
+    let off = 0;
+    for (const p of parts) {
+      out.set(p, off);
+      off += p.byteLength;
+    }
+    return out;
+  }
+
+  function id3v24Frame(id, payloadBytes) {
+    const hdr = new Uint8Array(10);
+    for (let i = 0; i < 4; i++) hdr[i] = id.charCodeAt(i);
+    hdr.set(syncsafe32Bytes(payloadBytes.byteLength), 4);
+    return joinBytes(hdr, payloadBytes);
+  }
+
+  function id3TextFrameUtf8(id, value) {
+    const body = new TextEncoder().encode(value);
+    const p = new Uint8Array(1 + body.byteLength);
+    p[0] = 0x03; // UTF-8
+    p.set(body, 1);
+    return id3v24Frame(id, p);
+  }
+
+  function id3TxxxUtf8(key, value) {
+    const k = new TextEncoder().encode(key);
+    const v = new TextEncoder().encode(value);
+    const p = new Uint8Array(1 + k.byteLength + 1 + v.byteLength);
+    p[0] = 0x03;
+    p.set(k, 1);
+    p[1 + k.byteLength] = 0x00;
+    p.set(v, 2 + k.byteLength);
+    return id3v24Frame('TXXX', p);
+  }
+
+  function id3UsltUtf8(lyricsText) {
+    const txt = new TextEncoder().encode(lyricsText);
+    const p = new Uint8Array(1 + 3 + 1 + txt.byteLength);
+    p[0] = 0x03;
+    p[1] = 0x65; p[2] = 0x6e; p[3] = 0x67; // 'eng'
+    p[4] = 0x00; // empty descriptor
+    p.set(txt, 5);
+    return id3v24Frame('USLT', p);
+  }
+
+  function id3ApicJpeg(imgBytes) {
+    const mime = new TextEncoder().encode('image/jpeg');
+    const p = new Uint8Array(1 + mime.byteLength + 1 + 1 + 1 + imgBytes.byteLength);
+    p[0] = 0x00;
+    p.set(mime, 1);
+    p[1 + mime.byteLength] = 0x00;
+    p[2 + mime.byteLength] = 0x03; // Front cover
+    p[3 + mime.byteLength] = 0x00; // empty description
+    p.set(imgBytes, 4 + mime.byteLength);
+    return id3v24Frame('APIC', p);
+  }
+
+  function buildId3v24Tag({
+    title = 'DSD128 Nocturne 交響曲',
+    artist = 'Thiên Nguyễn',
+    album = 'SACD Master Archive',
+    track = '02/09',
+    rgGain = '-7.50 dB',
+    rgPeak = '0.795000',
+    lyrics = '[00:05.00] Velvet Sigma-Delta Night'
+  } = {}) {
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9]);
+    const frames = joinBytes(
+      id3TextFrameUtf8('TIT2', title),
+      id3TextFrameUtf8('TPE1', artist),
+      id3TextFrameUtf8('TALB', album),
+      id3TextFrameUtf8('TRCK', track),
+      id3TxxxUtf8('REPLAYGAIN_TRACK_GAIN', rgGain),
+      id3TxxxUtf8('REPLAYGAIN_TRACK_PEAK', rgPeak),
+      id3UsltUtf8(lyrics),
+      id3ApicJpeg(jpeg)
+    );
+    const hdr = new Uint8Array(10);
+    hdr[0] = 0x49; hdr[1] = 0x44; hdr[2] = 0x33; // 'ID3'
+    hdr[3] = 4; hdr[4] = 0; hdr[5] = 0;
+    hdr.set(syncsafe32Bytes(frames.byteLength), 6);
+    return joinBytes(hdr, frames);
+  }
+
+  function buildDsfHeader92({
+    totalSize,
+    metadataPointer,
+    sampleRate = 5644800,
+    channels = 2,
+    durationSec = 210
+  }) {
+    const dsf = new Uint8Array(92);
+    const dv = new DataView(dsf.buffer);
+    dsf.set(Buffer.from('DSD '), 0);
+    dv.setBigUint64(4, 28n, true);
+    dv.setBigUint64(12, BigInt(totalSize), true);
+    dv.setBigUint64(20, BigInt(metadataPointer), true);
+    dsf.set(Buffer.from('fmt '), 28);
+    dv.setBigUint64(32, 52n, true);
+    dv.setUint32(40, 1, true);
+    dv.setUint32(52, channels, true);
+    dv.setUint32(56, sampleRate, true);
+    dv.setUint32(60, 1, true); // LSB-first
+    dv.setBigUint64(64, BigInt(sampleRate * durationSec), true);
+    dv.setUint32(72, 4096, true);
+    dsf.set(Buffer.from('data'), 80);
+    dv.setBigUint64(84, BigInt(Math.max(12, metadataPointer - 80)), true);
+    return dsf;
+  }
+
+  it('coalesces 10 concurrent DSF tail ID3v2 HTTP 206 Range calls into 1 fetch and serves 0-RTT cache hits across cold restarts', async () => {
+    assert.equal(typeof lib.extractDsfTailId3Metadata, 'function');
+    assert.equal(typeof lib.createDsfTailMetadataCache, 'function');
+    assert.equal(typeof lib.fetchDsfTailId3CoalescedAsync, 'function');
+    assert.equal(typeof cloudMeta.readRemoteDsfMetadata, 'function');
+
+    const backingStore = new Map();
+    const mockStorage = {
+      getItem: k => (backingStore.has(k) ? backingStore.get(k) : null),
+      setItem: (k, v) => backingStore.set(k, String(v)),
+      removeItem: k => backingStore.delete(k)
+    };
+
+    const cache = lib.createDsfTailMetadataCache({ maxEntries: 16, storage: mockStorage });
+    const tailId3 = buildId3v24Tag();
+    const metadataPointer = 419400000; // ~400 MiB DSD128 file!
+    const fileSize = metadataPointer + tailId3.byteLength;
+
+    // Verify parseAudioBinaryHeaderSafe exposes metadataPointer & needsTailId3Range on DSF head slice!
+    const head92 = buildDsfHeader92({ totalSize: fileSize, metadataPointer });
+    const headParsed = lib.parseAudioBinaryHeaderSafe(head92, fileSize);
+    assert.equal(headParsed.valid, true);
+    assert.equal(headParsed.format, 'DSF');
+    assert.equal(headParsed.dsdRateLabel, 'DSD128');
+    assert.equal(headParsed.metadataPointer, metadataPointer);
+    assert.equal(headParsed.needsTailId3Range, true);
+    assert.equal(headParsed.recommendedId3RangeHeader, `bytes=${metadataPointer}-${fileSize - 1}`);
+
+    let networkFetches = 0;
+    const rangeHeadersSeen = [];
+    const slowTailFetch = async (_url, reqOpts) => {
+      networkFetches++;
+      const rangeHdr = reqOpts.headers.Range || (reqOpts.headers.get && reqOpts.headers.get('Range'));
+      rangeHeadersSeen.push(rangeHdr);
+      await new Promise(r => setTimeout(r, 25));
+      return {
+        ok: true,
+        status: 206,
+        headers: {
+          get: h => (String(h).toLowerCase() === 'content-range' ? `bytes ${metadataPointer}-${fileSize - 1}/${fileSize}` : 'application/octet-stream')
+        },
+        arrayBuffer: async () => tailId3.slice().buffer,
+        body: { cancel() {} }
+      };
+    };
+
+    // Launch 10 concurrent calls for the same DSF track!
+    const concurrentResults = await Promise.all(
+      Array.from({ length: 10 }, (_, idx) =>
+        lib.fetchDsfTailId3CoalescedAsync(
+          {
+            remoteId: 'gdrive-dsd128-track01',
+            url: `https://www.googleapis.com/drive/v3/files/gdrive-dsd128-track01?alt=media&req=${idx}`,
+            fileSize,
+            metadataPointer
+          },
+          { cache, fetch: slowTailFetch, headers: { Authorization: 'Bearer gdrive-token' } }
+        )
+      )
+    );
+
+    assert.equal(networkFetches, 1, '10 concurrent requests for the same DSF track must coalesce into 1 HTTP 206 call');
+    assert.deepEqual(rangeHeadersSeen, [`bytes=${metadataPointer}-${fileSize - 1}`]);
+    const coalescedCount = concurrentResults.filter(r => r.coalesced === true).length;
+    assert.equal(coalescedCount, 9, '9 of the 10 concurrent callers must attach as coalesced waiters');
+
+    for (const r of concurrentResults) {
+      assert.equal(r.valid, true);
+      assert.equal(r.key, `gdrive-dsd128-track01:${fileSize}:${metadataPointer}`);
+      assert.equal(r.metadata.title, 'DSD128 Nocturne 交響曲');
+      assert.equal(r.metadata.artist, 'Thiên Nguyễn');
+      assert.equal(r.metadata.album, 'SACD Master Archive');
+      assert.equal(r.metadata.track, '02/09');
+      assert.equal(r.metadata.replayGainTrackGain, -7.5);
+      assert.equal(r.metadata.replayGainTrackPeak, 0.795);
+      assert.equal(r.metadata.lyrics, '[00:05.00] Velvet Sigma-Delta Night');
+      assert.ok(r.metadata.cover && r.metadata.cover.startsWith('data:image/jpeg;base64,'));
+    }
+
+    // Revisit in-memory (even with a rotated temporary OneDrive/Drive download URL and throwing fetch!) -> 0 network calls!
+    const revisitMem = await lib.fetchDsfTailId3CoalescedAsync(
+      {
+        remoteId: 'gdrive-dsd128-track01',
+        url: 'https://rotated-temp-cdn.example.com/new-signed-token',
+        fileSize,
+        metadataPointer
+      },
+      {
+        cache,
+        fetch: async () => {
+          throw new Error('Must NOT touch network on DSF tail cache hit!');
+        }
+      }
+    );
+    assert.equal(revisitMem.valid, true);
+    assert.equal(revisitMem.fromCache, true);
+    assert.equal(revisitMem.metadata.title, 'DSD128 Nocturne 交響曲');
+    assert.equal(networkFetches, 1);
+
+    // Cold-restart persistence check: brand-new cache hydrated from mockStorage -> 0 network calls!
+    const coldCache = lib.createDsfTailMetadataCache({ maxEntries: 16, storage: mockStorage });
+    const revisitCold = await lib.fetchDsfTailId3CoalescedAsync(
+      { remoteId: 'gdrive-dsd128-track01', fileSize, metadataPointer },
+      {
+        cache: coldCache,
+        fetch: async () => {
+          throw new Error('Cold-hydrated cache must serve 0-RTT without network!');
+        }
+      }
+    );
+    assert.equal(revisitCold.valid, true);
+    assert.equal(revisitCold.fromCache, true);
+    assert.equal(revisitCold.metadata.album, 'SACD Master Archive');
+    assert.equal(revisitCold.metadata.replayGainTrackGain, -7.5);
+  });
+
+  it('integrates with cloudMetadata.readRemoteTags for .dsf albums, invalidates on fileSize/metadataPointer change, and enforces LRU bounds', async () => {
+    const dsfCache = lib.createDsfTailMetadataCache({ maxEntries: 3, persist: false });
+    const tailV1 = buildId3v24Tag({ title: 'Movement I (Original)', rgGain: '-6.00 dB' });
+    const ptrV1 = 200000000;
+    const sizeV1 = ptrV1 + tailV1.byteLength;
+    const headV1 = buildDsfHeader92({ totalSize: sizeV1, metadataPointer: ptrV1, sampleRate: 2822400, durationSec: 180 });
+
+    let cloudHttpCalls = 0;
+    const mockCloudFetchV1 = async (_url, reqOpts) => {
+      cloudHttpCalls++;
+      const rangeStr = reqOpts.headers.get ? reqOpts.headers.get('Range') : reqOpts.headers.Range;
+      const m = rangeStr.match(/^bytes=(\d+)-(\d+)$/);
+      const start = Number(m[1]);
+      const end = Number(m[2]);
+      const len = end - start + 1;
+      const out = new Uint8Array(len);
+      if (start === 0) {
+        out.set(headV1.subarray(0, Math.min(len, headV1.byteLength)), 0);
+      } else if (start >= ptrV1) {
+        out.set(tailV1.subarray(start - ptrV1, start - ptrV1 + len), 0);
+      }
+      await new Promise(r => setTimeout(r, 15));
+      return {
+        ok: true,
+        status: 206,
+        headers: {
+          get: h => (String(h).toLowerCase() === 'content-range' ? `bytes ${start}-${end}/${sizeV1}` : 'audio/dsf')
+        },
+        arrayBuffer: async () => out.buffer,
+        body: { cancel() {} }
+      };
+    };
+
+    // 10 concurrent cloudMetadata.readRemoteTags calls on a cold .dsf track coalesce into 1 head probe + 1 tail probe (= 2 total Range calls)!
+    const albumOpenResults = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        cloudMeta.readRemoteTags(
+          null,
+          { remoteId: 'onedrive-dsf-1', url: 'https://onedrive.example/temp1/01.dsf', name: '01.dsf', size: sizeV1 },
+          {},
+          { fetch: mockCloudFetchV1, dsfCache }
+        )
+      )
+    );
+    assert.equal(cloudHttpCalls, 2, '10 concurrent cold readRemoteTags on .dsf must coalesce to 1 head Range + 1 tail Range');
+    assert.equal(albumOpenResults[0].title, 'Movement I (Original)');
+    assert.equal(albumOpenResults[0].sampleRate, 2822400);
+    assert.equal(albumOpenResults[0].dsdRateLabel, 'DSD64');
+    assert.equal(albumOpenResults[0].replayGainTrackGain, -6);
+
+    // Reopening the DSD album (even with a new OneDrive pre-signed URL!) makes 0 network calls!
+    const albumReopen = await cloudMeta.readRemoteTags(
+      null,
+      { remoteId: 'onedrive-dsf-1', url: 'https://onedrive.example/temp2-expired-rotated/01.dsf', name: '01.dsf', size: sizeV1 },
+      {},
+      {
+        dsfCache,
+        fetch: async () => {
+          throw new Error('Reopening DSD album must hit cache with 0 network calls!');
+        }
+      }
+    );
+    assert.equal(albumReopen.title, 'Movement I (Original)');
+    assert.equal(cloudHttpCalls, 2);
+
+    // File-size / metadataPointer change invalidates stale entry and fetches updated tags!
+    const tailV2 = buildId3v24Tag({ title: 'Movement I (Remastered 2026)', rgGain: '-4.25 dB' });
+    const ptrV2 = 200050000;
+    const sizeV2 = ptrV2 + tailV2.byteLength;
+    let v2Calls = 0;
+    const updatedRes = await lib.fetchDsfTailId3CoalescedAsync(
+      { remoteId: 'onedrive-dsf-1', url: 'https://onedrive.example/v2/01.dsf', fileSize: sizeV2, metadataPointer: ptrV2 },
+      {
+        cache: dsfCache,
+        fetch: async () => {
+          v2Calls++;
+          return {
+            ok: true,
+            status: 206,
+            headers: { get: h => (String(h).toLowerCase() === 'content-range' ? `bytes ${ptrV2}-${sizeV2 - 1}/${sizeV2}` : null) },
+            arrayBuffer: async () => tailV2.slice().buffer,
+            body: { cancel() {} }
+          };
+        }
+      }
+    );
+    assert.equal(v2Calls, 1, 'Changed fileSize/metadataPointer must miss cache and fetch new ID3v2 tail');
+    assert.equal(updatedRes.metadata.title, 'Movement I (Remastered 2026)');
+    assert.equal(dsfCache.has(`onedrive-dsf-1:${sizeV1}:${ptrV1}`), false, 'Stale version for same remoteId must be invalidated');
+    assert.equal(dsfCache.has(`onedrive-dsf-1:${sizeV2}:${ptrV2}`), true);
+    assert.ok(dsfCache.getStats().invalidations >= 1);
+
+    // LRU bound enforcement (maxEntries = 3): insert tracks 2, 3, touch 'onedrive-dsf-1' to keep it MRU, then insert track 4!
+    dsfCache.set('dsf-track-2:1000:800', { valid: true, title: 'Track 2' });
+    dsfCache.set('dsf-track-3:1000:800', { valid: true, title: 'Track 3' });
+    assert.equal(dsfCache.size, 3);
+
+    // Promote 'onedrive-dsf-1' to MRU so 'dsf-track-2' becomes the oldest LRU entry!
+    assert.ok(dsfCache.get(`onedrive-dsf-1:${sizeV2}:${ptrV2}`));
+    dsfCache.set('dsf-track-4:1000:800', { valid: true, title: 'Track 4' });
+
+    assert.equal(dsfCache.size, 3, 'Cache size must never exceed maxEntries');
+    assert.equal(dsfCache.has('dsf-track-2:1000:800'), false, 'Oldest untouched LRU entry (Track 2) must be evicted');
+    assert.equal(dsfCache.has(`onedrive-dsf-1:${sizeV2}:${ptrV2}`), true, 'Recently accessed entry must survive LRU eviction');
+    assert.equal(dsfCache.has('dsf-track-3:1000:800'), true);
+    assert.equal(dsfCache.has('dsf-track-4:1000:800'), true);
+    assert.ok(dsfCache.getStats().evictions >= 1);
+  });
+});
