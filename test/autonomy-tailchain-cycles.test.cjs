@@ -4719,3 +4719,165 @@ describe('Autonomy Tail-Chaining Cycle 20 — OPT-07 (In-Place Odometer ASCII Po
     assert.equal(cspSolved.hashHex, syncRef.hashHex);
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 21 — BUG-08 (LRC [length:] vs Decoded AudioBuffer Duration Drift Reconciliation)', () => {
+  it('exposes BUG-08 reconcileLyricDurationWithAudio on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.reconcileLyricDurationWithAudio, 'function');
+
+    const sandbox = { library: { keepRefBug08: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.reconcileLyricDurationWithAudio, 'function');
+    assert.equal(typeof sandbox.library.reconcileLyricDurationWithAudio, 'function');
+    assert.equal(sandbox.library.keepRefBug08, true);
+  });
+
+  it('reconciles [length: 04:10.00] album LRC against 215.4s radio-edit decoded AudioBuffer, flags >2s drift, and rewrites [length: 03:35.40]', () => {
+    const staleAlbumLrc = [
+      '[ti:Midnight City]',
+      '[ar:M83]',
+      '[length: 04:10.00]',
+      '[00:12.40]Waiting in a car',
+      '[01:45.80]Waiting for a ride in the dark',
+      '[03:30.15]<03:30.15>The <03:31.50>city <03:33.20>is my church'
+    ].join('\n');
+
+    // Pass AudioBuffer-like object { duration: 215.4, length: 20678400, sampleRate: 96000 }
+    const mockAudioBuffer = { duration: 215.4, length: 20678400, sampleRate: 96000 };
+    const rec = lib.reconcileLyricDurationWithAudio(staleAlbumLrc, mockAudioBuffer);
+
+    assert.equal(rec.hasAuthoritativeAudio, true);
+    assert.equal(rec.declaredLengthMs, 250000);
+    assert.equal(rec.declaredLengthSec, 250);
+    assert.equal(rec.authoritativeDurationMs, 215400);
+    assert.equal(rec.authoritativeDurationSec, 215.4);
+    assert.equal(rec.lrclibDurationSec, 215);
+    assert.equal(rec.driftMs, 34600);
+    assert.equal(rec.absDriftMs, 34600);
+    assert.equal(rec.hasSignificantDrift, true);
+    assert.equal(rec.maxTimestampMs, 213200);
+    assert.equal(rec.hasTimestampOverrun, false);
+    assert.equal(rec.rewroteLengthHeader, true);
+    assert.equal(rec.formattedLengthTag, '[length: 03:35.40]');
+    assert.ok(rec.warnings.includes('lrc_length_drift_exceeds_lrclib_tolerance'));
+    assert.ok(rec.syncedLyrics.includes('[length: 03:35.40]'));
+    assert.ok(!rec.syncedLyrics.includes('04:10.00'), 'Stale [length: 04:10.00] must be eliminated');
+
+    // Minor <2s rounding difference (e.g. [length: 03:36] = 216s vs 215.4s) is normalized without false-positive >2s drift warning
+    const minorLrc = '[ti:Midnight City]\n[length: 03:36]\n[00:12.40]Waiting in a car';
+    const minorRec = lib.reconcileLyricDurationWithAudio(minorLrc, 215.4);
+    assert.equal(minorRec.declaredLengthMs, 216000);
+    assert.equal(minorRec.driftMs, 600);
+    assert.equal(minorRec.hasSignificantDrift, false);
+    assert.ok(minorRec.syncedLyrics.includes('[length: 03:35.40]'));
+  });
+
+  it('supports hh:mm:ss(.xx) long mixes (>1 hour) and detects/clamps out-of-bounds trailing timestamps', () => {
+    // 1. >1 hour symphony / DJ mix (01:15:20.50 = 4520.5s vs 4524.8s decoded stream)
+    const longMixLrc = [
+      '[ti:Mahler Symphony No. 2 (Hi-Res Live)]',
+      '[length: 01:15:20.50]',
+      '[00:05:10.00]Allegro maestoso',
+      '[01:14:58.25]Aufersteh\'n, ja aufersteh\'n wirst du'
+    ].join('\n');
+
+    const longRec = lib.reconcileLyricDurationWithAudio(longMixLrc, 4524.8, {
+      preserveHhMmSs: true
+    });
+    assert.equal(longRec.declaredLengthMs, 4520500);
+    assert.equal(longRec.authoritativeDurationMs, 4524800);
+    assert.equal(longRec.lrclibDurationSec, 4525);
+    assert.equal(longRec.driftMs, -4300);
+    assert.equal(longRec.hasSignificantDrift, true);
+    assert.equal(longRec.maxTimestampMs, 4498250);
+    assert.equal(longRec.hasTimestampOverrun, false);
+    assert.ok(longRec.syncedLyrics.includes('[length: 01:15:24.80]'));
+
+    // Standard mm:ss.xx formatting for >1 hour (75:24.80) also parses back identically
+    const longStdRec = lib.reconcileLyricDurationWithAudio(longMixLrc, 4524.8);
+    assert.ok(longStdRec.syncedLyrics.includes('[length: 75:24.80]'));
+    const reparsed = lib.reconcileLyricDurationWithAudio(longStdRec.syncedLyrics, 4524.8);
+    assert.equal(reparsed.declaredLengthMs, 4524800);
+    assert.equal(reparsed.driftMs, 0);
+
+    // 2. Trailing timestamp overrun detection & optional clamping (maxTimestampMs > authoritativeDurationMs + toleranceMs)
+    const overrunLrc = [
+      '[ti:Track With Out-Of-Bounds Outro]',
+      '[length: 03:35.40]',
+      '[00:15.00]First verse',
+      '[03:34.00]Final vocal note',
+      '[03:42.50]<03:43.80>Trailing editor spam after track end'
+    ].join('\n');
+
+    const warnOnly = lib.reconcileLyricDurationWithAudio(overrunLrc, 215.4, { toleranceMs: 500 });
+    assert.equal(warnOnly.maxTimestampMs, 223800);
+    assert.equal(warnOnly.overrunMs, 8400);
+    assert.equal(warnOnly.hasTimestampOverrun, true);
+    assert.equal(warnOnly.clampedTimestampCount, 0);
+    assert.ok(warnOnly.warnings.includes('trailing_timestamp_exceeds_audio_duration'));
+
+    const clamped = lib.reconcileLyricDurationWithAudio(overrunLrc, 215.4, {
+      toleranceMs: 500,
+      clampTimestamps: true
+    });
+    assert.equal(clamped.hasTimestampOverrun, true);
+    assert.equal(clamped.clampedTimestampCount, 2);
+    assert.equal(clamped.effectiveMaxTimestampMs, 215400);
+    assert.ok(clamped.syncedLyrics.includes('[03:35.40]<03:35.40>Trailing editor spam after track end'));
+    assert.ok(!clamped.syncedLyrics.includes('03:42.50'));
+  });
+
+  it('integrates duration reconciliation into buildLrclibPublishPayload while preserving 100% backward compatibility', () => {
+    const mismatchedLrc = [
+      '[ti:Starlight]',
+      '[ar:Muse]',
+      '[length: 04:10.00]',
+      '[00:14.20]Far away',
+      '[03:32.00]Our hopes and expectations',
+      '[03:40.00]Out-of-bounds tag'
+    ].join('\n');
+
+    // Authoritative decoded AudioBuffer (215.4s -> 215s) overrides stale metadata duration (250s) & rewrites [length:] in syncedLyrics!
+    const spec = lib.buildLrclibPublishPayload(
+      {
+        trackName: 'Starlight',
+        artistName: 'Muse',
+        albumName: 'Black Holes and Revelations',
+        duration: 250,
+        audioBuffer: { duration: 215.4 }
+      },
+      { syncedLyrics: mismatchedLrc },
+      { clampTimestamps: true, publishToken: 'bug08-prefix:42' }
+    );
+
+    assert.equal(spec.duration, 215);
+    assert.equal(spec.body.duration, 215);
+    assert.ok(spec.body.syncedLyrics.includes('[length: 03:35.40]'));
+    assert.ok(!spec.body.syncedLyrics.includes('04:10.00'));
+    assert.ok(spec.body.syncedLyrics.includes('[03:35.40]Out-of-bounds tag'));
+    assert.equal(spec.durationReconciliation.hasSignificantDrift, true);
+    assert.equal(spec.durationReconciliation.driftMs, 34600);
+    assert.equal(spec.durationReconciliation.clampedTimestampCount, 1);
+
+    // Optional strict rejection when rejectOnTimestampOverrun: true
+    assert.throws(
+      () => lib.buildLrclibPublishPayload(
+        { trackName: 'Starlight', artistName: 'Muse', decodedDurationSec: 215.4 },
+        { syncedLyrics: mismatchedLrc },
+        { rejectOnTimestampOverrun: true }
+      ),
+      /exceeds decoded audio duration/
+    );
+
+    // Fallback to [length:] when trackMeta omits duration completely
+    const fromLrcLengthSpec = lib.buildLrclibPublishPayload(
+      { trackName: 'Long Mix', artistName: 'Artist' },
+      '[length: 01:02:05.00]\n[01:01:50.00]Closing theme'
+    );
+    assert.equal(fromLrcLengthSpec.duration, 3725);
+    assert.equal(fromLrcLengthSpec.plainLyrics, 'Closing theme');
+  });
+});

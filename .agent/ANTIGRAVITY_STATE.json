@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 28,
-  "lastPhase": "OPTIMIZE",
-  "lastRunIso": "2026-11-18T02:27:44.252Z",
+  "cycleCount": 29,
+  "lastPhase": "BUG_HUNT",
+  "lastRunIso": "2026-11-18T02:38:38.573Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "BUG-08",
-      "phase": "BUG_HUNT",
-      "title": "Kiểm tra đồng bộ thời lượng duration_ms giữa thẻ [length:] trong LRC và thời lượng giải mã thực tế của AudioBuffer khi đóng góp lên LRCLIB"
-    },
     {
       "id": "UPG-08",
       "phase": "UPGRADE",
@@ -143,6 +138,16 @@
       "id": "OPT-16",
       "phase": "OPTIMIZE",
       "title": "Tối ưu tái sử dụng một phiên bản Web Worker ấm (warm pooled worker) có thời gian sống ngắn trong Lyric Editor V2 khi đóng góp liên tiếp nhiều bài hát"
+    },
+    {
+      "id": "BUG-17",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra xử lý bù trừ thẻ [offset: +/-ms] âm lớn khiến dòng lời đầu tiên chạm mốc 0ms bị dồn chồng trong bộ xuất LRC của Lyric Editor V2"
+    },
+    {
+      "id": "UPG-17",
+      "phase": "UPGRADE",
+      "title": "Bổ sung cảnh báo trực quan độ lệch thời lượng [length:] so với AudioBuffer và nút tự động chuẩn hóa 1 chạm ngay trong hộp thoại xuất bản LRCLIB"
     }
   ],
   "completedTasks": [
@@ -313,6 +318,14 @@
       "completedAt": "2026-11-18T02:27:44.252Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai createPreallocatedPowAsciiScratchpad (tiền biên dịch buffer ASCII tiền tố và đếm tăng chữ số cơ số 10 tại chỗ bằng odometer carry 48..57 zero-allocation) và createLrclibPowWorkerRunner (chuyển tải giải PoW SHA-256 sang inline Blob Web Worker kèm thu hồi URL.revokeObjectURL tức thì, hủy qua AbortSignal worker.terminate() và tự động fallback về solveLrclibChallengeAsync trên CSP WebView / Node.js), đồng thời nâng cấp solveLrclibChallengeSync / solveLrclibChallengeAsync dùng bộ đệm odometer trong library-utils.js"
+    },
+    {
+      "id": "BUG-08",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra đồng bộ thời lượng duration_ms giữa thẻ [length:] trong LRC và thời lượng giải mã thực tế của AudioBuffer khi đóng góp lên LRCLIB",
+      "completedAt": "2026-11-18T02:38:38.573Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai reconcileLyricDurationWithAudio (phân tích thẻ [length: mm:ss.xx] / mm:ss / hh:mm:ss cho cả bản thu dài >1 giờ cùng maxTimestampMs dòng/từ, đối chiếu thời lượng AudioBuffer thực tế phát hiện lệch driftMs > 2s, cảnh báo hoặc kẹp timestamp tràn đuôi bài hát và chuẩn hóa lại [length:] khớp thời lượng giải mã) và tích hợp vào buildLrclibPublishPayload tương thích ngược 100% trong library-utils.js"
     }
   ]
 }
