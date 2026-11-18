@@ -5095,3 +5095,142 @@ describe('Autonomy Tail-Chaining Cycle 22 — UPG-08 (Simultaneous Lead / Duet /
     assert.equal(fsContainer.children[0].style.opacity, '0.88');
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 23 — OPT-08 (Shared Global TypedLyricBufferPool Coordinator across Lyric Reader & 60fps Visualizer)', () => {
+  it('exposes OPT-08 getSharedLyricSegmentCoordinator on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.getSharedLyricSegmentCoordinator, 'function');
+
+    const c1 = lib.getSharedLyricSegmentCoordinator();
+    const c2 = lib.getSharedLyricSegmentCoordinator();
+    assert.strictEqual(c1, c2, 'Default coordinator must be a singleton shared across modules');
+
+    const sandbox = { library: { keepRefOpt08: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.getSharedLyricSegmentCoordinator, 'function');
+    assert.equal(typeof sandbox.library.getSharedLyricSegmentCoordinator, 'function');
+    assert.equal(sandbox.library.keepRefOpt08, true);
+  });
+
+  it('guarantees compileCount === 1 across 500 interleaved 60fps Visualizer + rapid-seek Lyric Reader queries on the same track', () => {
+    const coord = lib.getSharedLyricSegmentCoordinator({ reset: true });
+    const scratchpad = lib.createZeroAllocFrameScratchpad(256);
+    assert.strictEqual(scratchpad.lyricCoordinator, coord);
+
+    const trackLines = Array.from({ length: 420 }, (_, i) => {
+      const start = i * 600;
+      const end = start + (i % 7 === 0 ? 1100 : 540);
+      return {
+        start_ms: start,
+        end_ms: end,
+        voice: i % 7 === 0 ? 'backing' : (i % 11 === 0 ? 'duet' : 'lead'),
+        text: i % 7 === 0 ? `(Harmony ${i})` : `Verse line ${i}`,
+        words: [
+          { start_ms: start, end_ms: start + 250, text: 'Alpha ' },
+          { start_ms: start + 250, end_ms: end, text: 'Beta' }
+        ]
+      };
+    });
+
+    const outLanes = {};
+    for (let i = 0; i < 500; i++) {
+      // Simulate rapid arbitrary seek scrubbing + 60fps Visualizer + Multi-Voice lane sync on the exact same trackLines
+      const seekTimeMs = ((i * 7919) % 250000);
+      if (i % 3 === 0) {
+        const tel = scratchpad.syncLyricsInPlace(trackLines, seekTimeMs);
+        assert.ok(tel.activeLyricLine >= 0 && tel.activeLyricLine < 420);
+      } else if (i % 3 === 1) {
+        const bin = lib.findActiveLyricStateBinary(trackLines, seekTimeMs);
+        assert.ok(bin.lineIndex >= 0 && bin.lineIndex < 420);
+      } else {
+        const lanes = lib.resolveMultiVoiceLyricLanes(trackLines, seekTimeMs, outLanes);
+        assert.strictEqual(lanes, outLanes);
+      }
+    }
+
+    const stats = coord.getStats();
+    assert.equal(stats.compileCount, 1, 'Track must compile TypedLyricSegmentIndex exactly once across 500 interleaved queries');
+    assert.equal(stats.hitCount, 499, 'Remaining 499 queries must hit the pre-compiled segment index in O(1)');
+    assert.equal(coord.getTrackCompileCount(trackLines), 1);
+  });
+
+  it('reuses identical backing ArrayBuffers when switching to smaller/equal-size tracks and preserves accuracy on revisit', () => {
+    const coord = lib.getSharedLyricSegmentCoordinator({ isolated: true, initialLineCapacity: 512, initialWordCapacity: 2048 });
+    const pad = lib.createZeroAllocFrameScratchpad(128, { lyricCoordinator: coord });
+
+    const trackLarge = Array.from({ length: 480 }, (_, i) => ({
+      start_ms: 1000 + i * 500,
+      end_ms: 1000 + i * 500 + 450,
+      voice: 'lead',
+      text: `Large track line ${i}`,
+      words: [
+        { start_ms: 1000 + i * 500, end_ms: 1000 + i * 500 + 220, text: 'One ' },
+        { start_ms: 1000 + i * 500 + 220, end_ms: 1000 + i * 500 + 450, text: 'Two' }
+      ]
+    }));
+
+    const trackSmaller = Array.from({ length: 180 }, (_, i) => ({
+      start_ms: 5000 + i * 1000,
+      end_ms: 5000 + i * 1000 + 900,
+      voice: i % 5 === 0 ? 'v2' : 'v1',
+      text: `Smaller track line ${i}`,
+      words: [
+        { start_ms: 5000 + i * 1000, end_ms: 5000 + i * 1000 + 900, text: 'Solo' }
+      ]
+    }));
+
+    const trackEqual = Array.from({ length: 480 }, (_, i) => ({
+      start_ms: 2000 + i * 400,
+      end_ms: 2000 + i * 400 + 380,
+      text: `Equal track line ${i}`,
+      words: [
+        { start_ms: 2000 + i * 400, end_ms: 2000 + i * 400 + 190, text: 'Left ' },
+        { start_ms: 2000 + i * 400 + 190, end_ms: 2000 + i * 400 + 380, text: 'Right' }
+      ]
+    }));
+
+    // 1. Compile Track 1 (480 lines, 960 words <= initial 512/2048 pool)
+    const idx1 = coord.acquireIndex(trackLarge);
+    const startBufRef = idx1.startMs.buffer;
+    const endBufRef = idx1.endMs.buffer;
+    const treeBufRef = idx1.maxEndSubtreeMs.buffer;
+    const orderBufRef = idx1.sortedOrder.buffer;
+    const wordStartBufRef = idx1.wordStartMs.buffer;
+    const wordEndBufRef = idx1.wordEndMs.buffer;
+    const allocCount1 = coord.pool.allocationCount;
+
+    assert.equal(pad.syncLyricsInPlace(trackLarge, 1000 + 10 * 500 + 100).activeLyricLine, 10);
+    assert.equal(coord.compileCount, 1);
+
+    // 2. Switch to smaller Track 2 (180 lines) -> zero ArrayBuffer allocations, exact same backing buffers!
+    const idx2 = coord.acquireIndex(trackSmaller);
+    assert.equal(idx2.lineCount, 180);
+    assert.strictEqual(idx2.startMs.buffer, startBufRef);
+    assert.strictEqual(idx2.endMs.buffer, endBufRef);
+    assert.strictEqual(idx2.maxEndSubtreeMs.buffer, treeBufRef);
+    assert.strictEqual(idx2.sortedOrder.buffer, orderBufRef);
+    assert.strictEqual(idx2.wordStartMs.buffer, wordStartBufRef);
+    assert.strictEqual(idx2.wordEndMs.buffer, wordEndBufRef);
+    assert.equal(coord.pool.allocationCount, allocCount1);
+    assert.equal(coord.trackSwitchCount, 1);
+    assert.equal(lib.findActiveLyricStateBinary(trackSmaller, 5000 + 25 * 1000 + 200, { coordinator: coord }).lineIndex, 25);
+
+    // 3. Switch to equal-size Track 3 (480 lines) -> still zero ArrayBuffer allocations!
+    const idx3 = coord.acquireIndex(trackEqual);
+    assert.equal(idx3.lineCount, 480);
+    assert.strictEqual(idx3.startMs.buffer, startBufRef);
+    assert.strictEqual(idx3.wordStartMs.buffer, wordStartBufRef);
+    assert.equal(coord.pool.allocationCount, allocCount1);
+    assert.equal(coord.trackSwitchCount, 2);
+
+    // 4. Switch back to Track 1 -> cleanly re-hydrates shared pool without stale Track 3 timestamps or new ArrayBuffers!
+    const revisitState = lib.findActiveLyricStateBinary(trackLarge, 1000 + 100 * 500 + 300, { coordinator: coord });
+    assert.equal(revisitState.lineIndex, 100);
+    assert.equal(revisitState.activeLine.text, 'Large track line 100');
+    assert.equal(revisitState.wordIndex, 1);
+    assert.equal(coord.pool.allocationCount, allocCount1);
+  });
+});

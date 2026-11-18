@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 30,
-  "lastPhase": "UPGRADE",
-  "lastRunIso": "2026-11-18T03:04:30.000Z",
+  "cycleCount": 31,
+  "lastPhase": "OPTIMIZE",
+  "lastRunIso": "2026-11-18T03:13:05.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "OPT-08",
-      "phase": "OPTIMIZE",
-      "title": "Tối ưu chia sẻ bộ đệm TypedLyricBufferPool toàn cục giữa Lyric Reader và Visualizer 60fps tránh cấp phát lại khi tua nhanh"
-    },
     {
       "id": "BUG-09",
       "phase": "BUG_HUNT",
@@ -153,6 +148,16 @@
       "id": "BUG-18",
       "phase": "BUG_HUNT",
       "title": "Kiểm tra tự động cuộn mượt cụm câu hát đồng thời (Lead + Duet/Backing) vào khung nhìn Listening Room khi câu bè nằm cách xa câu chính trên danh sách LRC không liên kề"
+    },
+    {
+      "id": "UPG-18",
+      "phase": "UPGRADE",
+      "title": "Bổ sung hiển thị chỉ số tỷ lệ trúng bộ đệm chỉ mục lời bài hát (SharedLyricSegmentCoordinator hit/compile telemetry) trong bảng chẩn đoán hiệu năng audiophile"
+    },
+    {
+      "id": "OPT-18",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu thu hẹp bộ đệm TypedLyricBufferPool có điều kiện (adaptive shrink) sau khi rời khỏi bản giao hưởng/opera >10.000 dòng về bài hát thông thường để hoàn trả RAM"
     }
   ],
   "completedTasks": [
@@ -339,6 +344,14 @@
       "completedAt": "2026-11-18T03:04:30.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai classifyLyricVocalRole và resolveMultiVoiceLyricLanes trong library-utils.js (phân giải đồng thời các làn Lead v1/lead/mặc định, Duet v2/duet và Backing bg/backing/ngoặc đơn kèm wordIndex & wordProgress 0..1 trên TypedLyricSegmentIndex, hỗ trợ tái sử dụng outLanes zero-allocation) và tích hợp đánh dấu lyric-line-backing / lyric-line-duet / data-vocal-lane an toàn cho Listening Room & Fullscreen Karaoke trong index.html"
+    },
+    {
+      "id": "OPT-08",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu chia sẻ bộ đệm TypedLyricBufferPool toàn cục giữa Lyric Reader và Visualizer 60fps tránh cấp phát lại khi tua nhanh",
+      "completedAt": "2026-11-18T03:13:05.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai getSharedLyricSegmentCoordinator (điều phối viên đơn bản quản lý 1 TypedLyricBufferPool toàn cục kết hợp WeakMap & poolEpoch chống ghi đè chéo) và tích hợp vào findActiveLyricStateBinary, resolveMultiVoiceLyricLanes và ZeroAllocFrameScratchpad.syncLyricsInPlace, đảm bảo chỉ biên dịch đúng 1 lần duy nhất cho mỗi bài hát trên 500+ truy vấn xen kẽ Visualizer 60fps + tua nhanh và tái sử dụng nguyên vẹn ArrayBuffer khi chuyển bài"
     }
   ]
 }
