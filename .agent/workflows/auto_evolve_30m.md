@@ -85,6 +85,7 @@ Trước khi được phép commit bất kỳ thay đổi nào, bắt buộc ch�
    git commit -m "auto(<phase>): <mô tả ngắn gọn lỗi đã sửa / nâng cấp / cải tiến> [verified 3-tier]"
    git push origin HEAD
    ```
+3. **Đồng bộ APK mới nhất lên Google Drive (Rolling Latest Sync):** Sau khi đồng bộ tài sản web vào `android/app/src/main/assets/` (`node sync-assets.cjs` + các file `.js` vừa sửa), trong các chu kỳ tự hành 30 phút chạy trên môi trường có Android SDK & `gdrive` CLI, hãy build lại `assembleDebug` (`cd android; .\gradlew.bat assembleDebug`) và chạy `gdrive mutate update 1bDzxPuN_ZzYALj47r9v6Z5xGfYIuK45q android/app/build/outputs/apk/debug/app-debug.apk --mime-type "application/vnd.android.package-archive"` (đăng ký PATH trước qua `& "C:\Users\thien\.gemini\config\plugins\gdrive\skills\gdrive\scripts\gdrive.cmd" --version`, lấy `androidRelease.latestApkDriveId` từ `.agent/ANTIGRAVITY_STATE.json`) để Google Drive luôn lưu sẵn bản APK mới nhất tại chỗ mà giữ nguyên File ID và quyền riêng tư.
 
 ### BƯỚC 5: KÍCH HOẠT NỐI ĐUÔI LIÊN HOÀN (`CONTINUOUS TAIL-CHAINING`)
 Ngay sau khi `git push origin HEAD` thành công:
