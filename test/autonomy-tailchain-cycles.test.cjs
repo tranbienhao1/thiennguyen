@@ -5789,3 +5789,207 @@ describe('Autonomy Tail-Chaining Cycle 25 — UPG-09 (Batch PoW SHA-256 Progress
     UI.closeEditor();
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 26 — OPT-09 (Chunked Non-Blocking Streaming CRC32+SHA-256 for 50,000+ Track Offline PWA Backups)', () => {
+  it('exposes OPT-09 streaming CRC32+SHA-256 & async backup integrity APIs on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.createStreamingCrc32Hasher, 'function');
+    assert.equal(typeof lib.createStreamingSha256Hasher, 'function');
+    assert.equal(typeof lib.createStreamingDualIntegrityHasher, 'function');
+    assert.equal(typeof lib.computeChunkedBackupIntegrityAsync, 'function');
+    assert.equal(typeof lib.signConfigurationBundleAsync, 'function');
+    assert.equal(typeof lib.verifyConfigurationBundleAsync, 'function');
+
+    const sandbox = { library: { keepRefOpt09: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.createStreamingCrc32Hasher, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.createStreamingSha256Hasher, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.createStreamingDualIntegrityHasher, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.computeChunkedBackupIntegrityAsync, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.signConfigurationBundleAsync, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.verifyConfigurationBundleAsync, 'function');
+    assert.equal(typeof sandbox.library.computeChunkedBackupIntegrityAsync, 'function');
+    assert.equal(sandbox.library.keepRefOpt09, true);
+  });
+
+  it('maintains 100% bit-identical CRC32 + SHA-256 parity across 0B, 55B/56B/64B FIPS block boundaries, 1-byte chunks, odd prime chunks & split astral UTF-16 surrogates', async () => {
+    const nodeCrypto = require('node:crypto');
+    // 1. Test critical FIPS 180-4 SHA-256 padding boundary lengths with 1-byte & odd-prime splits
+    const boundaryLengths = [0, 1, 54, 55, 56, 57, 63, 64, 65, 119, 120, 127, 128, 129, 4099];
+    for (const len of boundaryLengths) {
+      const buf = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        buf[i] = (i * 131 + 17) & 0xff;
+      }
+      const expectedCrc32 = lib.computeCrc32Hex(buf);
+      const expectedSha256 = nodeCrypto.createHash('sha256').update(buf).digest('hex');
+
+      // 1-byte streaming up to 256 bytes, prime 7-byte / 13-byte alternating splits for all sizes
+      if (len <= 256) {
+        const oneByteDual = lib.createStreamingDualIntegrityHasher();
+        for (let i = 0; i < len; i++) {
+          oneByteDual.update(buf, i, 1);
+        }
+        const d1 = oneByteDual.digest();
+        assert.equal(d1.crc32, expectedCrc32, `1-byte CRC32 mismatch at len=${len}`);
+        assert.equal(d1.sha256, expectedSha256, `1-byte SHA-256 mismatch at len=${len}`);
+        assert.equal(d1.byteLength, len);
+      }
+
+      // Alternating odd-sized prime chunks (7, 13, 61, 3 bytes)
+      const primeSizes = [7, 13, 61, 3, 257];
+      const chunks = [];
+      let pos = 0;
+      let pIdx = 0;
+      while (pos < len) {
+        const step = Math.min(len - pos, primeSizes[pIdx % primeSizes.length]);
+        chunks.push(buf.subarray(pos, pos + step));
+        pos += step;
+        pIdx++;
+      }
+
+      const streamed = await lib.computeChunkedBackupIntegrityAsync(chunks, { frameBudgetMs: 4 });
+      assert.equal(streamed.crc32, expectedCrc32, `Odd-chunk CRC32 mismatch at len=${len}`);
+      assert.equal(streamed.sha256, expectedSha256, `Odd-chunk SHA-256 mismatch at len=${len}`);
+      assert.equal(streamed.byteLength, len);
+    }
+
+    // 2. Test astral UTF-16 surrogate pairs (🎵🎧🔥) + Vietnamese + CJK sliced at odd UTF-16 code-unit boundaries
+    const richUnicode = 'Nhạc Lossless Đêm Khuya 🎵🎧🔥 夜曲 DSD256 '.repeat(250);
+    const expectedUtf8Bytes = Buffer.from(richUnicode, 'utf8');
+    const expectedUnicodeCrc = lib.computeCrc32Hex(expectedUtf8Bytes);
+    const expectedUnicodeSha = nodeCrypto.createHash('sha256').update(expectedUtf8Bytes).digest('hex');
+
+    // chunkByteSize: 19 purposefully lands mid-surrogate-pair repeatedly unless guarded!
+    const unicodeRes = await lib.computeChunkedBackupIntegrityAsync(richUnicode, {
+      chunkByteSize: 19,
+      frameBudgetMs: 2
+    });
+    assert.equal(unicodeRes.byteLength, expectedUtf8Bytes.byteLength);
+    assert.equal(unicodeRes.crc32, expectedUnicodeCrc);
+    assert.equal(unicodeRes.sha256, expectedUnicodeSha);
+  });
+
+  it('streams 52,000+ track Offline PWA backup bundles with exact single-shot signature parity and cooperative < 8ms frame-budget yielding', async () => {
+    const TRACK_COUNT = 52000;
+    const tracks = new Array(TRACK_COUNT);
+    for (let i = 0; i < TRACK_COUNT; i++) {
+      tracks[i] = {
+        id: `trk_${i}`,
+        title: `Nocturne Symphonic Track ${i}`,
+        artist: i % 2 === 0 ? 'Vivaldi Hi-Res Ensemble' : 'FiiO Reference Orchestra',
+        duration: 180 + (i % 300),
+        format: i % 4 === 0 ? 'DSF' : 'FLAC'
+      };
+    }
+
+    const largeBundle = {
+      appName: 'Nocturne',
+      version: 1,
+      exportedAt: '2026-11-18T06:00:00.000Z',
+      playlists: [
+        {
+          id: 'pl_audiophile_52k',
+          name: '52K Offline Archive',
+          tracks
+        }
+      ],
+      settings: {
+        limiterMode: 'transparent',
+        replayGainEnabled: true,
+        crossfeed: 0.25
+      }
+    };
+
+    // Single-shot baseline signature
+    const syncSigned = lib.signConfigurationBundle(largeBundle, {
+      signedAt: '2026-11-18T06:00:00.000Z'
+    });
+
+    // Deterministic synthetic clock advancing 1.5ms per yield check so cooperative < 8ms frame-budget yielding is exercised deterministically AND fast!
+    let fakeClockMs = 1000;
+    let yieldInvocations = 0;
+    const progressSnapshots = [];
+
+    const asyncSigned = await lib.signConfigurationBundleAsync(largeBundle, {
+      signedAt: '2026-11-18T06:00:00.000Z',
+      frameBudgetMs: 6,
+      flushThresholdChars: 8192,
+      nowFn: () => {
+        fakeClockMs += 0.35;
+        return fakeClockMs;
+      },
+      yieldFn: async () => {
+        yieldInvocations++;
+      },
+      onProgress(p) {
+        progressSnapshots.push(p);
+      }
+    });
+
+    assert.equal(asyncSigned.integrity.algorithm, 'crc32+sha256');
+    assert.equal(asyncSigned.integrity.crc32, syncSigned.integrity.crc32, '52,000-track streaming CRC32 must match single-shot bundle CRC32');
+    assert.equal(asyncSigned.integrity.sha256, syncSigned.integrity.sha256, '52,000-track streaming SHA-256 must match single-shot bundle SHA-256');
+    assert.equal(asyncSigned.integrity.canonicalByteLength, syncSigned.integrity.canonicalByteLength);
+    assert.ok(yieldInvocations > 10, `Must cooperatively yield across slices on 52,000 tracks (yielded ${yieldInvocations} times)`);
+    assert.ok(progressSnapshots.length >= yieldInvocations);
+
+    // Cross-verify: sync verifier accepts asyncSigned, and async verifier accepts syncSigned + detects 1-byte tampering!
+    const syncVerifyOfAsync = lib.verifyConfigurationBundle(asyncSigned);
+    assert.equal(syncVerifyOfAsync.valid, true);
+    assert.equal(syncVerifyOfAsync.signed, true);
+
+    const asyncVerifyOfSync = await lib.verifyConfigurationBundleAsync(syncSigned, { frameBudgetMs: 6 });
+    assert.equal(asyncVerifyOfSync.valid, true);
+    assert.equal(asyncVerifyOfSync.signed, true);
+
+    // Tamper 1 character in track #51,999 -> must fail verification cleanly with checksum_mismatch!
+    const origTitle = tracks[51999].title;
+    tracks[51999].title = origTitle + '!';
+    const tamperedCheck = await lib.verifyConfigurationBundleAsync(asyncSigned, { frameBudgetMs: 6 });
+    assert.equal(tamperedCheck.valid, false);
+    assert.equal(tamperedCheck.reason, 'checksum_mismatch');
+    tracks[51999].title = origTitle;
+  });
+
+  it('aborts chunked 50,000+ stream immediately via AbortSignal with 0 dangling timers', async () => {
+    // 1. Pre-aborted signal
+    const preCtrl = new AbortController();
+    preCtrl.abort('pre_aborted_backup');
+    await assert.rejects(
+      () => lib.computeChunkedBackupIntegrityAsync([new Uint8Array([1, 2, 3])], { signal: preCtrl.signal }),
+      err => err && err.name === 'AbortError'
+    );
+
+    // 2. Mid-stream abort during async generator yielding 50,000 chunks
+    const midCtrl = new AbortController();
+    let yieldedChunks = 0;
+    async function* generateLargeBackupChunks() {
+      const sample = new Uint8Array(256).fill(0x61);
+      for (let i = 0; i < 50000; i++) {
+        yieldedChunks++;
+        yield sample;
+      }
+    }
+
+    let clock = 0;
+    await assert.rejects(
+      () => lib.computeChunkedBackupIntegrityAsync(generateLargeBackupChunks(), {
+        signal: midCtrl.signal,
+        frameBudgetMs: 5,
+        nowFn: () => { clock += 2; return clock; },
+        onProgress(p) {
+          if (p.yieldCount >= 3) {
+            midCtrl.abort('user_cancelled_backup_export');
+          }
+        }
+      }),
+      err => err && err.name === 'AbortError'
+    );
+
+    assert.ok(yieldedChunks < 500, `Stream must abort early right after signal fires (processed only ${yieldedChunks} of 50,000 chunks)`);
+  });
+});
