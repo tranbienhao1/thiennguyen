@@ -4470,3 +4470,252 @@ describe('Autonomy Tail-Chaining Cycle 19 — UPG-07 (SampleRate-Aware RBJ Cookb
     assert.equal(cutOnlyRes.recommendedPreampDb, 0);
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 20 — OPT-07 (In-Place Odometer ASCII PoW Scratchpad & Web Worker Offloading)', () => {
+  it('exposes OPT-07 functions on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.createPreallocatedPowAsciiScratchpad, 'function');
+    assert.equal(typeof lib.createLrclibPowWorkerRunner, 'function');
+
+    const sandbox = { library: { keepRefOpt07: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.createPreallocatedPowAsciiScratchpad, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.createLrclibPowWorkerRunner, 'function');
+    assert.equal(typeof sandbox.library.createPreallocatedPowAsciiScratchpad, 'function');
+    assert.equal(typeof sandbox.library.createLrclibPowWorkerRunner, 'function');
+    assert.equal(sandbox.library.keepRefOpt07, true);
+  });
+
+  it('createPreallocatedPowAsciiScratchpad maintains exact byte-for-byte parity with Buffer.from("${prefix}:${nonce}") across all carry boundaries (9->10, 99->100, 9999->10000) with zero subarray allocations', () => {
+    const prefix = 'lrclib-opt07-pow-token';
+    const scratchpad = lib.createPreallocatedPowAsciiScratchpad(prefix);
+
+    assert.equal(scratchpad.nonce, 0);
+    assert.equal(scratchpad.digitCount, 1);
+    assert.deepEqual(Buffer.from(scratchpad.view), Buffer.from(`${prefix}:0`));
+
+    // Verify zero-allocation view reuse across same-digit-width increments (0..9 share identical Uint8Array view reference!)
+    const singleDigitViewRef = scratchpad.view;
+    assert.strictEqual(singleDigitViewRef.buffer, scratchpad.buffer.buffer);
+
+    // Sweep continuously from 0 through 10,050 covering 9->10, 99->100, 199->200, 999->1000, and 9999->10000
+    const explicitBoundaries = new Set([0, 1, 8, 9, 10, 11, 98, 99, 100, 101, 199, 200, 998, 999, 1000, 9998, 9999, 10000, 10001, 10050]);
+    let twoDigitViewRef = null;
+
+    for (let expectedNonce = 0; expectedNonce <= 10050; expectedNonce++) {
+      assert.equal(scratchpad.nonce, expectedNonce);
+      if (expectedNonce === 5) {
+        assert.strictEqual(scratchpad.view, singleDigitViewRef, 'Same-width odometer step must reuse identical Uint8Array subarray view');
+      }
+      if (expectedNonce === 10) {
+        twoDigitViewRef = scratchpad.view;
+        assert.equal(scratchpad.digitCount, 2);
+      }
+      if (expectedNonce === 99) {
+        assert.strictEqual(scratchpad.view, twoDigitViewRef);
+      }
+      if (expectedNonce <= 150 || explicitBoundaries.has(expectedNonce) || expectedNonce >= 9995) {
+        const expectedBuf = Buffer.from(`${prefix}:${expectedNonce}`, 'utf8');
+        assert.equal(scratchpad.byteLength, expectedBuf.length);
+        assert.equal(Buffer.compare(Buffer.from(scratchpad.view), expectedBuf), 0, `Byte mismatch at nonce=${expectedNonce}`);
+      }
+      scratchpad.increment();
+    }
+
+    // Also test setNonce jump to 999,998 -> 999,999 -> 1,000,000 with UTF-8 multi-byte prefix
+    const utf8Prefix = 'nhạc-hi-res-λ';
+    const utf8Pad = lib.createPreallocatedPowAsciiScratchpad(utf8Prefix, { startNonce: 999998 });
+    for (const targetNonce of [999998, 999999, 1000000, 1000001]) {
+      assert.equal(utf8Pad.nonce, targetNonce);
+      assert.equal(Buffer.compare(Buffer.from(utf8Pad.view), Buffer.from(`${utf8Prefix}:${targetNonce}`, 'utf8')), 0);
+      utf8Pad.increment();
+    }
+
+    assert.throws(() => lib.createPreallocatedPowAsciiScratchpad(''), TypeError);
+    assert.throws(() => scratchpad.setNonce(-1), RangeError);
+  });
+
+  it('createLrclibPowWorkerRunner offloads PoW to inline Blob Web Worker with immediate Blob URL revocation, terminates on AbortController, and falls back seamlessly to solveLrclibChallengeAsync', async () => {
+    const prefix = 'worker-pow-opt07-';
+    const targetHex = '00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+
+    // 1. Build a VM-backed MockWorker + MockBlob + MockURL harness that executes the real generated Worker JS source!
+    function createVmWorkerEnv() {
+      const blobStore = new Map();
+      const revokedUrls = [];
+      const createdWorkers = [];
+      let urlSeq = 0;
+
+      class MockBlob {
+        constructor(parts, opts) {
+          this.source = parts.map(p => String(p)).join('');
+          this.type = (opts && opts.type) || '';
+        }
+      }
+
+      const MockURL = {
+        createObjectURL(blob) {
+          const url = `blob:https://nocturne.local/pow-worker-${++urlSeq}`;
+          blobStore.set(url, blob.source);
+          return url;
+        },
+        revokeObjectURL(url) {
+          revokedUrls.push(url);
+          blobStore.delete(url);
+        }
+      };
+
+      class MockWorker {
+        constructor(scriptUrl) {
+          // Capture script source at instantiation BEFORE revokeObjectURL runs in finally!
+          const code = blobStore.get(scriptUrl);
+          if (!code) {
+            throw new Error(`Blob URL already revoked or missing: ${scriptUrl}`);
+          }
+          this.scriptUrl = scriptUrl;
+          this.terminated = false;
+          this._listeners = { message: [], error: [] };
+          this.onmessage = null;
+          this.onerror = null;
+
+          const selfGlobal = {
+            onmessage: null,
+            Uint8Array,
+            Uint32Array,
+            DataView,
+            ArrayBuffer,
+            Math,
+            Date,
+            Number,
+            String,
+            Boolean,
+            Array,
+            Error,
+            setTimeout: (fn, ms) => setTimeout(() => {
+              if (!this.terminated) fn();
+            }, ms),
+            clearTimeout,
+            postMessage: (data) => {
+              if (this.terminated) return;
+              const ev = { data };
+              setImmediate(() => {
+                if (this.terminated) return;
+                if (typeof this.onmessage === 'function') this.onmessage(ev);
+                for (const fn of this._listeners.message) fn(ev);
+              });
+            }
+          };
+          selfGlobal.self = selfGlobal;
+          this._selfGlobal = selfGlobal;
+          vm.runInNewContext(code, selfGlobal);
+          createdWorkers.push(this);
+        }
+
+        addEventListener(type, fn) {
+          if (this._listeners[type]) this._listeners[type].push(fn);
+        }
+
+        postMessage(data) {
+          if (this.terminated) return;
+          setImmediate(() => {
+            if (this.terminated) return;
+            if (typeof this._selfGlobal.onmessage === 'function') {
+              this._selfGlobal.onmessage({ data });
+            }
+          });
+        }
+
+        terminate() {
+          this.terminated = true;
+          if (typeof this._selfGlobal.onmessage === 'function') {
+            try { this._selfGlobal.onmessage({ data: { type: 'abort' } }); } catch (_) {}
+          }
+        }
+      }
+
+      return { MockWorker, MockBlob, MockURL, blobStore, revokedUrls, createdWorkers };
+    }
+
+    const env = createVmWorkerEnv();
+    const runner = lib.createLrclibPowWorkerRunner({
+      Worker: env.MockWorker,
+      Blob: env.MockBlob,
+      URL: env.MockURL
+    });
+    assert.equal(runner.isWorkerSupported(), true);
+
+    // Solve via inline Blob Web Worker
+    const workerPromise = runner.solve(prefix, targetHex, { batchSize: 64 });
+    // Blob URL MUST already be revoked synchronously right after Worker instantiation (while worker is still running!)
+    assert.equal(env.revokedUrls.length, 1);
+    assert.equal(env.blobStore.size, 0, 'Worker Blob URL must be revoked immediately after instantiation');
+
+    const workerSolved = await workerPromise;
+    const syncRef = lib.solveLrclibChallengeSync(prefix, targetHex);
+
+    assert.equal(workerSolved.usedWorker, true);
+    assert.equal(workerSolved.mode, 'worker');
+    assert.equal(workerSolved.nonce, syncRef.nonce);
+    assert.equal(workerSolved.publishToken, syncRef.publishToken);
+    assert.equal(workerSolved.hashHex, syncRef.hashHex);
+    assert.equal(env.createdWorkers[0].terminated, true, 'Completed worker must be terminated cleanly');
+    assert.equal(runner.getTelemetry().workerRuns, 1);
+    assert.equal(runner.getTelemetry().revokedBlobUrls, 1);
+
+    // 2. AbortController mid-solve immediately calls worker.terminate() and rejects with AbortError
+    const abortCtrl = new AbortController();
+    const impossibleTarget = '0000000000000000000000000000000000000000000000000000000000000000';
+    let progressEvents = 0;
+    await assert.rejects(
+      () => runner.solve(prefix, impossibleTarget, {
+        batchSize: 32,
+        maxIterations: 500000,
+        signal: abortCtrl.signal,
+        onProgress() {
+          progressEvents++;
+          if (progressEvents >= 2) {
+            abortCtrl.abort('cancelled_by_editor_close');
+          }
+        }
+      }),
+      err => err && err.name === 'AbortError'
+    );
+    assert.ok(progressEvents >= 2);
+    assert.equal(env.createdWorkers[1].terminated, true, 'Aborted worker must have worker.terminate() invoked immediately');
+    assert.equal(runner.getTelemetry().terminatedRuns, 1);
+
+    // 3. Automatic seamless fallback when Worker is unavailable (Node.js default)
+    const nodeFallbackRunner = lib.createLrclibPowWorkerRunner({ Worker: null });
+    assert.equal(nodeFallbackRunner.isWorkerSupported(), false);
+    const fallbackSolved = await nodeFallbackRunner.solve(prefix, targetHex, { batchSize: 64 });
+    assert.equal(fallbackSolved.usedWorker, false);
+    assert.equal(fallbackSolved.mode, 'fallback');
+    assert.equal(fallbackSolved.nonce, syncRef.nonce);
+    assert.equal(fallbackSolved.publishToken, syncRef.publishToken);
+    assert.equal(nodeFallbackRunner.getTelemetry().fallbackRuns, 1);
+
+    // 4. Restricted CSP WebView where new Worker(blobUrl) throws SecurityError -> still revokes Blob URL & falls back seamlessly!
+    let cspRevokedCount = 0;
+    const cspRunner = lib.createLrclibPowWorkerRunner({
+      Blob: env.MockBlob,
+      URL: {
+        createObjectURL: () => 'blob:https://restricted.webview/csp-blocked',
+        revokeObjectURL: () => { cspRevokedCount++; }
+      },
+      Worker: function CspBlockedWorker() {
+        const err = new Error("SecurityError: Failed to construct 'Worker': Access to blob script is denied by CSP");
+        err.name = 'SecurityError';
+        throw err;
+      }
+    });
+    const cspSolved = await cspRunner.solve({ prefix, target: targetHex }, { batchSize: 64 });
+    assert.equal(cspRevokedCount, 1, 'Blob URL must still be revoked even when Worker constructor throws CSP SecurityError');
+    assert.equal(cspSolved.usedWorker, false);
+    assert.equal(cspSolved.mode, 'fallback');
+    assert.equal(cspSolved.nonce, syncRef.nonce);
+    assert.equal(cspSolved.hashHex, syncRef.hashHex);
+  });
+});
