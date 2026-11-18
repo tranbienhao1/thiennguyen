@@ -1059,7 +1059,7 @@
         max-height: min(85vh, calc(100dvh - 90px)) !important;
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch !important;
-        z-index: 70 !important;
+        z-index: 78 !important;
         border-radius: 18px !important;
         padding: 16px !important;
         box-sizing: border-box !important;
@@ -1082,7 +1082,7 @@
         max-height: min(85vh, calc(100dvh - 90px)) !important;
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch !important;
-        z-index: 70 !important;
+        z-index: 78 !important;
         border-radius: 18px !important;
         padding: 16px !important;
         box-sizing: border-box !important;
@@ -1154,6 +1154,19 @@
     }
     @media(max-width:480px){
       #volume-mobile{display:none!important}
+    }
+    #room-button { display: none !important; }
+    #fullscreen-stage-room {
+      touch-action: pan-y !important;
+      -webkit-overflow-scrolling: touch !important;
+      overscroll-behavior-y: contain;
+      scrollbar-width: thin;
+    }
+    @media(max-width:390px){
+      #fullscreen-mode-pills button {
+        padding: 4px 8px !important;
+        font-size: 10.5px !important;
+      }
     }
   </style>
 </head>
@@ -1505,8 +1518,8 @@
           <button id="audio-zone-button" type="button" class="hidden">Select an audio zone</button>
         </div>
         <div class="footer-left-col flex min-w-0 items-center gap-2 sm:gap-3 w-[28%] max-w-[380px] shrink-0 relative z-20 pointer-events-auto">
-          <button id="player-cover" type="button" class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-violet-500/30 to-zinc-800 text-xl text-violet-200 transition hover:ring-2 hover:ring-violet-300/50" title="Mở màn hình Đang phát" aria-label="Mở màn hình Đang phát">♫</button>
-          <button id="open-listening-room" type="button" class="min-w-0 flex-1 text-left" title="Mở màn hình Đang phát"><p id="now-title" class="truncate text-xs font-semibold sm:text-sm text-white">Chưa phát nhạc</p><p id="now-artist" class="mt-0.5 truncate text-[11px] text-zinc-400">Chọn một bài hát để bắt đầu</p></button>
+          <button id="player-cover" type="button" class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-violet-500/30 to-zinc-800 text-xl text-violet-200 transition hover:ring-2 hover:ring-violet-300/50" title="Mở màn hình Đang phát &amp; Phòng nghe" aria-label="Mở màn hình Đang phát &amp; Phòng nghe">♫</button>
+          <button id="open-listening-room" type="button" class="min-w-0 flex-1 text-left" title="Mở màn hình Đang phát &amp; Phòng nghe"><p id="now-title" class="truncate text-xs font-semibold sm:text-sm text-white">Chưa phát nhạc</p><p id="now-artist" class="mt-0.5 truncate text-[11px] text-zinc-400">Chọn một bài hát để bắt đầu</p></button>
           <button id="favorite-button" class="hidden text-lg text-zinc-500 hover:text-pink-300 sm:block shrink-0 px-1" title="Yêu thích">♡</button>
           <button id="eq-button" class="hidden sm:inline-flex items-center gap-1 rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-300 hover:text-white hover:bg-violet-500/20 hover:border-violet-400/50 transition shrink-0 whitespace-nowrap cursor-pointer z-20 shadow-sm" title="Bộ chỉnh âm Equalizer (Phím E)">EQ</button>
         </div>
@@ -1523,8 +1536,8 @@
         <div class="footer-right-tools hidden sm:flex items-center justify-end gap-1.5 xl:gap-2 w-[26%] max-w-[360px] shrink-0 relative z-20 pointer-events-auto">
           <span id="quality-badge" class="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-mono uppercase tracking-wider text-emerald-300 shrink-0 cursor-pointer hover:border-emerald-400/50 hover:bg-emerald-500/20 transition" title="Chất lượng âm thanh · Nhấn để bật/tắt dải đo Telemetry">READY</span>
           <button id="queue-button" class="rounded-lg border border-white/10 px-2 py-1 text-xs text-zinc-300 hover:text-white hover:border-white/20 transition shrink-0" aria-label="Hàng đợi phát" title="Phát tiếp theo">☰</button>
-          <button id="room-button" class="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-zinc-300 hover:text-white hover:border-white/20 transition shrink-0 hidden md:inline-flex whitespace-nowrap" aria-label="Màn hình Đang phát" title="Đang phát">Phòng nghe</button>
-          <button id="fullscreen-toggle-btn" class="rounded-lg border border-white/10 px-2 py-1 text-xs text-purple-300 hover:text-white hover:border-purple-400 transition shrink-0" aria-label="Toàn màn hình Roon (F)" title="Toàn màn hình Roon (F)">⛶</button>
+          <button id="room-button" hidden class="!hidden rounded-lg border border-white/10 px-2.5 py-1 text-xs text-zinc-300 hover:text-white hover:border-white/20 transition shrink-0 whitespace-nowrap" aria-label="Màn hình Đang phát" title="Đang phát">Phòng nghe</button>
+          <button id="fullscreen-toggle-btn" class="rounded-lg border border-white/10 px-2 py-1 text-xs text-purple-300 hover:text-white hover:border-purple-400 transition shrink-0" aria-label="Toàn màn hình Roon &amp; Phòng nghe (F)" title="Toàn màn hình Roon &amp; Phòng nghe (F)">⛶</button>
           <button id="mini-player-toggle" class="hidden xl:inline-flex rounded-lg border border-white/10 px-2 py-1 text-xs text-indigo-300 hover:text-white hover:border-indigo-400 transition shrink-0" aria-label="Mini Player HUD (M)" title="Mini Player HUD (M)">🗗</button>
           <button id="autoplay-button" class="hidden 2xl:inline-flex rounded-lg border border-white/10 px-2 py-1 text-xs text-zinc-400 hover:text-white transition shrink-0" aria-label="Tự động phát tiếp" title="Tự động phát tiếp">▶∞</button>
           <button id="sleep-button" class="hidden 2xl:inline-flex rounded-lg border border-white/10 px-2 py-1 text-xs text-zinc-400 hover:text-white transition shrink-0" aria-label="Hẹn giờ ngủ" title="Hẹn giờ ngủ">◷</button>
@@ -1940,7 +1953,7 @@
       <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-5 py-3 text-[10px] text-zinc-500 sm:px-7"><span>Nguồn: <a href="https://musicbrainz.org/" target="_blank" rel="noopener noreferrer">MusicBrainz</a> · <a href="https://musicbrainz.org/doc/About/Data_License" target="_blank" rel="noopener noreferrer">giấy phép dữ liệu</a> · ảnh Cover Art Archive thuộc chủ sở hữu · tiểu sử từ Wikipedia (liên kết nguồn bên dưới).</span><button id="metadata-back" type="button" class="hidden rounded-md border border-white/10 px-3 py-1.5 text-zinc-300 hover:bg-white/5">← Kết quả</button></footer>
     </section>
   </div>
-  <div id="eq-panel" class="fixed bottom-[140px] right-4 z-40 hidden max-h-[75vh] w-[min(25rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-white/10 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-xl" hidden>
+  <div id="eq-panel" class="fixed bottom-[140px] right-4 z-[78] hidden max-h-[75vh] w-[min(25rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-white/10 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-xl" hidden>
     <div class="flex items-center justify-between"><div class="flex items-center gap-3"><h3 class="text-sm font-medium">Parametric Equalizer</h3><label class="flex items-center gap-2 text-[10px] text-zinc-400"><input id="eq-enabled" type="checkbox" class="accent-violet-500"> Bật EQ</label></div><button id="eq-close-btn" type="button" class="flex h-9 w-9 min-h-[36px] min-w-[36px] items-center justify-center rounded-full bg-white/10 text-zinc-300 hover:bg-white/20 hover:text-white text-base transition" aria-label="Đóng EQ">✕</button></div>
     <p class="mt-1 text-[10px] text-zinc-500">Tự động hạ preamp theo mức boost cao nhất để giữ headroom. Tắt EQ để bypass DSP.</p>
     <label class="mt-3 flex items-center justify-between text-xs text-zinc-400">Preset EQ <select id="eq-preset" class="rounded-md border border-white/10 bg-zinc-950 px-2 py-1.5 text-[10px] text-zinc-200"><option value="flat">Phẳng</option><option value="bass">Bass mạnh</option><option value="treble">Treble sáng</option><option value="vocal">Giọng hát</option><option value="rock">Rock</option><option value="jazz">Jazz</option><option value="custom">Tùy chỉnh</option></select></label>
@@ -2374,7 +2387,7 @@
       </main>
     </div>
   </div>
-  <div id="queue-panel" class="fixed inset-0 z-[56] hidden bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="queue-title">
+  <div id="queue-panel" class="fixed inset-0 z-[76] hidden bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="queue-title">
     <button id="queue-backdrop" type="button" class="absolute inset-0 cursor-default" aria-label="Đóng hàng đợi"></button>
     <aside class="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-white/10 bg-zinc-950/95 p-5 shadow-2xl backdrop-blur-2xl">
       <header class="flex items-center justify-between"><div><p class="text-[10px] uppercase tracking-[.2em] text-violet-300">PLAY NEXT</p><h2 id="queue-title" class="mt-1 text-xl font-semibold">Hàng đợi <span id="queue-count" class="text-sm font-normal text-zinc-500">0</span></h2></div><button id="queue-close" type="button" class="rounded-xl border border-white/10 px-3 py-2 text-xs text-zinc-300 hover:bg-white/10" aria-label="Đóng hàng đợi">Đóng ×</button></header>
@@ -2408,7 +2421,7 @@
       <p class="mt-4 border-t border-white/[.07] pt-3 text-[10px] leading-4 text-zinc-600">Sau hàng đợi này, NOCTURNE tiếp tục theo thứ tự thư viện, trộn bài và lặp lại hiện tại.</p>
     </aside>
   </div>
-  <div id="sleep-panel" class="fixed bottom-[140px] right-4 z-[57] hidden w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl" role="dialog" aria-labelledby="sleep-title" hidden>
+  <div id="sleep-panel" class="fixed bottom-[140px] right-4 z-[77] hidden w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl" role="dialog" aria-labelledby="sleep-title" hidden>
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
         <h2 id="sleep-title" class="text-sm font-medium text-white">Hẹn giờ ngủ</h2>
@@ -2472,7 +2485,7 @@
       <button id="sleep-dismiss" type="button" class="flex-1 rounded-lg border border-violet-400/30 bg-violet-600/30 px-3 py-2 text-xs font-medium text-violet-200 hover:bg-violet-500/40 transition">Đóng hộp thoại</button>
     </div>
   </div>
-  <div id="ambient-panel" class="fixed bottom-[140px] right-4 z-[58] hidden w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl" role="dialog" aria-labelledby="ambient-title" hidden>
+  <div id="ambient-panel" class="fixed bottom-[140px] right-4 z-[78] hidden w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-white/10 bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl" role="dialog" aria-labelledby="ambient-title" hidden>
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
         <h2 id="ambient-title" class="text-sm font-medium text-zinc-100">Âm thanh môi trường</h2>
@@ -2575,23 +2588,25 @@
     </div>
   </div>
 
-  <!-- Roon Immersive Fullscreen Now Playing View -->
-  <div id="roon-fullscreen-view" class="fixed inset-0 z-[100] hidden flex-col justify-between bg-zinc-950 overflow-hidden select-none transition-opacity duration-300">
+  <!-- Roon Immersive Fullscreen Now Playing & Unified Listening Room View -->
+  <div id="roon-fullscreen-view" class="fixed inset-0 z-[65] hidden flex-col justify-between bg-zinc-950 overflow-hidden select-none transition-opacity duration-300">
     <!-- Ambient Blur Cover Backdrop -->
     <img id="fullscreen-bg-cover" class="pointer-events-none absolute inset-0 h-full w-full object-cover scale-110 filter blur-[56px] opacity-75 brightness-95 saturate-150 transition-all duration-700 ease-out hidden" alt="" aria-hidden="true">
     <div id="fullscreen-ambient-glow" class="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80" aria-hidden="true"></div>
 
-    <!-- Top Navigation Bar -->
-    <div class="relative z-20 flex items-center justify-between px-6 pt-5 sm:px-10">
-      <button id="fullscreen-exit-btn" type="button" class="text-zinc-400 hover:text-white text-2xl transition p-2 -ml-2" aria-label="Thoát toàn màn hình">✕</button>
-      <div class="flex items-center gap-1 rounded-full border border-white/10 bg-black/40 p-1 backdrop-blur-md">
-        <button id="fullscreen-view-art-btn" type="button" class="rounded-full px-3 py-1 text-xs font-medium text-white bg-white/15 transition" aria-label="Xem bìa album">Bìa album</button>
-        <button id="fullscreen-view-lyrics-btn" type="button" class="rounded-full px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white transition" aria-label="Xem lời bài hát">Lời bài hát</button>
-        <button id="fullscreen-view-stage-btn" type="button" class="rounded-full px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white transition" aria-label="Sân khấu âm thanh">Sân khấu 3D</button>
+    <!-- Top Navigation Bar (Responsive 4-Pill Mode Switcher + Browser Fullscreen + Settings) -->
+    <div class="relative z-20 flex flex-wrap items-center justify-between gap-y-2 px-3 pt-3 sm:flex-nowrap sm:px-10 sm:pt-5">
+      <button id="fullscreen-exit-btn" type="button" class="order-1 text-zinc-400 hover:text-white text-xl sm:text-2xl transition p-1.5 sm:p-2 -ml-1 sm:-ml-2 shrink-0" aria-label="Thoát toàn màn hình">✕</button>
+      <div id="fullscreen-mode-pills" class="order-3 sm:order-2 w-full sm:w-auto flex flex-wrap items-center justify-center gap-1 rounded-2xl sm:rounded-full border border-white/10 bg-black/40 p-1 backdrop-blur-md">
+        <button id="fullscreen-view-art-btn" type="button" class="rounded-full px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-white bg-white/15 transition whitespace-nowrap" aria-label="Xem bìa album">Bìa album</button>
+        <button id="fullscreen-view-lyrics-btn" type="button" class="rounded-full px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-zinc-400 hover:text-white transition whitespace-nowrap" aria-label="Xem lời bài hát">Lời bài hát</button>
+        <button id="fullscreen-view-stage-btn" type="button" class="rounded-full px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-zinc-400 hover:text-white transition whitespace-nowrap" aria-label="Sân khấu âm thanh">Sân khấu 3D</button>
+        <button id="fullscreen-view-room-btn" type="button" class="rounded-full px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-zinc-400 hover:text-white transition whitespace-nowrap" aria-label="Phòng nghe Audiophile">Phòng nghe</button>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="order-2 sm:order-3 flex items-center gap-1.5 sm:gap-3 shrink-0">
         <span id="fullscreen-signal-led" class="hidden h-2.5 w-2.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span>
-        <button id="fullscreen-settings-btn" type="button" class="text-zinc-400 hover:text-white text-xl transition p-2 -mr-2" aria-label="Cài đặt">⚙</button>
+        <button id="fullscreen-browser-btn" type="button" class="text-zinc-400 hover:text-white text-lg sm:text-xl transition p-1.5 sm:p-2" aria-label="Toàn màn hình trình duyệt" title="Bật/tắt toàn màn hình trình duyệt">⛶</button>
+        <button id="fullscreen-settings-btn" type="button" class="text-zinc-400 hover:text-white text-lg sm:text-xl transition p-1.5 sm:p-2 -mr-1 sm:-mr-2" aria-label="Cài đặt">⚙</button>
       </div>
     </div>
 
@@ -2609,14 +2624,17 @@
 
     <!-- Center Stage Lyrics Mode (Immersive Synced Lyrics with Offset Calibration) -->
     <div id="fullscreen-stage-lyrics" class="relative z-10 hidden flex-1 flex-col items-center justify-between p-4 max-w-3xl mx-auto w-full min-h-0 overflow-x-hidden">
-      <div class="flex items-center gap-2 mb-2 text-xs text-zinc-400">
+      <div class="flex flex-wrap items-center justify-center gap-1.5 mb-2 text-xs text-zinc-400">
         <span class="text-[11px] uppercase tracking-wider text-zinc-500">Bù trừ độ trễ:</span>
         <button id="fs-lyrics-offset-minus" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px]" title="Chậm hơn 0.5s">-0.5s</button>
         <span id="fs-lyrics-offset-val" class="font-mono text-zinc-300 text-[11px] w-20 text-center">Chuẩn (0ms)</span>
         <button id="fs-lyrics-offset-plus" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px]" title="Nhanh hơn 0.5s">+0.5s</button>
         <button id="fs-lyrics-offset-reset" type="button" class="text-zinc-500 hover:text-zinc-300 text-[11px] ml-1">Đặt lại</button>
-        <button id="fs-lyrics-search-btn" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px] text-zinc-300 ml-2" title="Tìm trên LRCLIB">🔍 Tìm trên LRCLIB</button>
+        <button id="fs-lyrics-search-btn" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px] text-zinc-300 ml-1" title="Tìm trên LRCLIB">🔍 Tìm trên LRCLIB</button>
         <button id="fs-lyrics-edit-btn" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px] text-zinc-300" title="Chỉnh sửa / Đồng bộ V2">✏️ Chỉnh sửa / Đồng bộ V2</button>
+        <button id="fs-lyrics-refresh-btn" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px] text-zinc-300" title="Tìm lại lời trực tuyến">🔄 Tìm lại lời</button>
+        <button id="fs-lyrics-paste-btn" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px] text-zinc-300" title="Dán nội dung .lrc">📋 Dán LRC</button>
+        <button id="fs-lyrics-export-btn" type="button" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 hover:bg-white/10 text-[11px] text-zinc-300" title="Xuất file .lrc">💾 Xuất LRC</button>
       </div>
       <div id="fullscreen-lyrics-scroll" class="w-full flex-1 overflow-y-auto overflow-x-hidden space-y-4 py-8 text-center scroll-smooth select-none no-scrollbar">
         <p class="text-sm text-zinc-500">Chưa có lời đồng bộ (.lrc) cho bài này.</p>
@@ -2643,8 +2661,114 @@
       <p id="fs-stage-telemetry-desc" class="mt-2 text-center text-[10px] font-mono text-zinc-500">Mô phỏng trường âm học 3D, hướng âm hình (Azimuth) và quán tính nhiệt động học ampli</p>
     </div>
 
+    <!-- Center Stage Audiophile Listening Room Mode (Merged Signal Path, Zone, EQ/DSP, Rating, Liner Notes & Telemetry) -->
+    <div id="fullscreen-stage-room" class="relative z-10 hidden flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 max-w-4xl mx-auto w-full min-h-0 select-text" style="touch-action: pan-y; -webkit-overflow-scrolling: touch;">
+      <div class="w-full space-y-3 pb-2">
+        <!-- Quick Audiophile Toolbar -->
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/[.08] bg-black/35 p-3 backdrop-blur-md">
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="fs-room-quality-badge" class="rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-zinc-300">READY</span>
+            <button id="fs-room-eq-btn" type="button" class="rounded-md border border-violet-500/30 bg-violet-500/15 px-3 py-1.5 text-xs font-semibold text-violet-200 hover:text-white hover:bg-violet-500/25 hover:border-violet-400/50 transition inline-flex items-center gap-1.5" title="Bộ chỉnh âm Equalizer &amp; DSP">🎛 EQ &amp; DSP</button>
+            <div id="fs-room-rating" class="flex items-center gap-1 cursor-pointer text-amber-400 text-base select-none px-2.5 py-1 rounded-md border border-white/10 bg-white/[.03]" aria-label="Đánh giá 5 sao" title="Đánh giá bài hát">
+              <span class="star" data-rating="1">☆</span><span class="star" data-rating="2">☆</span><span class="star" data-rating="3">☆</span><span class="star" data-rating="4">☆</span><span class="star" data-rating="5">☆</span>
+            </div>
+            <span id="fs-room-engagement-badge" class="hidden sm:inline-block rounded border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[9px] font-mono text-amber-300" title="Chỉ số gắn kết &amp; xếp hạng thông minh">--★</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5 text-[10px]">
+            <button id="fs-room-lrc-paste-btn" type="button" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-zinc-300 hover:bg-white/10 hover:text-white transition" title="Dán nội dung .lrc">📋 Dán LRC</button>
+            <button id="fs-room-lrc-export-btn" type="button" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-zinc-300 hover:bg-white/10 hover:text-white transition" title="Xuất file .lrc">💾 Xuất LRC</button>
+            <button id="fs-room-lrc-refresh-btn" type="button" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-zinc-300 hover:bg-white/10 hover:text-white transition" title="Tìm lại lời trực tuyến">🔄 Tìm lại lời</button>
+          </div>
+        </div>
+
+        <!-- Signal Path & Zone Card -->
+        <div class="rounded-2xl border border-white/[.08] bg-black/35 p-3.5 sm:p-4 backdrop-blur-md">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <h2 class="text-xs font-semibold text-zinc-100">Chuỗi tín hiệu (Signal Path)</h2>
+              <span id="fs-signal-path-badge" class="cursor-pointer rounded border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-semibold tracking-wider text-emerald-300" title="Nhấn để xem sơ đồ chi tiết Signal Path">BIT-PERFECT</span>
+            </div>
+            <button id="fs-signal-detail-btn" type="button" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-medium text-zinc-300 hover:bg-white/10 hover:text-white transition">Chi tiết Signal Path</button>
+          </div>
+          <p id="fs-room-signal" class="mt-2 text-xs leading-5 text-zinc-300">Thông tin sẽ xuất hiện khi phát nhạc.</p>
+          <p id="fs-room-output" class="mt-1 text-[10px] leading-4 text-zinc-500">Đầu ra do trình duyệt và hệ điều hành quản lý.</p>
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[.08] bg-white/[.03] px-3 py-2.5">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-400 animate-pulse"></span>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[10px] uppercase tracking-wider text-zinc-500">Vùng phát:</span>
+                  <span id="fs-zone-current-name" class="truncate text-xs font-semibold text-purple-300">Phòng nghe Audiophile (PWA DSP)</span>
+                </div>
+                <p id="fs-zone-current-desc" class="truncate text-[10px] text-zinc-400">Chuỗi DSP: EQ, Crossfeed, Tone Controls &amp; ReplayGain</p>
+              </div>
+            </div>
+            <button id="fs-zone-picker-btn" type="button" class="shrink-0 rounded-lg border border-purple-500/30 bg-purple-500/15 px-3 py-1.5 text-[11px] font-medium text-purple-200 transition hover:bg-purple-500/25 active:scale-95" aria-label="Đổi vùng phát">Đổi Vùng ▾</button>
+          </div>
+        </div>
+
+        <!-- Liner Notes & Recording Annotations Card -->
+        <section id="fs-liner-notes-card" class="rounded-2xl border border-white/[.08] bg-black/35 p-3.5 sm:p-4 text-xs backdrop-blur-md" aria-label="Ghi chú bản thu và phối ghép">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="text-sm">📝</span>
+              <h3 class="font-semibold text-zinc-100">Ghi chú Bản thu &amp; Phối ghép (Liner Notes)</h3>
+              <span id="fs-liner-score-badge" class="hidden rounded border border-violet-400/30 bg-violet-500/10 px-2 py-0.5 text-[9px] font-mono text-violet-300"></span>
+            </div>
+            <button id="fs-edit-liner-notes-btn" type="button" class="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-medium text-zinc-200 hover:bg-white/10 hover:text-white transition">Chỉnh sửa ✎</button>
+          </div>
+          <div id="fs-liner-notes-content" class="mt-2 text-xs leading-5 text-zinc-400 italic">
+            Chưa có ghi chú bản thu nào. Nhấn "Chỉnh sửa" để thêm cảm nhận âm nhạc, thiết bị phối ghép hoặc thông tin phát hành.
+          </div>
+          <div id="fs-liner-meta-row" class="mt-2.5 flex flex-wrap gap-2 text-[10px] text-zinc-400">
+            <span id="fs-liner-gear-tag" class="hidden rounded bg-white/5 px-2 py-0.5 border border-white/10 text-zinc-200">🎧 <span class="val"></span></span>
+            <span id="fs-liner-mastering-tag" class="hidden rounded bg-white/5 px-2 py-0.5 border border-white/10 text-zinc-200">💽 <span class="val"></span></span>
+            <span id="fs-liner-mood-tags" class="hidden rounded bg-white/5 px-2 py-0.5 border border-white/10 text-zinc-200">🏷️ <span class="val"></span></span>
+          </div>
+        </section>
+
+        <!-- Audiophile Real-Time Telemetry Grid -->
+        <div class="rounded-2xl border border-white/[.08] bg-black/35 p-3.5 sm:p-4 backdrop-blur-md">
+          <div class="flex items-center justify-between mb-2.5">
+            <h3 class="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Đo lường Âm học Thời gian thực (Audiophile Telemetry)</h3>
+            <span id="fs-room-crest-detail" class="text-[10px] font-mono text-zinc-500">Pk -96 · RMS -96 dB</span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[10px]">
+            <div class="rounded-xl border border-white/[.06] bg-white/[.02] p-2.5">
+              <p class="text-[9px] uppercase tracking-wider text-zinc-500 mb-1">Dải động (DR)</p>
+              <span id="fs-room-dr-badge" class="inline-block rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-300">DR -- · Chờ tín hiệu</span>
+            </div>
+            <div class="rounded-xl border border-white/[.06] bg-white/[.02] p-2.5">
+              <p class="text-[9px] uppercase tracking-wider text-zinc-500 mb-1">Đồng pha Stereo</p>
+              <span id="fs-room-phase-badge" class="inline-block rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-300">Phase +1.0</span>
+            </div>
+            <div class="rounded-xl border border-white/[.06] bg-white/[.02] p-2.5">
+              <p class="text-[9px] uppercase tracking-wider text-zinc-500 mb-1">Nhiệt động học</p>
+              <span id="fs-room-thermal-badge" class="inline-block rounded border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-mono text-emerald-300">25°C · Tĩnh</span>
+            </div>
+            <div class="rounded-xl border border-white/[.06] bg-white/[.02] p-2.5">
+              <p class="text-[9px] uppercase tracking-wider text-zinc-500 mb-1">Tiết tấu BPM</p>
+              <span id="fs-room-bpm-badge" class="inline-block rounded border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">-- BPM</span>
+            </div>
+            <div class="rounded-xl border border-white/[.06] bg-white/[.02] p-2.5">
+              <p class="text-[9px] uppercase tracking-wider text-zinc-500 mb-1">Đỉnh liên mẫu</p>
+              <span id="fs-room-tp-badge" class="inline-block rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-300">TP --</span>
+            </div>
+            <div class="rounded-xl border border-white/[.06] bg-white/[.02] p-2.5">
+              <p class="text-[9px] uppercase tracking-wider text-zinc-500 mb-1">Bộ đệm Gapless</p>
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span id="fs-room-buffer-dot" class="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-600"></span>
+                <span id="fs-room-buffer-status" class="truncate text-[10px] text-zinc-300">Đang chờ luồng...</span>
+              </div>
+              <span id="fs-room-preload-readiness" class="mt-1 hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[8px] font-medium text-zinc-400 sm:inline-block">Gapless 0ms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Bottom Control Dock (Song Metadata, Controls, Waveform & Zone/Volume) -->
-    <div class="relative z-20 w-full bg-[#131316]/95 backdrop-blur-xl border-t border-white/[0.06] px-6 sm:px-12 pt-3 pb-3">
+    <div class="relative z-20 w-full bg-[#131316]/95 backdrop-blur-xl border-t border-white/[0.06] px-4 sm:px-12 pt-2.5 sm:pt-3 pb-3">
       <!-- Top Row: Track Meta & More Options -->
       <div class="flex items-start justify-between gap-4">
         <div class="min-w-0 flex-1">
@@ -2656,16 +2780,17 @@
           <p id="fullscreen-performer" class="text-xs text-zinc-400 truncate">Performed by Nghệ sĩ</p>
           <span id="fullscreen-artist" class="hidden">Nghệ sĩ</span>
         </div>
-        <button id="fullscreen-more-btn" type="button" class="text-zinc-400 hover:text-white text-xl p-1 shrink-0" aria-label="Tùy chọn">⋮</button>
+        <button id="fullscreen-more-btn" type="button" class="text-zinc-400 hover:text-white text-xl p-1 shrink-0" aria-label="Tùy chọn Phòng nghe" title="Chuyển sang thẻ Phòng nghe &amp; Ghi chú">⋮</button>
       </div>
 
       <!-- Center Controls Row -->
-      <div class="mt-1 flex items-center justify-center gap-7 sm:gap-9 text-zinc-300">
-        <button id="fullscreen-shuffle-btn" type="button" class="text-sm text-zinc-500 hover:text-zinc-300 transition" aria-label="Xáo trộn">🔀</button>
+      <div class="mt-1 flex items-center justify-center gap-5 sm:gap-9 text-zinc-300">
+        <button id="fullscreen-shuffle-btn" type="button" class="text-sm text-zinc-500 hover:text-zinc-300 transition" aria-label="Xáo trộn" title="Xáo trộn">🔀</button>
         <button id="fullscreen-prev-btn" type="button" class="text-xl text-zinc-300 hover:text-white transition" aria-label="Bài trước">⏮</button>
         <button id="fullscreen-play-btn" type="button" class="text-2xl sm:text-3xl text-white hover:scale-110 transition p-1" aria-label="Phát hoặc tạm dừng">▶</button>
         <button id="fullscreen-next-btn" type="button" class="text-xl text-zinc-300 hover:text-white transition" aria-label="Bài kế tiếp">⏭</button>
-        <button id="fullscreen-queue-btn" type="button" class="text-lg text-zinc-400 hover:text-white transition" aria-label="Hàng đợi">≣</button>
+        <button id="fullscreen-repeat-btn" type="button" class="text-sm text-zinc-500 hover:text-zinc-300 transition font-medium" aria-label="Lặp lại" title="Lặp lại">↻</button>
+        <button id="fullscreen-queue-btn" type="button" class="text-lg text-zinc-400 hover:text-white transition" aria-label="Hàng đợi" title="Hàng đợi">≣</button>
       </div>
 
       <!-- Unified Bottom Dock Row: Collapse, Time Cur, Waveform, Time Dur, Zone & Volume (Matches Roon Audiophile Standard) -->
@@ -3069,14 +3194,34 @@
       window.onNativeBitPerfectPosition = (positionMs, durationMs) => {
         if (!state.isSeeking && Number.isFinite(positionMs) && positionMs >= 0) {
           const curSec = positionMs / 1000;
-          const durSec = (durationMs && durationMs > 0) ? (durationMs / 1000) : ((state.tracks.find(t => t.id === state.currentId) || {}).duration || 0);
-          $('current-time').textContent = formatTime(curSec);
-          if ($('current-time-mobile')) $('current-time-mobile').textContent = formatTime(curSec);
-          if ($('room-current-time')) $('room-current-time').textContent = formatTime(curSec);
+          const curTrack = state.tracks.find(t => t && String(t.id) === String(state.currentId));
+          const durSec = (durationMs && durationMs > 0) ? (durationMs / 1000) : ((curTrack && curTrack.duration) || 0);
+          if (curTrack && durSec > 0 && !curTrack.duration) curTrack.duration = durSec;
+          const curFmt = formatTime(curSec);
+          $('current-time').textContent = curFmt;
+          if ($('current-time-mobile')) $('current-time-mobile').textContent = curFmt;
+          if ($('room-current-time')) $('room-current-time').textContent = curFmt;
           if (durSec > 0) {
+            const durFmt = formatTime(durSec);
+            if ($('duration')) $('duration').textContent = durFmt;
+            if ($('duration-mobile')) $('duration-mobile').textContent = durFmt;
+            if ($('room-duration')) $('room-duration').textContent = durFmt;
+            if ($('room-remaining')) $('room-remaining').textContent = formatRemainingTime(curSec, durSec);
             const ratio = Math.max(0, Math.min(1000, Math.round((curSec / durSec) * 1000)));
             syncSeek(ratio);
           }
+          if (typeof updateLyricsHighlight === 'function') updateLyricsHighlight(curSec);
+          if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+        }
+      };
+      window.onNativeBitPerfectError = (reason) => {
+        console.warn('Native Bit-Perfect error, falling back to Web Audio:', reason);
+        state.isNativeBitPerfectPlaying = false;
+        state.isNativeBitPerfectPaused = false;
+        const curTrack = state.tracks.find(t => t && String(t.id) === String(state.currentId));
+        if (curTrack) {
+          curTrack._skipNativeBpOnce = true;
+          playTrack(curTrack.id);
         }
       };
       window.onBitPerfectPlaybackComplete = () => {
@@ -3299,21 +3444,24 @@
       scheduleTrackRender();
     }
     function updateRoomRating(track) {
-      const ratingEl = $('room-rating');
-      if (!ratingEl) return;
       const rating = track ? getTrackRating(track) : 0;
-      const stars = ratingEl.querySelectorAll('.star');
-      if (stars.length === 5) {
-        stars.forEach((star, index) => {
-          const active = index < rating;
-          star.textContent = active ? '★' : '☆';
-          star.className = `star ${active ? 'text-amber-400' : 'text-zinc-600'} hover:text-amber-300 cursor-pointer transition-colors`;
-        });
-      } else {
-        ratingEl.textContent = library.formatRating(rating);
+      for (const ratingId of ['room-rating', 'fs-room-rating']) {
+        const ratingEl = $(ratingId);
+        if (!ratingEl) continue;
+        const stars = ratingEl.querySelectorAll('.star');
+        if (stars.length === 5) {
+          stars.forEach((star, index) => {
+            const active = index < rating;
+            star.textContent = active ? '★' : '☆';
+            star.className = `star ${active ? 'text-amber-400' : 'text-zinc-600'} hover:text-amber-300 cursor-pointer transition-colors`;
+          });
+        } else {
+          ratingEl.textContent = library.formatRating(rating);
+        }
       }
-      const engBadge = $('room-engagement-badge');
-      if (engBadge) {
+      for (const engId of ['room-engagement-badge', 'fs-room-engagement-badge']) {
+        const engBadge = $(engId);
+        if (!engBadge) continue;
         if (track && typeof library?.calculateTrackEngagementRating === 'function') {
           const eng = library.calculateTrackEngagementRating(track, rating, {
             playCount: track.playCount || 0,
@@ -3403,64 +3551,67 @@
     }
 
     function updateListeningRoomAnnotations(track) {
-      const card = $('room-liner-notes-card');
-      if (!card) return;
       const ann = getTrackAnnotation(track);
-      const scoreBadge = $('room-liner-score-badge');
-      const contentEl = $('room-liner-notes-content');
-      const gearTag = $('room-liner-gear-tag');
-      const masteringTag = $('room-liner-mastering-tag');
-      const moodTagsEl = $('room-liner-mood-tags');
+      const isEmpty = !ann || (!ann.notes && !ann.gearRecommendation && !ann.masteringDetails && !ann.audiophileScore && (!ann.moodTags || !ann.moodTags.length));
+      for (const prefix of ['room', 'fs']) {
+        const card = $(`${prefix}-liner-notes-card`);
+        if (!card) continue;
+        const scoreBadge = $(`${prefix}-liner-score-badge`);
+        const contentEl = $(`${prefix}-liner-notes-content`);
+        const gearTag = $(`${prefix}-liner-gear-tag`);
+        const masteringTag = $(`${prefix}-liner-mastering-tag`);
+        const moodTagsEl = $(`${prefix}-liner-mood-tags`);
 
-      if (!ann || (!ann.notes && !ann.gearRecommendation && !ann.masteringDetails && !ann.audiophileScore && (!ann.moodTags || !ann.moodTags.length))) {
-        if (scoreBadge) scoreBadge.classList.add('hidden');
-        if (contentEl) contentEl.textContent = 'Chưa có ghi chú bản thu nào. Nhấn "Chỉnh sửa" để thêm cảm nhận âm nhạc, thiết bị phối ghép hoặc thông tin phát hành.';
-        if (gearTag) gearTag.classList.add('hidden');
-        if (masteringTag) masteringTag.classList.add('hidden');
-        if (moodTagsEl) moodTagsEl.classList.add('hidden');
-        return;
-      }
-
-      if (scoreBadge) {
-        if (ann.audiophileScore > 0) {
-          scoreBadge.textContent = `🎯 ${ann.audiophileScore}/100`;
-          scoreBadge.classList.remove('hidden');
-        } else {
-          scoreBadge.classList.add('hidden');
+        if (isEmpty) {
+          if (scoreBadge) scoreBadge.classList.add('hidden');
+          if (contentEl) contentEl.textContent = 'Chưa có ghi chú bản thu nào. Nhấn "Chỉnh sửa" để thêm cảm nhận âm nhạc, thiết bị phối ghép hoặc thông tin phát hành.';
+          if (gearTag) gearTag.classList.add('hidden');
+          if (masteringTag) masteringTag.classList.add('hidden');
+          if (moodTagsEl) moodTagsEl.classList.add('hidden');
+          continue;
         }
-      }
 
-      if (contentEl) {
-        contentEl.textContent = ann.notes || 'Chưa có ghi chú chi tiết.';
-      }
-
-      if (gearTag) {
-        if (ann.gearRecommendation) {
-          const valEl = gearTag.querySelector('.val');
-          if (valEl) valEl.textContent = ann.gearRecommendation;
-          gearTag.classList.remove('hidden');
-        } else {
-          gearTag.classList.add('hidden');
+        if (scoreBadge) {
+          if (ann.audiophileScore > 0) {
+            scoreBadge.textContent = `🎯 ${ann.audiophileScore}/100`;
+            scoreBadge.classList.remove('hidden');
+          } else {
+            scoreBadge.classList.add('hidden');
+          }
         }
-      }
 
-      if (masteringTag) {
-        if (ann.masteringDetails) {
-          const valEl = masteringTag.querySelector('.val');
-          if (valEl) valEl.textContent = ann.masteringDetails;
-          masteringTag.classList.remove('hidden');
-        } else {
-          masteringTag.classList.add('hidden');
+        if (contentEl) {
+          contentEl.textContent = ann.notes || 'Chưa có ghi chú chi tiết.';
         }
-      }
 
-      if (moodTagsEl) {
-        if (ann.moodTags && ann.moodTags.length > 0) {
-          const valEl = moodTagsEl.querySelector('.val');
-          if (valEl) valEl.textContent = ann.moodTags.join(', ');
-          moodTagsEl.classList.remove('hidden');
-        } else {
-          moodTagsEl.classList.add('hidden');
+        if (gearTag) {
+          if (ann.gearRecommendation) {
+            const valEl = gearTag.querySelector('.val');
+            if (valEl) valEl.textContent = ann.gearRecommendation;
+            gearTag.classList.remove('hidden');
+          } else {
+            gearTag.classList.add('hidden');
+          }
+        }
+
+        if (masteringTag) {
+          if (ann.masteringDetails) {
+            const valEl = masteringTag.querySelector('.val');
+            if (valEl) valEl.textContent = ann.masteringDetails;
+            masteringTag.classList.remove('hidden');
+          } else {
+            masteringTag.classList.add('hidden');
+          }
+        }
+
+        if (moodTagsEl) {
+          if (ann.moodTags && ann.moodTags.length > 0) {
+            const valEl = moodTagsEl.querySelector('.val');
+            if (valEl) valEl.textContent = ann.moodTags.join(', ');
+            moodTagsEl.classList.remove('hidden');
+          } else {
+            moodTagsEl.classList.add('hidden');
+          }
         }
       }
     }
@@ -4470,8 +4621,18 @@
     function readAudioMetadata(file) {
       return new Promise(resolve => {
         if (!file || typeof file.slice !== 'function') return resolve({});
+        let settled = false;
+        const done = val => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve(val || {});
+          }
+        };
+        const timer = setTimeout(() => done({}), 2500);
         const reader = new FileReader();
-        reader.onerror = () => resolve({});
+        reader.onerror = () => done({});
+        reader.onabort = () => done({});
         reader.onload = () => {
           try {
             const buffer = reader.result, view = new DataView(buffer);
@@ -4486,13 +4647,13 @@
                   sampleRate = view.getUint32(offset + 28, true);
                   sampleCount = Number(view.getBigUint64(offset + 36, true));
                   const bitOrder = view.getUint32(offset + 32, true);
-                  if (bitOrder !== 1 && bitOrder !== 8) return resolve({sampleRate, channels, duration: 0});
+                  if (bitOrder !== 1 && bitOrder !== 8) return done({sampleRate, channels, duration: 0});
                 }
-                if (chunk === 'data') return resolve({sampleRate, channels, duration: sampleRate && sampleCount ? sampleCount / sampleRate : 0});
+                if (chunk === 'data') return done({sampleRate, channels, duration: sampleRate && sampleCount ? sampleCount / sampleRate : 0});
                 if (offset + size > view.byteLength) break;
                 offset += size;
               }
-              return resolve({sampleRate, channels, duration: sampleRate && sampleCount ? sampleCount / sampleRate : 0});
+              return done({sampleRate, channels, duration: sampleRate && sampleCount ? sampleCount / sampleRate : 0});
             }
             if (view.byteLength >= 16 && text(0, 4) === 'FRM8' && text(12, 4) === 'DSD ') {
               let sampleRate = 0, channels = 0, compression = '';
@@ -4501,7 +4662,7 @@
                 if (!Number.isSafeInteger(size) || size < 0) break;
                 if (chunk === 'DSD ') {
                   const duration = sampleRate && channels ? size * 8 / (sampleRate * channels) : 0;
-                  return resolve({sampleRate, channels, duration, compression});
+                  return done({sampleRate, channels, duration, compression});
                 }
                 if (dataOffset + size > view.byteLength) break;
                 if (chunk === 'PROP' && dataOffset + size <= view.byteLength) {
@@ -4517,7 +4678,7 @@
                 if (dataOffset + size > view.byteLength) break;
                 offset += 12 + size + (size & 1);
               }
-              return resolve({sampleRate, channels, duration: 0, compression});
+              return done({sampleRate, channels, duration: 0, compression});
             }
             if (view.byteLength >= 12 && (text(0, 4) === 'RIFF' || text(0, 4) === 'RF64') && text(8, 4) === 'WAVE') {
               let offset = 12, fmt = null;
@@ -4532,12 +4693,12 @@
                   if (format === 0xfffe && size >= 40 && dataOffset + 40 <= view.byteLength) bitDepth = view.getUint16(dataOffset + 18, true) || bitDepth;
                   if (bitDepth === 0 && channels && blockAlign) bitDepth = blockAlign * 8 / channels;
                   fmt = {sampleRate, bitDepth, channels, encoding: format};
-                  if (sampleRate && bitDepth && channels) return resolve(fmt);
+                  if (sampleRate && bitDepth && channels) return done(fmt);
                 }
                 if (size === 0xffffffff || dataOffset + size > view.byteLength) break;
                 offset = dataOffset + size + (size & 1);
               }
-              return resolve(fmt || {});
+              return done(fmt || {});
             }
             let flacOffset = 0;
             if (view.byteLength >= 10 && text(0, 3) === 'ID3') {
@@ -4557,40 +4718,61 @@
                   const sampleRate = Number((packed >> 44n) & 0xfffffn);
                   const channels = Number((packed >> 41n) & 0x7n) + 1;
                   const bitDepth = Number((packed >> 36n) & 0x1fn) + 1;
-                  return resolve({sampleRate, bitDepth, channels});
+                  return done({sampleRate, bitDepth, channels});
                 }
                 offset = dataOffset + length;
                 if (header & 0x80) break;
               }
             }
-            resolve({});
-          } catch (error) { console.warn('Could not read audio header:', error); resolve({}); }
+            done({});
+          } catch (error) { console.warn('Could not read audio header:', error); done({}); }
         };
-        reader.readAsArrayBuffer(file.slice(0, 512 * 1024));
+        try {
+          reader.readAsArrayBuffer(file.slice(0, 512 * 1024));
+        } catch (_) {
+          done({});
+        }
       });
     }
     function getTags(file) {
       return new Promise(resolve => {
-        if (!window.jsmediatags) return resolve({});
-        window.jsmediatags.read(file, { onSuccess: result => {
-          const tags = result.tags || {}, picture = tags.picture;
-          let cover;
-          if (picture && picture.data) {
-            const bytes = new Uint8Array(picture.data);
-            let binary = '';
-            for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-            cover = `data:${picture.format || 'image/jpeg'};base64,${btoa(binary)}`;
+        if (!window.jsmediatags || !file) return resolve({});
+        let settled = false;
+        const done = val => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            resolve(val || {});
           }
-          resolve({
-            title: tags.title,
-            artist: tags.artist,
-            album: tags.album,
-            albumArtist: tags.albumartist || tags.albumArtist || tags.album_artist,
-            track: tags.track || tags.tracknumber || tags.trackNumber,
-            lyrics: tags.lyrics,
-            cover
-          });
-        }, onError: () => resolve({}) });
+        };
+        const timer = setTimeout(() => done({}), 2500);
+        try {
+          window.jsmediatags.read(file, { onSuccess: result => {
+            try {
+              const tags = result.tags || {}, picture = tags.picture;
+              let cover;
+              if (picture && picture.data) {
+                const bytes = new Uint8Array(picture.data);
+                let binary = '';
+                for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+                cover = `data:${picture.format || 'image/jpeg'};base64,${btoa(binary)}`;
+              }
+              done({
+                title: tags.title,
+                artist: tags.artist,
+                album: tags.album,
+                albumArtist: tags.albumartist || tags.albumArtist || tags.album_artist,
+                track: tags.track || tags.tracknumber || tags.trackNumber,
+                lyrics: tags.lyrics,
+                cover
+              });
+            } catch (_) {
+              done({});
+            }
+          }, onError: () => done({}) });
+        } catch (_) {
+          done({});
+        }
       });
     }
     async function makeLocalTrack(file) {
@@ -4904,8 +5086,15 @@
       return `danh sách ${state.lastTrackRowsCount} bài dựng lại trong ${Math.round(state.lastTrackRowsMs)} ms`;
     }
     function renderRoomSignal(track) {
+      if (!track && state.currentId) track = state.tracks.find(t => t.id === state.currentId);
+      if (!track) {
+        if (typeof renderSignalPathChain === 'function') renderSignalPathChain(null);
+        return;
+      }
       const room = signalDescription(track), firstAudio = timeToFirstAudioText(track), rowsPerf = trackRowsPerfText();
-      $('room-signal').textContent = `${room.sourceTechnical} · ${room.decoded}${room.advice ? ` · ${room.advice}` : ''}${firstAudio ? ` · ${firstAudio}` : ''}${rowsPerf ? ` · ${rowsPerf}` : ''}`;
+      const sigText = `${room.sourceTechnical} · ${room.decoded}${room.advice ? ` · ${room.advice}` : ''}${firstAudio ? ` · ${firstAudio}` : ''}${rowsPerf ? ` · ${rowsPerf}` : ''}`;
+      if ($('room-signal')) $('room-signal').textContent = sigText;
+      if ($('fs-room-signal')) $('fs-room-signal').textContent = sigText;
       refreshFirstSliceCacheStatus(track);
       if (typeof renderSignalPathChain === 'function') renderSignalPathChain(track);
     }
@@ -4921,11 +5110,13 @@
     // Pha B — Signal Path kiểu Roon trong Phòng nghe: hiển thị toàn bộ chuỗi
     // xử lý âm thanh thời gian thực (Nguồn → Giải mã → DSP → Đầu ra)
     function renderSignalPathChain(track) {
-      const badge = $('signal-path-badge'), chain = $('room-signal-chain');
+      const badge = $('signal-path-badge'), fsBadge = $('fs-signal-path-badge'), chain = $('room-signal-chain');
       if (!badge || !chain) return;
       if (!track) {
+        const idleClass = 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold tracking-wider text-zinc-400';
         badge.textContent = 'READY';
-        badge.className = 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold tracking-wider text-zinc-400';
+        badge.className = idleClass;
+        if (fsBadge) { fsBadge.textContent = 'READY'; fsBadge.className = `cursor-pointer ${idleClass}`; }
         chain.innerHTML = '<p class="text-[10px] text-zinc-500">Chưa có tín hiệu phát.</p>';
         return;
       }
@@ -4973,6 +5164,10 @@
         badge.className = 'rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-semibold tracking-wider text-cyan-300';
       } else {
         badge.className = 'rounded border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-semibold tracking-wider text-emerald-300';
+      }
+      if (fsBadge) {
+        fsBadge.textContent = pathData.qualityLabel;
+        fsBadge.className = `cursor-pointer ${badge.className}`;
       }
 
       const icons = { source: '●', decode: '⚙', dsp: '⚡', output: '▶' };
@@ -5914,10 +6109,33 @@
     // nó (đang fade dở thì không nhảy về 1). Trả về thời lượng fade (giây).
     function applyCrossfade(context, oldDeck, newDeck, seconds) {
       const duration = library.clampCrossfadeSeconds(seconds, 0);
-      const now = context.currentTime;
+      const now = context ? context.currentTime : 0;
       if (!duration || !oldDeck || !newDeck) {
-        if (oldDeck) oldDeck.router.gain.setTargetAtTime(0, now, .018);
-        if (newDeck) newDeck.router.gain.setTargetAtTime(1, now, .018);
+        const isNotRunning = Boolean(context && typeof context.state === 'string' && context.state !== 'running');
+        if (oldDeck && oldDeck.router && oldDeck.router.gain) {
+          if (isNotRunning) {
+            if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') {
+              try { oldDeck.router.gain.cancelScheduledValues(now); } catch (_) {}
+            }
+            oldDeck.router.gain.value = 0;
+            if (typeof oldDeck.router.gain.setValueAtTime === 'function') {
+              try { oldDeck.router.gain.setValueAtTime(0, now); } catch (_) {}
+            }
+          }
+          oldDeck.router.gain.setTargetAtTime(0, now, .018);
+        }
+        if (newDeck && newDeck.router && newDeck.router.gain) {
+          if (isNotRunning) {
+            if (typeof newDeck.router.gain.cancelScheduledValues === 'function') {
+              try { newDeck.router.gain.cancelScheduledValues(now); } catch (_) {}
+            }
+            newDeck.router.gain.value = 1;
+            if (typeof newDeck.router.gain.setValueAtTime === 'function') {
+              try { newDeck.router.gain.setValueAtTime(1, now); } catch (_) {}
+            }
+          }
+          newDeck.router.gain.setTargetAtTime(1, now, .018);
+        }
         return 0;
       }
       const steps = 32, outCurve = new Float32Array(steps + 1), inCurve = new Float32Array(steps + 1);
@@ -5954,7 +6172,9 @@
         if (typeof oldDeck.router.gain.setValueAtTime === 'function') {
           oldDeck.router.gain.setValueAtTime(0, now + duration);
         }
-      } catch (_) {}
+      } catch (_) {
+        try { oldDeck.router.gain.setValueAtTime(0, now + duration + 0.002); } catch (_2) {}
+      }
 
       if (typeof newDeck.router.gain.cancelAndHoldAtTime === 'function') {
         try { newDeck.router.gain.cancelAndHoldAtTime(now); }
@@ -5972,7 +6192,9 @@
         if (typeof newDeck.router.gain.setValueAtTime === 'function') {
           newDeck.router.gain.setValueAtTime(1, now + duration);
         }
-      } catch (_) {}
+      } catch (_) {
+        try { newDeck.router.gain.setValueAtTime(1, now + duration + 0.002); } catch (_2) {}
+      }
       return duration;
     }
     function rebuildDeckRoute(deck) {
@@ -6264,14 +6486,19 @@
           if (typeof library.calculateDynamicRange === 'function') {
             const drScore = library.calculateDynamicRange(level.peakDb, level.rmsDb);
             const drInfo = library.formatDynamicRange(drScore);
-            const roomDr = $('room-dr-badge');
-            if (roomDr) {
-              roomDr.textContent = `${drInfo.label} · ${drInfo.grade}`;
-              roomDr.className = `rounded border px-2 py-0.5 text-[9px] font-medium ${drInfo.badgeClass}`;
+            const drText = `${drInfo.label} · ${drInfo.grade}`;
+            const drClass = `rounded border px-2 py-0.5 text-[9px] font-medium ${drInfo.badgeClass}`;
+            for (const drId of ['room-dr-badge', 'fs-room-dr-badge']) {
+              const el = $(drId);
+              if (el) {
+                el.textContent = drText;
+                el.className = drId === 'fs-room-dr-badge' ? `inline-block ${drClass}` : drClass;
+              }
             }
-            const roomCrest = $('room-crest-detail');
-            if (roomCrest) {
-              roomCrest.textContent = `Pk ${level.peakDb.toFixed(1)} · RMS ${level.rmsDb.toFixed(1)} dB`;
+            const crestText = `Pk ${level.peakDb.toFixed(1)} · RMS ${level.rmsDb.toFixed(1)} dB`;
+            for (const crestId of ['room-crest-detail', 'fs-room-crest-detail']) {
+              const el = $(crestId);
+              if (el) el.textContent = crestText;
             }
             const footerDr = $('footer-dr-badge');
             if (footerDr) {
@@ -6287,14 +6514,18 @@
             state.rightAnalyser.getByteTimeDomainData(rightData);
             leftChannelTimeSample = leftData;
             const phaseCorr = library.calculateStereoPhaseCorrelation(leftData, rightData);
-            const roomPhase = $('room-phase-badge');
-            if (roomPhase) {
-              roomPhase.textContent = library.formatStereoCorrelationBadge(phaseCorr);
-              roomPhase.className = `rounded border px-2 py-0.5 text-[9px] font-medium ${phaseCorr.badgeClass}`;
+            const phaseText = library.formatStereoCorrelationBadge(phaseCorr);
+            const phaseClass = `rounded border px-2 py-0.5 text-[9px] font-medium ${phaseCorr.badgeClass}`;
+            for (const phaseId of ['room-phase-badge', 'fs-room-phase-badge']) {
+              const el = $(phaseId);
+              if (el) {
+                el.textContent = phaseText;
+                el.className = phaseId === 'fs-room-phase-badge' ? `inline-block ${phaseClass}` : phaseClass;
+              }
             }
             const footerPhase = $('footer-phase-badge');
             if (footerPhase) {
-              footerPhase.textContent = library.formatStereoCorrelationBadge(phaseCorr);
+              footerPhase.textContent = phaseText;
               footerPhase.className = `hidden md:inline-block rounded border px-1.5 py-0.5 text-[9px] font-medium ${phaseCorr.badgeClass}`;
             }
           }
@@ -6303,12 +6534,15 @@
             if (timeSampleSource && timeSampleSource.length) {
               const tpInfo = library.calculateInterSamplePeak(timeSampleSource, 4);
               const tpText = library.formatTruePeakBadge(tpInfo.truePeakDbtp);
-              const roomTp = $('room-tp-badge');
-              if (roomTp) {
-                roomTp.textContent = tpText;
-                roomTp.className = tpInfo.isClipping
-                  ? 'rounded border px-2 py-0.5 text-[9px] font-medium text-rose-300 border-rose-500/40 bg-rose-500/10'
-                  : 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400';
+              const tpClass = tpInfo.isClipping
+                ? 'rounded border px-2 py-0.5 text-[9px] font-medium text-rose-300 border-rose-500/40 bg-rose-500/10'
+                : 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400';
+              for (const tpId of ['room-tp-badge', 'fs-room-tp-badge']) {
+                const el = $(tpId);
+                if (el) {
+                  el.textContent = tpText;
+                  el.className = tpId === 'fs-room-tp-badge' ? `inline-block ${tpClass}` : tpClass;
+                }
               }
               const footerTp = $('footer-tp-badge');
               if (footerTp) {
@@ -6323,15 +6557,16 @@
             const rawLevel = Math.pow(10, Math.max(-40, level.rmsDb) / 20);
             state.thermalBallistics = library.calculateThermalBallistics(rawLevel, state.thermalBallistics || {});
             const thermalBadgeText = library.formatThermalBallisticsBadge(state.thermalBallistics);
-            const roomThermal = $('room-thermal-badge');
-            if (roomThermal) {
-              roomThermal.textContent = thermalBadgeText;
-              if (state.thermalBallistics.thermalRating === 'hot') {
-                roomThermal.className = 'rounded border px-2 py-0.5 text-[9px] font-medium text-rose-300 border-rose-500/40 bg-rose-500/10';
-              } else if (state.thermalBallistics.thermalRating === 'warm') {
-                roomThermal.className = 'rounded border px-2 py-0.5 text-[9px] font-medium text-amber-300 border-amber-500/40 bg-amber-500/10';
-              } else {
-                roomThermal.className = 'rounded border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-mono text-emerald-300';
+            const thermalClass = state.thermalBallistics.thermalRating === 'hot'
+              ? 'rounded border px-2 py-0.5 text-[9px] font-medium text-rose-300 border-rose-500/40 bg-rose-500/10'
+              : (state.thermalBallistics.thermalRating === 'warm'
+                ? 'rounded border px-2 py-0.5 text-[9px] font-medium text-amber-300 border-amber-500/40 bg-amber-500/10'
+                : 'rounded border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-mono text-emerald-300');
+            for (const thId of ['room-thermal-badge', 'fs-room-thermal-badge']) {
+              const el = $(thId);
+              if (el) {
+                el.textContent = thermalBadgeText;
+                el.className = thId === 'fs-room-thermal-badge' ? `inline-block ${thermalClass}` : thermalClass;
               }
             }
             const fsThermal = $('fs-thermal-badge');
@@ -6349,10 +6584,13 @@
             if (state.bpmEnergyHistory.length > 180) state.bpmEnergyHistory.shift();
             if (state.bpmEnergyHistory.length >= 30 && (state.bpmEnergyHistory.length % 15 === 0)) {
               state.trackBpmInfo = library.estimateTrackBpmFromEnergyHistory(state.bpmEnergyHistory, { fps: 30 });
-              const roomBpm = $('room-bpm-badge');
-              if (roomBpm && state.trackBpmInfo && state.trackBpmInfo.bpm > 0) {
-                roomBpm.textContent = `${state.trackBpmInfo.bpm} BPM`;
-                roomBpm.title = library.formatTempoEnergyBadge(state.trackBpmInfo);
+              if (state.trackBpmInfo && state.trackBpmInfo.bpm > 0) {
+                const bpmText = `${state.trackBpmInfo.bpm} BPM`;
+                const bpmTitle = library.formatTempoEnergyBadge(state.trackBpmInfo);
+                for (const bpmId of ['room-bpm-badge', 'fs-room-bpm-badge']) {
+                  const el = $(bpmId);
+                  if (el) { el.textContent = bpmText; el.title = bpmTitle; }
+                }
               }
             }
           }
@@ -8121,10 +8359,11 @@
     function updateLyricsHighlight() {
       const container = $('room-lyrics');
       if (!container || !state.lyrics.length) return;
+      const rawTime = (arguments.length > 0 && Number.isFinite(arguments[0])) ? arguments[0] : audio.currentTime;
       const offsetSec = (state && Number.isFinite(state.lyricsOffset)) ? state.lyricsOffset : 0;
       const effectiveTime = (library && typeof library.calculateLyricsOffsetTime === 'function')
-        ? library.calculateLyricsOffsetTime(audio.currentTime, offsetSec)
-        : (audio.currentTime + offsetSec);
+        ? library.calculateLyricsOffsetTime(rawTime, offsetSec)
+        : (rawTime + offsetSec);
       const currentMs = Math.round(effectiveTime * 1000);
 
       const lu = (typeof window !== 'undefined' && window.LyricsUtils) ? window.LyricsUtils : (typeof LyricsUtils !== 'undefined' ? LyricsUtils : null);
@@ -8305,8 +8544,12 @@
       if (typeof library?.formatRoonThreeLine === 'function') {
         const currentZone = state.zones.find(z => z.id === state.activeZoneId) || state.roonZones.find(z => z.id === state.activeZoneId);
         const threeLine = library.formatRoonThreeLine(track, currentZone);
-        if ($('zone-current-name')) $('zone-current-name').textContent = currentZone ? (currentZone.name || currentZone.display_name) : 'Phòng nghe Audiophile';
-        if ($('zone-current-desc')) $('zone-current-desc').textContent = currentZone ? (currentZone.description || '') : '';
+        const curZoneName = currentZone ? (currentZone.name || currentZone.display_name) : 'Phòng nghe Audiophile';
+        const curZoneDesc = currentZone ? (currentZone.description || '') : '';
+        if ($('zone-current-name')) $('zone-current-name').textContent = curZoneName;
+        if ($('zone-current-desc')) $('zone-current-desc').textContent = curZoneDesc;
+        if ($('fs-zone-current-name')) $('fs-zone-current-name').textContent = curZoneName;
+        if ($('fs-zone-current-desc')) $('fs-zone-current-desc').textContent = curZoneDesc;
       }
       if (state.bitPerfectEnabled) {
         const rateStr = track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : (state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(state.context.sampleRate % 1000 ? 1 : 0)} kHz` : '44.1 kHz');
@@ -8319,48 +8562,70 @@
           $('room-quality').textContent = bitPerfectText;
           $('room-quality').className = 'rounded-md border border-amber-400/50 bg-amber-500/20 px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-amber-300';
         }
+        if ($('fs-room-quality-badge')) {
+          $('fs-room-quality-badge').textContent = bitPerfectText;
+          $('fs-room-quality-badge').className = 'rounded-md border border-amber-400/50 bg-amber-500/20 px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-amber-300';
+        }
       } else {
         $('quality-badge').textContent = q.label; $('quality-badge').className = `rounded-md border px-2 py-1 text-[9px] font-medium uppercase tracking-wider ${q.tone}`; $('mobile-quality').textContent = q.label;
         if ($('room-quality')) {
           $('room-quality').textContent = q.label;
           $('room-quality').className = `rounded-md border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider ${q.tone}`;
         }
+        if ($('fs-room-quality-badge')) {
+          $('fs-room-quality-badge').textContent = q.label;
+          $('fs-room-quality-badge').className = `rounded-md border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider ${q.tone}`;
+        }
       }
       $('room-title').textContent = room.title; $('room-artist').textContent = room.artist; $('room-album').textContent = room.album;
-      renderRoomSignal(track); $('room-output').textContent = `Nguồn: ${room.sourceName}. AudioContext ${state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.${state.stereoBalance ? ` · Cân bằng: ${library.formatBalance(state.stereoBalance)}` : ''}${state.crossfeed ? ` · Crossfeed: ${library.formatCrossfeed(state.crossfeed)}` : ''}`;
-      $('room-quality').textContent = q.label; $('room-quality').className = `rounded-md border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider ${q.tone}`;
+      const roomOutputText = `Nguồn: ${room.sourceName}. AudioContext ${state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.${state.stereoBalance ? ` · Cân bằng: ${library.formatBalance(state.stereoBalance)}` : ''}${state.crossfeed ? ` · Crossfeed: ${library.formatCrossfeed(state.crossfeed)}` : ''}`;
+      renderRoomSignal(track); $('room-output').textContent = roomOutputText;
+      if ($('fs-room-output')) $('fs-room-output').textContent = roomOutputText;
+      if (!state.bitPerfectEnabled) {
+        $('room-quality').textContent = q.label; $('room-quality').className = `rounded-md border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider ${q.tone}`;
+      }
       const roomCover = $('room-cover'); roomCover.hidden = !track.cover; roomCover.src = track.cover || ''; $('room-cover-empty').classList.toggle('hidden', !!track.cover);
       $('favorite-button').classList.remove('hidden'); $('favorite-button').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').textContent = isFavorite(track) ? '♥' : '♡'; $('room-favorite').classList.toggle('text-pink-300', isFavorite(track));
       updateRoomRating(track);
       if (typeof updateListeningRoomAnnotations === 'function') updateListeningRoomAnnotations(track);
       if (typeof updateMiniPlayerHud === 'function') updateMiniPlayerHud(track);
-      if ($('room-dr-badge')) {
-        $('room-dr-badge').textContent = 'DR -- · Chờ tín hiệu';
-        $('room-dr-badge').className = 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400';
+      for (const drId of ['room-dr-badge', 'fs-room-dr-badge']) {
+        if ($(drId)) {
+          $(drId).textContent = 'DR -- · Chờ tín hiệu';
+          $(drId).className = `${drId === 'fs-room-dr-badge' ? 'inline-block ' : ''}rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400`;
+        }
       }
       if ($('room-crest-detail')) $('room-crest-detail').textContent = 'Pk -96 · RMS -96 dB';
+      if ($('fs-room-crest-detail')) $('fs-room-crest-detail').textContent = 'Pk -96 · RMS -96 dB';
       if ($('room-buffer-status')) $('room-buffer-status').textContent = 'Đang chờ luồng...';
+      if ($('fs-room-buffer-status')) $('fs-room-buffer-status').textContent = 'Đang chờ luồng...';
       if ($('room-buffer-dot')) $('room-buffer-dot').className = 'inline-block h-1.5 w-1.5 rounded-full bg-zinc-600';
+      if ($('fs-room-buffer-dot')) $('fs-room-buffer-dot').className = 'inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-600';
       if ($('footer-dr-badge')) {
         $('footer-dr-badge').textContent = 'DR --';
         $('footer-dr-badge').className = 'hidden sm:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400';
       }
-      if ($('room-phase-badge')) {
-        $('room-phase-badge').textContent = 'Phase +1.0';
-        $('room-phase-badge').className = 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400';
+      for (const phaseId of ['room-phase-badge', 'fs-room-phase-badge']) {
+        if ($(phaseId)) {
+          $(phaseId).textContent = 'Phase +1.0';
+          $(phaseId).className = `${phaseId === 'fs-room-phase-badge' ? 'inline-block ' : ''}rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400`;
+        }
       }
       if ($('footer-phase-badge')) {
         $('footer-phase-badge').textContent = 'Phase +1.0';
         $('footer-phase-badge').className = 'hidden md:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400';
       }
-      if ($('room-tp-badge')) {
-        $('room-tp-badge').textContent = 'TP --';
-        $('room-tp-badge').className = 'rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400';
+      for (const tpId of ['room-tp-badge', 'fs-room-tp-badge']) {
+        if ($(tpId)) {
+          $(tpId).textContent = 'TP --';
+          $(tpId).className = `${tpId === 'fs-room-tp-badge' ? 'inline-block ' : ''}rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400`;
+        }
       }
       if ($('footer-tp-badge')) {
         $('footer-tp-badge').textContent = 'TP --';
         $('footer-tp-badge').className = 'hidden lg:inline-block rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400';
       }
+      if (state.isFullscreen && typeof updateRoonFullscreenUI === 'function') updateRoonFullscreenUI();
       let savedOffset = 0;
       try {
         const stored = localStorage.getItem(`nocturne-lyrics-offset-${track.id}`);
@@ -8423,7 +8688,18 @@
 
       try {
         const src = track.src || track.url || '';
-        if (src && !src.startsWith('data:') && !String(track.format || '').includes('DSD')) {
+        const isAndroidOrDap = Boolean(
+          (typeof window !== 'undefined' && (window.isNativeAndroid || window.NocturneNative)) ||
+          state.fiioDapMode
+        );
+        const isLargeTrack = Boolean(track.size && track.size > 12 * 1024 * 1024);
+        if (
+          !isAndroidOrDap &&
+          !isLargeTrack &&
+          src &&
+          src.startsWith('blob:') &&
+          !String(track.format || '').includes('DSD')
+        ) {
           const resp = await fetch(src, { mode: 'cors' });
           if (resp.ok) {
             const arrayBuffer = await resp.arrayBuffer();
@@ -9297,10 +9573,16 @@
       try { localStorage.setItem('nocturne-active-zone', zoneId); } catch (_) {}
       const zone = state.zones.find(z => z.id === zoneId) || state.roonZones.find(z => z.id === zoneId);
       const zoneName = zone ? (zone.name || zone.display_name) : 'Phòng nghe Audiophile';
+      const zoneDesc = zone ? (zone.description || `Vùng Roon: ${zone.display_name || zone.name}`) : '';
       if ($('zone-current-name')) $('zone-current-name').textContent = zoneName;
+      if ($('fs-zone-current-name')) $('fs-zone-current-name').textContent = zoneName;
+      if ($('fullscreen-zone-name')) $('fullscreen-zone-name').textContent = zoneName;
       if ($('zone-footer-label')) $('zone-footer-label').textContent = zoneId === 'zone_direct' ? 'Direct DAC' : (zoneId.startsWith('roon_') ? 'Roon Zone' : 'PWA DSP');
       if ($('zone-current-desc')) {
-        $('zone-current-desc').textContent = zone ? (zone.description || `Vùng Roon: ${zone.display_name || zone.name}`) : '';
+        $('zone-current-desc').textContent = zoneDesc;
+      }
+      if ($('fs-zone-current-desc')) {
+        $('fs-zone-current-desc').textContent = zoneDesc;
       }
       if (zoneId === 'zone_direct') {
         if ($('eq-enabled') && $('eq-enabled').checked) {
@@ -9617,17 +9899,51 @@
       });
     }
 
+    function syncTransportModesUI() {
+      const shufBtn = $('shuffle-button');
+      const fsShufBtn = $('fullscreen-shuffle-btn');
+      if (shufBtn) shufBtn.classList.toggle('text-violet-300', !!state.shuffle);
+      if (fsShufBtn) {
+        fsShufBtn.className = state.shuffle
+          ? 'text-sm text-purple-300 hover:text-white transition'
+          : 'text-sm text-zinc-500 hover:text-zinc-300 transition';
+        fsShufBtn.setAttribute('aria-pressed', String(!!state.shuffle));
+      }
+      const repBtn = $('repeat-button');
+      const fsRepBtn = $('fullscreen-repeat-btn');
+      const repIcon = state.repeat === 2 ? '↻¹' : '↻';
+      const repLabel = ['Lặp lại: Tắt', 'Lặp danh sách', 'Lặp bài hiện tại'][state.repeat || 0];
+      if (repBtn) {
+        repBtn.textContent = repIcon;
+        repBtn.classList.toggle('text-violet-300', state.repeat > 0);
+      }
+      if (fsRepBtn) {
+        fsRepBtn.textContent = repIcon;
+        fsRepBtn.className = state.repeat > 0
+          ? 'text-sm text-purple-300 hover:text-white transition font-medium'
+          : 'text-sm text-zinc-500 hover:text-zinc-300 transition font-medium';
+        fsRepBtn.title = repLabel;
+        fsRepBtn.setAttribute('aria-pressed', String(state.repeat > 0));
+      }
+    }
+    window.syncTransportModesUI = syncTransportModesUI;
+
     function toggleRoonFullscreen(open) {
       const view = $('roon-fullscreen-view');
       if (!view) return;
       const shouldOpen = open !== undefined ? !!open : view.classList.contains('hidden');
       state.isFullscreen = shouldOpen;
+      if (shouldOpen) {
+        $('listening-room')?.classList.add('hidden');
+      }
       view.classList.toggle('hidden', !shouldOpen);
       view.classList.toggle('flex', shouldOpen);
       if (shouldOpen) {
         updateRoonFullscreenUI();
-        if (state.fullscreenViewMode === 'stage' && typeof setVisualizerRunning === 'function') {
-          if (typeof resizeFullscreenStageCanvas === 'function') resizeFullscreenStageCanvas();
+        const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+        const isPlaying = !!(curAudio && !curAudio.paused && curAudio.src);
+        if ((state.fullscreenViewMode === 'stage' || isPlaying) && typeof setVisualizerRunning === 'function') {
+          if (state.fullscreenViewMode === 'stage' && typeof resizeFullscreenStageCanvas === 'function') resizeFullscreenStageCanvas();
           setVisualizerRunning(true);
         }
         if (typeof generateTrackWaveform === 'function' && state.currentId) {
@@ -9636,11 +9952,32 @@
         }
       }
     }
+    const closeRoonFullscreen = () => toggleRoonFullscreen(false);
     window.toggleRoonFullscreen = toggleRoonFullscreen;
+    window.closeRoonFullscreen = closeRoonFullscreen;
 
     function updateRoonFullscreenUI() {
       const view = $('roon-fullscreen-view');
       if (!view || view.classList.contains('hidden')) return;
+      syncTransportModesUI();
+      const currentZone = (state.zones ? state.zones.find(z => z.id === state.activeZoneId) : null)
+        || (state.roonZones ? state.roonZones.find(z => z.id === state.activeZoneId) : null);
+      const zoneLabel = currentZone ? (currentZone.name || currentZone.display_name) : 'Phòng nghe Audiophile (PWA DSP)';
+      const zoneDesc = currentZone ? (currentZone.description || '') : 'Chuỗi DSP: EQ, Crossfeed, Tone Controls & ReplayGain';
+      if ($('fullscreen-zone-name')) {
+        $('fullscreen-zone-name').textContent = currentZone ? (currentZone.name || currentZone.display_name) : 'System Output';
+      }
+      if ($('fs-zone-current-name')) $('fs-zone-current-name').textContent = zoneLabel;
+      if ($('fs-zone-current-desc')) $('fs-zone-current-desc').textContent = zoneDesc;
+      if ($('fullscreen-volume-readout')) {
+        $('fullscreen-volume-readout').textContent = $('volume') ? $('volume').value : '100';
+      }
+      const eqActive = !!$('eq-enabled')?.checked;
+      $('fs-room-eq-btn')?.classList.toggle('border-violet-400/60', eqActive);
+      $('fs-room-eq-btn')?.classList.toggle('bg-violet-500/30', eqActive);
+      if ($('room-signal') && $('fs-room-signal')) $('fs-room-signal').textContent = $('room-signal').textContent;
+      if ($('room-output') && $('fs-room-output')) $('fs-room-output').textContent = $('room-output').textContent;
+
       const track = state.currentId ? trackById(state.currentId) : null;
       if (!track) return;
 
@@ -9670,6 +10007,13 @@
       if ($('fullscreen-quality-badge')) {
         $('fullscreen-quality-badge').textContent = q.label;
       }
+      if ($('fs-room-quality-badge') && !state.bitPerfectEnabled) {
+        $('fs-room-quality-badge').textContent = `${q.label} · ${formatDetail}`;
+        $('fs-room-quality-badge').className = `rounded-md border px-2.5 py-1.5 text-[10px] font-semibold tracking-wider ${q.tone}`;
+      }
+      updateRoomRating(track);
+      if (typeof updateListeningRoomAnnotations === 'function') updateListeningRoomAnnotations(track);
+      if (typeof renderSignalPathChain === 'function') renderSignalPathChain(track);
 
       const img = $('fullscreen-cover-img');
       const empty = $('fullscreen-cover-empty');
@@ -9701,14 +10045,6 @@
       if (favBtn) {
         favBtn.textContent = isFavorite(track) ? '♥' : '♡';
         favBtn.className = isFavorite(track) ? 'text-rose-400 text-lg transition shrink-0' : 'text-zinc-400 hover:text-white text-lg transition shrink-0';
-      }
-
-      const currentZone = state.zones ? state.zones.find(z => z.id === state.activeZoneId) : null;
-      if ($('fullscreen-zone-name')) {
-        $('fullscreen-zone-name').textContent = currentZone ? (currentZone.name || currentZone.display_name) : 'System Output';
-      }
-      if ($('fullscreen-volume-readout')) {
-        $('fullscreen-volume-readout').textContent = $('volume') ? $('volume').value : '100';
       }
 
       const curSec = (curAudio && Number.isFinite(curAudio.currentTime)) ? curAudio.currentTime : 0;
@@ -9944,11 +10280,41 @@
     // có khung nhạc) dùng chung, tránh nhân đôi logic crossfade/dọn deck.
     function finishPlaybackStart(track, generation, target, previousTrack) {
       if (generation !== state.playGeneration) return false;
-      const previous = audio, oldDeck = state.activeDeck;
-      const newDeck = oldDeck === state.deckA ? state.deckB : state.deckA;
+      const priorActiveDeck = state.activeDeck;
+      const newDeck = (state.deckA && state.deckA.element === target)
+        ? state.deckA
+        : ((state.deckB && state.deckB.element === target)
+          ? state.deckB
+          : (priorActiveDeck === state.deckA ? state.deckB : state.deckA));
+      const oldDeck = newDeck === state.deckA ? state.deckB : state.deckA;
+      const previous = (oldDeck && oldDeck.element) ? oldDeck.element : audio;
+      target.muted = false;
       audio = target; standbyAudio = previous; state.activeDeck = newDeck;
-      if (state.playbackRate) { audio.playbackRate = state.playbackRate; standbyAudio.playbackRate = state.playbackRate; }
-      const fadeSeconds = applyCrossfade(state.context, oldDeck, newDeck, state.crossfadeSeconds);
+      if (state.playbackRate) { audio.playbackRate = state.playbackRate; if (standbyAudio) standbyAudio.playbackRate = state.playbackRate; }
+      const hasValidOldTime = (previous && typeof previous.currentTime === 'number') ? previous.currentTime > 0 : true;
+      const isCtxRunning = (state.context && typeof state.context.state === 'string') ? state.context.state === 'running' : true;
+      const wasOldPlaying = Boolean(
+        previousTrack &&
+        previous &&
+        previous !== target &&
+        !previous.paused &&
+        previous.src &&
+        hasValidOldTime &&
+        isCtxRunning
+      );
+      const fadeSeconds = wasOldPlaying
+        ? applyCrossfade(state.context, oldDeck, newDeck, state.crossfadeSeconds)
+        : applyCrossfade(state.context, oldDeck, newDeck, 0);
+      if (!wasOldPlaying && newDeck && newDeck.router && newDeck.router.gain) {
+        const now = state.context ? state.context.currentTime : 0;
+        try {
+          if (typeof newDeck.router.gain.cancelScheduledValues === 'function') newDeck.router.gain.cancelScheduledValues(now);
+          newDeck.router.gain.value = 1;
+          if (typeof newDeck.router.gain.setValueAtTime === 'function') newDeck.router.gain.setValueAtTime(1, now);
+        } catch (_) {
+          newDeck.router.gain.value = 1;
+        }
+      }
       state.crossfadeUntil = fadeSeconds > 0 ? state.context.currentTime + fadeSeconds : 0;
       if (state.preloadTrackId === track.id) { state.preloadTrackId = null; state.preloadReadyUrl = null; }
       $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ'; if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
@@ -9958,20 +10324,6 @@
       const finishMeta = (typeof library !== 'undefined' && library.trackMetadata) ? library.trackMetadata(track) : track;
       if (typeof window !== 'undefined') window.NocturneNative?.updateMediaNotification(finishMeta.title || track.title || track.name || '', finishMeta.artist || track.artist || '', finishMeta.album || track.album || '', true);
       if (fadeSeconds > 0) {
-        // Pha A — để deck cũ phát hết fade rồi mới dừng/xóa src; nếu đã
-        // chuyển bài khác thì generation đổi nên timeout này bỏ qua.
-        // Pha D — thu hồi blob URL bài cũ sau khi fade xong: hai lệnh
-        // release ở cuối hàm chạy ngay khi deck cũ vẫn còn gắn URL nên
-        // bị guard chặn; sau khi deck cũ đã gỡ src thì release mới có
-        // hiệu lực, chống giữ file nhạc trong RAM suốt phiên. Release
-        // chạy cả khi generation đã đổi (đổi bài giữa fade): guard trong
-        // helper vẫn giữ URL còn gắn deck hoặc của bài đang phát.
-        // Pha A — đừng dọn deck cũ nếu preload đã gán bài kế lên nó sau
-        // khi fade kết thúc: timeupdate gọi preloadNext trong 50ms trước
-        // khi timeout này chạy; xóa src lúc đó sẽ hủy bản preload vừa
-        // xong, mất gapless và phải tải lại bài kế từ đầu khi bấm Next.
-        // Chỉ dừng/xóa src khi deck vẫn còn giữ bài cũ; thu hồi URL bài
-        // cũ vẫn chạy trong cả hai trường hợp.
         setTimeout(() => {
           if (generation === state.playGeneration) {
             const preloadTrack = state.preloadTrackId ? state.tracks.find(item => item.id === state.preloadTrackId) : null;
@@ -9989,9 +10341,11 @@
           releaseUnusedCloudUrl(previousTrack); releaseUnusedLocalUrl(previousTrack);
         }, fadeSeconds * 1000 + 50);
       } else {
-        standbyAudio.muted = true; standbyAudio.pause();
-        previous.pause(); previous.muted = true;
-        previous.removeAttribute('src'); previous.load();
+        if (standbyAudio && standbyAudio !== target) { standbyAudio.muted = true; standbyAudio.pause(); }
+        if (previous && previous !== target) {
+          previous.pause(); previous.muted = true;
+          previous.removeAttribute('src'); previous.load();
+        }
         if (oldDeck && oldDeck.router && oldDeck.router.gain) {
           try {
             if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') oldDeck.router.gain.cancelScheduledValues(state.context ? state.context.currentTime : 0);
@@ -10027,6 +10381,74 @@
       track.firstSlicePlayback = false; track.sliceEndedEarly = false; track.fullAudioUrl = null;
       return finishPlaybackStart(track, generation, target, previousTrack);
     }
+    function isExternalNonAppAssetsHttpUrl(urlStr) {
+      if (!urlStr || typeof urlStr !== 'string' || !/^https?:\/\//i.test(urlStr)) return false;
+      try {
+        const parsed = new URL(urlStr, location.href);
+        if (parsed.hostname === 'appassets.androidplatform.net') return false;
+        if (location && location.origin && parsed.origin === location.origin) return false;
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+    function getOrCreateDirectCorsBypassAudio() {
+      if (state.corsBypassAudio) return state.corsBypassAudio;
+      const el = document.createElement('audio');
+      el.id = 'cors-fallback-audio';
+      el.preload = 'auto';
+      el.className = 'hidden';
+      el.setAttribute('aria-hidden', 'true');
+      el.removeAttribute('crossorigin');
+      if (document.body) document.body.appendChild(el);
+      if (typeof attachDeckEvents === 'function') attachDeckEvents(el);
+      state.corsBypassAudio = el;
+      return el;
+    }
+    async function playViaDirectCorsBypassAudio(track, playUrl, generation, playRequestedAt, prevTrackItem) {
+      try {
+        const bypassEl = getOrCreateDirectCorsBypassAudio();
+        bypassEl.removeAttribute('crossorigin');
+        if (audio && audio !== bypassEl) { try { audio.pause(); } catch (_) {} }
+        if (standbyAudio && standbyAudio !== bypassEl) { try { standbyAudio.pause(); standbyAudio.muted = true; } catch (_) {} }
+        bypassEl.muted = false;
+        bypassEl.volume = state.bitPerfectEnabled ? 1.0 : (audio ? audio.volume : 0.72);
+        if (state.playbackRate) bypassEl.playbackRate = state.playbackRate;
+        bypassEl.src = playUrl;
+        bypassEl.load();
+        bypassEl.addEventListener('playing', () => {
+          if (generation !== state.playGeneration) return;
+          if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+          recordTimeToFirstAudio(track, playRequestedAt, performance.now(), 'direct-stream');
+          if (track.id === state.currentId) renderRoomSignal(track);
+        }, { once: true });
+        await bypassEl.play();
+        if (generation !== state.playGeneration) {
+          bypassEl.pause();
+          return false;
+        }
+        state.usingCorsBypassAudio = true;
+        audio = bypassEl;
+        $('play-button').textContent = 'Ⅱ';
+        if ($('room-play')) $('room-play').textContent = 'Ⅱ';
+        if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
+        if ($('fullscreen-play-btn')) $('fullscreen-play-btn').textContent = '⏸';
+        if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+        if (typeof updateMiniPlayerHud === 'function') updateMiniPlayerHud(track);
+        recordHistory(track);
+        const finishMeta = (typeof library !== 'undefined' && library.trackMetadata) ? library.trackMetadata(track) : track;
+        if (typeof window !== 'undefined') window.NocturneNative?.updateMediaNotification(finishMeta.title || track.title || track.name || '', finishMeta.artist || track.artist || '', finishMeta.album || track.album || '', true);
+        scheduleTrackRender();
+        if (prevTrackItem) {
+          releaseUnusedCloudUrl(prevTrackItem);
+          releaseUnusedLocalUrl(prevTrackItem);
+        }
+        return true;
+      } catch (fallbackErr) {
+        console.warn('Direct CORS-bypass external stream fallback also failed:', fallbackErr);
+        return false;
+      }
+    }
     async function playTrack(trackId) {
       const sTrackId = trackId != null ? String(trackId) : null;
       const track = state.tracks.find(item => item && (item.id === trackId || (sTrackId != null && String(item.id) === sTrackId)));
@@ -10046,31 +10468,19 @@
         state.context.resume().catch(e => console.debug('AudioContext resume in playTrack:', e));
       }
 
-      // 2. Android Integration (FiiO M11S & Android Phones):
-      if (window.NocturneNative && window.NocturneNative.isBitPerfectSupported && state.bitPerfectEnabled) {
-        if (typeof window.NocturneNative.isBitPerfectSupported !== 'function' || window.NocturneNative.isBitPerfectSupported()) {
-          window.NocturneNative.startBitPerfectPlayback(track.url || track.src, track.sampleRate || 44100, track.bitDepth || 16);
-          state.isNativeBitPerfectPlaying = true;
-          state.isNativeBitPerfectPaused = false;
-          audio.pause();
-          standbyAudio.pause();
-          displayTrack(track);
-          $('play-button').textContent = 'Ⅱ';
-          if ($('room-play')) $('room-play').textContent = 'Ⅱ';
-          if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
-          if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
-          recordHistory(track);
-          scheduleTrackRender();
-          return;
+      if (state.usingCorsBypassAudio && state.corsBypassAudio) {
+        try {
+          state.corsBypassAudio.pause();
+          state.corsBypassAudio.muted = true;
+          state.corsBypassAudio.removeAttribute('src');
+          state.corsBypassAudio.load();
+        } catch (_) {}
+        state.usingCorsBypassAudio = false;
+        if (state.activeDeck && state.activeDeck.element) {
+          audio = state.activeDeck.element;
         }
-      }
-
-      // 1. PC Desktop Bit-Perfect mode:
-      // Dynamically adapt AudioContext sampleRate to match the track's native sample rate (44.1, 48, 88.2, 96, 176.4, 192kHz): if state.context.sampleRate !== track.sampleRate, re-instantiate AudioContext({ sampleRate: track.sampleRate }).
-      if (state.bitPerfectEnabled && (!window.NocturneNative || !window.NocturneNative.isBitPerfectSupported)) {
-        if (track.sampleRate && state.context && state.context.sampleRate !== track.sampleRate) {
-          try { state.context.close(); } catch (_) {}
-          state.context = null;
+        if (state.deckA && state.deckB) {
+          standbyAudio = state.activeDeck === state.deckA ? state.deckB.element : state.deckA.element;
         }
       }
 
@@ -10092,6 +10502,8 @@
       state.bpmEnergyHistory = [];
       const roomBpmInit = $('room-bpm-badge');
       if (roomBpmInit) roomBpmInit.textContent = '-- BPM';
+      const fsRoomBpmInit = $('fs-room-bpm-badge');
+      if (fsRoomBpmInit) fsRoomBpmInit.textContent = '-- BPM';
       const trackUrl = track.url ? new URL(track.url, location.href).href : '';
       const wasPreloaded = state.preloadTrackId === track.id && !!trackUrl && standbyAudio.src === trackUrl;
       state.queueTrackIds = (state.queueTrackIds || []).filter(item => item !== track.id && String(item) !== String(track.id));
@@ -10099,13 +10511,14 @@
       if (typeof deferRenderQueue === 'function') deferRenderQueue(); else renderQueue();
       if (!wasPreloaded) ++state.preloadGeneration;
       if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; }
-      // Pha C — bài bắt đầu phát thì worker prefetch lát đầu DSD (nếu
-      // đang giải mã dở cho bài này hoặc cho bài kế cũ) không còn cần
-      // nữa: dừng để khỏi giải mã trùng với worker của playDsdTrack;
-      // lát đã ghi cache vẫn còn để playDsdTrack phát ngay.
       stopPrefetchDsdSlice();
       if (state.dsdUrl) stopDsdWorker(false);
       if (track.isDsd) {
+        if (state.isNativeBitPerfectPlaying) {
+          try { window.NocturneNative?.stopBitPerfectPlayback?.(); } catch (_) {}
+          state.isNativeBitPerfectPlaying = false;
+          state.isNativeBitPerfectPaused = false;
+        }
         try {
           clearStalePreload();
           if (!track.file && track.load) {
@@ -10119,8 +10532,12 @@
             }
             await track.load();
           }
+          if (!track.file && track.url) {
+            const dsdResp = await fetch(track.url);
+            if (dsdResp.ok) track.file = await dsdResp.blob();
+          }
           if (generation !== state.playGeneration) return;
-          if (!track.file) throw new Error('Không tải được file DSD từ nguồn cloud.');
+          if (!track.file) throw new Error('Không tải được file DSD từ nguồn phát.');
           await playDsdTrack(track, generation, playRequestedAt);
           releaseUnusedCloudUrl(previousTrack);
           releaseUnusedLocalUrl(previousTrack);
@@ -10128,11 +10545,7 @@
         catch (error) { console.error('DSD playback setup failed:', error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); if (generation === state.playGeneration) $('play-button').textContent = '▶'; skipFailedTrack(generation, `Không thể chuẩn bị phát DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`); }
         return;
       }
-      setupAudio();
-      if (!state.context) return;
-      if (state.context.state === 'suspended') await state.context.resume();
-      if (generation !== state.playGeneration) return;
-      const target = standbyAudio;
+
       const cachedCloudUrl = wasPreloaded || (track.url && state.objectUrls.has(track.url));
       if (track.load && !cachedCloudUrl) {
         if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -10148,6 +10561,59 @@
       }
       if (generation !== state.playGeneration) return;
       if (!track.url && track.src) track.url = track.src;
+
+      // 2. Android Integration (FiiO M11S & Android Phones) — guarded against empty / blob: / data: URLs:
+      const bpCandidateUrl = track.url || track.src || '';
+      const skipNativeBpOnce = Boolean(track._skipNativeBpOnce);
+      if (skipNativeBpOnce) track._skipNativeBpOnce = false;
+      const isNativeBpPlayable = Boolean(
+        !track.isDsd &&
+        !skipNativeBpOnce &&
+        bpCandidateUrl &&
+        !bpCandidateUrl.startsWith('blob:') &&
+        !bpCandidateUrl.startsWith('data:') &&
+        (bpCandidateUrl.includes('/local-media?') || bpCandidateUrl.startsWith('content://') || bpCandidateUrl.startsWith('file://') || bpCandidateUrl.startsWith('/') || /^https?:\/\//i.test(bpCandidateUrl))
+      );
+      if (window.NocturneNative && window.NocturneNative.isBitPerfectSupported && state.bitPerfectEnabled) {
+        if (isNativeBpPlayable && (typeof window.NocturneNative.isBitPerfectSupported !== 'function' || window.NocturneNative.isBitPerfectSupported())) {
+          const bpStarted = window.NocturneNative.startBitPerfectPlayback(track.url || track.src, track.sampleRate || 44100, track.bitDepth || 16);
+          if (bpStarted !== false) {
+            state.isNativeBitPerfectPlaying = true;
+            state.isNativeBitPerfectPaused = false;
+            audio.pause();
+            standbyAudio.pause();
+            displayTrack(track);
+            $('play-button').textContent = 'Ⅱ';
+            if ($('room-play')) $('room-play').textContent = 'Ⅱ';
+            if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
+            if ($('fullscreen-play-btn')) $('fullscreen-play-btn').textContent = '⏸';
+            if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+            recordHistory(track);
+            scheduleTrackRender();
+            return;
+          }
+        }
+      }
+      if (state.isNativeBitPerfectPlaying) {
+        try { window.NocturneNative?.stopBitPerfectPlayback?.(); } catch (_) {}
+        state.isNativeBitPerfectPlaying = false;
+        state.isNativeBitPerfectPaused = false;
+      }
+
+      // 1. PC Desktop / WebAudio Bit-Perfect mode (also used on Android when track.url is blob:):
+      // Dynamically adapt AudioContext sampleRate to match the track's native sample rate (44.1, 48, 88.2, 96, 176.4, 192kHz): if state.context.sampleRate !== track.sampleRate, re-instantiate AudioContext({ sampleRate: track.sampleRate }).
+      if (state.bitPerfectEnabled && (!window.NocturneNative || !window.NocturneNative.isBitPerfectSupported || !isNativeBpPlayable)) {
+        if (track.sampleRate && state.context && state.context.sampleRate !== track.sampleRate) {
+          try { state.context.close(); } catch (_) {}
+          state.context = null;
+        }
+      }
+
+      setupAudio();
+      if (!state.context) return;
+      if (state.context.state === 'suspended') await state.context.resume();
+      if (generation !== state.playGeneration) return;
+      const target = standbyAudio;
       if (!track.url) {
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         const playBtn = $('play-button');
@@ -10205,9 +10671,6 @@
       target.addEventListener('error', onPlaybackLoadError, { once: true });
       target.addEventListener('stalled', onPlaybackLoadError, { once: true });
       target.addEventListener('abort', onPlaybackLoadError, { once: true });
-      // Pha D — ghi lại thời điểm nghe thấy tiếng đầu tiên: sự kiện
-      // 'playing' của deck đích, đo từ lúc nhấn phát (gồm cả thời gian
-      // chờ tải lát đầu/toàn file); generation đổi thì bỏ qua lần đo cũ.
       target.addEventListener('playing', () => {
         if (generation !== state.playGeneration) return;
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
@@ -10226,11 +10689,14 @@
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         const playBtn = $('play-button');
         if (playBtn && playBtn.textContent === '…') playBtn.textContent = '▶';
-        // Pha A — play() reject vì lát đầu không có khung nhạc mà file đầy
-        // đủ còn đang tải (hoặc đã tải xong): thử phát lại từ file đầy đủ
-        // thay vì nhảy bài ngay; chỉ nhảy khi tải nền lỗi hoặc phát lại lỗi.
         if ((error.name === 'NotSupportedError' || target.error) && track.firstSlicePlayback && (track.fullAudioPromise || track.fullAudioUrl)) {
           if (await retrySlicePlaybackFromFullAudio(track, generation, target, previousTrack)) return;
+        }
+        if ((error.name === 'NotSupportedError' || target.error) && isExternalNonAppAssetsHttpUrl(playUrl)) {
+          target.pause();
+          target.removeAttribute('src');
+          target.load();
+          if (await playViaDirectCorsBypassAudio(track, playUrl, generation, playRequestedAt, previousTrack)) return;
         }
         if (error.name === 'NotSupportedError' || target.error) skipFailedTrack(generation, `Không thể phát bài hát${track && (track.title || track.name) ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
         else toast(mediaErrorMessage(error));
@@ -10266,7 +10732,32 @@
       const sliceUrl = URL.createObjectURL(sliceBlob); state.objectUrls.add(sliceUrl);
       state.dsdUrl = sliceUrl; state.dsdTrackId = track.id;
       track.url = sliceUrl; track.firstSlicePlayback = true; track.lastSlicePosition = null;
-      audio.src = sliceUrl; standbyAudio.muted = true;
+      audio.src = sliceUrl;
+      audio.muted = false;
+      const volSliderEl = $('volume');
+      const rawVolPct = (volSliderEl && volSliderEl.value !== '' && volSliderEl.value !== undefined) ? Number(volSliderEl.value) : 72;
+      audio.volume = state.bitPerfectEnabled ? 1.0 : (Number.isFinite(rawVolPct) ? Math.max(0, Math.min(1, rawVolPct / 100)) : 0.72);
+      standbyAudio.muted = true;
+      if (state.deckA && state.deckB) {
+        const dsdDeck = state.deckA.element === audio ? state.deckA : (state.deckB.element === audio ? state.deckB : state.activeDeck);
+        const otherDeck = dsdDeck === state.deckA ? state.deckB : state.deckA;
+        state.activeDeck = dsdDeck;
+        const now = state.context ? state.context.currentTime : 0;
+        if (dsdDeck && dsdDeck.router && dsdDeck.router.gain) {
+          try {
+            if (typeof dsdDeck.router.gain.cancelScheduledValues === 'function') dsdDeck.router.gain.cancelScheduledValues(now);
+            dsdDeck.router.gain.value = 1;
+            if (typeof dsdDeck.router.gain.setValueAtTime === 'function') dsdDeck.router.gain.setValueAtTime(1, now);
+          } catch (_) { dsdDeck.router.gain.value = 1; }
+        }
+        if (otherDeck && otherDeck.router && otherDeck.router.gain) {
+          try {
+            if (typeof otherDeck.router.gain.cancelScheduledValues === 'function') otherDeck.router.gain.cancelScheduledValues(now);
+            otherDeck.router.gain.value = 0;
+            if (typeof otherDeck.router.gain.setValueAtTime === 'function') otherDeck.router.gain.setValueAtTime(0, now);
+          } catch (_) { otherDeck.router.gain.value = 0; }
+        }
+      }
       displayTrack(track);
       try {
         await audio.play();
@@ -10396,7 +10887,32 @@
               scheduleTrackRender();
             }, {once:true});
           }
-          audio.src = url; standbyAudio.muted = true;
+          audio.src = url;
+          audio.muted = false;
+          const volEl = $('volume');
+          const volPct = (volEl && volEl.value !== '' && volEl.value !== undefined) ? Number(volEl.value) : 72;
+          audio.volume = state.bitPerfectEnabled ? 1.0 : (Number.isFinite(volPct) ? Math.max(0, Math.min(1, volPct / 100)) : 0.72);
+          standbyAudio.muted = true;
+          if (state.deckA && state.deckB) {
+            const dsdDeck = state.deckA.element === audio ? state.deckA : (state.deckB.element === audio ? state.deckB : state.activeDeck);
+            const otherDeck = dsdDeck === state.deckA ? state.deckB : state.deckA;
+            state.activeDeck = dsdDeck;
+            const now = state.context ? state.context.currentTime : 0;
+            if (dsdDeck && dsdDeck.router && dsdDeck.router.gain) {
+              try {
+                if (typeof dsdDeck.router.gain.cancelScheduledValues === 'function') dsdDeck.router.gain.cancelScheduledValues(now);
+                dsdDeck.router.gain.value = 1;
+                if (typeof dsdDeck.router.gain.setValueAtTime === 'function') dsdDeck.router.gain.setValueAtTime(1, now);
+              } catch (_) { dsdDeck.router.gain.value = 1; }
+            }
+            if (otherDeck && otherDeck.router && otherDeck.router.gain) {
+              try {
+                if (typeof otherDeck.router.gain.cancelScheduledValues === 'function') otherDeck.router.gain.cancelScheduledValues(now);
+                otherDeck.router.gain.value = 0;
+                if (typeof otherDeck.router.gain.setValueAtTime === 'function') otherDeck.router.gain.setValueAtTime(0, now);
+              } catch (_) { otherDeck.router.gain.value = 0; }
+            }
+          }
           displayTrack(track);
           if (dsdSliceUrl && ![audio, standbyAudio].some(element => element.src === sliceAbsoluteUrl)) releaseTrackUrl(dsdSliceUrl);
           if (!wasSlicePlaying) {
@@ -10581,6 +11097,10 @@
     }
 
     async function pickLocalFiles() {
+      if (window.isNativeAndroid || window.NocturneNative) {
+        $('file-input').click();
+        return;
+      }
       if (window.showOpenFilePicker) {
         try {
           const handles = await window.showOpenFilePicker({ multiple: true, types: [{ description: 'Audio files', accept: {'audio/*':['.flac','.wav','.alac','.m4a','.mp3','.mp2','.ogg','.opus','.aac','.aiff','.aif','.wma','.dsf','.dff','.cue']} }] });
@@ -10590,7 +11110,7 @@
       $('file-input').click();
     }
     async function pickFolder() {
-      if (window.isNativeAndroid || !('webkitdirectory' in document.createElement('input'))) {
+      if (window.isNativeAndroid || window.NocturneNative || !('webkitdirectory' in document.createElement('input'))) {
         $('file-input').click();
         return;
       }
@@ -11319,20 +11839,33 @@
       touchStartPos = null;
       touchStartTarget = null;
 
-      // Only handle clean taps (movement < 12px, duration < 450ms) so vertical scrolling is never intercepted
+      // Only handle clean taps (movement < 12px, duration < 450ms) so vertical scrolling is never intercepted.
+      // Never synthesize untrusted clicks on native <button>, <a>, <summary>, <label> elements so
+      // Android WebView preserves 100% trusted user activation for <input type="file">.click(),
+      // AudioContext.resume(), and <audio>.play() (CSS touch-action: manipulation already removes 300ms delay).
       if (dx < 12 && dy < 12 && dt < 450) {
         const target = initialTarget || e.target;
-        if (target?.closest?.('input, select, textarea, .seek-range')) return;
+        if (target?.closest?.('input, select, textarea, .seek-range, button, a, summary, label')) return;
         const interactiveEl = target?.closest?.(
-          'button, a, .nav-link, .source-btn, .roon-stat, [data-view], [data-smart-playlist], ' +
-          '[data-view-link], .star, [data-rating], #sidebar-close, #sidebar-toggle'
+          '[role="button"], .nav-link, .source-btn, .roon-stat, [data-view], [data-smart-playlist], ' +
+          '[data-view-link], .star, [data-rating]'
         );
-        if (interactiveEl && !interactiveEl.disabled) {
+        if (interactiveEl && !interactiveEl.disabled && !['BUTTON', 'A', 'SUMMARY', 'LABEL'].includes(interactiveEl.tagName)) {
           e.preventDefault();
           interactiveEl.click();
         }
       }
     }, { passive: false });
+
+    // Passive trusted user-gesture AudioContext unlocker for Android WebView & iOS/Desktop browsers
+    const unlockAudioContextOnGesture = () => {
+      if (state.context && state.context.state === 'suspended') {
+        state.context.resume().catch(() => {});
+      }
+    };
+    document.addEventListener('pointerdown', unlockAudioContextOnGesture, { passive: true });
+    document.addEventListener('touchend', unlockAudioContextOnGesture, { passive: true });
+    document.addEventListener('click', unlockAudioContextOnGesture, { passive: true });
 
     $('add-files').addEventListener('click', pickLocalFiles);
     $('empty-add').addEventListener('click', pickLocalFiles);
@@ -12728,18 +13261,50 @@
     }
     window.restoreFiioCatalog = restoreFiioCatalog;
 
-    async function scanFiioStorage() {
+    let pendingAndroidStorageScan = false;
+
+    async function scanFiioStorage(options) {
+      const isPlainOpts = Boolean(options && typeof options === 'object' && !options.target && !options.preventDefault);
+      const silent = Boolean(isPlainOpts && options.silent);
+      const silentIfEmpty = Boolean(isPlainOpts && options.silentIfEmpty);
       const isNative = Boolean((typeof window !== 'undefined') && (window.isNativeAndroid || window.NocturneNative));
       const native = (typeof window !== 'undefined') ? window.NocturneNative : null;
       if (!native && !isNative) {
-        toast('Tính năng này chỉ khả dụng trên ứng dụng Android hoặc máy nghe nhạc FiiO DAP.');
+        if (!silent) toast('Tính năng này chỉ khả dụng trên ứng dụng Android hoặc máy nghe nhạc FiiO DAP.');
         return;
       }
       try {
-        if (native && typeof native.requestStoragePermission === 'function') {
-          try { native.requestStoragePermission(); } catch (_) {}
+        const hasPerm = (native && typeof native.hasStoragePermission === 'function')
+          ? Boolean(native.hasStoragePermission())
+          : true;
+        if (!hasPerm) {
+          pendingAndroidStorageScan = true;
+          if (native && typeof native.requestStoragePermission === 'function') {
+            try { native.requestStoragePermission(); } catch (_) {}
+          }
+          if (!silent) {
+            toast('Vui lòng cấp quyền truy cập âm thanh / bộ nhớ để ứng dụng tự động quét nhạc trên máy.');
+          }
+          return;
+        }
+        pendingAndroidStorageScan = false;
+
+        let allFiles = [];
+
+        // 1. Primary on Android 10-15: MediaStore.Audio.Media ContentResolver query (works under Scoped Storage!)
+        if (native && typeof native.scanMediaStoreAudio === 'function') {
+          try {
+            const rawMediaStore = native.scanMediaStoreAudio(10000);
+            const msFiles = typeof rawMediaStore === 'string' ? JSON.parse(rawMediaStore) : (rawMediaStore || []);
+            if (Array.isArray(msFiles)) {
+              allFiles.push(...msFiles);
+            }
+          } catch (msErr) {
+            console.warn('MediaStore audio scan error:', msErr);
+          }
         }
 
+        // 2. Secondary / DAP SD-card supplement: recursive directory scan (finds .dsf/.dff DSD & legacy /storage mounts)
         let paths = [];
         if (native && typeof native.getStoragePaths === 'function') {
           try {
@@ -12751,7 +13316,6 @@
           paths = ['/sdcard', '/sdcard/Music', '/storage'];
         }
 
-        let allFiles = [];
         for (const p of paths) {
           if (native && typeof native.scanDirectory === 'function') {
             try {
@@ -12766,46 +13330,67 @@
           }
         }
 
-        // Deduplicate files by path
+        // Deduplicate files by canonical path and content:// uri (MediaStore entries come first and retain uri + metadata)
         const seenPaths = new Set();
+        const seenUris = new Set();
         const uniqueFiles = [];
         for (const f of allFiles) {
-          if (!f || !f.path) continue;
-          if (!seenPaths.has(f.path)) {
-            seenPaths.add(f.path);
-            uniqueFiles.push(f);
-          }
+          if (!f || (!f.path && !f.uri)) continue;
+          const normPath = f.path ? String(f.path).trim() : '';
+          const normUri = f.uri ? String(f.uri).trim() : '';
+          if (normPath && seenPaths.has(normPath)) continue;
+          if (normUri && seenUris.has(normUri)) continue;
+          if (normPath) seenPaths.add(normPath);
+          if (normUri) seenUris.add(normUri);
+          uniqueFiles.push(f);
         }
 
-        const existingPaths = new Set(
-          state.tracks
-            .filter(t => t.path || t.url)
-            .map(t => t.path || (t.url && t.url.includes('path=') ? decodeURIComponent(t.url.split('path=')[1] || '') : ''))
-        );
+        const existingPaths = new Set();
+        const existingUris = new Set();
+        for (const t of state.tracks) {
+          if (!t) continue;
+          if (t.path) existingPaths.add(t.path);
+          if (t.uri) existingUris.add(t.uri);
+          if (t.url && t.url.includes('/local-media?')) {
+            try {
+              const u = new URL(t.url, 'https://appassets.androidplatform.net');
+              const qp = u.searchParams.get('path');
+              const qu = u.searchParams.get('uri');
+              if (qp) existingPaths.add(qp);
+              if (qu) existingUris.add(qu);
+            } catch (_) {}
+          }
+        }
 
         let addedCount = 0;
         const newTracks = [];
         for (const file of uniqueFiles) {
-          if (existingPaths.has(file.path)) continue;
+          if ((file.path && existingPaths.has(file.path)) || (file.uri && existingUris.has(file.uri))) continue;
           const track = (typeof library !== 'undefined' && typeof library.createFiioTrack === 'function')
             ? library.createFiioTrack(file)
             : {
-                id: 'fiio_' + btoa(encodeURIComponent(file.path)).replace(/=/g, '').slice(-16) + '_' + Math.random().toString(36).slice(2, 6),
-                title: file.name.replace(/\.[^/.]+$/, ''),
-                name: file.name.replace(/\.[^/.]+$/, ''),
-                path: file.path,
+                id: 'fiio_' + btoa(encodeURIComponent(file.uri || file.path || file.name || '')).replace(/=/g, '').slice(-16) + '_' + Math.random().toString(36).slice(2, 6),
+                title: file.title || (file.name || '').replace(/\.[^/.]+$/, ''),
+                name: (file.name || '').replace(/\.[^/.]+$/, ''),
+                path: file.path || '',
+                uri: file.uri || undefined,
                 source: 'local',
-                url: 'https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(file.path),
-                size: file.size,
-                isDsd: /\.(dsf|dff)$/i.test(file.name),
-                format: file.name.split('.').pop().toUpperCase(),
-                artist: 'Unknown Artist',
-                album: 'FiiO Internal & SD Card',
-                duration: 0
+                url: file.uri
+                  ? ('https://appassets.androidplatform.net/local-media?uri=' + encodeURIComponent(file.uri) + '&name=' + encodeURIComponent(file.name || ''))
+                  : ('https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(file.path || '')),
+                size: file.size || 0,
+                isDsd: /\.(dsf|dff)$/i.test(file.name || ''),
+                format: (file.name || '').split('.').pop().toUpperCase(),
+                artist: file.artist || 'Unknown Artist',
+                album: file.album || 'FiiO Internal & SD Card',
+                duration: Number(file.duration) || 0
               };
-          newTracks.push(track);
-          existingPaths.add(file.path);
-          addedCount++;
+          if (track) {
+            newTracks.push(track);
+            if (file.path) existingPaths.add(file.path);
+            if (file.uri) existingUris.add(file.uri);
+            addedCount++;
+          }
         }
 
         if (newTracks.length > 0) {
@@ -12816,13 +13401,21 @@
           saveCatalog();
         }
 
-        toast(`Đã quét xong: tìm thấy ${uniqueFiles.length} bài hát trên bộ nhớ FiiO & thẻ MicroSD.`);
+        if (!silent && (!silentIfEmpty || uniqueFiles.length > 0)) {
+          toast(`Đã quét xong: tìm thấy ${uniqueFiles.length} bài hát trên bộ nhớ FiiO & thẻ MicroSD.`);
+        }
       } catch (err) {
         console.warn('FiiO storage scan failed:', err);
-        toast(`Lỗi quét bộ nhớ: ${err.message || err}`);
+        if (!silent) toast(`Lỗi quét bộ nhớ: ${err.message || err}`);
       }
     }
     window.scanFiioStorage = scanFiioStorage;
+    window.onAndroidStoragePermissionGranted = () => {
+      if (pendingAndroidStorageScan || state.tracks.length === 0) {
+        pendingAndroidStorageScan = false;
+        scanFiioStorage({ silentIfEmpty: true });
+      }
+    };
 
     function setupFiioIntegration() {
       const isAndroidDap = Boolean((typeof window !== 'undefined') && (window.isNativeAndroid || window.NocturneNative));
@@ -12896,18 +13489,28 @@
     window.onHardwarePlayPause = () => { const btn = $('play-button'); if (btn) btn.click(); };
     window.onHardwareNext = () => { const btn = $('next-button'); if (btn) btn.click(); else if (typeof playNext === 'function') playNext(1); };
     window.onHardwarePrevious = () => { const btn = $('previous-button'); if (btn) btn.click(); else if (typeof playNext === 'function') playNext(-1); };
-    const openListeningRoom = () => {
-      $('listening-room').classList.remove('hidden');
+    const openListeningRoom = (preferredMode) => {
+      $('listening-room')?.classList.add('hidden');
       $('room-play').textContent = !audio.src || audio.paused ? '▶' : 'Ⅱ';
       if (typeof renderSignalPathChain === 'function' && state.currentId) {
         const cur = state.tracks.find(t => t.id === state.currentId);
         if (cur) renderSignalPathChain(cur);
       }
+      if (typeof preferredMode === 'string' && typeof setFullscreenViewMode === 'function') {
+        setFullscreenViewMode(preferredMode);
+      }
+      if (typeof toggleRoonFullscreen === 'function') {
+        toggleRoonFullscreen(true);
+      }
     };
-    const closeListeningRoom = () => $('listening-room').classList.add('hidden');
-    $('room-button').addEventListener('click', openListeningRoom);
-    $('open-listening-room').addEventListener('click', openListeningRoom);
-    $('player-cover').addEventListener('click', openListeningRoom);
+    const closeListeningRoom = () => $('listening-room')?.classList.add('hidden');
+    window.openRoom = openListeningRoom;
+    window.openListeningRoom = openListeningRoom;
+    window.closeRoom = closeListeningRoom;
+    window.closeListeningRoom = closeListeningRoom;
+    $('room-button').addEventListener('click', () => openListeningRoom('room'));
+    $('open-listening-room').addEventListener('click', () => openListeningRoom());
+    $('player-cover').addEventListener('click', () => openListeningRoom());
     $('room-close').addEventListener('click', closeListeningRoom);
     $('listening-room').addEventListener('click', event => { if (event.target === $('listening-room')) closeListeningRoom(); });
 
@@ -13515,7 +14118,7 @@
         }
       }
       if (event.key === 'Escape' && isSettingsOpen()) { event.preventDefault(); hideSettings(); return; }
-      if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); toggleAmbientPanel(false); return; }
+      if (event.key === 'Escape') { const hadFloating = !$('queue-panel').classList.contains('hidden') || !$('sleep-panel').classList.contains('hidden') || !$('ambient-panel').classList.contains('hidden'); closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); $('sleep-panel').hidden = true; toggleAmbientPanel(false); if (hadFloating) event.stopImmediatePropagation(); return; }
       if (isEditableTarget || (target && target.closest && target.closest('button, a, [role="button"]'))) return;
       if (!$('listening-room').classList.contains('hidden')) {
         const roomShortcut = (typeof library !== 'undefined' && library && typeof library.resolvePlayerKeyboardShortcut === 'function')
@@ -13556,6 +14159,35 @@
       }
       if (typeof isSettingsOpen === 'function' && isSettingsOpen()) {
         hideSettings();
+        return true;
+      }
+      const autoEqModal = $('autoeq-modal');
+      if (autoEqModal && !autoEqModal.hidden && !autoEqModal.classList.contains('hidden')) {
+        autoEqModal.classList.add('hidden');
+        autoEqModal.hidden = true;
+        return true;
+      }
+      const cmdPaletteModal = $('command-palette-modal');
+      if (cmdPaletteModal && !cmdPaletteModal.hidden && !cmdPaletteModal.classList.contains('hidden')) {
+        if (typeof closeCommandPalette === 'function') closeCommandPalette();
+        else if (window.UIOverlay?.closeCommandPalette) window.UIOverlay.closeCommandPalette();
+        else { cmdPaletteModal.classList.add('hidden'); cmdPaletteModal.hidden = true; }
+        return true;
+      }
+      const metadataModal = $('metadata-modal');
+      if (metadataModal && !metadataModal.classList.contains('hidden')) {
+        if (typeof metadataUI !== 'undefined' && typeof metadataUI.close === 'function') metadataUI.close();
+        else metadataModal.classList.add('hidden');
+        return true;
+      }
+      const sigPopover = $('signal-path-popover');
+      if (sigPopover && !sigPopover.classList.contains('hidden')) {
+        toggleSignalPathPopover(false);
+        return true;
+      }
+      const zModal = $('zone-modal');
+      if (zModal && !zModal.classList.contains('hidden')) {
+        toggleZoneModal(false);
         return true;
       }
       const sleepPanel = $('sleep-panel');
@@ -13608,7 +14240,7 @@
       }
       const eqP = $('eq-panel');
       if (eqP && !eqP.hidden && !eqP.classList.contains('hidden')) {
-        if (!eqP.contains(targetEl) && !targetEl.closest?.('#eq-button') && !targetEl.closest?.('#header-eq-btn') && !targetEl.closest?.('#room-eq-button')) {
+        if (!eqP.contains(targetEl) && !targetEl.closest?.('#eq-button') && !targetEl.closest?.('#header-eq-btn') && !targetEl.closest?.('#room-eq-button') && !targetEl.closest?.('#fs-room-eq-btn')) {
           eqP.classList.add('hidden');
           eqP.hidden = true;
         }
@@ -13620,8 +14252,8 @@
         }
       }
     }, { passive: true });
-    $('shuffle-button').addEventListener('click', event => { state.shuffle = !state.shuffle; event.currentTarget.classList.toggle('text-violet-300', state.shuffle); toast(state.shuffle ? 'Đã bật trộn bài.' : 'Đã tắt trộn bài.'); if (state.currentId) preloadNext(true); });
-    $('repeat-button').addEventListener('click', event => { state.repeat = (state.repeat + 1) % 3; event.currentTarget.textContent = state.repeat === 2 ? '↻¹' : '↻'; event.currentTarget.classList.toggle('text-violet-300', state.repeat > 0); toast(['Không lặp','Lặp danh sách','Lặp bài hiện tại'][state.repeat]); if (state.currentId) preloadNext(true); });
+    $('shuffle-button').addEventListener('click', event => { state.shuffle = !state.shuffle; event.currentTarget.classList.toggle('text-violet-300', state.shuffle); if (typeof syncTransportModesUI === 'function') syncTransportModesUI(); toast(state.shuffle ? 'Đã bật trộn bài.' : 'Đã tắt trộn bài.'); if (state.currentId) preloadNext(true); });
+    $('repeat-button').addEventListener('click', event => { state.repeat = (state.repeat + 1) % 3; event.currentTarget.textContent = state.repeat === 2 ? '↻¹' : '↻'; event.currentTarget.classList.toggle('text-violet-300', state.repeat > 0); if (typeof syncTransportModesUI === 'function') syncTransportModesUI(); toast(['Không lặp','Lặp danh sách','Lặp bài hiện tại'][state.repeat]); if (state.currentId) preloadNext(true); });
     $('favorite-button').addEventListener('click', () => {
       const track = state.tracks.find(item => item.id === state.currentId);
       if (!track) return;
@@ -13728,30 +14360,33 @@
         if (isMobileViewport()) setSidebarOpen(false);
       });
     });
-    const roomRatingEl = $('room-rating');
-    if (roomRatingEl) {
-      roomRatingEl.addEventListener('click', event => {
-        const star = event.target.closest('[data-rating], .star');
-        const track = state.tracks.find(item => item.id === state.currentId);
-        if (!track) return;
-        if (star) {
-          const val = Number(star.dataset.rating);
-          if (val) {
-            const current = getTrackRating(track);
-            setTrackRating(track, current === val ? 0 : val);
-          }
+    const handleStarRatingClick = event => {
+      const star = event.target.closest('[data-rating], .star');
+      const track = state.tracks.find(item => item.id === state.currentId);
+      if (!track) return;
+      if (star) {
+        const val = Number(star.dataset.rating);
+        if (val) {
+          const current = getTrackRating(track);
+          setTrackRating(track, current === val ? 0 : val);
         }
-      });
-    }
+      }
+    };
+    const roomRatingEl = $('room-rating');
+    if (roomRatingEl) roomRatingEl.addEventListener('click', handleStarRatingClick);
+    const fsRoomRatingEl = $('fs-room-rating');
+    if (fsRoomRatingEl) fsRoomRatingEl.addEventListener('click', handleStarRatingClick);
 
-    $('room-edit-liner-notes-btn')?.addEventListener('click', () => {
+    const openLinerNotesEditor = () => {
       const currentTrack = (typeof trackById === 'function') ? trackById(state.currentId) : (state.tracks || []).find(t => t.id === state.currentId);
       if (currentTrack) {
         metadataUI.open(currentTrack, 'annotation');
       } else {
         toast('Chưa có bài hát nào đang phát để thêm ghi chú.');
       }
-    });
+    };
+    $('room-edit-liner-notes-btn')?.addEventListener('click', openLinerNotesEditor);
+    $('fs-edit-liner-notes-btn')?.addEventListener('click', openLinerNotesEditor);
 
     $('annotation-save-btn')?.addEventListener('click', () => {
       const track = activeAnnotationTrack || (typeof metadataUI !== 'undefined' && metadataUI.getSessionTrack ? metadataUI.getSessionTrack() : null) || ((typeof trackById === 'function') ? trackById(state.currentId) : null);
@@ -14001,12 +14636,15 @@
             const lookaheadSec = library.calculateBufferLookahead(element.currentTime, element.buffered);
             const isGaplessReady = Boolean(standbyAudio && standbyAudio.src && state.preloadReadyUrl);
             const bufText = library.formatBufferLookahead(lookaheadSec, isGaplessReady);
+            const dotTone = lookaheadSec >= 5 ? 'bg-emerald-400' : (lookaheadSec > 0 ? 'bg-amber-400' : 'bg-zinc-600');
             const roomBuf = $('room-buffer-status');
             if (roomBuf) roomBuf.textContent = bufText;
+            const fsRoomBuf = $('fs-room-buffer-status');
+            if (fsRoomBuf) fsRoomBuf.textContent = bufText;
             const roomBufDot = $('room-buffer-dot');
-            if (roomBufDot) {
-              roomBufDot.className = `inline-block h-1.5 w-1.5 rounded-full ${lookaheadSec >= 5 ? 'bg-emerald-400' : (lookaheadSec > 0 ? 'bg-amber-400' : 'bg-zinc-600')}`;
-            }
+            if (roomBufDot) roomBufDot.className = `inline-block h-1.5 w-1.5 rounded-full ${dotTone}`;
+            const fsRoomBufDot = $('fs-room-buffer-dot');
+            if (fsRoomBufDot) fsRoomBufDot.className = `inline-block h-1.5 w-1.5 shrink-0 rounded-full ${dotTone}`;
             if (typeof library.calculatePreloadReadiness === 'function') {
               const nextIdx = queueIndex();
               const nextTrack = nextIdx >= 0 ? state.tracks[nextIdx] : null;
@@ -14016,6 +14654,11 @@
               if (readinessEl) {
                 readinessEl.textContent = badgeMeta.text;
                 readinessEl.className = `rounded border px-1.5 py-0.5 text-[8px] font-medium hidden sm:inline ${badgeMeta.colorClass}`;
+              }
+              const fsReadinessEl = $('fs-room-preload-readiness');
+              if (fsReadinessEl) {
+                fsReadinessEl.textContent = badgeMeta.text;
+                fsReadinessEl.className = `mt-1 rounded border px-1.5 py-0.5 text-[8px] font-medium hidden sm:inline-block ${badgeMeta.colorClass}`;
               }
             }
           }
@@ -14052,12 +14695,15 @@
           const lookaheadSec = library.calculateBufferLookahead(element.currentTime, element.buffered);
           const isGaplessReady = Boolean(standbyAudio && standbyAudio.src && state.preloadReadyUrl);
           const bufText = library.formatBufferLookahead(lookaheadSec, isGaplessReady);
+          const dotTone = lookaheadSec >= 5 ? 'bg-emerald-400' : (lookaheadSec > 0 ? 'bg-amber-400' : 'bg-zinc-600');
           const roomBuf = $('room-buffer-status');
           if (roomBuf) roomBuf.textContent = bufText;
+          const fsRoomBuf = $('fs-room-buffer-status');
+          if (fsRoomBuf) fsRoomBuf.textContent = bufText;
           const roomBufDot = $('room-buffer-dot');
-          if (roomBufDot) {
-            roomBufDot.className = `inline-block h-1.5 w-1.5 rounded-full ${lookaheadSec >= 5 ? 'bg-emerald-400' : (lookaheadSec > 0 ? 'bg-amber-400' : 'bg-zinc-600')}`;
-          }
+          if (roomBufDot) roomBufDot.className = `inline-block h-1.5 w-1.5 rounded-full ${dotTone}`;
+          const fsRoomBufDot = $('fs-room-buffer-dot');
+          if (fsRoomBufDot) fsRoomBufDot.className = `inline-block h-1.5 w-1.5 shrink-0 rounded-full ${dotTone}`;
           if (typeof library.calculatePreloadReadiness === 'function') {
             const nextIdx = queueIndex();
             const nextTrack = nextIdx >= 0 ? state.tracks[nextIdx] : null;
@@ -14067,6 +14713,11 @@
             if (readinessEl) {
               readinessEl.textContent = badgeMeta.text;
               readinessEl.className = `rounded border px-1.5 py-0.5 text-[8px] font-medium hidden sm:inline ${badgeMeta.colorClass}`;
+            }
+            const fsReadinessEl = $('fs-room-preload-readiness');
+            if (fsReadinessEl) {
+              fsReadinessEl.textContent = badgeMeta.text;
+              fsReadinessEl.className = `mt-1 rounded border px-1.5 py-0.5 text-[8px] font-medium hidden sm:inline-block ${badgeMeta.colorClass}`;
             }
           }
         }
@@ -14278,6 +14929,7 @@
     const toggleEqPanel = () => { const p = $('eq-panel'); const isHidden = p.classList.toggle('hidden'); p.hidden = isHidden; };
     $('eq-button').addEventListener('click', toggleEqPanel);
     $('room-eq-button')?.addEventListener('click', toggleEqPanel);
+    $('fs-room-eq-btn')?.addEventListener('click', toggleEqPanel);
     $('header-eq-btn')?.addEventListener('click', toggleEqPanel);
     $('eq-close-btn')?.addEventListener('click', () => { const p = $('eq-panel'); p.classList.add('hidden'); p.hidden = true; });
     $('eq-add-band').addEventListener('click', () => addEqBand());
@@ -14287,6 +14939,8 @@
       const enabled = event.target.checked;
       $('eq-button').classList.toggle('text-violet-300', enabled);
       $('room-eq-button')?.classList.toggle('text-violet-300', enabled);
+      $('fs-room-eq-btn')?.classList.toggle('border-violet-400/60', enabled);
+      $('fs-room-eq-btn')?.classList.toggle('bg-violet-500/30', enabled);
       updateEqButtonLabel();
     });
     $('eq-preamp').addEventListener('input', applyEq);
@@ -14854,6 +15508,8 @@
 
     const zonePickerBtn = $('zone-picker-btn');
     if (zonePickerBtn) zonePickerBtn.addEventListener('click', () => toggleZoneModal(true));
+    const fsZonePickerBtn = $('fs-zone-picker-btn');
+    if (fsZonePickerBtn) fsZonePickerBtn.addEventListener('click', () => toggleZoneModal(true));
     const zoneFooterBtn = $('zone-footer-btn');
     if (zoneFooterBtn) zoneFooterBtn.addEventListener('click', () => toggleZoneModal(true));
     const zoneIdlePill = $('zone-idle-pill');
@@ -14900,6 +15556,10 @@
     if (toggleSigPath) toggleSigPath.addEventListener('click', () => toggleSignalPathPopover(true));
     const sigPathBadge = $('signal-path-badge');
     if (sigPathBadge) sigPathBadge.addEventListener('click', () => toggleSignalPathPopover(true));
+    const fsSigDetailBtn = $('fs-signal-detail-btn');
+    if (fsSigDetailBtn) fsSigDetailBtn.addEventListener('click', () => toggleSignalPathPopover(true));
+    const fsSigPathBadge = $('fs-signal-path-badge');
+    if (fsSigPathBadge) fsSigPathBadge.addEventListener('click', () => toggleSignalPathPopover(true));
     const sigPathClose = $('signal-path-close');
     if (sigPathClose) sigPathClose.addEventListener('click', () => toggleSignalPathPopover(false));
     const sigPathPopover = $('signal-path-popover');
@@ -14915,6 +15575,18 @@
     if (fsExitBtn) fsExitBtn.addEventListener('click', () => toggleRoonFullscreen(false));
     const fsCollapseBtn = $('fullscreen-collapse-btn');
     if (fsCollapseBtn) fsCollapseBtn.addEventListener('click', () => toggleRoonFullscreen(false));
+    const fsBrowserBtn = $('fullscreen-browser-btn');
+    if (fsBrowserBtn) {
+      fsBrowserBtn.addEventListener('click', () => {
+        try {
+          if (document.fullscreenElement) {
+            document.exitFullscreen?.();
+          } else {
+            document.documentElement.requestFullscreen?.();
+          }
+        } catch (_) {}
+      });
+    }
     const fsSettingsBtn = $('fullscreen-settings-btn');
     if (fsSettingsBtn) fsSettingsBtn.addEventListener('click', () => { if (typeof showSettings === 'function') showSettings(); });
     const fsFavBtn = $('fullscreen-favorite-btn');
@@ -14927,14 +15599,33 @@
     });
     const fsShuffleBtn = $('fullscreen-shuffle-btn');
     if (fsShuffleBtn) fsShuffleBtn.addEventListener('click', () => {
-      state.shuffle = !state.shuffle;
+      const mainShuf = $('shuffle-button');
+      if (mainShuf) {
+        mainShuf.click();
+      } else {
+        state.shuffle = !state.shuffle;
+        syncTransportModesUI();
+        toast(state.shuffle ? 'Xáo trộn đã bật' : 'Xáo trộn đã tắt');
+      }
       updateRoonFullscreenUI();
-      toast(state.shuffle ? 'Xáo trộn đã bật' : 'Xáo trộn đã tắt');
+    });
+    const fsRepeatBtn = $('fullscreen-repeat-btn');
+    if (fsRepeatBtn) fsRepeatBtn.addEventListener('click', () => {
+      const mainRep = $('repeat-button');
+      if (mainRep) {
+        mainRep.click();
+      } else {
+        state.repeat = ((state.repeat || 0) + 1) % 3;
+        syncTransportModesUI();
+        toast(['Không lặp', 'Lặp danh sách', 'Lặp bài hiện tại'][state.repeat]);
+      }
+      updateRoonFullscreenUI();
     });
     const fsQueueBtn = $('fullscreen-queue-btn');
     if (fsQueueBtn) fsQueueBtn.addEventListener('click', () => {
-      toggleRoonFullscreen(false);
-      openQueue();
+      const qp = $('queue-panel');
+      if (qp && !qp.classList.contains('hidden')) closeQueue();
+      else openQueue();
     });
     const fsZoneBtn = $('fullscreen-zone-btn');
     if (fsZoneBtn) fsZoneBtn.addEventListener('click', () => {
@@ -14947,7 +15638,11 @@
     });
     const fsMoreBtn = $('fullscreen-more-btn');
     if (fsMoreBtn) fsMoreBtn.addEventListener('click', () => {
-      toast('Tùy chọn bài hát Roon');
+      if (state.fullscreenViewMode !== 'room') {
+        setFullscreenViewMode('room');
+      } else {
+        openLinerNotesEditor();
+      }
     });
     const fsPlayBtn = $('fullscreen-play-btn');
     if (fsPlayBtn) {
@@ -15122,15 +15817,18 @@
     function setFullscreenViewMode(mode) {
       if (mode === 'lyrics') state.fullscreenViewMode = 'lyrics';
       else if (mode === 'stage') state.fullscreenViewMode = 'stage';
+      else if (mode === 'room') state.fullscreenViewMode = 'room';
       else state.fullscreenViewMode = 'art';
 
       const curMode = state.fullscreenViewMode;
       const stageArt = $('fullscreen-stage-art');
       const stageLyrics = $('fullscreen-stage-lyrics');
       const stageVisualizer = $('fullscreen-stage-visualizer');
+      const stageRoom = $('fullscreen-stage-room');
       const btnArt = $('fullscreen-view-art-btn');
       const btnLyrics = $('fullscreen-view-lyrics-btn');
       const btnStage = $('fullscreen-view-stage-btn');
+      const btnRoom = $('fullscreen-view-room-btn');
 
       if (stageArt) stageArt.classList.toggle('hidden', curMode !== 'art');
       if (stageLyrics) {
@@ -15141,13 +15839,18 @@
         stageVisualizer.classList.toggle('hidden', curMode !== 'stage');
         stageVisualizer.classList.toggle('flex', curMode === 'stage');
       }
+      if (stageRoom) {
+        stageRoom.classList.toggle('hidden', curMode !== 'room');
+        stageRoom.classList.toggle('flex', curMode === 'room');
+      }
 
-      const activeClass = 'rounded-full px-3 py-1 text-xs font-medium text-white bg-white/15 transition';
-      const inactiveClass = 'rounded-full px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white transition';
+      const activeClass = 'rounded-full px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-white bg-white/15 transition whitespace-nowrap';
+      const inactiveClass = 'rounded-full px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs font-medium text-zinc-400 hover:text-white transition whitespace-nowrap';
 
       if (btnArt) btnArt.className = curMode === 'art' ? activeClass : inactiveClass;
       if (btnLyrics) btnLyrics.className = curMode === 'lyrics' ? activeClass : inactiveClass;
       if (btnStage) btnStage.className = curMode === 'stage' ? activeClass : inactiveClass;
+      if (btnRoom) btnRoom.className = curMode === 'room' ? activeClass : inactiveClass;
 
       if (curMode === 'lyrics') {
         if (typeof renderFullscreenLyrics === 'function') renderFullscreenLyrics();
@@ -15155,6 +15858,11 @@
       } else if (curMode === 'stage') {
         resizeFullscreenStageCanvas();
         if (typeof setVisualizerRunning === 'function') {
+          setVisualizerRunning(true);
+        }
+      } else if (curMode === 'room') {
+        const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+        if (curAudio && !curAudio.paused && curAudio.src && typeof setVisualizerRunning === 'function') {
           setVisualizerRunning(true);
         }
       }
@@ -15171,6 +15879,8 @@
     if (fsViewLyricsBtn) fsViewLyricsBtn.addEventListener('click', () => setFullscreenViewMode('lyrics'));
     const fsViewStageBtn = $('fullscreen-view-stage-btn');
     if (fsViewStageBtn) fsViewStageBtn.addEventListener('click', () => setFullscreenViewMode('stage'));
+    const fsViewRoomBtn = $('fullscreen-view-room-btn');
+    if (fsViewRoomBtn) fsViewRoomBtn.addEventListener('click', () => setFullscreenViewMode('room'));
 
     const fsStageRadarBtn = $('fs-stage-mode-radar');
     const fsStageVuBtn = $('fs-stage-mode-vu');
@@ -15324,15 +16034,42 @@
       });
     }
 
+    for (const refreshId of ['fs-lyrics-refresh-btn', 'fs-room-lrc-refresh-btn']) {
+      $(refreshId)?.addEventListener('click', () => $('room-lyrics-refresh-btn')?.click());
+    }
+    for (const pasteId of ['fs-lyrics-paste-btn', 'fs-room-lrc-paste-btn']) {
+      $(pasteId)?.addEventListener('click', () => $('room-lyrics-paste-btn')?.click());
+    }
+    for (const exportId of ['fs-lyrics-export-btn', 'fs-room-lrc-export-btn']) {
+      $(exportId)?.addEventListener('click', () => $('room-lyrics-export-btn')?.click());
+    }
+
     document.addEventListener('keydown', (e) => {
-      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || Boolean(document.activeElement?.isContentEditable);
       if (e.key === 'Escape') {
-        if (zoneModal && !zoneModal.classList.contains('hidden')) toggleZoneModal(false);
-        if (sigPathPopover && !sigPathPopover.classList.contains('hidden')) toggleSignalPathPopover(false);
+        const autoEqM = $('autoeq-modal');
+        if (autoEqM && !autoEqM.hidden && !autoEqM.classList.contains('hidden')) { autoEqM.classList.add('hidden'); autoEqM.hidden = true; return; }
+        const metaM = $('metadata-modal');
+        if (metaM && !metaM.classList.contains('hidden')) {
+          if (typeof metadataUI !== 'undefined' && typeof metadataUI.close === 'function') metadataUI.close();
+          else metaM.classList.add('hidden');
+          return;
+        }
+        if (sigPathPopover && !sigPathPopover.classList.contains('hidden')) { toggleSignalPathPopover(false); return; }
+        if (zoneModal && !zoneModal.classList.contains('hidden')) { toggleZoneModal(false); return; }
+        const eqP = $('eq-panel');
+        if (eqP && !eqP.hidden && !eqP.classList.contains('hidden')) { eqP.classList.add('hidden'); eqP.hidden = true; return; }
         if (state.isFullscreen) toggleRoonFullscreen(false);
       } else if ((e.key === 'f' || e.key === 'F') && !isInput && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         toggleRoonFullscreen();
+      } else if (e.shiftKey && (e.key === 'l' || e.key === 'L') && !isInput && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setFullscreenViewMode('room');
+        toggleRoonFullscreen(true);
+      } else if (state.isFullscreen && !isInput && !e.ctrlKey && !e.metaKey && !e.altKey && ['1', '2', '3', '4'].includes(e.key)) {
+        const modeMap = { '1': 'art', '2': 'lyrics', '3': 'stage', '4': 'room' };
+        setFullscreenViewMode(modeMap[e.key]);
       } else if ((e.key === 'v' || e.key === 'V') && !isInput && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         state.visualizerMode = (typeof library !== 'undefined' && library && typeof library.cycleVisualizerMode === 'function')
@@ -15360,6 +16097,15 @@
     setupBitPerfectIntegration();
     applyBitPerfectMode(state.bitPerfectEnabled);
     restoreFiioCatalog();
+    if ((typeof window !== 'undefined') && (window.isNativeAndroid || window.NocturneNative) && window.NocturneNative && typeof window.NocturneNative.hasStoragePermission === 'function') {
+      try {
+        if (window.NocturneNative.hasStoragePermission() && state.tracks.length === 0) {
+          setTimeout(() => {
+            if (state.tracks.length === 0) scanFiioStorage({ silent: true, silentIfEmpty: true });
+          }, 350);
+        }
+      } catch (_) {}
+    }
     renderTracks();
     // Persist cloud catalog metadata locally; MSAL independently manages its own token cache.
     restoreCloudCatalog().then(restored => {

@@ -10,10 +10,14 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
+import android.content.ContentResolver;
+import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.content.res.AssetFileDescriptor;
+import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -35,7 +39,11 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
+import android.os.SystemClock;
+import android.provider.MediaStore;
+import android.provider.OpenableColumns;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -103,6 +111,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -267,6 +276,22 @@ public class MainActivity extends AppCompatActivity {
                 new ActivityResultContracts.RequestMultiplePermissions(),
                 result -> {
                     Log.d(TAG, "Runtime permissions response: " + result);
+                    boolean anyAudioOrStorageGranted = false;
+                    if (result != null) {
+                        for (Map.Entry<String, Boolean> entry : result.entrySet()) {
+                            String perm = entry.getKey();
+                            if (Boolean.TRUE.equals(entry.getValue()) && perm != null &&
+                                    (perm.contains("READ_MEDIA_AUDIO") || perm.contains("READ_EXTERNAL_STORAGE"))) {
+                                anyAudioOrStorageGranted = true;
+                                break;
+                            }
+                        }
+                    }
+                    if ((anyAudioOrStorageGranted || hasStoragePermission()) && mWebView != null) {
+                        mWebView.post(() -> mWebView.evaluateJavascript(
+                                "if (window.onAndroidStoragePermissionGranted) window.onAndroidStoragePermissionGranted();",
+                                null));
+                    }
                 }
         );
     }
@@ -309,10 +334,12 @@ public class MainActivity extends AppCompatActivity {
             Intent getContentIntent = new Intent(Intent.ACTION_GET_CONTENT);
             getContentIntent.addCategory(Intent.CATEGORY_OPENABLE);
             getContentIntent.setType("audio/*");
+            getContentIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             getContentIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
             getContentIntent.putExtra(Intent.EXTRA_MIME_TYPES, audioMimeTypes);
 
             Intent chooserIntent = Intent.createChooser(getContentIntent, "Chọn nhạc");
+            chooserIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             chooserIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
             mFileChooserLauncher.launch(chooserIntent);
             return true;
@@ -327,6 +354,7 @@ public class MainActivity extends AppCompatActivity {
             Intent openDocIntent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             openDocIntent.addCategory(Intent.CATEGORY_OPENABLE);
             openDocIntent.setType("audio/*");
+            openDocIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
             openDocIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
             openDocIntent.putExtra(Intent.EXTRA_MIME_TYPES, audioMimeTypes);
             mFileChooserLauncher.launch(openDocIntent);
@@ -341,6 +369,7 @@ public class MainActivity extends AppCompatActivity {
         if (fileChooserParams != null) {
             try {
                 Intent fallbackIntent = fileChooserParams.createIntent();
+                fallbackIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 fallbackIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
                 mFileChooserLauncher.launch(fallbackIntent);
                 return true;
@@ -353,6 +382,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             Intent genericIntent = new Intent(Intent.ACTION_GET_CONTENT);
             genericIntent.setType("*/*");
+            genericIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             genericIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
             mFileChooserLauncher.launch(genericIntent);
             return true;
@@ -1117,13 +1147,24 @@ public class MainActivity extends AppCompatActivity {
                     .setAcceptsDelayedFocusGain(true)
                     .setOnAudioFocusChangeListener(focusChange -> {
                         switch (focusChange) {
+                            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                                // Never pause on transient ducking (e.g. notification chime)
+                                break;
                             case AudioManager.AUDIOFOCUS_LOSS:
                             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-                            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
                                 mHasAudioFocus = false;
-                                mWebView.post(() -> mWebView.evaluateJavascript(
-                                        "if (typeof state !== 'undefined' && state.context && state.context.state === 'running') { $('play-button')?.click(); }",
-                                        null));
+                                // Only pause native BitPerfectAudioPlayer if actively playing.
+                                // NEVER blindly click #play-button on WebView because Chromium WebView
+                                // natively requests AUDIOFOCUS_GAIN for HTML5/WebAudio playback, which
+                                // triggers AUDIOFOCUS_LOSS here and would self-pause WebView playback!
+                                if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                                    mBitPerfectPlayer.pause();
+                                    if (mWebView != null) {
+                                        mWebView.post(() -> mWebView.evaluateJavascript(
+                                                "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
+                                                null));
+                                    }
+                                }
                                 break;
                             case AudioManager.AUDIOFOCUS_GAIN:
                                 mHasAudioFocus = true;
@@ -1138,8 +1179,14 @@ public class MainActivity extends AppCompatActivity {
             @SuppressWarnings("deprecation")
             int result = mAudioManager.requestAudioFocus(
                     focusChange -> {
-                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
+                                focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
                             mHasAudioFocus = false;
+                            if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                                mBitPerfectPlayer.pause();
+                            }
+                        } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+                            mHasAudioFocus = true;
                         }
                     },
                     AudioManager.STREAM_MUSIC,
@@ -1261,6 +1308,97 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * BoundedContentUriInputStream wraps AssetFileDescriptor + FileInputStream/FileChannel
+     * to stream exact byte ranges (HTTP 200 & HTTP 206 Partial Content) from Android 11-15
+     * Scoped Storage content:// URIs (MediaStore.Audio.Media & SAF DocumentsProvider).
+     */
+    public static class BoundedContentUriInputStream extends InputStream {
+        private final AssetFileDescriptor mAfd;
+        private final FileInputStream mFis;
+        private long mRemaining;
+
+        public BoundedContentUriInputStream(@NonNull AssetFileDescriptor afd, long start, long length) throws IOException {
+            this.mAfd = afd;
+            this.mFis = afd.createInputStream();
+            if (start > 0) {
+                long targetPos = Math.max(0L, afd.getStartOffset()) + start;
+                boolean positioned = false;
+                try {
+                    FileChannel channel = this.mFis.getChannel();
+                    if (channel != null) {
+                        channel.position(targetPos);
+                        positioned = true;
+                    }
+                } catch (IOException ignored) {
+                    // Pipe-backed ContentProvider does not support FileChannel.position(); fall back to stream skip
+                }
+                if (!positioned) {
+                    long toSkip = start;
+                    byte[] skipBuf = new byte[8192];
+                    while (toSkip > 0) {
+                        long skipped = this.mFis.skip(toSkip);
+                        if (skipped > 0) {
+                            toSkip -= skipped;
+                        } else {
+                            int r = this.mFis.read(skipBuf, 0, (int) Math.min(skipBuf.length, toSkip));
+                            if (r < 0) break;
+                            toSkip -= r;
+                        }
+                    }
+                }
+            }
+            this.mRemaining = length;
+        }
+
+        public BoundedContentUriInputStream(@NonNull ContentResolver resolver, @NonNull Uri contentUri, long start, long length) throws IOException {
+            this(openRequiredAssetFd(resolver, contentUri), start, length);
+        }
+
+        private static AssetFileDescriptor openRequiredAssetFd(@NonNull ContentResolver resolver, @NonNull Uri contentUri) throws IOException {
+            AssetFileDescriptor afd = resolver.openAssetFileDescriptor(contentUri, "r");
+            if (afd == null) {
+                throw new IOException("Unable to open AssetFileDescriptor for " + contentUri);
+            }
+            return afd;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (mRemaining <= 0) return -1;
+            int b = mFis.read();
+            if (b != -1) mRemaining--;
+            return b;
+        }
+
+        @Override
+        public int read(@NonNull byte[] b, int off, int len) throws IOException {
+            if (mRemaining <= 0) return -1;
+            int toRead = (int) Math.min(len, mRemaining);
+            int bytesRead = mFis.read(b, off, toRead);
+            if (bytesRead > 0) {
+                mRemaining -= bytesRead;
+            }
+            return bytesRead;
+        }
+
+        @Override
+        public int available() throws IOException {
+            return (int) Math.min(mRemaining, Integer.MAX_VALUE);
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                mFis.close();
+            } finally {
+                try {
+                    mAfd.close();
+                } catch (IOException ignored) {}
+            }
+        }
+    }
+
+    /**
      * Determines proper audio MIME type based on file extension
      */
     public static String getAudioMimeType(String fileName) {
@@ -1270,7 +1408,8 @@ public class MainActivity extends AppCompatActivity {
         if (lower.endsWith(".dsf") || lower.endsWith(".dff")) return "audio/x-dsd";
         if (lower.endsWith(".wav")) return "audio/wav";
         if (lower.endsWith(".mp3")) return "audio/mpeg";
-        if (lower.endsWith(".m4a") || lower.endsWith(".alac") || lower.endsWith(".aac")) return "audio/mp4";
+        if (lower.endsWith(".m4a") || lower.endsWith(".alac")) return "audio/mp4";
+        if (lower.endsWith(".aac")) return "audio/aac";
         if (lower.endsWith(".ogg")) return "audio/ogg";
         if (lower.endsWith(".opus")) return "audio/opus";
         if (lower.endsWith(".aiff") || lower.endsWith(".aif")) return "audio/aiff";
@@ -1279,11 +1418,44 @@ public class MainActivity extends AppCompatActivity {
         return "audio/octet-stream";
     }
 
+    private static Map<String, String> buildLocalMediaCorsHeaders() {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Access-Control-Allow-Origin", "*");
+        headers.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+        headers.put("Access-Control-Allow-Headers", "*");
+        headers.put("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges");
+        headers.put("Access-Control-Max-Age", "86400");
+        return headers;
+    }
+
+    /**
+     * Resolves a MediaStore content:// URI for a filesystem path when direct File access is blocked
+     * by Android 11-15 Scoped Storage.
+     */
+    @Nullable
+    public Uri resolveMediaStoreContentUriForPath(@Nullable String filePath) {
+        if (filePath == null || filePath.isEmpty()) return null;
+        try (Cursor cursor = getContentResolver().query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                new String[]{MediaStore.Audio.Media._ID},
+                MediaStore.Audio.Media.DATA + " = ?",
+                new String[]{filePath},
+                null
+        )) {
+            if (cursor != null && cursor.moveToFirst()) {
+                long id = cursor.getLong(0);
+                return ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id);
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
     /**
      * Handles local media streaming for URLs matching:
-     * https://appassets.androidplatform.net/local-media?path=<encoded_path>
+     * - https://appassets.androidplatform.net/local-media?uri=<encoded_content_uri>&name=<optional_filename>
+     * - https://appassets.androidplatform.net/local-media?path=<encoded_path>
      * Implements HTTP 206 Partial Content (Range header: bytes=start-end) support,
-     * Content-Range, Content-Length, and proper audio MIME types for zero memory buffering.
+     * Content-Range, Content-Length, CORS headers, and proper audio MIME types.
      */
     private WebResourceResponse handleLocalMediaStreaming(WebResourceRequest request) {
         try {
@@ -1293,27 +1465,55 @@ public class MainActivity extends AppCompatActivity {
             method = method.toUpperCase(Locale.US);
 
             if ("OPTIONS".equals(method)) {
-                Map<String, String> headers = new HashMap<>();
-                headers.put("Access-Control-Allow-Origin", "*");
-                headers.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-                headers.put("Access-Control-Allow-Headers", "*");
-                headers.put("Access-Control-Max-Age", "86400");
-                return new WebResourceResponse("text/plain", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(new byte[0]));
+                return new WebResourceResponse("text/plain", "UTF-8", 200, "OK",
+                        buildLocalMediaCorsHeaders(), new ByteArrayInputStream(new byte[0]));
             }
 
+            String uriParam = uri.getQueryParameter("uri");
+            String nameParam = uri.getQueryParameter("name");
             String pathParam = uri.getQueryParameter("path");
-            if (pathParam == null || pathParam.isEmpty()) {
+            if ((pathParam == null || pathParam.isEmpty()) && (uriParam == null || uriParam.isEmpty())) {
                 String query = uri.getQuery();
                 if (query != null && query.startsWith("path=")) {
                     pathParam = query.substring(5);
+                } else if (query != null && query.startsWith("uri=")) {
+                    uriParam = query.substring(4);
                 }
             }
 
+            if (uriParam != null && !uriParam.isEmpty() && !uriParam.startsWith("content://")) {
+                try {
+                    String decodedUri = URLDecoder.decode(uriParam, StandardCharsets.UTF_8.name());
+                    if (decodedUri.startsWith("content://")) {
+                        uriParam = decodedUri;
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            if ((uriParam == null || uriParam.isEmpty()) && pathParam != null && pathParam.startsWith("content://")) {
+                uriParam = pathParam;
+            }
+
+            Map<String, String> reqHeaders = request.getRequestHeaders();
+            String rangeHeader = null;
+            if (reqHeaders != null) {
+                for (Map.Entry<String, String> entry : reqHeaders.entrySet()) {
+                    if ("Range".equalsIgnoreCase(entry.getKey())) {
+                        rangeHeader = entry.getValue();
+                        break;
+                    }
+                }
+            }
+
+            // 1. Scoped Storage content:// URI streaming (Android 10-15 MediaStore & SAF)
+            if (uriParam != null && uriParam.startsWith("content://")) {
+                Uri contentUri = Uri.parse(uriParam);
+                return streamContentUriResponse(contentUri, nameParam, method, rangeHeader);
+            }
+
             if (pathParam == null || pathParam.isEmpty()) {
-                Map<String, String> errHeaders = new HashMap<>();
-                errHeaders.put("Access-Control-Allow-Origin", "*");
-                return new WebResourceResponse("text/plain", "UTF-8", 400, "Bad Request", errHeaders,
-                        new ByteArrayInputStream("Missing path parameter".getBytes(StandardCharsets.UTF_8)));
+                return new WebResourceResponse("text/plain", "UTF-8", 400, "Bad Request", buildLocalMediaCorsHeaders(),
+                        new ByteArrayInputStream("Missing path or uri parameter".getBytes(StandardCharsets.UTF_8)));
             }
 
             File file = new File(pathParam);
@@ -1327,27 +1527,22 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Exception ignored) {}
             }
 
+            // Automatic Scoped Storage fallback: if direct File read is blocked on Android 11+, resolve via MediaStore
             if (!file.exists() || !file.isFile() || !file.canRead()) {
+                Uri fallbackContentUri = resolveMediaStoreContentUriForPath(file.getAbsolutePath());
+                if (fallbackContentUri == null && !file.getAbsolutePath().equals(pathParam)) {
+                    fallbackContentUri = resolveMediaStoreContentUriForPath(pathParam);
+                }
+                if (fallbackContentUri != null) {
+                    return streamContentUriResponse(fallbackContentUri, file.getName(), method, rangeHeader);
+                }
                 Log.w(TAG, "Local media file not found or unreadable: " + file.getAbsolutePath());
-                Map<String, String> errHeaders = new HashMap<>();
-                errHeaders.put("Access-Control-Allow-Origin", "*");
-                return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", errHeaders,
+                return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", buildLocalMediaCorsHeaders(),
                         new ByteArrayInputStream(("File not found: " + pathParam).getBytes(StandardCharsets.UTF_8)));
             }
 
             long fileLength = file.length();
             String mimeType = getAudioMimeType(file.getName());
-
-            Map<String, String> reqHeaders = request.getRequestHeaders();
-            String rangeHeader = null;
-            if (reqHeaders != null) {
-                for (Map.Entry<String, String> entry : reqHeaders.entrySet()) {
-                    if ("Range".equalsIgnoreCase(entry.getKey())) {
-                        rangeHeader = entry.getValue();
-                        break;
-                    }
-                }
-            }
 
             long start = 0;
             long end = fileLength - 1;
@@ -1378,9 +1573,8 @@ public class MainActivity extends AppCompatActivity {
 
             if (isRange) {
                 if (start < 0 || start > end || start >= fileLength) {
-                    Map<String, String> respHeaders = new HashMap<>();
+                    Map<String, String> respHeaders = buildLocalMediaCorsHeaders();
                     respHeaders.put("Content-Range", "bytes */" + fileLength);
-                    respHeaders.put("Access-Control-Allow-Origin", "*");
                     return new WebResourceResponse("text/plain", "UTF-8", 416, "Range Not Satisfiable", respHeaders,
                             new ByteArrayInputStream(new byte[0]));
                 }
@@ -1393,14 +1587,10 @@ public class MainActivity extends AppCompatActivity {
             int statusCode = isRange ? 206 : 200;
             String statusReason = isRange ? "Partial Content" : "OK";
 
-            Map<String, String> respHeaders = new HashMap<>();
+            Map<String, String> respHeaders = buildLocalMediaCorsHeaders();
             respHeaders.put("Content-Type", mimeType);
             respHeaders.put("Content-Length", String.valueOf(contentLength));
             respHeaders.put("Accept-Ranges", "bytes");
-            respHeaders.put("Access-Control-Allow-Origin", "*");
-            respHeaders.put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-            respHeaders.put("Access-Control-Allow-Headers", "*");
-            respHeaders.put("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges");
             respHeaders.put("Cache-Control", "no-cache");
 
             if (isRange) {
@@ -1416,11 +1606,126 @@ public class MainActivity extends AppCompatActivity {
             return new WebResourceResponse(mimeType, null, statusCode, statusReason, respHeaders, is);
         } catch (Exception e) {
             Log.e(TAG, "Error handling local media streaming: " + e.getMessage(), e);
-            Map<String, String> errHeaders = new HashMap<>();
-            errHeaders.put("Access-Control-Allow-Origin", "*");
-            return new WebResourceResponse("text/plain", "UTF-8", 500, "Internal Server Error", errHeaders,
+            return new WebResourceResponse("text/plain", "UTF-8", 500, "Internal Server Error", buildLocalMediaCorsHeaders(),
                     new ByteArrayInputStream(("Stream error: " + e.getMessage()).getBytes(StandardCharsets.UTF_8)));
         }
+    }
+
+    private WebResourceResponse streamContentUriResponse(Uri contentUri, @Nullable String nameHint, String method, @Nullable String rangeHeader) throws IOException {
+        ContentResolver resolver = getContentResolver();
+        AssetFileDescriptor afd = resolver.openAssetFileDescriptor(contentUri, "r");
+        if (afd == null) {
+            return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", buildLocalMediaCorsHeaders(),
+                    new ByteArrayInputStream(("Content URI not found: " + contentUri).getBytes(StandardCharsets.UTF_8)));
+        }
+
+        long totalLength = afd.getLength();
+        if (totalLength < 0 && afd.getParcelFileDescriptor() != null) {
+            totalLength = afd.getParcelFileDescriptor().getStatSize();
+        }
+        if (totalLength < 0) {
+            try (Cursor c = resolver.query(contentUri, new String[]{OpenableColumns.SIZE}, null, null, null)) {
+                if (c != null && c.moveToFirst() && !c.isNull(0)) {
+                    totalLength = c.getLong(0);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        String mimeType = null;
+        if (nameHint != null && !nameHint.isEmpty()) {
+            String byName = getAudioMimeType(nameHint);
+            if (!"audio/octet-stream".equals(byName) && !"application/octet-stream".equals(byName)) {
+                mimeType = byName;
+            }
+        }
+        if (mimeType == null) {
+            String crMime = resolver.getType(contentUri);
+            if (crMime != null && !crMime.isEmpty() && !"application/octet-stream".equals(crMime)) {
+                if ("audio/x-flac".equalsIgnoreCase(crMime) || "application/flac".equalsIgnoreCase(crMime) || "application/x-flac".equalsIgnoreCase(crMime)) {
+                    mimeType = "audio/flac";
+                } else if ("audio/x-wav".equalsIgnoreCase(crMime)) {
+                    mimeType = "audio/wav";
+                } else if ("audio/x-m4a".equalsIgnoreCase(crMime)) {
+                    mimeType = "audio/mp4";
+                } else {
+                    mimeType = crMime;
+                }
+            }
+        }
+        if (mimeType == null) {
+            mimeType = getAudioMimeType(contentUri.toString());
+        }
+
+        if (totalLength <= 0) {
+            Map<String, String> respHeaders = buildLocalMediaCorsHeaders();
+            respHeaders.put("Content-Type", mimeType);
+            respHeaders.put("Cache-Control", "no-cache");
+            if ("HEAD".equals(method)) {
+                try { afd.close(); } catch (IOException ignored) {}
+                return new WebResourceResponse(mimeType, null, 200, "OK", respHeaders, new ByteArrayInputStream(new byte[0]));
+            }
+            return new WebResourceResponse(mimeType, null, 200, "OK", respHeaders, afd.createInputStream());
+        }
+
+        long start = 0;
+        long end = totalLength - 1;
+        boolean isRange = false;
+
+        if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+            String rangeValue = rangeHeader.substring(6).trim();
+            int dashIndex = rangeValue.indexOf('-');
+            try {
+                if (dashIndex == 0) {
+                    long suffix = Long.parseLong(rangeValue.substring(1).trim());
+                    start = Math.max(0, totalLength - suffix);
+                    isRange = true;
+                } else if (dashIndex > 0) {
+                    String sStart = rangeValue.substring(0, dashIndex).trim();
+                    String sEnd = rangeValue.substring(dashIndex + 1).trim();
+                    start = Long.parseLong(sStart);
+                    if (!sEnd.isEmpty()) {
+                        end = Long.parseLong(sEnd);
+                    }
+                    isRange = true;
+                }
+            } catch (NumberFormatException e) {
+                Log.w(TAG, "Invalid range header for content URI: " + rangeHeader, e);
+            }
+        }
+
+        if (isRange) {
+            if (start < 0 || start > end || start >= totalLength) {
+                try { afd.close(); } catch (IOException ignored) {}
+                Map<String, String> respHeaders = buildLocalMediaCorsHeaders();
+                respHeaders.put("Content-Range", "bytes */" + totalLength);
+                return new WebResourceResponse("text/plain", "UTF-8", 416, "Range Not Satisfiable", respHeaders,
+                        new ByteArrayInputStream(new byte[0]));
+            }
+            if (end >= totalLength) {
+                end = totalLength - 1;
+            }
+        }
+
+        long contentLength = end - start + 1;
+        int statusCode = isRange ? 206 : 200;
+        String statusReason = isRange ? "Partial Content" : "OK";
+
+        Map<String, String> respHeaders = buildLocalMediaCorsHeaders();
+        respHeaders.put("Content-Type", mimeType);
+        respHeaders.put("Content-Length", String.valueOf(contentLength));
+        respHeaders.put("Accept-Ranges", "bytes");
+        respHeaders.put("Cache-Control", "no-cache");
+        if (isRange) {
+            respHeaders.put("Content-Range", String.format(Locale.US, "bytes %d-%d/%d", start, end, totalLength));
+        }
+
+        if ("HEAD".equals(method)) {
+            try { afd.close(); } catch (IOException ignored) {}
+            return new WebResourceResponse(mimeType, null, statusCode, statusReason, respHeaders, new ByteArrayInputStream(new byte[0]));
+        }
+
+        InputStream is = new BoundedContentUriInputStream(afd, start, contentLength);
+        return new WebResourceResponse(mimeType, null, statusCode, statusReason, respHeaders, is);
     }
 
     /**
@@ -1998,6 +2303,11 @@ public class MainActivity extends AppCompatActivity {
                 Log.e(TAG, "BitPerfect: Cannot start playback with null or empty URL/path");
                 return false;
             }
+            String trimmedUrl = urlOrPath.trim();
+            if (trimmedUrl.startsWith("blob:") || trimmedUrl.startsWith("data:")) {
+                Log.w(TAG, "BitPerfect: Rejecting non-native blob:/data: URL so Web Audio handles playback");
+                return false;
+            }
 
             mIsStopped = false;
             mIsPaused = false;
@@ -2009,9 +2319,20 @@ public class MainActivity extends AppCompatActivity {
             acquireWakeLock();
             requestAudioFocus();
 
-            // Derive display title from file name
+            // Derive display title from file name or ?name= parameter
             try {
-                String fileName = new File(urlOrPath).getName();
+                String fileName = null;
+                if (trimmedUrl.contains("/local-media?")) {
+                    Uri parsedUri = Uri.parse(trimmedUrl);
+                    fileName = parsedUri.getQueryParameter("name");
+                    if (fileName == null || fileName.isEmpty()) {
+                        String p = parsedUri.getQueryParameter("path");
+                        if (p != null && !p.isEmpty()) fileName = new File(p).getName();
+                    }
+                }
+                if (fileName == null || fileName.isEmpty()) {
+                    fileName = new File(trimmedUrl).getName();
+                }
                 if (fileName.contains("?")) fileName = fileName.substring(0, fileName.indexOf('?'));
                 int dot = fileName.lastIndexOf('.');
                 if (dot > 0) fileName = fileName.substring(0, dot);
@@ -2023,7 +2344,7 @@ public class MainActivity extends AppCompatActivity {
 
             mPlaybackThread = new Thread(() -> {
                 Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
-                runPlaybackLoop(urlOrPath, sampleRate, bitDepth);
+                runPlaybackLoop(trimmedUrl, sampleRate, bitDepth);
             }, "BitPerfectAudioThread");
             mPlaybackThread.start();
 
@@ -2106,6 +2427,23 @@ public class MainActivity extends AppCompatActivity {
             return mDurationMs.get();
         }
 
+        private void notifyBitPerfectErrorToWeb(String reason) {
+            if (mIsStopped || mWebView == null) return;
+            final String safeMsg = (reason != null ? reason : "Bit-Perfect playback error")
+                    .replace("\\", "\\\\")
+                    .replace("'", "\\'")
+                    .replace("\n", " ")
+                    .replace("\r", " ");
+            mWebView.post(() -> {
+                if (mWebView != null) {
+                    mWebView.evaluateJavascript(
+                            "if (typeof window.onNativeBitPerfectError === 'function') window.onNativeBitPerfectError('" + safeMsg + "');",
+                            null
+                    );
+                }
+            });
+        }
+
         private void runPlaybackLoop(String urlOrPath, int requestedSampleRate, int requestedBitDepth) {
             MediaExtractor extractor = new MediaExtractor();
             MediaCodec decoder = null;
@@ -2114,9 +2452,25 @@ public class MainActivity extends AppCompatActivity {
             AudioAttributes audioAttributes = null;
 
             try {
-                // 1. Resolve source
+                // 1. Resolve source (supports /local-media?uri=content://..., /local-media?path=..., content://, file://, and http(s)://)
+                String resolvedUri = null;
                 String resolvedPath = urlOrPath;
-                if (resolvedPath.contains("local-media?path=")) {
+                if (resolvedPath.contains("/local-media?")) {
+                    try {
+                        Uri parsedLocal = Uri.parse(resolvedPath);
+                        String qUri = parsedLocal.getQueryParameter("uri");
+                        String qPath = parsedLocal.getQueryParameter("path");
+                        if (qUri != null && !qUri.isEmpty()) {
+                            resolvedUri = qUri;
+                        } else if (qPath != null && !qPath.isEmpty()) {
+                            if (qPath.startsWith("content://")) {
+                                resolvedUri = qPath;
+                            } else {
+                                resolvedPath = qPath;
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                } else if (resolvedPath.contains("local-media?path=")) {
                     int pIdx = resolvedPath.indexOf("path=");
                     resolvedPath = resolvedPath.substring(pIdx + 5);
                     int amp = resolvedPath.indexOf('&');
@@ -2124,24 +2478,42 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         resolvedPath = URLDecoder.decode(resolvedPath, StandardCharsets.UTF_8.name());
                     } catch (Exception ignored) {}
+                } else if (resolvedPath.startsWith("content://")) {
+                    resolvedUri = resolvedPath;
                 }
-                if (resolvedPath.startsWith("file://")) {
+
+                if (resolvedUri != null && !resolvedUri.startsWith("content://")) {
                     try {
-                        resolvedPath = Uri.parse(resolvedPath).getPath();
+                        String dec = URLDecoder.decode(resolvedUri, StandardCharsets.UTF_8.name());
+                        if (dec.startsWith("content://")) resolvedUri = dec;
                     } catch (Exception ignored) {}
                 }
 
-                File localFile = new File(resolvedPath);
-                if (localFile.exists() && localFile.canRead()) {
-                    try (FileInputStream fis = new FileInputStream(localFile)) {
-                        extractor.setDataSource(fis.getFD());
-                    } catch (Exception fallback) {
-                        extractor.setDataSource(resolvedPath);
-                    }
-                } else if (resolvedPath.startsWith("content://")) {
-                    extractor.setDataSource(MainActivity.this, Uri.parse(resolvedPath), null);
+                if (resolvedPath.startsWith("file://")) {
+                    try {
+                        String parsedFile = Uri.parse(resolvedPath).getPath();
+                        if (parsedFile != null) resolvedPath = parsedFile;
+                    } catch (Exception ignored) {}
+                }
+
+                if (resolvedUri != null && resolvedUri.startsWith("content://")) {
+                    extractor.setDataSource(MainActivity.this, Uri.parse(resolvedUri), null);
                 } else {
-                    extractor.setDataSource(resolvedPath);
+                    File localFile = new File(resolvedPath);
+                    if (localFile.exists() && localFile.canRead()) {
+                        try (FileInputStream fis = new FileInputStream(localFile)) {
+                            extractor.setDataSource(fis.getFD());
+                        } catch (Exception fallback) {
+                            extractor.setDataSource(resolvedPath);
+                        }
+                    } else {
+                        Uri fallbackMediaUri = resolveMediaStoreContentUriForPath(resolvedPath);
+                        if (fallbackMediaUri != null) {
+                            extractor.setDataSource(MainActivity.this, fallbackMediaUri, null);
+                        } else {
+                            extractor.setDataSource(resolvedPath);
+                        }
+                    }
                 }
 
                 // 2. Locate audio track
@@ -2159,6 +2531,7 @@ public class MainActivity extends AppCompatActivity {
 
                 if (audioTrackIdx < 0 || format == null) {
                     Log.e(TAG, "BitPerfect: No audio stream found in source: " + urlOrPath);
+                    notifyBitPerfectErrorToWeb("No audio stream found in source");
                     return;
                 }
 
@@ -2275,6 +2648,7 @@ public class MainActivity extends AppCompatActivity {
                 boolean sawInputEOS = false;
                 boolean sawOutputEOS = false;
                 final long TIMEOUT_US = 10000;
+                long lastUiUpdateElapsedMs = 0L;
 
                 while (!mIsStopped && !sawOutputEOS) {
                     // Check pause
@@ -2394,7 +2768,22 @@ public class MainActivity extends AppCompatActivity {
                             outBuf.position(info.offset);
                             outBuf.limit(info.offset + info.size);
                             track.write(outBuf, info.size, AudioTrack.WRITE_BLOCKING);
-                            mCurrentPositionMs.set(info.presentationTimeUs / 1000);
+                            long posMs = Math.max(0L, info.presentationTimeUs / 1000L);
+                            mCurrentPositionMs.set(posMs);
+                            long nowElapsed = SystemClock.uptimeMillis();
+                            if (nowElapsed - lastUiUpdateElapsedMs >= 250L && !mIsStopped && mWebView != null) {
+                                lastUiUpdateElapsedMs = nowElapsed;
+                                final long reportPosMs = posMs;
+                                final long reportDurMs = mDurationMs.get();
+                                mWebView.post(() -> {
+                                    if (!mIsStopped && mWebView != null) {
+                                        mWebView.evaluateJavascript(
+                                                "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + reportPosMs + ", " + reportDurMs + ");",
+                                                null
+                                        );
+                                    }
+                                });
+                            }
                         }
                         decoder.releaseOutputBuffer(outIndex, false);
                     }
@@ -2414,6 +2803,7 @@ public class MainActivity extends AppCompatActivity {
 
             } catch (Exception e) {
                 Log.e(TAG, "BitPerfect: Playback engine error: " + e.getMessage(), e);
+                notifyBitPerfectErrorToWeb(e.getMessage() != null ? e.getMessage() : "Bit-Perfect playback engine error");
             } finally {
                 try {
                     if (track != null) {
@@ -2620,6 +3010,87 @@ public class MainActivity extends AppCompatActivity {
                 array.put(p);
             }
             return array.toString();
+        }
+
+        /**
+         * Queries MediaStore.Audio.Media.EXTERNAL_CONTENT_URI via ContentResolver so Android 11-15
+         * Scoped Storage devices (targetSdk 35) discover all audio files with content:// URIs
+         * and native ID3/FLAC/Vorbis tags without relying on blocked File.listFiles().
+         */
+        @JavascriptInterface
+        public String scanMediaStoreAudio(int maxFiles) {
+            JSONArray results = new JSONArray();
+            int limit = maxFiles > 0 ? maxFiles : 10000;
+            String[] projection = new String[]{
+                    MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.DISPLAY_NAME,
+                    MediaStore.Audio.Media.TITLE,
+                    MediaStore.Audio.Media.ARTIST,
+                    MediaStore.Audio.Media.ALBUM,
+                    MediaStore.Audio.Media.DURATION,
+                    MediaStore.Audio.Media.SIZE,
+                    MediaStore.Audio.Media.MIME_TYPE,
+                    MediaStore.Audio.Media.DATA
+            };
+            String sortOrder = MediaStore.Audio.Media.DATE_ADDED + " DESC";
+            try (Cursor cursor = mActivity.getContentResolver().query(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    projection,
+                    null,
+                    null,
+                    sortOrder
+            )) {
+                if (cursor != null) {
+                    int idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
+                    int nameCol = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME);
+                    int titleCol = cursor.getColumnIndex(MediaStore.Audio.Media.TITLE);
+                    int artistCol = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST);
+                    int albumCol = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM);
+                    int durCol = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION);
+                    int sizeCol = cursor.getColumnIndex(MediaStore.Audio.Media.SIZE);
+                    int mimeCol = cursor.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE);
+                    int dataCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA);
+
+                    int count = 0;
+                    while (cursor.moveToNext() && count < limit) {
+                        long id = cursor.getLong(idCol);
+                        String displayName = nameCol >= 0 ? cursor.getString(nameCol) : null;
+                        String dataPath = dataCol >= 0 ? cursor.getString(dataCol) : null;
+                        String mimeType = mimeCol >= 0 ? cursor.getString(mimeCol) : null;
+                        long size = sizeCol >= 0 ? cursor.getLong(sizeCol) : 0L;
+                        if (size <= 0) continue;
+
+                        if ((displayName == null || displayName.isEmpty()) && dataPath != null && !dataPath.isEmpty()) {
+                            displayName = new File(dataPath).getName();
+                        }
+                        if (displayName == null || displayName.isEmpty()) {
+                            displayName = "Track_" + id + ".mp3";
+                        }
+
+                        Uri contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id);
+                        String title = titleCol >= 0 ? cursor.getString(titleCol) : null;
+                        String artist = artistCol >= 0 ? cursor.getString(artistCol) : null;
+                        String album = albumCol >= 0 ? cursor.getString(albumCol) : null;
+                        long durationMs = durCol >= 0 ? cursor.getLong(durCol) : 0L;
+
+                        JSONObject obj = new JSONObject();
+                        obj.put("uri", contentUri.toString());
+                        obj.put("name", displayName);
+                        obj.put("title", title != null ? title : "");
+                        obj.put("artist", artist != null ? artist : "");
+                        obj.put("album", album != null ? album : "");
+                        obj.put("duration", durationMs > 0 ? (durationMs / 1000.0) : 0);
+                        obj.put("size", size);
+                        obj.put("mimeType", mimeType != null ? mimeType : getAudioMimeType(displayName));
+                        obj.put("path", dataPath != null ? dataPath : "");
+                        results.put(obj);
+                        count++;
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "scanMediaStoreAudio error: " + e.getMessage(), e);
+            }
+            return results.toString();
         }
 
         /**

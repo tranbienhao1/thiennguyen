@@ -11,8 +11,8 @@ android {
         applicationId = "com.nocturne.audiophile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19 // History: versionCode = 18, versionCode = 17, versionCode = 16, versionCode = 15
-        versionName = "2.0.9" // History: versionName = "2.0.8", versionName = "2.0.7", versionName = "2.0.6", versionName = "2.0.5"
+        versionCode = 20 // History: versionCode = 19, versionCode = 18, versionCode = 17, versionCode = 16, versionCode = 15
+        versionName = "2.1.0" // History: versionName = "2.0.9", versionName = "2.0.8", versionName = "2.0.7", versionName = "2.0.6", versionName = "2.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

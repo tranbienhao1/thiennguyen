@@ -7878,11 +7878,11 @@
     return `Nạp đệm: ${loaded}/${total} đoạn (${mb} MB · ${percent}%)`;
   }
 
-  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v2.0.9') {
+  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v2.1.0') {
     const validRoutes = Array.isArray(routes) ? routes.filter(r => typeof r === 'string' && r.trim().length > 0) : [];
     const normalized = [...new Set(validRoutes.map(r => r.trim()))];
     return {
-      version: String(version || 'nocturne-v2.0.9'),
+      version: String(version || 'nocturne-v2.1.0'),
       generatedAt: Date.now(),
       routes: normalized,
       count: normalized.length
@@ -11970,15 +11970,40 @@
   }
 
   // FiiO M11S & Android Audiophile DAP Helpers
+  function cleanAndroidMediaMeta(val) {
+    if (val === null || val === undefined) return '';
+    const str = String(val).trim();
+    if (!str || str.toLowerCase() === '<unknown>' || str.toLowerCase() === 'unknown') return '';
+    return str;
+  }
+
+  function inferFormatFromMimeOrName(rawName, mimeType) {
+    const extMatch = /\.([a-z0-9]+)$/i.exec(rawName || '');
+    if (extMatch) return extMatch[1].toUpperCase();
+    const mime = String(mimeType || '').toLowerCase();
+    if (mime.includes('flac')) return 'FLAC';
+    if (mime.includes('dsd')) return 'DSF';
+    if (mime.includes('wav')) return 'WAV';
+    if (mime.includes('mpeg') || mime.includes('mp3')) return 'MP3';
+    if (mime.includes('mp4') || mime.includes('m4a')) return 'M4A';
+    if (mime.includes('aac')) return 'AAC';
+    if (mime.includes('ogg')) return 'OGG';
+    if (mime.includes('opus')) return 'OPUS';
+    if (mime.includes('aiff')) return 'AIFF';
+    return 'AUDIO';
+  }
+
   function createFiioTrack(file) {
     if (!file || typeof file !== 'object') return null;
-    const path = file.path || '';
-    const name = file.name || (path ? path.split(/[/\\]/).pop() : 'Unknown Track');
-    const title = name.replace(/\.[^/.]+$/, '');
-    const encoded = encodeURIComponent(path);
+    const path = typeof file.path === 'string' ? file.path : '';
+    const uri = (typeof file.uri === 'string' && file.uri.startsWith('content://')) ? file.uri : '';
+    const rawName = file.name || (path ? path.split(/[/\\]/).pop() : '') || 'Unknown Track';
+    const baseTitle = rawName.replace(/\.[^/.]+$/, '');
+    const identitySource = uri || path || rawName;
+    const encodedIdentity = encodeURIComponent(identitySource);
     let b64 = '';
     try {
-      b64 = (typeof btoa === 'function') ? btoa(encoded) : Buffer.from(encoded).toString('base64');
+      b64 = (typeof btoa === 'function') ? btoa(encodedIdentity) : Buffer.from(encodedIdentity).toString('base64');
     } catch (_) {
       b64 = Math.random().toString(36).slice(2, 10);
     }
@@ -11986,20 +12011,40 @@
     const randPart = Math.random().toString(36).slice(2, 6);
     const id = 'fiio_' + safeBase + '_' + randPart;
 
-    return {
+    const cleanTitle = cleanAndroidMediaMeta(file.title);
+    const cleanArtist = cleanAndroidMediaMeta(file.artist);
+    const cleanAlbum = cleanAndroidMediaMeta(file.album);
+    const parsedFallback = uri && typeof parseFilenameMetadata === 'function'
+      ? parseFilenameMetadata(path || rawName)
+      : null;
+
+    const resolvedTitle = cleanTitle || (parsedFallback && parsedFallback.title) || baseTitle;
+    const resolvedArtist = cleanArtist || (parsedFallback && parsedFallback.artist) || 'Unknown Artist';
+    const resolvedAlbum = cleanAlbum || (parsedFallback && parsedFallback.album) || 'FiiO Internal & SD Card';
+    const rawDur = Number(file.duration);
+    const resolvedDuration = (Number.isFinite(rawDur) && rawDur > 0) ? rawDur : 0;
+    const format = inferFormatFromMimeOrName(rawName, file.mimeType);
+    const isDsd = /\.(dsf|dff)$/i.test(rawName) || format === 'DSF' || format === 'DFF';
+    const url = uri
+      ? ('https://appassets.androidplatform.net/local-media?uri=' + encodeURIComponent(uri) + '&name=' + encodeURIComponent(file.name || rawName))
+      : ('https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(path));
+
+    const track = {
       id,
-      title,
-      name: title,
+      title: resolvedTitle,
+      name: baseTitle,
       path,
       source: 'local',
-      url: 'https://appassets.androidplatform.net/local-media?path=' + encoded,
+      url,
       size: Number(file.size) || 0,
-      isDsd: /\.(dsf|dff)$/i.test(name),
-      format: name.split('.').pop().toUpperCase(),
-      artist: 'Unknown Artist',
-      album: 'FiiO Internal & SD Card',
-      duration: 0
+      isDsd,
+      format,
+      artist: resolvedArtist,
+      album: resolvedAlbum,
+      duration: resolvedDuration
     };
+    if (uri) track.uri = uri;
+    return track;
   }
 
   function parseFiioScanResults(rawFiles) {
@@ -12013,12 +12058,15 @@
       }
     }
     if (!Array.isArray(files)) return [];
-    const seen = new Set();
+    const seenPaths = new Set();
+    const seenUris = new Set();
     const tracks = [];
     for (const f of files) {
-      if (!f || !f.path) continue;
-      if (seen.has(f.path)) continue;
-      seen.add(f.path);
+      if (!f || (!f.path && !f.uri)) continue;
+      if (f.path && seenPaths.has(f.path)) continue;
+      if (f.uri && seenUris.has(f.uri)) continue;
+      if (f.path) seenPaths.add(f.path);
+      if (f.uri) seenUris.add(f.uri);
       const track = createFiioTrack(f);
       if (track) tracks.push(track);
     }
