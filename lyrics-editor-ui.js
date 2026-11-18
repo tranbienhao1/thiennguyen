@@ -48,6 +48,17 @@
     return externalLrclibClient || null;
   }
 
+  function getNocturneLibrary() {
+    if (typeof window !== 'undefined' && window.NocturneLibrary) return window.NocturneLibrary;
+    if (typeof globalThis !== 'undefined' && globalThis.NocturneLibrary) return globalThis.NocturneLibrary;
+    if (typeof window !== 'undefined' && window.library) return window.library;
+    if (typeof globalThis !== 'undefined' && globalThis.library) return globalThis.library;
+    if (typeof require === 'function') {
+      try { return require('./library-utils.js'); } catch (_) {}
+    }
+    return null;
+  }
+
   function esc(val) {
     return String(val ?? '').replace(/[&<>"']/g, c => ({
       '&': '&amp;',
@@ -100,7 +111,7 @@
       return window.state.activeDeck.element;
     }
     if (window.audio) return window.audio;
-    if (typeof document !== 'undefined') {
+    if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
       const audios = document.querySelectorAll('audio');
       if (audios && audios.length > 0) return audios[0];
     }
@@ -585,7 +596,9 @@
     redoStack: [],
     activeInterval: null,
     activePlayingIndex: -1,
-    keyHandlerBound: null
+    keyHandlerBound: null,
+    powController: null,
+    lastPowSnapshot: null
   };
 
   function ensureEditorModalDOM() {
@@ -656,6 +669,20 @@
 
         <!-- Lines Container -->
         <div id="lyrics-editor-lines" class="flex-1 overflow-y-auto p-4 space-y-1.5 select-none focus:outline-none" tabindex="0"></div>
+
+        <!-- PoW SHA-256 Live Batch Progress & Instant Abort Bar (UPG-09) -->
+        <div id="lyrics-editor-pow-panel" class="hidden flex-col gap-2 px-5 py-2.5 border-t border-emerald-500/20 bg-emerald-950/20 text-xs" role="status" aria-live="polite">
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0 flex-1 flex flex-wrap items-center gap-2">
+              <span id="lyrics-editor-pow-status" class="font-medium text-emerald-300 truncate">⏳ Đang giải PoW SHA-256...</span>
+              <span id="lyrics-editor-pow-metrics" class="font-mono text-[11px] text-zinc-400 tabular-nums">Nonce #0 · 0 H/s · 0.0s</span>
+            </div>
+            <button id="lyrics-editor-pow-cancel-btn" type="button" class="px-2.5 py-1 rounded-lg border border-rose-500/40 bg-rose-500/15 hover:bg-rose-500/25 text-rose-200 font-semibold text-[11px] transition shrink-0">✕ Hủy giải PoW</button>
+          </div>
+          <div class="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <div id="lyrics-editor-pow-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-150" style="width: 0%" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+          </div>
+        </div>
 
         <!-- Footer Actions -->
         <footer class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-t border-white/10 bg-black/40">
@@ -731,7 +758,10 @@
     if (exportYamlBtn) exportYamlBtn.addEventListener('click', editorExportYaml);
 
     const publishBtn = modal.querySelector('#lyrics-editor-publish-btn');
-    if (publishBtn) publishBtn.addEventListener('click', editorPublishToLrclib);
+    if (publishBtn) publishBtn.addEventListener('click', () => editorPublishToLrclib());
+
+    const cancelPowBtn = modal.querySelector('#lyrics-editor-pow-cancel-btn');
+    if (cancelPowBtn) cancelPowBtn.addEventListener('click', () => editorCancelPowSolve('user_clicked_cancel_pow'));
   }
 
   function pushUndoState() {
@@ -1189,11 +1219,185 @@
     showToast(`Đã xuất file ${filename}!`);
   }
 
-  async function editorPublishToLrclib() {
-    const client = getLrclibClient();
+  function renderPowProgressUI(snapshot) {
+    if (!snapshot) return;
+    editorState.lastPowSnapshot = snapshot;
+    if (typeof document === 'undefined') return;
+
+    const panel = document.getElementById('lyrics-editor-pow-panel');
+    const statusEl = document.getElementById('lyrics-editor-pow-status');
+    const metricsEl = document.getElementById('lyrics-editor-pow-metrics');
+    const barEl = document.getElementById('lyrics-editor-pow-progress-bar');
+    const cancelBtn = document.getElementById('lyrics-editor-pow-cancel-btn');
+
+    if (panel) {
+      if (snapshot.stage === 'idle') {
+        panel.classList.add('hidden');
+        panel.classList.remove('flex');
+      } else {
+        panel.classList.remove('hidden');
+        panel.classList.add('flex');
+      }
+      panel.dataset.stage = snapshot.stage;
+    }
+
+    if (statusEl) {
+      statusEl.textContent = snapshot.statusText || '';
+    }
+    if (metricsEl) {
+      metricsEl.textContent = snapshot.metricsText || '';
+    }
+    if (barEl) {
+      const pct = Math.max(0, Math.min(100, Number(snapshot.percent) || 0));
+      if (barEl.style) {
+        barEl.style.width = `${pct}%`;
+        if (typeof barEl.style.setProperty === 'function') {
+          barEl.style.setProperty('width', `${pct}%`);
+        }
+      }
+      if (typeof barEl.setAttribute === 'function') {
+        barEl.setAttribute('aria-valuenow', String(pct));
+      }
+      barEl.dataset.percent = String(pct);
+    }
+    if (cancelBtn) {
+      cancelBtn.disabled = !snapshot.canCancel;
+      cancelBtn.classList.toggle('hidden', !snapshot.canCancel);
+    }
+  }
+
+  function ensureEditorPowController() {
+    if (editorState.powController) return editorState.powController;
+    const lib = getNocturneLibrary();
+    if (lib && typeof lib.createPowProgressController === 'function') {
+      editorState.powController = lib.createPowProgressController({
+        onUpdate(snapshot) {
+          renderPowProgressUI(snapshot);
+        }
+      });
+      return editorState.powController;
+    }
+
+    // Minimal lightweight fallback controller if library-utils.js is not loaded
+    let activeCtrl = null;
+    let stage = 'idle';
+    let lastSnap = {
+      stage: 'idle',
+      nonce: 0,
+      iterations: 0,
+      hashRateHps: 0,
+      elapsedMs: 0,
+      batchIndex: 0,
+      percent: 0,
+      canCancel: false,
+      statusText: 'Sẵn sàng',
+      metricsText: 'Nonce #0 · 0 H/s · 0.0s'
+    };
+    editorState.powController = {
+      beginSession() {
+        if (activeCtrl && !activeCtrl.signal.aborted) activeCtrl.abort('superseded');
+        activeCtrl = new AbortController();
+        stage = 'requesting_challenge';
+        lastSnap = { ...lastSnap, stage, percent: 8, canCancel: true, statusText: '⏳ Đang lấy thử thách PoW SHA-256 từ LRCLIB...' };
+        renderPowProgressUI(lastSnap);
+        return { signal: activeCtrl.signal, snapshot: lastSnap };
+      },
+      setStage(nextStage, extra = {}) {
+        stage = nextStage;
+        const pct = nextStage === 'completed' ? 100 : (nextStage === 'publishing' ? 96 : (nextStage === 'solving' ? 15 : 8));
+        const canCancel = nextStage === 'requesting_challenge' || nextStage === 'solving' || nextStage === 'publishing';
+        const statusText = nextStage === 'completed'
+          ? '✅ Đóng góp lên LRCLIB thành công!'
+          : (nextStage === 'publishing'
+            ? '🚀 Đã giải xong PoW · Đang gửi lời bài hát lên LRCLIB...'
+            : (nextStage === 'aborted'
+              ? '⏹ Đã hủy giải PoW tức thì.'
+              : (nextStage === 'error'
+                ? `⚠️ Lỗi giải PoW / đóng góp${extra.errorMessage ? ': ' + extra.errorMessage : ''}`
+                : '⏳ Đang giải PoW SHA-256...')));
+        lastSnap = { ...lastSnap, stage: nextStage, percent: pct, canCancel, statusText };
+        renderPowProgressUI(lastSnap);
+        return lastSnap;
+      },
+      reportProgress(p = {}) {
+        stage = 'solving';
+        const nonce = Number(p.nonce) || 0;
+        const hps = Number(p.hashRateHps) || 0;
+        const elapsedMs = Number(p.elapsedMs) || 0;
+        const batchIndex = Number(p.batchIndex) || 1;
+        lastSnap = {
+          ...lastSnap,
+          stage: 'solving',
+          nonce,
+          iterations: Number(p.iterations) || nonce,
+          hashRateHps: hps,
+          elapsedMs,
+          batchIndex,
+          percent: Math.min(92, 12 + batchIndex * 5),
+          canCancel: true,
+          statusText: `⏳ Đang giải PoW SHA-256 (lô #${batchIndex})...`,
+          metricsText: `Nonce #${nonce} · ${hps} H/s · ${(elapsedMs / 1000).toFixed(1)}s`
+        };
+        renderPowProgressUI(lastSnap);
+        return lastSnap;
+      },
+      abort(reason = 'pow_cancelled_by_user') {
+        const hadActive = Boolean(activeCtrl && !activeCtrl.signal.aborted);
+        if (activeCtrl && !activeCtrl.signal.aborted) activeCtrl.abort(reason);
+        activeCtrl = null;
+        stage = 'aborted';
+        lastSnap = { ...lastSnap, stage: 'aborted', canCancel: false, statusText: '⏹ Đã hủy giải PoW tức thì.' };
+        renderPowProgressUI(lastSnap);
+        return { aborted: hadActive, reason, snapshot: lastSnap };
+      },
+      reset() {
+        if (activeCtrl && !activeCtrl.signal.aborted) activeCtrl.abort('reset');
+        activeCtrl = null;
+        stage = 'idle';
+        lastSnap = { ...lastSnap, stage: 'idle', percent: 0, canCancel: false };
+        renderPowProgressUI(lastSnap);
+        return lastSnap;
+      },
+      isRunning: () => stage === 'requesting_challenge' || stage === 'solving' || stage === 'publishing',
+      getSignal: () => (activeCtrl ? activeCtrl.signal : null),
+      getSnapshot: () => lastSnap,
+      getWorkerRunner: () => null
+    };
+    return editorState.powController;
+  }
+
+  function editorCancelPowSolve(reason = 'user_clicked_cancel_pow') {
+    const powCtrl = editorState.powController;
+    if (!powCtrl) {
+      return { aborted: false, reason };
+    }
+    const wasRunning = powCtrl.isRunning();
+    const res = powCtrl.abort(reason);
+    const publishBtn = typeof document !== 'undefined' ? document.getElementById('lyrics-editor-publish-btn') : null;
+    if (publishBtn) {
+      publishBtn.disabled = false;
+      publishBtn.innerHTML = '<span>🚀</span> <span>Đóng góp lên LRCLIB</span>';
+    }
+    if (wasRunning && reason !== 'editor_modal_closed') {
+      showToast('Đã hủy giải Proof-of-Work tức thì.');
+    }
+    return res;
+  }
+
+  async function editorPublishToLrclib(publishOptions = {}) {
+    const opts = (publishOptions && typeof publishOptions === 'object' && !publishOptions.type && !publishOptions.target)
+      ? publishOptions
+      : {};
+
+    const client = opts.client || getLrclibClient();
     if (!client || typeof client.publishLyrics !== 'function') {
       showToast('Tính năng đóng góp LRCLIB chưa sẵn sàng (LrclibClient not found).');
-      return;
+      return null;
+    }
+
+    const powCtrl = ensureEditorPowController();
+    if (powCtrl.isRunning()) {
+      return null;
     }
 
     const title = (editorState.metadata && editorState.metadata.title) || (editorState.track && editorState.track.title) || '';
@@ -1202,33 +1406,70 @@
 
     if (!title || !artist) {
       showToast('Vui lòng cung cấp đầy đủ Tên bài hát và Nghệ sĩ trước khi đóng góp.');
-      return;
+      return null;
     }
 
     const durSec = Math.round((editorState.metadata.duration_ms || getPlayerDurationMs()) / 1000);
     const lrcText = serializeLrcInternal(editorState.lines, editorState.metadata);
     const plainText = editorState.lines.map(l => l.text).join('\n');
 
-    const publishBtn = document.getElementById('lyrics-editor-publish-btn');
-    const origHtml = publishBtn ? publishBtn.innerHTML : '';
+    const publishBtn = typeof document !== 'undefined' ? document.getElementById('lyrics-editor-publish-btn') : null;
+    const origHtml = publishBtn ? (publishBtn.innerHTML || '<span>🚀</span> <span>Đóng góp lên LRCLIB</span>') : '<span>🚀</span> <span>Đóng góp lên LRCLIB</span>';
     if (publishBtn) {
       publishBtn.disabled = true;
       publishBtn.innerHTML = '⏳ Đang giải PoW & gửi...';
     }
 
+    const session = powCtrl.beginSession({ signal: opts.signal });
+    const signal = session.signal;
+
     try {
-      await client.publishLyrics({
-        trackName: title,
-        artistName: artist,
-        albumName: album,
-        duration: durSec,
-        plainLyrics: plainText,
-        syncedLyrics: lrcText
-      });
+      const result = await client.publishLyrics(
+        {
+          trackName: title,
+          artistName: artist,
+          albumName: album,
+          duration: durSec,
+          plainLyrics: plainText,
+          syncedLyrics: lrcText
+        },
+        {
+          signal,
+          powRunner: opts.powRunner || (typeof powCtrl.getWorkerRunner === 'function' ? powCtrl.getWorkerRunner() : undefined),
+          solvePoW: opts.solvePoW,
+          batchSize: opts.batchSize,
+          maxIterations: opts.maxIterations,
+          onStageChange(stageName, info) {
+            powCtrl.setStage(stageName, info);
+            if (typeof opts.onStageChange === 'function') {
+              opts.onStageChange(stageName, powCtrl.getSnapshot());
+            }
+          },
+          onProgress(progressTelemetry) {
+            const snap = powCtrl.reportProgress(progressTelemetry);
+            if (typeof opts.onProgress === 'function') {
+              opts.onProgress(snap);
+            }
+          }
+        }
+      );
+
+      powCtrl.setStage('completed');
       showToast('Đóng góp lên LRCLIB thành công! Cảm ơn bạn.');
+      return result;
     } catch (err) {
+      if ((err && err.name === 'AbortError') || (signal && signal.aborted)) {
+        if (powCtrl.getSnapshot().stage !== 'aborted') {
+          powCtrl.abort((signal && signal.reason) || 'pow_aborted');
+        }
+        if (opts.rethrowAbort === true) throw err;
+        return { aborted: true };
+      }
+      powCtrl.setStage('error', { errorMessage: err && err.message ? err.message : 'Lỗi kết nối' });
       console.error('[LyricsUI] Publish error:', err);
       showToast(`Không thể đóng góp lên LRCLIB: ${err.message || 'Lỗi kết nối'}`);
+      if (opts.rethrowError === true) throw err;
+      return null;
     } finally {
       if (publishBtn) {
         publishBtn.disabled = false;
@@ -1316,6 +1557,9 @@
   }
 
   function closeEditor() {
+    if (editorState.powController && editorState.powController.isRunning()) {
+      editorCancelPowSolve('editor_modal_closed');
+    }
     const modal = document.getElementById('lyrics-editor-modal');
     if (modal) {
       modal.classList.add('hidden');
@@ -1740,6 +1984,8 @@
     editorExportLrc,
     editorExportYaml,
     editorPublishToLrclib,
+    editorCancelPowSolve,
+    ensureEditorPowController,
 
     // 3. LRCLIB Search Modal
     openSearch,

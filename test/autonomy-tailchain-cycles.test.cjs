@@ -5403,3 +5403,389 @@ describe('Autonomy Tail-Chaining Cycle 24 — BUG-09 (Queue Lyrics Preload Lifec
     assert.ok(html.includes('state.crossfeedNodes.output.connect(state.context.destination)'));
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 25 — UPG-09 (Batch PoW SHA-256 Progress Telemetry & Instant Abort in Lyric Editor V2)', () => {
+  it('exposes UPG-09 PoW progress & abort helpers on module.exports, window.NocturneLibrary, window.library, and LyricsEditorUI', () => {
+    assert.equal(typeof lib.estimatePowTargetExpectedHashes, 'function');
+    assert.equal(typeof lib.formatPowProgressStatus, 'function');
+    assert.equal(typeof lib.createPowProgressController, 'function');
+
+    const sandbox = { library: { keepRefUpg09: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.estimatePowTargetExpectedHashes, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.formatPowProgressStatus, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.createPowProgressController, 'function');
+    assert.equal(typeof sandbox.library.createPowProgressController, 'function');
+    assert.equal(sandbox.library.keepRefUpg09, true);
+
+    const LyricsEditorUI = require(path.join(ROOT, 'lyrics-editor-ui.js'));
+    assert.equal(typeof LyricsEditorUI.editorPublishToLrclib, 'function');
+    assert.equal(typeof LyricsEditorUI.editorCancelPowSolve, 'function');
+    assert.equal(typeof LyricsEditorUI.ensureEditorPowController, 'function');
+  });
+
+  it('computes accurate expected PoW hashes and formats live batch hash-rate/nonce telemetry across stages', () => {
+    // 000fffff... -> probability ~ 1/4096 -> expectedHashes ~ 4096
+    const target4k = '000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+    const est4k = lib.estimatePowTargetExpectedHashes(target4k);
+    assert.ok(est4k >= 4000 && est4k <= 4200, `Expected ~4096 hashes for 000fffff..., got ${est4k}`);
+
+    const reqStatus = lib.formatPowProgressStatus({ stage: 'requesting_challenge' });
+    assert.equal(reqStatus.percent, 8);
+    assert.equal(reqStatus.canCancel, true);
+    assert.ok(reqStatus.statusText.includes('LRCLIB'));
+
+    const solveKh = lib.formatPowProgressStatus({
+      stage: 'solving',
+      nonce: 12480,
+      iterations: 12480,
+      hashRateHps: 85400,
+      elapsedMs: 146,
+      batchIndex: 12,
+      expectedHashes: 16384
+    });
+    assert.equal(solveKh.canCancel, true);
+    assert.ok(solveKh.percent > 10 && solveKh.percent <= 92);
+    assert.equal(solveKh.nonceFormatted, '12,480');
+    assert.equal(solveKh.hashRateFormatted, '85.4 kH/s');
+    assert.ok(solveKh.statusText.includes('lô #12'));
+    assert.ok(solveKh.metricsText.includes('Nonce #12,480'));
+    assert.ok(solveKh.metricsText.includes('85.4 kH/s'));
+
+    const solveMh = lib.formatPowProgressStatus({
+      stage: 'solving',
+      nonce: 1500000,
+      iterations: 1500000,
+      hashRateHps: 2450000,
+      elapsedMs: 612,
+      batchIndex: 30
+    });
+    assert.equal(solveMh.hashRateFormatted, '2.45 MH/s');
+
+    const pubStatus = lib.formatPowProgressStatus({ stage: 'publishing', nonce: 19000, elapsedMs: 210 });
+    assert.equal(pubStatus.percent, 96);
+    assert.equal(pubStatus.canCancel, true);
+
+    const doneStatus = lib.formatPowProgressStatus({ stage: 'completed', nonce: 19000, elapsedMs: 250 });
+    assert.equal(doneStatus.percent, 100);
+    assert.equal(doneStatus.canCancel, false);
+
+    const abortStatus = lib.formatPowProgressStatus({ stage: 'aborted', lastPercent: 48 });
+    assert.equal(abortStatus.percent, 48);
+    assert.equal(abortStatus.canCancel, false);
+    assert.ok(abortStatus.statusText.includes('hủy'));
+  });
+
+  it('aborts PoW mid-solve instantaneously with 0 dangling Workers/timers and prevents /api/publish call', async () => {
+    const LrclibClient = require(path.join(ROOT, 'lrclib-client.js'));
+    const impossibleTarget = '0000000000000000000000000000000000000000000000000000000000000000';
+    const updates = [];
+
+    // 1. Test createPowProgressController + inline Blob Worker instant termination
+    const createdWorkers = [];
+    class FakePowWorker {
+      constructor(url) {
+        this.url = url;
+        this.terminated = false;
+        this.onmessage = null;
+        this.onerror = null;
+        this._listeners = {};
+        this._timer = null;
+        createdWorkers.push(this);
+      }
+      addEventListener(type, fn) { (this._listeners[type] ||= []).push(fn); }
+      postMessage(msg) {
+        if (msg && msg.type === 'abort') {
+          if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+          return;
+        }
+        if (msg && msg.type === 'solve') {
+          let batch = 0;
+          const step = () => {
+            if (this.terminated) return;
+            batch++;
+            const ev = {
+              data: {
+                type: 'progress',
+                iterations: batch * 512,
+                nonce: batch * 512,
+                elapsedMs: batch * 6,
+                hashRateHps: 85333,
+                batchIndex: batch,
+                maxIterations: msg.maxIterations
+              }
+            };
+            if (this.onmessage) this.onmessage(ev);
+            (this._listeners.message || []).forEach(fn => fn(ev));
+            if (!this.terminated) {
+              this._timer = setTimeout(step, 1);
+            }
+          };
+          this._timer = setTimeout(step, 1);
+        }
+      }
+      terminate() {
+        this.terminated = true;
+        if (this._timer) {
+          clearTimeout(this._timer);
+          this._timer = null;
+        }
+      }
+    }
+
+    const revokedUrls = [];
+    const runner = lib.createLrclibPowWorkerRunner({
+      Worker: FakePowWorker,
+      Blob: class FakeBlob { constructor(parts) { this.parts = parts; } },
+      URL: {
+        createObjectURL: () => 'blob:nocturne-pow-upg09',
+        revokeObjectURL: (u) => revokedUrls.push(u)
+      }
+    });
+
+    const powCtrl = lib.createPowProgressController({
+      workerRunner: runner,
+      onUpdate(snap) { updates.push(snap); }
+    });
+
+    await assert.rejects(
+      () => powCtrl.solveChallenge('upg09_prefix_', impossibleTarget, {
+        batchSize: 512,
+        maxIterations: 500000,
+        onProgress(snap) {
+          if (snap.batchIndex >= 3) {
+            powCtrl.abort('instant_cancel_btn');
+          }
+        }
+      }),
+      err => err && err.name === 'AbortError'
+    );
+
+    assert.equal(revokedUrls.length, 1, 'Worker Blob URL must be revoked immediately');
+    assert.equal(createdWorkers.length, 1);
+    assert.equal(createdWorkers[0].terminated, true, 'Worker must be terminated immediately on abort');
+    assert.equal(createdWorkers[0]._timer, null, 'Must leave 0 dangling timers inside terminated worker');
+    assert.equal(runner.getActiveWorkerCount(), 0, 'Active worker count must drop to 0 immediately');
+    assert.equal(powCtrl.isRunning(), false);
+    assert.equal(powCtrl.getSnapshot().stage, 'aborted');
+    assert.ok(updates.some(u => u.stage === 'solving' && u.batchIndex >= 3 && u.hashRateHps > 0));
+
+    // 2. Test LrclibClient.publishLyrics end-to-end with onProgress + mid-solve AbortSignal
+    const outboundUrls = [];
+    const clientAbort = new AbortController();
+    let publishProgressCount = 0;
+    const client = new LrclibClient.LrclibClient({
+      minSpacingMs: 0,
+      fetch: async (url) => {
+        outboundUrls.push(url);
+        if (url.includes('/api/request-challenge')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => null },
+            json: async () => ({ prefix: 'lrclib_live_abort_', target: impossibleTarget })
+          };
+        }
+        if (url.includes('/api/publish')) {
+          return {
+            ok: true,
+            status: 201,
+            headers: { get: () => null },
+            json: async () => ({ success: true })
+          };
+        }
+        return { ok: false, status: 404, headers: { get: () => null } };
+      }
+    });
+
+    await assert.rejects(
+      () => client.publishLyrics(
+        {
+          trackName: 'Abort Test Track',
+          artistName: 'Nocturne Artist',
+          duration: 200,
+          syncedLyrics: '[00:01.00]Line'
+        },
+        {
+          signal: clientAbort.signal,
+          batchSize: 64,
+          maxIterations: 500000,
+          onProgress(p) {
+            publishProgressCount++;
+            assert.equal(typeof p.nonce, 'number');
+            assert.equal(typeof p.hashRateHps, 'number');
+            assert.equal(typeof p.elapsedMs, 'number');
+            if (publishProgressCount >= 2) {
+              clientAbort.abort('user_aborted_publish');
+            }
+          }
+        }
+      ),
+      err => err && err.name === 'AbortError'
+    );
+
+    assert.ok(publishProgressCount >= 2, 'publishLyrics must emit batch onProgress telemetry before abort');
+    assert.equal(outboundUrls.length, 1, 'Must call /api/request-challenge only and NEVER call /api/publish after abort');
+    assert.ok(outboundUrls[0].includes('/api/request-challenge'));
+  });
+
+  it('wires live PoW progress bar & instant Hủy giải PoW button in LyricsEditorUI modal DOM', async () => {
+    // Isolated minimal DOM sandbox for LyricsEditorUI
+    const byId = new Map();
+    class SimpleEl {
+      constructor(tag) {
+        this.tagName = String(tag).toUpperCase();
+        this.id = '';
+        this.children = [];
+        this.dataset = {};
+        this.listeners = {};
+        this.disabled = false;
+        this.value = '';
+        this._text = '';
+        this._html = '';
+        this._attrs = new Map();
+        const cls = new Set();
+        this.classList = {
+          add: (...n) => n.forEach(x => x && x.split(/\s+/).forEach(p => p && cls.add(p))),
+          remove: (...n) => n.forEach(x => x && x.split(/\s+/).forEach(p => p && cls.delete(p))),
+          toggle: (n, f) => {
+            const on = f === undefined ? !cls.has(n) : Boolean(f);
+            if (on) cls.add(n); else cls.delete(n);
+          },
+          contains: n => cls.has(n)
+        };
+        this.style = {
+          width: '0%',
+          _m: new Map(),
+          setProperty(k, v) { this._m.set(k, String(v)); if (k === 'width') this.width = String(v); },
+          removeProperty(k) { this._m.delete(k); },
+          getPropertyValue(k) { return this._m.get(k) || ''; }
+        };
+      }
+      set className(v) {
+        String(v || '').split(/\s+/).filter(Boolean).forEach(c => this.classList.add(c));
+      }
+      get textContent() { return this.children.length ? this.children.map(c => c.textContent || '').join('') : this._text; }
+      set textContent(v) { this.children = []; this._text = String(v); }
+      get innerHTML() { return this._html; }
+      set innerHTML(v) {
+        this._html = String(v);
+        this.children = [];
+        const tagRe = /<([a-zA-Z0-9_-]+)((?:\s+[a-zA-Z0-9_-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?)*)\s*\/?>/g;
+        let m;
+        while ((m = tagRe.exec(String(v))) !== null) {
+          const child = new SimpleEl(m[1]);
+          const attrRe = /([a-zA-Z0-9_-]+)(?:\s*=\s*"([^"]*)")?/g;
+          let am;
+          while ((am = attrRe.exec(m[2] || '')) !== null) {
+            child.setAttribute(am[1], am[2] || '');
+          }
+          this.appendChild(child);
+        }
+      }
+      setAttribute(k, v) {
+        this._attrs.set(k, String(v));
+        if (k === 'id') { this.id = String(v); byId.set(this.id, this); }
+        else if (k === 'class') this.className = v;
+      }
+      getAttribute(k) { return this._attrs.get(k) ?? null; }
+      appendChild(c) { this.children.push(c); if (c.id) byId.set(c.id, c); return c; }
+      removeChild(c) { this.children = this.children.filter(x => x !== c); return c; }
+      addEventListener(t, h) { (this.listeners[t] ||= []).push(h); }
+      removeEventListener(t, h) { if (this.listeners[t]) this.listeners[t] = this.listeners[t].filter(x => x !== h); }
+      click() { (this.listeners.click || []).forEach(h => h({ type: 'click', target: this, stopPropagation() {} })); }
+      querySelector(sel) { return sel.startsWith('#') ? (byId.get(sel.slice(1)) || null) : null; }
+      querySelectorAll() { return []; }
+    }
+
+    const bodyEl = new SimpleEl('body');
+    const uiSandbox = {
+      NocturneLibrary: lib,
+      LrclibClient: require(path.join(ROOT, 'lrclib-client.js')),
+      AbortController,
+      setTimeout,
+      clearTimeout,
+      setInterval: () => 1,
+      clearInterval: () => {},
+      console,
+      document: {
+        readyState: 'complete',
+        body: bodyEl,
+        createElement: tag => new SimpleEl(tag),
+        createTextNode: txt => { const t = new SimpleEl('text'); t.textContent = txt; return t; },
+        getElementById: id => byId.get(id) || null,
+        querySelector: sel => (sel.startsWith('#') ? (byId.get(sel.slice(1)) || null) : null),
+        querySelectorAll: () => [],
+        addEventListener: () => {},
+        removeEventListener: () => {}
+      }
+    };
+    uiSandbox.window = uiSandbox;
+    uiSandbox.globalThis = uiSandbox;
+
+    const uiCode = fs.readFileSync(path.join(ROOT, 'lyrics-editor-ui.js'), 'utf8');
+    vm.runInNewContext(uiCode, uiSandbox);
+    const UI = uiSandbox.LyricsEditorUI;
+
+    UI.openEditor(
+      { id: 'upg09_t1', title: 'Hi-Res Ballad', artist: 'Nocturne Ensemble', duration: 240 },
+      { lines: [{ text: 'First synced line', start_ms: 1000, end_ms: 4000 }] }
+    );
+
+    const powPanel = byId.get('lyrics-editor-pow-panel');
+    const powStatus = byId.get('lyrics-editor-pow-status');
+    const powMetrics = byId.get('lyrics-editor-pow-metrics');
+    const powBar = byId.get('lyrics-editor-pow-progress-bar');
+    const powCancelBtn = byId.get('lyrics-editor-pow-cancel-btn');
+    const publishBtn = byId.get('lyrics-editor-publish-btn');
+
+    assert.ok(powPanel && powStatus && powMetrics && powBar && powCancelBtn && publishBtn);
+    assert.equal(powPanel.classList.contains('hidden'), true, 'PoW progress bar starts hidden when idle');
+
+    const impossibleTarget = '0000000000000000000000000000000000000000000000000000000000000000';
+    const mockClient = new uiSandbox.LrclibClient.LrclibClient({
+      minSpacingMs: 0,
+      fetch: async (url) => {
+        if (url.includes('/api/request-challenge')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: { get: () => null },
+            json: async () => ({ prefix: 'ui_modal_pow_', target: impossibleTarget })
+          };
+        }
+        return { ok: true, status: 201, headers: { get: () => null }, json: async () => ({ success: true }) };
+      }
+    });
+
+    let clickedCancel = false;
+    const publishPromise = UI.editorPublishToLrclib({
+      client: mockClient,
+      batchSize: 64,
+      maxIterations: 500000,
+      onProgress(snap) {
+        if (!clickedCancel && snap.batchIndex >= 2) {
+          clickedCancel = true;
+          assert.equal(powPanel.classList.contains('hidden'), false, 'PoW panel must be visible while solving');
+          assert.equal(publishBtn.disabled, true, 'Publish button must be disabled while solving');
+          assert.ok(Number(powBar.getAttribute('aria-valuenow')) >= 10, 'Progress bar aria-valuenow must advance');
+          assert.ok(powMetrics.textContent.includes('Nonce #'), 'Metrics readout must display live Nonce counter');
+          // Click the instant "Hủy giải PoW" button in the modal!
+          powCancelBtn.click();
+        }
+      }
+    });
+
+    const publishRes = await publishPromise;
+    assert.equal(clickedCancel, true);
+    assert.equal(Boolean(publishRes && publishRes.aborted), true);
+    assert.equal(publishBtn.disabled, false, 'Publish button must re-enable immediately after abort');
+    assert.equal(UI.editorState.lastPowSnapshot.stage, 'aborted');
+    assert.ok(powStatus.textContent.includes('hủy'));
+    UI.closeEditor();
+  });
+});

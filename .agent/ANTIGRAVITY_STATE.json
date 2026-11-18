@@ -1,9 +1,9 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 35,
-  "lastPhase": "BUG_HUNT",
-  "lastRunIso": "2026-11-18T05:30:04.093Z",
+  "cycleCount": 36,
+  "lastPhase": "UPGRADE",
+  "lastRunIso": "2026-11-18T06:08:10.523Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
@@ -18,11 +18,6 @@
     "updatedAt": "2026-11-18T05:19:08.511Z"
   },
   "pendingQueue": [
-    {
-      "id": "UPG-09",
-      "phase": "UPGRADE",
-      "title": "Bổ sung hiển thị tiến trình giải Proof-of-Work SHA-256 theo lô kèm nút hủy tức thì trong hộp thoại Lyric Editor V2"
-    },
     {
       "id": "OPT-09",
       "phase": "OPTIMIZE",
@@ -172,6 +167,16 @@
       "id": "UPG-19",
       "phase": "UPGRADE",
       "title": "Bổ sung huy hiệu trạng thái nạp trước lời bài hát hàng đợi (PreloadLifecycleController stats) trong thanh tóm tắt #queue-metrics-bar"
+    },
+    {
+      "id": "OPT-19",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu tái sử dụng đối tượng sự kiện tiến trình PoW (preallocated telemetry struct) trong solveLrclibChallengeAsync khi chạy chế độ độ khó cực cao >1.000.000 phép băm"
+    },
+    {
+      "id": "BUG-20",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra phục hồi trạng thái nút Đóng góp lên LRCLIB và thanh tiến trình PoW khi người dùng mở lại Lyric Editor V2 cho một bài hát mới sau lần hủy trước đó"
     }
   ],
   "completedTasks": [
@@ -374,6 +379,14 @@
       "completedAt": "2026-11-18T03:24:00.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai createPreloadLifecycleController và nâng cấp scheduleQueueLyricsPreload trong library-utils.js, đồng thời tích hợp vào triggerLyricsFetch, queue-clear, removeFromQueue, clearCloudCatalog và sự kiện offline/online trong index.html: hủy tức thì mọi bộ hẹn giờ setTimeout chờ nạp trước cùng AbortController đang bay khi mất mạng hoặc xóa hàng đợi (0 timer treo, không ghi đè DOM bài đang phát) và tự động khôi phục khi có mạng trở lại"
+    },
+    {
+      "id": "UPG-09",
+      "phase": "UPGRADE",
+      "title": "Bổ sung hiển thị tiến trình giải Proof-of-Work SHA-256 theo lô kèm nút hủy tức thì trong hộp thoại Lyric Editor V2",
+      "completedAt": "2026-11-18T06:08:10.523Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai estimatePowTargetExpectedHashes, formatPowProgressStatus và createPowProgressController trong library-utils.js, nâng cấp luồng publishLyrics/solveLrclibPoWFallback trong lrclib-client.js và tích hợp thanh tiến trình lô PoW SHA-256 trực tiếp (Nonce counter, H/s-kH/s-MH/s, progressbar) kèm nút Hủy giải PoW tức thì bằng AbortController (0 Worker/timer treo) trong lyrics-editor-ui.js"
     }
   ]
 }

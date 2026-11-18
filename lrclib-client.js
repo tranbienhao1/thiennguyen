@@ -395,42 +395,131 @@
     return Math.round(baseMs * (1 + jitterFactor));
   }
 
-  // --- PoW Fallback Solver ---
-  async function solveLrclibPoWFallback(prefix, target) {
-    const targetNorm = target.toLowerCase().padStart(64, '0');
-    let nonce = 0;
+  // --- Abortable Yield Helper for Batched PoW ---
+  function _yieldPowBatchWithAbort(signal, delayMs = 0) {
+    if (signal && signal.aborted) {
+      return Promise.reject(_makeAbortError(signal.reason));
+    }
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let tid = null;
+      const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        if (tid !== null) clearTimeout(tid);
+        if (signal && typeof signal.removeEventListener === 'function') {
+          signal.removeEventListener('abort', onAbort);
+        }
+        reject(_makeAbortError(signal.reason));
+      };
+      if (signal && typeof signal.addEventListener === 'function') {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+      if (signal && signal.aborted) {
+        onAbort();
+        return;
+      }
+      tid = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        if (signal && typeof signal.removeEventListener === 'function') {
+          signal.removeEventListener('abort', onAbort);
+        }
+        resolve();
+      }, delayMs);
+    });
+  }
+
+  // --- PoW Fallback Solver (UPG-09 Batch Progress & Instant Abort) ---
+  async function solveLrclibPoWFallback(prefix, target, options = {}) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const signal = opts.signal || null;
+    if (signal && signal.aborted) {
+      throw _makeAbortError(signal.reason);
+    }
+
+    const targetNorm = String(target).toLowerCase().replace(/^0x/, '').padStart(64, '0');
+    const startNonce = Number.isFinite(Number(opts.startNonce)) ? Math.max(0, Math.floor(Number(opts.startNonce))) : 0;
+    const maxIterations = Number.isFinite(Number(opts.maxIterations)) && Number(opts.maxIterations) > 0
+      ? Math.max(1, Math.floor(Number(opts.maxIterations)))
+      : 10000000;
+    const batchSize = Number.isFinite(Number(opts.batchSize)) && Number(opts.batchSize) > 0
+      ? Math.max(1, Math.min(8192, Math.floor(Number(opts.batchSize))))
+      : 512;
+    const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : null;
+    const nowFn = typeof opts.nowFn === 'function'
+      ? opts.nowFn
+      : () => (typeof performance === 'object' && performance && typeof performance.now === 'function' ? performance.now() : Date.now());
+
+    const startedAt = nowFn();
+    let nonce = startNonce;
+    let iterations = 0;
+    let batchIndex = 0;
 
     if (typeof require === 'function') {
       try {
         const crypto = require('node:crypto');
-        while (true) {
-          const hash = crypto.createHash('sha256').update(prefix + nonce).digest('hex');
-          if (hash.padStart(64, '0') < targetNorm) {
-            return String(nonce);
+        while (iterations < maxIterations) {
+          if (signal && signal.aborted) throw _makeAbortError(signal.reason);
+          const sliceTarget = Math.min(batchSize, maxIterations - iterations);
+          for (let i = 0; i < sliceTarget; i++) {
+            if (signal && (i & 63) === 0 && signal.aborted) {
+              throw _makeAbortError(signal.reason);
+            }
+            const hash = crypto.createHash('sha256').update(prefix + nonce).digest('hex');
+            iterations++;
+            if (hash.padStart(64, '0') < targetNorm) {
+              return String(nonce);
+            }
+            nonce++;
           }
-          nonce++;
-          if (nonce > 10000000) {
-            throw new Error('PoW search limit exceeded');
+          batchIndex++;
+          if (onProgress) {
+            const elapsedMs = Math.max(0, nowFn() - startedAt);
+            const hashRateHps = elapsedMs > 0 ? Math.round((iterations * 1000) / elapsedMs) : Math.round(iterations * 1000);
+            onProgress({ nonce, iterations, elapsedMs, hashRateHps, batchIndex, maxIterations });
+          }
+          if (signal && signal.aborted) throw _makeAbortError(signal.reason);
+          if (iterations < maxIterations) {
+            await _yieldPowBatchWithAbort(signal, 0);
           }
         }
-      } catch (e) {}
+        throw new Error('PoW search limit exceeded');
+      } catch (e) {
+        if (e && (e.name === 'AbortError' || e.message === 'PoW search limit exceeded')) throw e;
+      }
     }
 
     if (typeof crypto !== 'undefined' && crypto.subtle) {
       const encoder = new TextEncoder();
-      while (true) {
-        const data = encoder.encode(prefix + nonce);
-        const hashBuf = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuf));
-        const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        if (hash.padStart(64, '0') < targetNorm) {
-          return String(nonce);
+      while (iterations < maxIterations) {
+        if (signal && signal.aborted) throw _makeAbortError(signal.reason);
+        const sliceTarget = Math.min(batchSize, maxIterations - iterations);
+        for (let i = 0; i < sliceTarget; i++) {
+          if (signal && signal.aborted) throw _makeAbortError(signal.reason);
+          const data = encoder.encode(prefix + nonce);
+          const hashBuf = await _racePromiseWithSignal(crypto.subtle.digest('SHA-256', data), signal);
+          if (signal && signal.aborted) throw _makeAbortError(signal.reason);
+          const hashArray = Array.from(new Uint8Array(hashBuf));
+          const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          iterations++;
+          if (hash.padStart(64, '0') < targetNorm) {
+            return String(nonce);
+          }
+          nonce++;
         }
-        nonce++;
-        if (nonce > 10000000) {
-          throw new Error('PoW search limit exceeded');
+        batchIndex++;
+        if (onProgress) {
+          const elapsedMs = Math.max(0, nowFn() - startedAt);
+          const hashRateHps = elapsedMs > 0 ? Math.round((iterations * 1000) / elapsedMs) : Math.round(iterations * 1000);
+          onProgress({ nonce, iterations, elapsedMs, hashRateHps, batchIndex, maxIterations });
+        }
+        if (signal && signal.aborted) throw _makeAbortError(signal.reason);
+        if (iterations < maxIterations) {
+          await _yieldPowBatchWithAbort(signal, 0);
         }
       }
+      throw new Error('PoW search limit exceeded');
     }
 
     throw new Error('No crypto provider available for LRCLIB PoW challenge');
@@ -1030,6 +1119,16 @@
 
       const opts = options && typeof options === 'object' ? options : {};
       const signal = opts.signal || null;
+      const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : null;
+      const onStageChange = typeof opts.onStageChange === 'function' ? opts.onStageChange : null;
+
+      if (signal && signal.aborted) {
+        throw _makeAbortError(signal.reason);
+      }
+
+      if (onStageChange) {
+        onStageChange('requesting_challenge', { stage: 'requesting_challenge' });
+      }
 
       // 1. Request challenge (pinned so track-switch background skips don't accidentally cancel an explicit user publish unless signal aborts!)
       const challengeUrl = `${this.baseUrl}/api/request-challenge`;
@@ -1056,38 +1155,112 @@
         throw new Error('Invalid challenge response: missing prefix or target');
       }
 
-      // 2. Solve PoW via LyricsUtils.solveLrclibPoW(prefix, target)
+      if (signal && signal.aborted) {
+        throw _makeAbortError(signal.reason);
+      }
+
+      if (onStageChange) {
+        onStageChange('solving', { stage: 'solving', prefix, target });
+      }
+
+      // 2. Solve PoW with batch progress & instant AbortSignal support (UPG-09)
+      const powCallOpts = {
+        signal,
+        onProgress,
+        batchSize: opts.batchSize,
+        maxIterations: opts.maxIterations,
+        startNonce: opts.startNonce,
+        nowFn: opts.nowFn
+      };
+
       let nonce;
-      let solver = null;
-      if (this.options && typeof this.options.solvePoW === 'function') {
-        solver = this.options.solvePoW;
-      } else if (this.options && this.options.lyricsUtils && typeof this.options.lyricsUtils.solveLrclibPoW === 'function') {
-        solver = this.options.lyricsUtils.solveLrclibPoW;
-      } else if (typeof globalThis !== 'undefined' && globalThis.LyricsUtils && typeof globalThis.LyricsUtils.solveLrclibPoW === 'function') {
-        solver = globalThis.LyricsUtils.solveLrclibPoW;
-      } else if (typeof window !== 'undefined' && window.LyricsUtils && typeof window.LyricsUtils.solveLrclibPoW === 'function') {
-        solver = window.LyricsUtils.solveLrclibPoW;
-      } else if (typeof require === 'function') {
-        try {
-          const lu = require('./lyrics-utils.js');
-          if (lu && typeof lu.solveLrclibPoW === 'function') {
-            solver = lu.solveLrclibPoW;
+      const customSolvePoW = typeof opts.solvePoW === 'function'
+        ? opts.solvePoW
+        : (this.options && typeof this.options.solvePoW === 'function' ? this.options.solvePoW : null);
+
+      const resolveLibraryPow = () => {
+        if (typeof globalThis === 'object' && globalThis) {
+          if (globalThis.NocturneLibrary && typeof globalThis.NocturneLibrary.solveLrclibChallengeAsync === 'function') {
+            return globalThis.NocturneLibrary;
           }
-        } catch (e) {}
-      }
+          if (globalThis.library && typeof globalThis.library.solveLrclibChallengeAsync === 'function') {
+            return globalThis.library;
+          }
+        }
+        if (typeof require === 'function') {
+          try {
+            const lib = require('./library-utils.js');
+            if (lib && typeof lib.solveLrclibChallengeAsync === 'function') return lib;
+          } catch (_) {}
+        }
+        return null;
+      };
 
-      if (signal && signal.aborted) {
-        throw _makeAbortError(signal.reason);
-      }
+      const isStrictHex64 = typeof target === 'string' && /^[0-9a-fA-F]{64}$/.test(target.trim().replace(/^0x/i, ''));
 
-      if (solver) {
-        nonce = await solver(prefix, target);
+      if (customSolvePoW) {
+        const rawSolved = await _racePromiseWithSignal(
+          Promise.resolve().then(() => customSolvePoW(prefix, target, powCallOpts)),
+          signal
+        );
+        nonce = (rawSolved && typeof rawSolved === 'object' && rawSolved.nonce !== undefined)
+          ? rawSolved.nonce
+          : rawSolved;
+      } else if (opts.powRunner && typeof opts.powRunner.solve === 'function' && isStrictHex64) {
+        const solved = await opts.powRunner.solve(prefix, target, powCallOpts);
+        nonce = solved.nonce;
+      } else if ((onProgress || signal || opts.preferAsyncPow) && isStrictHex64) {
+        const libMod = resolveLibraryPow();
+        if (libMod && typeof libMod.createLrclibPowWorkerRunner === 'function') {
+          const runner = this._powWorkerRunner || (this._powWorkerRunner = libMod.createLrclibPowWorkerRunner());
+          const solved = await runner.solve(prefix, target, powCallOpts);
+          nonce = solved.nonce;
+        } else if (libMod && typeof libMod.solveLrclibChallengeAsync === 'function') {
+          const solved = await libMod.solveLrclibChallengeAsync(prefix, target, powCallOpts);
+          nonce = solved.nonce;
+        } else {
+          nonce = await solveLrclibPoWFallback(prefix, target, powCallOpts);
+        }
       } else {
-        nonce = await solveLrclibPoWFallback(prefix, target);
+        let solver = null;
+        if (this.options && this.options.lyricsUtils && typeof this.options.lyricsUtils.solveLrclibPoW === 'function') {
+          solver = this.options.lyricsUtils.solveLrclibPoW;
+        } else if (typeof globalThis !== 'undefined' && globalThis.LyricsUtils && typeof globalThis.LyricsUtils.solveLrclibPoW === 'function') {
+          solver = globalThis.LyricsUtils.solveLrclibPoW;
+        } else if (typeof window !== 'undefined' && window.LyricsUtils && typeof window.LyricsUtils.solveLrclibPoW === 'function') {
+          solver = window.LyricsUtils.solveLrclibPoW;
+        } else if (typeof require === 'function') {
+          try {
+            const lu = require('./lyrics-utils.js');
+            if (lu && typeof lu.solveLrclibPoW === 'function') {
+              solver = lu.solveLrclibPoW;
+            }
+          } catch (e) {}
+        }
+
+        if (solver) {
+          const rawSolved = await _racePromiseWithSignal(
+            Promise.resolve().then(() => solver(prefix, target, powCallOpts)),
+            signal
+          );
+          nonce = (rawSolved && typeof rawSolved === 'object' && rawSolved.nonce !== undefined)
+            ? rawSolved.nonce
+            : rawSolved;
+        } else {
+          nonce = await solveLrclibPoWFallback(prefix, target, powCallOpts);
+        }
       }
 
       if (signal && signal.aborted) {
         throw _makeAbortError(signal.reason);
+      }
+
+      if (nonce === null || nonce === undefined) {
+        throw new Error('PoW search limit exceeded without finding a valid nonce');
+      }
+
+      if (onStageChange) {
+        onStageChange('publishing', { stage: 'publishing', nonce: String(nonce) });
       }
 
       // 3. Post to /api/publish
