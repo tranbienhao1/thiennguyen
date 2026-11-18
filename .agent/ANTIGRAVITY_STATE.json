@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 24,
-  "lastPhase": "OPTIMIZE",
-  "lastRunIso": "2026-11-18T01:10:55.000Z",
+  "cycleCount": 25,
+  "lastPhase": "BUG_HUNT",
+  "lastRunIso": "2026-11-18T01:19:35.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "BUG-07",
-      "phase": "BUG_HUNT",
-      "title": "Kiểm tra tái tạo Impulse Response của ConvolverNode (Room Acoustics) khi AudioContext đổi sampleRate tránh sai lệch thời gian vang RT60"
-    },
     {
       "id": "UPG-07",
       "phase": "UPGRADE",
@@ -128,6 +123,16 @@
       "id": "OPT-14",
       "phase": "OPTIMIZE",
       "title": "Tối ưu đồng bộ trạng thái MultiProviderSessionVault qua sự kiện storage đa tab tránh hai tab PWA cùng gọi silent_refresh trùng lặp"
+    },
+    {
+      "id": "BUG-15",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra chuyển đổi mượt không tiếng nổ (clickless wetGain crossfade) khi tái tạo AudioBuffer của ConvolverNode giữa lúc đang phát nhạc Hi-Res"
+    },
+    {
+      "id": "UPG-15",
+      "phase": "UPGRADE",
+      "title": "Bổ sung hiển thị thông số mẫu xung lực phòng nghe thực tế (sampleRate, số khung mẫu, độ trễ phản xạ sớm và hệ số bù năng lượng) trong bảng Room Acoustics"
     }
   ],
   "completedTasks": [
@@ -274,6 +279,14 @@
       "completedAt": "2026-11-18T01:10:55.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai createMultiProviderSessionVault trong library-utils.js gom trạng thái phiên của google, microsoft, subsonic, jellyfin và blackcandy vào 1 mục JSON nhỏ gọn duy nhất (chỉ 1 lần đọc & 1 lần parse khi khởi động lạnh), phân loại chính xác reuse_cached_token (>5 phút), silent_refresh (<=5 phút hoặc hết hạn có refresh), skip_unconfigured (chưa kết nối, ngăn đánh thức MSAL/GIS thừa) và static_credentials_ready, kèm tự phục hồi JSON hỏng và bảo vệ lệch đồng hồ hệ thống"
+    },
+    {
+      "id": "BUG-07",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra tái tạo Impulse Response của ConvolverNode (Room Acoustics) khi AudioContext đổi sampleRate tránh sai lệch thời gian vang RT60",
+      "completedAt": "2026-11-18T01:19:35.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai synthesizeSampleRateInvariantImpulseResponse (phản xạ sớm stereo tất định theo mili-giây Math.round(tapMs * 0.001 * sampleRate), đường bao phân rã hàm mũ -60dB RT60 Math.pow(10, -3 * tSec / rt60Sec) và bù năng lượng chập 1 / Math.sqrt(sampleRate / 48000) bất biến độ to trên 44.1kHz..384kHz) cùng reconcileConvolverImpulseForSampleRate trong library-utils.js và tích hợp an toàn vào createRoomAcousticNodes / applyRoomAcoustics / rebuildAudioRoutes trong index.html"
     }
   ]
 }

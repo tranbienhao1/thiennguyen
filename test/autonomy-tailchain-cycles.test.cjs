@@ -4021,3 +4021,237 @@ describe('Autonomy Tail-Chaining Cycle 17 — OPT-06 (Multi-Provider Cold-Start 
     assert.equal(skewVault.evaluateColdStartAction('google', verifiedTime + 10 * 60_000), 'reuse_cached_token');
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 18 — BUG-07 (SampleRate-Invariant RT60 Impulse Synthesis & ConvolverNode Reconciler)', () => {
+  it('exposes BUG-07 functions on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.synthesizeSampleRateInvariantImpulseResponse, 'function');
+    assert.equal(typeof lib.reconcileConvolverImpulseForSampleRate, 'function');
+
+    const sandbox = { library: { keepRefBug07: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.synthesizeSampleRateInvariantImpulseResponse, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.reconcileConvolverImpulseForSampleRate, 'function');
+    assert.equal(typeof sandbox.library.synthesizeSampleRateInvariantImpulseResponse, 'function');
+    assert.equal(typeof sandbox.library.reconcileConvolverImpulseForSampleRate, 'function');
+    assert.equal(sandbox.library.keepRefBug07, true);
+  });
+
+  it('preserves exact physical duration (frames / sampleRate === durationSec) and exact millisecond early reflection tap indices across 44.1kHz..384kHz', () => {
+    assert.equal(lib.synthesizeSampleRateInvariantImpulseResponse('bypass', 44100), null);
+
+    const customRoom = {
+      id: 'reference_hall',
+      rt60Sec: 1.8,
+      preDelayMs: 20,
+      durationSec: 1.8,
+      tailGain: 0.05,
+      earlyReflections: [
+        { tapMs: 20.0, gainL: 0.55, gainR: 0.48 },
+        { tapMs: 32.5, gainL: -0.40, gainR: 0.36 },
+        { tapMs: 51.2, gainL: 0.31, gainR: -0.34 }
+      ]
+    };
+
+    const sampleRates = [44100, 48000, 88200, 96000, 176400, 192000, 384000];
+    const resultsBySr = new Map();
+
+    for (const sr of sampleRates) {
+      const ir = lib.synthesizeSampleRateInvariantImpulseResponse(customRoom, sr, 0x9e3779b9);
+      resultsBySr.set(sr, ir);
+
+      // 1. Exact physical duration invariant: frames / sampleRate === durationSec
+      assert.equal(ir.sampleRate, sr);
+      assert.equal(ir.frames, Math.round(1.8 * sr));
+      assert.equal(ir.frames / ir.sampleRate, 1.8);
+      assert.equal(ir.durationSec, 1.8);
+      assert.ok(ir.maxPeak <= 1.0);
+
+      // 2. Exact millisecond early reflection tap indices: Math.round(tapMs * 0.001 * sampleRate)
+      assert.equal(ir.earlyReflections.length, 3);
+      for (let t = 0; t < customRoom.earlyReflections.length; t++) {
+        const expectedTap = customRoom.earlyReflections[t];
+        const actualTap = ir.earlyReflections[t];
+        const expectedIndex = Math.round(expectedTap.tapMs * 0.001 * sr);
+        assert.equal(actualTap.frameIndex, expectedIndex);
+        // Verify deterministic reflection impulse dominates at exact millisecond frame index
+        assert.ok(Math.abs(ir.left[expectedIndex] - expectedTap.gainL) < 0.08);
+        assert.ok(Math.abs(ir.right[expectedIndex] - expectedTap.gainR) < 0.08);
+      }
+    }
+
+    // Specifically compare 44.1kHz (79,380 frames) vs 192kHz (345,600 frames) tap timing in ms
+    const ir44k = resultsBySr.get(44100);
+    const ir192k = resultsBySr.get(192000);
+    assert.equal(ir44k.frames, 79380);
+    assert.equal(ir192k.frames, 345600);
+    for (let t = 0; t < 3; t++) {
+      const ms44k = (ir44k.earlyReflections[t].frameIndex / 44100) * 1000;
+      const ms192k = (ir192k.earlyReflections[t].frameIndex / 192000) * 1000;
+      assert.ok(
+        Math.abs(ms44k - ms192k) < 0.02,
+        `Early reflection ${t} physical delay must match within 0.02ms across 44.1kHz (${ms44k}ms) vs 192kHz (${ms192k}ms)`
+      );
+    }
+
+    // Deterministic PRNG: identical seed produces 100% bit-identical Float32Arrays
+    const ir44kRepeat = lib.synthesizeSampleRateInvariantImpulseResponse(customRoom, 44100, 0x9e3779b9);
+    assert.deepEqual(ir44k.left, ir44kRepeat.left);
+    assert.deepEqual(ir44k.right, ir44kRepeat.right);
+  });
+
+  it('maintains -60dB RT60 exponential decay accuracy and sample-rate energy invariance (1 / Math.sqrt(sr / 48000)) across 44.1kHz, 96kHz, 192kHz, and 384kHz', () => {
+    const pureTailPreset = {
+      id: 'diffuse_rt60_lab',
+      rt60Sec: 1.8,
+      preDelayMs: 0,
+      durationSec: 2.0,
+      tailGain: 0.12,
+      earlyReflections: []
+    };
+
+    function measureWindowRms(ir, centerSec, windowSec = 0.05) {
+      const halfSpan = Math.max(1, Math.floor((windowSec * 0.5) * ir.sampleRate));
+      const centerIdx = Math.round(centerSec * ir.sampleRate);
+      const start = Math.max(0, centerIdx - halfSpan);
+      const end = Math.min(ir.frames, centerIdx + halfSpan);
+      let sumSq = 0;
+      let count = 0;
+      for (let i = start; i < end; i++) {
+        sumSq += ir.left[i] * ir.left[i] + ir.right[i] * ir.right[i];
+        count += 2;
+      }
+      return Math.sqrt(sumSq / count);
+    }
+
+    const rates = [44100, 96000, 192000, 384000];
+    const energies = [];
+
+    for (const sr of rates) {
+      const ir = lib.synthesizeSampleRateInvariantImpulseResponse(pureTailPreset, sr, 0x12345678);
+      assert.ok(Math.abs(ir.gainCompensation - (1 / Math.sqrt(sr / 48000))) < 1e-12);
+
+      // Measure RMS at t1 = 0.05s and t2 = 1.85s (delta_t = 1.80s === exact RT60!)
+      const rmsStart = measureWindowRms(ir, 0.05, 0.06);
+      const rmsEnd = measureWindowRms(ir, 1.85, 0.06);
+      const decayDb = 20 * Math.log10(rmsEnd / rmsStart);
+
+      assert.ok(
+        Math.abs(decayDb - (-60.0)) < 0.8,
+        `Expected -60.0dB decay over 1.8s RT60 at ${sr}Hz, got ${decayDb.toFixed(3)}dB`
+      );
+
+      energies.push({ sr, totalEnergy: ir.totalEnergy });
+    }
+
+    // Verify energy invariance across 44.1kHz, 96kHz, 192kHz, and 384kHz (8.7x sampleRate span -> < 0.25dB loudness spread!)
+    const refEnergy = energies[0].totalEnergy;
+    for (const item of energies) {
+      const diffDb = Math.abs(10 * Math.log10(item.totalEnergy / refEnergy));
+      assert.ok(
+        diffDb < 0.25,
+        `Impulse total L2 energy at ${item.sr}Hz must remain invariant within 0.25dB of 44.1kHz, got ${diffDb.toFixed(4)}dB`
+      );
+    }
+  });
+
+  it('reconcileConvolverImpulseForSampleRate regenerates ConvolverNode AudioBuffer on sampleRate transitions and prevents NotSupportedError', () => {
+    function createStrictMockAudioContext(sampleRate) {
+      const ctx = {
+        sampleRate,
+        currentTime: 0,
+        createBuffer(channels, length, sr) {
+          const chData = Array.from({ length: channels }, () => new Float32Array(length));
+          return {
+            numberOfChannels: channels,
+            length,
+            sampleRate: sr,
+            duration: length / sr,
+            getChannelData(c) { return chData[c]; },
+            copyToChannel(src, c) { chData[c].set(src); }
+          };
+        },
+        createConvolver() {
+          let currentBuf = null;
+          return {
+            context: ctx,
+            normalize: true,
+            disconnected: false,
+            connectedTo: null,
+            get buffer() { return currentBuf; },
+            set buffer(buf) {
+              if (buf !== null && buf.sampleRate !== ctx.sampleRate) {
+                const err = new Error(`NotSupportedError: AudioBuffer sampleRate (${buf.sampleRate}) does not match AudioContext sampleRate (${ctx.sampleRate})`);
+                err.name = 'NotSupportedError';
+                throw err;
+              }
+              currentBuf = buf;
+            },
+            connect(dest) { this.connectedTo = dest; },
+            disconnect() { this.disconnected = true; }
+          };
+        }
+      };
+      return ctx;
+    }
+
+    const ctx44k = createStrictMockAudioContext(44100);
+    const inputGain = { connectedConvolver: null, connect(node) { this.connectedConvolver = node; } };
+    const wetGain = { id: 'wetGain' };
+    const convolver44k = ctx44k.createConvolver();
+    const roomState = {
+      input: inputGain,
+      wetGain,
+      convolver: convolver44k,
+      bufferSampleRate: null,
+      activeProfile: 'concert_hall'
+    };
+
+    // 1. Initial 44.1kHz synthesis for Symphony Concert Hall (RT60 1.85s, preDelay 24ms -> 1.88s)
+    const r1 = lib.reconcileConvolverImpulseForSampleRate(roomState, ctx44k, 'concert_hall');
+    assert.equal(r1.valid, true);
+    assert.equal(r1.regenerated, true);
+    assert.equal(r1.recreatedNode, false);
+    assert.equal(roomState.convolver.normalize, false);
+    assert.equal(roomState.convolver.buffer.sampleRate, 44100);
+    assert.equal(roomState.bufferSampleRate, 44100);
+    const dur44k = roomState.convolver.buffer.duration;
+
+    // 2. Calling again at identical 44.1kHz & preset performs zero redundant regeneration
+    const prevBufRef = roomState.convolver.buffer;
+    const rIdempotent = lib.reconcileConvolverImpulseForSampleRate(roomState, ctx44k, 'concert_hall');
+    assert.equal(rIdempotent.valid, true);
+    assert.equal(rIdempotent.regenerated, false);
+    assert.strictEqual(roomState.convolver.buffer, prevBufRef);
+
+    // 3. Transition to 176.4kHz Hi-Res / DSD128 AudioContext -> recreates ConvolverNode & regenerates 176.4kHz AudioBuffer with identical physical duration!
+    const ctx176k = createStrictMockAudioContext(176400);
+    const r176k = lib.reconcileConvolverImpulseForSampleRate(roomState, ctx176k, 'concert_hall');
+    assert.equal(r176k.valid, true);
+    assert.equal(r176k.regenerated, true);
+    assert.equal(r176k.recreatedNode, true);
+    assert.equal(convolver44k.disconnected, true);
+    assert.strictEqual(inputGain.connectedConvolver, roomState.convolver);
+    assert.strictEqual(roomState.convolver.connectedTo, wetGain);
+    assert.equal(roomState.convolver.buffer.sampleRate, 176400);
+    assert.equal(roomState.convolver.buffer.length, prevBufRef.length * 4);
+    assert.equal(roomState.convolver.buffer.duration, dur44k);
+
+    // 4. Bypass clears buffer cleanly
+    const rBypass = lib.reconcileConvolverImpulseForSampleRate(roomState, ctx176k, 'bypass');
+    assert.equal(rBypass.valid, true);
+    assert.equal(rBypass.bypassed, true);
+    assert.equal(roomState.convolver.buffer, null);
+
+    // 5. Verify index.html wiring & Web Audio graph invariant
+    const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    assert.ok(indexHtml.includes('library.reconcileConvolverImpulseForSampleRate('));
+    assert.ok(
+      indexHtml.includes('state.crossfeedNodes.output.connect(state.context.destination)'),
+      'CRITICAL INVARIANT: state.crossfeedNodes.output.connect(state.context.destination) must remain 100% intact'
+    );
+  });
+});

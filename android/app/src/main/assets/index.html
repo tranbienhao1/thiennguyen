@@ -5886,6 +5886,9 @@
       if (typeof library !== 'undefined' && library && typeof library.reconcileAudioNodeGraphForSampleRate === 'function' && state.context.sampleRate) {
         library.reconcileAudioNodeGraphForSampleRate(state, state.context.sampleRate);
       }
+      if (state.roomAcousticNodes && typeof library !== 'undefined' && library && typeof library.reconcileConvolverImpulseForSampleRate === 'function') {
+        library.reconcileConvolverImpulseForSampleRate(state.roomAcousticNodes, state.context, state.roomAcousticProfile || 'bypass');
+      }
       const maxBoost = state.bands.reduce((max, band) => Math.max(max, band.gain), 0), effectivePreamp = Math.max(-60, Math.min(0, -maxBoost + (Number($('eq-preamp').value) || 0)));
       const enabled = $('eq-enabled').checked;
       const phaseMult = state.phaseInvert ? -1 : 1;
@@ -6780,6 +6783,7 @@
           dryGain,
           wetGain,
           convolver,
+          bufferSampleRate: null,
           activeProfile: 'bypass',
           wet: 0.2
         };
@@ -6818,7 +6822,9 @@
         }
 
         if (nodes.convolver) {
-          if (validKey === 'bypass') {
+          if (typeof library?.reconcileConvolverImpulseForSampleRate === 'function') {
+            library.reconcileConvolverImpulseForSampleRate(nodes, state.context, validKey);
+          } else if (validKey === 'bypass') {
             nodes.convolver.buffer = null;
           } else if (typeof library?.generateImpulseResponse === 'function' && typeof state.context.createBuffer === 'function') {
             const sampleRate = state.context.sampleRate || 44100;
