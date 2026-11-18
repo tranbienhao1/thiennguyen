@@ -3011,13 +3011,13 @@
       if (track.source === 'google') {
         const token = await ensureGoogleToken();
         const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.remoteId)}?alt=media`;
-        return cloudMetadata.readRemoteTags(window.jsmediatags, {url, size:track.size}, {headers:{Authorization:`Bearer ${token}`}});
+        return cloudMetadata.readRemoteTags(window.jsmediatags, {url, size:track.size, name:track.name, mimeType:track.mimeType}, {headers:{Authorization:`Bearer ${token}`}});
       }
       const token = state.microsoftAccessToken || await getMicrosoftToken(false);
       const item = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}`, token);
       const url = item['@microsoft.graph.downloadUrl'];
       if (!url) throw new Error('OneDrive did not provide its temporary download URL for range-based tag reading.');
-      return cloudMetadata.readRemoteTags(window.jsmediatags, {url, size:track.size});
+      return cloudMetadata.readRemoteTags(window.jsmediatags, {url, size:track.size, name:track.name, mimeType:track.mimeType});
     }
     async function googleThumbnail(track) {
       let thumbnailUrl = track.thumbnailUrl;
@@ -3074,6 +3074,16 @@
         }
         const metadata = library.resolveTrackMetadata(tags, {title:track.title, artist:track.artist, album:track.album});
         Object.assign(track, metadata);
+        if (tags.iTunNORM && !track.iTunNORM) track.iTunNORM = tags.iTunNORM;
+        if (tags.replayGainTrackGain !== undefined) track.replayGainTrackGain = tags.replayGainTrackGain;
+        if (tags.replayGainTrackPeak !== undefined) track.replayGainTrackPeak = tags.replayGainTrackPeak;
+        if (tags.replayGainAlbumGain !== undefined) track.replayGainAlbumGain = tags.replayGainAlbumGain;
+        if (tags.replayGainAlbumPeak !== undefined) track.replayGainAlbumPeak = tags.replayGainAlbumPeak;
+        if (tags.sampleRate > 0 && !track.sampleRate) track.sampleRate = tags.sampleRate;
+        if (tags.bitDepth > 0 && !track.bitDepth) track.bitDepth = tags.bitDepth;
+        if (tags.channels > 0 && !track.channels) track.channels = tags.channels;
+        if (tags.duration > 0 && !track.duration) track.duration = tags.duration;
+        if (tags.format === 'ALAC' && (!track.format || track.format === 'M4A')) track.format = 'ALAC';
         if (cover) track.cover = await normalizeCoverImage(cover);
         else if (track.cover === undefined) track.cover = null;
         if (track.cover) {
@@ -4734,6 +4744,48 @@
                 if (header & 0x80) break;
               }
             }
+            if (view.byteLength >= 8 && typeof library !== 'undefined' && library && typeof library.parseSafeMp4AlacBoxMetadata === 'function') {
+              const boxMagic = text(4, 4);
+              if (boxMagic === 'ftyp' || boxMagic === 'styp' || boxMagic === 'moov' || boxMagic === 'wide') {
+                const mp4Tech = library.parseSafeMp4AlacBoxMetadata(buffer, file.size || 0);
+                const mp4Ilst = typeof library.parseMp4IlstMetadataSafe === 'function'
+                  ? library.parseMp4IlstMetadataSafe(buffer, { totalFileSize: file.size || 0 })
+                  : null;
+                const mp4Out = {};
+                if (mp4Tech && mp4Tech.valid) {
+                  mp4Out.sampleRate = mp4Tech.sampleRate;
+                  mp4Out.bitDepth = mp4Tech.bitDepth;
+                  mp4Out.channels = mp4Tech.channels;
+                  mp4Out.duration = mp4Tech.durationSeconds;
+                  mp4Out.codec = mp4Tech.codec;
+                  mp4Out.detectedFormat = mp4Tech.format;
+                }
+                if (mp4Ilst && mp4Ilst.valid) {
+                  if (mp4Ilst.title) mp4Out.title = mp4Ilst.title;
+                  if (mp4Ilst.artist) mp4Out.artist = mp4Ilst.artist;
+                  if (mp4Ilst.album) mp4Out.album = mp4Ilst.album;
+                  if (mp4Ilst.albumArtist) mp4Out.albumArtist = mp4Ilst.albumArtist;
+                  if (mp4Ilst.track) mp4Out.track = mp4Ilst.track;
+                  if (mp4Ilst.lyrics) mp4Out.lyrics = mp4Ilst.lyrics;
+                  if (mp4Ilst.iTunNORM) mp4Out.iTunNORM = mp4Ilst.iTunNORM;
+                  if (mp4Ilst.hasReplayGain) {
+                    mp4Out.replayGainTrackGain = mp4Ilst.trackGain;
+                    mp4Out.replayGainTrackPeak = mp4Ilst.trackPeak;
+                    if (mp4Ilst.hasAlbumGain) {
+                      mp4Out.replayGainAlbumGain = mp4Ilst.albumGain;
+                      mp4Out.replayGainAlbumPeak = mp4Ilst.albumPeak;
+                    }
+                  }
+                  if (mp4Ilst.picture && mp4Ilst.picture.data) {
+                    const pBytes = new Uint8Array(mp4Ilst.picture.data);
+                    let pBin = '';
+                    for (let i = 0; i < pBytes.length; i += 0x8000) pBin += String.fromCharCode(...pBytes.subarray(i, i + 0x8000));
+                    mp4Out.cover = `data:${mp4Ilst.picture.format || 'image/jpeg'};base64,${btoa(pBin)}`;
+                  }
+                }
+                return done(mp4Out);
+              }
+            }
             done({});
           } catch (error) { console.warn('Could not read audio header:', error); done({}); }
         };
@@ -4787,14 +4839,44 @@
     }
     async function makeLocalTrack(file) {
       const [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
-      const fallback = filenameMetadata(file.relativePath || file.webkitRelativePath || file.name, tags.track || tags.tracknumber || tags.trackNumber);
-      const metadata = library.resolveTrackMetadata(tags, fallback);
-      const format = file.name.split('.').pop().toUpperCase();
+      const mergedTags = {
+        ...tags,
+        title: tags.title || technical.title,
+        artist: tags.artist || technical.artist,
+        album: tags.album || technical.album,
+        albumArtist: tags.albumArtist || technical.albumArtist,
+        track: tags.track || technical.track
+      };
+      const fallback = filenameMetadata(file.relativePath || file.webkitRelativePath || file.name, mergedTags.track || tags.tracknumber || tags.trackNumber);
+      const metadata = library.resolveTrackMetadata(mergedTags, fallback);
+      const rawExt = file.name.split('.').pop().toUpperCase();
+      const format = (rawExt === 'M4A' && technical.detectedFormat === 'ALAC') ? 'ALAC' : rawExt;
       const isDsd = format === 'DSF' || format === 'DFF';
       const url = isDsd ? '' : URL.createObjectURL(file);
       if (url) state.objectUrls.add(url);
-      const cover = await normalizeCoverImage(tags.cover);
-      const trackObj = { id: id(), file, url, source: 'local', name: file.name, ...metadata, cover, lyricsText: tags.lyrics || '', format, isDsd, sampleRate: technical.sampleRate, bitDepth: technical.bitDepth, channels: technical.channels, duration: technical.duration, size: file.size };
+      const cover = await normalizeCoverImage(tags.cover || technical.cover);
+      const trackObj = {
+        id: id(),
+        file,
+        url,
+        source: 'local',
+        name: file.name,
+        ...metadata,
+        cover,
+        lyricsText: tags.lyrics || technical.lyrics || '',
+        format,
+        isDsd,
+        sampleRate: technical.sampleRate,
+        bitDepth: technical.bitDepth,
+        channels: technical.channels,
+        duration: technical.duration,
+        size: file.size
+      };
+      if (technical.iTunNORM) trackObj.iTunNORM = technical.iTunNORM;
+      if (technical.replayGainTrackGain !== undefined) trackObj.replayGainTrackGain = technical.replayGainTrackGain;
+      if (technical.replayGainTrackPeak !== undefined) trackObj.replayGainTrackPeak = technical.replayGainTrackPeak;
+      if (technical.replayGainAlbumGain !== undefined) trackObj.replayGainAlbumGain = technical.replayGainAlbumGain;
+      if (technical.replayGainAlbumPeak !== undefined) trackObj.replayGainAlbumPeak = technical.replayGainAlbumPeak;
       trackObj.rating = getTrackRating(trackObj);
       if (trackObj.cover) {
         if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(trackObj.cover, trackObj);

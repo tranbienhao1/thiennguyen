@@ -6479,3 +6479,342 @@ describe('Autonomy Tail-Chaining Cycle 29 — OPT-10 (Zero-Alloc Scratchpad Reus
     );
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 30 — BUG-11 (Bounds-Safe MP4/ALAC ilst, covr & Apple iTunNORM ReplayGain Parser)', () => {
+  const cloudMeta = require(path.join(ROOT, 'cloud-metadata.js'));
+
+  function cat(...parts) {
+    const total = parts.reduce((acc, p) => acc + p.byteLength, 0);
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (const p of parts) {
+      out.set(p, off);
+      off += p.byteLength;
+    }
+    return out;
+  }
+
+  function atom32(type, body) {
+    const payload = body instanceof Uint8Array ? body : new Uint8Array(body || 0);
+    const out = new Uint8Array(8 + payload.byteLength);
+    new DataView(out.buffer).setUint32(0, out.byteLength, false);
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(payload, 8);
+    return out;
+  }
+
+  function atom64(type, body) {
+    const payload = body instanceof Uint8Array ? body : new Uint8Array(body || 0);
+    const totalLen = 16 + payload.byteLength;
+    const out = new Uint8Array(totalLen);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, 1, false); // largesize === 1
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    dv.setUint32(8, Math.floor(totalLen / 4294967296) >>> 0, false);
+    dv.setUint32(12, totalLen >>> 0, false);
+    out.set(payload, 16);
+    return out;
+  }
+
+  function atomZeroEof(type, body) {
+    const payload = body instanceof Uint8Array ? body : new Uint8Array(body || 0);
+    const out = new Uint8Array(8 + payload.byteLength);
+    new DataView(out.buffer).setUint32(0, 0, false); // size === 0 (extends to parent/EOF)
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(payload, 8);
+    return out;
+  }
+
+  function dataAtom(typeIndicator, rawBytes, use64 = false) {
+    const hdr = new Uint8Array(8);
+    new DataView(hdr.buffer).setUint32(0, typeIndicator, false);
+    const body = cat(hdr, rawBytes);
+    return use64 ? atom64('data', body) : atom32('data', body);
+  }
+
+  function textIlstItem(fourCC, str, use64 = false) {
+    const utf8 = new TextEncoder().encode(str);
+    const d = dataAtom(1, utf8, use64);
+    return use64 ? atom64(fourCC, d) : atom32(fourCC, d);
+  }
+
+  function trknIlstItem(trackNo, totalNo) {
+    const payload = new Uint8Array(8);
+    const dv = new DataView(payload.buffer);
+    dv.setUint16(2, trackNo, false);
+    dv.setUint16(4, totalNo, false);
+    return atom32('trkn', dataAtom(0, payload));
+  }
+
+  function freeformIlstItem(mean, name, value, use64 = false) {
+    const meanBytes = cat(new Uint8Array(4), new TextEncoder().encode(mean));
+    const nameBytes = cat(new Uint8Array(4), new TextEncoder().encode(name));
+    const valAtom = dataAtom(1, new TextEncoder().encode(value), use64);
+    const body = cat(atom32('mean', meanBytes), atom32('name', nameBytes), valAtom);
+    return use64 ? atom64('----', body) : atom32('----', body);
+  }
+
+  function buildAlacTrak(sampleRate = 96000, bitDepth = 24, channels = 2, durationSec = 240) {
+    const mdhdBody = new Uint8Array(20);
+    const mdv = new DataView(mdhdBody.buffer);
+    mdv.setUint32(12, sampleRate, false);
+    mdv.setUint32(16, Math.round(sampleRate * durationSec), false);
+    const mdhd = atom32('mdhd', mdhdBody);
+
+    const cookie = new Uint8Array(28);
+    const cdv = new DataView(cookie.buffer);
+    cdv.setUint32(4, 4096, false);
+    cookie[9] = bitDepth;
+    cookie[13] = channels;
+    cdv.setUint32(24, sampleRate, false);
+    const innerAlac = atom32('alac', cookie);
+
+    const ase = new Uint8Array(28);
+    const adv = new DataView(ase.buffer);
+    adv.setUint16(6, 1, false);
+    adv.setUint16(16, channels, false);
+    adv.setUint16(18, bitDepth, false);
+    adv.setUint32(24, ((sampleRate & 0xffff) << 16) >>> 0, false);
+    const outerAlac = atom32('alac', cat(ase, innerAlac));
+
+    const stsdHdr = new Uint8Array(8);
+    new DataView(stsdHdr.buffer).setUint32(4, 1, false);
+    const stsd = atom32('stsd', cat(stsdHdr, outerAlac));
+    return atom32('trak', atom32('mdia', cat(mdhd, atom32('minf', atom32('stbl', stsd)))));
+  }
+
+  it('exposes parseAppleSoundCheckItunNorm, parseMp4IlstMetadataSafe & readRemoteMp4Ilst and converts SoundCheck hex accurately', () => {
+    assert.equal(typeof lib.parseAppleSoundCheckItunNorm, 'function');
+    assert.equal(typeof lib.parseMp4IlstMetadataSafe, 'function');
+    assert.equal(typeof cloudMeta.readRemoteMp4Ilst, 'function');
+
+    // 1. Unity 0 dB (1000 = 0x000003E8, 2500 = 0x000009C4, peak = 0x00008000 -> 1.0)
+    const zeroDb = lib.parseAppleSoundCheckItunNorm(
+      ' 000003E8 000003E8 000009C4 000009C4 00024CA8 00024CA8 00008000 00008000 00024CA8 00024CA8'
+    );
+    assert.equal(zeroDb.valid, true);
+    assert.equal(zeroDb.gainDb, 0);
+    assert.equal(zeroDb.peak, 1);
+
+    // 2. -6.02 dB attenuation (4000 = 0x00000FA0, 10000 = 0x00002710, peak = 0x00004000 -> 0.5)
+    const minus6 = lib.parseAppleSoundCheckItunNorm(
+      ' 00000FA0 00000FA0 00002710 00002710 00000000 00000000 00004000 00004000 00000000 00000000'
+    );
+    assert.equal(minus6.valid, true);
+    assert.equal(minus6.gainDb, -6.02);
+    assert.equal(minus6.peak, 0.5);
+
+    // 3. +10.00 dB boost (100 = 0x00000064, peak = 0x00008000 = 1.0 -> anti-clipping clamps linearGain to 1.0!)
+    const plus10 = lib.parseAppleSoundCheckItunNorm(
+      ' 00000064 00000064 000000FA 000000FA 00000000 00000000 00008000 00008000 00000000 00000000'
+    );
+    assert.equal(plus10.valid, true);
+    assert.equal(plus10.gainDb, 10);
+    assert.equal(plus10.linearGain, 1.0, 'Anti-clipping linearGain must cap at 1/peak (1.0) when peak is full-scale');
+
+    // 4. Saturated 1000-base (0x00007FFF) falls back to 2500-base (250000 = 0x0003D090 -> -20.00 dB)
+    const saturated = lib.parseAppleSoundCheckItunNorm(
+      ' 00007FFF 00007FFF 0003D090 0003D090 00000000 00000000 00007FFF 00007FFF 00000000 00000000'
+    );
+    assert.equal(saturated.valid, true);
+    assert.equal(saturated.gainDb, -20);
+
+    // 5. Invalid inputs safely return valid: false
+    assert.equal(lib.parseAppleSoundCheckItunNorm('').valid, false);
+    assert.equal(lib.parseAppleSoundCheckItunNorm('not hex words at all').valid, false);
+    assert.equal(lib.parseAppleSoundCheckItunNorm('00000000 00000000 00000000 00000000').valid, false);
+  });
+
+  it('parses synthetic ALAC .m4a moov/udta/meta/ilst (FullBox & bare meta, JPEG/PNG covr, iTunNORM, replaygain_track_gain, 64-bit largesize & size=0 EOF)', () => {
+    const ftyp = atom32('ftyp', new TextEncoder().encode('M4A \x00\x00\x00\x00M4A isom'));
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9]);
+    const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]);
+
+    // Case A: FullBox meta (+4B version/flags) + hdlr + JPEG covr + iTunNORM (-3.01 dB: 2000 = 0x000007D0)
+    const hdlr = atom32('hdlr', new Uint8Array(24));
+    const ilstFull = atom32('ilst', cat(
+      textIlstItem('\xa9nam', 'Đêm Trăng Hi-Res 夜曲'),
+      textIlstItem('\xa9ART', 'Thiên Nguyễn'),
+      textIlstItem('aART', 'Nocturne Ensemble'),
+      textIlstItem('\xa9alb', 'Audiophile Sessions Vol. 1'),
+      trknIlstItem(3, 12),
+      atom32('covr', dataAtom(13, jpegBytes)),
+      freeformIlstItem(
+        'com.apple.iTunes',
+        'iTunNORM',
+        ' 000007D0 000007D0 00001388 00001388 00024CA8 00024CA8 00006000 00006000 00024CA8 00024CA8'
+      )
+    ));
+    const metaFullBox = atom32('meta', cat(new Uint8Array(4), hdlr, ilstFull));
+    const moovFull = atom32('moov', cat(buildAlacTrak(96000, 24, 2, 185), atom32('udta', metaFullBox)));
+    const m4aFull = cat(ftyp, moovFull, atomZeroEof('mdat', new Uint8Array(32)));
+
+    const resA = lib.parseMp4IlstMetadataSafe(m4aFull);
+    assert.equal(resA.valid, true);
+    assert.equal(resA.hasIlst, true);
+    assert.equal(resA.metaFormat, 'full_box');
+    assert.equal(resA.usedZeroEofBox, true);
+    assert.equal(resA.title, 'Đêm Trăng Hi-Res 夜曲');
+    assert.equal(resA.artist, 'Thiên Nguyễn');
+    assert.equal(resA.albumArtist, 'Nocturne Ensemble');
+    assert.equal(resA.album, 'Audiophile Sessions Vol. 1');
+    assert.equal(resA.track, '3/12');
+    assert.equal(resA.hasCover, true);
+    assert.equal(resA.coverMimeType, 'image/jpeg');
+    assert.deepEqual(Array.from(resA.picture.data), Array.from(jpegBytes));
+    assert.equal(resA.hasReplayGain, true);
+    assert.equal(resA.replayGainSource, 'itunnorm');
+    assert.equal(resA.trackGain, -3.01);
+    assert.equal(resA.trackPeak, 0.75); // 0x6000 / 0x8000 = 24576 / 32768 = 0.75
+
+    // Verify extractBinaryReplayGainTags & parseReplayGain also resolve M4A iTunNORM!
+    const binRg = lib.extractBinaryReplayGainTags(m4aFull);
+    assert.equal(binRg.valid, true);
+    assert.equal(binRg.format, 'M4A');
+    assert.equal(binRg.source, 'mp4_itunnorm');
+    assert.equal(binRg.trackGain, -3.01);
+    assert.equal(binRg.trackPeak, 0.75);
+
+    const trackRg = lib.parseReplayGain({ iTunNORM: resA.iTunNORM });
+    assert.equal(trackRg.hasReplayGain, true);
+    assert.equal(trackRg.trackGain, -3.01);
+    assert.equal(trackRg.trackPeak, 0.75);
+
+    // Case B: Bare QuickTime meta container + 64-bit largesize=1 boxes + PNG covr + replaygain_track_gain overriding iTunNORM
+    const ilstBare64 = atom64('ilst', cat(
+      textIlstItem('\xa9nam', 'Bare Meta 64-Bit ALAC', true),
+      atom64('covr', dataAtom(0, pngBytes, true)), // dataType=0 -> magic bytes must detect image/png!
+      freeformIlstItem('com.apple.iTunes', 'replaygain_track_gain', '-4.75 dB', true),
+      freeformIlstItem('com.apple.iTunes', 'replaygain_track_peak', '0.912500', true),
+      freeformIlstItem(
+        'com.apple.iTunes',
+        'iTunNORM',
+        ' 000003E8 000003E8 000009C4 000009C4 00000000 00000000 00008000 00008000 00000000 00000000',
+        true
+      )
+    ));
+    const metaBare = atom64('meta', ilstBare64); // No 4-byte FullBox version/flags!
+    const moovBare64 = atom64('moov', atom64('udta', metaBare));
+    const m4aBare64 = cat(ftyp, moovBare64);
+
+    const resB = lib.parseMp4IlstMetadataSafe(m4aBare64);
+    assert.equal(resB.valid, true);
+    assert.equal(resB.metaFormat, 'bare_container');
+    assert.equal(resB.used64BitBox, true);
+    assert.equal(resB.title, 'Bare Meta 64-Bit ALAC');
+    assert.equal(resB.coverMimeType, 'image/png');
+    assert.deepEqual(Array.from(resB.picture.data), Array.from(pngBytes));
+    assert.equal(resB.replayGainSource, 'replaygain');
+    assert.equal(resB.trackGain, -4.75);
+    assert.equal(resB.trackPeak, 0.9125);
+    assert.ok(resB.itunNorm && resB.itunNorm.valid && resB.itunNorm.gainDb === 0);
+  });
+
+  it('streams tail-moov ALAC .m4a via CloudRangeFileReader (hopping 64-bit mdat) and survives truncated/corrupted atom fuzzing with 0 RangeErrors', async () => {
+    const ftyp = atom32('ftyp', new TextEncoder().encode('M4A \x00\x00\x00\x00M4A isom'));
+    const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 0x00, 0x43, 0xff, 0xd9]);
+    const tailMoov = atom32('moov', cat(
+      buildAlacTrak(192000, 24, 2, 300),
+      atom32('udta', atom32('meta', cat(
+        new Uint8Array(4),
+        atom32('ilst', cat(
+          textIlstItem('\xa9nam', 'Cloud Tail ALAC'),
+          textIlstItem('\xa9ART', 'Cloud Artist'),
+          textIlstItem('\xa9alb', 'Cloud Album'),
+          atom32('covr', dataAtom(13, jpegBytes)),
+          freeformIlstItem(
+            'com.apple.iTunes',
+            'iTunNORM',
+            ' 00002710 00002710 000061A8 000061A8 00000000 00000000 00008000 00008000 00000000 00000000'
+          )
+        ))
+      )))
+    ));
+
+    // Simulate a 20 MB cloud ALAC .m4a where 64-bit mdat sits BEFORE tailMoov!
+    const virtualMdatSize = 20 * 1024 * 1024;
+    const mdatHdr64 = new Uint8Array(16);
+    const mdv = new DataView(mdatHdr64.buffer);
+    mdv.setUint32(0, 1, false);
+    for (let i = 0; i < 4; i++) mdatHdr64[4 + i] = 'mdat'.charCodeAt(i);
+    mdv.setUint32(8, 0, false);
+    mdv.setUint32(12, virtualMdatSize, false);
+
+    const moovStartOffset = ftyp.byteLength + virtualMdatSize;
+    const totalCloudSize = moovStartOffset + tailMoov.byteLength;
+    const rangeCalls = [];
+
+    const mockFetch = async (_url, reqOpts) => {
+      const rangeHdr = reqOpts.headers.get('Range') || reqOpts.headers.get('range');
+      rangeCalls.push(rangeHdr);
+      const m = rangeHdr.match(/^bytes=(\d+)-(\d+)$/);
+      const start = Number(m[1]);
+      const end = Number(m[2]);
+      const len = end - start + 1;
+      const slice = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        const filePos = start + i;
+        if (filePos < ftyp.byteLength) {
+          slice[i] = ftyp[filePos];
+        } else if (filePos < ftyp.byteLength + 16) {
+          slice[i] = mdatHdr64[filePos - ftyp.byteLength];
+        } else if (filePos >= moovStartOffset && filePos < totalCloudSize) {
+          slice[i] = tailMoov[filePos - moovStartOffset];
+        }
+      }
+      return {
+        status: 206,
+        headers: {
+          get: h => (h.toLowerCase() === 'content-range' ? `bytes ${start}-${end}/${totalCloudSize}` : null)
+        },
+        arrayBuffer: async () => slice.buffer,
+        body: { cancel() {} }
+      };
+    };
+
+    // Read via readRemoteTags without jsmediatags on a Google Drive style URL + .m4a name!
+    const remoteTags = await cloudMeta.readRemoteTags(
+      null,
+      { url: 'https://www.googleapis.com/drive/v3/files/abc123?alt=media', name: 'master.m4a', size: totalCloudSize },
+      { headers: { Authorization: 'Bearer gdrive-token' } },
+      { fetch: mockFetch, headProbeBytes: 512 }
+    );
+
+    assert.equal(rangeCalls.length, 2, 'Should issue 1 tiny head probe + 1 exact tail moov Range request (skipping 20MB mdat!)');
+    assert.equal(remoteTags.title, 'Cloud Tail ALAC');
+    assert.equal(remoteTags.artist, 'Cloud Artist');
+    assert.equal(remoteTags.album, 'Cloud Album');
+    assert.equal(remoteTags.sampleRate, 192000);
+    assert.equal(remoteTags.bitDepth, 24);
+    assert.equal(remoteTags.format, 'ALAC');
+    assert.equal(remoteTags.replayGainTrackGain, -10);
+    assert.ok(remoteTags.picture && remoteTags.picture.format === 'image/jpeg');
+
+    // Also verify CloudRangeFileReader.getStringWithCharsetAt strips trailing NUL (\x00) bytes!
+    const RangeReader = cloudMeta.makeRangeReader(
+      async () => ({
+        status: 206,
+        headers: { get: h => (h.toLowerCase() === 'content-range' ? 'bytes 0-7/8' : null) },
+        arrayBuffer: async () => new Uint8Array([65, 76, 65, 67, 0, 0, 0, 0]).buffer,
+        body: { cancel() {} }
+      })
+    );
+    const rr = new RangeReader({ url: 'https://cloud.example/t.m4a', size: 8 });
+    await new Promise((res, rej) => rr.loadRange([0, 7], { onSuccess: res, onError: rej }));
+    assert.equal(rr.getStringWithCharsetAt(0, 8, 'utf-8'), 'ALAC');
+
+    // Exhaustive truncation & malformed atom fuzzing -> strictly 0 RangeErrors!
+    const validSample = cat(ftyp, tailMoov);
+    for (let cut = 0; cut <= validSample.byteLength; cut += 3) {
+      const sub = validSample.subarray(0, cut);
+      const r = lib.parseMp4IlstMetadataSafe(sub);
+      assert.equal(typeof r, 'object');
+    }
+    // Unaligned byteOffset view + corrupted sizes (size32 = 3, size32 = 1 with largeSize = 5, huge 0x7fffffff overflow)
+    const backing = new Uint8Array(64);
+    backing.set([0, 0, 0, 3, 0x6d, 0x6f, 0x6f, 0x76], 3);
+    assert.equal(lib.parseMp4IlstMetadataSafe(backing.subarray(3, 35)).corruptedBox, true);
+    backing.set([0, 0, 0, 1, 0x6d, 0x6f, 0x6f, 0x76, 0, 0, 0, 0, 0, 0, 0, 5], 5);
+    assert.equal(lib.parseMp4IlstMetadataSafe(backing.subarray(5, 45)).corruptedBox, true);
+  });
+});
