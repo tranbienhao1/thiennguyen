@@ -4255,3 +4255,218 @@ describe('Autonomy Tail-Chaining Cycle 18 — BUG-07 (SampleRate-Invariant RT60 
     );
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 19 — UPG-07 (SampleRate-Aware RBJ Cookbook Biquad & Parametric EQ Magnitude/Phase Response Analyzer)', () => {
+  it('exposes UPG-07 functions on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.computeBiquadCoefficientsCookbook, 'function');
+    assert.equal(typeof lib.evaluateParametricEqResponseCurve, 'function');
+
+    const sandbox = { library: { keepRefUpg07: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.computeBiquadCoefficientsCookbook, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.evaluateParametricEqResponseCurve, 'function');
+    assert.equal(typeof sandbox.library.computeBiquadCoefficientsCookbook, 'function');
+    assert.equal(typeof sandbox.library.evaluateParametricEqResponseCurve, 'function');
+    assert.equal(sandbox.library.keepRefUpg07, true);
+  });
+
+  it('computeBiquadCoefficientsCookbook computes exact normalized RBJ coefficients across all 8 filter types and clamps safely below Nyquist (0.495 * sampleRate)', () => {
+    function evalSingleBiquadAt(coeffs, freqHz) {
+      const w = (2 * Math.PI * freqHz) / coeffs.sampleRate;
+      const c1 = Math.cos(w);
+      const s1 = Math.sin(w);
+      const c2 = Math.cos(2 * w);
+      const s2 = Math.sin(2 * w);
+      const nr = coeffs.b0 + coeffs.b1 * c1 + coeffs.b2 * c2;
+      const ni = -(coeffs.b1 * s1 + coeffs.b2 * s2);
+      const dr = coeffs.a0 + coeffs.a1 * c1 + coeffs.a2 * c2;
+      const di = -(coeffs.a1 * s1 + coeffs.a2 * s2);
+      const den2 = dr * dr + di * di;
+      const hRe = (nr * dr + ni * di) / den2;
+      const hIm = (ni * dr - nr * di) / den2;
+      const mag2 = hRe * hRe + hIm * hIm;
+      return {
+        db: mag2 > 1e-24 ? 10 * Math.log10(mag2) : -240,
+        phaseDeg: (Math.atan2(hIm, hRe) * 180) / Math.PI
+      };
+    }
+
+    // 1. Peaking filter (+6.0 dB at 1000 Hz, Q = 1.5, 48 kHz): 0 dB at DC & Nyquist, exact +6.0 dB & 0 deg at f0
+    const peak = lib.computeBiquadCoefficientsCookbook({ type: 'peaking', frequency: 1000, gain: 6, q: 1.5 }, 48000);
+    assert.equal(peak.a0, 1);
+    assert.equal(peak.polesStable, true);
+    assert.equal(peak.clampedToNyquist, false);
+    assert.ok(Math.abs(evalSingleBiquadAt(peak, 0).db) < 1e-9);
+    assert.ok(Math.abs(evalSingleBiquadAt(peak, 1000).db - 6.0) < 1e-9);
+    assert.ok(Math.abs(evalSingleBiquadAt(peak, 1000).phaseDeg) < 1e-9);
+    assert.ok(Math.abs(evalSingleBiquadAt(peak, 24000).db) < 1e-9);
+
+    // 2. Lowshelf (+6.0 dB at 120 Hz, Q = SQRT1_2, 48 kHz): +6.0 dB at DC, +3.0 dB at f0, 0.0 dB at Nyquist
+    const lowshelf = lib.computeBiquadCoefficientsCookbook({ type: 'lowshelf', frequency: 120, gain: 6, q: Math.SQRT1_2 }, 48000);
+    assert.equal(lowshelf.polesStable, true);
+    assert.ok(Math.abs(evalSingleBiquadAt(lowshelf, 0).db - 6.0) < 1e-9);
+    assert.ok(Math.abs(evalSingleBiquadAt(lowshelf, 120).db - 3.0) < 1e-6);
+    assert.ok(Math.abs(evalSingleBiquadAt(lowshelf, 24000).db) < 1e-9);
+
+    // 3. Highshelf (+6.0 dB at 8000 Hz, Q = SQRT1_2, 96 kHz): 0.0 dB at DC, +3.0 dB at f0, +6.0 dB at Nyquist
+    const highshelf = lib.computeBiquadCoefficientsCookbook({ type: 'highshelf', frequency: 8000, gain: 6, q: Math.SQRT1_2 }, 96000);
+    assert.equal(highshelf.polesStable, true);
+    assert.ok(Math.abs(evalSingleBiquadAt(highshelf, 0).db) < 1e-9);
+    assert.ok(Math.abs(evalSingleBiquadAt(highshelf, 8000).db - 3.0) < 1e-6);
+    assert.ok(Math.abs(evalSingleBiquadAt(highshelf, 48000).db - 6.0) < 1e-9);
+
+    // 4. Lowpass, Highpass, Bandpass, Notch, Allpass at 96 kHz
+    const lp = lib.computeBiquadCoefficientsCookbook({ type: 'lowpass', frequency: 2000, q: Math.SQRT1_2 }, 96000);
+    assert.ok(Math.abs(evalSingleBiquadAt(lp, 0).db) < 1e-9);
+    assert.ok(Math.abs(evalSingleBiquadAt(lp, 2000).db - (-3.0103)) < 0.05);
+    assert.ok(evalSingleBiquadAt(lp, 48000).db < -100);
+
+    const hp = lib.computeBiquadCoefficientsCookbook({ type: 'highpass', frequency: 2000, q: Math.SQRT1_2 }, 96000);
+    assert.ok(evalSingleBiquadAt(hp, 0).db < -100);
+    assert.ok(Math.abs(evalSingleBiquadAt(hp, 2000).db - (-3.0103)) < 0.05);
+    assert.ok(Math.abs(evalSingleBiquadAt(hp, 48000).db) < 1e-9);
+
+    const bp = lib.computeBiquadCoefficientsCookbook({ type: 'bandpass', frequency: 1500, q: 2.0 }, 96000);
+    assert.ok(Math.abs(evalSingleBiquadAt(bp, 1500).db) < 1e-9);
+    assert.ok(Math.abs(evalSingleBiquadAt(bp, 1500).phaseDeg) < 1e-9);
+
+    const notch = lib.computeBiquadCoefficientsCookbook({ type: 'notch', frequency: 1500, q: 4.0 }, 96000);
+    assert.ok(Math.abs(evalSingleBiquadAt(notch, 0).db) < 1e-9);
+    assert.ok(evalSingleBiquadAt(notch, 1500).db < -120);
+    assert.ok(Math.abs(evalSingleBiquadAt(notch, 48000).db) < 1e-9);
+
+    const ap = lib.computeBiquadCoefficientsCookbook({ type: 'allpass', frequency: 1500, q: 1.2 }, 96000);
+    for (const f of [20, 300, 1500, 10000, 40000]) {
+      assert.ok(Math.abs(evalSingleBiquadAt(ap, f).db) < 1e-9, `Allpass magnitude must be 0 dB at ${f} Hz`);
+    }
+    assert.ok(Math.abs(Math.abs(evalSingleBiquadAt(ap, 1500).phaseDeg) - 180) < 1e-6);
+
+    // 5. Nyquist clamping across 44.1kHz vs 192kHz vs 384kHz (0.495 * sampleRate)
+    const clamped44k = lib.computeBiquadCoefficientsCookbook({ type: 'peaking', frequency: 28000, gain: 4, q: 1 }, 44100);
+    assert.equal(clamped44k.clampedToNyquist, true);
+    assert.equal(clamped44k.frequency, 44100 * 0.495);
+    assert.equal(clamped44k.polesStable, true);
+
+    const unclamped192k = lib.computeBiquadCoefficientsCookbook({ type: 'peaking', frequency: 28000, gain: 4, q: 1 }, 192000);
+    assert.equal(unclamped192k.clampedToNyquist, false);
+    assert.equal(unclamped192k.frequency, 28000);
+    assert.equal(unclamped192k.polesStable, true);
+
+    const unclamped384k = lib.computeBiquadCoefficientsCookbook({ type: 'peaking', frequency: 60000, gain: -3, q: 1.5 }, 384000);
+    assert.equal(unclamped384k.clampedToNyquist, false);
+    assert.equal(unclamped384k.frequency, 60000);
+    assert.equal(unclamped384k.polesStable, true);
+  });
+
+  it('evaluateParametricEqResponseCurve computes cascade magnitude & phase, 44.1kHz vs 192kHz near-20kHz cramping divergence, anti-clipping recommendedPreampDb, and zero-alloc outBuffers reuse', () => {
+    // 1. Symmetric peaking filter phase response: +lead below f0, exact 0 deg at f0, -lag above f0
+    const singlePeakCurve = lib.evaluateParametricEqResponseCurve(
+      [{ type: 'peaking', frequency: 1000, gain: 6, q: 1.5 }],
+      { sampleRate: 96000, frequencies: [500, 1000, 2000] }
+    );
+    assert.ok(singlePeakCurve.frequenciesHz instanceof Float32Array);
+    assert.ok(singlePeakCurve.magnitudeDb instanceof Float32Array);
+    assert.ok(singlePeakCurve.phaseDeg instanceof Float32Array);
+    assert.ok(Math.abs(singlePeakCurve.magnitudeDb[1] - 6.0) < 1e-5);
+    assert.equal(singlePeakCurve.phaseDeg[1], 0);
+    assert.ok(singlePeakCurve.phaseDeg[0] > 10 && singlePeakCurve.phaseDeg[0] <= 180, 'Boost peaking filter must exhibit positive phase lead below f0');
+    assert.ok(singlePeakCurve.phaseDeg[2] < -10 && singlePeakCurve.phaseDeg[2] >= -180, 'Boost peaking filter must exhibit negative phase lag above f0');
+
+    // 2. Complementary +8dB and -8dB peaking cascade cancels to 0.0 dB and 0.0 deg everywhere
+    const cancelCurve = lib.evaluateParametricEqResponseCurve(
+      [
+        { type: 'peaking', frequency: 2500, gain: 8, q: 1.4 },
+        { type: 'peaking', frequency: 2500, gain: -8, q: 1.4 }
+      ],
+      { sampleRate: 96000, pointCount: 64 }
+    );
+    for (let i = 0; i < cancelCurve.magnitudeDb.length; i++) {
+      assert.ok(Math.abs(cancelCurve.magnitudeDb[i]) < 1e-5);
+      assert.ok(Math.abs(cancelCurve.phaseDeg[i]) < 1e-5);
+      assert.ok(cancelCurve.phaseDeg[i] >= -180 && cancelCurve.phaseDeg[i] <= 180);
+    }
+
+    // 3. Real digital frequency cramping near Nyquist at 44.1kHz vs 192kHz & 384kHz!
+    // At 44.1kHz (Nyquist = 22.05kHz), a peaking filter at 16kHz (+6dB, Q=0.8) is forced down toward 0dB at 22.05kHz,
+    // severely cramping its 20kHz gain compared to 192kHz / 384kHz!
+    const airBoostBands = [{ type: 'peaking', frequency: 16000, gain: 6.0, q: 0.8 }];
+    const curve44k = lib.evaluateParametricEqResponseCurve(airBoostBands, {
+      sampleRate: 44100,
+      pointCount: 128,
+      minFreqHz: 20,
+      maxFreqHz: 20000
+    });
+    const curve192k = lib.evaluateParametricEqResponseCurve(airBoostBands, {
+      sampleRate: 192000,
+      pointCount: 128,
+      minFreqHz: 20,
+      maxFreqHz: 20000
+    });
+    const curve384k = lib.evaluateParametricEqResponseCurve(airBoostBands, {
+      sampleRate: 384000,
+      pointCount: 128,
+      minFreqHz: 20,
+      maxFreqHz: 20000
+    });
+
+    assert.equal(curve44k.nyquistHz, 22050);
+    assert.equal(curve192k.nyquistHz, 96000);
+    assert.equal(curve384k.nyquistHz, 192000);
+    assert.equal(curve44k.frequenciesHz[127], 20000);
+    assert.equal(curve192k.frequenciesHz[127], 20000);
+
+    const gain20kAt44k = curve44k.magnitudeDb[127];
+    const gain20kAt192k = curve192k.magnitudeDb[127];
+    const gain20kAt384k = curve384k.magnitudeDb[127];
+    assert.ok(gain20kAt44k < 2.2, `Expected severe Nyquist cramping at 20kHz on 44.1kHz stream, got ${gain20kAt44k.toFixed(2)} dB`);
+    assert.ok(gain20kAt192k > 5.0, `Expected uncramped upper skirt at 20kHz on 192kHz stream, got ${gain20kAt192k.toFixed(2)} dB`);
+    assert.ok(gain20kAt384k > gain20kAt192k, '384kHz response at 20kHz should be even closer to analog prototype than 192kHz');
+    assert.ok(gain20kAt192k - gain20kAt44k > 3.0, `Expected >3.0dB cramping divergence at 20kHz between 192kHz and 44.1kHz, got ${(gain20kAt192k - gain20kAt44k).toFixed(2)} dB`);
+
+    // Verify maxFreqHz safety clamp when maxFreqHz > 0.495 * sampleRate
+    const clampedGrid = lib.evaluateParametricEqResponseCurve(airBoostBands, {
+      sampleRate: 44100,
+      pointCount: 64,
+      maxFreqHz: 40000
+    });
+    assert.ok(Math.abs(clampedGrid.frequenciesHz[63] - 44100 * 0.495) < 0.01);
+
+    // 4. Cascade magnitude summation & anti-clipping recommendedPreampDb calculation + zero-allocation outBuffers reuse
+    const outBuffers = {
+      frequenciesHz: new Float32Array(256),
+      magnitudeDb: new Float32Array(256),
+      phaseDeg: new Float32Array(256)
+    };
+    const multiBand = [
+      { type: 'lowshelf', frequency: 80, gain: 4.5, q: 0.71 },
+      { type: 'peaking', frequency: 1000, gain: 3.5, q: 1.0 },
+      { type: 'peaking', frequency: 1050, gain: 3.0, q: 1.0 },
+      { type: 'peaking', frequency: 6000, gain: -5.0, q: 2.5 }
+    ];
+    const reusedRes = lib.evaluateParametricEqResponseCurve(multiBand, {
+      sampleRate: 96000,
+      pointCount: 256,
+      outBuffers
+    });
+
+    assert.strictEqual(reusedRes.frequenciesHz, outBuffers.frequenciesHz);
+    assert.strictEqual(reusedRes.magnitudeDb, outBuffers.magnitudeDb);
+    assert.strictEqual(reusedRes.phaseDeg, outBuffers.phaseDeg);
+    assert.ok(reusedRes.peakBoostDb > 6.2 && reusedRes.peakBoostDb < 6.7, `Overlapping 1kHz bands must compound boost to ~6.5 dB, got ${reusedRes.peakBoostDb}`);
+    assert.ok(reusedRes.maxCutDb < -4.5, `Expected maxCutDb < -4.5 dB, got ${reusedRes.maxCutDb}`);
+    assert.equal(reusedRes.recommendedPreampDb, -reusedRes.peakBoostDb);
+
+    // Cut-only EQ needs 0 dB preamp (never boosts above 0 dB)
+    const cutOnlyRes = lib.evaluateParametricEqResponseCurve(
+      [{ type: 'peaking', frequency: 3000, gain: -4.0, q: 2.0 }],
+      { sampleRate: 48000, outBuffers }
+    );
+    assert.equal(cutOnlyRes.peakBoostDb, 0);
+    assert.ok(cutOnlyRes.maxCutDb < -3.8);
+    assert.equal(cutOnlyRes.recommendedPreampDb, 0);
+  });
+});

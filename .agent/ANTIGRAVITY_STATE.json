@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 26,
-  "lastPhase": "BUG_HUNT",
-  "lastRunIso": "2026-11-18T02:09:48.113Z",
+  "cycleCount": 27,
+  "lastPhase": "UPGRADE",
+  "lastRunIso": "2026-11-18T02:16:23.443Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "UPG-07",
-      "phase": "UPGRADE",
-      "title": "Hỗ trợ hiển thị biểu đồ đáp tuyến biên độ-pha thực tế theo sampleRate hiện hành (44.1kHz–384kHz) trong bảng Parametric EQ"
-    },
     {
       "id": "OPT-07",
       "phase": "OPTIMIZE",
@@ -133,6 +128,16 @@
       "id": "UPG-15",
       "phase": "UPGRADE",
       "title": "Bổ sung hiển thị thông số mẫu xung lực phòng nghe thực tế (sampleRate, số khung mẫu, độ trễ phản xạ sớm và hệ số bù năng lượng) trong bảng Room Acoustics"
+    },
+    {
+      "id": "OPT-15",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu lưu đệm lưới tần số logarit và bảng lượng giác cos(w)/sin(w) theo sampleRate cho evaluateParametricEqResponseCurve khi kéo thanh trượt EQ liên tục 60fps"
+    },
+    {
+      "id": "BUG-16",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra đồng bộ cập nhật đường cong đáp tuyến biên độ-pha EQ khi chuyển từ luồng PCM 44.1kHz sang DSD128 176.4kHz trong lúc bảng #eq-panel đang mở"
     }
   ],
   "completedTasks": [
@@ -287,6 +292,14 @@
       "completedAt": "2026-11-18T01:19:35.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai synthesizeSampleRateInvariantImpulseResponse (phản xạ sớm stereo tất định theo mili-giây Math.round(tapMs * 0.001 * sampleRate), đường bao phân rã hàm mũ -60dB RT60 Math.pow(10, -3 * tSec / rt60Sec) và bù năng lượng chập 1 / Math.sqrt(sampleRate / 48000) bất biến độ to trên 44.1kHz..384kHz) cùng reconcileConvolverImpulseForSampleRate trong library-utils.js và tích hợp an toàn vào createRoomAcousticNodes / applyRoomAcoustics / rebuildAudioRoutes trong index.html"
+    },
+    {
+      "id": "UPG-07",
+      "phase": "UPGRADE",
+      "title": "Hỗ trợ hiển thị biểu đồ đáp tuyến biên độ-pha thực tế theo sampleRate hiện hành (44.1kHz–384kHz) trong bảng Parametric EQ",
+      "completedAt": "2026-11-18T02:16:23.443Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai computeBiquadCoefficientsCookbook (hệ số RBJ Audio EQ Cookbook chuẩn hóa theo a0 cho peaking/lowshelf/highshelf/lowpass/highpass/bandpass/notch/allpass trên 44.1kHz..384kHz, kẹp an toàn < 0.495 * sampleRate) và evaluateParametricEqResponseCurve (đánh giá hàm truyền phức nối tầng H(e^{jw}) biên độ dB & pha độ [-180, 180], tái hiện nén tần số Nyquist thực tế ở 44.1kHz so với 192kHz/384kHz, tính recommendedPreampDb chống clipping và tái sử dụng Float32Array outBuffers zero-allocation) trong library-utils.js"
     }
   ]
 }
