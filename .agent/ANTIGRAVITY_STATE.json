@@ -1,9 +1,9 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 40,
-  "lastPhase": "UPGRADE",
-  "lastRunIso": "2026-11-18T07:05:26.186Z",
+  "cycleCount": 41,
+  "lastPhase": "OPTIMIZE",
+  "lastRunIso": "2026-11-18T07:20:09.637Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
@@ -18,11 +18,6 @@
     "updatedAt": "2026-11-18T06:38:46.149Z"
   },
   "pendingQueue": [
-    {
-      "id": "OPT-10",
-      "phase": "OPTIMIZE",
-      "title": "Tối ưu tái sử dụng leftTimeBytes / rightTimeBytes từ ZeroAllocFrameScratchpad cho bộ dựng hình 3D Acoustic Soundstage tránh cấp phát Uint8Array mỗi khung hình"
-    },
     {
       "id": "BUG-11",
       "phase": "BUG_HUNT",
@@ -192,6 +187,16 @@
       "id": "BUG-22",
       "phase": "BUG_HUNT",
       "title": "Kiểm tra đặt lại mốc thời gian lastFrameMs của VisualizerFpsMonitor khi thiết bị chuyển đổi tần số quét màn hình ProMotion 60Hz <-> 120Hz động"
+    },
+    {
+      "id": "UPG-22",
+      "phase": "UPGRADE",
+      "title": "Bổ sung hiển thị vector tương quan pha âm hình 3D (correlation & spectral airiness) trực tiếp trên phụ đề của Sân khấu Âm học Toàn màn hình"
+    },
+    {
+      "id": "OPT-22",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu tiền tính bảng lượng giác sin/cos cho lưới tia phương vị (SOUNDSTAGE_SPOKE_ANGLES & POLAR_RADAR_AZIMUTH_ANGLES) trong bộ dựng hình Canvas 2D"
     }
   ],
   "completedTasks": [
@@ -426,6 +431,14 @@
       "completedAt": "2026-11-18T07:05:26.186Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai createVisualizerFpsMonitor (ring-buffer Float64Array zero-allocation + copyWithin sortedDeltas O(log W) theo dõi rollingFps, p99Ms, droppedFrames, throttledFrames và chế độ OffscreenWorker / MainThread2D / DapEcoThrottled) cùng formatVisualizerRenderTelemetry trong library-utils.js, tích hợp vào computeSignalPath / buildRoonSignalPathStages và cập nhật trực tiếp #fs-room-fps-badge, #room-fps-badge, #signal-path-fps-badge mỗi 30 khung hình trong setVisualizerRunning"
+    },
+    {
+      "id": "OPT-10",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu tái sử dụng leftTimeBytes / rightTimeBytes từ ZeroAllocFrameScratchpad cho bộ dựng hình 3D Acoustic Soundstage tránh cấp phát Uint8Array mỗi khung hình",
+      "completedAt": "2026-11-18T07:20:09.637Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai soundstageScratch & ensureStereoBuffers trên ZeroAllocFrameScratchpad, nâng cấp calculateSoundstageAcousticVectors(leftBytes, rightBytes, freqBytes, outVectors), calculateSpatialVectorSpectrogram, calculatePolarRadarSoundstage và calculateVuBallistics tái sử dụng tham chiếu đối tượng tại chỗ, triệt tiêu 100% cấp phát new Uint8Array / mảng tạm mỗi khung hình trong bộ dựng hình #fullscreen-stage-canvas"
     }
   ]
 }

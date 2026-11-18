@@ -6331,3 +6331,151 @@ describe('Autonomy Tail-Chaining Cycle 28 — UPG-10 (Live Zero-Alloc FPS, p99 F
     );
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 29 — OPT-10 (Zero-Alloc Scratchpad Reuse in 3D Acoustic Soundstage Renderer)', () => {
+  it('reuses identical outVectors, spatialReport, polarReport & TypedArray references across 1,000 60fps frames', () => {
+    const pad = lib.createZeroAllocFrameScratchpad(128);
+    assert.ok(pad.soundstageScratch && typeof pad.soundstageScratch === 'object');
+    assert.equal(typeof pad.ensureStereoBuffers, 'function');
+
+    const baseStageScratch = pad.soundstageScratch;
+    const baseSpatialReport = baseStageScratch.spatialReport;
+    const baseSpatialPoints = baseSpatialReport.points;
+    const basePolarReport = baseStageScratch.polarReport;
+    const basePolarBins = basePolarReport.bins;
+    const basePolarBands = basePolarReport.spectralBands;
+    const baseVuLeft = baseStageScratch.vuLeft;
+    const baseLeftTimeBuf = pad.leftTimeBytes.buffer;
+    const baseRightTimeBuf = pad.rightTimeBytes.buffer;
+    const baseLeftFreqBuf = pad.leftFreqBytes.buffer;
+    const baseRightFreqBuf = pad.rightFreqBytes.buffer;
+
+    // Ensure matching stereo sizes is a no-op (zero reallocation)
+    assert.equal(pad.ensureStereoBuffers(256, 128), false);
+
+    for (let f = 0; f < 1000; f++) {
+      const phase = f * 0.08;
+      for (let i = 0; i < pad.leftTimeBytes.length; i++) {
+        pad.leftTimeBytes[i] = Math.max(0, Math.min(255, Math.round(128 + 75 * Math.sin(i * 0.14 + phase))));
+        pad.rightTimeBytes[i] = Math.max(0, Math.min(255, Math.round(128 + 75 * Math.cos(i * 0.14 + phase * 0.7))));
+      }
+      for (let k = 0; k < pad.leftFreqBytes.length; k++) {
+        pad.leftFreqBytes[k] = (k * 2 + f) & 0xff;
+        pad.rightFreqBytes[k] = (k * 3 + f) & 0xff;
+      }
+
+      const vecOut = lib.calculateSoundstageAcousticVectors(
+        pad.leftTimeBytes,
+        pad.rightTimeBytes,
+        pad.leftFreqBytes,
+        baseStageScratch
+      );
+      assert.equal(vecOut, baseStageScratch, 'calculateSoundstageAcousticVectors must mutate & return exact outVectors reference');
+
+      const spatialOut = lib.calculateSpatialVectorSpectrogram(
+        pad.leftTimeBytes,
+        pad.rightTimeBytes,
+        baseStageScratch.spatialOptions
+      );
+      assert.equal(spatialOut, baseSpatialReport);
+      assert.equal(spatialOut.points, baseSpatialPoints);
+
+      const polarOut = lib.calculatePolarRadarSoundstage(
+        pad.leftTimeBytes,
+        pad.rightTimeBytes,
+        pad.leftFreqBytes,
+        baseStageScratch.polarOptions
+      );
+      assert.equal(polarOut, basePolarReport);
+      assert.equal(polarOut.bins, basePolarBins);
+      assert.equal(polarOut.spectralBands, basePolarBands);
+
+      const vuOut = lib.calculateVuBallistics((f % 100) / 100, baseVuLeft.level, null, baseVuLeft);
+      assert.equal(vuOut, baseVuLeft);
+    }
+
+    assert.equal(pad.leftTimeBytes.buffer, baseLeftTimeBuf);
+    assert.equal(pad.rightTimeBytes.buffer, baseRightTimeBuf);
+    assert.equal(pad.leftFreqBytes.buffer, baseLeftFreqBuf);
+    assert.equal(pad.rightFreqBytes.buffer, baseRightFreqBuf);
+  });
+
+  it('computes accurate mono, wide stereo, panned, and out-of-phase acoustic vectors with spectral airiness', () => {
+    const out = {};
+    const n = 256;
+    const monoL = new Uint8Array(n);
+    const monoR = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      const s = Math.round(128 + 70 * Math.sin(i * 0.2));
+      monoL[i] = s;
+      monoR[i] = s;
+    }
+    const resMono = lib.calculateSoundstageAcousticVectors(monoL, monoR, null, out);
+    assert.equal(resMono, out);
+    assert.equal(resMono.azimuth, 0);
+    assert.equal(resMono.spread, 0);
+    assert.equal(resMono.correlation, 1);
+    assert.equal(resMono.soundstageType, 'intimate');
+
+    // Quadrature stereo (90° phase shift -> decorrelated stereo)
+    const stereoL = new Uint8Array(n);
+    const stereoR = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      stereoL[i] = Math.round(128 + 70 * Math.sin((2 * Math.PI * 4 * i) / n));
+      stereoR[i] = Math.round(128 + 70 * Math.cos((2 * Math.PI * 4 * i) / n));
+    }
+    const bassFreq = new Uint8Array(128);
+    const airyFreq = new Uint8Array(128);
+    for (let k = 0; k < 128; k++) {
+      bassFreq[k] = k < 24 ? 220 : 4;
+      airyFreq[k] = k >= 76 ? 240 : 20;
+    }
+    const resBassStereo = lib.calculateSoundstageAcousticVectors(stereoL, stereoR, bassFreq, out);
+    const bassAiriness = resBassStereo.airiness;
+    assert.ok(resBassStereo.spread >= 85, `Expected wide quadrature spread, got ${resBassStereo.spread}`);
+    assert.ok(Math.abs(resBassStereo.correlation) <= 0.08, `Expected near-0 quadrature correlation, got ${resBassStereo.correlation}`);
+
+    const resAiryStereo = lib.calculateSoundstageAcousticVectors(stereoL, stereoR, airyFreq, out);
+    assert.ok(resAiryStereo.airiness > bassAiriness, `Treble-rich spectrum (${resAiryStereo.airiness}) must exceed bass-heavy airiness (${bassAiriness})`);
+
+    // Inverted 180° out-of-phase stereo (L == -R around 128)
+    const invL = new Uint8Array(n);
+    const invR = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      const d = Math.round(70 * Math.sin(i * 0.15));
+      invL[i] = 128 + d;
+      invR[i] = 128 - d;
+    }
+    const resInv = lib.calculateSoundstageAcousticVectors(invL, invR, null, out);
+    assert.equal(resInv.spread, 100);
+    assert.equal(resInv.correlation, -1);
+    assert.equal(resInv.soundstageType, 'holographic');
+  });
+
+  it('eliminates per-frame Uint8Array allocations inside #fullscreen-stage-canvas render block in index.html', () => {
+    const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const stageStart = indexHtml.indexOf("const fsCanvas = $('fullscreen-stage-canvas');");
+    const stageEnd = indexHtml.indexOf('window.setVisualizerRunning = setVisualizerRunning;', stageStart);
+    assert.ok(stageStart > 0 && stageEnd > stageStart, 'Must locate #fullscreen-stage-canvas render block in index.html');
+
+    const stageBlock = indexHtml.slice(stageStart, stageEnd);
+    assert.equal(
+      /new\s+Uint8Array\s*\(/.test(stageBlock),
+      false,
+      '#fullscreen-stage-canvas render block must contain ZERO per-frame new Uint8Array(...) allocations'
+    );
+    assert.ok(stageBlock.includes('scratchpad.leftTimeBytes'), 'Must reuse scratchpad.leftTimeBytes');
+    assert.ok(stageBlock.includes('scratchpad.rightTimeBytes'), 'Must reuse scratchpad.rightTimeBytes');
+    assert.ok(stageBlock.includes('scratchpad.leftFreqBytes'), 'Must reuse scratchpad.leftFreqBytes');
+    assert.ok(stageBlock.includes('scratchpad.rightFreqBytes'), 'Must reuse scratchpad.rightFreqBytes');
+    assert.ok(stageBlock.includes('scratchpad.soundstageScratch'), 'Must reuse scratchpad.soundstageScratch');
+    assert.ok(
+      stageBlock.includes('library.calculateSoundstageAcousticVectors(leftBuf, rightBuf, stageFreqBuf, stageScratch)'),
+      'Must pass stageFreqBuf & stageScratch to calculateSoundstageAcousticVectors'
+    );
+    assert.ok(
+      indexHtml.includes('state.crossfeedNodes.output.connect(state.context.destination)'),
+      'Audio destination routing invariant must remain intact'
+    );
+  });
+});

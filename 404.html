@@ -6795,6 +6795,18 @@
             const fsCtx = fsCanvas.getContext('2d');
             const fsW = fsCanvas.width;
             const fsH = fsCanvas.height;
+            const stageScratch = scratchpad ? scratchpad.soundstageScratch : null;
+            if (scratchpad && state.leftAnalyser && typeof scratchpad.ensureStereoBuffers === 'function') {
+              scratchpad.ensureStereoBuffers(state.leftAnalyser.fftSize, state.leftAnalyser.frequencyBinCount);
+            }
+            const stageRenderOpts = stageScratch ? stageScratch.renderOpts : null;
+            const activeTheme = state.visualizerTheme || 'cyber';
+            if (stageRenderOpts) {
+              stageRenderOpts.width = fsW;
+              stageRenderOpts.height = fsH;
+              stageRenderOpts.theme = activeTheme;
+              stageRenderOpts.standby = !isAudioActive;
+            }
             if (state.fullscreenStageMode === 'vu' && typeof library.renderVisualizerVuMeter === 'function') {
               let angleL = -45;
               let angleR = -45;
@@ -6802,8 +6814,8 @@
               let overR = false;
 
               if (isAudioActive) {
-                const leftBuf = (state.leftAnalyser) ? ((scratchpad && scratchpad.leftFreqBytes.length === state.leftAnalyser.frequencyBinCount) ? scratchpad.leftFreqBytes : new Uint8Array(state.leftAnalyser.frequencyBinCount)) : data;
-                const rightBuf = (state.rightAnalyser) ? ((scratchpad && scratchpad.rightFreqBytes.length === state.rightAnalyser.frequencyBinCount) ? scratchpad.rightFreqBytes : new Uint8Array(state.rightAnalyser.frequencyBinCount)) : data;
+                const leftBuf = (state.leftAnalyser && scratchpad) ? scratchpad.leftFreqBytes : data;
+                const rightBuf = (state.rightAnalyser && scratchpad) ? scratchpad.rightFreqBytes : data;
                 if (state.leftAnalyser) state.leftAnalyser.getByteFrequencyData(leftBuf);
                 if (state.rightAnalyser) state.rightAnalyser.getByteFrequencyData(rightBuf);
 
@@ -6814,8 +6826,8 @@
                 const normR = maxR / 255;
 
                 if (typeof library.calculateVuBallistics === 'function') {
-                  vuLevelL = library.calculateVuBallistics(normL, vuLevelL ? vuLevelL.level : 0);
-                  vuLevelR = library.calculateVuBallistics(normR, vuLevelR ? vuLevelR.level : 0);
+                  vuLevelL = library.calculateVuBallistics(normL, vuLevelL ? vuLevelL.level : 0, null, stageScratch ? stageScratch.vuLeft : null);
+                  vuLevelR = library.calculateVuBallistics(normR, vuLevelR ? vuLevelR.level : 0, null, stageScratch ? stageScratch.vuRight : null);
                   angleL = vuLevelL.needleAngle;
                   angleR = vuLevelR.needleAngle;
                   overL = vuLevelL.isOverload;
@@ -6828,15 +6840,23 @@
                 }
               }
 
-              library.renderVisualizerVuMeter(fsCtx, {
-                width: fsW,
-                height: fsH,
-                theme: state.visualizerTheme || 'cyber',
-                leftAngle: angleL,
-                rightAngle: angleR,
-                isOverloadLeft: overL,
-                isOverloadRight: overR
-              });
+              if (stageRenderOpts) {
+                stageRenderOpts.leftAngle = angleL;
+                stageRenderOpts.rightAngle = angleR;
+                stageRenderOpts.isOverloadLeft = overL;
+                stageRenderOpts.isOverloadRight = overR;
+                library.renderVisualizerVuMeter(fsCtx, stageRenderOpts);
+              } else {
+                library.renderVisualizerVuMeter(fsCtx, {
+                  width: fsW,
+                  height: fsH,
+                  theme: activeTheme,
+                  leftAngle: angleL,
+                  rightAngle: angleR,
+                  isOverloadLeft: overL,
+                  isOverloadRight: overR
+                });
+              }
               const fsSoundstage = $('fs-soundstage-badge');
               if (fsSoundstage) {
                 fsSoundstage.textContent = isAudioActive ? (overL || overR ? '⚠️ Quá tải VU' : 'VU Meter Chuẩn') : 'VU STANDBY (-45°)';
@@ -6847,17 +6867,17 @@
               }
             } else if (state.fullscreenStageMode === 'vector' && typeof library.renderSpatialVectorCanvas === 'function') {
               let leftBuf = timeData, rightBuf = timeData;
-              if (isAudioActive && state.leftAnalyser && state.rightAnalyser) {
-                leftBuf = (scratchpad && scratchpad.leftTimeBytes.length === state.leftAnalyser.fftSize) ? scratchpad.leftTimeBytes : new Uint8Array(state.leftAnalyser.fftSize);
-                rightBuf = (scratchpad && scratchpad.rightTimeBytes.length === state.rightAnalyser.fftSize) ? scratchpad.rightTimeBytes : new Uint8Array(state.rightAnalyser.fftSize);
+              if (isAudioActive && state.leftAnalyser && state.rightAnalyser && scratchpad) {
+                leftBuf = scratchpad.leftTimeBytes;
+                rightBuf = scratchpad.rightTimeBytes;
                 state.leftAnalyser.getByteTimeDomainData(leftBuf);
                 state.rightAnalyser.getByteTimeDomainData(rightBuf);
               }
               const report = (isAudioActive && typeof library.calculateSpatialVectorSpectrogram === 'function')
-                ? library.calculateSpatialVectorSpectrogram(leftBuf, rightBuf)
-                : { points: [], soundstageSpread: 0, correlation: 1.0, soundstageState: 'standby' };
-              library.renderSpatialVectorCanvas(fsCanvas, report, {
-                theme: state.visualizerTheme || 'cyber',
+                ? library.calculateSpatialVectorSpectrogram(leftBuf, rightBuf, stageScratch ? stageScratch.spatialOptions : undefined)
+                : (stageScratch ? stageScratch.standbySpatialReport : { points: [], soundstageSpread: 0, correlation: 1.0, soundstageState: 'standby' });
+              library.renderSpatialVectorCanvas(fsCanvas, report, stageRenderOpts || {
+                theme: activeTheme,
                 standby: !isAudioActive
               });
               const fsSoundstage = $('fs-soundstage-badge');
@@ -6870,17 +6890,17 @@
               }
             } else if (state.fullscreenStageMode === 'radar' && typeof library.renderPolarRadarCanvas === 'function') {
               let leftBuf = timeData, rightBuf = timeData;
-              if (isAudioActive && state.leftAnalyser && state.rightAnalyser) {
-                leftBuf = (scratchpad && scratchpad.leftTimeBytes.length === state.leftAnalyser.fftSize) ? scratchpad.leftTimeBytes : new Uint8Array(state.leftAnalyser.fftSize);
-                rightBuf = (scratchpad && scratchpad.rightTimeBytes.length === state.rightAnalyser.fftSize) ? scratchpad.rightTimeBytes : new Uint8Array(state.rightAnalyser.fftSize);
+              if (isAudioActive && state.leftAnalyser && state.rightAnalyser && scratchpad) {
+                leftBuf = scratchpad.leftTimeBytes;
+                rightBuf = scratchpad.rightTimeBytes;
                 state.leftAnalyser.getByteTimeDomainData(leftBuf);
                 state.rightAnalyser.getByteTimeDomainData(rightBuf);
               }
               const polarReport = (isAudioActive && typeof library.calculatePolarRadarSoundstage === 'function')
-                ? library.calculatePolarRadarSoundstage(leftBuf, rightBuf, data)
-                : { bins: [], soundstageState: 'standby', soundstageApertureDeg: 0, statusLabel: 'Radar STANDBY', centroidAzimuthDeg: 0, correlation: 1.0 };
-              library.renderPolarRadarCanvas(fsCanvas, polarReport, {
-                theme: state.visualizerTheme || 'cyber'
+                ? library.calculatePolarRadarSoundstage(leftBuf, rightBuf, data, stageScratch ? stageScratch.polarOptions : undefined)
+                : (stageScratch ? stageScratch.standbyPolarReport : { bins: [], soundstageState: 'standby', soundstageApertureDeg: 0, statusLabel: 'Radar STANDBY', centroidAzimuthDeg: 0, correlation: 1.0 });
+              library.renderPolarRadarCanvas(fsCanvas, polarReport, stageRenderOpts || {
+                theme: activeTheme
               });
               const fsSoundstage = $('fs-soundstage-badge');
               if (fsSoundstage) {
@@ -6894,19 +6914,23 @@
               }
             } else if (typeof library.renderAcousticSoundstageCanvas === 'function') {
               let leftBuf = timeData, rightBuf = timeData;
-              if (isAudioActive && state.leftAnalyser && state.rightAnalyser) {
-                leftBuf = new Uint8Array(state.leftAnalyser.fftSize);
-                rightBuf = new Uint8Array(state.rightAnalyser.fftSize);
+              let stageFreqBuf = data;
+              if (isAudioActive && state.leftAnalyser && state.rightAnalyser && scratchpad) {
+                leftBuf = scratchpad.leftTimeBytes;
+                rightBuf = scratchpad.rightTimeBytes;
                 state.leftAnalyser.getByteTimeDomainData(leftBuf);
                 state.rightAnalyser.getByteTimeDomainData(rightBuf);
+                state.leftAnalyser.getByteFrequencyData(scratchpad.leftFreqBytes);
+                state.rightAnalyser.getByteFrequencyData(scratchpad.rightFreqBytes);
+                stageFreqBuf = scratchpad.leftFreqBytes;
               }
               const vectors = (isAudioActive && typeof library.calculateSoundstageAcousticVectors === 'function')
-                ? library.calculateSoundstageAcousticVectors(leftBuf, rightBuf)
-                : { azimuth: 0, depth: 0, spread: 0, summary: 'STANDBY' };
-              library.renderAcousticSoundstageCanvas(fsCtx, vectors, {
+                ? library.calculateSoundstageAcousticVectors(leftBuf, rightBuf, stageFreqBuf, stageScratch)
+                : (stageScratch ? stageScratch.standbyVectors : { azimuth: 0, depth: 0, spread: 0, summary: 'STANDBY' });
+              library.renderAcousticSoundstageCanvas(fsCtx, vectors, stageRenderOpts || {
                 width: fsW,
                 height: fsH,
-                theme: state.visualizerTheme || 'cyber'
+                theme: activeTheme
               });
               const fsSoundstage = $('fs-soundstage-badge');
               if (fsSoundstage) {

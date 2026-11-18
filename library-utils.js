@@ -5722,11 +5722,12 @@
   }
 
   // Pha B — Đo Lường Ballistics & Đồng Hồ VU Analog Kép (Dual Stereophonic Analog VU Meter)
-  function calculateVuBallistics(currentLevel, previousLevel = 0, options = {}) {
+  function calculateVuBallistics(currentLevel, previousLevel = 0, options = {}, outState = null) {
+    const opts = options && typeof options === 'object' ? options : null;
     const raw = Math.max(0, Math.min(1, Number(currentLevel) || 0));
     const prev = Math.max(0, Math.min(1, Number(previousLevel) || 0));
-    const attack = Number.isFinite(options.attack) ? Math.max(0.05, Math.min(1, options.attack)) : 0.35;
-    const decay = Number.isFinite(options.decay) ? Math.max(0.01, Math.min(0.5, options.decay)) : 0.05;
+    const attack = opts && Number.isFinite(opts.attack) ? Math.max(0.05, Math.min(1, opts.attack)) : 0.35;
+    const decay = opts && Number.isFinite(opts.decay) ? Math.max(0.01, Math.min(0.5, opts.decay)) : 0.05;
 
     let level;
     if (raw > prev) {
@@ -5740,6 +5741,16 @@
     const norm = Math.min(1, Math.max(0, (db + 40) / 43));
     const needleAngle = -45 + norm * 90;
 
+    const target = (outState && typeof outState === 'object')
+      ? outState
+      : (opts && opts.outState && typeof opts.outState === 'object' ? opts.outState : null);
+    if (target) {
+      target.level = Math.round(level * 1000) / 1000;
+      target.db = Math.round(db * 10) / 10;
+      target.needleAngle = Math.round(needleAngle * 10) / 10;
+      target.isOverload = isOverload;
+      return target;
+    }
     return {
       level: Math.round(level * 1000) / 1000,
       db: Math.round(db * 10) / 10,
@@ -5947,28 +5958,90 @@
     }
   }
 
-  function calculateSoundstageAcousticVectors(leftData, rightData, sampleRate = 44100) {
-    if (!leftData || !rightData || leftData.length === 0 || rightData.length === 0) {
-      return {
-        azimuth: 0,
-        depth: 0.5,
-        spread: 50,
-        airiness: 0.5,
-        soundstageType: 'balanced',
-        summary: 'Âm hình Cân bằng (Rộng 50%)'
-      };
+  const SOUNDSTAGE_RINGS_FRAC = [0.25, 0.5, 0.75, 1.0];
+  const SOUNDSTAGE_SPOKE_ANGLES = [-45, -30, -15, 0, 15, 30, 45];
+  const SOUNDSTAGE_FALLBACK_VECTORS = { azimuth: 0, depth: 0.5, spread: 50, airiness: 0.5 };
+
+  function isByteTimeDomainSamples(data, len) {
+    if (data instanceof Uint8Array || data instanceof Uint8ClampedArray) return true;
+    if (
+      data instanceof Float32Array ||
+      data instanceof Float64Array ||
+      data instanceof Int8Array ||
+      data instanceof Int16Array ||
+      data instanceof Int32Array
+    ) {
+      return false;
+    }
+    if (len <= 0 || typeof data[0] !== 'number' || data[0] < 0 || data[0] > 255) return false;
+    const limit = len < 10 ? len : 10;
+    let hasByteScaleValue = false;
+    for (let i = 0; i < limit; i++) {
+      const v = data[i];
+      if (v < 0 || v > 255) return false;
+      if (v > 1.000001) hasByteScaleValue = true;
+    }
+    if (hasByteScaleValue) return true;
+    for (let i = 0; i < limit; i++) {
+      if (!Number.isInteger(data[i])) return false;
+    }
+    return true;
+  }
+
+  function calculateSoundstageAcousticVectors(leftData, rightData, freqOrSampleRate = 44100, outVectors = null) {
+    let freqBytes = null;
+    let targetOut = (
+      outVectors &&
+      typeof outVectors === 'object' &&
+      !Array.isArray(outVectors) &&
+      !ArrayBuffer.isView(outVectors)
+    )
+      ? outVectors
+      : null;
+
+    if (typeof freqOrSampleRate === 'number') {
+      // Legacy 3-argument sampleRate signature preserved
+    } else if (
+      freqOrSampleRate &&
+      (freqOrSampleRate instanceof Uint8Array || ArrayBuffer.isView(freqOrSampleRate) || Array.isArray(freqOrSampleRate))
+    ) {
+      freqBytes = freqOrSampleRate;
+    } else if (freqOrSampleRate && typeof freqOrSampleRate === 'object' && !targetOut) {
+      targetOut = freqOrSampleRate;
     }
 
-    const len = Math.min(leftData.length, rightData.length);
-    const isByteLeft = leftData instanceof Uint8Array || (typeof leftData[0] === 'number' && leftData[0] >= 0 && leftData[0] <= 255 && !Array.from(leftData.slice(0, 10)).some(v => v < 0));
-    const isByteRight = rightData instanceof Uint8Array || (typeof rightData[0] === 'number' && rightData[0] >= 0 && rightData[0] <= 255 && !Array.from(rightData.slice(0, 10)).some(v => v < 0));
+    const out = targetOut || {
+      azimuth: 0,
+      depth: 0.5,
+      spread: 50,
+      airiness: 0.5,
+      correlation: 1,
+      soundstageType: 'balanced',
+      summary: 'Âm hình Cân bằng (Rộng 50%)'
+    };
 
-    let sumL2 = 0, sumR2 = 0, sumMid2 = 0, sumSide2 = 0;
+    if (!leftData || !rightData || leftData.length === 0 || rightData.length === 0) {
+      out.azimuth = 0;
+      out.depth = 0.5;
+      out.spread = 50;
+      out.airiness = 0.5;
+      out.correlation = 1;
+      out.soundstageType = 'balanced';
+      out.summary = 'Âm hình Cân bằng (Rộng 50%)';
+      return out;
+    }
+
+    const len = leftData.length < rightData.length ? leftData.length : rightData.length;
+    const isByteLeft = isByteTimeDomainSamples(leftData, len);
+    const isByteRight = isByteTimeDomainSamples(rightData, len);
+
+    let sumL2 = 0, sumR2 = 0, sumMid2 = 0, sumSide2 = 0, sumDot = 0;
     let highFreqEnergy = 0, totalEnergy = 0;
+    let prevL = 0;
 
     for (let i = 0; i < len; i++) {
-      const l = isByteLeft ? (leftData[i] - 128) / 128 : Number(leftData[i]) || 0;
-      const r = isByteRight ? (rightData[i] - 128) / 128 : Number(rightData[i]) || 0;
+      const l = isByteLeft ? (leftData[i] - 128) * 0.0078125 : (Number(leftData[i]) || 0);
+      const r = isByteRight ? (rightData[i] - 128) * 0.0078125 : (Number(rightData[i]) || 0);
 
       const mid = (l + r) * 0.5;
       const side = (l - r) * 0.5;
@@ -5977,20 +6050,24 @@
       sumR2 += r * r;
       sumMid2 += mid * mid;
       sumSide2 += side * side;
+      sumDot += l * r;
 
       if (i > 0) {
-        const prevL = isByteLeft ? (leftData[i-1] - 128) / 128 : Number(leftData[i-1]) || 0;
         const diff = l - prevL;
         highFreqEnergy += diff * diff;
       }
+      prevL = l;
       totalEnergy += (l * l + r * r) * 0.5;
     }
 
     const totalLR = sumL2 + sumR2;
     let azimuth = 0;
+    let correlation = 1;
     if (totalLR > 1e-9) {
       const panRatio = (sumR2 - sumL2) / totalLR;
       azimuth = Math.round(panRatio * 45 * 10) / 10;
+      const rawCorr = (2 * sumDot) / totalLR;
+      correlation = Math.max(-1, Math.min(1, Math.round(rawCorr * 1000) / 1000));
     }
 
     const totalMS = sumMid2 + sumSide2;
@@ -5998,7 +6075,25 @@
     const spread = Math.max(0, Math.min(100, Math.round(spreadRatio * 200)));
     const depth = Math.max(0.1, Math.min(1.0, Math.round((0.3 + spreadRatio * 0.7) * 100) / 100));
     const airRatio = totalEnergy > 1e-9 ? highFreqEnergy / totalEnergy : 0.3;
-    const airiness = Math.max(0, Math.min(1, Math.round(Math.min(1, airRatio * 2.5) * 100) / 100));
+    let airiness = Math.max(0, Math.min(1, Math.round(Math.min(1, airRatio * 2.5) * 100) / 100));
+
+    if (freqBytes && freqBytes.length >= 4) {
+      const fl = freqBytes.length;
+      const isFloatFreq = freqBytes instanceof Float32Array || freqBytes instanceof Float64Array;
+      const hiStart = (fl * 0.6) | 0;
+      let fTotal = 0;
+      let fHigh = 0;
+      for (let k = 0; k < fl; k++) {
+        const fv = isFloatFreq ? (freqBytes[k] > 0 ? freqBytes[k] : 0) : (freqBytes[k] * 0.00392156862745098);
+        fTotal += fv;
+        if (k >= hiStart) fHigh += fv;
+      }
+      if (fTotal > 1e-6) {
+        const hiCount = Math.max(1, fl - hiStart);
+        const specAir = Math.min(1, (fHigh / hiCount) / Math.max(1e-6, fTotal / fl));
+        airiness = Math.max(0, Math.min(1, Math.round((airiness * 0.6 + specAir * 0.4) * 100) / 100));
+      }
+    }
 
     let soundstageType = 'balanced';
     if (spread < 20) {
@@ -6009,16 +6104,14 @@
       soundstageType = 'wide';
     }
 
-    const summary = formatSoundstageVectorsSummary({ azimuth, depth, spread, airiness, soundstageType });
-
-    return {
-      azimuth,
-      depth,
-      spread,
-      airiness,
-      soundstageType,
-      summary
-    };
+    out.azimuth = azimuth;
+    out.depth = depth;
+    out.spread = spread;
+    out.airiness = airiness;
+    out.correlation = correlation;
+    out.soundstageType = soundstageType;
+    out.summary = formatSoundstageVectorsSummary(out);
+    return out;
   }
 
   function formatSoundstageVectorsSummary(vectors) {
@@ -6059,8 +6152,8 @@
     const maxR = Math.min(width * 0.42, height * 0.55);
 
     // Draw polar grid rings
-    const rings = [0.25, 0.5, 0.75, 1.0];
-    for (const rFraction of rings) {
+    for (let rIdx = 0; rIdx < SOUNDSTAGE_RINGS_FRAC.length; rIdx++) {
+      const rFraction = SOUNDSTAGE_RINGS_FRAC[rIdx];
       context.beginPath();
       context.arc(cx, cy, maxR * rFraction, Math.PI, Math.PI * 2);
       context.strokeStyle = rFraction === 1.0 ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.06)';
@@ -6069,8 +6162,8 @@
     }
 
     // Radial spokes (-45°, -30°, -15°, 0°, +15°, +30°, +45°)
-    const angles = [-45, -30, -15, 0, 15, 30, 45];
-    for (const deg of angles) {
+    for (let aIdx = 0; aIdx < SOUNDSTAGE_SPOKE_ANGLES.length; aIdx++) {
+      const deg = SOUNDSTAGE_SPOKE_ANGLES[aIdx];
       const rad = (deg - 90) * (Math.PI / 180);
       context.beginPath();
       context.moveTo(cx, cy);
@@ -6096,7 +6189,7 @@
     context.fillStyle = '#94a3b8';
     context.fill();
 
-    const safeVectors = vectors || { azimuth: 0, depth: 0.5, spread: 50, airiness: 0.5 };
+    const safeVectors = vectors || SOUNDSTAGE_FALLBACK_VECTORS;
     const az = Number.isFinite(safeVectors.azimuth) ? safeVectors.azimuth : 0;
     const depth = Number.isFinite(safeVectors.depth) ? safeVectors.depth : 0.5;
     const spread = Number.isFinite(safeVectors.spread) ? safeVectors.spread : 50;
@@ -10652,9 +10745,13 @@
     return `🛡️ Lọc DSD: ${filter.name.split(' (')[0]} (${filter.badge} · Cắt ${filter.cutoffHz / 1000} kHz · -${filter.slopeDbPerOct} dB/oct)`;
   }
 
+  const SILENT_TIME_BYTES_64 = new Uint8Array(64).fill(128);
+  const SPATIAL_VECTOR_RINGS = [0.33, 0.66, 1.0];
+
   function calculateSpatialVectorSpectrogram(timeDataLeft, timeDataRight, options = {}) {
-    const left = (timeDataLeft && timeDataLeft.length) ? timeDataLeft : new Uint8Array(64).fill(128);
-    const right = (timeDataRight && timeDataRight.length) ? timeDataRight : new Uint8Array(64).fill(128);
+    const opts = options && typeof options === 'object' ? options : null;
+    const left = (timeDataLeft && timeDataLeft.length) ? timeDataLeft : SILENT_TIME_BYTES_64;
+    const right = (timeDataRight && timeDataRight.length) ? timeDataRight : SILENT_TIME_BYTES_64;
     const numSamples = Math.min(left.length, right.length);
 
     let sumMidSq = 0;
@@ -10664,12 +10761,15 @@
     let sumDot = 0;
 
     const pointsCount = Math.min(32, Math.floor(numSamples / 2));
-    const points = [];
-    const step = Math.max(1, Math.floor(numSamples / pointsCount));
+    const outReport = opts && opts.outReport && typeof opts.outReport === 'object' ? opts.outReport : null;
+    const pointsPool = outReport && Array.isArray(outReport._pointsPool) ? outReport._pointsPool : null;
+    const points = outReport && Array.isArray(outReport.points) ? outReport.points : [];
+    let pointWriteIdx = 0;
+    const step = Math.max(1, Math.floor(numSamples / Math.max(1, pointsCount)));
 
     for (let i = 0; i < numSamples; i++) {
-      const l = (left[i] - 128) / 128;
-      const r = (right[i] - 128) / 128;
+      const l = (left[i] - 128) * 0.0078125;
+      const r = (right[i] - 128) * 0.0078125;
 
       const mid = (l + r) * 0.707106;
       const side = (l - r) * 0.707106;
@@ -10680,12 +10780,22 @@
       sumRightSq += r * r;
       sumDot += l * r;
 
-      if (i % step === 0 && points.length < pointsCount) {
-        points.push({
-          x: Math.round((r - l) * 0.707106 * 1000) / 1000,
-          y: Math.round((l + r) * 0.707106 * 1000) / 1000
-        });
+      if (i % step === 0 && pointWriteIdx < pointsCount) {
+        const px = Math.round((r - l) * 0.707106 * 1000) / 1000;
+        const py = Math.round((l + r) * 0.707106 * 1000) / 1000;
+        if (pointsPool && pointWriteIdx < pointsPool.length) {
+          const slot = pointsPool[pointWriteIdx];
+          slot.x = px;
+          slot.y = py;
+          points[pointWriteIdx] = slot;
+        } else {
+          points[pointWriteIdx] = { x: px, y: py };
+        }
+        pointWriteIdx += 1;
       }
+    }
+    if (points.length !== pointWriteIdx) {
+      points.length = pointWriteIdx;
     }
 
     const rmsLeft = Math.sqrt(sumLeftSq / Math.max(1, numSamples));
@@ -10706,6 +10816,19 @@
     if (correlation < 0) soundstageState = 'phase_warning';
     else if (soundstageSpread > 75) soundstageState = 'ultra_wide';
     else if (soundstageSpread < 20) soundstageState = 'mono_focused';
+
+    if (outReport) {
+      outReport.points = points;
+      outReport.correlation = Math.round(correlation * 100) / 100;
+      outReport.soundstageSpread = soundstageSpread;
+      outReport.azimuthDegrees = azimuthDegrees;
+      outReport.soundstageState = soundstageState;
+      outReport.rmsLeft = Math.round(rmsLeft * 1000) / 1000;
+      outReport.rmsRight = Math.round(rmsRight * 1000) / 1000;
+      outReport.rmsMid = Math.round(rmsMid * 1000) / 1000;
+      outReport.rmsSide = Math.round(rmsSide * 1000) / 1000;
+      return outReport;
+    }
 
     return {
       points,
@@ -10745,11 +10868,11 @@
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
     ctx.lineWidth = 1;
-    [0.33, 0.66, 1.0].forEach(rRatio => {
+    for (let rIdx = 0; rIdx < SPATIAL_VECTOR_RINGS.length; rIdx++) {
       ctx.beginPath();
-      ctx.arc(cx, cy, radius * rRatio, 0, Math.PI * 2);
+      ctx.arc(cx, cy, radius * SPATIAL_VECTOR_RINGS[rIdx], 0, Math.PI * 2);
       ctx.stroke();
-    });
+    }
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
     ctx.beginPath();
@@ -11276,25 +11399,49 @@
     return POLAR_RADAR_MODES[modeId.toLowerCase()] || POLAR_RADAR_MODES.contour;
   }
 
-  function calculatePolarRadarSoundstage(timeDataLeft, timeDataRight, freqData, options = {}) {
-    const left = (timeDataLeft && timeDataLeft.length) ? timeDataLeft : new Uint8Array(64).fill(128);
-    const right = (timeDataRight && timeDataRight.length) ? timeDataRight : new Uint8Array(64).fill(128);
-    const numSamples = Math.min(left.length, right.length);
-    const numBins = Math.max(8, Math.min(32, Number(options.numBins) || 16));
+  const POLAR_RADAR_RINGS = [
+    { rPct: 0.25, label: '-24 dB' },
+    { rPct: 0.50, label: '-12 dB' },
+    { rPct: 0.75, label: '-6 dB' },
+    { rPct: 1.00, label: '0 dB' }
+  ];
+  const POLAR_RADAR_AZIMUTH_ANGLES = [-60, -45, -30, 0, 30, 45, 60];
+  const POLAR_EMPTY_DASH = [];
+  const POLAR_DOTTED_DASH = [2, 4];
 
-    const bins = [];
+  function calculatePolarRadarSoundstage(timeDataLeft, timeDataRight, freqData, options = {}) {
+    const opts = options && typeof options === 'object' ? options : null;
+    const left = (timeDataLeft && timeDataLeft.length) ? timeDataLeft : SILENT_TIME_BYTES_64;
+    const right = (timeDataRight && timeDataRight.length) ? timeDataRight : SILENT_TIME_BYTES_64;
+    const numSamples = Math.min(left.length, right.length);
+    const numBins = Math.max(8, Math.min(32, Number(opts && opts.numBins) || 16));
+
+    const outReport = opts && opts.outReport && typeof opts.outReport === 'object' ? opts.outReport : null;
     const binWidthDeg = 180 / numBins;
-    for (let b = 0; b < numBins; b++) {
-      const centerAngleDeg = -90 + (b + 0.5) * binWidthDeg;
-      bins.push({
-        binIndex: b,
-        angleDeg: Math.round(centerAngleDeg),
-        angleRad: (centerAngleDeg * Math.PI) / 180,
-        energySum: 0,
-        count: 0,
-        radius: 0,
-        coherence: 1.0
-      });
+    let bins;
+    if (outReport && Array.isArray(outReport.bins) && outReport.bins.length === numBins) {
+      bins = outReport.bins;
+      for (let b = 0; b < numBins; b++) {
+        const slot = bins[b];
+        slot.energySum = 0;
+        slot.count = 0;
+        slot.radius = 0;
+        slot.coherence = 1.0;
+      }
+    } else {
+      bins = [];
+      for (let b = 0; b < numBins; b++) {
+        const centerAngleDeg = -90 + (b + 0.5) * binWidthDeg;
+        bins.push({
+          binIndex: b,
+          angleDeg: Math.round(centerAngleDeg),
+          angleRad: (centerAngleDeg * Math.PI) / 180,
+          energySum: 0,
+          count: 0,
+          radius: 0,
+          coherence: 1.0
+        });
+      }
     }
 
     let totalEnergy = 0;
@@ -11306,8 +11453,8 @@
     let processedSamples = 0;
 
     for (let i = 0; i < numSamples; i += sampleStep) {
-      const l = (left[i] - 128) / 128;
-      const r = (right[i] - 128) / 128;
+      const l = (left[i] - 128) * 0.0078125;
+      const r = (right[i] - 128) * 0.0078125;
 
       sumL2 += l * l;
       sumR2 += r * r;
@@ -11338,23 +11485,21 @@
     }
 
     let maxBinEnergy = 0.001;
-    bins.forEach(b => {
-      const avgE = b.count > 0 ? b.energySum / b.count : 0;
-      b.radius = Math.min(1.0, avgE * 2.2);
-      if (b.radius > maxBinEnergy) maxBinEnergy = b.radius;
-    });
-
-    bins.forEach(b => {
-      b.radius = Math.min(1.0, Math.max(0.06, b.radius));
-    });
+    let activeBins = 0;
+    for (let b = 0; b < numBins; b++) {
+      const slot = bins[b];
+      const avgE = slot.count > 0 ? slot.energySum / slot.count : 0;
+      const rScaled = Math.min(1.0, avgE * 2.2);
+      if (rScaled > maxBinEnergy) maxBinEnergy = rScaled;
+      slot.radius = Math.min(1.0, Math.max(0.06, rScaled));
+      if (slot.radius > 0.12) activeBins++;
+    }
 
     const centroidAzimuthDeg = totalEnergy > 0 ? Math.round(weightedAngleSum / totalEnergy) : 0;
     const denom = Math.sqrt(sumL2 * sumR2);
     const correlation = denom > 1e-6 ? Math.max(-1.0, Math.min(1.0, sumLR / denom)) : 1.0;
     const antiPhaseRatio = processedSamples > 0 ? antiPhaseCount / processedSamples : 0;
 
-    let activeBins = 0;
-    bins.forEach(b => { if (b.radius > 0.12) activeBins++; });
     const soundstageApertureDeg = Math.round(Math.min(180, Math.max(20, (activeBins / numBins) * 180)));
     const polarDepth = Math.round(Math.min(100, (totalEnergy / (processedSamples || 1)) * 300));
 
@@ -11371,7 +11516,9 @@
       statusLabel = 'Âm hình Trung tâm Hội tụ (Mono Center)';
     }
 
-    let spectralBands = { subBass: 0.5, mid: 0.5, high: 0.5 };
+    const spectralBands = (outReport && outReport.spectralBands && typeof outReport.spectralBands === 'object')
+      ? outReport.spectralBands
+      : { subBass: 0.5, mid: 0.5, high: 0.5 };
     if (freqData && freqData.length) {
       const fl = freqData.length;
       let eSub = 0, eMid = 0, eHigh = 0;
@@ -11380,19 +11527,35 @@
       for (let i = 0; i < subEnd; i++) eSub += freqData[i];
       for (let i = subEnd; i < midEnd; i++) eMid += freqData[i];
       for (let i = midEnd; i < fl; i++) eHigh += freqData[i];
-      spectralBands = {
-        subBass: Math.min(1.0, (eSub / (subEnd || 1)) / 180),
-        mid: Math.min(1.0, (eMid / ((midEnd - subEnd) || 1)) / 180),
-        high: Math.min(1.0, (eHigh / ((fl - midEnd) || 1)) / 180)
-      };
+      spectralBands.subBass = Math.min(1.0, (eSub / (subEnd || 1)) / 180);
+      spectralBands.mid = Math.min(1.0, (eMid / ((midEnd - subEnd) || 1)) / 180);
+      spectralBands.high = Math.min(1.0, (eHigh / ((fl - midEnd) || 1)) / 180);
+    } else {
+      spectralBands.subBass = 0.5;
+      spectralBands.mid = 0.5;
+      spectralBands.high = 0.5;
+    }
+
+    if (outReport) {
+      outReport.centroidAzimuthDeg = centroidAzimuthDeg;
+      outReport.soundstageApertureDeg = soundstageApertureDeg;
+      outReport.polarDepth = polarDepth;
+      outReport.correlation = Math.round(correlation * 1000) / 1000;
+      outReport.antiPhaseRatio = Math.round(antiPhaseRatio * 1000) / 1000;
+      outReport.soundstageState = soundstageState;
+      outReport.statusLabel = statusLabel;
+      outReport.spectralBands = spectralBands;
+      outReport.bins = bins;
+      outReport.totalEnergy = Math.round(totalEnergy * 100) / 100;
+      return outReport;
     }
 
     return {
       centroidAzimuthDeg,
       soundstageApertureDeg,
       polarDepth,
-      correlation: Number(correlation.toFixed(3)),
-      antiPhaseRatio: Number(antiPhaseRatio.toFixed(3)),
+      correlation: Math.round(correlation * 1000) / 1000,
+      antiPhaseRatio: Math.round(antiPhaseRatio * 1000) / 1000,
       soundstageState,
       statusLabel,
       spectralBands,
@@ -11429,19 +11592,13 @@
     ctx.fillStyle = 'rgba(10, 11, 16, 0.35)';
     ctx.fillRect(0, 0, w, h);
 
-    const rings = [
-      { rPct: 0.25, label: '-24 dB' },
-      { rPct: 0.50, label: '-12 dB' },
-      { rPct: 0.75, label: '-6 dB' },
-      { rPct: 1.00, label: '0 dB' }
-    ];
-
     ctx.lineWidth = 1;
-    rings.forEach((ring, idx) => {
+    for (let idx = 0; idx < POLAR_RADAR_RINGS.length; idx++) {
+      const ring = POLAR_RADAR_RINGS[idx];
       const ringR = maxR * ring.rPct;
       ctx.beginPath();
       ctx.arc(cx, cy, ringR, Math.PI, 0, false);
-      ctx.strokeStyle = idx === rings.length - 1 ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.20)';
+      ctx.strokeStyle = idx === POLAR_RADAR_RINGS.length - 1 ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.20)';
       ctx.stroke();
 
       ctx.fillStyle = 'rgba(212, 212, 216, 0.85)';
@@ -11449,10 +11606,10 @@
       if (typeof ctx.fillText === 'function') {
         ctx.fillText(ring.label, cx + 4, cy - ringR + 10);
       }
-    });
+    }
 
-    const azimuthAngles = [-60, -45, -30, 0, 30, 45, 60];
-    azimuthAngles.forEach(deg => {
+    for (let aIdx = 0; aIdx < POLAR_RADAR_AZIMUTH_ANGLES.length; aIdx++) {
+      const deg = POLAR_RADAR_AZIMUTH_ANGLES[aIdx];
       const rad = ((deg - 90) * Math.PI) / 180;
       const x2 = cx + maxR * Math.cos(rad);
       const y2 = cy + maxR * Math.sin(rad);
@@ -11462,11 +11619,11 @@
       ctx.lineTo(x2, y2);
       ctx.strokeStyle = deg === 0 ? 'rgba(168, 85, 247, 0.60)' : 'rgba(255, 255, 255, 0.20)';
       if (typeof ctx.setLineDash === 'function') {
-        ctx.setLineDash(deg === 0 ? [] : [2, 4]);
+        ctx.setLineDash(deg === 0 ? POLAR_EMPTY_DASH : POLAR_DOTTED_DASH);
       }
       ctx.stroke();
       if (typeof ctx.setLineDash === 'function') {
-        ctx.setLineDash([]);
+        ctx.setLineDash(POLAR_EMPTY_DASH);
       }
 
       const labelX = cx + (maxR + 12) * Math.cos(rad);
@@ -11477,7 +11634,7 @@
       if (typeof ctx.fillText === 'function') {
         ctx.fillText(`${deg > 0 ? '+' : ''}${deg}°`, labelX, labelY + 3);
       }
-    });
+    }
 
     ctx.font = '10px sans-serif';
     ctx.fillStyle = 'rgba(244, 114, 182, 0.7)';
@@ -14676,6 +14833,100 @@
       frameCount: 0
     };
 
+    const EMPTY_STAGE_LIST = Object.freeze([]);
+    const spatialReportScratch = {
+      points: [],
+      _pointsPool: Array.from({ length: 32 }, () => ({ x: 0, y: 0 })),
+      correlation: 1.0,
+      soundstageSpread: 0,
+      azimuthDegrees: 0,
+      soundstageState: 'balanced',
+      rmsLeft: 0,
+      rmsRight: 0,
+      rmsMid: 0,
+      rmsSide: 0
+    };
+    const polarReportScratch = {
+      centroidAzimuthDeg: 0,
+      soundstageApertureDeg: 0,
+      polarDepth: 0,
+      correlation: 1.0,
+      antiPhaseRatio: 0,
+      soundstageState: 'balanced_stereo',
+      statusLabel: 'Stereo Cân bằng',
+      spectralBands: { subBass: 0.5, mid: 0.5, high: 0.5 },
+      bins: Array.from({ length: 16 }, (_, b) => {
+        const centerAngleDeg = -90 + (b + 0.5) * (180 / 16);
+        return {
+          binIndex: b,
+          angleDeg: Math.round(centerAngleDeg),
+          angleRad: (centerAngleDeg * Math.PI) / 180,
+          energySum: 0,
+          count: 0,
+          radius: 0,
+          coherence: 1.0
+        };
+      }),
+      totalEnergy: 0
+    };
+    const soundstageScratch = {
+      azimuth: 0,
+      depth: 0.5,
+      spread: 50,
+      airiness: 0.5,
+      correlation: 1,
+      soundstageType: 'balanced',
+      summary: 'Âm hình Cân bằng (Rộng 50%)',
+      standbyVectors: {
+        azimuth: 0,
+        depth: 0,
+        spread: 0,
+        airiness: 0,
+        correlation: 1,
+        soundstageType: 'balanced',
+        summary: 'STANDBY'
+      },
+      spatialReport: spatialReportScratch,
+      spatialOptions: { outReport: spatialReportScratch },
+      standbySpatialReport: {
+        points: EMPTY_STAGE_LIST,
+        soundstageSpread: 0,
+        correlation: 1.0,
+        azimuthDegrees: 0,
+        soundstageState: 'standby',
+        rmsLeft: 0,
+        rmsRight: 0,
+        rmsMid: 0,
+        rmsSide: 0
+      },
+      polarReport: polarReportScratch,
+      polarOptions: { outReport: polarReportScratch },
+      standbyPolarReport: {
+        bins: EMPTY_STAGE_LIST,
+        soundstageState: 'standby',
+        soundstageApertureDeg: 0,
+        statusLabel: 'Radar STANDBY',
+        centroidAzimuthDeg: 0,
+        correlation: 1.0,
+        polarDepth: 0,
+        antiPhaseRatio: 0,
+        spectralBands: { subBass: 0, mid: 0, high: 0 },
+        totalEnergy: 0
+      },
+      vuLeft: { level: 0, needleAngle: -45, db: -40, isOverload: false },
+      vuRight: { level: 0, needleAngle: -45, db: -40, isOverload: false },
+      renderOpts: {
+        width: 600,
+        height: 340,
+        theme: 'cyber',
+        standby: false,
+        leftAngle: -45,
+        rightAngle: -45,
+        isOverloadLeft: false,
+        isOverloadRight: false
+      }
+    };
+
     const pad = {
       binCount: currentBinCount,
       fftSize: currentFftSize,
@@ -14689,6 +14940,7 @@
       oscBytes: new Uint8Array(currentBinCount),
       normalizedBins: new Float32Array(currentBinCount),
       timeFloats: new Float32Array(currentFftSize),
+      soundstageScratch,
       fpsMonitor: createVisualizerFpsMonitor(
         options && typeof options === 'object' && options.fpsMonitorOptions
           ? options.fpsMonitorOptions
@@ -14696,6 +14948,23 @@
       ),
       lyricCoordinator,
       telemetry,
+
+      ensureStereoBuffers(stereoFftSize, stereoFreqBins) {
+        const parsedTime = Math.floor(Number(stereoFftSize) || 0);
+        const parsedFreq = Math.floor(Number(stereoFreqBins) || (parsedTime > 0 ? parsedTime >>> 1 : 0));
+        let resized = false;
+        if (parsedTime >= 32 && parsedTime <= 32768 && pad.leftTimeBytes.length !== parsedTime) {
+          pad.leftTimeBytes = new Uint8Array(parsedTime);
+          pad.rightTimeBytes = new Uint8Array(parsedTime);
+          resized = true;
+        }
+        if (parsedFreq >= 16 && parsedFreq <= 16384 && pad.leftFreqBytes.length !== parsedFreq) {
+          pad.leftFreqBytes = new Uint8Array(parsedFreq);
+          pad.rightFreqBytes = new Uint8Array(parsedFreq);
+          resized = true;
+        }
+        return resized;
+      },
 
       resizeIfNeeded(nextBinCount) {
         const parsed = Math.floor(Number(nextBinCount) || 0);
