@@ -6186,3 +6186,148 @@ describe('Autonomy Tail-Chaining Cycle 27 — BUG-10 (Cycle-Safe DAG-Preserving 
     assert.equal(importTampered.reason, 'checksum_mismatch');
   });
 });
+
+describe('Autonomy Tail-Chaining Cycle 28 — UPG-10 (Live Zero-Alloc FPS, p99 Frame-Time & Render Backend Telemetry)', () => {
+  it('exposes createVisualizerFpsMonitor & formatVisualizerRenderTelemetry on UMD exports and ZeroAllocFrameScratchpad', () => {
+    assert.equal(typeof lib.createVisualizerFpsMonitor, 'function');
+    assert.equal(typeof lib.formatVisualizerRenderTelemetry, 'function');
+
+    const pad = lib.createZeroAllocFrameScratchpad(256);
+    assert.ok(pad.fpsMonitor && typeof pad.fpsMonitor.recordFrame === 'function');
+    assert.equal(
+      lib.formatVisualizerRenderTelemetry(null),
+      '-- FPS · MainThread2D · Chờ khung hình'
+    );
+  });
+
+  it('tracks 60fps MainThread2D, 120fps OffscreenWorker, and 22fps DapEcoThrottled cadences with accurate p99Ms & droppedFrames', () => {
+    // 1. 60fps MainThread2D desktop cadence
+    const mon60 = lib.createVisualizerFpsMonitor({ windowSize: 120 });
+    const dt60 = 1000 / 60;
+    for (let i = 0; i <= 150; i++) {
+      mon60.recordFrame(1000 + i * dt60);
+    }
+    const snap60 = mon60.getSnapshot();
+    assert.equal(snap60.fps, 60);
+    assert.equal(snap60.targetFps, 60);
+    assert.equal(snap60.backend, 'MainThread2D');
+    assert.equal(snap60.renderBackend, 'MainThread2D');
+    assert.equal(snap60.droppedFrames, 0);
+    assert.ok(Math.abs(snap60.p99Ms - 16.67) < 0.15, `Expected ~16.67ms p99, got ${snap60.p99Ms}`);
+    assert.equal(
+      lib.formatVisualizerRenderTelemetry(snap60),
+      '60 FPS · MainThread2D · p99 16.7ms · Drop 0'
+    );
+
+    // 2. 120fps ProMotion / OffscreenWorker cadence
+    const mon120 = lib.createVisualizerFpsMonitor({ windowSize: 120, backend: 'OffscreenWorker' });
+    const dt120 = 1000 / 120;
+    for (let i = 0; i <= 200; i++) {
+      mon120.recordFrame(5000 + i * dt120);
+    }
+    const snap120 = mon120.getSnapshot();
+    assert.equal(snap120.fps, 120);
+    assert.equal(snap120.targetFps, 120);
+    assert.equal(snap120.backend, 'OffscreenWorker');
+    assert.equal(snap120.droppedFrames, 0);
+    assert.ok(Math.abs(snap120.p99Ms - 8.33) < 0.15, `Expected ~8.33ms p99, got ${snap120.p99Ms}`);
+    assert.equal(
+      lib.formatVisualizerRenderTelemetry(snap120),
+      '120 FPS · OffscreenWorker · p99 8.3ms · Drop 0'
+    );
+
+    // 3. 22fps FiiO DAP Eco-throttled cadence (~45.45ms per rendered frame, 0 false dropped frames)
+    const monDap = lib.createVisualizerFpsMonitor({ windowSize: 60, dapTargetFps: 22 });
+    monDap.updateBackendFlags(false, true);
+    const dtDap = 1000 / 22;
+    for (let i = 0; i <= 100; i++) {
+      monDap.recordEcoSkip();
+      monDap.recordEcoSkip();
+      monDap.recordFrame(10000 + i * dtDap);
+    }
+    const snapDap = monDap.getSnapshot();
+    assert.equal(snapDap.fps, 22);
+    assert.equal(snapDap.targetFps, 22);
+    assert.equal(snapDap.backend, 'DapEcoThrottled');
+    assert.equal(snapDap.droppedFrames, 0, 'Intentional 45ms DAP Eco intervals must not trigger droppedFrames');
+    assert.equal(snapDap.throttledFrames, 202);
+    assert.ok(Math.abs(snapDap.p99Ms - 45.45) < 0.2);
+    assert.equal(
+      lib.formatVisualizerRenderTelemetry(snapDap),
+      '22 FPS · DapEcoThrottled · p99 45.5ms · Drop 0'
+    );
+  });
+
+  it('detects frame hitches in p99Ms & droppedFrames, ignores >2s pause gaps, and preserves zero-allocation references across 1,000 frames', () => {
+    const mon = lib.createVisualizerFpsMonitor({ windowSize: 100 });
+    const baseSnap = mon.getSnapshot();
+    const baseRingBuffer = mon.ringDeltas.buffer;
+    const baseSortedBuffer = mon.sortedDeltas.buffer;
+
+    let now = 100;
+    mon.recordFrame(now);
+
+    for (let i = 1; i <= 1000; i++) {
+      // Inject deterministic hitches near the tail of the 1,000-frame run:
+      // frame 960: 50ms (2 missed 60Hz vblanks), frame 980: 66.67ms (3 missed 60Hz vblanks)
+      if (i === 500) {
+        now += 12000; // 12-second playback pause gap -> must reset cleanly without dropped frames
+      } else if (i === 960) {
+        now += 50;
+      } else if (i === 980) {
+        now += 66.67;
+      } else {
+        now += 16.6667;
+      }
+      const returned = mon.recordFrame(now);
+      assert.equal(returned, baseSnap, 'recordFrame must mutate and return the identical pre-allocated snapshot object');
+    }
+
+    assert.equal(mon.getSnapshot(), baseSnap);
+    assert.equal(mon.ringDeltas.buffer, baseRingBuffer, 'ringDeltas ArrayBuffer must never reallocate');
+    assert.equal(mon.sortedDeltas.buffer, baseSortedBuffer, 'sortedDeltas ArrayBuffer must never reallocate');
+    assert.equal(baseSnap.sampleCount, 100);
+    assert.equal(baseSnap.droppedFrames, 5, '50ms (2 drops) + 66.67ms (3 drops) must total 5 dropped frames while 12s pause is ignored');
+    assert.ok(baseSnap.p99Ms >= 50, `Expected p99Ms >= 50ms from tail hitches, got ${baseSnap.p99Ms}`);
+
+    // Verify sortedDeltas invariant remains strictly non-decreasing after 1,000 ring-buffer wrap-arounds
+    for (let k = 1; k < baseSnap.sampleCount; k++) {
+      assert.ok(
+        mon.sortedDeltas[k] >= mon.sortedDeltas[k - 1],
+        `sortedDeltas[${k}] (${mon.sortedDeltas[k]}) must be >= sortedDeltas[${k - 1}] (${mon.sortedDeltas[k - 1]})`
+      );
+    }
+  });
+
+  it('wires #fs-room-fps-badge, #room-fps-badge, Signal Path renderTelemetry, and preserves audio destination invariant in index.html', () => {
+    const flacTrack = { format: 'FLAC', sampleRate: 96000, bitDepth: 24, channels: 2, source: 'local', title: 'Nocturne' };
+    const mon = lib.createVisualizerFpsMonitor({ backend: 'OffscreenWorker' });
+    for (let i = 0; i <= 60; i++) mon.recordFrame(1000 + i * (1000 / 60));
+
+    const sigPath = lib.computeSignalPath(flacTrack, {
+      contextRate: 96000,
+      renderTelemetry: mon.getSnapshot()
+    });
+    assert.equal(sigPath.steps.length, 4);
+    assert.ok(sigPath.steps[3].detail.includes('60 FPS · OffscreenWorker'));
+    assert.ok(sigPath.renderTelemetry.includes('OffscreenWorker'));
+
+    const roonStages = lib.buildRoonSignalPathStages(flacTrack, {
+      outputSampleRate: 96000,
+      renderTelemetry: mon.getSnapshot()
+    });
+    assert.equal(roonStages.length, 4);
+    assert.ok(roonStages[3].subtext.includes('60 FPS · OffscreenWorker'));
+
+    const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    assert.ok(indexHtml.includes('id="fs-room-fps-badge"'), '#fullscreen-stage-room must include #fs-room-fps-badge');
+    assert.ok(indexHtml.includes('id="room-fps-badge"'), '#listening-room must include #room-fps-badge');
+    assert.ok(indexHtml.includes('id="signal-path-fps-badge"'), '#signal-path-popover must include #signal-path-fps-badge');
+    assert.ok(indexHtml.includes('fpsMonitor.recordFrame(frameNowMs)'), 'setVisualizerRunning must record frame timestamps zero-alloc');
+    assert.ok(indexHtml.includes('formatVisualizerRenderTelemetry(fpsSnap)'), 'setVisualizerRunning must format live FPS telemetry every 30 frames');
+    assert.ok(
+      indexHtml.includes('state.crossfeedNodes.output.connect(state.context.destination)'),
+      'Audio destination routing invariant must remain intact'
+    );
+  });
+});

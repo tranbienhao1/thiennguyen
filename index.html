@@ -2373,6 +2373,7 @@
               <span id="room-thermal-badge" class="rounded border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-mono text-emerald-300" title="Nhiệt động học công suất & tiêu tán âm học (Thermal Ballistics)">25°C · Tĩnh</span>
               <span id="room-bpm-badge" class="rounded border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-mono text-amber-300" title="Tiết tấu nhịp điệu & Năng lượng BPM">-- BPM</span>
               <span id="room-tp-badge" class="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-medium text-zinc-400" title="True Peak (Đỉnh liên mẫu ITU-R BS.1770 / EBU R128)">TP --</span>
+              <span id="room-fps-badge" class="rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-mono text-cyan-300" title="Chỉ số FPS thực tế, p99 frame time &amp; chế độ kết xuất Canvas">-- FPS · MainThread2D</span>
             </div>
             <div class="flex items-center gap-1.5">
               <span class="inline-block h-1.5 w-1.5 rounded-full bg-zinc-600" id="room-buffer-dot"></span>
@@ -2581,9 +2582,12 @@
         <div class="absolute left-7 top-4 bottom-4 w-0.5 bg-gradient-to-b from-purple-500 via-indigo-500 to-purple-600 opacity-50"></div>
         <div id="signal-path-stages" class="space-y-4"></div>
       </div>
-      <div class="border-t border-white/5 pt-3 text-[11px] text-zinc-400 flex items-center justify-between">
+      <div class="border-t border-white/5 pt-3 text-[11px] text-zinc-400 flex flex-wrap items-center justify-between gap-2">
         <span>Độ trung thực âm thanh: Tuyệt đối</span>
-        <span class="rounded bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-300">Audiophile Grade</span>
+        <div class="flex items-center gap-1.5">
+          <span id="signal-path-fps-badge" class="rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-mono text-cyan-300">-- FPS · MainThread2D</span>
+          <span class="rounded bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-300">Audiophile Grade</span>
+        </div>
       </div>
     </div>
   </div>
@@ -2761,6 +2765,12 @@
                 <span id="fs-room-buffer-status" class="truncate text-[10px] text-zinc-300">Đang chờ luồng...</span>
               </div>
               <span id="fs-room-preload-readiness" class="mt-1 hidden rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[8px] font-medium text-zinc-400 sm:inline-block">Gapless 0ms</span>
+            </div>
+            <div class="rounded-xl border border-white/[.06] bg-white/[.02] p-2.5 col-span-2 sm:col-span-3">
+              <div class="flex flex-wrap items-center justify-between gap-1.5">
+                <p class="text-[9px] uppercase tracking-wider text-zinc-500">Kết xuất Đồ họa &amp; Khung hình (Render Pipeline)</p>
+                <span id="fs-room-fps-badge" class="inline-block rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-mono text-cyan-300" title="Chỉ số FPS thực tế, p99 frame time, khung rớt &amp; chế độ OffscreenWorker / MainThread2D / DapEcoThrottled">-- FPS · MainThread2D · Chờ khung hình</span>
+              </div>
             </div>
           </div>
         </div>
@@ -5152,7 +5162,8 @@
         replayGainEnabled,
         replayGainText,
         dsdOutputRate,
-        dsdOutputDepth
+        dsdOutputDepth,
+        renderTelemetry: state.visualizerFpsMonitor ? state.visualizerFpsMonitor.getSnapshot() : null
       });
 
       badge.textContent = pathData.qualityLabel;
@@ -6356,6 +6367,9 @@
         if (visualizerFrame) cancelAnimationFrame(visualizerFrame);
         visualizerFrame = 0;
         visualizerStrobeState = { intensity: 0, pulseScale: 1 };
+        if (state.visualizerFpsMonitor && typeof state.visualizerFpsMonitor.resetGap === 'function') {
+          state.visualizerFpsMonitor.resetGap();
+        }
         const roomGlow = $('ambient-glow');
         if (roomGlow) { roomGlow.style.transform = 'scale(1)'; roomGlow.style.opacity = ''; }
         const appBackdrop = $('app-ambient-backdrop');
@@ -6388,6 +6402,14 @@
 
       const scratchpad = state.zeroAllocScratchpad || ((typeof library !== 'undefined' && library && typeof library.createZeroAllocFrameScratchpad === 'function') ? (state.zeroAllocScratchpad = library.createZeroAllocFrameScratchpad(analyser.frequencyBinCount)) : null);
       if (scratchpad) scratchpad.resizeIfNeeded(analyser.frequencyBinCount);
+      const fpsMonitor = state.visualizerFpsMonitor || (
+        (scratchpad && scratchpad.fpsMonitor)
+          ? (state.visualizerFpsMonitor = scratchpad.fpsMonitor)
+          : ((typeof library !== 'undefined' && library && typeof library.createVisualizerFpsMonitor === 'function')
+            ? (state.visualizerFpsMonitor = library.createVisualizerFpsMonitor({ windowSize: 120 }))
+            : null)
+      );
+      if (fpsMonitor) fpsMonitor.resetGap();
       const data = scratchpad ? scratchpad.freqBytes : new Uint8Array(analyser.frequencyBinCount);
       const bars = 32, gap = 2;
       const timeData = scratchpad ? scratchpad.timeBytes : new Uint8Array(analyser.fftSize);
@@ -6397,6 +6419,7 @@
       const draw = () => {
         if (generation !== visualizerGeneration || document.hidden) {
           visualizerFrame = 0;
+          if (fpsMonitor) fpsMonitor.resetGap();
           if (roomGlow) { roomGlow.style.transform = 'scale(1)'; roomGlow.style.opacity = ''; }
           if (appBackdrop) { appBackdrop.style.transform = 'scale(1)'; appBackdrop.style.opacity = ''; }
           return;
@@ -6408,29 +6431,40 @@
 
         if (!isAudioActive && !isStage) {
           visualizerFrame = 0;
+          if (fpsMonitor) fpsMonitor.resetGap();
           if (roomGlow) { roomGlow.style.transform = 'scale(1)'; roomGlow.style.opacity = ''; }
           if (appBackdrop) { appBackdrop.style.transform = 'scale(1)'; appBackdrop.style.opacity = ''; }
           return;
         }
 
+        const frameNowMs = performance.now();
         if (state.fiioDapMode) {
           const isListeningRoomOpen = $('listening-room') && !$('listening-room').classList.contains('hidden') && !$('listening-room').hidden;
           const isFullscreenOpen = !!state.isFullscreen;
           if (!isListeningRoomOpen && !isFullscreenOpen) {
             visualizerFrame = 0;
+            if (fpsMonitor) fpsMonitor.resetGap();
             if (roomGlow) { roomGlow.style.transform = 'scale(1)'; roomGlow.style.opacity = ''; }
             if (appBackdrop) { appBackdrop.style.transform = 'scale(1)'; appBackdrop.style.opacity = ''; }
             return;
           }
-          const now = performance.now();
-          if (now - lastDapDraw < 45) {
+          if (frameNowMs - lastDapDraw < 45) {
+            if (fpsMonitor) fpsMonitor.recordEcoSkip();
             visualizerFrame = requestAnimationFrame(draw);
             return;
           }
-          lastDapDraw = now;
+          lastDapDraw = frameNowMs;
         }
 
         visualizerFrame = requestAnimationFrame(draw);
+        if (fpsMonitor) {
+          const isOffscreenActive = !!(
+            (state.canvasRenderGovernor && state.canvasRenderGovernor.getState().isOffscreen) ||
+            state.offscreenVisualizerActive
+          );
+          fpsMonitor.updateBackendFlags(isOffscreenActive, !!state.fiioDapMode);
+          fpsMonitor.recordFrame(frameNowMs);
+        }
         analyser.getByteFrequencyData(data);
         analyser.getByteTimeDomainData(timeData);
 
@@ -6592,6 +6626,29 @@
                   if (el) { el.textContent = bpmText; el.title = bpmTitle; }
                 }
               }
+            }
+          }
+          if (fpsMonitor && typeof library !== 'undefined' && library && typeof library.formatVisualizerRenderTelemetry === 'function') {
+            const fpsSnap = fpsMonitor.getSnapshot();
+            const fpsText = library.formatVisualizerRenderTelemetry(fpsSnap);
+            const fpsTone = fpsSnap.backend === 'OffscreenWorker'
+              ? 'rounded border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-mono text-emerald-300'
+              : (fpsSnap.backend === 'DapEcoThrottled'
+                ? 'rounded border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-mono text-amber-300'
+                : 'rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-mono text-cyan-300');
+            const roomFpsEl = $('room-fps-badge');
+            if (roomFpsEl) {
+              roomFpsEl.textContent = fpsText;
+              roomFpsEl.className = fpsTone;
+            }
+            const fsRoomFpsEl = $('fs-room-fps-badge');
+            if (fsRoomFpsEl) {
+              fsRoomFpsEl.textContent = fpsText;
+              fsRoomFpsEl.className = `inline-block ${fpsTone}`;
+            }
+            const sigPopoverFpsEl = $('signal-path-fps-badge');
+            if (sigPopoverFpsEl) {
+              sigPopoverFpsEl.textContent = fpsText;
             }
           }
         }
@@ -9872,11 +9929,17 @@
 
       const activeZone = state.zones.find(z => z.id === state.activeZoneId) || state.roonZones.find(z => z.id === state.activeZoneId);
       const zoneName = activeZone ? (activeZone.name || activeZone.display_name) : 'Phòng nghe Audiophile';
+      const fpsSnap = state.visualizerFpsMonitor ? state.visualizerFpsMonitor.getSnapshot() : null;
+      const sigPopoverFpsEl = $('signal-path-fps-badge');
+      if (sigPopoverFpsEl && typeof library.formatVisualizerRenderTelemetry === 'function') {
+        sigPopoverFpsEl.textContent = library.formatVisualizerRenderTelemetry(fpsSnap);
+      }
       const stages = library.buildRoonSignalPathStages ? library.buildRoonSignalPathStages(track, {
         isDspBypassed: isDirect,
         zoneName,
         outputSampleRate: state.context?.sampleRate || 48000,
-        dspSummary: 'Parametric EQ & Headroom Active'
+        dspSummary: 'Parametric EQ & Headroom Active',
+        renderTelemetry: fpsSnap
       }) : [];
 
       stages.forEach((st, idx) => {

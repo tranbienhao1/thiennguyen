@@ -1,9 +1,9 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 39,
-  "lastPhase": "BUG_HUNT",
-  "lastRunIso": "2026-11-18T06:34:35.491Z",
+  "cycleCount": 40,
+  "lastPhase": "UPGRADE",
+  "lastRunIso": "2026-11-18T07:05:26.186Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
@@ -18,11 +18,6 @@
     "updatedAt": "2026-11-18T06:38:46.149Z"
   },
   "pendingQueue": [
-    {
-      "id": "UPG-10",
-      "phase": "UPGRADE",
-      "title": "Bổ sung hiển thị chỉ số FPS thực tế và chế độ kết xuất OffscreenCanvas / Main-Thread trong bảng Roon Signal Path & Listening Room Telemetry"
-    },
     {
       "id": "OPT-10",
       "phase": "OPTIMIZE",
@@ -187,6 +182,16 @@
       "id": "UPG-21",
       "phase": "UPGRADE",
       "title": "Bổ sung báo cáo chẩn đoán chi tiết (cyclePaths, normalizedNegZeroCount, normalizedNonFiniteCount) khi xuất/nhập cấu hình EQ nâng cao trong hộp thoại Settings Sync"
+    },
+    {
+      "id": "OPT-21",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu tái sử dụng bộ đệm nhị phân p99/p95 giữa VisualizerFpsMonitor và AdaptiveCanvasRenderGovernor để tự động hạ bậc hiệu ứng hạt khi p99Ms vượt ngưỡng ngân sách khung hình"
+    },
+    {
+      "id": "BUG-22",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra đặt lại mốc thời gian lastFrameMs của VisualizerFpsMonitor khi thiết bị chuyển đổi tần số quét màn hình ProMotion 60Hz <-> 120Hz động"
     }
   ],
   "completedTasks": [
@@ -413,6 +418,14 @@
       "completedAt": "2026-11-18T06:31:00.688Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai normalizeSpecialConfigNumber và canonicalizeConfigPayloadSafe trong library-utils.js (khử chu trình tham chiếu tự thân/tương hỗ/toJSON bằng tập tổ tiên nhưng giữ nguyên 100% nút DAG dùng chung hình thoi, chuẩn hóa IEEE-754 -0 -> +0, NaN/±Infinity, BigInt, Map, Set, TypedArray), tích hợp vào signConfigurationBundle/signConfigurationBundleAsync/exportAppConfiguration/encodeShareablePlaylistLink cùng exportUserSettings/importUserSettings trong library-tools.js và nâng sw.js CACHE_VERSION lên v2.1.1"
+    },
+    {
+      "id": "UPG-10",
+      "phase": "UPGRADE",
+      "title": "Bổ sung hiển thị chỉ số FPS thực tế và chế độ kết xuất OffscreenCanvas / Main-Thread trong bảng Roon Signal Path & Listening Room Telemetry",
+      "completedAt": "2026-11-18T07:05:26.186Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai createVisualizerFpsMonitor (ring-buffer Float64Array zero-allocation + copyWithin sortedDeltas O(log W) theo dõi rollingFps, p99Ms, droppedFrames, throttledFrames và chế độ OffscreenWorker / MainThread2D / DapEcoThrottled) cùng formatVisualizerRenderTelemetry trong library-utils.js, tích hợp vào computeSignalPath / buildRoonSignalPathStages và cập nhật trực tiếp #fs-room-fps-badge, #room-fps-badge, #signal-path-fps-badge mỗi 30 khung hình trong setVisualizerRunning"
     }
   ]
 }
