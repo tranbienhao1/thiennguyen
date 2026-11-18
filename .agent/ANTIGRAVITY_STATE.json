@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 19,
-  "lastPhase": "UPGRADE",
-  "lastRunIso": "2026-11-18T00:01:00.000Z",
+  "cycleCount": 20,
+  "lastPhase": "OPTIMIZE",
+  "lastRunIso": "2026-11-18T00:08:00.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "OPT-05",
-      "phase": "OPTIMIZE",
-      "title": "Tối ưu đọc lát đầu 64KB zero-copy cho FileSystemFileHandle và Cloud Range 206 khi tính khóa băm fingerprint lời bài hát"
-    },
     {
       "id": "BUG-06",
       "phase": "BUG_HUNT",
@@ -108,6 +103,16 @@
       "id": "BUG-12",
       "phase": "BUG_HUNT",
       "title": "Kiểm tra xử lý khung RVA2 (ID3v2.4 Relative Volume Adjustment nhị phân) song song với TXXX khi quét file WAV/AIFF gắn thẻ ID3v2"
+    },
+    {
+      "id": "UPG-12",
+      "phase": "UPGRADE",
+      "title": "Tích hợp dùng chung lát đầu 64KB zero-copy (readHeadSlice64kZeroCopy) cho cả trích xuất ReplayGain nhị phân và tra cứu lời bài hát theo fingerprint trong một lần đọc duy nhất"
+    },
+    {
+      "id": "OPT-12",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu hàng đợi băm fingerprint ngầm theo mức ưu tiên hàng đợi phát (đang phát -> kế tiếp -> thư viện) trên FiiO DAP tránh tranh chấp I/O thẻ nhớ"
     }
   ],
   "completedTasks": [
@@ -222,6 +227,14 @@
       "completedAt": "2026-11-18T00:01:00.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai extractBinaryReplayGainTags và computeAntiClippingLinearGain trong library-utils.js (kèm hỗ trợ R128 trong parseReplayGain): trích xuất an toàn không tràn biên thẻ ReplayGain 2.0 và EBU R128 Q7.8 (+5 dB dịch chuẩn tham chiếu Opus/FLAC R128 -23 LUFS sang -18 LUFS) trực tiếp từ FLAC VORBIS_COMMENT (type 4, UTF-8 LE) và DSF ID3v2 (con trỏ 64-bit offset 20, TXXX ID3v2.2/2.3/2.4 syncsafe, ISO-8859-1/UTF-16LE/UTF-16BE BOM/UTF-8)"
+    },
+    {
+      "id": "OPT-05",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu đọc lát đầu 64KB zero-copy cho FileSystemFileHandle và Cloud Range 206 khi tính khóa băm fingerprint lời bài hát",
+      "completedAt": "2026-11-18T00:08:00.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai readHeadSlice64kZeroCopy và computeSourceFingerprint64kAsync trong library-utils.js: tạo subarray view zero-copy giữ nguyên ArrayBuffer/byteOffset cho Uint8Array/ArrayBuffer/DataView, chỉ cắt lát [0, 65536) trên FileSystemFileHandle/Blob không đọc toàn bộ file lớn vào RAM, trích xuất tổng dung lượng file từ HTTP 206 Content-Range (hỗ trợ cả Headers, Map và object), và tự động hủy sớm luồng đọc sau 64KB khi máy chủ trả về 200 OK thay vì 206"
     }
   ]
 }

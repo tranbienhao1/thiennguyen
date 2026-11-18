@@ -2951,3 +2951,219 @@ describe('UPG-05 — Binary FLAC VORBIS_COMMENT & DSF ID3v2 ReplayGain 2.0 / EBU
     assert.equal(advRes.hasReplayGain, false);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ATOMIC CYCLE 14 — OPT-05: Zero-Copy 64KB Head Slice Reader & Unified Source Fingerprinter
+// ═════════════════════════════════════════════════════════════════════════════
+describe('OPT-05 — Zero-Copy 64KB Head Slice Reader for FileSystemFileHandle & Cloud Range 206', () => {
+  function makeDeterministic64kHead() {
+    const head = new Uint8Array(65536);
+    for (let i = 0; i < head.length; i++) {
+      head[i] = ((i * 73) ^ (i >>> 5)) & 0xff;
+    }
+    return head;
+  }
+
+  it('exposes readHeadSlice64kZeroCopy & computeSourceFingerprint64kAsync on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.readHeadSlice64kZeroCopy, 'function');
+    assert.equal(typeof lib.computeSourceFingerprint64kAsync, 'function');
+
+    const sandbox = { library: { keepRefOpt05: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.readHeadSlice64kZeroCopy, 'function');
+    assert.equal(typeof sandbox.NocturneLibrary.computeSourceFingerprint64kAsync, 'function');
+    assert.equal(typeof sandbox.library.readHeadSlice64kZeroCopy, 'function');
+    assert.equal(typeof sandbox.library.computeSourceFingerprint64kAsync, 'function');
+    assert.equal(sandbox.library.keepRefOpt05, true);
+  });
+
+  it('preserves strict zero-copy ArrayBuffer & byteOffset view identity on Uint8Array, ArrayBuffer, and DataView', async () => {
+    const rawAb = new ArrayBuffer(262144 + 128);
+    const fullView = new Uint8Array(rawAb, 128, 262144);
+    fullView[0] = 0x66; // 'f'
+    fullView[1] = 0x4c; // 'L'
+    fullView[2] = 0x61; // 'a'
+    fullView[3] = 0x43; // 'C'
+
+    const u8Res = await lib.readHeadSlice64kZeroCopy(fullView);
+    assert.equal(u8Res.zeroCopy, true);
+    assert.equal(u8Res.sourceType, 'typedarray');
+    assert.equal(u8Res.bytes.buffer, rawAb, 'Must share exact underlying ArrayBuffer without copying');
+    assert.equal(u8Res.bytes.byteOffset, 128, 'Must preserve original subarray byteOffset');
+    assert.equal(u8Res.bytes.byteLength, 65536);
+    assert.equal(u8Res.fileSize, 262144);
+
+    // Mutating underlying buffer mutates returned subarray view directly (proof of zero copy)
+    fullView[17] = 0xa5;
+    assert.equal(u8Res.bytes[17], 0xa5);
+
+    const abRes = await lib.readHeadSlice64kZeroCopy(rawAb);
+    assert.equal(abRes.bytes.buffer, rawAb);
+    assert.equal(abRes.bytes.byteOffset, 0);
+    assert.equal(abRes.bytes.byteLength, 65536);
+    assert.equal(abRes.fileSize, 262144 + 128);
+
+    const dvSource = new DataView(rawAb, 64, 131072);
+    const dvRes = await lib.readHeadSlice64kZeroCopy(dvSource);
+    assert.equal(dvRes.bytes.buffer, rawAb);
+    assert.equal(dvRes.bytes.byteOffset, 64);
+    assert.equal(dvRes.bytes.byteLength, 65536);
+    assert.equal(dvRes.fileSize, 131072);
+  });
+
+  it('slices only [0, 65536) from FileSystemFileHandle without ever materializing full multi-hundred-MB file', async () => {
+    const head64k = makeDeterministic64kHead();
+    const simulated512MbSize = 536_870_912;
+    let sliceCalls = [];
+    let getFileCalls = 0;
+
+    const mockFileHandle = {
+      kind: 'file',
+      name: 'Mahler-Symphony2-24-192.flac',
+      async getFile() {
+        getFileCalls++;
+        return {
+          name: 'Mahler-Symphony2-24-192.flac',
+          size: simulated512MbSize,
+          arrayBuffer() {
+            throw new Error('FORBIDDEN: Full 512MB file.arrayBuffer() must NEVER be called!');
+          },
+          slice(start, end) {
+            sliceCalls.push([start, end]);
+            const slicedBuf = head64k.buffer.slice(start, Math.min(end, head64k.byteLength));
+            return {
+              size: slicedBuf.byteLength,
+              async arrayBuffer() {
+                return slicedBuf;
+              }
+            };
+          }
+        };
+      }
+    };
+
+    const sliceRes = await lib.readHeadSlice64kZeroCopy(mockFileHandle);
+    assert.equal(getFileCalls, 1);
+    assert.deepEqual(sliceCalls, [[0, 65536]]);
+    assert.equal(sliceRes.sourceType, 'file_handle');
+    assert.equal(sliceRes.byteLength, 65536);
+    assert.equal(sliceRes.fileSize, simulated512MbSize);
+
+    const fpFromHandle = await lib.computeSourceFingerprint64kAsync(mockFileHandle);
+    const expectedSync = lib.computeAudioFingerprint64k(head64k, simulated512MbSize);
+    assert.equal(fpFromHandle.fingerprintKey, expectedSync.fingerprintKey);
+    assert.equal(fpFromHandle.fileSize, simulated512MbSize);
+    assert.equal(fpFromHandle.sampledBytes, 65536);
+  });
+
+  it('issues Range: bytes=0-65535 on Cloud URLs, extracts total fileSize from 206 Content-Range, and matches local handle fingerprint', async () => {
+    const head64k = makeDeterministic64kHead();
+    const totalCloudSize = 536_870_912;
+    let capturedUrl = null;
+    let capturedInit = null;
+
+    const mockFetch206 = async (url, init) => {
+      capturedUrl = url;
+      capturedInit = init;
+      return {
+        ok: true,
+        status: 206,
+        headers: new Map([
+          ['Content-Range', `bytes 0-65535/${totalCloudSize}`],
+          ['Content-Length', '65536']
+        ]),
+        body: {
+          getReader() {
+            let sent = false;
+            return {
+              async read() {
+                if (sent) return { done: true, value: undefined };
+                sent = true;
+                return { done: false, value: head64k };
+              },
+              async cancel() {},
+              releaseLock() {}
+            };
+          }
+        }
+      };
+    };
+
+    const cloudFp = await lib.computeSourceFingerprint64kAsync({
+      url: 'https://www.googleapis.com/drive/v3/files/abc123?alt=media',
+      headers: { Authorization: 'Bearer ya29.test-token' },
+      fetchFn: mockFetch206
+    });
+
+    assert.equal(capturedUrl, 'https://www.googleapis.com/drive/v3/files/abc123?alt=media');
+    assert.equal(capturedInit.headers.Range, 'bytes=0-65535');
+    assert.equal(capturedInit.headers.Authorization, 'Bearer ya29.test-token');
+    assert.ok(capturedInit.signal, 'Must attach AbortSignal to Cloud Range fetch');
+
+    const expectedSync = lib.computeAudioFingerprint64k(head64k, totalCloudSize);
+    assert.equal(cloudFp.status, 206);
+    assert.equal(cloudFp.rangeHonored, true);
+    assert.equal(cloudFp.fileSize, totalCloudSize, 'Must extract exact total size from Content-Range even without knownSize');
+    assert.equal(cloudFp.fingerprintKey, expectedSync.fingerprintKey);
+  });
+
+  it('cancels response stream reader immediately after 64KB when a rogue server returns 200 OK instead of 206 Partial Content', async () => {
+    const head64k = makeDeterministic64kHead();
+    const totalRogueSize = 314_572_800;
+    let chunksPulled = 0;
+    let cancelCalled = false;
+    let signalAbortedAfter64k = false;
+
+    const mockRogueFetch200 = async (_url, init) => {
+      if (init && init.signal) {
+        init.signal.addEventListener('abort', () => {
+          signalAbortedAfter64k = true;
+        });
+      }
+      return {
+        ok: true,
+        status: 200, // Rogue server ignored Range header and started streaming all 300MB!
+        headers: {
+          'content-length': String(totalRogueSize)
+        },
+        body: {
+          getReader() {
+            return {
+              async read() {
+                chunksPulled++;
+                if (chunksPulled <= 4) {
+                  const start = (chunksPulled - 1) * 16384;
+                  return { done: false, value: head64k.subarray(start, start + 16384) };
+                }
+                throw new Error('FORBIDDEN: Stream reader must cancel after 64KB (4x16KB chunks) without pulling chunk #5!');
+              },
+              async cancel() {
+                cancelCalled = true;
+              },
+              releaseLock() {}
+            };
+          }
+        }
+      };
+    };
+
+    const rogueFp = await lib.computeSourceFingerprint64kAsync(
+      'https://cdn.example.org/lossless/dsd128-master.dsf',
+      { fetchFn: mockRogueFetch200 }
+    );
+
+    assert.equal(chunksPulled, 4, 'Must stop reading immediately at 65,536 bytes (4 x 16KB chunks)');
+    assert.equal(cancelCalled, true, 'Must call reader.cancel() immediately on rogue 200 OK stream');
+    assert.equal(signalAbortedAfter64k, true, 'Must abort underlying fetch signal on rogue 200 OK stream');
+    assert.equal(rogueFp.status, 200);
+    assert.equal(rogueFp.rangeHonored, false);
+    assert.equal(rogueFp.streamCancelled, true);
+    assert.equal(rogueFp.sampledBytes, 65536);
+    assert.equal(rogueFp.fileSize, totalRogueSize);
+    assert.equal(rogueFp.fingerprintKey, lib.computeAudioFingerprint64k(head64k, totalRogueSize).fingerprintKey);
+  });
+});
