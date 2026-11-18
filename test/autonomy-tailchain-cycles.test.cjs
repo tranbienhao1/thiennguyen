@@ -3167,3 +3167,362 @@ describe('OPT-05 — Zero-Copy 64KB Head Slice Reader for FileSystemFileHandle &
     assert.equal(rogueFp.fingerprintKey, lib.computeAudioFingerprint64k(head64k, totalRogueSize).fingerprintKey);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ATOMIC CYCLE 15 — BUG-06: Multi-Tab IndexedDB versionchange Auto-Close & Transparent Reconnect
+// ═════════════════════════════════════════════════════════════════════════════
+describe('BUG-06 — Multi-Tab IndexedDB versionchange Auto-Close & Transparent Reconnect', () => {
+  function createMultiTabIndexedDBSimulator() {
+    const databases = new Map();
+
+    function ensureDbState(name) {
+      if (!databases.has(name)) {
+        databases.set(name, {
+          version: 0,
+          stores: new Map(),
+          openConnections: new Set(),
+          pendingUpgrades: []
+        });
+      }
+      return databases.get(name);
+    }
+
+    function makeConnection(dbState, name, connVersion) {
+      let closed = false;
+      let forceClosingError = false;
+
+      const conn = {
+        name,
+        version: connVersion,
+        onversionchange: null,
+        onclose: null,
+        objectStoreNames: {
+          contains: s => dbState.stores.has(s)
+        },
+        createObjectStore(storeName, opts = {}) {
+          if (!dbState.stores.has(storeName)) {
+            dbState.stores.set(storeName, { keyPath: opts.keyPath || 'id', map: new Map() });
+          }
+          return {};
+        },
+        _forceSilentClosingState() {
+          // Simulates browser marking connection as closing right before transaction() without firing onclose yet
+          forceClosingError = true;
+        },
+        close() {
+          if (closed) return;
+          closed = true;
+          dbState.openConnections.delete(conn);
+          flushPendingUpgrades(dbState, name);
+        },
+        get _isClosed() {
+          return closed;
+        },
+        transaction(storeName) {
+          if (closed || forceClosingError) {
+            const err = new Error("Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing.");
+            err.name = 'InvalidStateError';
+            throw err;
+          }
+          const storeRec = dbState.stores.get(storeName);
+          if (!storeRec) {
+            const nf = new Error(`Store ${storeName} not found`);
+            nf.name = 'NotFoundError';
+            throw nf;
+          }
+          const tx = { oncomplete: null, onerror: null, onabort: null };
+          const objStore = {
+            get(key) {
+              const r = { result: undefined, onsuccess: null, onerror: null };
+              queueMicrotask(() => {
+                r.result = storeRec.map.has(key) ? structuredClone(storeRec.map.get(key)) : undefined;
+                if (r.onsuccess) r.onsuccess();
+                if (tx.oncomplete) tx.oncomplete();
+              });
+              return r;
+            },
+            put(val) {
+              const k = val[storeRec.keyPath];
+              storeRec.map.set(k, structuredClone(val));
+              queueMicrotask(() => {
+                if (tx.oncomplete) tx.oncomplete();
+              });
+              return {};
+            },
+            delete(key) {
+              storeRec.map.delete(key);
+              queueMicrotask(() => {
+                if (tx.oncomplete) tx.oncomplete();
+              });
+              return {};
+            },
+            clear() {
+              storeRec.map.clear();
+              queueMicrotask(() => {
+                if (tx.oncomplete) tx.oncomplete();
+              });
+              return {};
+            }
+          };
+          return Object.assign(tx, { objectStore: () => objStore });
+        }
+      };
+
+      dbState.openConnections.add(conn);
+      return conn;
+    }
+
+    function flushPendingUpgrades(dbState, name) {
+      if (dbState.openConnections.size > 0 || dbState.pendingUpgrades.length === 0) return;
+      const next = dbState.pendingUpgrades.shift();
+      queueMicrotask(() => {
+        const oldVersion = dbState.version;
+        dbState.version = next.requestedVersion;
+        const conn = makeConnection(dbState, name, dbState.version);
+        next.req.result = conn;
+        if (next.req.onupgradeneeded) {
+          next.req.onupgradeneeded({ oldVersion, newVersion: dbState.version, target: next.req });
+        }
+        if (next.req.onsuccess) {
+          next.req.onsuccess({ target: next.req });
+        }
+      });
+    }
+
+    return {
+      open(name, requestedVersion) {
+        const req = { result: null, error: null, onupgradeneeded: null, onsuccess: null, onerror: null, onblocked: null };
+        const dbState = ensureDbState(name);
+
+        queueMicrotask(() => {
+          const targetVer = requestedVersion === undefined
+            ? Math.max(1, dbState.version || 1)
+            : requestedVersion;
+
+          if (dbState.version > 0 && requestedVersion !== undefined && requestedVersion < dbState.version) {
+            const verErr = new Error(`The requested version (${requestedVersion}) is less than the existing version (${dbState.version}).`);
+            verErr.name = 'VersionError';
+            req.error = verErr;
+            if (req.onerror) req.onerror({ target: req });
+            return;
+          }
+
+          if (targetVer > dbState.version) {
+            // Notify all currently open connections via versionchange!
+            const existingConns = Array.from(dbState.openConnections);
+            for (const c of existingConns) {
+              if (typeof c.onversionchange === 'function') {
+                c.onversionchange({ oldVersion: dbState.version, newVersion: targetVer });
+              }
+            }
+
+            if (dbState.openConnections.size > 0) {
+              // At least one sibling tab failed to close synchronously -> fire onblocked and park upgrade!
+              dbState.pendingUpgrades.push({ req, requestedVersion: targetVer });
+              if (req.onblocked) {
+                req.onblocked({ oldVersion: dbState.version, newVersion: targetVer });
+              }
+              return;
+            }
+
+            const oldVersion = dbState.version;
+            dbState.version = targetVer;
+            const conn = makeConnection(dbState, name, targetVer);
+            req.result = conn;
+            if (req.onupgradeneeded) {
+              req.onupgradeneeded({ oldVersion, newVersion: targetVer, target: req });
+            }
+            if (req.onsuccess) {
+              req.onsuccess({ target: req });
+            }
+            return;
+          }
+
+          const conn = makeConnection(dbState, name, dbState.version);
+          req.result = conn;
+          if (req.onsuccess) req.onsuccess({ target: req });
+        });
+
+        return req;
+      },
+      _ensureDbState: ensureDbState,
+      _makeRawUnmonitoredConnection(name, ver) {
+        const st = ensureDbState(name);
+        if (st.version < ver) st.version = ver;
+        return makeConnection(st, name, st.version);
+      }
+    };
+  }
+
+  it('exposes createResilientIndexedDbManager on module.exports, window.NocturneLibrary, and window.library', () => {
+    assert.equal(typeof lib.createResilientIndexedDbManager, 'function');
+
+    const sandbox = { library: { keepRefBug06: true } };
+    sandbox.globalThis = sandbox;
+    sandbox.window = sandbox;
+    const code = fs.readFileSync(path.join(ROOT, 'library-utils.js'), 'utf8');
+    vm.runInNewContext(code, sandbox);
+
+    assert.equal(typeof sandbox.NocturneLibrary.createResilientIndexedDbManager, 'function');
+    assert.equal(typeof sandbox.library.createResilientIndexedDbManager, 'function');
+    assert.equal(sandbox.library.keepRefBug06, true);
+  });
+
+  it('auto-closes Tab 1 on multi-tab versionchange without blocking Tab 2 schema upgrade, and transparently reconnects Tab 1 to v2', async () => {
+    const sharedIdb = createMultiTabIndexedDBSimulator();
+    const versionChangeEvents = [];
+
+    // Tab 1 opens v1 and writes initial record
+    const tab1 = lib.createResilientIndexedDbManager({
+      dbName: 'nocturne-player',
+      version: 1,
+      indexedDB: sharedIdb,
+      onUpgradeNeeded(db) {
+        db.createObjectStore('catalog', { keyPath: 'id' });
+      },
+      onVersionChange(ev) {
+        versionChangeEvents.push({ oldVersion: ev.oldVersion, newVersion: ev.newVersion });
+      }
+    });
+
+    await tab1.runTransaction('catalog', 'readwrite', tx => new Promise(resolve => {
+      tx.objectStore('catalog').put({ id: 't1', title: 'Track From Tab 1' });
+      tx.oncomplete = () => resolve(true);
+    }));
+    assert.equal(tab1.isOpen(), true);
+
+    // Tab 2 opens v2 (schema upgrade!) while Tab 1 is still open!
+    let tab2Blocked = false;
+    const tab2 = lib.createResilientIndexedDbManager({
+      dbName: 'nocturne-player',
+      version: 2,
+      indexedDB: sharedIdb,
+      onBlocked() {
+        tab2Blocked = true;
+      },
+      onUpgradeNeeded(db) {
+        db.createObjectStore('catalog', { keyPath: 'id' });
+        db.createObjectStore('sliceCache', { keyPath: 'key' });
+      }
+    });
+
+    const db2 = await tab2.open();
+    assert.equal(tab2Blocked, false, 'Tab 1 auto-close on versionchange must prevent Tab 2 from blocking');
+    assert.equal(db2.version, 2);
+    assert.equal(versionChangeEvents.length, 1);
+    assert.deepEqual(versionChangeEvents[0], { oldVersion: 1, newVersion: 2 });
+    assert.equal(tab1.isOpen(), false, 'Tab 1 must have closed its old connection and cleared cached promise');
+
+    await tab2.runTransaction('catalog', 'readwrite', tx => new Promise(resolve => {
+      tx.objectStore('catalog').put({ id: 't2', title: 'Upgraded Track From Tab 2' });
+      tx.oncomplete = () => resolve(true);
+    }));
+
+    // Now Tab 1 (originally configured at version: 1!) performs a new transaction -> must transparently reconnect at v2 without VersionError!
+    const readFromTab1AfterUpgrade = await tab1.runTransaction('catalog', 'readonly', tx => new Promise(resolve => {
+      const req = tx.objectStore('catalog').get('t2');
+      req.onsuccess = () => resolve(req.result);
+    }));
+
+    assert.ok(readFromTab1AfterUpgrade);
+    assert.equal(readFromTab1AfterUpgrade.title, 'Upgraded Track From Tab 2');
+    assert.equal(tab1.isOpen(), true);
+    assert.equal(tab1.getStats().effectiveVersion, 2);
+    assert.equal(tab1.getStats().versionChangeCount, 1);
+  });
+
+  it('handles delayed blocked upgrades, blockedTimeoutMs protection, and InvalidStateError auto-reopen recovery', async () => {
+    const sharedIdb = createMultiTabIndexedDBSimulator();
+
+    // 1. Legacy uncooperative connection delays closing by 15ms -> triggers onBlocked, then completes cleanly once closed!
+    const legacyConn = sharedIdb._makeRawUnmonitoredConnection('nocturne-blocked-test', 1);
+    legacyConn.createObjectStore('items', { keyPath: 'id' });
+    legacyConn.onversionchange = () => {
+      setTimeout(() => legacyConn.close(), 15);
+    };
+
+    let blockedEvents = 0;
+    const upgrader = lib.createResilientIndexedDbManager({
+      dbName: 'nocturne-blocked-test',
+      version: 2,
+      indexedDB: sharedIdb,
+      onBlocked() {
+        blockedEvents++;
+      },
+      onUpgradeNeeded(db) {
+        db.createObjectStore('items', { keyPath: 'id' });
+      }
+    });
+
+    const upgradedDb = await upgrader.open();
+    assert.equal(blockedEvents, 1);
+    assert.equal(upgradedDb.version, 2);
+    assert.equal(upgrader.getStats().blockedCount, 1);
+
+    // 2. Permanently frozen external tab with blockedTimeoutMs: 20 -> rejects cleanly with BlockedError instead of hanging forever
+    const frozenConn = sharedIdb._makeRawUnmonitoredConnection('nocturne-frozen-test', 1);
+    frozenConn.onversionchange = null; // Never closes!
+    const guardedUpgrader = lib.createResilientIndexedDbManager({
+      dbName: 'nocturne-frozen-test',
+      version: 2,
+      indexedDB: sharedIdb,
+      blockedTimeoutMs: 20
+    });
+    await assert.rejects(() => guardedUpgrader.open(), err => err && err.name === 'BlockedError');
+    frozenConn.close();
+
+    // 3. InvalidStateError ("The database connection is closing") mid-flight auto-reopen recovery
+    // Force upgradedDb into silent closing state without firing onclose first
+    upgradedDb._forceSilentClosingState();
+
+    await upgrader.runTransaction('items', 'readwrite', tx => new Promise(resolve => {
+      tx.objectStore('items').put({ id: 'recovered-1', ok: true });
+      tx.oncomplete = () => resolve(true);
+    }));
+
+    const verified = await upgrader.runTransaction('items', 'readonly', tx => new Promise(resolve => {
+      const r = tx.objectStore('items').get('recovered-1');
+      r.onsuccess = () => resolve(r.result);
+    }));
+    assert.deepEqual(verified, { id: 'recovered-1', ok: true });
+    assert.equal(upgrader.getStats().reopenCount, 1);
+
+    // 4. Verify createFingerprintLyricsCacheStore also survives multi-tab versionchange & InvalidStateError
+    const storeTab1 = lib.createFingerprintLyricsCacheStore({
+      dbName: 'nocturne-lyrics-multitab',
+      dbVersion: 1,
+      maxEntries: 1,
+      indexedDB: sharedIdb
+    });
+    await storeTab1.set('sha256-64k:0011223344556677:1024', { syncedLyrics: '[00:01.00] Tab 1' });
+    await storeTab1.set('sha256-64k:8899aabbccddeeff:2048', { syncedLyrics: '[00:02.00] Evicts first from RAM' });
+
+    // Tab 2 upgrades nocturne-lyrics-multitab to v2
+    const storeTab2 = lib.createFingerprintLyricsCacheStore({
+      dbName: 'nocturne-lyrics-multitab',
+      dbVersion: 2,
+      maxEntries: 2,
+      indexedDB: sharedIdb
+    });
+    await storeTab2.set('sha256-64k:fedcba9876543210:4096', { syncedLyrics: '[00:03.00] Written by Tab 2 v2' });
+
+    assert.equal(storeTab1.getStats().idbVersionChanges, 1);
+    const fromTab1Disk = await storeTab1.get('sha256-64k:fedcba9876543210:4096');
+    assert.ok(fromTab1Disk);
+    assert.equal(fromTab1Disk.syncedLyrics, '[00:03.00] Written by Tab 2 v2');
+  });
+
+  it('wires multi-tab versionchange & InvalidStateError guards in index.html, library-tools.js, and lrclib-client.js while preserving audio invariants', () => {
+    const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const libTools = fs.readFileSync(path.join(ROOT, 'library-tools.js'), 'utf8');
+    const lrclibClient = fs.readFileSync(path.join(ROOT, 'lrclib-client.js'), 'utf8');
+
+    assert.ok(html.includes('db.onversionchange'), 'index.html openDatabase() must attach db.onversionchange');
+    assert.ok(html.includes('db.onclose'), 'index.html openDatabase() must attach db.onclose');
+    assert.ok(html.includes('request.onblocked'), 'index.html openDatabase() must attach request.onblocked');
+    assert.ok(html.includes('state.crossfeedNodes.output.connect(state.context.destination)'), 'Critical Web Audio graph invariant must remain intact');
+
+    assert.ok(libTools.includes('db.onversionchange'), 'library-tools.js openCoverArtCache() must attach db.onversionchange');
+    assert.ok(lrclibClient.includes('db.onversionchange'), 'lrclib-client.js openLyricsVault() must attach db.onversionchange');
+  });
+});

@@ -1,19 +1,14 @@
 {
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
-  "cycleCount": 20,
-  "lastPhase": "OPTIMIZE",
-  "lastRunIso": "2026-11-18T00:08:00.000Z",
+  "cycleCount": 21,
+  "lastPhase": "BUG_HUNT",
+  "lastRunIso": "2026-11-18T00:19:00.000Z",
   "diagnostics": {
     "syntaxErrors": [],
     "warnings": []
   },
   "pendingQueue": [
-    {
-      "id": "BUG-06",
-      "phase": "BUG_HUNT",
-      "title": "Kiểm tra và xử lý đóng kết nối IndexedDB an toàn khi sự kiện versionchange xảy ra giữa nhiều tab PWA đang mở cùng lúc"
-    },
     {
       "id": "UPG-06",
       "phase": "UPGRADE",
@@ -113,6 +108,16 @@
       "id": "OPT-12",
       "phase": "OPTIMIZE",
       "title": "Tối ưu hàng đợi băm fingerprint ngầm theo mức ưu tiên hàng đợi phát (đang phát -> kế tiếp -> thư viện) trên FiiO DAP tránh tranh chấp I/O thẻ nhớ"
+    },
+    {
+      "id": "BUG-13",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra đồng bộ xóa cache ảnh bìa và lời bài hát giữa các tab PWA qua BroadcastChannel khi IndexedDB tự đóng và kết nối lại sau nâng cấp schema"
+    },
+    {
+      "id": "UPG-13",
+      "phase": "UPGRADE",
+      "title": "Bổ sung chỉ báo trạng thái kết nối lưu trữ ngoại tuyến (IndexedDB phiên bản hiện hành, số lần tự phục hồi kết nối, dung lượng đệm) trong bảng Storage Audit"
     }
   ],
   "completedTasks": [
@@ -235,6 +240,14 @@
       "completedAt": "2026-11-18T00:08:00.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai readHeadSlice64kZeroCopy và computeSourceFingerprint64kAsync trong library-utils.js: tạo subarray view zero-copy giữ nguyên ArrayBuffer/byteOffset cho Uint8Array/ArrayBuffer/DataView, chỉ cắt lát [0, 65536) trên FileSystemFileHandle/Blob không đọc toàn bộ file lớn vào RAM, trích xuất tổng dung lượng file từ HTTP 206 Content-Range (hỗ trợ cả Headers, Map và object), và tự động hủy sớm luồng đọc sau 64KB khi máy chủ trả về 200 OK thay vì 206"
+    },
+    {
+      "id": "BUG-06",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm tra và xử lý đóng kết nối IndexedDB an toàn khi sự kiện versionchange xảy ra giữa nhiều tab PWA đang mở cùng lúc",
+      "completedAt": "2026-11-18T00:19:00.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai createResilientIndexedDbManager trong library-utils.js và tích hợp bảo vệ vòng đời đa tab (onversionchange tự đóng db + xóa dbPromise, onclose, onblocked + blockedTimeoutMs, tự nâng effectiveVersion chống VersionError và tự mở lại trong suốt khi gặp InvalidStateError) cho createFingerprintLyricsCacheStore, openDatabase/catalogTransaction/sliceCacheTransaction trong index.html, openCoverArtCache trong library-tools.js và openLyricsVault trong lrclib-client.js"
     }
   ]
 }

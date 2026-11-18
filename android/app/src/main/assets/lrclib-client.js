@@ -125,11 +125,21 @@
         }
       };
 
+      req.onblocked = () => {};
+
       req.onsuccess = () => {
         const db = req.result;
+        if (db) {
+          db.onversionchange = () => {
+            try { if (typeof db.close === 'function') db.close(); } catch (_) {}
+            if (_vaultDbInstance === db) _vaultDbInstance = null;
+          };
+          db.onclose = () => {
+            if (_vaultDbInstance === db) _vaultDbInstance = null;
+          };
+        }
         if (!idbFactory) {
           _vaultDbInstance = db;
-          db.onclose = () => { _vaultDbInstance = null; };
         }
         resolve(db);
       };

@@ -14720,11 +14720,27 @@
       : (typeof globalThis === 'object' && globalThis && globalThis.indexedDB ? globalThis.indexedDB : null);
 
     const memoryLru = new Map();
-    let dbPromise = null;
     let idbDisabled = !idbFactory || typeof idbFactory.open !== 'function';
     let hits = 0;
     let misses = 0;
     let evictions = 0;
+
+    const idbManager = idbDisabled
+      ? null
+      : createResilientIndexedDbManager({
+          dbName,
+          version: dbVersion,
+          indexedDB: idbFactory,
+          blockedTimeoutMs: Number.isFinite(Number(opts.blockedTimeoutMs)) ? Number(opts.blockedTimeoutMs) : 0,
+          onVersionChange: typeof opts.onVersionChange === 'function' ? opts.onVersionChange : null,
+          onBlocked: typeof opts.onBlocked === 'function' ? opts.onBlocked : null,
+          onClose: typeof opts.onClose === 'function' ? opts.onClose : null,
+          onUpgradeNeeded(db) {
+            if (db && db.objectStoreNames && !db.objectStoreNames.contains(storeName)) {
+              db.createObjectStore(storeName, { keyPath: 'fingerprintKey' });
+            }
+          }
+        });
 
     function resolveKey(keyOrFp) {
       if (typeof keyOrFp === 'string') return keyOrFp.trim();
@@ -14789,101 +14805,80 @@
       return evictedKeys;
     }
 
-    function openIdb() {
-      if (idbDisabled) return Promise.resolve(null);
-      if (dbPromise) return dbPromise;
-      dbPromise = new Promise(resolve => {
-        try {
-          const req = idbFactory.open(dbName, dbVersion);
-          req.onupgradeneeded = () => {
-            const db = req.result;
-            if (db && !db.objectStoreNames.contains(storeName)) {
-              db.createObjectStore(storeName, { keyPath: 'fingerprintKey' });
-            }
-          };
-          req.onsuccess = () => resolve(req.result || null);
-          req.onerror = () => {
-            idbDisabled = true;
-            resolve(null);
-          };
-          req.onblocked = () => {
-            idbDisabled = true;
-            resolve(null);
-          };
-        } catch (_) {
-          idbDisabled = true;
-          resolve(null);
-        }
-      });
-      return dbPromise;
-    }
-
     async function idbGet(key) {
-      const db = await openIdb();
-      if (!db) return null;
-      return new Promise(resolve => {
-        try {
-          const tx = db.transaction(storeName, 'readonly');
-          const store = tx.objectStore(storeName);
-          const req = store.get(key);
-          req.onsuccess = () => resolve(req.result || null);
-          req.onerror = () => resolve(null);
-        } catch (_) {
-          resolve(null);
-        }
-      });
+      if (idbDisabled || !idbManager) return null;
+      try {
+        return await idbManager.runTransaction(storeName, 'readonly', tx => new Promise((resolve, reject) => {
+          try {
+            const store = tx.objectStore(storeName);
+            const req = store.get(key);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => resolve(null);
+          } catch (err) {
+            reject(err);
+          }
+        }));
+      } catch (_) {
+        return null;
+      }
     }
 
     async function idbPutAndEvict(record, evictedKeys) {
-      const db = await openIdb();
-      if (!db) return false;
-      return new Promise(resolve => {
-        try {
-          const tx = db.transaction(storeName, 'readwrite');
-          const store = tx.objectStore(storeName);
-          store.put(record);
-          for (let i = 0; i < evictedKeys.length; i++) {
-            store.delete(evictedKeys[i]);
+      if (idbDisabled || !idbManager) return false;
+      try {
+        return await idbManager.runTransaction(storeName, 'readwrite', tx => new Promise((resolve, reject) => {
+          try {
+            const store = tx.objectStore(storeName);
+            store.put(record);
+            for (let i = 0; i < evictedKeys.length; i++) {
+              store.delete(evictedKeys[i]);
+            }
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => resolve(false);
+            tx.onabort = () => resolve(false);
+          } catch (err) {
+            reject(err);
           }
-          tx.oncomplete = () => resolve(true);
-          tx.onerror = () => resolve(false);
-          tx.onabort = () => resolve(false);
-        } catch (_) {
-          resolve(false);
-        }
-      });
+        }));
+      } catch (_) {
+        return false;
+      }
     }
 
     async function idbDelete(key) {
-      const db = await openIdb();
-      if (!db) return false;
-      return new Promise(resolve => {
-        try {
-          const tx = db.transaction(storeName, 'readwrite');
-          const store = tx.objectStore(storeName);
-          store.delete(key);
-          tx.oncomplete = () => resolve(true);
-          tx.onerror = () => resolve(false);
-        } catch (_) {
-          resolve(false);
-        }
-      });
+      if (idbDisabled || !idbManager) return false;
+      try {
+        return await idbManager.runTransaction(storeName, 'readwrite', tx => new Promise((resolve, reject) => {
+          try {
+            const store = tx.objectStore(storeName);
+            store.delete(key);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => resolve(false);
+          } catch (err) {
+            reject(err);
+          }
+        }));
+      } catch (_) {
+        return false;
+      }
     }
 
     async function idbClear() {
-      const db = await openIdb();
-      if (!db) return false;
-      return new Promise(resolve => {
-        try {
-          const tx = db.transaction(storeName, 'readwrite');
-          const store = tx.objectStore(storeName);
-          store.clear();
-          tx.oncomplete = () => resolve(true);
-          tx.onerror = () => resolve(false);
-        } catch (_) {
-          resolve(false);
-        }
-      });
+      if (idbDisabled || !idbManager) return false;
+      try {
+        return await idbManager.runTransaction(storeName, 'readwrite', tx => new Promise((resolve, reject) => {
+          try {
+            const store = tx.objectStore(storeName);
+            store.clear();
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => resolve(false);
+          } catch (err) {
+            reject(err);
+          }
+        }));
+      } catch (_) {
+        return false;
+      }
     }
 
     return {
@@ -14975,14 +14970,21 @@
         const stored = await this.set(fp.fingerprintKey, entry);
         return { fingerprint: fp, entry: stored };
       },
+      close() {
+        if (idbManager) idbManager.close();
+      },
       getStats() {
+        const idbStats = idbManager ? idbManager.getStats() : null;
         return {
           size: memoryLru.size,
           maxEntries,
           hits,
           misses,
           evictions,
-          backend: idbDisabled ? 'memory-lru' : 'indexeddb+lru'
+          backend: idbDisabled ? 'memory-lru' : 'indexeddb+lru',
+          idbVersionChanges: idbStats ? idbStats.versionChangeCount : 0,
+          idbBlocked: idbStats ? idbStats.blockedCount : 0,
+          idbReopens: idbStats ? idbStats.reopenCount : 0
         };
       }
     };
@@ -19577,5 +19579,299 @@
     };
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, signConfigurationBundle, verifyConfigurationBundle, createAdaptiveCanvasRenderGovernor, parseSafeMp4AlacBoxMetadata, computeAntiClippingLinearGain, extractBinaryReplayGainTags, readHeadSlice64kZeroCopy, computeSourceFingerprint64kAsync};
+  // ── BUG-06: Multi-Tab PWA IndexedDB versionchange Auto-Close & Transparent Reconnect Manager ──
+  function isIdbClosingStateError(err) {
+    if (!err) return false;
+    const name = String(err.name || '');
+    const msg = String(err.message || err);
+    return name === 'InvalidStateError' || /InvalidStateError|connection is closing|database.*is closed|closing/i.test(msg);
+  }
+
+  function isIdbVersionDowngradeError(err) {
+    if (!err) return false;
+    const name = String(err.name || '');
+    const msg = String(err.message || err);
+    return name === 'VersionError' || /VersionError|less than the existing version/i.test(msg);
+  }
+
+  function createResilientIndexedDbManager(config = {}) {
+    const cfg = config && typeof config === 'object' ? config : {};
+    const dbName = String(cfg.dbName || cfg.name || 'nocturne-db');
+    const rawVer = cfg.version !== undefined ? cfg.version : cfg.dbVersion;
+    const initialVersion = (rawVer !== undefined && rawVer !== null && Number.isFinite(Number(rawVer)) && Number(rawVer) > 0)
+      ? Math.max(1, Math.floor(Number(rawVer)))
+      : null;
+
+    const idbFactory = cfg.indexedDB !== undefined
+      ? cfg.indexedDB
+      : (typeof globalThis === 'object' && globalThis && globalThis.indexedDB ? globalThis.indexedDB : null);
+
+    const onUpgradeNeeded = typeof cfg.onUpgradeNeeded === 'function' ? cfg.onUpgradeNeeded : null;
+    const onVersionChange = typeof cfg.onVersionChange === 'function' ? cfg.onVersionChange : null;
+    const onBlocked = typeof cfg.onBlocked === 'function' ? cfg.onBlocked : null;
+    const onClose = typeof cfg.onClose === 'function' ? cfg.onClose : null;
+    const blockedTimeoutMs = (Number.isFinite(Number(cfg.blockedTimeoutMs)) && Number(cfg.blockedTimeoutMs) > 0)
+      ? Math.floor(Number(cfg.blockedTimeoutMs))
+      : 0;
+
+    let activeDb = null;
+    let dbPromise = null;
+    let effectiveVersion = initialVersion;
+    let openCount = 0;
+    let versionChangeCount = 0;
+    let blockedCount = 0;
+    let closeCount = 0;
+    let reopenCount = 0;
+
+    function attachDbLifecycleGuards(db) {
+      if (!db || typeof db !== 'object' || db.__nocturneResilientBound) return db;
+      try {
+        Object.defineProperty(db, '__nocturneResilientBound', {
+          value: true,
+          configurable: true,
+          enumerable: false
+        });
+      } catch (_) {}
+
+      const prevVersionChange = typeof db.onversionchange === 'function' ? db.onversionchange : null;
+      const prevClose = typeof db.onclose === 'function' ? db.onclose : null;
+      let handledVersionChange = false;
+      let handledClose = false;
+
+      const handleVersionChange = (event) => {
+        if (handledVersionChange) return;
+        handledVersionChange = true;
+        versionChangeCount++;
+
+        if (event && typeof event.newVersion === 'number' && Number.isFinite(event.newVersion) && event.newVersion > 0) {
+          if (effectiveVersion === null || event.newVersion > effectiveVersion) {
+            effectiveVersion = Math.floor(event.newVersion);
+          }
+        } else if (event && event.newVersion === null) {
+          effectiveVersion = initialVersion;
+        }
+
+        try {
+          if (typeof db.close === 'function') db.close();
+        } catch (_) {}
+
+        if (activeDb === db) activeDb = null;
+        dbPromise = null;
+
+        if (prevVersionChange) {
+          try { prevVersionChange.call(db, event); } catch (_) {}
+        }
+        if (onVersionChange) {
+          try { onVersionChange(event, db); } catch (_) {}
+        }
+      };
+
+      const handleClose = (event) => {
+        if (handledClose) return;
+        handledClose = true;
+        closeCount++;
+
+        if (activeDb === db) activeDb = null;
+        dbPromise = null;
+
+        if (prevClose) {
+          try { prevClose.call(db, event); } catch (_) {}
+        }
+        if (onClose) {
+          try { onClose(event, db); } catch (_) {}
+        }
+      };
+
+      try { db.onversionchange = handleVersionChange; } catch (_) {}
+      try { db.onclose = handleClose; } catch (_) {}
+
+      if (typeof db.addEventListener === 'function') {
+        try { db.addEventListener('versionchange', handleVersionChange); } catch (_) {}
+        try { db.addEventListener('close', handleClose); } catch (_) {}
+      }
+
+      return db;
+    }
+
+    function openInternal(useExplicitVersion) {
+      return new Promise((resolve, reject) => {
+        if (!idbFactory || typeof idbFactory.open !== 'function') {
+          reject(new Error('IndexedDB is not available in this environment.'));
+          return;
+        }
+
+        let settled = false;
+        let blockedTimer = null;
+        const clearBlockedTimer = () => {
+          if (blockedTimer !== null) {
+            clearTimeout(blockedTimer);
+            blockedTimer = null;
+          }
+        };
+
+        let req;
+        try {
+          req = (useExplicitVersion && effectiveVersion !== null)
+            ? idbFactory.open(dbName, effectiveVersion)
+            : idbFactory.open(dbName);
+        } catch (err) {
+          if (useExplicitVersion && effectiveVersion !== null && isIdbVersionDowngradeError(err)) {
+            effectiveVersion = null;
+            openInternal(false).then(resolve, reject);
+            return;
+          }
+          reject(err);
+          return;
+        }
+
+        req.onupgradeneeded = (event) => {
+          const db = (event && event.target && event.target.result) || req.result;
+          if (db && onUpgradeNeeded) {
+            onUpgradeNeeded(db, event, req);
+          }
+        };
+
+        req.onblocked = (event) => {
+          blockedCount++;
+          if (onBlocked) {
+            try { onBlocked(event, req); } catch (_) {}
+          }
+          if (blockedTimeoutMs > 0 && blockedTimer === null && !settled) {
+            blockedTimer = setTimeout(() => {
+              if (settled) return;
+              settled = true;
+              dbPromise = null;
+              const blockedErr = new Error(`IndexedDB open("${dbName}") blocked beyond ${blockedTimeoutMs}ms.`);
+              blockedErr.name = 'BlockedError';
+              reject(blockedErr);
+            }, blockedTimeoutMs);
+          }
+        };
+
+        req.onsuccess = () => {
+          clearBlockedTimer();
+          if (settled) {
+            const lateDb = req.result;
+            if (lateDb && typeof lateDb.close === 'function') {
+              try { lateDb.close(); } catch (_) {}
+            }
+            return;
+          }
+          settled = true;
+          const db = req.result || null;
+          if (db) {
+            if (typeof db.version === 'number' && Number.isFinite(db.version) && db.version > 0) {
+              if (effectiveVersion === null || db.version > effectiveVersion) {
+                effectiveVersion = Math.floor(db.version);
+              }
+            }
+            attachDbLifecycleGuards(db);
+            activeDb = db;
+            openCount++;
+          } else {
+            dbPromise = null;
+          }
+          resolve(db);
+        };
+
+        req.onerror = () => {
+          clearBlockedTimer();
+          if (settled) return;
+          const err = req.error || new Error(`Failed to open IndexedDB "${dbName}".`);
+          if (useExplicitVersion && effectiveVersion !== null && isIdbVersionDowngradeError(err)) {
+            effectiveVersion = null;
+            openInternal(false).then(resolve, (fallbackErr) => {
+              settled = true;
+              dbPromise = null;
+              reject(fallbackErr);
+            });
+            return;
+          }
+          settled = true;
+          dbPromise = null;
+          reject(err);
+        };
+      });
+    }
+
+    function open() {
+      if (activeDb) return Promise.resolve(activeDb);
+      if (dbPromise) return dbPromise;
+      const p = openInternal(true).catch(err => {
+        if (dbPromise === p) dbPromise = null;
+        throw err;
+      });
+      dbPromise = p;
+      return p;
+    }
+
+    function close() {
+      const current = activeDb;
+      activeDb = null;
+      dbPromise = null;
+      if (current && typeof current.close === 'function') {
+        try { current.close(); } catch (_) {}
+      }
+    }
+
+    async function runTransaction(storeNames, mode = 'readonly', executorFn) {
+      if (typeof mode === 'function') {
+        executorFn = mode;
+        mode = 'readonly';
+      }
+      if (typeof executorFn !== 'function') {
+        throw new TypeError('runTransaction requires an executor function.');
+      }
+
+      let db = await open();
+      try {
+        const tx = db.transaction(storeNames, mode);
+        return await executorFn(tx, db);
+      } catch (err) {
+        if (!isIdbClosingStateError(err)) {
+          throw err;
+        }
+        // Connection is closing / closed due to concurrent multi-tab versionchange or browser eviction:
+        // close stale handle, reset cached promise, and transparently re-open once!
+        if (db && typeof db.close === 'function') {
+          try { db.close(); } catch (_) {}
+        }
+        if (activeDb === db) activeDb = null;
+        dbPromise = null;
+        reopenCount++;
+
+        const freshDb = await open();
+        const retryTx = freshDb.transaction(storeNames, mode);
+        return await executorFn(retryTx, freshDb);
+      }
+    }
+
+    return {
+      dbName,
+      open,
+      getDb: open,
+      close,
+      runTransaction,
+      withTransaction: runTransaction,
+      attachDbLifecycleGuards,
+      isOpen() {
+        return Boolean(activeDb);
+      },
+      getStats() {
+        return {
+          dbName,
+          configuredVersion: initialVersion,
+          effectiveVersion,
+          isOpen: Boolean(activeDb),
+          openCount,
+          versionChangeCount,
+          blockedCount,
+          closeCount,
+          reopenCount
+        };
+      }
+    };
+  }
+
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, signConfigurationBundle, verifyConfigurationBundle, createAdaptiveCanvasRenderGovernor, parseSafeMp4AlacBoxMetadata, computeAntiClippingLinearGain, extractBinaryReplayGainTags, readHeadSlice64kZeroCopy, computeSourceFingerprint64kAsync, createResilientIndexedDbManager};
 });

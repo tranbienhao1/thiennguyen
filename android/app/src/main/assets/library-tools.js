@@ -132,8 +132,19 @@
         }
       };
 
+      req.onblocked = () => {};
+
       req.onsuccess = () => {
         const db = req.result;
+        if (db) {
+          db.onversionchange = () => {
+            try { if (typeof db.close === 'function') db.close(); } catch (_) {}
+            if (_coverDbInstance === db) _coverDbInstance = null;
+          };
+          db.onclose = () => {
+            if (_coverDbInstance === db) _coverDbInstance = null;
+          };
+        }
         if (!idbFactory) {
           _coverDbInstance = db;
         }
