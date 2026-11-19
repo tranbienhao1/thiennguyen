@@ -123,7 +123,7 @@ function decodeByte(state,value,lsb) {
 }
 function newDecimator(){
   const taps=new Float64Array(96), center=47.5; let total=0;
-  for(let i=0;i<taps.length;i++){const x=i-center,sinc=x===0?.44:Math.sin(Math.PI*.44*x)/(Math.PI*x),window=.42-.5*Math.cos(2*Math.PI*i/95)+.08*Math.cos(4*Math.PI*i/95);taps[i]=sinc*window;total+=taps[i];}
+  for(let i=0;i<taps.length;i++){const x=i-center,sinc=(x===0 ? 0.44 : Math.sin(Math.PI*.44*x)/(Math.PI*x)),window=.42-.5*Math.cos(2*Math.PI*i/95)+.08*Math.cos(4*Math.PI*i/95);taps[i]=sinc*window;total+=taps[i];}
   for(let i=0;i<taps.length;i++)taps[i]/=total;
   return {taps,ring:new Float32Array(96),position:0,phase:0};
 }

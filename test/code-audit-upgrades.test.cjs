@@ -11,11 +11,11 @@ const library = require('../library-utils.js');
 const swCode = fs.readFileSync(path.join(rootDir, 'sw.js'), 'utf8');
 const libraryCode = fs.readFileSync(path.join(rootDir, 'library-utils.js'), 'utf8');
 
-test('Code Audit & Cloud Auth Upgrades Verification Suite (v2.1.2)', async (t) => {
+test('Code Audit & Cloud Auth Upgrades Verification Suite (v2.1.3)', async (t) => {
 
-  await t.test('1. sw.js cache version bumped to v2.1.2 and invalidates stale caches on activate', async () => {
-    assert.ok(swCode.includes('v2.1.2'), 'sw.js must include version string v2.1.2');
-    assert.ok(swCode.includes("CACHE_NAME = 'nocturne-v2.1.2'"), 'sw.js must set CACHE_NAME to nocturne-v2.1.2');
+  await t.test('1. sw.js cache version bumped to v2.1.3 and invalidates stale caches on activate', async () => {
+    assert.ok(swCode.includes('v2.1.3'), 'sw.js must include version string v2.1.3');
+    assert.ok(swCode.includes("CACHE_NAME = 'nocturne-v2.1.3'"), 'sw.js must set CACHE_NAME to nocturne-v2.1.3');
 
     const listeners = {};
     const cacheStore = new Map([
@@ -26,6 +26,7 @@ test('Code Audit & Cloud Auth Upgrades Verification Suite (v2.1.2)', async (t) =
       ['nocturne-v2.0.9', new Map()],
       ['nocturne-v2.1.0', new Map()],
       ['nocturne-v2.1.1', new Map()],
+      ['nocturne-v2.1.2', new Map()],
     ]);
     const cachesStub = {
       open: async (name) => {
@@ -56,13 +57,14 @@ test('Code Audit & Cloud Auth Upgrades Verification Suite (v2.1.2)', async (t) =
     vm.createContext(sandbox);
     vm.runInContext(swCode, sandbox, { filename: 'sw.js' });
 
-    assert.equal(sandbox.self.CACHE_NAME, 'nocturne-v2.1.2', 'self.CACHE_NAME must be nocturne-v2.1.2');
-    assert.equal(sandbox.self.CACHE_VERSION, 'v2.1.2', 'self.CACHE_VERSION must be v2.1.2');
+    assert.equal(sandbox.self.CACHE_NAME, 'nocturne-v2.1.3', 'self.CACHE_NAME must be nocturne-v2.1.3');
+    assert.equal(sandbox.self.CACHE_VERSION, 'v2.1.3', 'self.CACHE_VERSION must be v2.1.3');
 
     let settledPromise;
     listeners.activate({ waitUntil(p) { settledPromise = p; } });
     await settledPromise;
 
+    assert.equal(cacheStore.has('nocturne-v2.1.2'), false, 'Stale nocturne-v2.1.2 cache must be purged on activate');
     assert.equal(cacheStore.has('nocturne-v2.1.1'), false, 'Stale nocturne-v2.1.1 cache must be purged on activate');
     assert.equal(cacheStore.has('nocturne-v2.1.0'), false, 'Stale nocturne-v2.1.0 cache must be purged on activate');
     assert.equal(cacheStore.has('nocturne-v2.0.9'), false, 'Stale nocturne-v2.0.9 cache must be purged on activate');
@@ -70,7 +72,7 @@ test('Code Audit & Cloud Auth Upgrades Verification Suite (v2.1.2)', async (t) =
     assert.equal(cacheStore.has('nocturne-v3'), false, 'Stale nocturne-v3 cache must be purged on activate');
     assert.equal(cacheStore.has('nocturne-v2'), false, 'Stale nocturne-v2 cache must be purged on activate');
     assert.equal(cacheStore.has('nocturne-v0'), false, 'Stale nocturne-v0 cache must be purged on activate');
-    assert.equal(cacheStore.has('nocturne-v2.1.2'), true, 'Active nocturne-v2.1.2 cache must be opened');
+    assert.equal(cacheStore.has('nocturne-v2.1.3'), true, 'Active nocturne-v2.1.3 cache must be opened');
     assert.equal(sandbox.self.claimed, true, 'Service worker must claim clients on activate');
   });
 

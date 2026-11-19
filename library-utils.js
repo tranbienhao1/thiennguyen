@@ -11,7 +11,7 @@
 })(typeof globalThis === 'object' ? globalThis : this, function () {
   const UNKNOWN_ARTIST = 'Nghệ sĩ không xác định';
   const UNKNOWN_ALBUM = '—';
-  const normalize = value => String(value ?? '').replace(/\s+/gu, ' ').trim();
+  const normalize = value => String(value != null ? value : '').replace(/\s+/gu, ' ').trim();
   const metadataKey = value => normalize(value).normalize('NFKC').toLocaleLowerCase('vi').normalize('NFD').replace(/[\u0300-\u036f]/gu, '').replace(/đ/gu, 'd');
   const PLACEHOLDERS = new Set(['', '-', '—', '?', 'unknown', 'unknown artist', 'unknown album', 'n/a', 'na', 'none', 'null', '(unknown)']);
 
@@ -35,7 +35,7 @@
 
   function stripMatchingTrackNumber(value, trackNumber) {
     const candidate = Array.isArray(trackNumber) ? trackNumber[0] : trackNumber && typeof trackNumber === 'object' ? trackNumber.text || trackNumber.value || trackNumber.no || trackNumber.number : trackNumber;
-    const number = String(candidate ?? '').match(/\d+/)?.[0];
+    const m38 = String(candidate != null ? candidate : '').match(/\d+/); const number = m38 ? m38[0] : undefined;
     if (!number) return normalize(value);
     return normalize(value).replace(/^(\d{1,3})(?=\s|[-–—._])(?:\s*[-–—._]\s*|\s+)/, (prefix, digits) => Number(digits) === Number(number) ? '' : prefix);
   }
@@ -69,7 +69,7 @@
     const originalName = pathParts.pop() || '';
     const rawBaseName = originalName.replace(/\.[^.]+$/, '');
     const trackNumberCandidate = Array.isArray(trackNumber) ? trackNumber[0] : trackNumber && typeof trackNumber === 'object' ? trackNumber.text || trackNumber.value || trackNumber.no || trackNumber.number : trackNumber;
-    const taggedTrackNumber = String(trackNumberCandidate ?? '').match(/\d+/)?.[0] || '';
+    const m72 = String(trackNumberCandidate != null ? trackNumberCandidate : '').match(/\d+/); const taggedTrackNumber = (m72 && m72[0]) || '';
     const numberedBaseName = stripMatchingTrackNumber(rawBaseName, trackNumber);
     const baseName = numberedBaseName === rawBaseName ? stripTrackPrefix(rawBaseName) : numberedBaseName;
     const parts = baseName.split(/\s+[–—-]\s+/).map(stripTrackPrefix).filter(Boolean);
@@ -106,7 +106,7 @@
     const title = firstMetadataValue(tags.title, tags.titles, tags.TITLE, tags.TIT2);
     const artist = firstMetadataValue(tags.artist, tags.artists, tags.artistName, tags.artist_name, tags.ARTIST, tags.TPE1);
     const albumArtist = firstMetadataValue(tags.albumartist, tags.albumArtist, tags.album_artist, tags.album_artist_name, tags.ALBUMARTIST, tags.TPE2);
-    const albumTag = tags.album ?? tags.albums ?? tags.ALBUM ?? tags.TALB;
+    const albumTag = tags.album != null ? tags.album : (tags.albums != null ? tags.albums : (tags.ALBUM != null ? tags.ALBUM : tags.TALB));
     const album = Array.isArray(albumTag) ? albumTag[0] : albumTag && typeof albumTag === 'object' ? albumTag.text || albumTag.value || albumTag.name : albumTag;
     return {
       title:cleanMetadataValue(stripMatchingTrackNumber(title, trackNumber), fallbackMetadata.title),
@@ -1091,7 +1091,7 @@
     // 3. Stage: DSP
     const dspActive = [];
     if (options.eqEnabled) {
-      const presetLabel = options.eqPreset ? (options.eqPresetLabels?.[options.eqPreset] || options.eqPreset) : 'Tùy chỉnh';
+      const presetLabel = options.eqPreset ? ((options.eqPresetLabels && options.eqPresetLabels[options.eqPreset]) || options.eqPreset) : 'Tùy chỉnh';
       const preampText = Number.isFinite(options.eqPreamp) ? ` (Preamp ${options.eqPreamp.toFixed(1)} dB)` : '';
       dspActive.push(`Parametric EQ: ${presetLabel}${preampText}`);
     }
@@ -1658,7 +1658,7 @@
   function calculateAlbumRemainingSeconds(tracks, currentTrackId, currentTrackPlaybackSec = 0) {
     if (!Array.isArray(tracks) || !currentTrackId) return 0;
     const curTrack = tracks.find(t => t && (t.id === currentTrackId || String(t.id) === String(currentTrackId)));
-    if (!curTrack || !curTrack.album) return Math.max(0, Math.round((curTrack?.duration || 0) - (Number(currentTrackPlaybackSec) || 0)));
+    if (!curTrack || !curTrack.album) return Math.max(0, Math.round(((curTrack && curTrack.duration) || 0) - (Number(currentTrackPlaybackSec) || 0)));
     const albumTracks = tracks.filter(t => t && t.album === curTrack.album);
     const curIndex = albumTracks.findIndex(t => t && (t.id === currentTrackId || String(t.id) === String(currentTrackId)));
     if (curIndex === -1) return Math.max(0, Math.round((curTrack.duration || 0) - (Number(currentTrackPlaybackSec) || 0)));
@@ -1687,16 +1687,16 @@
     const fadeMs = Math.max(1000, Number(fadeDurationMs) || DEFAULT_SLEEP_FADEOUT_MS);
     if (remainingMs <= fadeMs) {
       const musicGain = calculateSleepFadeGain(remainingMs, fadeMs);
-      const ambientGain = options.ambientScene ? musicGain * (options.ambientBaseVolume ?? 0.3) : 0;
+      const ambientGain = options.ambientScene ? musicGain * (options.ambientBaseVolume != null ? options.ambientBaseVolume : 0.3) : 0;
       return { stage: 'fadeout', musicGain, ambientGain };
     }
     const ambientWindowMs = Math.max(fadeMs * 2, Math.min(600000, (Number(totalDurationMs) || 0) * 0.4));
     if (options.ambientScene && remainingMs <= ambientWindowMs) {
       const transitionProgress = 1 - (remainingMs - fadeMs) / (ambientWindowMs - fadeMs);
-      const ambientGain = Math.max(0, Math.min(1, transitionProgress)) * (options.ambientBaseVolume ?? 0.3);
+      const ambientGain = Math.max(0, Math.min(1, transitionProgress)) * (options.ambientBaseVolume != null ? options.ambientBaseVolume : 0.3);
       return { stage: 'ambient_transition', musicGain: 1.0, ambientGain };
     }
-    return { stage: 'active', musicGain: 1.0, ambientGain: options.ambientScene ? (options.ambientBaseVolume ?? 0.3) * 0.5 : 0 };
+    return { stage: 'active', musicGain: 1.0, ambientGain: options.ambientScene ? (options.ambientBaseVolume != null ? options.ambientBaseVolume : 0.3) * 0.5 : 0 };
   }
 
   // ── Pha D — PWA & Architecture: Network Status & Offline Playability ──
@@ -2218,13 +2218,13 @@
         if (crit === 'fav-gems') {
           const isFav = Boolean(track.isFavorite || (favs && (favs.has(track.id) || favs.has(String(track.id)))));
           const stats = (options.playStats && (options.playStats[track.id] || options.playStats[String(track.id)])) || {};
-          const pCount = Number(stats.playCount ?? track.playCount ?? 0);
+          const pCount = Number(stats.playCount != null ? stats.playCount : (track.playCount != null ? track.playCount : 0));
           return isFav && pCount >= 3;
         }
         if (crit === 'fav-rediscover') {
           const isFav = Boolean(track.isFavorite || (favs && (favs.has(track.id) || favs.has(String(track.id)))));
           const stats = (options.playStats && (options.playStats[track.id] || options.playStats[String(track.id)])) || {};
-          const pCount = Number(stats.playCount ?? track.playCount ?? 0);
+          const pCount = Number(stats.playCount != null ? stats.playCount : (track.playCount != null ? track.playCount : 0));
           return isFav && pCount <= 1;
         }
         if (crit === 'cloud') {
@@ -3370,7 +3370,7 @@
     const cueStart = isCue ? Math.max(0, Number(track.cueStart) || 0) : 0;
     const trackDur = isCue
       ? (Number(track.duration) > 0 ? Number(track.duration) : Math.max(0, rawDur - cueStart))
-      : (Number(track?.duration) > 0 ? Number(track.duration) : rawDur);
+      : (Number(track && track.duration) > 0 ? Number(track.duration) : rawDur);
     const cueEnd = isCue ? (track.cueEnd != null ? Number(track.cueEnd) : cueStart + trackDur) : rawDur;
 
     let targetWithinTrack = 0;
@@ -3733,7 +3733,7 @@
       }
 
       return url.toString();
-    } catch {
+    } catch (_e) {
       return '';
     }
   }
@@ -3757,8 +3757,10 @@
 
     const streams = item.MediaStreams || item.mediaStreams;
     const stream = Array.isArray(streams) ? streams[0] : null;
-    const bitDepth = Number(stream?.BitDepth ?? stream?.bitDepth) || 16;
-    const sampleRate = Number(stream?.SampleRate ?? stream?.sampleRate) || 44100;
+    const rawBitDepth = stream ? (stream.BitDepth != null ? stream.BitDepth : stream.bitDepth) : null;
+    const bitDepth = Number(rawBitDepth) || 16;
+    const rawSampleRate = stream ? (stream.SampleRate != null ? stream.SampleRate : stream.sampleRate) : null;
+    const sampleRate = Number(rawSampleRate) || 44100;
 
     const src = endpoint && itemId ? buildJellyfinUrl(endpoint, '/Audio/' + itemId + '/stream', { static: true }, apiKey) : '';
     const cover = endpoint && (albumId || itemId) ? buildJellyfinUrl(endpoint, '/Items/' + (albumId || itemId) + '/Images/Primary', { maxWidth: 500, quality: 90 }, apiKey) : '';
@@ -3891,7 +3893,7 @@
       }
 
       return url.toString();
-    } catch {
+    } catch (_e) {
       return '';
     }
   }
@@ -3911,7 +3913,8 @@
       options && options.transcode ? (rawSong.format || 'mp3') : (rawSong.format || 'FLAC')
     ).toUpperCase();
 
-    const cover = rawSong.album_image_urls?.large || rawSong.album_image_urls?.medium || rawSong.album_image_urls?.small;
+    const imgUrls = rawSong.album_image_urls;
+    const cover = imgUrls ? (imgUrls.large || imgUrls.medium || imgUrls.small) : null;
 
     return {
       id: `blackcandy-${songId}`,
@@ -4411,7 +4414,7 @@
 
     const threshold = Number(options.threshold) || 0.62;
     const decayRate = Number(options.decayRate) || 0.88;
-    const prevIntensity = Number(prevStrobe?.intensity) || 0;
+    const prevIntensity = Number(prevStrobe && prevStrobe.intensity) || 0;
 
     let intensity = prevIntensity * decayRate;
     let isTriggered = false;
@@ -4445,7 +4448,7 @@
     if (width <= 0 || height <= 0) return false;
 
     const strobe = options.strobe;
-    const intensity = Number(strobe?.intensity) || 0;
+    const intensity = Number(strobe && strobe.intensity) || 0;
     if (intensity < 0.03) return false;
 
     const theme = getVisualizerTheme(options.theme);
@@ -4525,8 +4528,8 @@
     const count = Math.max(4, Math.min(128, Number(barsCount) || 32));
     const result = new Float32Array(count);
     const dataLen = data.length;
-    const minFreqIdx = Math.max(1, Math.floor(Number(options?.minBin) || 1));
-    const maxFreqIdx = Math.min(dataLen, Math.floor(Number(options?.maxBin) || dataLen));
+    const minFreqIdx = Math.max(1, Math.floor(Number(options && options.minBin) || 1));
+    const maxFreqIdx = Math.min(dataLen, Math.floor(Number(options && options.maxBin) || dataLen));
 
     for (let i = 0; i < count; i++) {
       const logStart = minFreqIdx * Math.pow(maxFreqIdx / minFreqIdx, i / count);
@@ -4552,8 +4555,8 @@
     if (!newBins || newBins.length === 0) return prevBins || new Float32Array(0);
     const len = newBins.length;
     const smoothed = new Float32Array(len);
-    const attack = Math.max(0.1, Math.min(0.99, Number(options?.attackRate) || 0.72));
-    const decay = Math.max(0.1, Math.min(0.99, Number(options?.decayRate) || 0.86));
+    const attack = Math.max(0.1, Math.min(0.99, Number(options && options.attackRate) || 0.72));
+    const decay = Math.max(0.1, Math.min(0.99, Number(options && options.decayRate) || 0.86));
 
     for (let i = 0; i < len; i++) {
       const prev = (prevBins && prevBins[i]) ? prevBins[i] : 0;
@@ -4582,7 +4585,7 @@
     const bass = Number(strobeData.bassIntensity) || 0;
     const vocal = Number(strobeData.vocalIntensity) || 0;
     const treble = Number(strobeData.trebleIntensity) || 0;
-    const sensitivity = Math.max(0.5, Math.min(2.5, Number(options?.sensitivity) || 1.0));
+    const sensitivity = Math.max(0.5, Math.min(2.5, Number(options && options.sensitivity) || 1.0));
 
     const effectiveBass = Math.min(1.0, bass * sensitivity);
     const isAuraActive = effectiveBass > 0.05 || vocal > 0.08 || !!strobeData.isStrobeTriggered;
@@ -4592,7 +4595,7 @@
       concentricRipples.push({
         radiusMultiplier: 1.0 + effectiveBass * 0.15,
         alpha: Number(Math.min(0.4, effectiveBass * 0.35).toFixed(3)),
-        colorHex: options?.primaryColor || '#c084fc'
+        colorHex: (options && options.primaryColor) || '#c084fc'
       });
       if (effectiveBass > 0.35) {
         concentricRipples.push({
@@ -4603,7 +4606,7 @@
       }
     }
 
-    const timeSec = Number(options?.timeSeconds) || (Date.now() / 1000);
+    const timeSec = Number(options && options.timeSeconds) || (Date.now() / 1000);
     const chromaticOffsetDeg = Math.round((timeSec * 45 + treble * 90) % 360);
     const rimGlowAlpha = Number(Math.min(0.5, (effectiveBass * 0.3 + vocal * 0.2)).toFixed(3));
 
@@ -7073,7 +7076,7 @@
   }
 
   function calculateAdaptiveRoomWetDry(roomProfile, trackEnergy, userWet = 0.2) {
-    const profile = getRoomAcousticProfile(typeof roomProfile === 'string' ? roomProfile : (roomProfile?.id || 'bypass'));
+    const profile = getRoomAcousticProfile(typeof roomProfile === 'string' ? roomProfile : ((roomProfile && roomProfile.id) || 'bypass'));
     const baseWet = clampAcousticWet(userWet, 0.2);
     if (profile.id === 'bypass' || baseWet <= 0) {
       return { wet: 0, dry: 1.0, wetGain: 0, dryGain: 1.0, rawWet: 0, profile: profile.id, isAdapted: false };
@@ -7485,13 +7488,13 @@
     }
 
     const targetId = clickedTrackId && typeof clickedTrackId === 'object'
-      ? (clickedTrackId.id ?? clickedTrackId._id ?? clickedTrackId.trackId ?? clickedTrackId)
+      ? (clickedTrackId.id != null ? clickedTrackId.id : (clickedTrackId._id != null ? clickedTrackId._id : (clickedTrackId.trackId != null ? clickedTrackId.trackId : clickedTrackId)))
       : clickedTrackId;
 
     const clickedIndex = list.findIndex(track => {
       if (!track) return false;
       const tid = typeof track === 'object'
-        ? (track.id ?? track._id ?? track.trackId ?? track)
+        ? (track.id != null ? track.id : (track._id != null ? track._id : (track.trackId != null ? track.trackId : track)))
         : track;
       return tid != null && targetId != null && String(tid) === String(targetId);
     });
@@ -7509,7 +7512,7 @@
     const remainingTracks = list.slice(clickedIndex + 1);
     const remainingTrackIds = remainingTracks.map(t => {
       if (!t) return null;
-      return typeof t === 'object' ? (t.id ?? t._id ?? t.trackId ?? t) : t;
+      return typeof t === 'object' && t ? (t.id != null ? t.id : (t._id != null ? t._id : (t.trackId != null ? t.trackId : t))) : t;
     });
 
     return {
@@ -7547,19 +7550,19 @@
 
     const repeatMode = typeof options === 'number'
       ? options
-      : Number(options?.repeat ?? 0);
+      : Number((options && options.repeat != null) ? options.repeat : 0);
     const repeat = Number.isFinite(repeatMode) ? repeatMode : 0;
     const dir = Number(direction) >= 0 ? 1 : -1;
     const clamp = Boolean(options && typeof options === 'object' && options.clamp);
 
     const targetId = currentTrackId && typeof currentTrackId === 'object'
-      ? (currentTrackId.id ?? currentTrackId._id ?? currentTrackId.trackId ?? currentTrackId)
+      ? (currentTrackId.id != null ? currentTrackId.id : (currentTrackId._id != null ? currentTrackId._id : (currentTrackId.trackId != null ? currentTrackId.trackId : currentTrackId)))
       : currentTrackId;
 
     const currentIndex = list.findIndex(track => {
       if (!track) return false;
       const tid = typeof track === 'object'
-        ? (track.id ?? track._id ?? track.trackId ?? track)
+        ? (track.id != null ? track.id : (track._id != null ? track._id : (track.trackId != null ? track.trackId : track)))
         : track;
       return tid != null && targetId != null && String(tid) === String(targetId);
     });
@@ -7701,11 +7704,11 @@
     } else if (currentTrack) {
       if (Array.isArray(playbackContext.tracks) && playbackContext.tracks.length) {
         const targetId = typeof currentTrack === 'object'
-          ? (currentTrack.id ?? currentTrack._id ?? currentTrack.trackId ?? currentTrack)
+          ? (currentTrack.id != null ? currentTrack.id : (currentTrack._id != null ? currentTrack._id : (currentTrack.trackId != null ? currentTrack.trackId : currentTrack)))
           : currentTrack;
         const idx = playbackContext.tracks.findIndex(t => {
           if (!t) return false;
-          const tid = typeof t === 'object' ? (t.id ?? t._id ?? t.trackId ?? t) : t;
+          const tid = typeof t === 'object' && t ? (t.id != null ? t.id : (t._id != null ? t._id : (t.trackId != null ? t.trackId : t))) : t;
           return tid != null && targetId != null && String(tid) === String(targetId);
         });
         if (idx >= 0) {
@@ -7713,7 +7716,7 @@
         }
       }
       if (!currentNum) {
-        const trackNo = currentTrack.trackNumber ?? currentTrack.track_no ?? currentTrack.track;
+        const trackNo = currentTrack.trackNumber != null ? currentTrack.trackNumber : (currentTrack.track_no != null ? currentTrack.track_no : currentTrack.track);
         if (trackNo != null && Number.isFinite(Number(trackNo)) && Number(trackNo) > 0) {
           currentNum = Number(trackNo);
         }
@@ -7961,7 +7964,7 @@
       if (album && album !== 'Unknown Album') lines.push(`#EXTALBUM:${album}`);
       if (format) lines.push(`#EXTFORMAT:${format}`);
       if (t.id) lines.push(`#EXTID:${t.id}`);
-      const pathOrUrl = t.file?.name || t.name || t.url || `${artist} - ${title}.flac`;
+      const pathOrUrl = (t.file && t.file.name) || t.name || t.url || `${artist} - ${title}.flac`;
       lines.push(pathOrUrl);
     }
 
@@ -8106,7 +8109,7 @@
     return `Nạp đệm: ${loaded}/${total} đoạn (${mb} MB · ${percent}%)`;
   }
 
-  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v2.1.2') {
+  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v2.1.3') {
     const validRoutes = Array.isArray(routes) ? routes.filter(r => typeof r === 'string' && r.trim().length > 0) : [];
     const normalized = [...new Set(validRoutes.map(r => r.trim()))];
     return {
@@ -8931,9 +8934,9 @@
     }
 
     const decay = Number(options.decayRate) || preset.decayRate;
-    const prevBass = Number(prevStrobe?.bassIntensity) || 0;
-    const prevVocal = Number(prevStrobe?.vocalIntensity) || 0;
-    const prevTreble = Number(prevStrobe?.trebleIntensity) || 0;
+    const prevBass = Number(prevStrobe && prevStrobe.bassIntensity) || 0;
+    const prevVocal = Number(prevStrobe && prevStrobe.vocalIntensity) || 0;
+    const prevTreble = Number(prevStrobe && prevStrobe.trebleIntensity) || 0;
 
     let bassIntensity = prevBass * decay;
     let vocalIntensity = prevVocal * decay;
@@ -9243,9 +9246,9 @@
 
   function createLyricsVaultEntry(track, lrcText, options = {}) {
     const meta = trackMetadata(track) || {};
-    const trackId = track?.id || meta.id || 'unknown';
-    const title = meta.title || track?.title || 'Unknown Title';
-    const artist = meta.artist || track?.artist || UNKNOWN_ARTIST;
+    const trackId = (track && track.id) || meta.id || 'unknown';
+    const title = meta.title || (track && track.title) || 'Unknown Title';
+    const artist = meta.artist || (track && track.artist) || UNKNOWN_ARTIST;
     const sanitized = normalizeAndSanitizeLrc(lrcText);
     const isSynced = /\[\d{1,2}:\d{2}\.\d{2}\]/.test(sanitized);
     const lines = sanitized.split('\n').filter(l => l.trim().length > 0);
@@ -9981,9 +9984,9 @@
   function formatLibraryIndexHealthReport(healthReport) {
     if (!healthReport || typeof healthReport !== 'object') return 'Chỉ mục: Chưa phân tích';
     const st = healthReport.status || 'UNKNOWN';
-    const score = healthReport.score ?? 100;
-    const ratio = healthReport.compressionRatio ?? 0;
-    const tokens = healthReport.totalTokens ?? 0;
+    const score = healthReport.score != null ? healthReport.score : 100;
+    const ratio = healthReport.compressionRatio != null ? healthReport.compressionRatio : 0;
+    const tokens = healthReport.totalTokens != null ? healthReport.totalTokens : 0;
     return `⚡ Chỉ mục ${st} (${score}/100) · Nén -${ratio}% · ${tokens} tokens`;
   }
 
@@ -10225,16 +10228,16 @@
     const a = deltaReport.added ? deltaReport.added.length : 0;
     const m = deltaReport.modified ? deltaReport.modified.length : 0;
     const r = deltaReport.removed ? deltaReport.removed.length : 0;
-    const s = deltaReport.bandwidthSavingsPercent ?? 0;
+    const s = deltaReport.bandwidthSavingsPercent != null ? deltaReport.bandwidthSavingsPercent : 0;
     return `⚡ Đồng bộ Delta: +${a} mới · ${m} cập nhật · ${r} đã xóa (tiết kiệm ${s}% băng thông)`;
   }
 
   function estimateOfflineStorageAvailability(storageEstimate = {}, options = {}) {
-    const quota = Number(storageEstimate?.quota) || 0;
-    const usage = Number(storageEstimate?.usage) || 0;
-    const safetyMargin = Number(options?.safetyMarginBytes) || (200 * 1024 * 1024);
-    const avgFlac = Number(options?.avgFlacSizeBytes) || (35 * 1024 * 1024);
-    const avgMp3 = Number(options?.avgMp3SizeBytes) || (8 * 1024 * 1024);
+    const quota = Number(storageEstimate && storageEstimate.quota) || 0;
+    const usage = Number(storageEstimate && storageEstimate.usage) || 0;
+    const safetyMargin = Number(options && options.safetyMarginBytes) || (200 * 1024 * 1024);
+    const avgFlac = Number(options && options.avgFlacSizeBytes) || (35 * 1024 * 1024);
+    const avgMp3 = Number(options && options.avgMp3SizeBytes) || (8 * 1024 * 1024);
 
     const rawRemaining = Math.max(0, quota - usage);
     const usableBytes = Math.max(0, rawRemaining - safetyMargin);
@@ -10655,7 +10658,7 @@
   }
 
   function evaluateAudioMemoryBudget(cachedChunks = [], currentTrackId = null, options = {}) {
-    const maxBudgetBytes = Number(options?.maxBudgetBytes) || (256 * 1024 * 1024);
+    const maxBudgetBytes = Number(options && options.maxBudgetBytes) || (256 * 1024 * 1024);
     const chunks = Array.isArray(cachedChunks) ? cachedChunks : [];
 
     let totalAllocatedBytes = 0;
@@ -10684,7 +10687,7 @@
     const evictionKeys = [];
     let bytesToReclaim = 0;
 
-    if (pressureLevel === 'critical' || options?.forceEviction) {
+    if (pressureLevel === 'critical' || (options && options.forceEviction)) {
       const evictable = chunkStats.filter(c => !c.isPlaying);
       evictable.sort((a, b) => a.lastAccessTime - b.lastAccessTime);
 
@@ -10692,11 +10695,11 @@
       let remainingBytes = totalAllocatedBytes;
 
       for (const c of evictable) {
-        if (remainingBytes <= targetBytes && !options?.forceEviction) break;
+        if (remainingBytes <= targetBytes && !(options && options.forceEviction)) break;
         evictionKeys.push(c.key);
         bytesToReclaim += c.sizeBytes;
         remainingBytes -= c.sizeBytes;
-        if (options?.forceEviction && evictionKeys.length >= (options.maxEvictCount || 50)) break;
+        if ((options && options.forceEviction) && evictionKeys.length >= (options.maxEvictCount || 50)) break;
       }
     }
 
@@ -11032,7 +11035,7 @@
     const stats = (playStats && typeof playStats === 'object') ? playStats : {};
     const playCount = Math.max(0, Math.round(Number(stats.playCount || 0)));
     const skipCount = Math.max(0, Math.round(Number(stats.skipCount || 0)));
-    const completionRate = Math.max(0, Math.min(1, Number(stats.completionRate ?? 1)));
+    const completionRate = Math.max(0, Math.min(1, Number(stats.completionRate != null ? stats.completionRate : 1)));
     const isFavorite = Boolean(stats.isFavorite);
 
     // 1. Điểm đánh giá chủ quan từ người dùng (45% max)
@@ -11124,9 +11127,9 @@
       const uRating = Number(ratings[tid] || ratings[Number(tid)] || t.rating || 0);
       const tStats = stats[tid] || stats[Number(tid)] || {};
       const engagement = calculateTrackEngagementRating(t, uRating, {
-        playCount: tStats.playCount ?? t.playCount ?? 0,
-        skipCount: tStats.skipCount ?? t.skipCount ?? 0,
-        completionRate: tStats.completionRate ?? 1,
+        playCount: tStats.playCount != null ? tStats.playCount : (t.playCount != null ? t.playCount : 0),
+        skipCount: tStats.skipCount != null ? tStats.skipCount : (t.skipCount != null ? t.skipCount : 0),
+        completionRate: tStats.completionRate != null ? tStats.completionRate : 1,
         isFavorite: isFav
       });
 
@@ -11145,8 +11148,8 @@
         audiophileLossless.push(t);
       }
 
-      const pCount = Number(tStats.playCount ?? t.playCount ?? 0);
-      const sCount = Number(tStats.skipCount ?? t.skipCount ?? 0);
+      const pCount = Number(tStats.playCount != null ? tStats.playCount : (t.playCount != null ? t.playCount : 0));
+      const sCount = Number(tStats.skipCount != null ? tStats.skipCount : (t.skipCount != null ? t.skipCount : 0));
       if (pCount >= 3 && sCount <= 1) {
         frequentGems.push(t);
       }
@@ -11193,7 +11196,7 @@
     const networkTier = String(options.networkTier || 'high-speed').toLowerCase();
     const isSaveData = Boolean(options.saveData);
     const isFav = Boolean(options.isFavorite || track.isFavorite);
-    const uRating = Number(options.userRating ?? track.rating ?? 0);
+    const uRating = Number(options.userRating != null ? options.userRating : (track.rating != null ? track.rating : 0));
 
     if (networkTier === 'offline') {
       return { priorityScore: 0, priorityTier: 'low', reason: 'Network offline' };
@@ -12412,9 +12415,10 @@
     };
 
     if (rawInput && typeof rawInput === 'object') {
-      const rawTok = rawInput.access_token ?? rawInput.accessToken ?? rawInput.token ?? '';
+      const rawTok = rawInput.access_token != null ? rawInput.access_token : (rawInput.accessToken != null ? rawInput.accessToken : (rawInput.token != null ? rawInput.token : ''));
       const cleaned = stripBearer(rawTok).value;
-      const expiresInSeconds = parseExpires(rawInput.expires_in ?? rawInput.expiresIn ?? rawInput.expiresInSeconds);
+      const exp1 = rawInput.expires_in != null ? rawInput.expires_in : (rawInput.expiresIn != null ? rawInput.expiresIn : rawInput.expiresInSeconds);
+      const expiresInSeconds = parseExpires(exp1);
       const isValidFormat = isValidTokenString(cleaned, 'json');
       return {
         token: isValidFormat ? cleaned : '',
@@ -12443,9 +12447,10 @@
         } catch (_2) {}
       }
       if (parsedObj && typeof parsedObj === 'object' && !Array.isArray(parsedObj)) {
-        const rawTok = parsedObj.access_token ?? parsedObj.accessToken ?? parsedObj.token ?? '';
+        const rawTok = parsedObj.access_token != null ? parsedObj.access_token : (parsedObj.accessToken != null ? parsedObj.accessToken : (parsedObj.token != null ? parsedObj.token : ''));
         const cleaned = stripBearer(rawTok).value;
-        const expiresInSeconds = parseExpires(parsedObj.expires_in ?? parsedObj.expiresIn ?? parsedObj.expiresInSeconds);
+        const exp2 = parsedObj.expires_in != null ? parsedObj.expires_in : (parsedObj.expiresIn != null ? parsedObj.expiresIn : parsedObj.expiresInSeconds);
+        const expiresInSeconds = parseExpires(exp2);
         const isValidFormat = isValidTokenString(cleaned, 'json');
         return {
           token: isValidFormat ? cleaned : '',
@@ -13346,11 +13351,11 @@
         const hdrs = rawHeader.headers;
         rawHeader = typeof hdrs.get === 'function'
           ? hdrs.get('Retry-After')
-          : (hdrs['retry-after'] ?? hdrs['Retry-After'] ?? null);
+          : (hdrs['retry-after'] != null ? hdrs['retry-after'] : (hdrs['Retry-After'] != null ? hdrs['Retry-After'] : null));
       } else if (typeof rawHeader.get === 'function') {
         rawHeader = rawHeader.get('Retry-After');
       } else {
-        rawHeader = rawHeader['retry-after'] ?? rawHeader['Retry-After'] ?? null;
+        rawHeader = rawHeader['retry-after'] != null ? rawHeader['retry-after'] : (rawHeader['Retry-After'] != null ? rawHeader['Retry-After'] : null);
       }
     }
 
@@ -13387,7 +13392,7 @@
   }
 
   function decodeLyricsfileYamlScalar(rawVal) {
-    const str = String(rawVal ?? '').trim();
+    const str = String(rawVal != null ? rawVal : '').trim();
     if (!str) return '';
     if (str.length >= 2 && str.startsWith('"') && str.endsWith('"')) {
       const inner = str.slice(1, -1);
@@ -13417,7 +13422,7 @@
   }
 
   function encodeLyricsfileYamlString(value) {
-    const str = String(value ?? '');
+    const str = String(value != null ? value : '');
     let out = '"';
     for (let i = 0; i < str.length; i++) {
       const ch = str[i];
@@ -13503,7 +13508,7 @@
 
     const assignField = (target, key, rawVal, isRawDecoded = false) => {
       if (!target || !key) return;
-      const val = isRawDecoded ? String(rawVal ?? '') : decodeLyricsfileYamlScalar(rawVal);
+      const val = isRawDecoded ? String(rawVal != null ? rawVal : '') : decodeLyricsfileYamlScalar(rawVal);
       if (key === 'start_ms' || key === 'end_ms' || key === 'duration_ms') {
         const num = Number(val);
         target[key] = Number.isFinite(num) && num >= 0 ? Math.round(num) : 0;
@@ -13783,7 +13788,7 @@
         ? Number(line.end_ms)
         : (i + 1 < sortedLines.length ? Number(sortedLines[i + 1].start_ms) : (durationMs > startMs ? durationMs : startMs + 3000));
       const endMs = Math.max(startMs, Math.round(Number.isFinite(fallbackEnd) ? fallbackEnd : startMs));
-      const text = String(line.text ?? '');
+      const text = String(line.text != null ? line.text : '');
 
       out.push(`  - start_ms: ${startMs}`);
       out.push(`    end_ms: ${endMs}`);
@@ -13807,7 +13812,7 @@
           const wEnd = Math.max(wStart, Math.round(Number.isFinite(wFallbackEnd) ? wFallbackEnd : wStart));
           out.push(`      - start_ms: ${wStart}`);
           out.push(`        end_ms: ${wEnd}`);
-          out.push(`        text: ${encodeLyricsfileYamlString(word.text ?? '')}`);
+          out.push(`        text: ${encodeLyricsfileYamlString(word.text != null ? word.text : '')}`);
           if (word.voice !== undefined && word.voice !== null && String(word.voice) !== '') {
             out.push(`        voice: ${encodeLyricsfileYamlString(word.voice)}`);
           }
@@ -16667,7 +16672,7 @@
     }
 
     const activeElement = context && typeof context === 'object' ? context.activeElement : null;
-    const primaryTarget = (typeof eventLike.composedPath === 'function' ? eventLike.composedPath()?.[0] : null) || eventLike.target;
+    const primaryTarget = (typeof eventLike.composedPath === 'function' && eventLike.composedPath() ? eventLike.composedPath()[0] : null) || eventLike.target;
     if (isEditableKeyboardTarget(primaryTarget, activeElement)) {
       return null;
     }
@@ -17026,7 +17031,7 @@
           stateObj.filters[i],
           `filters[${i}]`,
           band ? band.frequency : undefined,
-          band ? (band.q ?? band.Q) : undefined,
+          band ? (band.q != null ? band.q : band.Q) : undefined,
           band ? band.gain : undefined
         );
       }
@@ -17047,7 +17052,7 @@
             deck.filters[i],
             `${deckName}.filters[${i}]`,
             band ? band.frequency : undefined,
-            band ? (band.q ?? band.Q) : undefined,
+            band ? (band.q != null ? band.q : band.Q) : undefined,
             band ? band.gain : undefined
           );
         }
@@ -18894,18 +18899,18 @@
         const item = lyricsInput[i];
         if (!item) continue;
         const tMs = item.start_ms !== undefined ? Number(item.start_ms) : Number(item.time || 0) * 1000;
-        built.push(`[${formatPublishLrcTimestamp(tMs)}]${normalize(item.text ?? '')}`);
+        built.push(`[${formatPublishLrcTimestamp(tMs)}]${normalize(item.text != null ? item.text : '')}`);
       }
       rawSynced = built.join('\n').trim();
     } else if (lyrObj) {
-      rawSynced = normalizeLyricPublishText(lyrObj.syncedLyrics ?? lyrObj.synced_lyrics ?? lyrObj.lrc ?? '');
+      rawSynced = normalizeLyricPublishText(lyrObj.syncedLyrics != null ? lyrObj.syncedLyrics : (lyrObj.synced_lyrics != null ? lyrObj.synced_lyrics : (lyrObj.lrc != null ? lyrObj.lrc : '')));
       if (!rawSynced && Array.isArray(lyrObj.lines) && lyrObj.lines.length > 0) {
         const built = [];
         for (let i = 0; i < lyrObj.lines.length; i++) {
           const item = lyrObj.lines[i];
           if (!item) continue;
           const tMs = item.start_ms !== undefined ? Number(item.start_ms) : Number(item.time || 0) * 1000;
-          built.push(`[${formatPublishLrcTimestamp(tMs)}]${normalize(item.text ?? '')}`);
+          built.push(`[${formatPublishLrcTimestamp(tMs)}]${normalize(item.text != null ? item.text : '')}`);
         }
         rawSynced = built.join('\n').trim();
       }
@@ -19171,16 +19176,13 @@
     const lyrObj = lyricsData && typeof lyricsData === 'object' && !Array.isArray(lyricsData) ? lyricsData : null;
 
     const trackName = normalize(
-      trackMeta.trackName ?? trackMeta.track_name ?? trackMeta.title ?? trackMeta.name ??
-      (lyrObj && lyrObj.metadata && lyrObj.metadata.title) ?? ''
+      ((trackMeta.trackName != null ? trackMeta.trackName : (trackMeta.track_name != null ? trackMeta.track_name : (trackMeta.title != null ? trackMeta.title : trackMeta.name))) != null ? (trackMeta.trackName != null ? trackMeta.trackName : (trackMeta.track_name != null ? trackMeta.track_name : (trackMeta.title != null ? trackMeta.title : trackMeta.name))) : ((lyrObj && lyrObj.metadata && lyrObj.metadata.title) != null ? lyrObj.metadata.title : ''))
     );
     const artistName = normalize(
-      trackMeta.artistName ?? trackMeta.artist_name ?? trackMeta.artist ??
-      (lyrObj && lyrObj.metadata && lyrObj.metadata.artist) ?? ''
+      ((trackMeta.artistName != null ? trackMeta.artistName : (trackMeta.artist_name != null ? trackMeta.artist_name : trackMeta.artist)) != null ? (trackMeta.artistName != null ? trackMeta.artistName : (trackMeta.artist_name != null ? trackMeta.artist_name : trackMeta.artist)) : ((lyrObj && lyrObj.metadata && lyrObj.metadata.artist) != null ? lyrObj.metadata.artist : ''))
     );
     const rawAlbum = normalize(
-      trackMeta.albumName ?? trackMeta.album_name ?? trackMeta.album ??
-      (lyrObj && lyrObj.metadata && lyrObj.metadata.album) ?? ''
+      ((trackMeta.albumName != null ? trackMeta.albumName : (trackMeta.album_name != null ? trackMeta.album_name : trackMeta.album)) != null ? (trackMeta.albumName != null ? trackMeta.albumName : (trackMeta.album_name != null ? trackMeta.album_name : trackMeta.album)) : ((lyrObj && lyrObj.metadata && lyrObj.metadata.album) != null ? lyrObj.metadata.album : ''))
     );
     const albumName = rawAlbum === UNKNOWN_ALBUM ? '' : rawAlbum;
 
@@ -19193,12 +19195,7 @@
 
     // Authoritative decoded AudioBuffer / stream duration takes precedence over potentially stale tag/LRC durations
     const explicitDecodedSec = extractDecodedAudioDurationSec(
-      opts.decodedDurationSec ??
-      opts.audioBuffer ??
-      trackMeta.decodedDuration ??
-      trackMeta.decodedDurationSec ??
-      trackMeta.audioDuration ??
-      trackMeta.audioBuffer
+      (function () { const found = [opts.decodedDurationSec, opts.audioBuffer, trackMeta.decodedDuration, trackMeta.decodedDurationSec, trackMeta.audioDuration].find(x => x != null); return found != null ? found : trackMeta.audioBuffer; })()
     );
 
     let rawDurationSec = explicitDecodedSec !== null ? explicitDecodedSec : NaN;
@@ -19240,15 +19237,15 @@
           const item = lyricsData[i];
           if (!item) continue;
           const tMs = item.start_ms !== undefined ? Number(item.start_ms) : Number(item.time || 0) * 1000;
-          const text = normalize(item.text ?? '');
+          const text = normalize(item.text != null ? item.text : '');
           builtLines.push(`[${formatPublishLrcTimestamp(tMs)}]${text}`);
           builtPlain.push(text);
         }
         syncedLyrics = builtLines.join('\n').trim();
         plainLyrics = builtPlain.join('\n').trim();
       } else if (lyrObj) {
-        const rawSynced = lyrObj.syncedLyrics ?? lyrObj.synced_lyrics ?? lyrObj.lrc ?? '';
-        const rawPlain = lyrObj.plainLyrics ?? lyrObj.plain_lyrics ?? lyrObj.plain ?? '';
+        const rawSynced = lyrObj.syncedLyrics != null ? lyrObj.syncedLyrics : (lyrObj.synced_lyrics != null ? lyrObj.synced_lyrics : (lyrObj.lrc != null ? lyrObj.lrc : ''));
+        const rawPlain = lyrObj.plainLyrics != null ? lyrObj.plainLyrics : (lyrObj.plain_lyrics != null ? lyrObj.plain_lyrics : (lyrObj.plain != null ? lyrObj.plain : ''));
         syncedLyrics = normalizeLyricPublishText(rawSynced);
         plainLyrics = normalizeLyricPublishText(rawPlain);
 
@@ -19258,7 +19255,7 @@
             const item = lyrObj.lines[i];
             if (!item) continue;
             const tMs = item.start_ms !== undefined ? Number(item.start_ms) : Number(item.time || 0) * 1000;
-            builtLines.push(`[${formatPublishLrcTimestamp(tMs)}]${normalize(item.text ?? '')}`);
+            builtLines.push(`[${formatPublishLrcTimestamp(tMs)}]${normalize(item.text != null ? item.text : '')}`);
           }
           syncedLyrics = builtLines.join('\n').trim();
         }
@@ -19284,7 +19281,7 @@
         candidateAuthSec,
         {
           driftToleranceSec: opts.driftToleranceSec,
-          overrunToleranceMs: opts.overrunToleranceMs ?? opts.toleranceMs,
+          overrunToleranceMs: opts.overrunToleranceMs != null ? opts.overrunToleranceMs : opts.toleranceMs,
           clampTimestamps: Boolean(opts.clampTimestamps || opts.clampOverrun),
           injectLengthHeader: Boolean(opts.injectLengthHeader),
           lengthFormat: opts.lengthFormat,
@@ -19785,7 +19782,7 @@
   const CONFIG_UTF8_ENCODER = typeof TextEncoder === 'function' ? new TextEncoder() : null;
 
   function encodeUtf8BytesForIntegrity(str) {
-    const s = String(str ?? '');
+    const s = String(str != null ? str : '');
     if (CONFIG_UTF8_ENCODER) {
       return CONFIG_UTF8_ENCODER.encode(s);
     }
@@ -24589,7 +24586,8 @@
     if (!headersObj || !targetName) return null;
     const lowerTarget = String(targetName).toLowerCase();
     if (typeof headersObj.get === 'function') {
-      const direct = headersObj.get(targetName) ?? headersObj.get(lowerTarget);
+      const d1 = headersObj.get(targetName);
+      const direct = d1 != null ? d1 : headersObj.get(lowerTarget);
       if (direct !== null && direct !== undefined) return String(direct);
     }
     if (typeof headersObj.forEach === 'function') {
@@ -24656,7 +24654,8 @@
       throw createHeadSliceAbortError(externalSignal.reason);
     }
 
-    const rawKnownSize = opts.knownSize ?? opts.fileSize ?? (source && typeof source === 'object' ? (source.knownSize ?? source.fileSize) : undefined);
+    const srcSize = source && typeof source === 'object' ? (source.knownSize != null ? source.knownSize : source.fileSize) : undefined;
+    const rawKnownSize = opts.knownSize != null ? opts.knownSize : (opts.fileSize != null ? opts.fileSize : srcSize);
     const hasExplicitKnownSize = rawKnownSize !== undefined && rawKnownSize !== null && Number.isFinite(Number(rawKnownSize)) && Number(rawKnownSize) >= 0;
     const explicitKnownSize = hasExplicitKnownSize ? Math.floor(Number(rawKnownSize)) : null;
 
@@ -26395,7 +26394,8 @@
     }
 
     function persistLedger(nowOverride) {
-      const ts = normalizeVaultEpochMs(nowOverride, true) ?? normalizeVaultEpochMs(nowFn(), false);
+      const ts1 = normalizeVaultEpochMs(nowOverride, true);
+      const ts = ts1 != null ? ts1 : normalizeVaultEpochMs(nowFn(), false);
       updatedAt = ts;
       const serializedProviders = {};
       for (let i = 0; i < MULTI_PROVIDER_CANONICAL_IDS.length; i++) {
@@ -26428,7 +26428,8 @@
         throw new TypeError(`Unsupported session vault provider: "${String(provider)}"`);
       }
       const patch = sessionPatch && typeof sessionPatch === 'object' ? sessionPatch : {};
-      const nowMs = normalizeVaultEpochMs(nowOverride, true) ?? normalizeVaultEpochMs(nowFn(), false);
+      const nm1 = normalizeVaultEpochMs(nowOverride, true);
+      const nowMs = nm1 != null ? nm1 : normalizeVaultEpochMs(nowFn(), false);
       const prev = providersLedger[pid] || null;
 
       const accessTokenPresent = patch.accessTokenPresent !== undefined
@@ -26740,7 +26741,7 @@
         name: profile.name || profile.id,
         rt60Sec: Math.max(0.05, Math.min(10.0, Number(profile.rt60) || 1.2)),
         preDelayMs: Math.max(0, Math.min(500, Number(profile.preDelayMs) || 0)),
-        damping: Math.max(0, Math.min(1, Number(profile.damping ?? 0.4))),
+        damping: Math.max(0, Math.min(1, Number(profile.damping != null ? profile.damping : 0.4))),
         durationSec: null,
         earlyReflections: null,
         tailGain: 0.085,
@@ -26879,11 +26880,13 @@
           : (item.delayMs !== undefined ? item.delayMs : item.timeMs);
         tapMs = Number(candidateMs);
         const baseGain = Number.isFinite(Number(item.gain)) ? Number(item.gain) : 0.35;
-        gainL = Number.isFinite(Number(item.gainL ?? item.leftGain))
-          ? Number(item.gainL ?? item.leftGain)
+        const rawGL = item.gainL != null ? item.gainL : item.leftGain;
+        gainL = Number.isFinite(Number(rawGL))
+          ? Number(rawGL)
           : baseGain;
-        gainR = Number.isFinite(Number(item.gainR ?? item.rightGain))
-          ? Number(item.gainR ?? item.rightGain)
+        const rawGR = item.gainR != null ? item.gainR : item.rightGain;
+        gainR = Number.isFinite(Number(rawGR))
+          ? Number(rawGR)
           : baseGain;
       } else {
         continue;
@@ -26959,7 +26962,7 @@
     const tapsKey = Array.isArray(spec.earlyReflections)
       ? JSON.stringify(spec.earlyReflections)
       : 'default_taps';
-    return `${spec.id}|rt60:${spec.rt60Sec}|pd:${spec.preDelayMs}|dur:${spec.durationSec ?? 'auto'}|tg:${spec.tailGain}|es:${spec.earlyScale}|seed:${(Number(prngSeed) >>> 0) || 0x9e3779b9}|${tapsKey}`;
+    return `${spec.id}|rt60:${spec.rt60Sec}|pd:${spec.preDelayMs}|dur:${spec.durationSec != null ? spec.durationSec : 'auto'}|tg:${spec.tailGain}|es:${spec.earlyScale}|seed:${(Number(prngSeed) >>> 0) || 0x9e3779b9}|${tapsKey}`;
   }
 
   function reconcileConvolverImpulseForSampleRate(convolverState, activeContext, presetParams) {
@@ -28205,7 +28208,7 @@
     const identity = resolveDsfSourceIdentity(sourceOrId);
     const sz = Math.max(
       0,
-      Math.floor(Number(fileSize !== undefined ? fileSize : (sourceOrId && (sourceOrId.fileSize ?? sourceOrId.size))) || 0)
+      Math.floor(Number(fileSize !== undefined ? fileSize : (sourceOrId && (sourceOrId.fileSize != null ? sourceOrId.fileSize : sourceOrId.size))) || 0)
     );
     const ptr = Math.max(
       0,
@@ -28505,8 +28508,8 @@
     const opts = options && typeof options === 'object' ? options : {};
     const src = source && typeof source === 'object' ? source : {};
     const url = String(src.url || opts.url || '').trim();
-    const fileSize = Math.floor(Number(src.fileSize ?? src.size ?? opts.fileSize) || 0);
-    const metadataPointer = Math.floor(Number(src.metadataPointer ?? opts.metadataPointer) || 0);
+    const fileSize = Math.floor(Number(src.fileSize != null ? src.fileSize : (src.size != null ? src.size : opts.fileSize)) || 0);
+    const metadataPointer = Math.floor(Number(src.metadataPointer != null ? src.metadataPointer : opts.metadataPointer) || 0);
     const cache = opts.cache && typeof opts.cache.coalesce === 'function'
       ? opts.cache
       : getSharedDsfTailMetadataCache();

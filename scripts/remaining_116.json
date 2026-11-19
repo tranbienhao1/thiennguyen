@@ -1,0 +1,466 @@
+[
+  {
+    "line": 3236,
+    "text": "if (typeof window !== 'undefined' && window.NocturneNative?.stopBitPerfectPlayback) {"
+  },
+  {
+    "line": 3751,
+    "text": "return `${head}\\n${doc.querySelector('#app-style')?.textContent || ''}\\n${doc.body.innerHTML}`;"
+  },
+  {
+    "line": 3817,
+    "text": "if (session.paused) curAudio?.pause();"
+  },
+  {
+    "line": 4376,
+    "text": "const currentTrack = Array.isArray(state?.tracks) ? state.tracks.find(t => t.id === state.currentId) : null;"
+  },
+  {
+    "line": 5069,
+    "text": "url: siblingTrack?.url || (matchedAudioFile ? URL.createObjectURL(matchedAudioFile) : ''),"
+  },
+  {
+    "line": 5073,
+    "text": "artist: ct.artist || ct.performer || parsedTracks.artist || parsedTracks.performer || siblingTrack?.artist || 'Unknown Artist',"
+  },
+  {
+    "line": 5074,
+    "text": "album: ct.album || parsedTracks.album || parsedTracks.title || siblingTrack?.album || 'Unknown Album',"
+  },
+  {
+    "line": 5075,
+    "text": "albumArtist: parsedTracks.artist || parsedTracks.performer || siblingTrack?.albumArtist || '',"
+  },
+  {
+    "line": 5081,
+    "text": "format: siblingTrack?.format || (matchedAudioFile ? matchedAudioFile.name.split('.').pop().toUpperCase() : 'FLAC'),"
+  },
+  {
+    "line": 5082,
+    "text": "isDsd: siblingTrack?.isDsd || false,"
+  },
+  {
+    "line": 5083,
+    "text": "sampleRate: siblingTrack?.sampleRate || 44100,"
+  },
+  {
+    "line": 5084,
+    "text": "bitDepth: siblingTrack?.bitDepth || 16,"
+  },
+  {
+    "line": 5085,
+    "text": "channels: siblingTrack?.channels || 2,"
+  },
+  {
+    "line": 5086,
+    "text": "cover: siblingTrack?.cover || folderCover || '',"
+  },
+  {
+    "line": 5285,
+    "text": "const eqEnabled = !!$('eq-enabled')?.checked;"
+  },
+  {
+    "line": 5286,
+    "text": "const eqPreset = $('eq-preset')?.value || 'custom';"
+  },
+  {
+    "line": 5287,
+    "text": "const eqPreamp = Number($('eq-preamp')?.value) || 0;"
+  },
+  {
+    "line": 5293,
+    "text": "const contextRate = state.context?.sampleRate || 48000;"
+  },
+  {
+    "line": 5359,
+    "text": "const coverSrc = track?.cover;"
+  },
+  {
+    "line": 5360,
+    "text": "const trackId = track?.id || '';"
+  },
+  {
+    "line": 5450,
+    "text": "if (durationEl) durationEl.textContent = summary?.formattedDuration || '—';"
+  },
+  {
+    "line": 5541,
+    "text": "cover: albumTracks.find(t => t.cover)?.cover || '',"
+  },
+  {
+    "line": 5584,
+    "text": "cover: artistTracks.find(t => t.cover)?.cover || '',"
+  },
+  {
+    "line": 5869,
+    "text": "const trackId = row?.dataset?.trackId;"
+  },
+  {
+    "line": 5878,
+    "text": "const trackId = row?.dataset?.trackId;"
+  },
+  {
+    "line": 5927,
+    "text": "const trackId = row?.dataset?.trackId;"
+  },
+  {
+    "line": 5936,
+    "text": "const trackId = row?.dataset?.trackId;"
+  },
+  {
+    "line": 8775,
+    "text": "if (typeof window !== 'undefined') window.NocturneNative?.updateMediaNotification(metadata.title || track.title || track.name || '', metadata.artist || track.artist || '', metadata.album || track.album || '', true);"
+  },
+  {
+    "line": 8788,
+    "text": "const rateStr = track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : (state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(state.context.sampleRate % 1000 ? 1 : 0)} kHz` : '44.1 kHz');"
+  },
+  {
+    "line": 8814,
+    "text": "const roomOutputText = `Nguồn: ${room.sourceName}. AudioContext ${state.context?.sampleRate ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.${state.stereoBalance ? ` · Cân bằng: ${library.formatBalance(state.stereoBalance)}` : ''}${state.crossfeed ? ` · Crossfeed: ${library.formatCrossfeed(state.crossfeed)}` : ''}`;"
+  },
+  {
+    "line": 9217,
+    "text": "const selectedFadeMs = Number(fadeSelect?.value) || 30000;"
+  },
+  {
+    "line": 9225,
+    "text": "const ambientSceneEnabled = customOptions.ambientScene !== undefined ? customOptions.ambientScene : Boolean(ambientCheckbox?.checked);"
+  },
+  {
+    "line": 9235,
+    "text": "state.sleepOriginalVolume = Number($('volume')?.value) || 80;"
+  },
+  {
+    "line": 9401,
+    "text": "if (state.ambientBuffers?.rain) src.buffer = state.ambientBuffers.rain;"
+  },
+  {
+    "line": 9425,
+    "text": "if (state.ambientBuffers?.campfireBase) base.buffer = state.ambientBuffers.campfireBase;"
+  },
+  {
+    "line": 9436,
+    "text": "if (state.ambientBuffers?.campfireCrackle) crackle.buffer = state.ambientBuffers.campfireCrackle;"
+  },
+  {
+    "line": 9499,
+    "text": "if (state.ambientNodes?.rain?.lfoGain) {"
+  },
+  {
+    "line": 9550,
+    "text": "if (state.context && state.ambientNodes?.rain) {"
+  },
+  {
+    "line": 9555,
+    "text": "if (state.ambientBuffers?.rain) src.buffer = state.ambientBuffers.rain;"
+  },
+  {
+    "line": 9580,
+    "text": "if (state.ambientNodes?.rain) {"
+  },
+  {
+    "line": 9615,
+    "text": "if (state.context && state.ambientNodes?.campfire) {"
+  },
+  {
+    "line": 9620,
+    "text": "if (state.ambientBuffers?.campfireBase) base.buffer = state.ambientBuffers.campfireBase;"
+  },
+  {
+    "line": 9631,
+    "text": "if (state.ambientBuffers?.campfireCrackle) crackle.buffer = state.ambientBuffers.campfireCrackle;"
+  },
+  {
+    "line": 9642,
+    "text": "if (state.ambientNodes?.campfire) {"
+  },
+  {
+    "line": 9694,
+    "text": "if (state.ambientNodes?.rain) {"
+  },
+  {
+    "line": 9712,
+    "text": "if (state.ambientNodes?.campfire) {"
+  },
+  {
+    "line": 9865,
+    "text": "const rawInput = endpointStr || $('roon-bridge-input')?.value || state.roonCoreEndpoint;"
+  },
+  {
+    "line": 10116,
+    "text": "outputSampleRate: state.context?.sampleRate || 48000,"
+  },
+  {
+    "line": 10214,
+    "text": "const eqActive = !!$('eq-enabled')?.checked;"
+  },
+  {
+    "line": 10564,
+    "text": "if (typeof window !== 'undefined') window.NocturneNative?.updateMediaNotification(finishMeta.title || track.title || track.name || '', finishMeta.artist || track.artist || '', finishMeta.album || track.album || '', true);"
+  },
+  {
+    "line": 10679,
+    "text": "if (typeof window !== 'undefined') window.NocturneNative?.updateMediaNotification(finishMeta.title || track.title || track.name || '', finishMeta.artist || track.artist || '', finishMeta.album || track.album || '', true);"
+  },
+  {
+    "line": 10757,
+    "text": "try { window.NocturneNative?.stopBitPerfectPlayback?.(); } catch (_) {}"
+  },
+  {
+    "line": 10837,
+    "text": "try { window.NocturneNative?.stopBitPerfectPlayback?.(); } catch (_) {}"
+  },
+  {
+    "line": 11385,
+    "text": "script.onload = () => window.google?.accounts?.oauth2"
+  },
+  {
+    "line": 11397,
+    "text": "if (window.NocturneNative?.openAuthInBrowser) {"
+  },
+  {
+    "line": 11440,
+    "text": "const msg = String(errorInput?.message || errorInput?.error_description || errorInput?.error || errorInput || '').trim();"
+  },
+  {
+    "line": 11453,
+    "text": "if (/disallowed_useragent|webview|embedded/i.test(lower) || env?.isNativeAndroid) {"
+  },
+  {
+    "line": 11523,
+    "text": "const customId = $(provider === 'microsoft' ? 'microsoft-client-id' : 'google-client-id')?.value?.trim();"
+  },
+  {
+    "line": 11534,
+    "text": "const boxEl = $(isMs ? 'microsoft-fast-token-box' : 'google-fast-token-box') || inputEl?.closest('div');"
+  },
+  {
+    "line": 11569,
+    "text": "if (!window.google?.accounts?.oauth2 || !window.isSecureContext) return null;"
+  },
+  {
+    "line": 11580,
+    "text": "if (!window.google?.accounts?.oauth2) {"
+  },
+  {
+    "line": 11593,
+    "text": "if (!result || result.error || !result.access_token) return finish(reject, new Error(result?.error_description || result?.error || 'Google không trả về access token.'));"
+  },
+  {
+    "line": 11600,
+    "text": "error_callback: error => finish(reject, new Error(error?.message || `Không mở được cửa sổ OAuth của Google (${error?.type || 'lỗi popup'}). Cho phép popup cho website này rồi nhấn kết nối lại.`))"
+  },
+  {
+    "line": 11608,
+    "text": "if (googleOAuthRefreshScheduler && googleOAuthRefreshScheduler.shouldRefreshSoon(state.googleExpiresAt) && window.google?.accounts?.oauth2) {"
+  },
+  {
+    "line": 11613,
+    "text": "if (googleOAuthRefreshScheduler && window.google?.accounts?.oauth2 && window.isSecureContext) {"
+  },
+  {
+    "line": 11623,
+    "text": "const inputVal = $('google-client-id')?.value?.trim();"
+  },
+  {
+    "line": 11634,
+    "text": "if (!window.google?.accounts?.oauth2) {"
+  },
+  {
+    "line": 11643,
+    "text": "const errText = String(error?.message || error || '').toLowerCase();"
+  },
+  {
+    "line": 11653,
+    "text": "try { details = JSON.parse(body).error?.message || ''; } catch (error) {}"
+  },
+  {
+    "line": 11748,
+    "text": "const customInput = ($('microsoft-client-id')?.value || '').trim();"
+  },
+  {
+    "line": 11754,
+    "text": "const customInput = ($('microsoft-client-id')?.value || '').trim();"
+  },
+  {
+    "line": 11824,
+    "text": "const clientId = config.clientId || ($('microsoft-client-id')?.value || '').trim() || DEFAULT_MICROSOFT_CLIENT_ID;"
+  },
+  {
+    "line": 12320,
+    "text": "networkTier: state.networkProfile?.tier || 'high-speed',"
+  },
+  {
+    "line": 12385,
+    "text": "const file = e.target.files?.[0];"
+  },
+  {
+    "line": 12464,
+    "text": "const file = e.target.files?.[0];"
+  },
+  {
+    "line": 12563,
+    "text": "const file = e.target.files?.[0];"
+  },
+  {
+    "line": 12697,
+    "text": "const effectiveClientId = config.clientId || $('google-client-id')?.value.trim() || DEFAULT_GOOGLE_CLIENT_ID;"
+  },
+  {
+    "line": 12713,
+    "text": "const activeClientId = config.clientId || $('microsoft-client-id')?.value.trim() || DEFAULT_MICROSOFT_CLIENT_ID;"
+  },
+  {
+    "line": 12738,
+    "text": "let rawToken = ($('google-token-direct')?.value || '').trim();"
+  },
+  {
+    "line": 12739,
+    "text": "if (!rawToken && navigator.clipboard?.readText) {"
+  },
+  {
+    "line": 12794,
+    "text": "let rawToken = ($('microsoft-token-direct')?.value || '').trim();"
+  },
+  {
+    "line": 12795,
+    "text": "if (!rawToken && navigator.clipboard?.readText) {"
+  },
+  {
+    "line": 12859,
+    "text": "if (navigator.clipboard?.readText) {"
+  },
+  {
+    "line": 13362,
+    "text": "cover: song.album_image_urls?.large || song.album_image_urls?.medium || song.album_image_urls?.small || '',"
+  },
+  {
+    "line": 13717,
+    "text": "if (typeof window !== 'undefined' && window.NocturneNative?.resumeBitPerfectPlayback) {"
+  },
+  {
+    "line": 13725,
+    "text": "if (typeof window !== 'undefined' && window.NocturneNative?.pauseBitPerfectPlayback) {"
+  },
+  {
+    "line": 13808,
+    "text": "const nowTitle = $('now-title')?.textContent;"
+  },
+  {
+    "line": 13809,
+    "text": "const nowArtist = $('now-artist')?.textContent;"
+  },
+  {
+    "line": 13810,
+    "text": "const nowCover = $('player-cover')?.innerHTML;"
+  },
+  {
+    "line": 14098,
+    "text": "const file = e.target.files?.[0];"
+  },
+  {
+    "line": 14194,
+    "text": "const val = parseInt($('sleep-custom-input')?.value, 10);"
+  },
+  {
+    "line": 14244,
+    "text": "if (!panel.contains(event.target) && !$('ambient-button')?.contains(event.target) && !$('ambient-button-mobile')?.contains(event.target)) {"
+  },
+  {
+    "line": 14263,
+    "text": "const dur = (curTrack && curTrack.cueStart !== undefined && curTrack.duration) ? curTrack.duration : (curTrack?.duration || audio.duration || 0);"
+  },
+  {
+    "line": 14264,
+    "text": "if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative?.seekBitPerfectPlayback) {"
+  },
+  {
+    "line": 14352,
+    "text": "else if (window.UIOverlay?.toggleCommandPalette) window.UIOverlay.toggleCommandPalette();"
+  },
+  {
+    "line": 14364,
+    "text": "else if (window.UIOverlay?.openCommandPalette) window.UIOverlay.openCommandPalette();"
+  },
+  {
+    "line": 14372,
+    "text": "else if (window.UIOverlay?.closeCommandPalette) window.UIOverlay.closeCommandPalette();"
+  },
+  {
+    "line": 14429,
+    "text": "else if (window.UIOverlay?.closeCommandPalette) window.UIOverlay.closeCommandPalette();"
+  },
+  {
+    "line": 14488,
+    "text": "const targetEl = (e.target instanceof Element) ? e.target : e.target?.parentElement;"
+  },
+  {
+    "line": 14492,
+    "text": "if (!sleepP.contains(targetEl) && !targetEl.closest?.('#sleep-button') && !targetEl.closest?.('#sleep-button-mobile')) {"
+  },
+  {
+    "line": 14499,
+    "text": "if (!eqP.contains(targetEl) && !targetEl.closest?.('#eq-button') && !targetEl.closest?.('#header-eq-btn') && !targetEl.closest?.('#room-eq-button') && !targetEl.closest?.('#fs-room-eq-btn')) {"
+  },
+  {
+    "line": 14506,
+    "text": "if (!ambP.contains(targetEl) && !targetEl.closest?.('#ambient-button') && !targetEl.closest?.('#ambient-button-mobile')) {"
+  },
+  {
+    "line": 14650,
+    "text": "const rating = Number($('annotation-rating-input')?.value || 0);"
+  },
+  {
+    "line": 14651,
+    "text": "const score = Number($('annotation-score-input')?.value || 0);"
+  },
+  {
+    "line": 14652,
+    "text": "const gear = $('annotation-gear-input')?.value || '';"
+  },
+  {
+    "line": 14653,
+    "text": "const mastering = $('annotation-mastering-input')?.value || '';"
+  },
+  {
+    "line": 14654,
+    "text": "const venue = $('annotation-venue-input')?.value || '';"
+  },
+  {
+    "line": 14655,
+    "text": "const tagsStr = $('annotation-tags-input')?.value || '';"
+  },
+  {
+    "line": 14656,
+    "text": "const notes = $('annotation-notes-input')?.value || '';"
+  },
+  {
+    "line": 14761,
+    "text": "const dur = (curTrack && curTrack.cueStart !== undefined && curTrack.duration) ? curTrack.duration : (curTrack?.duration || audio.duration || 0);"
+  },
+  {
+    "line": 14762,
+    "text": "if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative?.seekBitPerfectPlayback) {"
+  },
+  {
+    "line": 15027,
+    "text": "if (typeof window !== 'undefined') window.NocturneNative?.updateMediaNotification(notifMeta.title || curTrack.title || curTrack.name || '', notifMeta.artist || curTrack.artist || '', notifMeta.album || curTrack.album || '', true);"
+  },
+  {
+    "line": 15041,
+    "text": "if (typeof window !== 'undefined') window.NocturneNative?.updateMediaNotification(notifMeta.title || curTrack?.title || curTrack?.name || '', notifMeta.artist || curTrack?.artist || '', notifMeta.album || curTrack?.album || '', false);"
+  },
+  {
+    "line": 15839,
+    "text": "document.exitFullscreen?.();"
+  },
+  {
+    "line": 15841,
+    "text": "document.documentElement.requestFullscreen?.();"
+  },
+  {
+    "line": 16304,
+    "text": "const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || Boolean(document.activeElement?.isContentEditable);"
+  }
+]

@@ -357,7 +357,7 @@
         if (albumLink) {
           if (event.stopPropagation) event.stopPropagation();
           const row = albumLink.closest('[data-track-id]');
-          const trackId = row?.dataset?.trackId || row?.getAttribute?.('data-track-id');
+          const trackId = (row && row.dataset && row.dataset.trackId) || (row && typeof row.getAttribute === 'function' ? row.getAttribute('data-track-id') : null);
           if (typeof this.options.onAlbumClick === 'function') {
             this.options.onAlbumClick(trackId, event);
           } else {
@@ -375,7 +375,7 @@
         if (artistLink) {
           if (event.stopPropagation) event.stopPropagation();
           const row = artistLink.closest('[data-track-id]');
-          const trackId = row?.dataset?.trackId || row?.getAttribute?.('data-track-id');
+          const trackId = (row && row.dataset && row.dataset.trackId) || (row && typeof row.getAttribute === 'function' ? row.getAttribute('data-track-id') : null);
           if (typeof this.options.onArtistClick === 'function') {
             this.options.onArtistClick(trackId, event);
           } else {

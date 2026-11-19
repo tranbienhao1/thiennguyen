@@ -14,6 +14,7 @@ alwaysApply: true
    - **Audio & DSD Engine:** Hỗ trợ giải mã chính xác Lossless (`FLAC`, `WAV`, `ALAC`, `AIFF` tới 24/32-bit, 384kHz, Gapless 0ms, Cue Sheet `.cue`) và `DSD` (`.dsf` LSB-first, `.dff` MSB-first, DSD64/128/256 qua Web Worker/AudioWorklet + bộ lọc FIR khử nhiễu siêu âm). Luôn gọi `URL.revokeObjectURL` để chống rò rỉ bộ nhớ.
    - **Lyrics Engine (`lrcget` + `LRCLIB`):** Tuân thủ đặc tả `https://lrclib.net/docs` và `https://lrclib.net/lyricsfile` (LRC chuẩn, Enhanced LRC, Lyricsfile YAML 1.0, đồng bộ từng từ/từng dòng bằng tìm kiếm nhị phân `O(log N)`, xử lý `429 Retry-After` + jitter, giải PoW SHA-256 cho `/api/publish`, lưu cache `IndexedDB` theo hash 64KB đầu file + `file_size`).
    - **Cloud & Offline PWA:** Đảm bảo hoạt động mượt khi offline (`IndexedDB`, `FileSystemFileHandle`) và tự động làm mới token khi đồng bộ Google Drive OAuth 2.0 / Microsoft Entra.
+   - **Tương Thích Phần Cứng FiiO M11S (Android 10 AOSP System WebView Chromium 74):** Tuyệt đối KHÔNG sử dụng cú pháp ES2020+ thực thi (`?.`, `??`, `??=`, `||=`, `&&=`, numeric separators `1_000`, `catch {`, `.replaceAll(`, `Object.hasOwn(`, `structuredClone(`) trong `index.html` và toàn bộ các file `.js` phía trình duyệt để tránh lỗi `Uncaught SyntaxError` / `TypeError` làm liệt cảm ứng trên WebView 74.
 
 3. **Cổng Kiểm Chứng 3 Tầng Trước Mọi Commit:**
    - Không bao giờ commit code chưa qua kiểm tra `node --check` (0 lỗi cú pháp) và kiểm thử logic điều kiện biên bằng Node.js. Nếu lỗi không thể khắc phục sau 2 lần thử, tự động `git checkout -- .` để bảo vệ nhánh chính.

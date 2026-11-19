@@ -35,7 +35,7 @@
   // =========================================================================
 
   function escapeHtml(str) {
-    return String(str ?? '').replace(/[&<>"']/g, c => ({
+    return String(str != null ? str : '').replace(/[&<>"']/g, c => ({
       '&': '&amp;',
       '<': '&lt;',
       '>': '&gt;',
@@ -86,7 +86,7 @@
       shortcut: 'Space / K',
       keywords: ['play', 'pause', 'phat', 'tam dung', 'space', 'k'],
       handler: function (ctx) {
-        if (typeof ctx?.playPause === 'function') {
+        if (ctx && typeof ctx.playPause === 'function') {
           ctx.playPause();
         } else if (typeof document !== 'undefined') {
           const btn = document.getElementById('play-button');
@@ -104,7 +104,7 @@
       shortcut: 'N',
       keywords: ['next', 'tiep', 'ke tiep', 'bai sau', 'n'],
       handler: function (ctx) {
-        if (typeof ctx?.playNext === 'function') {
+        if (ctx && typeof ctx.playNext === 'function') {
           ctx.playNext(1);
         } else if (typeof window !== 'undefined' && typeof window.playNext === 'function') {
           window.playNext(1);
@@ -124,7 +124,7 @@
       shortcut: 'P',
       keywords: ['prev', 'previous', 'truoc', 'quay lai', 'p'],
       handler: function (ctx) {
-        if (typeof ctx?.playNext === 'function') {
+        if (ctx && typeof ctx.playNext === 'function') {
           ctx.playNext(-1);
         } else if (typeof window !== 'undefined' && typeof window.playNext === 'function') {
           window.playNext(-1);
@@ -144,7 +144,7 @@
       shortcut: 'S',
       keywords: ['shuffle', 'tron bai', 'xao tron', 'random', 's'],
       handler: function (ctx) {
-        if (typeof ctx?.toggleShuffle === 'function') {
+        if (ctx && typeof ctx.toggleShuffle === 'function') {
           ctx.toggleShuffle();
         } else if (typeof document !== 'undefined') {
           const btn = document.getElementById('shuffle-button');
@@ -162,7 +162,7 @@
       shortcut: 'E',
       keywords: ['eq', 'equalizer', 'dsp', 'bo chinh am', 'e'],
       handler: function (ctx) {
-        if (typeof ctx?.toggleEq === 'function') {
+        if (ctx && typeof ctx.toggleEq === 'function') {
           ctx.toggleEq();
         } else if (typeof document !== 'undefined') {
           const btn = document.getElementById('eq-button');
@@ -180,7 +180,7 @@
       shortcut: 'T',
       keywords: ['theme', 'mau', 'visualizer', 'giao dien', 'palette', 't'],
       handler: function (ctx) {
-        if (typeof ctx?.switchTheme === 'function') {
+        if (ctx && typeof ctx.switchTheme === 'function') {
           ctx.switchTheme();
         } else if (typeof window !== 'undefined' && typeof window.cycleVisualizerTheme === 'function') {
           window.cycleVisualizerTheme();
@@ -200,7 +200,7 @@
       shortcut: 'L',
       keywords: ['lyrics', 'loi bai hat', 'lrc', 'karaoke', 'l'],
       handler: function (ctx) {
-        if (typeof ctx?.openLyrics === 'function') {
+        if (ctx && typeof ctx.openLyrics === 'function') {
           ctx.openLyrics();
         } else if (typeof window !== 'undefined' && typeof window.openListeningRoom === 'function') {
           window.openListeningRoom();
@@ -220,7 +220,7 @@
       shortcut: ',',
       keywords: ['settings', 'cai dat', 'cau hinh', 'options', 'config'],
       handler: function (ctx) {
-        if (typeof ctx?.openSettings === 'function') {
+        if (ctx && typeof ctx.openSettings === 'function') {
           ctx.openSettings();
         } else if (typeof window !== 'undefined' && typeof window.showSettings === 'function') {
           window.showSettings();
@@ -752,7 +752,7 @@
    */
   async function togglePipMode(audioElement) {
     // 1. Document Picture-in-Picture API (Chrome 111+)
-    if (typeof window !== 'undefined' && 'documentPictureInPicture' in window && window.documentPictureInPicture?.requestWindow) {
+    if (typeof window !== 'undefined' && 'documentPictureInPicture' in window && window.documentPictureInPicture && window.documentPictureInPicture.requestWindow) {
       if (window.documentPictureInPicture.window) {
         window.documentPictureInPicture.window.close();
         return false;
@@ -768,8 +768,10 @@
           pipWin.document.head.appendChild(node.cloneNode(true));
         });
 
-        const curTitle = document.getElementById('now-title')?.textContent || 'Chưa phát nhạc';
-        const curArtist = document.getElementById('now-artist')?.textContent || 'Nocturne Audiophile';
+        const titleEl = document.getElementById('now-title');
+        const artistEl = document.getElementById('now-artist');
+        const curTitle = (titleEl && titleEl.textContent) || 'Chưa phát nhạc';
+        const curArtist = (artistEl && artistEl.textContent) || 'Nocturne Audiophile';
 
         pipWin.document.body.className = 'bg-[#111315] text-white p-3 font-sans select-none flex items-center gap-3';
         pipWin.document.body.innerHTML = `
@@ -785,14 +787,20 @@
           </div>
         `;
 
-        pipWin.document.getElementById('pip-play')?.addEventListener('click', () => {
-          document.getElementById('play-button')?.click();
+        const pipPlay = pipWin.document.getElementById('pip-play');
+        if (pipPlay) pipPlay.addEventListener('click', () => {
+          const btn = document.getElementById('play-button');
+          if (btn) btn.click();
         });
-        pipWin.document.getElementById('pip-prev')?.addEventListener('click', () => {
-          document.getElementById('previous-button')?.click();
+        const pipPrev = pipWin.document.getElementById('pip-prev');
+        if (pipPrev) pipPrev.addEventListener('click', () => {
+          const btn = document.getElementById('previous-button');
+          if (btn) btn.click();
         });
-        pipWin.document.getElementById('pip-next')?.addEventListener('click', () => {
-          document.getElementById('next-button')?.click();
+        const pipNext = pipWin.document.getElementById('pip-next');
+        if (pipNext) pipNext.addEventListener('click', () => {
+          const btn = document.getElementById('next-button');
+          if (btn) btn.click();
         });
 
         return true;
@@ -865,7 +873,8 @@
     // Get app state / volume controls
     const appState = options.customState || (typeof window !== 'undefined' ? window.state : null);
     const volumeInput = typeof document !== 'undefined' ? document.getElementById('volume') : null;
-    const curVol = options.initialVolume ?? (volumeInput ? Number(volumeInput.value) : (appState?.sleepOriginalVolume ?? 80));
+    const fallbackSleepVol = (appState && appState.sleepOriginalVolume != null) ? appState.sleepOriginalVolume : 80;
+    const curVol = options.initialVolume != null ? options.initialVolume : (volumeInput ? Number(volumeInput.value) : fallbackSleepVol);
 
     smartSleepState.originalVolume = curVol;
 

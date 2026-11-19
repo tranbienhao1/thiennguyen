@@ -60,7 +60,7 @@
   }
 
   function esc(val) {
-    return String(val ?? '').replace(/[&<>"']/g, c => ({
+    return String(val != null ? val : '').replace(/[&<>"']/g, c => ({
       '&': '&amp;',
       '<': '&lt;',
       '>': '&gt;',

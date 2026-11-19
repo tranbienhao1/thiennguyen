@@ -6,7 +6,7 @@
 })(typeof globalThis === 'object' ? globalThis : this, function () {
   function create(options = {}) {
     const {getElement:$, library, client, formatTime = value => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2,'0')}`} = options;
-    const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    const esc = value => String(value != null ? value : '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
     const session = {track:null,kind:'track',generation:0,history:[],locked:false,parentKind:''};
     const safeUrl = (value, hosts=[]) => { try { const u=new URL(value); return u.protocol==='https:' && hosts.some(h=>u.hostname===h || u.hostname.endsWith(`.${h}`)) ? u.href : ''; } catch(error) { return ''; } };
     const artistName = entity => {

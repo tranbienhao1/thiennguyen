@@ -709,7 +709,7 @@
         url: urlOrPath,
         file: urlOrPath,
         path: urlOrPath,
-        format: (meta && meta.format) || (urlOrPath.match(/\.([a-z0-9]+)(?:\?.*)?$/i)?.[1]?.toUpperCase() || 'AUDIO')
+        format: (meta && meta.format) || ((function () { const m = urlOrPath.match(/\.([a-z0-9]+)(?:\?.*)?$/i); return m && m[1] ? m[1].toUpperCase() : ''; })() || 'AUDIO')
       };
 
       tracks.push(trackEntry);

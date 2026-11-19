@@ -35,6 +35,8 @@ import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Process;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -177,6 +179,10 @@ public class MainActivity extends AppCompatActivity {
         mWebView = findViewById(R.id.web_view);
         mWebView.clearCache(true);
         mProgressBar = findViewById(R.id.loading_indicator);
+        if (mProgressBar != null) {
+            mProgressBar.setClickable(false);
+            mProgressBar.setFocusable(false);
+        }
 
         // 2. Initialize system services (PowerManager for WakeLock, AudioManager for Audio Focus, MediaSession & Notifications)
         initPowerAndAudioManagers();
@@ -196,8 +202,12 @@ public class MainActivity extends AppCompatActivity {
         // 6. Handle notch & window insets
         setupWindowInsetsHandling();
 
-        // 7. Request audio, storage & notification permissions
-        requestAppPermissions();
+        // 7. Request audio, storage & notification permissions (delayed to avoid stealing initial touch focus)
+        if (mWebView != null) {
+            mWebView.postDelayed(this::requestAppPermissions, 650);
+        } else {
+            requestAppPermissions();
+        }
 
         // 8. Load application entrypoint
         loadAppEntrypoint();
@@ -681,6 +691,23 @@ public class MainActivity extends AppCompatActivity {
                     WebResourceResponse mediaResponse = handleLocalMediaStreaming(request);
                     if (mediaResponse != null) {
                         return mediaResponse;
+                    }
+                }
+
+                // Intercept tailwindcss CDN to prevent blocking HTML parsing and syntax crashes in Chromium 74
+                if (host != null && host.contains("cdn.tailwindcss.com")) {
+                    Map<String, String> headers = new HashMap<>();
+                    headers.put("Access-Control-Allow-Origin", "*");
+                    headers.put("Content-Type", "application/javascript");
+                    return new WebResourceResponse("application/javascript", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(new byte[0]));
+                }
+
+                // Intercept offline remote CDNs so they don't block webview loading for 60-120s
+                if (host != null && (host.contains("alcdn.msauth.net") || host.contains("cdn.jsdelivr.net") || host.contains("accounts.google.com"))) {
+                    if (!isNetworkConnected()) {
+                        Map<String, String> headers = new HashMap<>();
+                        headers.put("Access-Control-Allow-Origin", "*");
+                        return new WebResourceResponse("text/plain", "UTF-8", 200, "OK", headers, new ByteArrayInputStream(new byte[0]));
                     }
                 }
 
@@ -1212,7 +1239,27 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         if (mWebView != null) {
             mWebView.onResume();
+            mWebView.requestFocus();
         }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && mWebView != null) {
+            mWebView.requestFocus();
+        }
+    }
+
+    private boolean isNetworkConnected() {
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null) {
+                NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+                return activeNetwork != null && activeNetwork.isConnected();
+            }
+        } catch (Exception ignored) {}
+        return true;
     }
 
     @Override

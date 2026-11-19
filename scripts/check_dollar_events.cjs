@@ -1,0 +1,7 @@
+'use strict';
+const fs = require('fs');
+const lines = JSON.parse(fs.readFileSync('scripts/index_es2020_lines.json', 'utf8'));
+
+lines.filter(x => /\$\('[^']+'\)\?\.(addEventListener|focus|click|setAttribute|removeAttribute)/.test(x.text)).forEach(x => {
+  console.log(`L${x.line}: ${x.text.trim()}`);
+});
