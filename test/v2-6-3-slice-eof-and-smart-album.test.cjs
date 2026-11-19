@@ -232,3 +232,9 @@ test('v2.6.6: renderTrackRows attaches handleTrackRowActivation click listener o
   const matches = fnBody.match(/list\.querySelectorAll\('\[data-track-id\]'\)\.forEach\(/g) || [];
   assert.equal(matches.length, 1, 'renderTrackRows must attach [data-track-id] click listeners exactly once (no double playTrack race)');
 });
+
+test('v2.6.8: Seamless playback engine — micro-fade slice swap, standbyAudio full-file upgrade, and 180ms gapless lookahead', () => {
+  assert.ok(html.includes('standbyAudio && standbyAudio.src === sliceAbsoluteUrl && track.id === state.preloadTrackId'), 'upgradeSliceToFullAudio must upgrade preloaded standbyAudio in place');
+  assert.ok(html.includes('const gaplessLookaheadEligible = Boolean('), 'timeupdate must include 180ms gapless lookahead when standbyAudio is ready');
+  assert.ok(html.includes('const swapStartedAt ='), 'upgradeSliceToFullAudio must compensate for metadata load latency during live swap');
+});

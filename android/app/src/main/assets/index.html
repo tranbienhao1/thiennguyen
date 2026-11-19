@@ -4374,26 +4374,53 @@
           // Pha C — lát đầu đã hết sớm thì currentTime đã nhảy về duration,
           // seek về vị trí thật đã ghi trong timeupdate thay vì cuối bài.
           const position = endedEarly && Number.isFinite(track.lastSlicePosition) ? track.lastSlicePosition : audio.currentTime, wasPaused = audio.paused;
+          const swapStartedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+          const deck = audio;
+          const deckRouter = (state.activeDeck && state.activeDeck.element === deck && state.activeDeck.router && state.activeDeck.router.gain) ? state.activeDeck.router.gain : null;
+          if (deckRouter && !wasPaused && !endedEarly && state.context) {
+            try { deckRouter.setTargetAtTime(0.0001, state.context.currentTime, 0.005); } catch (_) {}
+          }
           // Pha A — giữ đúng deck đang phát lát đầu: handler
           // 'loadedmetadata' chạy bất đồng bộ; nếu deck đã đổi (bấm Next
           // / bài tự chuyển trong lúc chờ metadata) thì đừng seek/play
           // nhầm sang deck mới đang phát bài khác.
-          const deck = audio;
           deck.addEventListener('loadedmetadata', () => {
             if (deck !== audio || track.id !== state.currentId) return;
             try {
+              // Bù trễ nạp metadata khi đang phát liên tục để không bị giật lùi 0.2-0.4s
+              const rawElapsed = (!wasPaused && !endedEarly) ? ((((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - swapStartedAt) / 1000) : 0;
+              const elapsedSec = rawElapsed >= 0.03 ? Math.min(1.2, rawElapsed) : 0;
+              const targetPos = position + elapsedSec;
               // Kẹp vị trí seek nhỏ hơn duration một chút để 'ended' không
               // bắn ngay sau khi đổi sang file đầy đủ.
-              const safePosition = Number.isFinite(deck.duration) && deck.duration > 0.5 ? Math.min(position, deck.duration - 0.25) : position;
+              const safePosition = Number.isFinite(deck.duration) && deck.duration > 0.5 ? Math.min(targetPos, deck.duration - 0.25) : targetPos;
               deck.currentTime = Math.max(0, safePosition);
             } catch (_) {}
             if (!wasPaused || endedEarly) {
               if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') { try { state.context.resume().catch(() => {}); } catch (_) {} }
-              deck.play().then(() => { if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); }).catch(error => { console.warn('Could not resume after upgrading to the full audio file:', error.message || error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); });
+              deck.play().then(() => {
+                if (deckRouter && state.context) { try { deckRouter.setTargetAtTime(1, state.context.currentTime, 0.007); } catch (_) { deckRouter.value = 1; } }
+                if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+              }).catch(error => {
+                if (deckRouter && state.context) { try { deckRouter.setTargetAtTime(1, state.context.currentTime, 0.007); } catch (_) { deckRouter.value = 1; } }
+                console.warn('Could not resume after upgrading to the full audio file:', error.message || error);
+                if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+              });
+            } else if (deckRouter && state.context) {
+              try { deckRouter.setTargetAtTime(1, state.context.currentTime, 0.007); } catch (_) { deckRouter.value = 1; }
             }
           }, {once:true});
           deck.src = new URL(fullUrl, location.href).href;
           if (typeof deck.load === 'function') deck.load();
+          track.sliceEndedEarly = false;
+          track.firstSlicePlayback = false;
+          track.lastSlicePosition = null;
+          track.fullAudioUrl = null;
+        } else if (standbyAudio && standbyAudio.src === sliceAbsoluteUrl && track.id === state.preloadTrackId) {
+          // Nâng cấp ngầm deck chờ (preloaded) lên bản đầy đủ ngay khi tải xong để chuyển bài 0ms gapless!
+          standbyAudio.src = new URL(fullUrl, location.href).href;
+          if (typeof standbyAudio.load === 'function') standbyAudio.load();
+          state.preloadReadyUrl = fullUrl;
           track.sliceEndedEarly = false;
           track.firstSlicePlayback = false;
           track.lastSlicePosition = null;
@@ -11510,7 +11537,6 @@
       }
       if (target.dataset) target.dataset.trackId = String(track.id);
       if (target.src !== playUrl || target.error) { target.src = playUrl; target.load(); }
-      displayTrack(track);
       if (track.cueStart !== undefined && track.cueStart > 0) {
         try { target.currentTime = track.cueStart; } catch (_) {}
       }
@@ -16106,7 +16132,22 @@
               leadMargin: 0.5
             })
           : (element === audio && !element.paused && state.crossfadeSeconds > 0 && Number.isFinite(element.duration) && element.duration > state.crossfadeSeconds && element.currentTime >= element.duration - state.crossfadeSeconds - 0.5 && !(activeTrack && activeTrack.firstSlicePlayback && activeTrack.fullAudioPromise) && (typeof queueIndex === 'function' ? queueIndex() >= 0 : true));
-        if (element === audio && autoFadeEligible && state.autoCrossfadeGeneration !== state.playGeneration && !state.sleepAtTrackEnd) {
+        const gaplessLookaheadEligible = Boolean(
+          element === audio &&
+          !element.paused &&
+          !(state.crossfadeSeconds > 0) &&
+          state.repeat !== 2 &&
+          !state.sleepAtTrackEnd &&
+          Number.isFinite(element.duration) &&
+          element.duration > 5 &&
+          element.currentTime >= element.duration - 0.18 &&
+          !(activeTrack && activeTrack.firstSlicePlayback && activeTrack.fullAudioPromise) &&
+          standbyAudio &&
+          standbyAudio.readyState >= 3 &&
+          state.preloadReadyUrl &&
+          (typeof queueIndex === 'function' ? queueIndex() >= 0 : false)
+        );
+        if (element === audio && (autoFadeEligible || gaplessLookaheadEligible) && state.autoCrossfadeGeneration !== state.playGeneration && !state.sleepAtTrackEnd) {
           state.autoCrossfadeGeneration = state.playGeneration;
           playNext(1, true);
         }
