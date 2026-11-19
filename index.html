@@ -5425,6 +5425,10 @@
       const hero = $('album-hero');
       if (!hero || !entry) return;
       const isAlbum = action === 'album';
+      const orderedTracks = typeof library.sortAlbumTracks === 'function'
+        ? library.sortAlbumTracks(entry.tracks || [], { groupByAlbum: !isAlbum })
+        : (entry.tracks || []);
+      entry.tracks = orderedTracks;
       const summary = typeof library.summarizeAlbum === 'function' ? library.summarizeAlbum(entry.tracks) : {
         trackCount: entry.tracks ? entry.tracks.length : 0,
         formattedDuration: '',
@@ -5537,12 +5541,15 @@
       if (!albumTracks.length) return;
       
       const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(albumTracks[0]) : albumTracks[0];
+      const sortedAlbumTracks = (typeof library !== 'undefined' && typeof library.sortAlbumTracks === 'function')
+        ? library.sortAlbumTracks(albumTracks, { groupByAlbum: false })
+        : albumTracks;
       const entry = {
         key: `${targetAlbum}\t${targetArtist || ''}`,
         name: meta.album || albumName,
         artist: meta.artist || artistName || 'Unknown Artist',
-        tracks: albumTracks,
-        cover: ((function () { const c = albumTracks.find(t => t.cover); return c ? c.cover : ''; })()),
+        tracks: sortedAlbumTracks,
+        cover: ((function () { const c = sortedAlbumTracks.find(t => t.cover); return c ? c.cover : ''; })()),
         action: 'album'
       };
       
@@ -5695,6 +5702,11 @@
             : (action === 'artist' ? [...artists.values()] : [...albums.values()]).find(item => item.key === card.dataset.collectionKey);
           if (!entry) return;
           entry.action = action;
+          if ((action === 'album' || action === 'artist') && typeof library.sortAlbumTracks === 'function') {
+            entry.tracks = library.sortAlbumTracks(entry.tracks || [], {
+              groupByAlbum: action === 'artist'
+            });
+          }
           state.currentCollectionEntry = entry;
           state.trackScope = (entry.tracks || []).map(track => track.id);
           $('list-title').textContent = entry.name || 'Album';
@@ -5760,35 +5772,24 @@
       // Khi xem album/artist cụ thể → sort theo số thứ tự bài (trackNumber)
       // để bài hát hiển thị đúng thứ tự gốc của album.
       // Khi xem danh sách tổng → sort theo tiêu đề bài như cũ.
-      const isAlbumScope = !!(state.trackScope && state.currentCollectionEntry &&
-        (state.currentCollectionEntry.action === 'album' || state.currentCollectionEntry.action === 'artist'));
-      const getTrackNum = function(t) {
-        var meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(t) : t;
-        var raw = meta.trackNumber || meta.track_no || meta.track || t.trackNumber || t.track_no || t.track || 0;
-        // Hỗ trợ định dạng "1/12" → lấy phần trước dấu /
-        if (typeof raw === 'string' && raw.indexOf('/') !== -1) raw = raw.split('/')[0];
-        var n = parseInt(raw, 10);
-        return isNaN(n) ? 999999 : n;
-      };
-      const getDisc = function(t) {
-        var meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(t) : t;
-        var raw = meta.discNumber || meta.disc_number || meta.disc || t.discNumber || t.disc_number || t.disc || 1;
-        if (typeof raw === 'string' && raw.indexOf('/') !== -1) raw = raw.split('/')[0];
-        var n = parseInt(raw, 10);
-        return isNaN(n) ? 1 : n;
-      };
-      const shown = [...tracks].sort(function(a, b) {
-        if (isAlbumScope) {
-          // Disc trước, rồi track number
-          var discDiff = getDisc(a) - getDisc(b);
-          if (discDiff !== 0) return discDiff;
-          return getTrackNum(a) - getTrackNum(b);
-        }
-        var titleA = getTitle(a);
-        var titleB = getTitle(b);
-        return (state.sortAsc ? 1 : -1) * titleA.localeCompare(titleB, 'vi');
-      });
-      const groups = groupTracks(shown, state.groupBy);
+      const isAlbumScope = !!(
+        state.trackScope &&
+        state.currentCollectionEntry &&
+        (state.currentCollectionEntry.action === 'album' || state.currentCollectionEntry.action === 'artist')
+      );
+
+      const shown = isAlbumScope && typeof library.sortAlbumTracks === 'function'
+        ? library.sortAlbumTracks(tracks, {
+            groupByAlbum: state.currentCollectionEntry.action === 'artist'
+          })
+        : [...tracks].sort(function(a, b) {
+            var titleA = getTitle(a);
+            var titleB = getTitle(b);
+            return (state.sortAsc ? 1 : -1) * titleA.localeCompare(titleB, 'vi');
+          });
+      const groups = isAlbumScope && (!state.groupBy || state.groupBy === 'none' || state.currentCollectionEntry.action === 'album')
+        ? [{label:'', tracks: shown}]
+        : groupTracks(shown, state.groupBy);
       // Pha B — Versions kiểu Roon: gộp các bản trùng (cùng tiêu đề +
       // nghệ sĩ) thành một hàng chính + huy hiệu "N phiên bản"; các bản
       // còn lại chỉ hiện khi mở rộng, vẫn phát/cho vào hàng đợi được.
