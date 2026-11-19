@@ -2,7 +2,7 @@
   "repo": "https://github.com/tranbienhao1/thiennguyen",
   "cadenceMinutes": 30,
   "cycleCount": 61,
-  "lastPhase": "BUG_HUNT",
+  "lastPhase": "UPGRADE",
   "lastRunIso": "2026-11-19T19:13:26.317Z",
   "diagnostics": {
     "syntaxErrors": [],
@@ -18,11 +18,6 @@
     "updatedAt": "2026-11-20T02:14:00.000Z"
   },
   "pendingQueue": [
-    {
-      "id": "UPG-12",
-      "phase": "UPGRADE",
-      "title": "Tích hợp dùng chung lát đầu 64KB zero-copy (readHeadSlice64kZeroCopy) cho cả trích xuất ReplayGain nhị phân và tra cứu lời bài hát theo fingerprint trong một lần đọc duy nhất"
-    },
     {
       "id": "OPT-12",
       "phase": "OPTIMIZE",
@@ -481,6 +476,14 @@
       "completedAt": "2026-11-20T02:14:00.000Z",
       "verifiedThreeTier": true,
       "summary": "Triển khai decodeRva2FramePayload và tích hợp xử lý song song khung RVA2 (ID3v2.4 Relative Volume Adjustment nhị phân, định dạng số nguyên có dấu 16-bit / 512.0 cho gain dB và giải mã peak volume) bên cạnh TXXX trong library-utils.js; bổ sung bộ quét phân tích chunk 'id3 '/'ID3 ' nhúng trong container WAV (RIFF/RF64/BW64) và AIFF (FORM/AIFC) cho extractBinaryReplayGainTags, đồng thời cập nhật parseReplayGain nhận diện các trường RVA2 và đối tượng buffer nhị phân; bảo tồn 100% audio graph invariant và tương thích hoàn toàn WebView 74"
+    },
+    {
+      "id": "UPG-12",
+      "phase": "UPGRADE",
+      "title": "Tích hợp dùng chung lát đầu 64KB zero-copy (readHeadSlice64kZeroCopy) cho cả trích xuất ReplayGain nhị phân và tra cứu lời bài hát theo fingerprint trong một lần đọc duy nhất",
+      "completedAt": "2026-11-20T02:20:00.000Z",
+      "verifiedThreeTier": true,
+      "summary": "Triển khai readHeadSliceReplayGainAndFingerprintAsync và mở rộng computeSourceFingerprint64kAsync với tùy chọn withReplayGain/extractReplayGain trong library-utils.js: tái sử dụng đúng 1 lát đọc 64KB zero-copy (readHeadSlice64kZeroCopy) cho cả hai tác vụ nặng I/O là băm fingerprint SHA-256 tra cứu LRCLIB/Vault và trích xuất thông số âm lượng chuẩn hóa ReplayGain/R128/RVA2, triệt tiêu 100% việc đọc file lặp lại trên thẻ nhớ DAP"
     }
   ]
 }
