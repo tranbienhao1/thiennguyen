@@ -257,6 +257,11 @@
     }
 
     onScroll(event) {
+      if (this.container) {
+        if (this.container.hidden || (this.container.classList && this.container.classList.contains('hidden')) || this.container.offsetParent === null) {
+          return;
+        }
+      }
       if (event && event.immediate) {
         this.render();
         return;
@@ -270,6 +275,9 @@
 
       raf(() => {
         this.rafPending = false;
+        if (this.container && (this.container.hidden || (this.container.classList && this.container.classList.contains('hidden')) || this.container.offsetParent === null)) {
+          return;
+        }
         this.render();
       });
     }

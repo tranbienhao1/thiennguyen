@@ -33,7 +33,7 @@ const entry = (id, savedAt, coverSize) => ({id, savedAt, cover: coverSize ? data
 // mục cũ nhất bị bỏ hẳn, các mục cũ tiếp theo chỉ mất ảnh.
 {
   const many = Array.from({length: 1001}, (_, index) => entry(`track-${index}`, index, 9000));
-  const result = library.prepareRestoredCatalog(many);
+  const result = library.prepareRestoredCatalog(many, 1000);
   assert.strictEqual(result.entries.length, 1000, 'Restore should keep at most 1000 entries');
   assert.ok(!result.entries.some(row => row.id === 'track-0'), 'The oldest entry should be skipped on restore');
   assert.strictEqual(result.changed, true, 'Skipping stale entries should trigger a background store prune');

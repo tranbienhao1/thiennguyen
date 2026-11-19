@@ -954,7 +954,7 @@
   // Pha C — giới hạn danh mục cloud trong IndexedDB: chỉ giữ maxEntries mục
   // mới nhất theo savedAt; mục thiếu savedAt (catalog cũ) bị coi là cũ nhất
   // nên xóa trước. Trả về danh sách id cần xóa, theo thứ tự cũ -> mới.
-  const MAX_CLOUD_CATALOG_ENTRIES = 1000;
+  const MAX_CLOUD_CATALOG_ENTRIES = 50000;
   function pruneCatalogEntries(entries, maxEntries = MAX_CLOUD_CATALOG_ENTRIES) {
     if (!Array.isArray(entries)) return [];
     const max = Number.isFinite(maxEntries) ? Math.floor(maxEntries) : MAX_CLOUD_CATALOG_ENTRIES;

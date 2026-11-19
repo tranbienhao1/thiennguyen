@@ -24,11 +24,18 @@
     }
   </script>
   <style id="app-style">
-    /* Chromium 74 CSS Fallbacks & FiiO M11S Touchscreen Hardening */
-    .hidden, [hidden] {
+    /* Chromium 74 CSS Fallbacks & FiiO M11S Touchscreen Hardening: .hidden, [hidden] */
+    [hidden] {
       display: none !important;
       pointer-events: none !important;
       visibility: hidden !important;
+    }
+    #content-col, #collection-grid {
+      overflow-anchor: none;
+    }
+    #collection-grid .collection-card img {
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
     }
     .inset-0 {
       top: 0px !important;
@@ -2946,8 +2953,17 @@
     const musicMetadata = window.NocturneMetadata.createMetadataClient();
     const AUDIO_TYPES = /\.(flac|wav|alac|m4a|mp3|mp2|ogg|opus|aac|aiff|aif|wma|dsf|dff)$/i;
     const STREAM_AUDIO_TYPES = /\.(flac|wav|alac|m4a|mp3|mp2|ogg|opus|aac|aiff|aif|wma)$/i;
-    const CLOUD_AUDIO_TYPES = /\.(flac|wav|alac|m4a|mp3|mp2|ogg|opus|aac|aiff|aif|wma|dsf|dff)$/i;
-    const isCloudAudio = file => CLOUD_AUDIO_TYPES.test(file.name || '') || /^audio\//i.test(file.mimeType || file.file && file.file.mimeType || '');
+    const CLOUD_AUDIO_EXT_RE = /\.(?:flac|wav|wave|aif|aiff|alac|m4a|mp4|aac|mp3|ogg|oga|opus|dsf|dff|wv|ape|wma|webm|mka)$/i;
+    const CLOUD_AUDIO_TYPES = CLOUD_AUDIO_EXT_RE;
+    function isCloudAudio(file) {
+      if (!file || file.trashed) return false;
+      const mime = String(file.mimeType || (file.file && file.file.mimeType) || '').toLowerCase();
+      if (mime === 'application/vnd.google-apps.folder') return false;
+      const name = String(file.name || '').trim();
+      if (CLOUD_AUDIO_EXT_RE.test(name)) return true;
+      if (mime.startsWith('audio/')) return true;
+      return false;
+    }
     const audioFormat = file => {
       const mimeType = file.mimeType || file.file && file.file.mimeType || '';
       const extension = String(file.name || '').match(/\.([^.]+)$/);
@@ -4411,6 +4427,7 @@
       catch (error) { return Promise.resolve(false); }
     }
     function persistCloudCatalog(tracks) {
+      const skipPrune = arguments[1];
       if (cloudCatalogResetting) return Promise.resolve();
       const entries = tracks.filter(track => ['google','onedrive'].includes(track.source)).map(serializableCloudTrack);
       if (!entries.length) return Promise.resolve();
@@ -4418,7 +4435,13 @@
         try {
           const store = catalogTransaction('readwrite');
           for (const entry of entries) store.put(entry);
-          store.transaction.oncomplete = () => { pruneCloudCatalog().then(resolve); };
+          store.transaction.oncomplete = () => {
+            if (skipPrune) {
+              resolve();
+            } else {
+              pruneCloudCatalog().then(resolve);
+            }
+          };
           store.transaction.onerror = () => reject(store.transaction.error);
         } catch (error) { reject(error); }
       });
@@ -5619,6 +5642,8 @@
       renderTrackRows(entry.tracks);
     }
 
+    let lastCollectionStructureKey = '';
+
     function renderCollectionCards(tracks) {
       const grid = $('collection-grid'), view = state.activeView;
       const metadata = track => library.trackMetadata(track);
@@ -5667,16 +5692,8 @@
         const second = state.collectionSort === 'artist' ? (b.artist || b.name) : b.name;
         return (state.collectionAscending ? 1 : -1) * String(first || '').localeCompare(String(second || ''), 'vi');
       });
-      const cards = entries.map(entry => {
-        const entryName = String(entry.name || 'Unknown');
-        const initials = entryName.trim().split(/\s+/u).slice(0,2).map(word => [...word][0] || '').join('').toLocaleUpperCase('vi');
-        const image = entry.cover ? `<img src="${escapeHtml(entry.cover)}" alt="">` : `<span class="collection-initials">${escapeHtml(initials || '♫')}</span>`;
-        const subtitle = entry.subtitle || (isArtistView ? `${entry.tracks.length} bài` : escapeHtml(entry.artist));
-        const action = entry.action || (isArtistView ? 'artist' : 'album');
-        const albumSummary = (!isArtistView && !isGenreView) ? library.summarizeAlbum(entry.tracks) : null;
-        const formatBadge = (!isArtistView && !isGenreView && albumSummary && albumSummary.highestQuality && albumSummary.highestQuality.label) ? `<span class="album-format-badge format-badge format-${albumSummary.highestQuality.tier}">${albumSummary.highestQuality.label}</span>` : '';
-        return `<button type="button" class="collection-card" data-collection-action="${action}" data-collection-key="${escapeHtml(entry.key)}" aria-label="${escapeHtml(entry.name)}${entry.artist ? ` — ${escapeHtml(entry.artist)}` : ''}"><span class="collection-art ${isArtistView || !entry.cover ? 'is-artist' : ''}">${image}${formatBadge}</span><span class="collection-title">${escapeHtml(entry.name)}</span><span class="collection-subtitle">${subtitle}</span></button>`;
-      }).join('');
+      state._latestCollectionEntries = entries;
+
       const empty = $('empty-state');
       const showRows = isSongView || view === 'history' || (view === 'albums' && state.collectionSort === 'tracks') || Boolean(state.trackScope);
       if (!state.trackScope) /* $('album-hero')?.classList.add('hidden') */ safeClass($('album-hero'), 'add', 'hidden');
@@ -5684,7 +5701,6 @@
       $('track-list').classList.toggle('hidden', !showRows && !state.trackScope);
       $('track-list-header').classList.toggle('hidden', !showRows && !state.trackScope);
       empty.classList.toggle('hidden', tracks.length > 0);
-      grid.innerHTML = cards;
       $('artist-total').textContent = artists.size;
       $('album-total').textContent = albums.size;
       $('song-total').textContent = tracks.length;
@@ -5694,33 +5710,99 @@
       } else if (state.currentCollectionEntry) {
         $('list-title').textContent = state.currentCollectionEntry.name || 'Album';
       }
-      grid.querySelectorAll('[data-collection-action]').forEach(card => card.addEventListener('click', () => {
-        try {
-          const action = card.dataset.collectionAction;
-          const entry = action === 'genre'
-            ? entries.find(item => item.key === card.dataset.collectionKey)
-            : (action === 'artist' ? [...artists.values()] : [...albums.values()]).find(item => item.key === card.dataset.collectionKey);
-          if (!entry) return;
-          entry.action = action;
-          if ((action === 'album' || action === 'artist') && typeof library.sortAlbumTracks === 'function') {
-            entry.tracks = library.sortAlbumTracks(entry.tracks || [], {
-              groupByAlbum: action === 'artist'
-            });
+
+      if (!showRows && !state.trackScope) {
+        const currentStructureKey = view + '::' + (state.query || '') + '::' + (state.collectionSort || '') + '::' + (state.collectionAscending ? '1' : '0') + '::' + entries.map(e => e.key + ':' + (e.tracks ? e.tracks.length : 0)).join('|');
+        const canPatchInPlace = currentStructureKey === lastCollectionStructureKey && grid.children.length === entries.length;
+
+        if (canPatchInPlace) {
+          const existingCards = grid.querySelectorAll('.collection-card');
+          for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            const card = existingCards[i];
+            if (!card) continue;
+            if (card.dataset.collectionKey !== entry.key) continue;
+
+            const subtitle = entry.subtitle || (isArtistView ? `${entry.tracks.length} bài` : escapeHtml(entry.artist));
+            const subEl = card.querySelector('.collection-subtitle');
+            if (subEl && subEl.innerHTML !== subtitle) {
+              subEl.innerHTML = subtitle;
+            }
+
+            const artEl = card.querySelector('.collection-art');
+            if (artEl) {
+              const imgEl = artEl.querySelector('img');
+              if (entry.cover) {
+                if (imgEl) {
+                  if (imgEl.getAttribute('src') !== entry.cover) imgEl.src = entry.cover;
+                } else {
+                  const initials = artEl.querySelector('.collection-initials');
+                  if (initials) initials.remove();
+                  const newImg = document.createElement('img');
+                  newImg.src = entry.cover;
+                  newImg.alt = '';
+                  artEl.insertBefore(newImg, artEl.firstChild);
+                  if (!isArtistView) artEl.classList.remove('is-artist');
+                }
+              }
+            }
           }
-          state.currentCollectionEntry = entry;
-          state.trackScope = (entry.tracks || []).map(track => track.id);
-          $('list-title').textContent = entry.name || 'Album';
-          $('page-title').textContent = entry.name || 'Album';
-          $('visible-count').textContent = `${(entry.tracks || []).length} songs`;
-          grid.classList.add('hidden'); $('track-list').classList.remove('hidden'); $('track-list-header').classList.remove('hidden');
-          $('back-button').setAttribute('aria-label', 'Quay lại danh sách bộ sưu tập');
-          if (action !== 'genre') showAlbumHero(entry, card.dataset.collectionAction);
-          renderTrackRows(entry.tracks || []);
-        } catch (err) {
-          console.error('Lỗi khi mở album/bộ sưu tập:', err);
-          toast('Không thể mở album này do lỗi dữ liệu bài hát.');
+          return {showRows, tracks};
         }
-      }));
+
+        const col = $('content-col');
+        const prevScrollTop = col ? col.scrollTop : 0;
+
+        const cards = entries.map(entry => {
+          const entryName = String(entry.name || 'Unknown');
+          const initials = entryName.trim().split(/\s+/u).slice(0,2).map(word => [...word][0] || '').join('').toLocaleUpperCase('vi');
+          const image = entry.cover ? `<img src="${escapeHtml(entry.cover)}" alt="">` : `<span class="collection-initials">${escapeHtml(initials || '♫')}</span>`;
+          const subtitle = entry.subtitle || (isArtistView ? `${entry.tracks.length} bài` : escapeHtml(entry.artist));
+          const action = entry.action || (isArtistView ? 'artist' : 'album');
+          const albumSummary = (!isArtistView && !isGenreView) ? library.summarizeAlbum(entry.tracks) : null;
+          const formatBadge = (!isArtistView && !isGenreView && albumSummary && albumSummary.highestQuality && albumSummary.highestQuality.label) ? `<span class="album-format-badge format-badge format-${albumSummary.highestQuality.tier}">${albumSummary.highestQuality.label}</span>` : '';
+          return `<button type="button" class="collection-card" data-collection-action="${action}" data-collection-key="${escapeHtml(entry.key)}" aria-label="${escapeHtml(entry.name)}${entry.artist ? ` — ${escapeHtml(entry.artist)}` : ''}"><span class="collection-art ${isArtistView || !entry.cover ? 'is-artist' : ''}">${image}${formatBadge}</span><span class="collection-title">${escapeHtml(entry.name)}</span><span class="collection-subtitle">${subtitle}</span></button>`;
+        }).join('');
+
+        grid.innerHTML = cards;
+        lastCollectionStructureKey = currentStructureKey;
+
+        if (col && prevScrollTop > 0) {
+          col.scrollTop = prevScrollTop;
+        }
+
+        grid.querySelectorAll('[data-collection-action]').forEach(card => card.addEventListener('click', () => {
+          try {
+            const action = card.dataset.collectionAction;
+            const currentEntries = state._latestCollectionEntries || entries;
+            const entry = action === 'genre'
+              ? currentEntries.find(item => item.key === card.dataset.collectionKey)
+              : (action === 'artist' ? [...artists.values()] : [...albums.values()]).find(item => item.key === card.dataset.collectionKey);
+            if (!entry) return;
+            entry.action = action;
+            if ((action === 'album' || action === 'artist') && typeof library.sortAlbumTracks === 'function') {
+              entry.tracks = library.sortAlbumTracks(entry.tracks || [], {
+                groupByAlbum: action === 'artist'
+              });
+            }
+            state.currentCollectionEntry = entry;
+            state.trackScope = (entry.tracks || []).map(track => track.id);
+            $('list-title').textContent = entry.name || 'Album';
+            $('page-title').textContent = entry.name || 'Album';
+            $('visible-count').textContent = `${(entry.tracks || []).length} songs`;
+            grid.classList.add('hidden'); $('track-list').classList.remove('hidden'); $('track-list-header').classList.remove('hidden');
+            $('back-button').setAttribute('aria-label', 'Quay lại danh sách bộ sưu tập');
+            if (action !== 'genre') showAlbumHero(entry, card.dataset.collectionAction);
+            renderTrackRows(entry.tracks || []);
+          } catch (err) {
+            console.error('Lỗi khi mở album/bộ sưu tập:', err);
+            toast('Không thể mở album này do lỗi dữ liệu bài hát.');
+          }
+        }));
+      } else {
+        lastCollectionStructureKey = '';
+      }
+
       return {showRows, tracks};
     }
     // Pha D — chữ ký của các hàng đang hiển thị: mọi thứ mà HTML của một
@@ -6049,6 +6131,11 @@
       recordTrackRowsRender(performance.now() - startedAt, renderedTracks.length, false);
     }
     function renderTracks() {
+      const force = arguments[0];
+      if (!force && isUserScrolling && !state.trackScope && ['albums', 'artists', 'genres', 'composers'].includes(state.activeView)) {
+        pendingBackgroundTrackRender = true;
+        return;
+      }
       if (typeof library !== 'undefined' && typeof library.propagateAlbumCovers === 'function' && state.tracks && state.tracks.length) {
         library.propagateAlbumCovers(state.tracks, state.albumCovers);
       }
@@ -7956,10 +8043,48 @@
         navigator.mediaSession.setPositionState(sessionState);
       } catch (error) {}
     }
+    let isUserScrolling = false;
+    let userScrollTimeout = null;
+    let pendingBackgroundTrackRender = false;
+
+    function recordUserScroll() {
+      isUserScrolling = true;
+      if (userScrollTimeout) clearTimeout(userScrollTimeout);
+      userScrollTimeout = setTimeout(() => {
+        isUserScrolling = false;
+        userScrollTimeout = null;
+        if (pendingBackgroundTrackRender) {
+          pendingBackgroundTrackRender = false;
+          renderTracks();
+        }
+      }, 250);
+    }
+
+    function initUserScrollListener() {
+      const col = $('content-col');
+      if (col && typeof col.addEventListener === 'function') {
+        col.addEventListener('scroll', recordUserScroll, { passive: true });
+      }
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('scroll', recordUserScroll, { passive: true });
+      }
+    }
+
     let trackRenderTimer = null;
     function scheduleTrackRender() {
+      if (isUserScrolling && !state.trackScope && ['albums', 'artists', 'genres', 'composers'].includes(state.activeView)) {
+        pendingBackgroundTrackRender = true;
+        return;
+      }
       clearTimeout(trackRenderTimer);
-      trackRenderTimer = setTimeout(() => { trackRenderTimer = null; renderTracks(); }, 180);
+      trackRenderTimer = setTimeout(() => {
+        trackRenderTimer = null;
+        if (isUserScrolling && !state.trackScope && ['albums', 'artists', 'genres', 'composers'].includes(state.activeView)) {
+          pendingBackgroundTrackRender = true;
+          return;
+        }
+        renderTracks();
+      }, 180);
     }
     let queueRenderFrame = null;
     function deferRenderQueue() {
@@ -11634,8 +11759,8 @@
         } catch (error) { finish(reject, error); }
       });
     }
-    async function ensureGoogleToken() {
-      if (state.googleToken && Date.now() < state.googleExpiresAt - 60000) {
+    async function ensureGoogleToken(forceRefresh) {
+      if (!forceRefresh && state.googleToken && Date.now() < state.googleExpiresAt - 60000) {
         if (googleOAuthRefreshScheduler && googleOAuthRefreshScheduler.shouldRefreshSoon(state.googleExpiresAt) && (window.google && window.google.accounts && window.google.accounts.oauth2)) {
           googleOAuthRefreshScheduler.refreshNow().catch(() => {});
         }
@@ -11695,11 +11820,49 @@
       queueCloudMetadata(state.tracks.filter(track => track.source === 'google' && (!track.metadataLoaded || !track.cover)));
       let pageToken = '', added = 0, scanned = 0;
       const knownIds = new Set(state.tracks.filter(track => track.source === 'google').map(track => track.remoteId));
+      let refreshedTokenOnce = false;
       try {
         do {
-          const params = new URLSearchParams({q:"trashed = false and mimeType != 'application/vnd.google-apps.folder'", fields:'nextPageToken,incompleteSearch,files(id,name,mimeType,size,thumbnailLink)', pageSize:'1000', orderBy:'name', corpora:'allDrives', supportsAllDrives:'true', includeItemsFromAllDrives:'true'});
+          const params = new URLSearchParams({
+            q: "trashed = false and mimeType != 'application/vnd.google-apps.folder'",
+            // files(id,name,mimeType,size,thumbnailLink)
+            fields: 'nextPageToken,incompleteSearch,files(id,name,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)',
+            pageSize: '1000',
+            orderBy: 'name',
+            corpora:'allDrives',
+            supportsAllDrives:'true',
+            includeItemsFromAllDrives:'true'
+          });
           if (pageToken) params.set('pageToken', pageToken);
-          let response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {headers:{Authorization:`Bearer ${token}`}});
+
+          let response;
+          let retryCount = 0;
+          while (true) {
+            response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (response.status === 401 && !refreshedTokenOnce) {
+              refreshedTokenOnce = true;
+              try {
+                token = await ensureGoogleToken(true);
+                continue;
+              } catch (_) {
+                const body = await response.text();
+                throw new Error(`Google Drive từ chối phiên đăng nhập (401). ${googleConfigurationHint(401, body)} Nếu phiên hết hạn, hãy nhấn “Tiếp tục với Google” rồi thử lại.`);
+              }
+            }
+
+            if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 3) {
+              retryCount++;
+              const backoffMs = Math.min(1000 * Math.pow(2, retryCount), 8000);
+              await new Promise(resolve => setTimeout(resolve, backoffMs));
+              continue;
+            }
+
+            break;
+          }
+
           if (response.status === 401) {
             const body = await response.text();
             throw new Error(`Google Drive từ chối phiên đăng nhập (401). ${googleConfigurationHint(401, body)} Nếu phiên hết hạn, hãy nhấn “Tiếp tục với Google” rồi thử lại.`);
@@ -11708,23 +11871,31 @@
             const body = await response.text();
             throw new Error(`Google Drive API ${response.status}: ${googleConfigurationHint(response.status, body)}`);
           }
+
           const data = await response.json(), pageTracks = [];
           if (data.incompleteSearch) console.warn('Google Drive reported an incomplete search; My Drive results were still returned.');
           for (const file of data.files || []) {
             scanned++;
             if (!file.id || !isCloudAudio(file) || knownIds.has(file.id)) continue;
             const track = googleTrack(file);
-            state.tracks.push(track); pageTracks.push(track); knownIds.add(file.id); added++;
+            state.tracks.push(track);
+            pageTracks.push(track);
+            knownIds.add(file.id);
+            added++;
           }
-          await persistCloudCatalog(pageTracks);
-          if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
-          queueCloudMetadata(pageTracks);
+          if (pageTracks.length > 0) {
+            await persistCloudCatalog(pageTracks, true);
+            if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
+            queueCloudMetadata(pageTracks);
+          }
           pageToken = data.nextPageToken || '';
           cloudStatus('google', `Đang quét Google Drive… ${scanned} mục · ${knownIds.size} bài`, 'text-sky-300');
         } while (pageToken);
+
+        await pruneCloudCatalog();
         renderTracks();
         cloudStatus('google', `Google Drive · ${knownIds.size} bài`, 'text-emerald-300');
-        toast(`Đã quét hết Drive: tìm thấy ${knownIds.size} bài âm thanh (${added} bài mới).`);
+        toast(`Đã quét hết Drive: tìm thấy ${knownIds.size} bài âm thanh (${added} bài mới, tổng ${scanned} mục).`);
       } catch (error) {
         renderTracks();
         if (added) toast(`Đã lưu ${added} bài mới trước khi đồng bộ bị gián đoạn.`);
@@ -11910,7 +12081,7 @@
               state.tracks.push(track); pageTracks.push(track); knownIds.add(item.id); added++;
             }
             if (pageTracks.length) {
-              await persistCloudCatalog(pageTracks);
+              await persistCloudCatalog(pageTracks, true);
               if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
               queueCloudMetadata(pageTracks);
               pageTracks = [];
@@ -11919,6 +12090,7 @@
             next = data['@odata.nextLink'] || '';
           }
         }
+        await pruneCloudCatalog();
         renderTracks();
         cloudStatus('microsoft', `OneDrive · ${knownIds.size} bài`, 'text-emerald-300');
         toast(`Đã quét hết OneDrive: tìm thấy ${knownIds.size} bài âm thanh (${added} bài mới).`);
@@ -16380,6 +16552,7 @@
     });
     openDatabase().then(restoreRecentTracks).catch(error => { console.error('IndexedDB is unavailable:', error); restoreRecentTracks(); toast('Không thể bật lịch sử IndexedDB; mục nghe gần đây vẫn lưu trong trình duyệt.'); });
     if (!window.isSecureContext) console.info('Directory picker and cloud OAuth require HTTPS or localhost; use the file input fallback for local playback.');
+    initUserScrollListener();
     setupFiioIntegration();
     applyFiioDapMode(state.fiioDapMode);
     setupBitPerfectIntegration();

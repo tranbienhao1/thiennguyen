@@ -183,7 +183,7 @@ assert.strictEqual(utils.clampCrossfadeSeconds('abc', 2), 2, 'An unreadable cros
 assert.strictEqual(utils.clampCrossfadeSeconds(undefined), 0, 'A missing crossfade setting should default to off');
 
 // Pha C — pruneCatalogEntries (giới hạn danh mục cloud trong IndexedDB).
-assert.strictEqual(utils.MAX_CLOUD_CATALOG_ENTRIES, 1000, 'The cloud catalog cap should be 1000 entries');
+assert.strictEqual(utils.MAX_CLOUD_CATALOG_ENTRIES, 50000, 'The cloud catalog cap should be 50000 entries');
 assert.deepStrictEqual(utils.pruneCatalogEntries([], 1000), [], 'An empty catalog prunes nothing');
 assert.deepStrictEqual(utils.pruneCatalogEntries([{id:'a', savedAt:1}, {id:'b', savedAt:2}], 1000), [], 'A catalog under the cap prunes nothing');
 assert.deepStrictEqual(utils.pruneCatalogEntries([{id:'a', savedAt:3}, {id:'b', savedAt:1}, {id:'c', savedAt:2}], 2), ['b'], 'The oldest entry should be pruned first');

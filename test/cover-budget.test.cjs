@@ -85,8 +85,11 @@ async function runPrune(rows) {
 
   // 1001 mục × ~9 KiB ảnh vượt cả giới hạn 1000 mục lẫn ngân sách 8 MiB:
   // mục cũ nhất bị xóa hẳn, các mục cũ tiếp theo chỉ mất ảnh, không bị ghi lại.
+  const origCap = library.MAX_CLOUD_CATALOG_ENTRIES;
+  library.MAX_CLOUD_CATALOG_ENTRIES = 1000;
   const many = Array.from({length: 1001}, (_, index) => ({id: `track-${index}`, savedAt: index, cover: dataCover(9000)}));
   const pruned = await runPrune(many);
+  library.MAX_CLOUD_CATALOG_ENTRIES = origCap;
   assert.strictEqual(pruned.length, 1000, 'The oldest entry should be deleted and never re-inserted');
   assert.ok(!pruned.some(row => row.id === 'track-0'), 'The stale entry should stay deleted');
   const keptChars = pruned.reduce((sum, row) => sum + (typeof row.cover === 'string' && row.cover.startsWith('data:image') ? row.cover.length : 0), 0);
