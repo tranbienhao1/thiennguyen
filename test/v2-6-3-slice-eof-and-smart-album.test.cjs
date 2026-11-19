@@ -224,3 +224,11 @@ test('v2.6.4: clearOptimisticLoadingUi uses state.activeDeck.element (never cras
   assert.ok(!html.includes('state.activeDeck.audio'), 'state.activeDeck.audio typo must not exist');
   assert.ok(html.includes('state.activeDeck.element && !state.activeDeck.element.paused'), 'clearOptimisticLoadingUi must read state.activeDeck.element.paused');
 });
+
+test('v2.6.6: renderTrackRows attaches handleTrackRowActivation click listener only ONCE per row', () => {
+  const start = html.indexOf('function renderTrackRows(');
+  const end = html.indexOf('function renderTracks()', start);
+  const fnBody = html.slice(start, end);
+  const matches = fnBody.match(/list\.querySelectorAll\('\[data-track-id\]'\)\.forEach\(/g) || [];
+  assert.equal(matches.length, 1, 'renderTrackRows must attach [data-track-id] click listeners exactly once (no double playTrack race)');
+});

@@ -6367,63 +6367,6 @@
           const rows = displayTracksByGroup[groupIndex].map((track, trackIndex) => renderSingleTrackRow(track, trackIndex)).join('');
           return heading + rows;
         }).join('');
-        list.querySelectorAll('[data-rating-track-id]').forEach(button => button.addEventListener('click', event => {
-          event.stopPropagation();
-          const t = (typeof trackById === 'function') ? trackById(button.dataset.ratingTrackId) : null;
-          if (!t) return;
-          const current = (typeof getTrackRating === 'function') ? getTrackRating(t) : (t.rating || 0);
-          const next = (current % 5) + 1;
-          if (typeof setTrackRating === 'function') setTrackRating(t, next);
-        }));
-        list.querySelectorAll('[data-metadata-action="open"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); metadataUI.open(trackById(button.dataset.metadataTrackId)); }));
-        list.querySelectorAll('[data-annotation-track-id]').forEach(button => button.addEventListener('click', event => {
-          event.stopPropagation();
-          const t = (typeof trackById === 'function') ? trackById(button.dataset.annotationTrackId) : null;
-          if (!t) return;
-          metadataUI.open(t, 'annotation');
-        }));
-        list.querySelectorAll('[data-queue-action="play_next"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); handlePlayNext(button.dataset.trackId); }));
-        list.querySelectorAll('[data-queue-action="append"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); handleAppendQueue(button.dataset.trackId); }));
-        list.querySelectorAll('[data-queue-action="add"]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); addToQueue(button.dataset.trackId); }));
-        list.querySelectorAll('.album-link').forEach(link => link.addEventListener('click', event => {
-          event.stopPropagation();
-          const row = link.closest('[data-track-id]');
-          const trackId = (row && row.dataset ? row.dataset.trackId : undefined);
-          const track = (typeof trackById === 'function') ? trackById(trackId) : (state.tracks || []).find(t => t.id === trackId);
-          if (!track) return;
-          const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(track) : track;
-          if (typeof openAlbum === 'function') openAlbum(meta.album, meta.artist);
-        }));
-        list.querySelectorAll('.artist-link').forEach(link => link.addEventListener('click', event => {
-          event.stopPropagation();
-          const row = link.closest('[data-track-id]');
-          const trackId = (row && row.dataset ? row.dataset.trackId : undefined);
-          const track = (typeof trackById === 'function') ? trackById(trackId) : (state.tracks || []).find(t => t.id === trackId);
-          if (!track) return;
-          const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(track) : track;
-          if (typeof openArtist === 'function') openArtist(meta.artist);
-        }));
-        list.querySelectorAll('[data-version-action="toggle"]').forEach(button => button.addEventListener('click', event => {
-          event.stopPropagation();
-          const key = button.dataset.versionKey;
-          if (!key) return;
-          if (!(state.expandedVersions instanceof Set)) state.expandedVersions = new Set();
-          if (state.expandedVersions.has(key)) state.expandedVersions.delete(key); else state.expandedVersions.add(key);
-          renderTracks();
-        }));
-        list.querySelectorAll('[data-track-id]').forEach(row => {
-          row.addEventListener('click', event => {
-            const queueButton = event.target.closest('[data-queue-action]');
-            if (queueButton) { event.stopPropagation(); queueButton.dataset.queueAction === 'remove' ? removeFromQueue(row.dataset.trackId) : addToQueue(row.dataset.trackId); return; }
-            if (event.ctrlKey || event.metaKey) { addToQueue(row.dataset.trackId); return; }
-            handleTrackRowActivation(row.dataset.trackId);
-          });
-          row.addEventListener('keydown', event => {
-            if (event.target !== row || (event.key !== 'Enter' && event.key !== ' ')) return;
-            event.preventDefault(); handleTrackRowActivation(row.dataset.trackId);
-          });
-          row.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); showTrackContextMenu(event.clientX, event.clientY, row.dataset.trackId); });
-        });
       }
       list.querySelectorAll('[data-rating-track-id]').forEach(button => button.addEventListener('click', event => {
         event.stopPropagation();
@@ -6856,7 +6799,7 @@
     // hành vi cũ (ramp nhanh 18 ms). Deck cũ giữ mức bắt đầu thực tế của
     // nó (đang fade dở thì không nhảy về 1). Trả về thời lượng fade (giây).
     function applyCrossfade(context, oldDeck, newDeck, seconds) {
-      const effectiveSeconds = (typeof state !== 'undefined' && state && state.bitPerfectEnabled) ? 0 : seconds;
+      const effectiveSeconds = (typeof state !== 'undefined' && state && state.isNativeBitPerfectPlaying) ? 0 : seconds;
       const duration = library.clampCrossfadeSeconds(effectiveSeconds, 0);
       const now = context ? context.currentTime : 0;
       if (!duration || !oldDeck || !newDeck) {
@@ -11352,6 +11295,10 @@
       const sTrackId = trackId != null ? String(trackId) : null;
       const track = state.tracks.find(item => item && (item.id === trackId || (sTrackId != null && String(item.id) === sTrackId)));
       if (!track) return;
+      const nowClickMs = Date.now();
+      if (state.isPlaybackLoading && state._lastPlayTrackId === track.id && state._lastPlayTrackAt && (nowClickMs - state._lastPlayTrackAt) < 400) return;
+      state._lastPlayTrackId = track.id;
+      state._lastPlayTrackAt = nowClickMs;
       if (!track.url && track.src) track.url = track.src;
       const previousTrackId = state.previousTrackId || state.currentId;
       const previousTrack = state.tracks.find(item => item.id === previousTrackId && item.id !== track.id);
@@ -11589,8 +11536,6 @@
         if (playBtn && playBtn.textContent === '…') playBtn.textContent = '▶';
       };
       target.addEventListener('error', onPlaybackLoadError, { once: true });
-      target.addEventListener('stalled', onPlaybackLoadError, { once: true });
-      target.addEventListener('abort', onPlaybackLoadError, { once: true });
       target.addEventListener('playing', () => {
         setPlaybackLoading(false);
         if (generation !== state.playGeneration) return;
@@ -15393,7 +15338,7 @@
         deviceName: locked ? locked.deviceName : '',
         isRateMatched,
         playbackRateLocked: Boolean(state.bitPerfectEnabled && (Number(state.playbackRate) || 1.0) === 1.0),
-        crossfadeBypassed: Boolean(state.bitPerfectEnabled)
+        crossfadeBypassed: Boolean(state.isNativeBitPerfectPlaying || !(state.crossfadeSeconds > 0))
       };
     };
     const speedBtnEl = $('speed-btn');
