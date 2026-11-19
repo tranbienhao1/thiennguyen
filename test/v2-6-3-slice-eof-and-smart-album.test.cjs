@@ -219,3 +219,8 @@ test('v2.6.3: Smart album sequential playback covers all album contexts and resp
   assert.ok(pnEndSection.indexOf('state.repeat === 1') < pnEndSection.indexOf('state.roonRadio'), 'playNext must check repeat === 1 before roonRadio at album end');
   assert.ok(!pnEndSection.includes('(currentIndex + 1) % state.tracks.length'), 'playNext must not jump to random outside track at album end');
 });
+
+test('v2.6.4: clearOptimisticLoadingUi uses state.activeDeck.element (never crashes on .audio)', () => {
+  assert.ok(!html.includes('state.activeDeck.audio'), 'state.activeDeck.audio typo must not exist');
+  assert.ok(html.includes('state.activeDeck.element && !state.activeDeck.element.paused'), 'clearOptimisticLoadingUi must read state.activeDeck.element.paused');
+});

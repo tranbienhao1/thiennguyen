@@ -4380,7 +4380,10 @@
               const safePosition = Number.isFinite(deck.duration) && deck.duration > 0.5 ? Math.min(position, deck.duration - 0.25) : position;
               deck.currentTime = Math.max(0, safePosition);
             } catch (_) {}
-            if (!wasPaused || endedEarly) deck.play().catch(error => console.warn('Could not resume after upgrading to the full audio file:', error.message || error));
+            if (!wasPaused || endedEarly) {
+              if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') { try { state.context.resume().catch(() => {}); } catch (_) {} }
+              deck.play().then(() => { if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); }).catch(error => { console.warn('Could not resume after upgrading to the full audio file:', error.message || error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); });
+            }
           }, {once:true});
           deck.src = new URL(fullUrl, location.href).href;
           track.sliceEndedEarly = false;
@@ -8620,7 +8623,7 @@
         clearTimeout(applyOptimisticPlaybackUi._safetyTimer);
         applyOptimisticPlaybackUi._safetyTimer = null;
       }
-      const isPlaying = state.context && ((state.activeDeck && !state.activeDeck.audio.paused) || (audio && !audio.paused));
+      const isPlaying = Boolean((state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) || (state.activeDeck && state.activeDeck.element && !state.activeDeck.element.paused) || (audio && !audio.paused));
       const defaultIcon = isPlaying ? 'Ⅱ' : '▶';
 
       const playBtn = $('play-button');
@@ -15913,7 +15916,8 @@
             const safePosition = Number.isFinite(element.duration) && element.duration > 0.5 ? Math.min(resumePosition, element.duration - 0.25) : resumePosition;
             element.currentTime = Math.max(0, safePosition);
           } catch (_) {}
-          element.play().catch(error => console.warn('Could not resume after upgrading to the full audio file:', error.message || error));
+          if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') { try { state.context.resume().catch(() => {}); } catch (_) {} }
+          element.play().then(() => { if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); }).catch(error => { console.warn('Could not resume after upgrading to the full audio file:', error.message || error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); });
         }, {once:true});
         element.src = fullUrl;
       }
@@ -16152,8 +16156,10 @@
         state.errorSkipCount = 0;
         setVisualizerRunning(true);
         $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ';
-        if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
-        if ($('fullscreen-play-btn')) $('fullscreen-play-btn').textContent = '⏸';
+        if ($('play-button').classList) $('play-button').classList.remove('loading-pulse');
+        if ($('room-play').classList) $('room-play').classList.remove('loading-pulse');
+        if ($('mini-play')) { $('mini-play').textContent = 'Ⅱ'; if ($('mini-play').classList) $('mini-play').classList.remove('loading-pulse'); }
+        if ($('fullscreen-play-btn')) { $('fullscreen-play-btn').textContent = '⏸'; if ($('fullscreen-play-btn').classList) $('fullscreen-play-btn').classList.remove('loading-pulse'); }
         if ('mediaSession' in navigator) { try { navigator.mediaSession.playbackState = 'playing'; } catch (error) {} }
         const curTrack = state.tracks.find(item => item.id === state.currentId);
         if (curTrack) {

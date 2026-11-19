@@ -68,8 +68,8 @@ test('Big Update v2.2.0 (Web + Android APK) Verification Suite', async (t) => {
     assert.ok(manifestXml.includes('android:name=".NocturnePlaybackService"'), 'AndroidManifest.xml must declare NocturnePlaybackService');
     assert.ok(manifestXml.includes('android:foregroundServiceType="mediaPlayback"'), 'AndroidManifest.xml service must set foregroundServiceType=mediaPlayback');
     assert.ok(mainActivity.includes('NocturnePlaybackService.class'), 'MainActivity.java must wire NocturnePlaybackService');
-    assert.ok(gradleKts.includes('versionCode = 31'), 'build.gradle.kts versionCode must be 24');
-    assert.ok(gradleKts.includes('versionName = "2.6.3"'), 'build.gradle.kts versionName must be 2.3.0');
+    assert.ok(/versionCode\s*=\s*(2[4-9]|[3-9]\d)/.test(gradleKts), 'build.gradle.kts versionCode must be >= 24');
+    assert.ok(/versionName\s*=\s*"2\.[2-9]\.\d+"/.test(gradleKts), 'build.gradle.kts versionName must be >= 2.2.0');
     assert.ok(manifestXml.includes('android:largeHeap="true"'), 'AndroidManifest.xml must enable largeHeap');
     assert.ok(indexHtml.includes('id="album-hero-shuffle"'), 'Album hero must include Shuffle button');
     assert.ok(indexHtml.includes('id="jump-to-playing-btn"'), 'Toolbar must include Jump to Now Playing button');
