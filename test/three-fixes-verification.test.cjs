@@ -85,7 +85,7 @@ describe('Sửa dứt điểm 3 lỗi: Search Bar, Drive Sync, Scroll Jank', () 
     assert.ok(indexHtml.includes("corpora:'allDrives'"), 'loadGoogleFiles phải corpora allDrives');
 
     // Kiểm tra không prune giữa chừng
-    assert.ok(indexHtml.includes('await persistCloudCatalog(pageTracks, true);'), 'persistCloudCatalog phải truyền skipPrune=true trong vòng lặp');
+    assert.ok(indexHtml.includes('persistCloudCatalog(pageTracks, { skipPrune: true })'), 'persistCloudCatalog phải truyền skipPrune: true trong vòng lặp');
     assert.ok(indexHtml.includes('await pruneCloudCatalog();\n        renderTracks();\n        cloudStatus(\'google\''), 'pruneCloudCatalog chỉ được gọi sau khi quét xong');
 
     // Kiểm tra 401 token refresh và 429/5xx exponential backoff

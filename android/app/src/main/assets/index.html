@@ -4427,7 +4427,8 @@
       catch (error) { return Promise.resolve(false); }
     }
     function persistCloudCatalog(tracks) {
-      const skipPrune = arguments[1];
+      const options = arguments[1];
+      const skipPrune = Boolean(options === true || (options && options.skipPrune));
       if (cloudCatalogResetting) return Promise.resolve();
       const entries = tracks.filter(track => ['google','onedrive'].includes(track.source)).map(serializableCloudTrack);
       if (!entries.length) return Promise.resolve();
@@ -8086,6 +8087,10 @@
         renderTracks();
       }, 180);
     }
+    function scheduleBackgroundRender() {
+      scheduleTrackRender();
+    }
+    window.scheduleBackgroundRender = scheduleBackgroundRender;
     let queueRenderFrame = null;
     function deferRenderQueue() {
       if (queueRenderFrame) return queueRenderFrame;
@@ -11814,55 +11819,95 @@
       if (/rate|quota/.test(text)) return 'Google Drive API đang giới hạn lượt gọi. Chờ một chút rồi thử lại.';
       return details || 'Kiểm tra Google Drive API đã bật, OAuth Client ID và Authorized JavaScript origins.';
     }
+    const GOOGLE_DRIVE_AUDIO_QUERY = [
+      "trashed = false",
+      "mimeType != 'application/vnd.google-apps.folder'",
+      "(" + [
+        "mimeType contains 'audio/'",
+        "name contains '.flac'",
+        "name contains '.dsf'",
+        "name contains '.dff'",
+        "name contains '.wav'",
+        "name contains '.alac'",
+        "name contains '.m4a'",
+        "name contains '.mp3'",
+        "name contains '.aiff'",
+        "name contains '.aif'",
+        "name contains '.aac'",
+        "name contains '.ogg'",
+        "name contains '.opus'",
+        "name contains '.wv'",
+        "name contains '.ape'",
+        "name contains '.wma'",
+        "name contains '.mka'"
+      ].join(" or ") + ")"
+    ].join(" and ");
+    window.GOOGLE_DRIVE_AUDIO_QUERY = GOOGLE_DRIVE_AUDIO_QUERY;
+
+    async function fetchGoogleDrivePageWithRetry(url, getToken, refreshToken) {
+      let retryCount = 0;
+      let refreshedTokenOnce = false;
+      while (true) {
+        const curToken = typeof getToken === 'function' ? getToken() : getToken;
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer ${curToken}` }
+        });
+
+        if (response.status === 401 && !refreshedTokenOnce && typeof refreshToken === 'function') {
+          refreshedTokenOnce = true;
+          try {
+            await refreshToken();
+            continue;
+          } catch (_) {
+            return response;
+          }
+        }
+
+        if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 3) {
+          retryCount++;
+          const backoffMs = Math.min(1000 * Math.pow(2, retryCount), 8000);
+          await new Promise(resolve => setTimeout(resolve, backoffMs));
+          continue;
+        }
+
+        return response;
+      }
+    }
+
     async function loadGoogleFiles() {
       await restoreCloudCatalog();
       let token = await ensureGoogleToken();
-      queueCloudMetadata(state.tracks.filter(track => track.source === 'google' && (!track.metadataLoaded || !track.cover)));
-      let pageToken = '', added = 0, scanned = 0;
-      const knownIds = new Set(state.tracks.filter(track => track.source === 'google').map(track => track.remoteId));
-      let refreshedTokenOnce = false;
+      let pageToken = '', added = 0, scanned = 0, useOrderBy = true;
+      const knownIds = new Set(
+        state.tracks.filter(track => track.source === 'google').map(track => track.remoteId)
+      );
+      const newlyAddedTracks = [];
+      let persistChain = Promise.resolve();
+
       try {
         do {
           const params = new URLSearchParams({
-            q: "trashed = false and mimeType != 'application/vnd.google-apps.folder'",
+            q: GOOGLE_DRIVE_AUDIO_QUERY,
             // files(id,name,mimeType,size,thumbnailLink)
             fields: 'nextPageToken,incompleteSearch,files(id,name,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)',
             pageSize: '1000',
-            orderBy: 'name',
             corpora:'allDrives',
             supportsAllDrives:'true',
             includeItemsFromAllDrives:'true'
           });
+          if (useOrderBy) params.set('orderBy', 'modifiedTime desc');
           if (pageToken) params.set('pageToken', pageToken);
 
-          let response;
-          let retryCount = 0;
-          while (true) {
-            response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
+          let response = await fetchGoogleDrivePageWithRetry(
+            `https://www.googleapis.com/drive/v3/files?${params}`,
+            () => token,
+            async () => { token = await ensureGoogleToken(true); return token; }
+          );
 
-            if (response.status === 401 && !refreshedTokenOnce) {
-              refreshedTokenOnce = true;
-              try {
-                token = await ensureGoogleToken(true);
-                continue;
-              } catch (_) {
-                const body = await response.text();
-                throw new Error(`Google Drive từ chối phiên đăng nhập (401). ${googleConfigurationHint(401, body)} Nếu phiên hết hạn, hãy nhấn “Tiếp tục với Google” rồi thử lại.`);
-              }
-            }
-
-            if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 3) {
-              retryCount++;
-              const backoffMs = Math.min(1000 * Math.pow(2, retryCount), 8000);
-              await new Promise(resolve => setTimeout(resolve, backoffMs));
-              continue;
-            }
-
-            break;
+          if (response.status === 400 && useOrderBy) {
+            useOrderBy = false;
+            continue;
           }
-
           if (response.status === 401) {
             const body = await response.text();
             throw new Error(`Google Drive từ chối phiên đăng nhập (401). ${googleConfigurationHint(401, body)} Nếu phiên hết hạn, hãy nhấn “Tiếp tục với Google” rồi thử lại.`);
@@ -11880,26 +11925,41 @@
             const track = googleTrack(file);
             state.tracks.push(track);
             pageTracks.push(track);
+            newlyAddedTracks.push(track);
             knownIds.add(file.id);
             added++;
           }
+
           if (pageTracks.length > 0) {
-            await persistCloudCatalog(pageTracks, true);
-            if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
-            queueCloudMetadata(pageTracks);
+            // Ghi IndexedDB nền (không chạy prune giữa chừng, không chặn fetch trang sau)
+            persistChain = persistChain.then(() => persistCloudCatalog(pageTracks, { skipPrune: true })).catch(() => {});
+            // Hiển thị bài mới ngay lên UI (hoãn nếu người dùng đang cuộn)
+            if (typeof scheduleBackgroundRender === 'function') scheduleBackgroundRender();
+            else if (typeof scheduleTrackRender === 'function') scheduleTrackRender();
+            else renderTracks();
           }
+
           pageToken = data.nextPageToken || '';
           cloudStatus('google', `Đang quét Google Drive… ${scanned} mục · ${knownIds.size} bài`, 'text-sky-300');
         } while (pageToken);
 
-        await pruneCloudCatalog();
+        await persistChain;
+        if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
         renderTracks();
         cloudStatus('google', `Google Drive · ${knownIds.size} bài`, 'text-emerald-300');
-        toast(`Đã quét hết Drive: tìm thấy ${knownIds.size} bài âm thanh (${added} bài mới, tổng ${scanned} mục).`);
+        toast(`Đã quét hết Drive: ${knownIds.size} bài âm thanh (${added} bài mới).`);
       } catch (error) {
+        await persistChain;
         renderTracks();
         if (added) toast(`Đã lưu ${added} bài mới trước khi đồng bộ bị gián đoạn.`);
         throw error;
+      } finally {
+        // Chỉ tải metadata/cover nền SAU KHI đã quét xong danh sách file
+        if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
+        const pendingMeta = state.tracks.filter(
+          track => track.source === 'google' && (!track.metadataLoaded || !track.cover)
+        );
+        if (pendingMeta.length > 0) queueCloudMetadata(pendingMeta);
       }
     }
     async function fetchCloudFile(track, url, options, provider) {
