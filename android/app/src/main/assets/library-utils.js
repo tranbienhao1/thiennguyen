@@ -400,7 +400,7 @@
         headBytes = null;
         break;
       }
-      if (frameOffset < 0 || frameOffset < blob.size) break;
+      if (frameOffset < 0 || (frameOffset + FIRST_SLICE_FRAME_ALLOWANCE_BYTES) <= blob.size) break;
       const nextEnd = Math.min(frameOffset + FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, totalBytes || Infinity);
       if (nextEnd <= end) break;
       end = nextEnd;
@@ -8323,7 +8323,7 @@
     return `Nạp đệm: ${loaded}/${total} đoạn (${mb} MB · ${percent}%)`;
   }
 
-  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v2.6.2') {
+  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v2.6.3') {
     const validRoutes = Array.isArray(routes) ? routes.filter(r => typeof r === 'string' && r.trim().length > 0) : [];
     const normalized = [...new Set(validRoutes.map(r => r.trim()))];
     return {

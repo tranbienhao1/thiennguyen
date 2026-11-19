@@ -5682,12 +5682,16 @@
       if (playBtn) {
         playBtn.onclick = () => {
           if (entry.tracks && entry.tracks.length > 0) {
+            if (typeof library !== 'undefined' && library && typeof library.sortAlbumTracks === 'function' && entry.tracks.length > 1) {
+              entry.tracks = library.sortAlbumTracks(entry.tracks, { groupByAlbum: !isAlbum });
+            }
             if (typeof setupAudio === 'function') setupAudio();
             if (state.context && state.context.state === 'suspended') {
               state.context.resume().catch(e => console.debug('AudioContext resume in album-hero-play:', e));
             }
             state.playbackContext = { type: 'album', key: entry.key, name: entry.name, trackIds: entry.tracks.map(t => t.id) };
             state.queueTrackIds = entry.tracks.slice(1).map(t => t.id);
+            if (state.preloadTrackId && state.preloadTrackId !== entry.tracks[0].id && state.preloadTrackId !== (state.queueTrackIds[0] || null) && typeof clearStalePreload === 'function') clearStalePreload();
             renderQueue();
             playTrack(entry.tracks[0].id);
             toast(`Đang phát Album: ${entry.name} (Tuần tự bài 1 đến hết)`);
@@ -6483,16 +6487,40 @@
         }
 
         const entry = state.currentCollectionEntry;
-        const isAlbumContext = Boolean(state.trackScope) || (entry && (entry.action === 'album' || state.activeView === 'albums'));
-        if (isAlbumContext && (state.trackScope || entry)) {
-          const albumTracks = (entry && entry.tracks && entry.tracks.length > 0)
-            ? entry.tracks
-            : (state.trackScope ? state.tracks.filter(t => state.trackScope.includes(t.id)) : tracks);
-          const albumName = (entry && entry.name) || 'Album';
-          const albumKey = (entry && entry.key) || 'album';
+        const isFilteredAlbum = Boolean(state.album && state.album !== '*');
+        const isGroupedByAlbum = Boolean(state.groupBy === 'album' && track);
+        const isAlbumContext = Boolean(state.trackScope) || (entry && (entry.action === 'album' || state.activeView === 'albums')) || isFilteredAlbum || isGroupedByAlbum;
+        if (isAlbumContext && (state.trackScope || entry || isFilteredAlbum || isGroupedByAlbum)) {
+          let rawAlbumTracks;
+          let albumName = (entry && entry.name) || (isFilteredAlbum ? state.album : '') || 'Album';
+          let albumKey = (entry && entry.key) || (isFilteredAlbum ? ('album:' + state.album) : 'album');
+          if (state.trackScope && Array.isArray(renderedTracks) && renderedTracks.some(t => t && String(t.id) === String(rowTrackId))) {
+            rawAlbumTracks = renderedTracks;
+          } else if (entry && entry.tracks && entry.tracks.length > 0) {
+            rawAlbumTracks = (lib && typeof lib.sortAlbumTracks === 'function')
+              ? lib.sortAlbumTracks(entry.tracks, { groupByAlbum: entry.action === 'artist' })
+              : entry.tracks;
+          } else if (state.trackScope) {
+            const scoped = state.tracks.filter(t => state.trackScope.includes(t.id));
+            rawAlbumTracks = (lib && typeof lib.sortAlbumTracks === 'function') ? lib.sortAlbumTracks(scoped) : scoped;
+          } else if (isFilteredAlbum || isGroupedByAlbum) {
+            const clickedMeta = (lib && typeof lib.trackMetadata === 'function' && track) ? lib.trackMetadata(track) : (track || {});
+            const targetAlbumName = isFilteredAlbum ? state.album : (clickedMeta.album || (track && track.album) || '');
+            const normTarget = String(targetAlbumName || '').trim().toLowerCase();
+            albumName = targetAlbumName || 'Album';
+            albumKey = 'album:' + normTarget;
+            const matched = state.tracks.filter(t => {
+              const m = (lib && typeof lib.trackMetadata === 'function') ? lib.trackMetadata(t) : t;
+              return String((m && m.album) || (t && t.album) || '').trim().toLowerCase() === normTarget;
+            });
+            rawAlbumTracks = (lib && typeof lib.sortAlbumTracks === 'function') ? lib.sortAlbumTracks(matched) : matched;
+          } else {
+            rawAlbumTracks = tracks;
+          }
+          const albumTracks = rawAlbumTracks && rawAlbumTracks.length > 0 ? rawAlbumTracks : tracks;
           const queueResult = (lib && typeof lib.resolveAlbumPlaybackQueue === 'function')
             ? lib.resolveAlbumPlaybackQueue(rowTrackId, albumTracks)
-            : { remainingTrackIds: albumTracks.slice(albumTracks.findIndex(t => t.id === rowTrackId) + 1).map(t => t.id) };
+            : { clickedIndex: albumTracks.findIndex(t => t && String(t.id) === String(rowTrackId)), remainingTrackIds: albumTracks.slice(albumTracks.findIndex(t => t && String(t.id) === String(rowTrackId)) + 1).map(t => t.id) };
 
           state.playbackContext = {
             type: 'album',
@@ -6501,8 +6529,12 @@
             trackIds: albumTracks.map(t => t.id)
           };
           state.queueTrackIds = queueResult.remainingTrackIds || [];
+          if (state.preloadTrackId && String(state.preloadTrackId) !== String(rowTrackId) && String(state.preloadTrackId) !== String(state.queueTrackIds[0] || '') && typeof clearStalePreload === 'function') {
+            clearStalePreload();
+          }
           deferRenderQueue();
-          toast(`Đang phát Album: ${albumName} (Tuần tự bài 1 đến hết)`);
+          const posIdx = (queueResult && typeof queueResult.clickedIndex === 'number' && queueResult.clickedIndex >= 0) ? (queueResult.clickedIndex + 1) : 1;
+          toast(`Đang phát Album: ${albumName} (Bài ${posIdx}/${albumTracks.length} · Tuần tự theo album)`);
           playTrack(rowTrackId);
           return;
         }
@@ -8580,6 +8612,7 @@
       if ($('current-time')) $('current-time').textContent = '0:00';
       if ($('current-time-mobile')) $('current-time-mobile').textContent = '0:00';
       if ($('room-current-time')) $('room-current-time').textContent = '0:00';
+      lastDisplayedPlaybackSecond = -1; lastPositionStateSecond = -1;
     }
 
     function clearOptimisticLoadingUi() {
@@ -10961,6 +10994,9 @@
           return state.tracks.findIndex(t => t && String(t.id) === String(seqResult.track.id));
         }
         if (seqResult && seqResult.isEnd) {
+          if (state.repeat === 1 && albumTracks.length > 0) {
+            return state.tracks.findIndex(t => t && String(t.id) === String(albumTracks[0].id));
+          }
           if (state.roonRadio && lib && typeof lib.selectRoonRadioTrack === 'function') {
             const radio = lib.selectRoonRadioTrack(state.tracks[current] || albumTracks[albumTracks.length - 1], state.tracks, {
               recentHistory: state.recentHistory,
@@ -10969,12 +11005,6 @@
               isOffline: isOfflineMode
             });
             if (radio && radio.track && (currentIdStr == null || String(radio.track.id) !== currentIdStr)) return state.tracks.indexOf(radio.track);
-          }
-          if (state.repeat === 1 && albumTracks.length > 0) {
-            return state.tracks.findIndex(t => t && String(t.id) === String(albumTracks[0].id));
-          }
-          if (state.tracks.length > 1) {
-            return (current + 1) % state.tracks.length;
           }
           return -1;
         }
@@ -11150,6 +11180,9 @@
           : (priorActiveDeck === state.deckA ? state.deckB : state.deckA));
       const oldDeck = newDeck === state.deckA ? state.deckB : state.deckA;
       const previous = (oldDeck && oldDeck.element) ? oldDeck.element : audio;
+      if (target && target.dataset && track && track.id != null) target.dataset.trackId = String(track.id);
+      if (track && track.firstSlicePlayback && !Number.isFinite(track.lastSlicePosition)) track.lastSlicePosition = 0;
+      lastDisplayedPlaybackSecond = -1; lastPositionStateSecond = -1;
       target.muted = false;
       audio = target; standbyAudio = previous; state.activeDeck = newDeck;
       if (state.playbackRate) { audio.playbackRate = state.playbackRate; if (standbyAudio) standbyAudio.playbackRate = state.playbackRate; }
@@ -11276,6 +11309,7 @@
         bypassEl.muted = false;
         bypassEl.volume = state.bitPerfectEnabled ? 1.0 : (audio ? audio.volume : 0.72);
         if (state.playbackRate) bypassEl.playbackRate = state.playbackRate;
+        if (bypassEl.dataset) bypassEl.dataset.trackId = String(track.id);
         bypassEl.src = playUrl;
         bypassEl.load();
         bypassEl.addEventListener('playing', () => {
@@ -11512,6 +11546,7 @@
         toast('Không có URL phát cho bài hát này.');
         return;
       }
+      if (target.dataset) target.dataset.trackId = String(track.id);
       if (target.src !== playUrl || target.error) { target.src = playUrl; target.load(); }
       displayTrack(track);
       if (track.cueStart !== undefined && track.cueStart > 0) {
@@ -11619,6 +11654,7 @@
       const sliceUrl = URL.createObjectURL(sliceBlob); state.objectUrls.add(sliceUrl);
       state.dsdUrl = sliceUrl; state.dsdTrackId = track.id;
       track.url = sliceUrl; track.firstSlicePlayback = true; track.lastSlicePosition = null;
+      if (audio.dataset) audio.dataset.trackId = String(track.id);
       audio.src = sliceUrl;
       audio.muted = false;
       const volSliderEl = $('volume');
@@ -11887,6 +11923,15 @@
         }
 
         if (seqResult && seqResult.isEnd && direction > 0) {
+          if (state.repeat === 1 && albumTracks.length > 0) {
+            if (lib && typeof lib.resolveAlbumPlaybackQueue === 'function') {
+              const loopQ = lib.resolveAlbumPlaybackQueue(albumTracks[0].id, albumTracks);
+              state.queueTrackIds = loopQ.remainingTrackIds || [];
+              renderQueue();
+            }
+            playTrack(albumTracks[0].id);
+            return;
+          }
           if (state.roonRadio && lib && typeof lib.selectRoonRadioTrack === 'function') {
             const radio = lib.selectRoonRadioTrack(state.tracks[currentIndex] || albumTracks[albumTracks.length - 1], state.tracks, {
               recentHistory: state.recentHistory,
@@ -11901,17 +11946,7 @@
               return;
             }
           }
-          if (state.repeat === 1 && albumTracks.length > 0) {
-            playTrack(albumTracks[0].id);
-            return;
-          }
-          if (state.tracks.length > 1) {
-            const nextIdx = (currentIndex + 1) % state.tracks.length;
-            if (currentIdStr == null || String(state.tracks[nextIdx].id) !== currentIdStr) {
-              playTrack(state.tracks[nextIdx].id);
-              return;
-            }
-          }
+          toast(`Đã phát hết album ${state.playbackContext && state.playbackContext.name ? state.playbackContext.name : ''}.`.trim());
           return;
         }
 
@@ -15951,6 +15986,7 @@
 
       element.addEventListener('timeupdate', () => {
         if (element !== audio) return;
+        if (state.isPlaybackLoading && element.dataset && element.dataset.trackId && state.currentId != null && String(element.dataset.trackId) !== String(state.currentId)) return;
         if (state.abLoop && state.abLoop.a != null && state.abLoop.b != null && state.abLoop.b > state.abLoop.a + 0.25 && !state.isSeeking) {
           if (element.currentTime >= state.abLoop.b) {
             element.currentTime = state.abLoop.a;
@@ -16017,6 +16053,18 @@
         // 'ended' bắn ngay và app nhảy bài. Chỉ ghi khi còn trong bài.
         const sliceTrack = state.tracks.find(item => item.id === state.currentId);
         if (sliceTrack && sliceTrack.firstSlicePlayback && Number.isFinite(element.currentTime) && Number.isFinite(element.duration) && element.currentTime < element.duration) sliceTrack.lastSlicePosition = element.currentTime;
+        const isWaitingSliceUpgrade = Boolean(sliceTrack && sliceTrack.firstSlicePlayback && (sliceTrack.fullAudioPromise || sliceTrack.fullAudioUrl || sliceTrack.sliceEndedEarly));
+        if (isWaitingSliceUpgrade && Number.isFinite(element.duration) && element.duration > 1 && (element.ended || element.currentTime >= element.duration - 0.15)) {
+          const heldTime = Number.isFinite(sliceTrack.lastSlicePosition) ? Math.max(0, sliceTrack.lastSlicePosition) : 0;
+          const heldPct = Math.round(heldTime / element.duration * 1000);
+          const heldFmt = formatTime(heldTime);
+          if ($('current-time')) $('current-time').textContent = heldFmt;
+          if ($('current-time-mobile')) $('current-time-mobile').textContent = heldFmt;
+          if ($('room-current-time')) $('room-current-time').textContent = heldFmt;
+          if (!state.isSeeking) syncSeek(heldPct);
+          if ($('room-seek') && !$('room-seek').matches(':active')) { $('room-seek').value = String(heldPct); paintSeek($('room-seek'), heldPct); }
+          return;
+        }
         const playbackSecond = Math.floor(element.currentTime || 0);
         if (playbackSecond !== lastDisplayedPlaybackSecond) {
           lastDisplayedPlaybackSecond = playbackSecond;
@@ -16092,6 +16140,7 @@
       });
       element.addEventListener('loadedmetadata', () => {
         if (element !== audio) return;
+        if (state.isPlaybackLoading && element.dataset && element.dataset.trackId && state.currentId != null && String(element.dataset.trackId) !== String(state.currentId)) return;
         lastDisplayedPlaybackSecond = -1; lastPositionStateSecond = -1;
         $('duration').textContent = formatTime(element.duration); $('duration-mobile').textContent = formatTime(element.duration); $('room-duration').textContent = formatTime(element.duration); $('room-remaining').textContent = formatRemainingTime(element.currentTime, element.duration);
         const track = state.tracks.find(item => item.id === state.currentId);
@@ -16117,6 +16166,12 @@
       element.addEventListener('pause', () => {
         if (element === audio && !standbyAudio.paused) return;
         if (element !== audio) return;
+        if (state.isPlaybackLoading && element.dataset && element.dataset.trackId && state.currentId != null && String(element.dataset.trackId) !== String(state.currentId)) return;
+        const pauseTrack = state.tracks.find(item => item.id === state.currentId);
+        if (pauseTrack && pauseTrack.firstSlicePlayback && (pauseTrack.fullAudioPromise || pauseTrack.sliceEndedEarly) && element.ended) {
+          if ($('play-button')) { $('play-button').textContent = '…'; if ($('play-button').classList) $('play-button').classList.add('loading-pulse'); }
+          return;
+        }
         $('play-button').textContent = '▶'; $('room-play').textContent = '▶';
         if ($('mini-play')) $('mini-play').textContent = '▶';
         if ($('fullscreen-play-btn')) $('fullscreen-play-btn').textContent = '▶';
@@ -16152,6 +16207,18 @@
         // toast cũng không chuyển bài); chỉ đăng ký một lần cho mỗi lần
         // phát lát đầu để không chuyển bài hai lần nếu 'error' cũng bắn.
         if (track && track.firstSlicePlayback && track.fullAudioPromise) {
+          const heldPos = Number.isFinite(track.lastSlicePosition) ? Math.max(0, track.lastSlicePosition) : 0;
+          const heldDur = Number.isFinite(element.duration) && element.duration > 0 ? element.duration : (Number(track.duration) || 0);
+          const heldPct = heldDur > 0 ? Math.round(heldPos / heldDur * 1000) : 0;
+          if (typeof formatTime === 'function') {
+            const heldFmt = formatTime(heldPos);
+            if ($('current-time')) $('current-time').textContent = heldFmt;
+            if ($('current-time-mobile')) $('current-time-mobile').textContent = heldFmt;
+            if ($('room-current-time')) $('room-current-time').textContent = heldFmt;
+          }
+          if (!state.isSeeking && typeof syncSeek === 'function') syncSeek(heldPct);
+          if ($('room-seek') && typeof $('room-seek').matches === 'function' && !$('room-seek').matches(':active') && typeof paintSeek === 'function') { $('room-seek').value = String(heldPct); paintSeek($('room-seek'), heldPct); }
+          if ($('play-button')) { $('play-button').textContent = '…'; if ($('play-button').classList) $('play-button').classList.add('loading-pulse'); }
           if (!track.sliceEndedEarly) {
             track.sliceEndedEarly = true;
             track.fullAudioPromise.catch(() => {
