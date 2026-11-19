@@ -7,17 +7,25 @@
  * Drive/OneDrive, luồng nhạc), yêu cầu no-store (bộ kiểm tra cập nhật trong
  * app) và yêu cầu Range không bao giờ đi qua cache.
  */
-const CACHE_VERSION = 'v2.1.3';
-const CACHE_NAME = 'nocturne-v2.1.3';
+const CACHE_VERSION = 'v2.6.0';
+const CACHE_NAME = 'nocturne-v2.6.0';
 self.CACHE_VERSION = CACHE_VERSION;
 self.CACHE_NAME = CACHE_NAME;
 const APP_SHELL = [
   './',
   'index.html',
+  'tailwind.min.css',
   'library-utils.js',
+  'library-tools.js',
+  'virtual-scroll.js',
+  'ui-overlay.js',
   'metadata-utils.js',
   'metadata-ui.js',
   'cloud-metadata.js',
+  'autoeq-cue.js',
+  'lrclib-client.js',
+  'lyrics-utils.js',
+  'lyrics-editor-ui.js',
   'dsd-worker.js',
   'manifest.json',
   'icons/icon.svg',

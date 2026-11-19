@@ -322,7 +322,7 @@
       throw error;
     }
     const contentType = (response.headers && response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-    if (contentType && !contentType.startsWith('audio/') && !['application/octet-stream','application/ogg','binary/octet-stream'].includes(contentType)) {
+    if (contentType && !contentType.startsWith('audio/') && !['application/octet-stream','application/ogg','application/x-ogg','application/x-flac','application/x-dsf','application/dsd','binary/octet-stream','video/mp4','video/webm','video/x-matroska'].includes(contentType)) {
       throw new Error(`${provider} trả về kiểu dữ liệu ${contentType}, không phải âm thanh. Hãy kiểm tra quyền truy cập hoặc kết nối lại tài khoản.`);
     }
     return response;
