@@ -667,7 +667,12 @@ public class MainActivity extends AppCompatActivity {
         mWebView.setScrollContainer(true);
         mWebView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
 
-        // 9. Hardware acceleration & rendering
+        // 9. Hardware acceleration, renderer priority & Legacy Android stability
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                mWebView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
+            } catch (Throwable ignored) {}
+        }
         mWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         mWebView.setBackgroundColor(Color.parseColor("#111315"));
 
@@ -1266,6 +1271,33 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         // Do not pause webview timers during active background playback
+    }
+
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (level >= TRIM_MEMORY_RUNNING_LOW) {
+            final int trimLevel = level;
+            runOnUiThread(() -> {
+                if (mWebView != null) {
+                    try {
+                        mWebView.evaluateJavascript(
+                            "if(typeof window.onAndroidLowMemory==='function'){window.onAndroidLowMemory(" + trimLevel + ");}",
+                            null
+                        );
+                        if (trimLevel >= TRIM_MEMORY_RUNNING_CRITICAL) {
+                            mWebView.clearCache(false);
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onLowMemory() {
+        super.onLowMemory();
+        onTrimMemory(TRIM_MEMORY_COMPLETE);
     }
 
     @Override
@@ -1991,11 +2023,51 @@ public class MainActivity extends AppCompatActivity {
     public void updateMediaNotification(String title, String artist, String album, boolean isPlaying) {
         if (isPlaying) {
             acquireWakeLock();
-            showMediaNotification(title, artist, album, true);
+            try {
+                Intent svcIntent = new Intent(this, NocturnePlaybackService.class);
+                svcIntent.setAction(NocturnePlaybackService.ACTION_START_OR_UPDATE);
+                svcIntent.putExtra(NocturnePlaybackService.EXTRA_TITLE, title);
+                svcIntent.putExtra(NocturnePlaybackService.EXTRA_ARTIST, artist);
+                svcIntent.putExtra(NocturnePlaybackService.EXTRA_ALBUM, album);
+                svcIntent.putExtra(NocturnePlaybackService.EXTRA_IS_PLAYING, true);
+                ContextCompat.startForegroundService(this, svcIntent);
+            } catch (Exception e) {
+                Log.w(TAG, "Foreground service start deferred, using standard notification: " + e.getMessage());
+                showMediaNotification(title, artist, album, true);
+            }
+            updateMediaSessionMetadata(title, artist, album, true);
         } else {
+            try {
+                Intent stopIntent = new Intent(this, NocturnePlaybackService.class);
+                stopIntent.setAction(NocturnePlaybackService.ACTION_STOP);
+                startService(stopIntent);
+            } catch (Exception ignored) {}
             cancelMediaNotification();
+            updateMediaSessionMetadata(title, artist, album, false);
             releaseWakeLock();
         }
+    }
+
+    private void updateMediaSessionMetadata(String title, String artist, String album, boolean isPlaying) {
+        if (mMediaSession == null) return;
+        try {
+            String displayTitle = (title != null && !title.trim().isEmpty()) ? title.trim() : "Nocturne Audiophile";
+            String displayArtist = (artist != null && !artist.trim().isEmpty()) ? artist.trim() : "Nocturne Hi-Res Audio";
+            PlaybackState.Builder psb = new PlaybackState.Builder()
+                .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE |
+                    PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT |
+                    PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP)
+                .setState(isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
+                    PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f);
+            mMediaSession.setPlaybackState(psb.build());
+            MediaMetadata.Builder mb = new MediaMetadata.Builder();
+            mb.putString(MediaMetadata.METADATA_KEY_TITLE, displayTitle);
+            mb.putString(MediaMetadata.METADATA_KEY_ARTIST, displayArtist);
+            if (album != null && !album.trim().isEmpty()) {
+                mb.putString(MediaMetadata.METADATA_KEY_ALBUM, album.trim());
+            }
+            mMediaSession.setMetadata(mb.build());
+        } catch (Exception ignored) {}
     }
 
     private void showMediaNotification(String title, String artist, String album, boolean isPlaying) {
@@ -2474,6 +2546,20 @@ public class MainActivity extends AppCompatActivity {
             return mDurationMs.get();
         }
 
+        private void notifyBitPerfectFormatToWeb(int actualRate, int actualEncoding, boolean mixerBitPerfect, AudioDeviceInfo dev) {
+            final int bits = (actualEncoding == AudioFormat.ENCODING_PCM_FLOAT || actualEncoding == 22) ? 32
+                    : (actualEncoding == 21 ? 24 : 16);
+            final String devName = (dev != null && dev.getProductName() != null) ? dev.getProductName().toString() : "";
+            final String safeDev = devName.replace("\\", "\\\\").replace("'", "\\'");
+            final String js = "if(typeof window.onBitPerfectFormatLocked==='function'){window.onBitPerfectFormatLocked("
+                    + actualRate + "," + bits + "," + (mixerBitPerfect ? "true" : "false") + ",'" + safeDev + "');}";
+            runOnUiThread(() -> {
+                if (mWebView != null) {
+                    mWebView.evaluateJavascript(js, null);
+                }
+            });
+        }
+
         private void notifyBitPerfectErrorToWeb(String reason) {
             if (mIsStopped || mWebView == null) return;
             final String safeMsg = (reason != null ? reason : "Bit-Perfect playback error")
@@ -2592,10 +2678,22 @@ public class MainActivity extends AppCompatActivity {
                         format.getLong(MediaFormat.KEY_DURATION) : 0;
                 mDurationMs.set(durUs / 1000);
 
-                // 3. Create and configure decoder
+                // 3. Create and configure decoder (preserve >=24-bit Hi-Res precision via PCM_FLOAT when supported)
                 String mime = format.getString(MediaFormat.KEY_MIME);
+                if (requestedBitDepth >= 24 && Build.VERSION.SDK_INT >= 24 && !format.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+                    try {
+                        format.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_FLOAT);
+                    } catch (Throwable ignored) {}
+                }
                 decoder = MediaCodec.createDecoderByType(mime);
-                decoder.configure(format, null, null, 0);
+                try {
+                    decoder.configure(format, null, null, 0);
+                } catch (Throwable hiResConfigErr) {
+                    if (Build.VERSION.SDK_INT >= 24 && format.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+                        format.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT);
+                    }
+                    decoder.configure(format, null, null, 0);
+                }
                 decoder.start();
 
                 // 4. Build AudioAttributes with FLAG_AUDIOTRACK_DIRECT (flags = 0x1)
@@ -2630,6 +2728,16 @@ public class MainActivity extends AppCompatActivity {
                 }
                 int bufferSize = Math.max(minBufSize * 4, 131072);
 
+                // 6. Resolve preferred DAC device & apply Android 14+ Bit-Perfect Mixer Attributes BEFORE AudioTrack.build()
+                preferredDevice = findPreferredBitPerfectDevice();
+                if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
+                        (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                         preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                    mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
+                            mAudioManager, audioAttributes, preferredDevice, audioFormat);
+                    Log.i(TAG, "BitPerfect: Pre-build setPreferredMixerBitPerfect(" + sampleRate + "Hz, enc=" + pcmEncoding + "): " + mPreferredMixerAttributesSet);
+                }
+
                 try {
                     track = new AudioTrack.Builder()
                             .setAudioAttributes(audioAttributes)
@@ -2653,18 +2761,20 @@ public class MainActivity extends AppCompatActivity {
 
                 mAudioTrack = track;
 
-                // 6. Audio output device routing
-                preferredDevice = findPreferredBitPerfectDevice();
                 if (preferredDevice != null && track != null) {
                     boolean devOk = track.setPreferredDevice(preferredDevice);
                     Log.i(TAG, "BitPerfect: AudioTrack.setPreferredDevice(" + preferredDevice.getProductName() + ", type=" + preferredDevice.getType() + "): " + devOk);
                 }
+                // Lock AudioTrack software gain to unity (1.0 / 0 dBFS) for zero digital attenuation
+                if (track != null) {
+                    try { track.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                }
 
-                // 7. For Android 14+ (API 34+), call AudioTrack.setBitPerfectMode(AudioTrack.BIT_PERFECT_PLAYBACK_MODE_AUTO) via reflection or SDK check
+                // 7. For Android 14+ (API 34+), also invoke AudioTrack.setBitPerfectMode if exposed
                 if (Build.VERSION.SDK_INT >= 34 && track != null) {
                     try {
                         Method setBitPerfectMode = AudioTrack.class.getMethod("setBitPerfectMode", int.class);
-                        int autoMode = 1; // AudioTrack.BIT_PERFECT_PLAYBACK_MODE_AUTO
+                        int autoMode = 1;
                         try {
                             Field f = AudioTrack.class.getField("BIT_PERFECT_PLAYBACK_MODE_AUTO");
                             autoMode = f.getInt(null);
@@ -2675,19 +2785,10 @@ public class MainActivity extends AppCompatActivity {
                         try {
                             Method m2 = AudioTrack.class.getMethod("setBitPerfectPlaybackMode", int.class);
                             m2.invoke(track, 1);
-                            Log.i(TAG, "BitPerfect: Invoked AudioTrack.setBitPerfectPlaybackMode(1) successfully.");
-                        } catch (Throwable t2) {
-                            Log.d(TAG, "BitPerfect: setBitPerfectMode reflection not available: " + t1.getMessage());
-                        }
-                    }
-
-                    // Set preferred mixer attributes on AudioManager for USB DAC
-                    if (preferredDevice != null && (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
-                            preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
-                        mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
-                                mAudioManager, audioAttributes, preferredDevice, audioFormat);
+                        } catch (Throwable ignored) {}
                     }
                 }
+                notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, preferredDevice);
 
                 // 8. Playback loop
                 track.play();
@@ -2783,6 +2884,12 @@ public class MainActivity extends AppCompatActivity {
                             if (minBufSize <= 0) minBufSize = sampleRate * channels * 4;
                             bufferSize = Math.max(minBufSize * 4, 131072);
 
+                            if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
+                                    (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                                     preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                                mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
+                                        mAudioManager, audioAttributes, preferredDevice, audioFormat);
+                            }
                             try {
                                 track = new AudioTrack.Builder()
                                         .setAudioAttributes(audioAttributes)
@@ -2804,6 +2911,8 @@ public class MainActivity extends AppCompatActivity {
                             }
                             mAudioTrack = track;
                             if (preferredDevice != null) track.setPreferredDevice(preferredDevice);
+                            try { track.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                            notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, preferredDevice);
                             track.play();
                         }
                     } else if (outIndex >= 0) {

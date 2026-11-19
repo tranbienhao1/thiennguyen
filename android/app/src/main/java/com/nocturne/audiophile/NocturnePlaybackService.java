@@ -1,0 +1,159 @@
+package com.nocturne.audiophile;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Service;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ServiceInfo;
+import android.os.Build;
+import android.os.IBinder;
+import android.util.Log;
+
+import androidx.annotation.Nullable;
+import androidx.core.app.NotificationCompat;
+
+/**
+ * Foreground media playback service keeping WebView & native Bit-Perfect audio
+ * alive on Android 12-15 when the screen turns off or the app is backgrounded.
+ */
+public class NocturnePlaybackService extends Service {
+    private static final String TAG = "NocturnePlaybackSvc";
+    public static final String CHANNEL_ID = "nocturne_playback_channel";
+    public static final int NOTIFICATION_ID = 20260409;
+
+    public static final String ACTION_START_OR_UPDATE = "com.nocturne.audiophile.SERVICE_UPDATE";
+    public static final String ACTION_STOP = "com.nocturne.audiophile.SERVICE_STOP";
+
+    public static final String EXTRA_TITLE = "extra_title";
+    public static final String EXTRA_ARTIST = "extra_artist";
+    public static final String EXTRA_ALBUM = "extra_album";
+    public static final String EXTRA_IS_PLAYING = "extra_is_playing";
+
+    private static final String ACTION_PLAY_PAUSE = "com.nocturne.audiophile.ACTION_PLAY_PAUSE";
+    private static final String ACTION_NEXT = "com.nocturne.audiophile.ACTION_NEXT";
+    private static final String ACTION_PREV = "com.nocturne.audiophile.ACTION_PREVIOUS";
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        ensureNotificationChannel();
+    }
+
+    @Override
+    public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            stopForegroundCompat();
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
+        String title = intent != null ? intent.getStringExtra(EXTRA_TITLE) : null;
+        String artist = intent != null ? intent.getStringExtra(EXTRA_ARTIST) : null;
+        String album = intent != null ? intent.getStringExtra(EXTRA_ALBUM) : null;
+        boolean isPlaying = intent == null || intent.getBooleanExtra(EXTRA_IS_PLAYING, true);
+
+        Notification notification = buildNotification(title, artist, album, isPlaying);
+        try {
+            if (Build.VERSION.SDK_INT >= 29) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                );
+            } else {
+                startForeground(NOTIFICATION_ID, notification);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to enter foreground playback state: " + e.getMessage(), e);
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.notify(NOTIFICATION_ID, notification);
+            }
+        }
+
+        return START_STICKY;
+    }
+
+    private void stopForegroundCompat() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+            } else {
+                stopForeground(true);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void ensureNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null && nm.getNotificationChannel(CHANNEL_ID) == null) {
+                NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "Nocturne Hi-Res Playback",
+                    NotificationManager.IMPORTANCE_LOW
+                );
+                channel.setDescription("Background Hi-Res and Bit-Perfect audio playback controls");
+                channel.setShowBadge(false);
+                channel.setSound(null, null);
+                nm.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    private Notification buildNotification(String title, String artist, String album, boolean isPlaying) {
+        int piFlags = PendingIntent.FLAG_UPDATE_CURRENT
+            | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
+
+        Intent prevIntent = new Intent(ACTION_PREV).setPackage(getPackageName());
+        PendingIntent pPrev = PendingIntent.getBroadcast(this, 101, prevIntent, piFlags);
+
+        Intent playPauseIntent = new Intent(ACTION_PLAY_PAUSE).setPackage(getPackageName());
+        PendingIntent pPlayPause = PendingIntent.getBroadcast(this, 102, playPauseIntent, piFlags);
+
+        Intent nextIntent = new Intent(ACTION_NEXT).setPackage(getPackageName());
+        PendingIntent pNext = PendingIntent.getBroadcast(this, 103, nextIntent, piFlags);
+
+        Intent contentIntent = new Intent(this, MainActivity.class);
+        contentIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent contentPendingIntent = PendingIntent.getActivity(this, 100, contentIntent, piFlags);
+
+        String displayTitle = (title != null && !title.trim().isEmpty()) ? title.trim() : "Nocturne Audiophile";
+        String displayArtist = (artist != null && !artist.trim().isEmpty()) ? artist.trim() : "Nocturne Hi-Res Audio";
+        String displayAlbum = (album != null && !album.trim().isEmpty()) ? album.trim() : null;
+
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(displayTitle)
+            .setContentText(displayArtist)
+            .setSubText(displayAlbum)
+            .setOngoing(isPlaying)
+            .setAutoCancel(false)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentIntent(contentPendingIntent)
+            .addAction(android.R.drawable.ic_media_previous, "Previous", pPrev)
+            .addAction(
+                isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
+                isPlaying ? "Pause" : "Play",
+                pPlayPause
+            )
+            .addAction(android.R.drawable.ic_media_next, "Next", pNext)
+            .build();
+    }
+
+    @Override
+    public void onDestroy() {
+        stopForegroundCompat();
+        super.onDestroy();
+    }
+
+    @Nullable
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
+}

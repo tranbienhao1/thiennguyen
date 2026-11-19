@@ -65,7 +65,7 @@ function fetchEvent(request) { const event = {request, respondWith(promise) { ev
   await dispatch('install');
   assert.equal(sandbox.self.skipWaitingCalled, true, 'Install should skip waiting so the new worker activates');
   let shellCache = cacheStore.get(cacheName);
-  assert.ok(shellCache && shellCache.entries.size === 9 && shellCache.entries.has(shellUrl('index.html')), 'Install should precache all 9 app-shell entries');
+  assert.ok(shellCache && shellCache.entries.size === 17 && shellCache.entries.has(shellUrl('index.html')), 'Install should precache all 17 app-shell entries');
   // Pha C: một file precache lỗi không được chặn cả lượt cài đặt — worker
   // mới vẫn phải kích hoạt để trình duyệt không kẹt với worker DSD cũ, và
   // các file còn lại vẫn được cache; file lỗi sẽ được nạp lại khi online.
@@ -75,13 +75,13 @@ function fetchEvent(request) { const event = {request, respondWith(promise) { ev
   await dispatch('install');
   assert.equal(sandbox.self.skipWaitingCalled, true, 'Install with one failing file should still skip waiting so the new worker activates');
   const partialCache = cacheStore.get(cacheName);
-  assert.ok(partialCache && partialCache.entries.size === 8, 'Install with one failing file should still precache the other 8 app-shell entries');
+  assert.ok(partialCache && partialCache.entries.size === 16, 'Install with one failing file should still precache the other 16 app-shell entries');
   assert.equal(partialCache.entries.has(shellUrl('icons/icon.svg')), false, 'The failing file should be the only entry missing after a partial install');
   assert.ok(partialCache.entries.has(shellUrl('dsd-worker.js')), 'A partial install should still precache the DSD worker script');
   networkFailures.delete(shellUrl('icons/icon.svg'));
   await dispatch('install');
   shellCache = cacheStore.get(cacheName);
-  assert.equal(shellCache.entries.size, 9, 'Reinstall after the failure clears should precache all 9 app-shell entries again');
+  assert.equal(shellCache.entries.size, 17, 'Reinstall after the failure clears should precache all 17 app-shell entries again');
   // Activate: xoá cache cũ và chiếm quyền điều khiển ngay.
   cacheStore.set('nocturne-v0', new FakeCache());
   await dispatch('activate');
@@ -101,13 +101,13 @@ function fetchEvent(request) { const event = {request, respondWith(promise) { ev
   assert.equal((await pruned).body, `network:${shellUrl('metadata-ui.js')}`, 'Fetch that triggers pruning should still return the network response');
   assert.equal(shellCache.entries.has(`${shellUrl('index.html')}?v=2`), false, 'Versioned duplicate of a shell file should be pruned after a write');
   assert.equal(shellCache.entries.has(`${ORIGIN}/thiennguyen/other.js`), false, 'Non-shell same-origin entry should be pruned after a write');
-  assert.equal(shellCache.entries.size, 9, 'Shell cache should keep exactly the 9 canonical app-shell entries');
+  assert.equal(shellCache.entries.size, 17, 'Shell cache should keep exactly the 9 canonical app-shell entries');
   assert.equal(shellCache.entries.get(shellUrl('metadata-ui.js')).body, `network:${shellUrl('metadata-ui.js')}`, 'Canonical entry should be refreshed by the fetch');
   // Pha C: activate cũng dọn rác đã tích lũy từ các bản worker trước.
   shellCache.entries.set(`${shellUrl('index.html')}?v=3`, new FakeResponse('stale-activate'));
   await dispatch('activate');
   assert.equal(shellCache.entries.has(`${shellUrl('index.html')}?v=3`), false, 'Activate should prune versioned duplicates left by older workers');
-  assert.equal(shellCache.entries.size, 9, 'Activate should keep exactly the 9 canonical app-shell entries');
+  assert.equal(shellCache.entries.size, 17, 'Activate should keep exactly the 9 canonical app-shell entries');
   // Offline: navigation và worker script được phục vụ từ cache.
   networkUp = false;
   const offlineNav = await fetchEvent(makeRequest(shellUrl('./'), {mode: 'navigate'}));

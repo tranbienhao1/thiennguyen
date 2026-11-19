@@ -38,6 +38,43 @@
       aspect-ratio: 1 / 1;
       object-fit: cover;
     }
+    @keyframes nowPlayingFlash {
+      0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7); background-color: rgba(139, 92, 246, 0.22); }
+      100% { box-shadow: 0 0 0 10px rgba(139, 92, 246, 0); background-color: transparent; }
+    }
+    .now-playing-flash {
+      animation: nowPlayingFlash 1.1s ease-out;
+    }
+    /* v2.6.0 Legacy Android (Android 8-11 / Chromium 74-90 / Low-RAM DAP) Performance Mode */
+    body.legacy-android *,
+    html.legacy-android * {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+    body.legacy-android #ambient-glow,
+    body.legacy-android #app-ambient-backdrop {
+      display: none !important;
+      animation: none !important;
+    }
+    body.legacy-android .collection-card,
+    body.legacy-android .track-row {
+      transition: none !important;
+      box-shadow: none !important;
+    }
+    body.legacy-android #shortcuts-modal > div,
+    body.legacy-android #stats-modal > div,
+    body.legacy-android #queue-panel,
+    body.legacy-android #eq-panel,
+    body.legacy-android #sleep-panel {
+      background-color: rgba(18, 20, 24, 0.98) !important;
+    }
+    /* Chromium 74-87 fallback when CSS aspect-ratio is unsupported */
+    @supports not (aspect-ratio: 1 / 1) {
+      #collection-grid .collection-card img {
+        width: 100%;
+        height: 150px;
+      }
+    }
     .inset-0 {
       top: 0px !important;
       right: 0px !important;
@@ -91,6 +128,9 @@
     #roon-fullscreen-view.hidden, #roon-fullscreen-view[hidden],
     #autoeq-modal.hidden, #autoeq-modal[hidden],
     #command-palette-modal.hidden, #command-palette-modal[hidden],
+    #stats-modal.hidden, #stats-modal[hidden],
+    #shortcuts-modal.hidden, #shortcuts-modal[hidden],
+    #room-lyrics.hidden, #room-lyrics[hidden],
     #settings-error.hidden,
     #drop-target.hidden {
       display: none !important;
@@ -1415,7 +1455,7 @@
         </div>
         <div id="context-row">
           <button id="focus-button" type="button" aria-pressed="false">›&nbsp; Focus <span id="focus-heart">♥</span></button>
-          <div id="collection-tools"><button id="sort-button" type="button">By artist&nbsp;⌄</button><button id="filter-toggle" type="button" aria-expanded="false">⌕&nbsp; Filter</button></div>
+          <div id="collection-tools"><button id="jump-to-playing-btn" type="button" title="Cuộn nhanh tới bài đang phát (Phím G)">◎&nbsp; Đang phát</button><button id="sort-button" type="button">By artist&nbsp;⌄</button><button id="filter-toggle" type="button" aria-expanded="false">⌕&nbsp; Filter</button><button id="clear-filters-btn" type="button" class="hidden" title="Xóa toàn bộ bộ lọc & từ khóa tìm kiếm">✕&nbsp; Xóa lọc</button><button id="library-stats-btn" type="button" title="Thống kê thư viện Audiophile (Phím I)">📊</button><button id="shortcuts-help-btn" type="button" title="Bảng phím tắt (Phím ?)">?</button></div>
         </div>
         <div id="filter-controls" hidden>
           <select id="source-filter" aria-label="Lọc theo nguồn"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option><option value="Subsonic">Subsonic</option><option value="Jellyfin">Jellyfin</option><option value="Black Candy">Black Candy</option></select>
@@ -1499,10 +1539,19 @@
                 <button id="album-hero-play" type="button" class="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-violet-700/25 transition hover:bg-violet-500" title="Phát toàn bộ album">
                   <span>▶</span><span>Phát album</span>
                 </button>
+                <button id="album-hero-shuffle" type="button" class="flex items-center gap-1.5 rounded-xl border border-violet-400/30 bg-violet-500/15 px-3 py-2 text-xs font-medium text-violet-200 transition hover:bg-violet-500/25 hover:text-white" title="Phát ngẫu nhiên toàn bộ album/nghệ sĩ">
+                  <span>🔀</span><span>Ngẫu nhiên</span>
+                </button>
                 <button id="album-hero-queue" type="button" class="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white" title="Thêm toàn bộ album vào hàng đợi">
                   <span>＋</span><span>Hàng đợi</span>
                 </button>
-                <button id="album-hero-share" type="button" class="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-cyan-300 transition hover:bg-white/10 hover:text-cyan-200" title="Chia sẻ album qua liên kết hoặc tệp M3U8">
+                <button id="album-hero-fav-all" type="button" class="flex items-center gap-1.5 rounded-xl border border-pink-400/25 bg-pink-500/10 px-3 py-2 text-xs font-medium text-pink-300 transition hover:bg-pink-500/20 hover:text-pink-200" title="Đánh dấu yêu thích toàn bộ bài trong album">
+                  <span>♥</span><span>Thích hết</span>
+                </button>
+                <button id="album-hero-m3u8" type="button" class="flex items-center gap-1.5 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20 hover:text-emerald-200" title="Xuất danh sách bài của album thành tệp M3U8">
+                  <span>⬇</span><span>M3U8</span>
+                </button>
+                <button id="album-hero-share" type="button" class="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-cyan-300 transition hover:bg-white/10 hover:text-cyan-200" title="Chia sẻ album qua liên kết">
                   <span>🔗</span><span>Chia sẻ</span>
                 </button>
                 <button id="album-hero-back" type="button" class="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400 transition hover:bg-white/10 hover:text-white" title="Quay lại danh sách album">
@@ -1571,6 +1620,8 @@
             <button id="play-button" class="grid h-10 w-10 place-items-center rounded-full bg-white text-zinc-950 transition hover:scale-105 shadow-md active:scale-95" aria-label="Phát">▶</button>
             <button id="next-button" class="text-xl text-zinc-300 hover:text-white transition p-1" aria-label="Bài tiếp">›</button>
             <button id="repeat-button" class="text-sm text-zinc-400 hover:text-violet-300 transition p-1" title="Lặp lại">↻</button>
+            <button id="ab-loop-btn" class="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 hover:text-amber-300 hover:border-amber-400/40 transition" title="Lặp đoạn A-B cho Audiophile test tai nghe (Phím A)">A-B</button>
+            <button id="speed-btn" class="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 hover:text-cyan-300 hover:border-cyan-400/40 transition" title="Tốc độ phát (0.75x – 2.0x)">1.0x</button>
           </div>
           <div class="hidden w-full items-center justify-center gap-2.5 sm:flex pointer-events-auto"><span id="current-time" class="w-10 text-right text-[11px] font-mono tabular-nums text-zinc-400 shrink-0">0:00</span><input id="seek" class="seek-range flex-1 h-1.5 cursor-pointer" type="range" min="0" max="1000" value="0" aria-label="Tua bài hát"><span id="duration" class="w-10 text-left text-[11px] font-mono tabular-nums text-zinc-400 shrink-0">0:00</span></div>
         </div>
@@ -2885,6 +2936,37 @@
       <span>Thêm vào cuối</span>
     </button>
   </div>
+  <div id="shortcuts-modal" class="hidden fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" hidden role="dialog" aria-modal="true" aria-labelledby="shortcuts-modal-title">
+    <div class="w-full max-w-md rounded-2xl border border-white/15 bg-zinc-950/95 p-5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <h3 id="shortcuts-modal-title" class="text-sm font-semibold tracking-wide text-white">Phím tắt Audiophile</h3>
+        <button id="shortcuts-modal-close" type="button" class="rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-white/10 hover:text-white" aria-label="Đóng">✕</button>
+      </div>
+      <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-zinc-300">
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Phát / Tạm dừng</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-violet-200">Space / K</kbd></div>
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Tua ±10 giây</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-violet-200">← / →</kbd></div>
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Bài sau / trước</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-violet-200">N / P</kbd></div>
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Âm lượng ±5%</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-violet-200">↑ / ↓</kbd></div>
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Tới bài đang phát</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-violet-200">G</kbd></div>
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Phòng nghe toàn màn hình</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-violet-200">F</kbd></div>
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Trộn bài / Lặp lại</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-violet-200">S / R</kbd></div>
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Hàng đợi / EQ / Crossfade</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-violet-200">Q / E / X</kbd></div>
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Tìm nhanh (Palette)</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-violet-200">Ctrl+K / /</kbd></div>
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Lặp đoạn A-B</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-amber-200">A</kbd></div>
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Thống kê thư viện</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-emerald-200">I</kbd></div>
+        <div class="flex items-center justify-between rounded-lg bg-white/[.04] px-2.5 py-1.5"><span>Quay lại / Đóng</span><kbd class="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-violet-200">Esc</kbd></div>
+      </div>
+    </div>
+  </div>
+  <div id="stats-modal" class="hidden fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" hidden role="dialog" aria-modal="true" aria-labelledby="stats-modal-title">
+    <div class="w-full max-w-lg rounded-2xl border border-white/15 bg-zinc-950/95 p-5 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <h3 id="stats-modal-title" class="text-sm font-semibold tracking-wide text-white">📊 Thống kê thư viện Audiophile</h3>
+        <button id="stats-modal-close" type="button" class="rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-white/10 hover:text-white" aria-label="Đóng">✕</button>
+      </div>
+      <div id="stats-modal-body" class="mt-4 space-y-4 text-xs text-zinc-300"></div>
+    </div>
+  </div>
   <div id="toast" class="pointer-events-none fixed top-6 sm:top-8 left-1/2 z-[120] hidden -translate-x-1/2 rounded-full border border-white/15 bg-zinc-900/95 px-5 py-2.5 text-xs font-medium text-zinc-100 shadow-[0_12px_36px_rgba(0,0,0,0.6)] backdrop-blur-xl transition-all duration-200 select-none max-w-[min(90vw,480px)] text-center"></div>
   <div id="update-banner" class="fixed left-1/2 top-4 z-[70] hidden w-[min(92vw,480px)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-violet-300/25 bg-[#181422]/95 px-4 py-3 shadow-2xl shadow-black/50 backdrop-blur-xl" role="status" aria-live="polite">
     <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 text-base text-violet-200">↻</span>
@@ -3003,7 +3085,7 @@
       if (!cover.startsWith('data:image')) return cover;
       return cover.length > MAX_CATALOG_COVER_CHARS ? null : cover;
     }
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', name:track.name, title:track.title, artist:track.artist, album:track.album, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, savedAt:Date.now()});
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, savedAt:Date.now()});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
       return {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', thumbnailUrl:file.thumbnailLink || '', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
@@ -3033,6 +3115,53 @@
     }
     let cloudMetadataQueue = [], cloudMetadataActive = 0;
     let cloudCatalogResetting = false;
+    function safeCssEscape(val) {
+      const s = String(val == null ? '' : val);
+      if (typeof CSS !== 'undefined' && CSS && typeof CSS.escape === 'function') return CSS.escape(s);
+      return s.replace(/([^a-zA-Z0-9_-])/g, '\\$1');
+    }
+    function detectLegacyAndroidEnvironment() {
+      try {
+        const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+        const isOldAndroidUa = /Android\s+(?:[5-9]|1[01])(?:\.|\b)/i.test(ua);
+        const chromeMatch = ua.match(/Chrome\/(\d+)/i);
+        const isOldChrome = Boolean(chromeMatch && parseInt(chromeMatch[1], 10) < 90);
+        const nativeSdk = (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.getAndroidSdk === 'function')
+          ? Number(window.NocturneNative.getAndroidSdk()) : 0;
+        const isOldNativeSdk = nativeSdk > 0 && nativeSdk <= 30;
+        const lowRam = Boolean(typeof navigator !== 'undefined' && typeof navigator.deviceMemory === 'number' && navigator.deviceMemory <= 3);
+        const lowCores = Boolean(typeof navigator !== 'undefined' && typeof navigator.hardwareConcurrency === 'number' && navigator.hardwareConcurrency <= 4 && /Android/i.test(ua));
+        return Boolean(isOldAndroidUa || isOldChrome || isOldNativeSdk || (lowRam && /Android/i.test(ua)) || lowCores);
+      } catch (_) {
+        return false;
+      }
+    }
+    const IS_LEGACY_ANDROID = detectLegacyAndroidEnvironment();
+    if (IS_LEGACY_ANDROID && typeof document !== 'undefined') {
+      try {
+        document.documentElement.classList.add('legacy-android');
+        if (document.body) document.body.classList.add('legacy-android');
+      } catch (_) {}
+    }
+    if (typeof window !== 'undefined') {
+      window.IS_LEGACY_ANDROID = IS_LEGACY_ANDROID;
+      window.onAndroidLowMemory = function(level) {
+        try {
+          if (typeof pauseCloudMetadataQueue === 'function') pauseCloudMetadataQueue(30000);
+          if (typeof setVisualizerRunning === 'function') setVisualizerRunning(false);
+          if (typeof state !== 'undefined' && state && state.objectUrls && state.objectUrls.size > 4) {
+            const activeSrc = (typeof audio !== 'undefined' && audio && audio.src) ? audio.src : '';
+            for (const url of [...state.objectUrls]) {
+              if (url !== activeSrc && url !== state.dsdUrl && url !== state.preloadReadyUrl) {
+                try { URL.revokeObjectURL(url); } catch (_) {}
+                state.objectUrls.delete(url);
+              }
+            }
+          }
+          console.warn('[LegacyAndroid] Low memory trim executed, level=' + level);
+        } catch (_) {}
+      };
+    }
     const CLOUD_METADATA_CONCURRENCY = 3;
     const cloudMetadataQueued = new WeakSet();
     let playbackLoadingTimeout = null;
@@ -3053,6 +3182,27 @@
         runCloudMetadataQueue();
       }
     }
+    let cloudMetadataPausedUntil = 0;
+    let cloudMetadataResumeTimer = null;
+    function pauseCloudMetadataQueue(durationMs = 12000) {
+      const targetUntil = Date.now() + Math.max(1000, Number(durationMs) || 12000);
+      if (targetUntil > cloudMetadataPausedUntil) cloudMetadataPausedUntil = targetUntil;
+      if (cloudMetadataResumeTimer) clearTimeout(cloudMetadataResumeTimer);
+      cloudMetadataResumeTimer = setTimeout(() => {
+        cloudMetadataResumeTimer = null;
+        cloudMetadataPausedUntil = 0;
+        runCloudMetadataQueue();
+      }, Math.max(1000, cloudMetadataPausedUntil - Date.now()) + 50);
+    }
+    function resumeCloudMetadataQueue() {
+      cloudMetadataPausedUntil = 0;
+      if (cloudMetadataResumeTimer) { clearTimeout(cloudMetadataResumeTimer); cloudMetadataResumeTimer = null; }
+      runCloudMetadataQueue();
+    }
+    if (typeof window !== 'undefined') {
+      window.pauseCloudMetadataQueue = pauseCloudMetadataQueue;
+      window.resumeCloudMetadataQueue = resumeCloudMetadataQueue;
+    }
     function queueCloudMetadata(tracks) {
       for (const track of tracks) {
         if (!track || !['google','onedrive'].includes(track.source) || (track.metadataLoaded && track.cover) || cloudMetadataQueued.has(track)) continue;
@@ -3064,8 +3214,10 @@
       runCloudMetadataQueue();
     }
     function runCloudMetadataQueue() {
+      if (cloudMetadataPausedUntil && Date.now() < cloudMetadataPausedUntil) return;
       if (state.isPlaybackLoading) return;
-      while (cloudMetadataActive < CLOUD_METADATA_CONCURRENCY && cloudMetadataQueue.length) {
+      const maxMetaConcurrency = IS_LEGACY_ANDROID ? 1 : CLOUD_METADATA_CONCURRENCY;
+      while (cloudMetadataActive < maxMetaConcurrency && cloudMetadataQueue.length) {
         if (state.isPlaybackLoading) break;
         const track = cloudMetadataQueue.shift();
         if (!track) continue;
@@ -4253,6 +4405,7 @@
         // chờ enrichCloudTrack xong mới tải lát đầu nên bấm phát vẫn chậm;
         // giờ bài hát bắt đầu phát từ lát đầu ngay, tag/cover cập nhật
         // khi đọc xong (enrichCloudTrack tự render lại khi có thay đổi).
+        if (typeof pauseCloudMetadataQueue === 'function') pauseCloudMetadataQueue(12000);
         if (!track.metadataLoaded || !track.cover) queueCloudMetadata([track]);
         // Pha C — cache lát đầu: bài đã phát trước đây có lát đầu trong
         // IndexedDB thì phát ngay không chờ mạng, lỗi đọc thì tải mạng.
@@ -5519,7 +5672,10 @@
       }
 
       const playBtn = $('album-hero-play');
+      const shuffleBtn = $('album-hero-shuffle');
       const queueBtn = $('album-hero-queue');
+      const favAllBtn = $('album-hero-fav-all');
+      const m3u8Btn = $('album-hero-m3u8');
       const shareBtn = $('album-hero-share');
       const backBtn = $('album-hero-back');
 
@@ -5538,6 +5694,21 @@
           }
         };
       }
+      if (shuffleBtn) {
+        shuffleBtn.onclick = () => {
+          const pool = [...(entry.tracks || [])];
+          if (!pool.length) return;
+          for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+          }
+          state.playbackContext = { type: isAlbum ? 'album' : 'artist', key: entry.key, name: entry.name, trackIds: pool.map(t => t.id) };
+          state.queueTrackIds = pool.slice(1).map(t => t.id);
+          renderQueue();
+          playTrack(pool[0].id);
+          toast(`Đang phát ngẫu nhiên: ${entry.name} (${pool.length} bài)`);
+        };
+      }
       if (queueBtn) {
         queueBtn.onclick = () => {
           let count = 0;
@@ -5549,6 +5720,45 @@
           }
           renderQueue();
           toast(`Đã thêm ${count} bài vào hàng đợi.`);
+        };
+      }
+      if (favAllBtn) {
+        favAllBtn.onclick = () => {
+          const listTracks = entry.tracks || [];
+          if (!listTracks.length) return;
+          let addedFav = 0;
+          if (!(state.favorites instanceof Set)) state.favorites = new Set(Array.isArray(state.favorites) ? state.favorites : []);
+          for (const t of listTracks) {
+            const key = typeof trackKey === 'function' ? trackKey(t) : t.id;
+            if (!state.favorites.has(key)) { state.favorites.add(key); addedFav++; }
+            t.favorite = true;
+          }
+          if (typeof saveFavorites === 'function') saveFavorites();
+          if (typeof renderTracks === 'function') renderTracks();
+          toast(addedFav ? `Đã thêm ${addedFav} bài trong "${entry.name}" vào Yêu thích ♥` : `Toàn bộ "${entry.name}" đã có trong Yêu thích ♥`);
+        };
+      }
+      if (m3u8Btn) {
+        m3u8Btn.onclick = () => {
+          const listTracks = entry.tracks || [];
+          if (!listTracks.length) return toast('Album chưa có bài hát để xuất M3U8.');
+          const lines = ['#EXTM3U', `#PLAYLIST:${entry.name || 'Album'}`];
+          for (const t of listTracks) {
+            const m = (typeof library !== 'undefined' && library.trackMetadata) ? library.trackMetadata(t) : t;
+            const dur = Math.round(Number(t.duration) || -1);
+            lines.push(`#EXTINF:${dur},${m.artist || 'Unknown'} - ${m.title || t.name || 'Track'}`);
+            lines.push(t.remotePath || t.path || t.name || t.id);
+          }
+          const blob = new Blob([lines.join('\n') + '\n'], { type: 'audio/x-mpegurl;charset=utf-8' });
+          const dlUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = dlUrl;
+          a.download = `${String(entry.name || 'album').replace(/[^\w\s.-]/g, '_')}.m3u8`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(dlUrl), 1500);
+          toast(`Đã xuất tệp M3U8 cho "${entry.name}" (${listTracks.length} bài).`);
         };
       }
       if (shareBtn) {
@@ -6047,9 +6257,23 @@
             var titleB = getTitle(b);
             return (state.sortAsc ? 1 : -1) * titleA.localeCompare(titleB, 'vi');
           });
-      const groups = isAlbumScope && (!state.groupBy || state.groupBy === 'none' || state.currentCollectionEntry.action === 'album')
-        ? [{label:'', tracks: shown}]
-        : groupTracks(shown, state.groupBy);
+      let groups;
+      if (isAlbumScope && (!state.groupBy || state.groupBy === 'none' || state.currentCollectionEntry.action === 'album')) {
+        const isSingleAlbum = state.currentCollectionEntry && state.currentCollectionEntry.action === 'album';
+        const discMap = new Map();
+        if (isSingleAlbum && typeof library.getTrackOrderInfo === 'function') {
+          for (const t of shown) {
+            const d = library.getTrackOrderInfo(t).discNumber || 1;
+            if (!discMap.has(d)) discMap.set(d, []);
+            discMap.get(d).push(t);
+          }
+        }
+        groups = discMap.size > 1
+          ? [...discMap.entries()].sort((a, b) => a[0] - b[0]).map(([discNo, listTracks]) => ({ label: `Disc ${discNo}`, tracks: listTracks }))
+          : [{label:'', tracks: shown}];
+      } else {
+        groups = groupTracks(shown, state.groupBy);
+      }
       // Pha B — Versions kiểu Roon: gộp các bản trùng (cùng tiêu đề +
       // nghệ sĩ) thành một hàng chính + huy hiệu "N phiên bản"; các bản
       // còn lại chỉ hiện khi mở rộng, vẫn phát/cho vào hàng đợi được.
@@ -6309,6 +6533,17 @@
       recordTrackRowsRender(performance.now() - startedAt, renderedTracks.length, false);
     }
     function renderTracks() {
+      const cfBtn = $('clear-filters-btn');
+      if (cfBtn) {
+        const hasFilter = Boolean(
+          (state.query && String(state.query).trim()) ||
+          (state.sourceFilter && state.sourceFilter !== 'all') ||
+          (state.artistFilter && state.artistFilter !== '*') ||
+          (state.albumFilter && state.albumFilter !== '*') ||
+          (state.focusFilter && state.focusFilter !== 'all')
+        );
+        cfBtn.classList.toggle('hidden', !hasFilter);
+      }
       const force = arguments[0];
       if (!force && isUserScrolling && !state.trackScope && ['albums', 'artists', 'genres', 'composers'].includes(state.activeView)) {
         pendingBackgroundTrackRender = true;
@@ -6586,7 +6821,8 @@
     // hành vi cũ (ramp nhanh 18 ms). Deck cũ giữ mức bắt đầu thực tế của
     // nó (đang fade dở thì không nhảy về 1). Trả về thời lượng fade (giây).
     function applyCrossfade(context, oldDeck, newDeck, seconds) {
-      const duration = library.clampCrossfadeSeconds(seconds, 0);
+      const effectiveSeconds = (typeof state !== 'undefined' && state && state.bitPerfectEnabled) ? 0 : seconds;
+      const duration = library.clampCrossfadeSeconds(effectiveSeconds, 0);
       const now = context ? context.currentTime : 0;
       if (!duration || !oldDeck || !newDeck) {
         const isNotRunning = Boolean(context && typeof context.state === 'string' && context.state !== 'running');
@@ -10532,6 +10768,8 @@
       if (shouldOpen) {
         /* $('listening-room')?.classList.add('hidden') */ safeClass($('listening-room'), 'add', 'hidden');
       }
+      view.hidden = !shouldOpen;
+      if (shouldOpen) view.removeAttribute('hidden');
       view.classList.toggle('hidden', !shouldOpen);
       view.classList.toggle('flex', shouldOpen);
       if (shouldOpen) {
@@ -10550,6 +10788,34 @@
     }
     const closeRoonFullscreen = () => toggleRoonFullscreen(false);
     window.toggleRoonFullscreen = toggleRoonFullscreen;
+    // v2.6.1 Auto-sync native [hidden] attribute with .hidden class on all modals/panels
+    (function setupHiddenAttributeSync() {
+      if (typeof MutationObserver === 'undefined' || typeof document === 'undefined') return;
+      const panelIds = [
+        'queue-panel', 'roon-fullscreen-view', 'listening-room', 'ambient-panel',
+        'zone-modal', 'signal-path-popover', 'mini-player-hud', 'metadata-modal',
+        'command-palette-modal', 'autoeq-modal', 'eq-panel', 'sleep-panel',
+        'shortcuts-modal', 'stats-modal', 'sidebar-backdrop', 'drop-target',
+        'app-ambient-backdrop', 'ambient-glow', 'fullscreen-bg-cover', 'fullscreen-ambient-glow'
+      ];
+      const obs = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          const el = m.target;
+          if (!el || !el.classList) continue;
+          const isClassHidden = el.classList.contains('hidden');
+          if (!isClassHidden && el.hasAttribute('hidden')) {
+            el.hidden = false;
+            el.removeAttribute('hidden');
+          } else if (isClassHidden && !el.hasAttribute('hidden')) {
+            el.hidden = true;
+          }
+        }
+      });
+      for (const id of panelIds) {
+        const el = document.getElementById(id);
+        if (el) obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+      }
+    })();
     window.closeRoonFullscreen = closeRoonFullscreen;
 
     function updateRoonFullscreenUI() {
@@ -11096,6 +11362,7 @@
       if (track.source === 'local' && !track.isDsd && !track.url && track.file) { track.url = URL.createObjectURL(track.file); state.objectUrls.add(track.url); }
       const generation = ++state.playGeneration;
       state.autoCrossfadeGeneration = 0;
+      if (typeof resetAbLoop === 'function') resetAbLoop(true);
       state.bpmEnergyHistory = [];
       const roomBpmInit = $('room-bpm-badge');
       if (roomBpmInit) roomBpmInit.textContent = '-- BPM';
@@ -11146,6 +11413,9 @@
       }
 
       const cachedCloudUrl = wasPreloaded || (track.url && state.objectUrls.has(track.url));
+      if (track.source === 'google' || track.source === 'onedrive') {
+        if (typeof pauseCloudMetadataQueue === 'function') pauseCloudMetadataQueue(12000);
+      }
       if (track.load && !cachedCloudUrl) {
         if (typeof navigator !== 'undefined' && navigator.onLine === false) {
           const canPlay = typeof (library && library.canPlayOffline) === 'function' ? library.canPlayOffline(track) : (track.source === 'local' || !!track.file || !!track.blob);
@@ -11287,6 +11557,7 @@
         setPlaybackLoading(false);
         if (generation !== state.playGeneration) return;
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+        if (typeof resumeCloudMetadataQueue === 'function') resumeCloudMetadataQueue();
         const mode = wasPreloaded ? 'preload' : track.source === 'local' ? 'local' : track.firstSlicePlayback ? 'slice' : 'full';
         recordTimeToFirstAudio(track, playRequestedAt, performance.now(), mode);
         if (track.id === state.currentId) renderRoomSignal(track);
@@ -11301,6 +11572,7 @@
       } catch (error) {
         setPlaybackLoading(false);
         console.error('Playback failed:', error);
+        if (typeof resumeCloudMetadataQueue === 'function') resumeCloudMetadataQueue();
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         const playBtn = $('play-button');
         if (playBtn && playBtn.textContent === '…') playBtn.textContent = '▶';
@@ -14530,8 +14802,8 @@
       const row = $('queue-list').querySelector('[data-queue-current-row]');
       if (row && typeof row.scrollIntoView === 'function') row.scrollIntoView({block: 'start'});
     }
-    const openQueue = () => { $('queue-panel').classList.remove('hidden'); renderQueue(); scrollQueueToCurrent(); };
-    const closeQueue = () => $('queue-panel').classList.add('hidden');
+    const openQueue = () => { const qp = $('queue-panel'); if (qp) { qp.hidden = false; qp.removeAttribute('hidden'); qp.classList.remove('hidden'); } renderQueue(); scrollQueueToCurrent(); };
+    const closeQueue = () => { const qp = $('queue-panel'); if (qp) { qp.classList.add('hidden'); qp.hidden = true; } };
     $('queue-button').addEventListener('click', openQueue);
     $('queue-button-mobile').addEventListener('click', openQueue);
     $('autoplay-button-mobile').addEventListener('click', () => $('autoplay-button').click());
@@ -14898,8 +15170,295 @@
       else if (event.key.toLowerCase() === 'q') $('queue-panel').classList.contains('hidden') ? openQueue() : closeQueue();
       else if (event.key.toLowerCase() === 'e') cycleEqPreset();
       else if (event.key.toLowerCase() === 'x') toggleCrossfade();
-      else if (event.key === 'Escape') { closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); $('sleep-panel').hidden = true; toggleAmbientPanel(false); }
+      else if (event.key.toLowerCase() === 'g') { event.preventDefault(); if (typeof jumpToNowPlaying === 'function') jumpToNowPlaying(); }
+      else if (event.key.toLowerCase() === 'f') { event.preventDefault(); if (typeof openListeningRoom === 'function') openListeningRoom(); }
+      else if (event.key.toLowerCase() === 's') { event.preventDefault(); const sb = $('shuffle-button'); if (sb) sb.click(); }
+      else if (event.key.toLowerCase() === 'r') { event.preventDefault(); const rb = $('repeat-button'); if (rb) rb.click(); }
+      else if (event.key.toLowerCase() === 'a') { event.preventDefault(); if (typeof cycleAbLoop === 'function') cycleAbLoop(); }
+      else if (event.key.toLowerCase() === 'i') { event.preventDefault(); if (typeof toggleStatsModal === 'function') toggleStatsModal(); }
+      else if (event.key === '?') { event.preventDefault(); if (typeof toggleShortcutsModal === 'function') toggleShortcutsModal(); }
+      else if (event.key === 'Escape') {
+        const stM = $('stats-modal');
+        if (stM && !stM.hidden && !stM.classList.contains('hidden')) { toggleStatsModal(false); return; }
+        const sm = $('shortcuts-modal');
+        if (sm && !sm.hidden && !sm.classList.contains('hidden')) { toggleShortcutsModal(false); return; }
+        closeListeningRoom(); closeQueue(); $('sleep-panel').classList.add('hidden'); $('sleep-panel').hidden = true; toggleAmbientPanel(false);
+        if ((state.currentCollectionEntry || state.selectedArtistEntry) && typeof handleCollectionBack === 'function') handleCollectionBack();
+      }
     });
+
+    function toggleShortcutsModal(forceOpen) {
+      const modal = $('shortcuts-modal');
+      if (!modal) return;
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : (modal.hidden || modal.classList.contains('hidden'));
+      modal.classList.toggle('hidden', !shouldOpen);
+      modal.hidden = !shouldOpen;
+    }
+    window.toggleShortcutsModal = toggleShortcutsModal;
+
+    function jumpToNowPlaying() {
+      if (!state.currentId) { toast('Chưa có bài hát nào đang phát.'); return; }
+      const list = $('track-list');
+      if (list && list._virtualTrackList && Array.isArray(list._virtualTrackList.items)) {
+        const idxInVirt = list._virtualTrackList.items.findIndex(item => item && String(item.id) === String(state.currentId));
+        if (idxInVirt >= 0) {
+          list._virtualTrackList.scrollToIndex(idxInVirt);
+          setTimeout(() => {
+            const row = list.querySelector(`[data-track-id="${safeCssEscape(String(state.currentId))}"]`);
+            if (row) { row.classList.remove('now-playing-flash'); void row.offsetWidth; row.classList.add('now-playing-flash'); }
+          }, 80);
+          return;
+        }
+      }
+      const row = list ? list.querySelector(`[data-track-id="${safeCssEscape(String(state.currentId))}"]`) : null;
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.classList.remove('now-playing-flash'); void row.offsetWidth; row.classList.add('now-playing-flash');
+        return;
+      }
+      // Nếu bài đang phát không ở view hiện tại, chuyển về tab Bài hát rồi cuộn tới
+      if (typeof setLibraryView === 'function') {
+        setLibraryView('songs');
+        setTimeout(() => {
+          const l2 = $('track-list');
+          if (l2 && l2._virtualTrackList && Array.isArray(l2._virtualTrackList.items)) {
+            const idx2 = l2._virtualTrackList.items.findIndex(item => item && String(item.id) === String(state.currentId));
+            if (idx2 >= 0) l2._virtualTrackList.scrollToIndex(idx2);
+          } else {
+            const r2 = l2 ? l2.querySelector(`[data-track-id="${safeCssEscape(String(state.currentId))}"]`) : null;
+            if (r2) { r2.scrollIntoView({ behavior: 'smooth', block: 'center' }); r2.classList.add('now-playing-flash'); }
+          }
+        }, 120);
+      }
+    }
+    window.jumpToNowPlaying = jumpToNowPlaying;
+
+    const jumpBtnEl = $('jump-to-playing-btn');
+    if (jumpBtnEl) jumpBtnEl.addEventListener('click', () => jumpToNowPlaying());
+    const shortcutsBtnEl = $('shortcuts-help-btn');
+    if (shortcutsBtnEl) shortcutsBtnEl.addEventListener('click', () => toggleShortcutsModal(true));
+    const shortcutsCloseEl = $('shortcuts-modal-close');
+    if (shortcutsCloseEl) shortcutsCloseEl.addEventListener('click', () => toggleShortcutsModal(false));
+    const shortcutsModalEl = $('shortcuts-modal');
+    if (shortcutsModalEl) shortcutsModalEl.addEventListener('click', (e) => { if (e.target === shortcutsModalEl) toggleShortcutsModal(false); });
+
+    // v2.4.0 Audiophile A-B Loop
+    state.abLoop = { a: null, b: null };
+    function updateAbLoopButton() {
+      const btn = $('ab-loop-btn');
+      if (!btn) return;
+      if (state.abLoop.a != null && state.abLoop.b != null) {
+        btn.textContent = 'A⇄B';
+        btn.classList.add('text-amber-300', 'border-amber-400/60', 'bg-amber-500/15');
+      } else if (state.abLoop.a != null) {
+        btn.textContent = 'A→…';
+        btn.classList.add('text-amber-300', 'border-amber-400/50');
+        btn.classList.remove('bg-amber-500/15');
+      } else {
+        btn.textContent = 'A-B';
+        btn.classList.remove('text-amber-300', 'border-amber-400/60', 'border-amber-400/50', 'bg-amber-500/15');
+      }
+    }
+    function resetAbLoop(silent) {
+      state.abLoop = { a: null, b: null };
+      updateAbLoopButton();
+      if (!silent) toast('Đã tắt lặp đoạn A-B.');
+    }
+    function cycleAbLoop() {
+      const curEl = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      if (!curEl || !curEl.src || !Number.isFinite(curEl.currentTime)) {
+        toast('Hãy phát một bài hát trước khi đặt lặp đoạn A-B.');
+        return;
+      }
+      if (state.abLoop.a == null) {
+        state.abLoop.a = curEl.currentTime;
+        state.abLoop.b = null;
+        updateAbLoopButton();
+        toast(`Đã đánh dấu điểm A tại ${formatTime(state.abLoop.a)} — nhấn A-B lần nữa để chốt điểm B.`);
+      } else if (state.abLoop.b == null) {
+        if (curEl.currentTime <= state.abLoop.a + 0.3) {
+          toast('Điểm B phải sau điểm A ít nhất 0.3 giây.');
+          return;
+        }
+        state.abLoop.b = curEl.currentTime;
+        curEl.currentTime = state.abLoop.a;
+        updateAbLoopButton();
+        toast(`Đang lặp A-B: ${formatTime(state.abLoop.a)} → ${formatTime(state.abLoop.b)}`);
+      } else {
+        resetAbLoop(false);
+      }
+    }
+    window.cycleAbLoop = cycleAbLoop;
+    window.resetAbLoop = resetAbLoop;
+    const abLoopBtnEl = $('ab-loop-btn');
+    if (abLoopBtnEl) abLoopBtnEl.addEventListener('click', () => cycleAbLoop());
+
+    // v2.4.0 Playback Speed Control (0.75x - 2.0x)
+    const PLAYBACK_SPEEDS = [1.0, 1.25, 1.5, 2.0, 0.75];
+    function cyclePlaybackSpeed() {
+      if (state.bitPerfectEnabled) {
+        state.playbackRate = 1.0;
+        if (audio) audio.playbackRate = 1.0;
+        if (standbyAudio) standbyAudio.playbackRate = 1.0;
+        toast('Đang bật Bit-Perfect: tốc độ phát khóa ở 1.0x để tránh resampling.');
+        return;
+      }
+      const cur = Number(state.playbackRate) || 1.0;
+      const idxSp = PLAYBACK_SPEEDS.findIndex(v => Math.abs(v - cur) < 0.01);
+      const next = PLAYBACK_SPEEDS[(idxSp + 1) % PLAYBACK_SPEEDS.length];
+      state.playbackRate = next;
+      if (audio) audio.playbackRate = next;
+      if (standbyAudio) standbyAudio.playbackRate = next;
+      const btn = $('speed-btn');
+      if (btn) {
+        btn.textContent = `${next.toFixed(next % 1 === 0 ? 1 : 2).replace(/0$/, '')}x`;
+        btn.classList.toggle('text-cyan-300', next !== 1.0);
+        btn.classList.toggle('border-cyan-400/50', next !== 1.0);
+      }
+      toast(`Tốc độ phát: ${next}x`);
+    }
+    window.cyclePlaybackSpeed = cyclePlaybackSpeed;
+
+    // v2.5.0 Bit-Perfect Telemetry & Native Format Lock Bridge
+    state.bitPerfectLockedFormat = null;
+    window.onBitPerfectFormatLocked = function(sampleRate, bitDepth, mixerBitPerfect, deviceName) {
+      state.bitPerfectLockedFormat = {
+        sampleRate: Number(sampleRate) || 0,
+        bitDepth: Number(bitDepth) || 16,
+        mixerBitPerfect: Boolean(mixerBitPerfect),
+        deviceName: String(deviceName || ''),
+        lockedAt: Date.now()
+      };
+      const badge = $('bitperfect-mode-badge');
+      if (badge && state.bitPerfectEnabled) {
+        const khz = sampleRate ? `${(sampleRate / 1000).toFixed(sampleRate % 1000 === 0 ? 0 : 1)}kHz` : '';
+        badge.textContent = mixerBitPerfect
+          ? `BIT-PERFECT LOCKED · ${bitDepth}bit/${khz}${deviceName ? ' · ' + deviceName : ''}`
+          : `DIRECT PCM · ${bitDepth}bit/${khz}${deviceName ? ' · ' + deviceName : ''}`;
+      }
+    };
+    window.getBitPerfectTelemetry = function() {
+      const curTrack = (state.tracks || []).find(t => t.id === state.currentId) || null;
+      const trackRate = curTrack && Number(curTrack.sampleRate) ? Number(curTrack.sampleRate) : 0;
+      const ctxRate = (state.context && Number(state.context.sampleRate)) ? Number(state.context.sampleRate) : 0;
+      const locked = state.bitPerfectLockedFormat;
+      const isNative = Boolean(state.isNativeBitPerfectPlaying);
+      const isRateMatched = isNative
+        ? Boolean(locked && (!trackRate || locked.sampleRate === trackRate))
+        : Boolean(state.bitPerfectEnabled && ctxRate > 0 && (!trackRate || ctxRate === trackRate));
+      return {
+        enabled: Boolean(state.bitPerfectEnabled),
+        mode: isNative ? (locked && locked.mixerBitPerfect ? 'android-usb-bitperfect' : 'android-direct-pcm') : (state.bitPerfectEnabled ? 'web-pure-direct' : 'standard-dsp'),
+        trackSampleRate: trackRate,
+        outputSampleRate: isNative && locked ? locked.sampleRate : ctxRate,
+        outputBitDepth: isNative && locked ? locked.bitDepth : (curTrack && curTrack.bitDepth ? Number(curTrack.bitDepth) : 0),
+        deviceName: locked ? locked.deviceName : '',
+        isRateMatched,
+        playbackRateLocked: Boolean(state.bitPerfectEnabled && (Number(state.playbackRate) || 1.0) === 1.0),
+        crossfadeBypassed: Boolean(state.bitPerfectEnabled)
+      };
+    };
+    const speedBtnEl = $('speed-btn');
+    if (speedBtnEl) speedBtnEl.addEventListener('click', () => cyclePlaybackSpeed());
+
+    // v2.4.0 Clear All Active Filters
+    function clearAllLibraryFilters() {
+      state.query = '';
+      if ($('search')) $('search').value = '';
+      if ($('search-mobile')) $('search-mobile').value = '';
+      if ($('source-filter')) $('source-filter').value = 'all';
+      if ($('artist-filter')) $('artist-filter').value = '*';
+      if ($('album-filter')) $('album-filter').value = '*';
+      if ($('group-by')) $('group-by').value = 'none';
+      state.sourceFilter = 'all';
+      state.artistFilter = '*';
+      state.albumFilter = '*';
+      state.groupBy = 'none';
+      state.focusFilter = 'all';
+      state.selectedArtistEntry = null;
+      state.currentCollectionEntry = null;
+      state.trackScope = null;
+      if ($('album-hero')) $('album-hero').classList.add('hidden');
+      renderTracks();
+      toast('Đã xóa toàn bộ bộ lọc.');
+    }
+    window.clearAllLibraryFilters = clearAllLibraryFilters;
+    const clearFiltersBtnEl = $('clear-filters-btn');
+    if (clearFiltersBtnEl) clearFiltersBtnEl.addEventListener('click', () => clearAllLibraryFilters());
+
+    // v2.4.0 Audiophile Library Stats Modal
+    function renderLibraryStatsModal() {
+      const body = $('stats-modal-body');
+      if (!body) return;
+      const all = state.tracks || [];
+      const albumsSet = new Set();
+      const artistCounts = new Map();
+      let totalSec = 0, totalBytes = 0;
+      const tiers = { dsd: 0, hires: 0, lossless: 0, lossy: 0 };
+      const sources = { local: 0, google: 0, onedrive: 0, other: 0 };
+      for (const t of all) {
+        const m = (typeof library !== 'undefined' && library.trackMetadata) ? library.trackMetadata(t) : t;
+        const alb = m.album || 'Unknown';
+        const art = m.artist || 'Unknown';
+        albumsSet.add(`${alb}\t${art}`);
+        artistCounts.set(art, (artistCounts.get(art) || 0) + 1);
+        totalSec += Number(t.duration) || 0;
+        totalBytes += Number(t.size) || 0;
+        const fmt = String(t.format || '').toUpperCase();
+        if (t.isDsd || fmt.includes('DSD') || fmt === 'DSF' || fmt === 'DFF') tiers.dsd++;
+        else if ((Number(t.sampleRate) || 0) > 48000 || (Number(t.bitDepth) || 0) >= 24) tiers.hires++;
+        else if (['FLAC', 'WAV', 'ALAC', 'AIFF', 'AIF', 'APE', 'WV'].includes(fmt)) tiers.lossless++;
+        else tiers.lossy++;
+        if (t.source === 'local') sources.local++;
+        else if (t.source === 'google') sources.google++;
+        else if (t.source === 'onedrive') sources.onedrive++;
+        else sources.other++;
+      }
+      const hours = (totalSec / 3600).toFixed(1);
+      const gb = (totalBytes / (1024 * 1024 * 1024)).toFixed(2);
+      const topArtists = [...artistCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+      body.innerHTML = `
+        <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <div class="rounded-xl border border-white/10 bg-white/[.04] p-3"><div class="text-[10px] uppercase text-zinc-400">Bài hát</div><div class="mt-1 text-lg font-bold text-white">${all.length}</div></div>
+          <div class="rounded-xl border border-white/10 bg-white/[.04] p-3"><div class="text-[10px] uppercase text-zinc-400">Album</div><div class="mt-1 text-lg font-bold text-violet-300">${albumsSet.size}</div></div>
+          <div class="rounded-xl border border-white/10 bg-white/[.04] p-3"><div class="text-[10px] uppercase text-zinc-400">Nghệ sĩ</div><div class="mt-1 text-lg font-bold text-sky-300">${artistCounts.size}</div></div>
+          <div class="rounded-xl border border-white/10 bg-white/[.04] p-3"><div class="text-[10px] uppercase text-zinc-400">Thời lượng / Dung lượng</div><div class="mt-1 text-sm font-bold text-emerald-300">${hours}h · ${gb} GB</div></div>
+        </div>
+        <div class="rounded-xl border border-white/10 bg-white/[.03] p-3">
+          <div class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Phân bố chất lượng</div>
+          <div class="flex flex-wrap gap-2">
+            <span class="rounded-lg bg-amber-500/15 px-2.5 py-1 text-amber-300">DSD: <b>${tiers.dsd}</b></span>
+            <span class="rounded-lg bg-emerald-500/15 px-2.5 py-1 text-emerald-300">Hi-Res: <b>${tiers.hires}</b></span>
+            <span class="rounded-lg bg-sky-500/15 px-2.5 py-1 text-sky-300">CD Lossless: <b>${tiers.lossless}</b></span>
+            <span class="rounded-lg bg-zinc-500/20 px-2.5 py-1 text-zinc-300">Khác/Lossy: <b>${tiers.lossy}</b></span>
+          </div>
+          <div class="mt-2.5 flex flex-wrap gap-2 text-[11px] text-zinc-400">
+            <span>Local: <b class="text-zinc-200">${sources.local}</b></span>·
+            <span>Google Drive: <b class="text-zinc-200">${sources.google}</b></span>·
+            <span>OneDrive: <b class="text-zinc-200">${sources.onedrive}</b></span>
+          </div>
+        </div>
+        <div class="rounded-xl border border-white/10 bg-white/[.03] p-3">
+          <div class="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Top 5 nghệ sĩ nhiều bài nhất</div>
+          <div class="space-y-1.5">${topArtists.length ? topArtists.map(([name, cnt], i) => `<div class="flex items-center justify-between"><span class="truncate text-zinc-200">${i + 1}. ${escapeHtml(name)}</span><span class="ml-2 shrink-0 text-violet-300 font-mono">${cnt} bài</span></div>`).join('') : '<div class="text-zinc-500">Chưa có dữ liệu.</div>'}</div>
+        </div>
+      `;
+    }
+    function toggleStatsModal(forceOpen) {
+      const modal = $('stats-modal');
+      if (!modal) return;
+      const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : (modal.hidden || modal.classList.contains('hidden'));
+      if (shouldOpen) renderLibraryStatsModal();
+      modal.classList.toggle('hidden', !shouldOpen);
+      modal.hidden = !shouldOpen;
+    }
+    window.toggleStatsModal = toggleStatsModal;
+    const statsBtnEl = $('library-stats-btn');
+    if (statsBtnEl) statsBtnEl.addEventListener('click', () => toggleStatsModal(true));
+    const statsCloseEl = $('stats-modal-close');
+    if (statsCloseEl) statsCloseEl.addEventListener('click', () => toggleStatsModal(false));
+    const statsModalEl = $('stats-modal');
+    if (statsModalEl) statsModalEl.addEventListener('click', (e) => { if (e.target === statsModalEl) toggleStatsModal(false); });
 
     window.onAndroidBackPressed = function() {
       if (typeof sidebarIsOpen === 'function' && sidebarIsOpen() && isMobileViewport()) {
@@ -14967,10 +15526,24 @@
         closeListeningRoom();
         return true;
       }
+      const statsM = $('stats-modal');
+      if (statsM && !statsM.hidden && !statsM.classList.contains('hidden')) {
+        toggleStatsModal(false);
+        return true;
+      }
+      const shortcutsM = $('shortcuts-modal');
+      if (shortcutsM && !shortcutsM.hidden && !shortcutsM.classList.contains('hidden')) {
+        toggleShortcutsModal(false);
+        return true;
+      }
       const fsView = $('roon-fullscreen-view');
       if (fsView && !fsView.classList.contains('hidden')) {
         if (typeof closeRoonFullscreen === 'function') closeRoonFullscreen();
         else fsView.classList.add('hidden');
+        return true;
+      }
+      if ((state.currentCollectionEntry || state.selectedArtistEntry) && typeof handleCollectionBack === 'function') {
+        handleCollectionBack();
         return true;
       }
       return false;
@@ -15378,6 +15951,11 @@
 
       element.addEventListener('timeupdate', () => {
         if (element !== audio) return;
+        if (state.abLoop && state.abLoop.a != null && state.abLoop.b != null && state.abLoop.b > state.abLoop.a + 0.25 && !state.isSeeking) {
+          if (element.currentTime >= state.abLoop.b) {
+            element.currentTime = state.abLoop.a;
+          }
+        }
         const curTrack = state.tracks.find(item => item.id === state.currentId);
         if (curTrack && curTrack.cueStart !== undefined && curTrack.cueStart !== null) {
           const trackCurrentTime = Math.max(0, element.currentTime - curTrack.cueStart);
@@ -15634,16 +16212,38 @@
           } catch (error) {}
         };
         action('play', async () => {
+          if (state.isNativeBitPerfectPlaying) {
+            if (state.isNativeBitPerfectPaused && window.NocturneNative && window.NocturneNative.resumeBitPerfectPlayback) {
+              window.NocturneNative.resumeBitPerfectPlayback();
+              state.isNativeBitPerfectPaused = false;
+              if ($('play-button')) $('play-button').textContent = 'Ⅱ';
+            }
+            return;
+          }
           const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
           if (curAudio && curAudio.src) {
-            try { if (state.context && state.context.state === 'suspended') await state.context.resume(); await curAudio.play(); }
-            catch (error) { toast(mediaErrorMessage(error)); }
+            try {
+              if (state.context && state.context.state === 'suspended') await state.context.resume();
+              curAudio.muted = false;
+              if (state.activeDeck && state.activeDeck.router && state.activeDeck.router.gain && state.activeDeck.router.gain.value < 0.05) {
+                state.activeDeck.router.gain.value = 1;
+              }
+              await curAudio.play();
+            } catch (error) { toast(mediaErrorMessage(error)); }
           } else {
             const current = state.tracks.find(track => track.id === state.currentId) || state.tracks[0];
             if (current) playTrack(current.id);
           }
         });
         action('pause', () => {
+          if (state.isNativeBitPerfectPlaying) {
+            if (!state.isNativeBitPerfectPaused && window.NocturneNative && window.NocturneNative.pauseBitPerfectPlayback) {
+              window.NocturneNative.pauseBitPerfectPlayback();
+              state.isNativeBitPerfectPaused = true;
+              if ($('play-button')) $('play-button').textContent = '▶';
+            }
+            return;
+          }
           const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
           if (curAudio) curAudio.pause();
         });
