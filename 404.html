@@ -4340,7 +4340,14 @@
           try { blob = await library.fetchAudioBlob(url, options, provider); }
           catch (error) {
             if (error.status !== 401 && error.status !== 403) throw error;
-            if (track.source === 'google') throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
+            if (track.source === 'google') {
+              if (typeof ensureGoogleToken === 'function') {
+                const refreshed = await ensureGoogleToken(true);
+                blob = await library.fetchAudioBlob(url, Object.assign({}, options, { headers: Object.assign({}, (options && options.headers) || {}, { Authorization: `Bearer ${refreshed}` }) }), provider);
+              } else {
+                throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
+              }
+            }
             if (!isGraphContentUrl(url)) throw error;
             const token = await getMicrosoftToken(false);
             blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
@@ -4386,6 +4393,7 @@
             }
           }, {once:true});
           deck.src = new URL(fullUrl, location.href).href;
+          if (typeof deck.load === 'function') deck.load();
           track.sliceEndedEarly = false;
           track.firstSlicePlayback = false;
           track.lastSlicePosition = null;
@@ -4414,7 +4422,9 @@
         // IndexedDB thì phát ngay không chờ mạng, lỗi đọc thì tải mạng.
         try {
           const cachedSlice = await getCachedFirstSlice(track);
-          if (cachedSlice) {
+          const isLargeLossless = Number(track.size) > 4 * 1024 * 1024 && /^(flac|wav|aiff|aif|alac|m4a|ape|wv)$/i.test(String(track.format || ''));
+          const cachedSliceTooSmall = Boolean(isLargeLossless && cachedSlice && cachedSlice.size > 0 && cachedSlice.size < 2 * 1024 * 1024 && cachedSlice.size < Number(track.size));
+          if (cachedSlice && !cachedSliceTooSmall) {
             const sliceBlob = library.normalizeAudioBlob(cachedSlice, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, cachedSlice.type);
             const sliceUrl = URL.createObjectURL(sliceBlob);
             track.url = sliceUrl; track.firstSlicePlayback = true; track.lastSlicePosition = null; state.objectUrls.add(sliceUrl);
@@ -4431,6 +4441,8 @@
           // OneDrive) cho lát đầu: Content-Range cross-origin bị trình
           // duyệt ẩn khi máy chủ không expose nên không dùng nó để kết
           // luận lát đã là toàn file (xem library-utils.js).
+          const wantInitialSlice = (Number(track.size) > 4 * 1024 * 1024 && /^(flac|wav|aiff|aif|alac|m4a|ape|wv)$/i.test(String(track.format || ''))) ? (4 * 1024 * 1024) : 0;
+          if (wantInitialSlice) options = Object.assign({}, options || {}, { initialSliceBytes: wantInitialSlice });
           const firstSlice = await library.fetchAudioFirstSlice(url, {...options, expectedTotalBytes: Number(track.size) || 0}, provider);
           const sliceMoovMeta = firstSlice && (firstSlice.tailMoovMetadata || firstSlice.headMoovMetadata);
           if (sliceMoovMeta && typeof library.applyMp4SliceMetadataToTrack === 'function') {
@@ -14473,6 +14485,25 @@
       if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; state.playGeneration++; stopDsdWorker(false); $('play-button').textContent = '▶'; toast('Đã dừng giải mã DSD.'); return; }
       if (!audio.src || audio.error) { const current = state.tracks.find(track => track.id === state.currentId); const next = current || state.tracks[0]; if (next) playTrack(next.id); return; }
       if (audio.paused) {
+        const curSliceTrack = state.tracks.find(track => track.id === state.currentId);
+        if (curSliceTrack && curSliceTrack.firstSlicePlayback && audio.ended) {
+          if (curSliceTrack.fullAudioUrl && !curSliceTrack.fullAudioPromise) {
+            const fullHref = new URL(curSliceTrack.fullAudioUrl, location.href).href;
+            const resumeAt = Number.isFinite(curSliceTrack.lastSlicePosition) ? curSliceTrack.lastSlicePosition : 0;
+            curSliceTrack.firstSlicePlayback = false; curSliceTrack.sliceEndedEarly = false; curSliceTrack.fullAudioUrl = null;
+            audio.addEventListener('loadedmetadata', () => {
+              try { audio.currentTime = Math.max(0, Number.isFinite(audio.duration) && audio.duration > 0.5 ? Math.min(resumeAt, audio.duration - 0.25) : resumeAt); } catch (_) {}
+              audio.play().catch(() => {});
+            }, { once: true });
+            audio.src = fullHref;
+            if (typeof audio.load === 'function') audio.load();
+            return;
+          }
+          if (curSliceTrack.fullAudioPromise) {
+            toast('Đang tải nốt bản FLAC đầy đủ, nhạc sẽ tự phát tiếp ngay...');
+            return;
+          }
+        }
         try {
           if (state.context && state.context.state === 'suspended') await state.context.resume();
           await audio.play();

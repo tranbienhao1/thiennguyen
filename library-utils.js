@@ -372,7 +372,7 @@
   }
   async function fetchAudioFirstSlice(url, options = {}, provider = 'Cloud') {
     const sliceHeaders = end => ({...(options.headers || {}), Range:`bytes=0-${end - 1}`});
-    let end = FIRST_SLICE_BYTES;
+    let end = (Number(options && options.initialSliceBytes) > FIRST_SLICE_BYTES) ? Math.min(Number(options.initialSliceBytes), FIRST_SLICE_MAX_BYTES) : FIRST_SLICE_BYTES;
     let response = await fetchAudioResponse(url, {...options, headers: sliceHeaders(end)}, provider);
     let blob = await response.blob();
     if (!blob || !blob.size) throw new Error(`${provider} trả về lát âm thanh đầu rỗng.`);
@@ -8323,7 +8323,7 @@
     return `Nạp đệm: ${loaded}/${total} đoạn (${mb} MB · ${percent}%)`;
   }
 
-  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v2.6.6') {
+  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v2.6.7') {
     const validRoutes = Array.isArray(routes) ? routes.filter(r => typeof r === 'string' && r.trim().length > 0) : [];
     const normalized = [...new Set(validRoutes.map(r => r.trim()))];
     return {
