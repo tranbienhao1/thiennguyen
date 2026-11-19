@@ -310,10 +310,10 @@ test('Fullscreen & Listening Room Unification Suite (v2.1.0)', async (t) => {
     assert.equal(dom['fs-liner-mood-tags']._val.textContent, 'Audiophile, Late Night');
   });
 
-  await t.test('7. Service Worker cache version bumped to v2.6.8 & Web Audio Graph Invariant preserved', () => {
-    assert.ok(swCode.includes("CACHE_VERSION = 'v2.6.8'"), 'sw.js CACHE_VERSION must be v2.6.8');
-    assert.ok(swCode.includes("CACHE_NAME = 'nocturne-v2.6.8'"), 'sw.js CACHE_NAME must be v2.6.8');
-    assert.equal(library.buildServiceWorkerCacheManifest(['./', 'index.html']).version, 'nocturne-v2.6.8');
+  await t.test('7. Service Worker cache version bumped to v2.6.9 & Web Audio Graph Invariant preserved', () => {
+    assert.ok(swCode.includes("CACHE_VERSION = 'v2.6.9'"), 'sw.js CACHE_VERSION must be v2.6.9');
+    assert.ok(swCode.includes("CACHE_NAME = 'nocturne-v2.6.9'"), 'sw.js CACHE_NAME must be v2.6.9');
+    assert.equal(library.buildServiceWorkerCacheManifest(['./', 'index.html']).version, 'nocturne-v2.6.9');
 
     assert.ok(
       indexHtml.includes('state.crossfeedNodes.output.connect(state.context.destination)'),

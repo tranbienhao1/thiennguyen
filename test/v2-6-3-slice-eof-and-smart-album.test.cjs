@@ -238,3 +238,9 @@ test('v2.6.8: Seamless playback engine — micro-fade slice swap, standbyAudio f
   assert.ok(html.includes('const gaplessLookaheadEligible = Boolean('), 'timeupdate must include 180ms gapless lookahead when standbyAudio is ready');
   assert.ok(html.includes('const swapStartedAt ='), 'upgradeSliceToFullAudio must compensate for metadata load latency during live swap');
 });
+
+test('v2.6.9: First-click playback after Google Drive sync unlocks decks synchronously & never hangs on AudioContext.resume()', () => {
+  assert.ok(html.includes('function unlockAudioDecksOnGesture()'), 'unlockAudioDecksOnGesture must exist');
+  assert.ok(html.includes('async function safeResumeAudioContext('), 'safeResumeAudioContext must exist');
+  assert.ok(html.includes('navigator.userActivation.isActive === false'), 'must not close unlocked AudioContext after async load when user gesture expired');
+});

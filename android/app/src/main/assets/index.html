@@ -11330,6 +11330,47 @@
         return false;
       }
     }
+    const SILENT_UNLOCK_WAV = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+    function unlockAudioDecksOnGesture() {
+      if (state._decksUnlockedByGesture) return;
+      state._decksUnlockedByGesture = true;
+      for (const el of [standbyAudio, audio]) {
+        if (!el || el.src || !el.paused) continue;
+        try {
+          const prevMuted = el.muted;
+          el.muted = true;
+          el.src = SILENT_UNLOCK_WAV;
+          const p = el.play();
+          if (p && typeof p.then === 'function') {
+            p.then(() => {
+              if (el.src === SILENT_UNLOCK_WAV) {
+                el.pause();
+                el.removeAttribute('src');
+                el.muted = prevMuted;
+              }
+            }).catch(() => {
+              if (el.src === SILENT_UNLOCK_WAV) {
+                el.removeAttribute('src');
+                el.muted = prevMuted;
+              }
+            });
+          } else {
+            el.pause();
+            el.removeAttribute('src');
+            el.muted = prevMuted;
+          }
+        } catch (_) {}
+      }
+    }
+    async function safeResumeAudioContext(timeoutMs = 350) {
+      if (!state.context || state.context.state !== 'suspended' || typeof state.context.resume !== 'function') return;
+      try {
+        await Promise.race([
+          state.context.resume().catch(() => {}),
+          new Promise(resolve => setTimeout(resolve, timeoutMs))
+        ]);
+      } catch (_) {}
+    }
     async function playTrack(trackId) {
       const sTrackId = trackId != null ? String(trackId) : null;
       const track = state.tracks.find(item => item && (item.id === trackId || (sTrackId != null && String(item.id) === sTrackId)));
@@ -11348,6 +11389,7 @@
       if (typeof applyOptimisticPlaybackUi === 'function') applyOptimisticPlaybackUi(track);
 
       // 3. IMMEDIATE AUDIO CONTEXT: Call setupAudio() and state.context.resume() immediately on user gesture before awaiting track.load() or DSD decode
+      unlockAudioDecksOnGesture();
       if (typeof setupAudio === 'function') setupAudio();
       if (state.context && state.context.state === 'suspended') {
         state.context.resume().catch(e => console.debug('AudioContext resume in playTrack:', e));
@@ -11497,7 +11539,8 @@
       // 1. PC Desktop / WebAudio Bit-Perfect mode (also used on Android when track.url is blob:):
       // Dynamically adapt AudioContext sampleRate to match the track's native sample rate (44.1, 48, 88.2, 96, 176.4, 192kHz): if state.context.sampleRate !== track.sampleRate, re-instantiate AudioContext({ sampleRate: track.sampleRate }).
       if (state.bitPerfectEnabled && (!window.NocturneNative || !window.NocturneNative.isBitPerfectSupported || !isNativeBpPlayable)) {
-        if (track.sampleRate && state.context && state.context.sampleRate !== track.sampleRate) {
+        const canSafelyRecreateCtx = !(typeof navigator !== 'undefined' && navigator.userActivation && navigator.userActivation.isActive === false);
+        if (canSafelyRecreateCtx && track.sampleRate && state.context && state.context.sampleRate !== track.sampleRate) {
           try { state.context.close(); } catch (_) {}
           state.context = null;
         }
@@ -11505,7 +11548,7 @@
 
       setupAudio();
       if (!state.context) { setPlaybackLoading(false); return; }
-      if (state.context.state === 'suspended') await state.context.resume();
+      if (state.context.state === 'suspended') await safeResumeAudioContext(350);
       if (generation !== state.playGeneration) { setPlaybackLoading(false); return; }
       const target = standbyAudio;
       if (!track.url) {
@@ -11525,7 +11568,7 @@
         if (track.fullAudioUrl) { track.url = track.fullAudioUrl; track.firstSlicePlayback = false; track.fullAudioUrl = null; }
       }
       const playUrl = new URL(track.url, location.href).href;
-      if (state.context.state === 'suspended') await state.context.resume();
+      if (state.context.state === 'suspended') await safeResumeAudioContext(350);
       if (generation !== state.playGeneration) { setPlaybackLoading(false); return; }
       if (!track.url) {
         setPlaybackLoading(false);
