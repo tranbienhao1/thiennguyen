@@ -3162,7 +3162,7 @@
         } catch (_) {}
       };
     }
-    const CLOUD_METADATA_CONCURRENCY = IS_LEGACY_ANDROID ? 1 : 3;
+    const CLOUD_METADATA_CONCURRENCY = 3;
     const cloudMetadataQueued = new WeakSet();
     let playbackLoadingTimeout = null;
     function setPlaybackLoading(loading) {
@@ -3216,7 +3216,8 @@
     function runCloudMetadataQueue() {
       if (cloudMetadataPausedUntil && Date.now() < cloudMetadataPausedUntil) return;
       if (state.isPlaybackLoading) return;
-      while (cloudMetadataActive < CLOUD_METADATA_CONCURRENCY && cloudMetadataQueue.length) {
+      const maxMetaConcurrency = IS_LEGACY_ANDROID ? 1 : CLOUD_METADATA_CONCURRENCY;
+      while (cloudMetadataActive < maxMetaConcurrency && cloudMetadataQueue.length) {
         if (state.isPlaybackLoading) break;
         const track = cloudMetadataQueue.shift();
         if (!track) continue;
@@ -6532,6 +6533,17 @@
       recordTrackRowsRender(performance.now() - startedAt, renderedTracks.length, false);
     }
     function renderTracks() {
+      const cfBtn = $('clear-filters-btn');
+      if (cfBtn) {
+        const hasFilter = Boolean(
+          (state.query && String(state.query).trim()) ||
+          (state.sourceFilter && state.sourceFilter !== 'all') ||
+          (state.artistFilter && state.artistFilter !== '*') ||
+          (state.albumFilter && state.albumFilter !== '*') ||
+          (state.focusFilter && state.focusFilter !== 'all')
+        );
+        cfBtn.classList.toggle('hidden', !hasFilter);
+      }
       const force = arguments[0];
       if (!force && isUserScrolling && !state.trackScope && ['albums', 'artists', 'genres', 'composers'].includes(state.activeView)) {
         pendingBackgroundTrackRender = true;
@@ -10756,6 +10768,8 @@
       if (shouldOpen) {
         /* $('listening-room')?.classList.add('hidden') */ safeClass($('listening-room'), 'add', 'hidden');
       }
+      view.hidden = !shouldOpen;
+      if (shouldOpen) view.removeAttribute('hidden');
       view.classList.toggle('hidden', !shouldOpen);
       view.classList.toggle('flex', shouldOpen);
       if (shouldOpen) {
@@ -10774,6 +10788,34 @@
     }
     const closeRoonFullscreen = () => toggleRoonFullscreen(false);
     window.toggleRoonFullscreen = toggleRoonFullscreen;
+    // v2.6.1 Auto-sync native [hidden] attribute with .hidden class on all modals/panels
+    (function setupHiddenAttributeSync() {
+      if (typeof MutationObserver === 'undefined' || typeof document === 'undefined') return;
+      const panelIds = [
+        'queue-panel', 'roon-fullscreen-view', 'listening-room', 'ambient-panel',
+        'zone-modal', 'signal-path-popover', 'mini-player-hud', 'metadata-modal',
+        'command-palette-modal', 'autoeq-modal', 'eq-panel', 'sleep-panel',
+        'shortcuts-modal', 'stats-modal', 'sidebar-backdrop', 'drop-target',
+        'app-ambient-backdrop', 'ambient-glow', 'fullscreen-bg-cover', 'fullscreen-ambient-glow'
+      ];
+      const obs = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          const el = m.target;
+          if (!el || !el.classList) continue;
+          const isClassHidden = el.classList.contains('hidden');
+          if (!isClassHidden && el.hasAttribute('hidden')) {
+            el.hidden = false;
+            el.removeAttribute('hidden');
+          } else if (isClassHidden && !el.hasAttribute('hidden')) {
+            el.hidden = true;
+          }
+        }
+      });
+      for (const id of panelIds) {
+        const el = document.getElementById(id);
+        if (el) obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+      }
+    })();
     window.closeRoonFullscreen = closeRoonFullscreen;
 
     function updateRoonFullscreenUI() {
@@ -14760,8 +14802,8 @@
       const row = $('queue-list').querySelector('[data-queue-current-row]');
       if (row && typeof row.scrollIntoView === 'function') row.scrollIntoView({block: 'start'});
     }
-    const openQueue = () => { $('queue-panel').classList.remove('hidden'); renderQueue(); scrollQueueToCurrent(); };
-    const closeQueue = () => $('queue-panel').classList.add('hidden');
+    const openQueue = () => { const qp = $('queue-panel'); if (qp) { qp.hidden = false; qp.removeAttribute('hidden'); qp.classList.remove('hidden'); } renderQueue(); scrollQueueToCurrent(); };
+    const closeQueue = () => { const qp = $('queue-panel'); if (qp) { qp.classList.add('hidden'); qp.hidden = true; } };
     $('queue-button').addEventListener('click', openQueue);
     $('queue-button-mobile').addEventListener('click', openQueue);
     $('autoplay-button-mobile').addEventListener('click', () => $('autoplay-button').click());
