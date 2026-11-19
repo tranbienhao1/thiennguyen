@@ -9,23 +9,44 @@ const indexHtml = fs.readFileSync(indexPath, 'utf8');
 
 describe('Tối ưu Tốc độ Đồng bộ Google Drive (Progressive Sync)', () => {
 
-  test('1. GOOGLE_DRIVE_AUDIO_QUERY lọc trực tiếp trên server Google Drive đầy đủ định dạng Hi-Res', () => {
-    assert.ok(indexHtml.includes('const GOOGLE_DRIVE_AUDIO_QUERY'), 'GOOGLE_DRIVE_AUDIO_QUERY phải được định nghĩa');
+  test('1. GOOGLE_DRIVE_CANDIDATE_QUERY loại trừ ảnh/tài liệu server-side và lọc triệt để client-side', () => {
+    assert.ok(indexHtml.includes('const GOOGLE_DRIVE_CANDIDATE_QUERY'), 'GOOGLE_DRIVE_CANDIDATE_QUERY phải được định nghĩa');
     
-    // Kiểm tra các thành phần lọc
+    // Kiểm tra các thành phần lọc loại trừ trên Google Drive server
     assert.ok(indexHtml.includes('"trashed = false"'), 'Phải lọc trashed = false');
     assert.ok(indexHtml.includes('"mimeType != \'application/vnd.google-apps.folder\'"'), 'Phải loại bỏ thư mục');
-    assert.ok(indexHtml.includes('"mimeType contains \'audio/\'"'), 'Phải lọc mimeType contains audio/');
+    assert.ok(indexHtml.includes('"not mimeType contains \'image/\'"'), 'Phải loại bỏ ảnh trên server');
+    assert.ok(indexHtml.includes('"not mimeType contains \'application/vnd.google-apps.\'"'), 'Phải loại bỏ Google Docs/Sheets/Slides');
 
-    // Danh sách định dạng âm thanh bắt buộc
+    // Trích xuất regex và kiểm tra isCloudAudio client-side với đầy đủ định dạng Hi-Res
+    const isCloudAudioMatch = indexHtml.match(/const CLOUD_AUDIO_EXT_RE = ([\s\S]*?);[\s\S]*?function isCloudAudio\(([\s\S]*?)\) \{([\s\S]*?)\n    \}/);
+    assert.ok(isCloudAudioMatch, 'isCloudAudio phải tồn tại trong index.html');
+    const extRegexStr = isCloudAudioMatch[1];
+    const isCloudAudioFnBody = isCloudAudioMatch[3];
+    const isCloudAudioFn = new Function('file', `
+      const CLOUD_AUDIO_EXT_RE = ${extRegexStr};
+      ${isCloudAudioFnBody}
+    `);
+
     const expectedExtensions = [
-      '.flac', '.dsf', '.dff', '.wav', '.alac', '.m4a', '.mp3',
-      '.aiff', '.aif', '.aac', '.ogg', '.opus', '.wv', '.ape', '.wma', '.mka'
+      'flac', 'dsf', 'dff', 'wav', 'alac', 'm4a', 'mp3',
+      'aiff', 'aif', 'aifc', 'aac', 'ogg', 'opus', 'wv', 'ape', 'wma', 'mka', 'caf', 'tta', 'mpc', 'tak'
     ];
     for (const ext of expectedExtensions) {
-      assert.ok(
-        indexHtml.includes(`"name contains '${ext}'"`),
-        `GOOGLE_DRIVE_AUDIO_QUERY phải chứa name contains '${ext}'`
+      assert.strictEqual(
+        isCloudAudioFn({ name: `track.${ext}`, mimeType: 'application/octet-stream' }),
+        true,
+        `isCloudAudio phải chấp nhận .${ext}`
+      );
+      assert.strictEqual(
+        isCloudAudioFn({ name: `TRACK.${ext.toUpperCase()} `, mimeType: '' }),
+        true,
+        `isCloudAudio phải chấp nhận chữ hoa .${ext.toUpperCase()}`
+      );
+      assert.strictEqual(
+        isCloudAudioFn({ name: 'song', fileExtension: ext, mimeType: '' }),
+        true,
+        `isCloudAudio phải chấp nhận file có fileExtension: ${ext}`
       );
     }
   });

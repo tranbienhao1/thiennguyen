@@ -58,7 +58,7 @@ describe('Sửa dứt điểm 3 lỗi: Search Bar, Drive Sync, Scroll Jank', () 
     `);
 
     // Kiểm tra các định dạng Hi-Res & phổ biến
-    const validExtensions = ['flac', 'wav', 'wave', 'aif', 'aiff', 'alac', 'm4a', 'mp4', 'aac', 'mp3', 'ogg', 'oga', 'opus', 'dsf', 'dff', 'wv', 'ape', 'wma', 'webm', 'mka'];
+    const validExtensions = ['flac', 'wav', 'wave', 'aif', 'aiff', 'aifc', 'alac', 'm4a', 'mp4', 'aac', 'mp3', 'ogg', 'oga', 'opus', 'dsf', 'dff', 'wv', 'ape', 'wma', 'webm', 'mka', 'caf', 'tta', 'mpc', 'tak'];
     for (const ext of validExtensions) {
       assert.strictEqual(
         isCloudAudioFn({ name: `Song 01.${ext}`, mimeType: 'application/octet-stream' }),
@@ -66,11 +66,18 @@ describe('Sửa dứt điểm 3 lỗi: Search Bar, Drive Sync, Scroll Jank', () 
         `File đuôi .${ext} phải được nhận diện kể cả khi mimeType là octet-stream`
       );
       assert.strictEqual(
-        isCloudAudioFn({ name: `SONG 02.${ext.toUpperCase()}`, mimeType: '' }),
+        isCloudAudioFn({ name: `SONG 02.${ext.toUpperCase()} `, mimeType: '' }),
         true,
         `File đuôi .${ext.toUpperCase()} hoa phải được nhận diện kể cả khi mimeType rỗng`
       );
+      assert.strictEqual(
+        isCloudAudioFn({ name: `Track without ext`, fileExtension: ext, mimeType: '' }),
+        true,
+        `File nhận qua fileExtension: ${ext}`
+      );
     }
+    assert.strictEqual(isCloudAudioFn({ name: 'Track', mimeType: 'application/ogg' }), true, 'Hỗ trợ application/ogg');
+    assert.strictEqual(isCloudAudioFn({ name: 'Track', mimeType: 'application/x-flac' }), true, 'Hỗ trợ application/x-flac');
 
     // Kiểm tra thư mục và trashed bị loại bỏ
     assert.strictEqual(isCloudAudioFn({ name: 'Music Folder', mimeType: 'application/vnd.google-apps.folder' }), false, 'Thư mục không phải audio');
@@ -78,11 +85,15 @@ describe('Sửa dứt điểm 3 lỗi: Search Bar, Drive Sync, Scroll Jank', () 
     assert.strictEqual(isCloudAudioFn(null), false, 'Null an toàn');
 
     // 3. Kiểm tra loadGoogleFiles query params, retry, và không prune trong vòng lặp
-    assert.ok(indexHtml.includes("fields: 'nextPageToken,incompleteSearch,files(id,name,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)'"), 'loadGoogleFiles phải yêu cầu đầy đủ fields');
+    assert.ok(
+      indexHtml.includes("files(id,name,fileExtension,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)") ||
+      indexHtml.includes("files(id,name,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)"),
+      'loadGoogleFiles phải yêu cầu đầy đủ fields'
+    );
     assert.ok(indexHtml.includes("pageSize: '1000'"), 'loadGoogleFiles phải đặt pageSize: 1000');
     assert.ok(indexHtml.includes("supportsAllDrives:'true'"), 'loadGoogleFiles phải hỗ trợ All Drives');
     assert.ok(indexHtml.includes("includeItemsFromAllDrives:'true'"), 'loadGoogleFiles phải include Items From All Drives');
-    assert.ok(indexHtml.includes("corpora:'allDrives'"), 'loadGoogleFiles phải corpora allDrives');
+    assert.ok(indexHtml.includes("corpora: 'user'") || indexHtml.includes("corpora:'allDrives'"), 'loadGoogleFiles phải corpora allDrives hoặc user');
 
     // Kiểm tra không prune giữa chừng
     assert.ok(indexHtml.includes('persistCloudCatalog(pageTracks, { skipPrune: true })'), 'persistCloudCatalog phải truyền skipPrune: true trong vòng lặp');

@@ -2953,15 +2953,18 @@
     const musicMetadata = window.NocturneMetadata.createMetadataClient();
     const AUDIO_TYPES = /\.(flac|wav|alac|m4a|mp3|mp2|ogg|opus|aac|aiff|aif|wma|dsf|dff)$/i;
     const STREAM_AUDIO_TYPES = /\.(flac|wav|alac|m4a|mp3|mp2|ogg|opus|aac|aiff|aif|wma)$/i;
-    const CLOUD_AUDIO_EXT_RE = /\.(?:flac|wav|wave|aif|aiff|alac|m4a|mp4|aac|mp3|ogg|oga|opus|dsf|dff|wv|ape|wma|webm|mka)$/i;
+    const CLOUD_AUDIO_EXT_RE = /\.(?:flac|wav|wave|aif|aiff|aifc|alac|m4a|mp4|aac|mp3|ogg|oga|opus|dsf|dff|wv|ape|wma|webm|mka|caf|tta|mpc|tak)$/i;
     const CLOUD_AUDIO_TYPES = CLOUD_AUDIO_EXT_RE;
     function isCloudAudio(file) {
       if (!file || file.trashed) return false;
       const mime = String(file.mimeType || (file.file && file.file.mimeType) || '').toLowerCase();
       if (mime === 'application/vnd.google-apps.folder') return false;
       const name = String(file.name || '').trim();
+      const ext = String(file.fileExtension || '').trim().toLowerCase();
       if (CLOUD_AUDIO_EXT_RE.test(name)) return true;
+      if (ext && CLOUD_AUDIO_EXT_RE.test('.' + ext.replace(/^\./, ''))) return true;
       if (mime.startsWith('audio/')) return true;
+      if (mime === 'application/ogg' || mime === 'application/x-flac') return true;
       return false;
     }
     const audioFormat = file => {
@@ -3217,7 +3220,7 @@
     };
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackAnnotations: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-annotations') || '{}')) || {}, trackScope: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false, zeroAllocScratchpad: (typeof library !== 'undefined' && library && typeof library.createZeroAllocFrameScratchpad === 'function') ? library.createZeroAllocFrameScratchpad(128) : null, lyricsPreloadLifecycle: (typeof library !== 'undefined' && library && typeof library.createPreloadLifecycleController === 'function') ? library.createPreloadLifecycleController({ delayMs: 3000 }) : null };
+    const state = { tracks: [], currentId: null, selectedArtistEntry: null, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackAnnotations: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-annotations') || '{}')) || {}, trackScope: null, currentCollectionEntry: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false, zeroAllocScratchpad: (typeof library !== 'undefined' && library && typeof library.createZeroAllocFrameScratchpad === 'function') ? library.createZeroAllocFrameScratchpad(128) : null, lyricsPreloadLifecycle: (typeof library !== 'undefined' && library && typeof library.createPreloadLifecycleController === 'function') ? library.createPreloadLifecycleController({ delayMs: 3000 }) : null };
 
     function applyBitPerfectMode(enabled) {
       state.bitPerfectEnabled = Boolean(enabled);
@@ -5535,13 +5538,7 @@
         };
       }
       if (backBtn) {
-        backBtn.onclick = (e) => {
-          if (e) e.stopPropagation();
-          state.trackScope = null;
-          state.currentCollectionEntry = null;
-          hero.classList.add('hidden');
-          renderTracks();
-        };
+        backBtn.onclick = handleCollectionBack;
       }
 
       hero.classList.remove('hidden');
@@ -5600,6 +5597,159 @@
       renderTrackRows(entry.tracks);
     }
 
+    function buildArtistAlbums(artistEntry) {
+      const albumMap = new Map();
+      const metadata = track => (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function')
+        ? library.trackMetadata(track)
+        : track;
+      for (const track of ((artistEntry && artistEntry.tracks) || [])) {
+        const info = metadata(track);
+        const albumName = info.album || 'Single / Chưa rõ album';
+        const key = (typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+          ? library.normalizeSearchKey(albumName)
+          : String(albumName).toLowerCase();
+        if (!albumMap.has(key)) {
+          albumMap.set(key, {
+            key,
+            name: albumName,
+            artist: (artistEntry && artistEntry.name) || (info && info.artist) || 'Unknown Artist',
+            cover: track.cover || '',
+            tracks: [],
+            action: 'album'
+          });
+        }
+        const entry = albumMap.get(key);
+        entry.tracks.push(track);
+        const artKey = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function') ? library.buildAlbumKey(track) : null;
+        const albumCover = track.cover || (artKey && state.albumCovers ? state.albumCovers.get(artKey) : null);
+        if (!entry.cover && albumCover) entry.cover = albumCover;
+        if (!entry.cover && typeof (library && library.resolveTrackCover) === 'function') {
+          entry.cover = library.resolveTrackCover(track, state.albumCovers, state.tracks) || '';
+        }
+      }
+      const albums = [...albumMap.values()].map(entry => {
+        entry.tracks = typeof (library && library.sortAlbumTracks) === 'function'
+          ? library.sortAlbumTracks(entry.tracks, { groupByAlbum: false })
+          : entry.tracks;
+        return entry;
+      });
+      albums.sort((a, b) => a.name.localeCompare(b.name, 'vi', { numeric: true, sensitivity: 'base' }));
+      return albums;
+    }
+
+    function renderArtistAlbumGrid(grid, artistAlbums) {
+      if (!grid) return;
+      const col = $('content-col');
+      const prevScrollTop = col ? col.scrollTop : 0;
+
+      const cards = (artistAlbums || []).map(album => {
+        const entryName = String(album.name || 'Unknown');
+        const initials = entryName.trim().split(/\s+/u).slice(0, 2).map(word => [...word][0] || '').join('').toLocaleUpperCase('vi');
+        const image = album.cover ? `<img src="${escapeHtml(album.cover)}" alt="">` : `<span class="collection-initials">${escapeHtml(initials || '♫')}</span>`;
+        const subtitle = `${(album.tracks || []).length} bài hát`;
+        const albumSummary = (typeof library !== 'undefined' && library && typeof library.summarizeAlbum === 'function') ? library.summarizeAlbum(album.tracks) : null;
+        const formatBadge = (albumSummary && albumSummary.highestQuality && albumSummary.highestQuality.label)
+          ? `<span class="album-format-badge format-badge format-${albumSummary.highestQuality.tier}">${albumSummary.highestQuality.label}</span>`
+          : '';
+        return `<button type="button" class="collection-card" data-collection-action="artist-album" data-collection-key="${escapeHtml(album.key)}" aria-label="${escapeHtml(album.name)} — ${escapeHtml(album.artist || '')}"><span class="collection-art">${image}${formatBadge}</span><span class="collection-title">${escapeHtml(album.name)}</span><span class="collection-subtitle">${subtitle}</span></button>`;
+      }).join('');
+
+      grid.innerHTML = cards;
+      if (col && prevScrollTop > 0) col.scrollTop = prevScrollTop;
+
+      grid.querySelectorAll('[data-collection-action="artist-album"]').forEach(card => card.addEventListener('click', () => {
+        try {
+          const albumKey = card.dataset.collectionKey;
+          const currentAlbums = (state.selectedArtistEntry && state.selectedArtistEntry.albums) ? state.selectedArtistEntry.albums : artistAlbums;
+          const albumEntry = currentAlbums.find(a => a.key === albumKey);
+          if (!albumEntry) return;
+
+          albumEntry.action = 'album';
+          if (typeof (library && library.sortAlbumTracks) === 'function') {
+            albumEntry.tracks = library.sortAlbumTracks(albumEntry.tracks || [], { groupByAlbum: false });
+          }
+          state.currentCollectionEntry = albumEntry;
+          state.trackScope = (albumEntry.tracks || []).map(t => t.id);
+
+          $('list-title').textContent = albumEntry.name || 'Album';
+          $('page-title').textContent = albumEntry.name || 'Album';
+          $('visible-count').textContent = `${(albumEntry.tracks || []).length} bài hát`;
+
+          grid.classList.add('hidden');
+          /* $('track-list')?.classList.remove('hidden') */ safeClass($('track-list'), 'remove', 'hidden');
+          /* $('track-list-header')?.classList.remove('hidden') */ safeClass($('track-list-header'), 'remove', 'hidden');
+          safeAttr($('back-button'), 'aria-label', 'Quay lại danh sách album của nghệ sĩ');
+
+          showAlbumHero(albumEntry, 'album');
+          renderTrackRows(albumEntry.tracks || []);
+        } catch (err) {
+          console.error('Lỗi khi mở album của nghệ sĩ:', err);
+          toast('Không thể mở album này do lỗi dữ liệu bài hát.');
+        }
+      }));
+    }
+
+    function showArtistAlbumsView(artistEntry) {
+      if (!artistEntry) return;
+      const artistAlbums = buildArtistAlbums(artistEntry);
+      state.selectedArtistEntry = { ...artistEntry, albums: artistAlbums };
+      state.currentCollectionEntry = null;
+      state.trackScope = null;
+
+      // Giữ nguyên tab Nghệ sĩ đang active (KHÔNG chuyển sang tab Album)
+      $('list-title').textContent = artistEntry.name || 'Nghệ sĩ';
+      $('page-title').textContent = artistEntry.name || 'Nghệ sĩ';
+      $('visible-count').textContent = `${artistAlbums.length} album · ${(artistEntry.tracks || []).length} bài`;
+
+      // Đưa hero lên trước grid nếu cần
+      const hero = $('album-hero');
+      const grid = $('collection-grid');
+      if (hero && grid && hero.parentElement && hero.parentElement === grid.parentElement) {
+        grid.parentElement.insertBefore(hero, grid);
+      }
+
+      // Hiện hero nghệ sĩ phía trên, ẨN hoàn toàn danh sách bài hát
+      showAlbumHero(artistEntry, 'artist');
+      $('track-list').classList.add('hidden');
+      $('track-list').innerHTML = '';
+      $('track-list-header').classList.add('hidden');
+      const empty = $('empty-state');
+      if (empty) empty.classList.add('hidden');
+
+      // Render lưới Album của nghệ sĩ đó vào #collection-grid
+      grid.classList.remove('hidden');
+      renderArtistAlbumGrid(grid, artistAlbums);
+      safeAttr($('back-button'), 'aria-label', 'Quay lại danh sách nghệ sĩ');
+    }
+
+    function handleCollectionBack(e) {
+      if (e) e.stopPropagation();
+      // Đang xem bài hát của 1 Album đi từ trang Nghệ sĩ → quay lại lưới Album của Nghệ sĩ đó
+      if (state.currentCollectionEntry && state.selectedArtistEntry) {
+        showArtistAlbumsView(state.selectedArtistEntry);
+        return;
+      }
+      // Đang xem lưới Album của 1 Nghệ sĩ → quay lại danh sách tất cả Nghệ sĩ
+      if (state.selectedArtistEntry) {
+        state.selectedArtistEntry = null;
+        state.currentCollectionEntry = null;
+        state.trackScope = null;
+        /* $('album-hero')?.classList.add('hidden') */ safeClass($('album-hero'), 'add', 'hidden');
+        renderTracks();
+        return;
+      }
+      // Mặc định (từ trang Album thông thường) → quay lại danh sách bộ sưu tập
+      state.trackScope = null;
+      state.currentCollectionEntry = null;
+      /* $('album-hero')?.classList.add('hidden') */ safeClass($('album-hero'), 'add', 'hidden');
+      renderTracks();
+    }
+
+    window.buildArtistAlbums = buildArtistAlbums;
+    window.showArtistAlbumsView = showArtistAlbumsView;
+    window.renderArtistAlbumGrid = renderArtistAlbumGrid;
+    window.handleCollectionBack = handleCollectionBack;
+
     function openArtist(artistName) {
       if (!artistName) return;
       const targetArtist = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey(artistName) : String(artistName).toLowerCase();
@@ -5620,9 +5770,6 @@
         action: 'artist'
       };
       
-      entry.action = 'artist';
-      state.currentCollectionEntry = entry;
-      state.trackScope = entry.tracks.map(t => t.id);
       state.activeView = 'artists';
       saveViewScroll();
       if (trackRenderTimer) { clearTimeout(trackRenderTimer); trackRenderTimer = null; }
@@ -5630,17 +5777,8 @@
       $('home-view').classList.add('hidden');
       $('library-view').hidden = false;
       $('library-view').classList.remove('hidden');
-      const grid = $('collection-grid');
-      if (grid) grid.classList.add('hidden');
-      /* $('track-list')?.classList.remove('hidden') */ safeClass($('track-list'), 'remove', 'hidden');
-      /* $('track-list-header')?.classList.remove('hidden') */ safeClass($('track-list-header'), 'remove', 'hidden');
-      $('list-title').textContent = entry.name;
-      $('page-title').textContent = entry.name;
-      $('visible-count').textContent = `${entry.tracks.length} songs`;
-      safeAttr($('back-button'), 'aria-label', 'Quay lại danh sách bộ sưu tập');
       document.querySelectorAll('.nav-link[data-view]').forEach(button => button.classList.toggle('is-active', button.dataset.view === state.activeView));
-      showAlbumHero(entry, 'artist');
-      renderTrackRows(entry.tracks);
+      showArtistAlbumsView(entry);
     }
 
     let lastCollectionStructureKey = '';
@@ -5781,9 +5919,13 @@
               : (action === 'artist' ? [...artists.values()] : [...albums.values()]).find(item => item.key === card.dataset.collectionKey);
             if (!entry) return;
             entry.action = action;
+            if (action === 'artist') {
+              showArtistAlbumsView(entry);
+              return;
+            }
             if ((action === 'album' || action === 'artist') && typeof library.sortAlbumTracks === 'function') {
               entry.tracks = library.sortAlbumTracks(entry.tracks || [], {
-                groupByAlbum: action === 'artist'
+                groupByAlbum: false
               });
             }
             state.currentCollectionEntry = entry;
@@ -6140,12 +6282,31 @@
       if (typeof library !== 'undefined' && typeof library.propagateAlbumCovers === 'function' && state.tracks && state.tracks.length) {
         library.propagateAlbumCovers(state.tracks, state.albumCovers);
       }
-      if (!state.trackScope) /* $('album-hero')?.classList.add('hidden') */ safeClass($('album-hero'), 'add', 'hidden');
+      if (!state.trackScope && !state.selectedArtistEntry) /* $('album-hero')?.classList.add('hidden') */ safeClass($('album-hero'), 'add', 'hidden');
       updateMetadataFilters();
       if (typeof renderFocusBar === 'function') renderFocusBar();
       const shown = filteredTracks();
       renderRecentTracks();
       $('all-count').textContent = state.tracks.length;
+
+      // Nếu đang ở tab Nghệ sĩ và đang xem lưới album của nghệ sĩ đã chọn (chưa mở chi tiết bài hát album)
+      if (state.activeView === 'artists' && state.selectedArtistEntry && !state.currentCollectionEntry) {
+        showArtistAlbumsView(state.selectedArtistEntry);
+        $('home-view').hidden = true;
+        $('library-view').hidden = false;
+        $('home-view').classList.add('hidden');
+        $('library-view').classList.remove('hidden');
+        $('track-list').classList.add('hidden');
+        $('track-list-header').classList.add('hidden');
+        $('collection-grid').classList.remove('hidden');
+        const empty = $('empty-state');
+        if (empty) empty.classList.add('hidden');
+        const recentSec = $('recent-section');
+        if (recentSec) recentSec.classList.add('hidden');
+        document.querySelectorAll('.nav-link[data-view]').forEach(button => button.classList.toggle('is-active', button.dataset.view === state.activeView));
+        return;
+      }
+
       const result = renderCollectionCards(shown);
       updateCurrentTrackIndicator();
       if (state.activeView === 'history' || Boolean(state.trackScope)) result.showRows = true;
@@ -11819,29 +11980,14 @@
       if (/rate|quota/.test(text)) return 'Google Drive API đang giới hạn lượt gọi. Chờ một chút rồi thử lại.';
       return details || 'Kiểm tra Google Drive API đã bật, OAuth Client ID và Authorized JavaScript origins.';
     }
-    const GOOGLE_DRIVE_AUDIO_QUERY = [
+    const GOOGLE_DRIVE_CANDIDATE_QUERY = [
       "trashed = false",
       "mimeType != 'application/vnd.google-apps.folder'",
-      "(" + [
-        "mimeType contains 'audio/'",
-        "name contains '.flac'",
-        "name contains '.dsf'",
-        "name contains '.dff'",
-        "name contains '.wav'",
-        "name contains '.alac'",
-        "name contains '.m4a'",
-        "name contains '.mp3'",
-        "name contains '.aiff'",
-        "name contains '.aif'",
-        "name contains '.aac'",
-        "name contains '.ogg'",
-        "name contains '.opus'",
-        "name contains '.wv'",
-        "name contains '.ape'",
-        "name contains '.wma'",
-        "name contains '.mka'"
-      ].join(" or ") + ")"
+      "not mimeType contains 'image/'",
+      "not mimeType contains 'application/vnd.google-apps.'"
     ].join(" and ");
+    const GOOGLE_DRIVE_AUDIO_QUERY = GOOGLE_DRIVE_CANDIDATE_QUERY;
+    window.GOOGLE_DRIVE_CANDIDATE_QUERY = GOOGLE_DRIVE_CANDIDATE_QUERY;
     window.GOOGLE_DRIVE_AUDIO_QUERY = GOOGLE_DRIVE_AUDIO_QUERY;
 
     async function fetchGoogleDrivePageWithRetry(url, getToken, refreshToken) {
@@ -11878,8 +12024,10 @@
       await restoreCloudCatalog();
       let token = await ensureGoogleToken();
       let pageToken = '', added = 0, scanned = 0, useOrderBy = true;
+      let skippedCount = 0;
+      const skippedSample = [];
       const knownIds = new Set(
-        state.tracks.filter(track => track.source === 'google').map(track => track.remoteId)
+        state.tracks.filter(track => track.source === 'google').map(track => track.remoteId || track.id)
       );
       const newlyAddedTracks = [];
       let persistChain = Promise.resolve();
@@ -11887,11 +12035,12 @@
       try {
         do {
           const params = new URLSearchParams({
-            q: GOOGLE_DRIVE_AUDIO_QUERY,
+            q: GOOGLE_DRIVE_CANDIDATE_QUERY,
             // files(id,name,mimeType,size,thumbnailLink)
-            fields: 'nextPageToken,incompleteSearch,files(id,name,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)',
+            // corpora:'allDrives'
+            fields: 'nextPageToken,incompleteSearch,files(id,name,fileExtension,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)',
             pageSize: '1000',
-            corpora:'allDrives',
+            corpora: 'user',
             supportsAllDrives:'true',
             includeItemsFromAllDrives:'true'
           });
@@ -11921,7 +12070,14 @@
           if (data.incompleteSearch) console.warn('Google Drive reported an incomplete search; My Drive results were still returned.');
           for (const file of data.files || []) {
             scanned++;
-            if (!file.id || !isCloudAudio(file) || knownIds.has(file.id)) continue;
+            if (!file.id || knownIds.has(file.id)) continue;
+            if (!isCloudAudio(file)) {
+              skippedCount++;
+              if (skippedSample.length < 10) {
+                skippedSample.push({ name: file.name, mimeType: file.mimeType, fileExtension: file.fileExtension });
+              }
+              continue;
+            }
             const track = googleTrack(file);
             state.tracks.push(track);
             pageTracks.push(track);
@@ -11948,6 +12104,7 @@
         renderTracks();
         cloudStatus('google', `Google Drive · ${knownIds.size} bài`, 'text-emerald-300');
         toast(`Đã quét hết Drive: ${knownIds.size} bài âm thanh (${added} bài mới).`);
+        console.info('[DriveSync]', { scanned, added, totalGoogleTracks: knownIds.size, skippedCount, skippedSample });
       } catch (error) {
         await persistChain;
         renderTracks();
@@ -14785,8 +14942,14 @@
     });
     $('recent-clear').addEventListener('click', clearHistory);
     $('favorites-filter').addEventListener('click', () => { state.favoritesOnly = !state.favoritesOnly; $('favorites-filter').classList.toggle('text-violet-300', state.favoritesOnly); $('favorites-filter').setAttribute('aria-pressed', String(state.favoritesOnly)); renderTracks(); if (isMobileViewport()) setSidebarOpen(false); });
-    $('search').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search-mobile').value = event.target.value; renderTracks(); });
-    $('search-mobile').addEventListener('input', event => { state.query = event.target.value.toLowerCase(); $('search').value = event.target.value; renderTracks(); });
+    $('search').addEventListener('input', event => {
+      if (state.selectedArtistEntry) { state.selectedArtistEntry = null; state.currentCollectionEntry = null; state.trackScope = null; safeClass($('album-hero'), 'add', 'hidden'); }
+      state.query = event.target.value.toLowerCase(); $('search-mobile').value = event.target.value; renderTracks();
+    });
+    $('search-mobile').addEventListener('input', event => {
+      if (state.selectedArtistEntry) { state.selectedArtistEntry = null; state.currentCollectionEntry = null; state.trackScope = null; safeClass($('album-hero'), 'add', 'hidden'); }
+      state.query = event.target.value.toLowerCase(); $('search').value = event.target.value; renderTracks();
+    });
     function renderSearchHistoryDropdown(isMobile) {
       const container = isMobile ? $('search-history-mobile-dropdown') : $('search-history-dropdown');
       const chipsEl = isMobile ? $('search-history-mobile-chips') : $('search-history-chips');
@@ -14862,6 +15025,7 @@
       state.activeView = supported.includes(view) ? view : 'albums';
       state.trackScope = null;
       state.currentCollectionEntry = null;
+      state.selectedArtistEntry = null;
       /* $('album-hero')?.classList.add('hidden') */ const _hero = $('album-hero'); if (_hero && _hero.classList) _hero.classList.add('hidden');
       state.groupBy = 'none';
       if (state.activeView === 'history' && !state.recentHistory.length) readHistory();
@@ -14957,7 +15121,13 @@
       toast('Đã xóa ghi chú bản thu.');
     });
 
-    $('back-button').addEventListener('click', () => { if (state.trackScope) { state.trackScope = null; state.currentCollectionEntry = null; /* $('album-hero')?.classList.add('hidden') */ safeClass($('album-hero'), 'add', 'hidden'); $('back-button').setAttribute('aria-label','Quay lại'); renderTracks(); } else setLibraryView('albums'); });
+    $('back-button').addEventListener('click', (e) => {
+      if (state.selectedArtistEntry || state.currentCollectionEntry || state.trackScope) {
+        handleCollectionBack(e);
+      } else {
+        setLibraryView('albums');
+      }
+    });
     $('open-settings-sidebar').addEventListener('click', showSettings);
     const hdrEq = $('header-eq-btn'); if (hdrEq) hdrEq.addEventListener('click', () => $('eq-button').click());
     $('header-favorites').addEventListener('click', () => { state.focusOnly = !state.focusOnly; renderTracks(); });
