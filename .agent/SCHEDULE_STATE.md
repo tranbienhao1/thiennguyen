@@ -1,7 +1,7 @@
 # Nocturne Autonomous Tail-Chaining Schedule State
 
 - **run_id**: 28
-- **timestamp**: 2026-11-21T05:02:45+07:00
+- **timestamp**: 2026-11-21T05:13:15+07:00
 - **current_version**: v3.9.41
 - **versionCode**: 95
 - **last_commit**: d44886d
@@ -9,9 +9,10 @@
 - **active_chain**: none
 
 ## next_queue
-- `[P1 - APK + WEB]` Native Bit-Perfect CUE sub-track start offset & boundary advance: khi `playTrack` chạy bài CUE (`track.cueStart > 0`) qua `startBitPerfectPlayback`, tự động gọi `seekBitPerfectPlayback(Math.round(track.cueStart * 1000))` ngay khi khởi chạy, và trong `window.onNativeBitPerfectPosition` kiểm tra khi vị trí vượt `cueStart + duration` để tự động chuyển sang bài CUE kế tiếp (`playNext(1, true)`) thay vì phát tràn sang bài sau trong cùng file FLAC/WAV.
-- `[P1 - FIIO + WEB]` `displayTrack(track)` `#room-play` Bit-Perfect sync: sửa dòng `$('room-play').textContent` trong `displayTrack(track)` dùng `isNotifPlaying` (bao gồm `state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused`) thay vì chỉ kiểm tra `!audio.src || audio.paused`.
-- `[P2 - WEB + APK]` Đồng bộ thời lượng & vị trí tương đối CUE trong `window.onNativeBitPerfectPosition` (hiển thị `current-time`, `room-current-time`, `room-remaining` và seekbar theo mốc `0..track.duration` của sub-track CUE thay vì toàn file).
+- `[P0 - ONEDRIVE + GOOGLE DRIVE PLAYBACK]` Sửa `upgradeSliceToFullAudio` khi phát nhạc OneDrive bằng `directUrl` (`@microsoft.graph.downloadUrl`): khi tải nền file đầy đủ gặp `401`/`403`/`410` (link tạm thời hết hạn), tự động xóa `track.downloadUrl`, làm mới qua `resolveMicrosoftDownloadUrl(track)` hoặc fallback sang `https://graph.microsoft.com/v1.0/me/drive/items/{id}/content` kèm `Bearer token` thay vì `throw error` làm đứt nhạc sau lát đầu.
+- `[P0 - GOOGLE DRIVE & ONEDRIVE SYNC]` Nâng cấp `loadGoogleFiles` và `loadMicrosoftFiles`: cập nhật `parents`, `name`, `size`, `modifiedTime` cho bài đã có trong catalog (`knownIds.has`), chuyển `persistCloudCatalog` trong `loadMicrosoftFiles` sang chuỗi nền không chặn (`persistChain`), và tự động loại bỏ bài đã xóa trên Google Drive / OneDrive sau khi quét hoàn tất (bảo vệ `state.currentId`).
+- `[P1 - LOCAL / FIIO M11S & CUE PLAYBACK]` Chuẩn hóa phát nhạc nội bộ & CUE sub-track trên Web + APK: tự động `seekBitPerfectPlayback(Math.round(track.cueStart * 1000))` khi khởi chạy bài CUE ở chế độ Native Bit-Perfect, hiển thị thời gian tương đối `0..track.duration`, tự động chuyển bài tại ranh giới `cueStart + duration`, và đồng bộ `#room-play` theo `isNotifPlaying` trong `displayTrack(track)`.
+- `[P1 - LOCAL + CLOUD STREAMING & PRELOAD]` Gia cố tự phục hồi luồng phát nội bộ (`/local-media`, `content://`, `FileSystemFileHandle` trên Web) và tối ưu `preloadNext` cho Google Drive / OneDrive / Local để chuyển bài không trễ trên cả Web và APK.
 
 ## completed_history
 - `Run #28 (2026-11-21 04:59 +07 | v3.9.40 -> v3.9.41, versionCode 95)`: [P0/P1 - WEB + APK] Repeat-One/Previous Bit-Perfect & CUE Parity, Paused Notification & Lockscreen Seek Sync, MediaSession Bit-Perfect & DSD Multi-Surface Sync: (1) Native Lockscreen Seek While Paused (`MainActivity.java`): `BitPerfectAudioPlayer.seek(long positionMs)` clamps against `mDurationMs`, updates `mCurrentPositionMs` immediately, refreshes `updateMediaSessionMetadata(..., isPlaying())`, and posts `window.onNativeBitPerfectPosition` via `runOnUiThread` so notification/lockscreen seekbars respond instantly even while paused; (2) `displayTrack` False-Playing Fix (`index.html`): computes dynamic `isNotifPlaying` (`isPlaybackLoading || active Native Bit-Perfect || unpaused deck`) instead of hardcoded `true` before calling `NocturneNative.updateMediaNotification`; (3) `MediaSession` Bit-Perfect Sync (`index.html`): `updateMediaSession` respects `isNativeBitPerfectPlaying && !isNativeBitPerfectPaused`, and `updatePositionState` passes virtual Bit-Perfect duration/position into `library.resolveMediaSessionPositionState`; (4) Repeat-One, Previous `>3s` & Hardware Seek CUE/Bit-Perfect Parity (`index.html`): `playNext` restarts Bit-Perfect Repeat-One via `playTrack(state.currentId)`, seeks CUE Repeat-One and Previous `>3s` relative to `cueStart` (`cue0`), syncs seekbar/waveform/MediaSession (staying inside legacy 8000-char test slice), and `onHardwareSeekOffset`/`onHardwareSeekTo` support CUE `cueStart`, `applySmartSeekTime`, waveform, and `updatePositionState(true)`; (5) DSD Multi-Surface Transport Sync (`index.html`): `stopDsdWorker`, `playDsdFirstSlice`, and `playDsdTrack` call guarded `syncPlaybackButtonsUi` alongside `$('play-button').textContent`; verified `node sync-assets.cjs` Unix LF (`0` CR), `1803/1803` tests (`172` suites) PASS, 0 ES2020+ syntax, `.\gradlew.bat assembleDebug` (`6670847` bytes / `6.67 MB`).
@@ -38,6 +39,7 @@
 - Do not remove `native.scanMediaStoreAudio(10000)` or `scanDirectory` from legacy fallback paths (tested by regression suites).
 - Keep exact `filter.frequency.setTargetAtTime(band.frequency, state.context.currentTime, .015)` and `state.crossfeedNodes.output.connect(state.context.destination)` invariants.
 - Keep `function saveAlbumCoversCache()` signature (0 declared params) and `const maxEntries = (state.fiioDapMode || IS_LEGACY_ANDROID) ? 120 : 500;` intact.
+- Strictly focus ONLY on upgrading and improving music playback and music synchronization from Google Drive, OneDrive, and Local storage for both Web and Android APK. Never add unrelated UI widgets, visual effects, or non-playback/non-sync features.
 
 ## blockers
 - none
