@@ -2200,7 +2200,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.19</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.20</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3551,12 +3551,44 @@
         try {
           if (typeof pauseCloudMetadataQueue === 'function') pauseCloudMetadataQueue(30000);
           if (typeof setVisualizerRunning === 'function') setVisualizerRunning(false);
-          if (typeof state !== 'undefined' && state && state.objectUrls && state.objectUrls.size > 4) {
+          if (typeof state !== 'undefined' && state) {
+            if (state.preloadDsdSliceWorker) {
+              try { state.preloadDsdSliceWorker.postMessage({ type: 'cancel' }); } catch (_) {}
+              try { state.preloadDsdSliceWorker.terminate(); } catch (_) {}
+              state.preloadDsdSliceWorker = null;
+              state.preloadDsdSliceTrackId = null;
+            }
             const activeSrc = (typeof audio !== 'undefined' && audio && audio.src) ? audio.src : '';
-            for (const url of [...state.objectUrls]) {
-              if (url !== activeSrc && url !== state.dsdUrl && url !== state.preloadReadyUrl) {
-                try { URL.revokeObjectURL(url); } catch (_) {}
-                state.objectUrls.delete(url);
+            if (state.dsdBlob && (!state.dsdUrl || activeSrc !== state.dsdUrl || Number(level) >= 15)) {
+              state.dsdBlob = null;
+            }
+            if (state.objectUrls && state.objectUrls.size > 4) {
+              for (const url of [...state.objectUrls]) {
+                if (url !== activeSrc && url !== state.dsdUrl && url !== state.preloadReadyUrl) {
+                  try { URL.revokeObjectURL(url); } catch (_) {}
+                  state.objectUrls.delete(url);
+                }
+              }
+            }
+            if (Number(level) >= 15 && state.albumCovers && state.albumCovers.size > 40) {
+              const curTrack = (typeof state.tracks !== 'undefined' && Array.isArray(state.tracks))
+                ? state.tracks.find(function (t) { return t && t.id === state.currentId; })
+                : null;
+              const keepKey = (curTrack && typeof library !== 'undefined' && library && typeof library.buildAlbumKey === 'function')
+                ? library.buildAlbumKey(curTrack)
+                : null;
+              const toDrop = state.albumCovers.size - 40;
+              let dropped = 0;
+              for (const entry of state.albumCovers.entries()) {
+                if (dropped >= toDrop) break;
+                const k = entry[0];
+                const v = entry[1];
+                if (keepKey && k === keepKey) continue;
+                state.albumCovers.delete(k);
+                if (typeof v === 'string' && v.startsWith('blob:') && v !== activeSrc) {
+                  try { URL.revokeObjectURL(v); } catch (_) {}
+                }
+                dropped++;
               }
             }
           }
@@ -3954,21 +3986,54 @@
       }
     } catch (_) {}
 
+    let albumCoversSaveTimer = null;
     function saveAlbumCoversCache() {
-      try {
-        if (typeof localStorage === 'undefined' || !state.albumCovers) return;
-        const serializable = [];
-        const maxEntries = (state.fiioDapMode || IS_LEGACY_ANDROID) ? 120 : 500;
-        for (const [key, cover] of state.albumCovers.entries()) {
-          if (serializable.length >= maxEntries) break;
-          if (typeof cover === 'string' && !cover.startsWith('blob:') && cover.length <= 65536) {
-            serializable.push([key, cover]);
+      const immediate = arguments.length > 0 && arguments[0] === true;
+      const writeNow = function () {
+        albumCoversSaveTimer = null;
+        try {
+          if (typeof localStorage === 'undefined' || !state.albumCovers) return;
+          const maxEntries = (state.fiioDapMode || IS_LEGACY_ANDROID) ? 120 : 500;
+          const maxTotalBytes = (state.fiioDapMode || IS_LEGACY_ANDROID) ? 1500000 : 3000000;
+          const entries = Array.from(state.albumCovers.entries());
+          const serializable = [];
+          let totalBytes = 0;
+          for (let i = entries.length - 1; i >= 0; i--) {
+            if (serializable.length >= maxEntries) break;
+            const key = entries[i][0];
+            const cover = entries[i][1];
+            if (typeof cover === 'string' && !cover.startsWith('blob:') && cover.length <= 65536) {
+              if (totalBytes + cover.length + key.length + 8 > maxTotalBytes) continue;
+              serializable.push([key, cover]);
+              totalBytes += cover.length + key.length + 8;
+            }
           }
+          serializable.reverse();
+          try {
+            localStorage.setItem('nocturne-album-covers', JSON.stringify(serializable));
+          } catch (quotaErr) {
+            let cap = Math.floor(serializable.length / 2);
+            while (cap >= 10) {
+              try {
+                localStorage.setItem('nocturne-album-covers', JSON.stringify(serializable.slice(serializable.length - cap)));
+                return;
+              } catch (_) {
+                cap = Math.floor(cap / 2);
+              }
+            }
+            console.warn('Could not save album covers cache:', quotaErr);
+          }
+        } catch (e) {
+          console.warn('Could not save album covers cache:', e);
         }
-        localStorage.setItem('nocturne-album-covers', JSON.stringify(serializable));
-      } catch (e) {
-        console.warn('Could not save album covers cache:', e);
+      };
+      if (immediate === true) {
+        if (albumCoversSaveTimer) { clearTimeout(albumCoversSaveTimer); albumCoversSaveTimer = null; }
+        writeNow();
+        return;
       }
+      if (albumCoversSaveTimer) clearTimeout(albumCoversSaveTimer);
+      albumCoversSaveTimer = setTimeout(writeNow, 800);
     }
 
     function syncAlbumCoversImmediate(cover, track) {
@@ -3989,7 +4054,14 @@
 
       const currentCover = state.albumCovers.get(key);
       if (!currentCover || targetCover.length > currentCover.length) {
+        if (state.albumCovers.has(key)) state.albumCovers.delete(key);
         state.albumCovers.set(key, targetCover);
+        const maxInMemory = (state.fiioDapMode || IS_LEGACY_ANDROID) ? 180 : 600;
+        while (state.albumCovers.size > maxInMemory) {
+          const oldestKey = state.albumCovers.keys().next().value;
+          if (oldestKey === undefined || oldestKey === key) break;
+          state.albumCovers.delete(oldestKey);
+        }
         saveAlbumCoversCache();
       }
 
@@ -12269,17 +12341,26 @@
       }
     }
     function stopDsdWorker(invalidate = true) {
-      if (!state.dsdWorker && !state.dsdUrl) return;
-      if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; }
+      if (!state.dsdWorker && !state.dsdUrl && !state.dsdBlob) return;
+      if (state.dsdWorker) {
+        try { state.dsdWorker.postMessage({type:'cancel'}); } catch (_) {}
+        try { state.dsdWorker.terminate(); } catch (_) {}
+        state.dsdWorker = null;
+      }
       if (invalidate) { state.playGeneration++; $('play-button').textContent = '▶'; if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); }
       if (state.dsdUrl) {
         const url = state.dsdUrl;
         if (audio.src === url) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
         if (standbyAudio.src === url) { standbyAudio.pause(); standbyAudio.muted = true; standbyAudio.removeAttribute('src'); standbyAudio.load(); }
-        URL.revokeObjectURL(url); state.objectUrls.delete(url); state.dsdUrl = null;
+        try { URL.revokeObjectURL(url); } catch (_) {}
+        state.objectUrls.delete(url); state.dsdUrl = null;
       }
       const decodedTrack = state.tracks.find(track => track.id === state.dsdTrackId);
-      if (decodedTrack) decodedTrack.url = '';
+      if (decodedTrack) {
+        decodedTrack.url = '';
+        decodedTrack.fullAudioPromise = null;
+        decodedTrack.firstSlicePlayback = false;
+      }
       state.dsdTrackId = null; state.dsdBlob = null;
     }
     // Pha C — phát lát PCM đầu DSD (từ worker hoặc từ cache IndexedDB):
@@ -12437,7 +12518,14 @@
           setupAudio();
           if (!state.context) return;
           if (state.context.state === 'suspended') await state.context.resume();
-          if (generation !== state.playGeneration) return;
+          if (generation !== state.playGeneration) {
+            try { URL.revokeObjectURL(url); } catch (_) {}
+            state.objectUrls.delete(url);
+            if (state.dsdUrl === url) { state.dsdUrl = null; state.dsdBlob = null; state.dsdTrackId = null; }
+            if (track.url === url) track.url = '';
+            if (dsdSliceUrl && ![audio, standbyAudio].some(element => element.src === sliceAbsoluteUrl)) releaseTrackUrl(dsdSliceUrl);
+            return;
+          }
           if (wasSlicePlaying) {
             // Pha A — như upgradeSliceToFullAudio bên đường lát đầu FLAC:
             // giữ đúng deck đang phát lát DSD, đừng seek/play nhầm sang
