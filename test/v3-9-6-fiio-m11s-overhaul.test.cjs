@@ -15,7 +15,7 @@ const PLAYBACK_SVC = path.join(ROOT, 'android', 'app', 'src', 'main', 'java', 'c
 const BUILD_GRADLE = path.join(ROOT, 'android', 'app', 'build.gradle.kts');
 const ASSETS_DIR = path.join(ROOT, 'android', 'app', 'src', 'main', 'assets');
 
-test('v3.9.11 Layer 1: WebView 74 CSS & JS Compatibility', async () => {
+test('v3.9.12 Layer 1: WebView 74 CSS & JS Compatibility', async () => {
   const html = fs.readFileSync(INDEX_HTML, 'utf8');
   const tw = fs.readFileSync(TW_CSS, 'utf8');
   const sw = fs.readFileSync(SW_JS, 'utf8');
@@ -38,7 +38,7 @@ test('v3.9.11 Layer 1: WebView 74 CSS & JS Compatibility', async () => {
   assert.equal(res[1].status, 'rejected');
 });
 
-test('v3.9.11 Layer 2: Web-Parity Offline Tailwind Coverage & FiiO M11S 5-inch Roon Visual Polish', () => {
+test('v3.9.12 Layer 2: Web-Parity Offline Tailwind Coverage & FiiO M11S 5-inch Roon Visual Polish', () => {
   const html = fs.readFileSync(INDEX_HTML, 'utf8');
   const tw = fs.readFileSync(TW_CSS, 'utf8');
 
@@ -62,7 +62,7 @@ test('v3.9.11 Layer 2: Web-Parity Offline Tailwind Coverage & FiiO M11S 5-inch R
   assert.ok(html.includes('#header-eq-btn {'));
 });
 
-test('v3.9.11 Hotfix & Deep DAP Optimization: Fast-Tap, Scroll, Compact Catalog, Timeupdate Screen-Off & Lazy Covers', () => {
+test('v3.9.12 Hotfix & Deep DAP Optimization: Fast-Tap, Scroll, Compact Catalog, Timeupdate Screen-Off & Lazy Covers', () => {
   const html = fs.readFileSync(INDEX_HTML, 'utf8');
   const java = fs.readFileSync(MAIN_ACTIVITY, 'utf8');
 
@@ -77,17 +77,17 @@ test('v3.9.11 Hotfix & Deep DAP Optimization: Fast-Tap, Scroll, Compact Catalog,
   assert.ok(java.includes('visitedDirs.add(canonical)'));
 });
 
-test('v3.9.11 OTA Web Assets Engine (GitHub main -> Atomic Staging/Swap -> Bundled APK Fallback)', () => {
+test('v3.9.12 OTA Web Assets Engine (GitHub main -> Atomic Staging/Swap -> Bundled APK Fallback)', () => {
   const html = fs.readFileSync(INDEX_HTML, 'utf8');
   const java = fs.readFileSync(MAIN_ACTIVITY, 'utf8');
   const svc = fs.readFileSync(PLAYBACK_SVC, 'utf8');
   const gradle = fs.readFileSync(BUILD_GRADLE, 'utf8');
   const sw = fs.readFileSync(SW_JS, 'utf8');
 
-  assert.ok(sw.includes("const CACHE_VERSION = 'v3.9.11';"));
-  assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.11';"));
-  assert.ok(gradle.includes('versionCode = 65'));
-  assert.ok(gradle.includes('versionName = "3.9.11"'));
+  assert.ok(sw.includes("const CACHE_VERSION = 'v3.9.12';"));
+  assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.12';"));
+  assert.ok(gradle.includes('versionCode = 66'));
+  assert.ok(gradle.includes('versionName = "3.9.12"'));
 
   // OTA engine in MainActivity.java
   assert.ok(java.includes('https://raw.githubusercontent.com/tranbienhao1/thiennguyen/main/'));
@@ -114,7 +114,7 @@ test('v3.9.11 OTA Web Assets Engine (GitHub main -> Atomic Staging/Swap -> Bundl
   assert.ok(java.includes('return "{\\"versionName\\":\\"" + vName'));
 });
 
-test('v3.9.11 Asset Parity (0 CR bytes) & Web Audio Invariants', () => {
+test('v3.9.12 Asset Parity (0 CR bytes) & Web Audio Invariants', () => {
   const rootHtml = fs.readFileSync(INDEX_HTML, 'utf8');
   const assetHtml = fs.readFileSync(path.join(ASSETS_DIR, 'index.html'), 'utf8');
   const rootTw = fs.readFileSync(TW_CSS, 'utf8');
