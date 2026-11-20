@@ -292,3 +292,11 @@ test('v3.1.0: Quick Favorites Pill, 0-9 Percentage Seek & Smart Battery-Saver Mo
   assert.ok(html.includes("body.power-save-mode"), 'CSS must include lightweight power-save-mode rules');
   assert.ok(html.includes('window.onAndroidPowerSaveChanged = (enabled) =>'), 'Web bridge must handle Android power-save mode');
 });
+
+test('v3.1.1: unlockAudioDecksOnGesture uses detached Audio probe (never fires ended on player decks)', () => {
+  const start = html.indexOf('function unlockAudioDecksOnGesture()');
+  const end = html.indexOf('async function safeResumeAudioContext(', start);
+  const body = html.slice(start, end);
+  assert.ok(body.includes('new Audio(SILENT_UNLOCK_WAV)'), 'must use detached probe Audio element');
+  assert.ok(!body.includes('[standbyAudio, audio]'), 'must never assign SILENT_UNLOCK_WAV directly to audio or standbyAudio');
+});

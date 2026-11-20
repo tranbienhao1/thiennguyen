@@ -11,11 +11,11 @@ const library = require('../library-utils.js');
 const swCode = fs.readFileSync(path.join(rootDir, 'sw.js'), 'utf8');
 const libraryCode = fs.readFileSync(path.join(rootDir, 'library-utils.js'), 'utf8');
 
-test('Code Audit & Cloud Auth Upgrades Verification Suite (v3.1.0)', async (t) => {
+test('Code Audit & Cloud Auth Upgrades Verification Suite (v3.1.1)', async (t) => {
 
-  await t.test('1. sw.js cache version bumped to v3.1.0 and invalidates stale caches on activate', async () => {
-    assert.ok(/v[23]\.\d+\.\d+/.test(swCode), 'sw.js must include version string v3.1.0');
-    assert.ok(swCode.includes("CACHE_NAME = 'nocturne-v3.1.0'"), 'sw.js must set CACHE_NAME to nocturne-v3.1.0');
+  await t.test('1. sw.js cache version bumped to v3.1.1 and invalidates stale caches on activate', async () => {
+    assert.ok(/v[23]\.\d+\.\d+/.test(swCode), 'sw.js must include version string v3.1.1');
+    assert.ok(swCode.includes("CACHE_NAME = 'nocturne-v3.1.1'"), 'sw.js must set CACHE_NAME to nocturne-v3.1.1');
 
     const listeners = {};
     const cacheStore = new Map([
@@ -57,8 +57,8 @@ test('Code Audit & Cloud Auth Upgrades Verification Suite (v3.1.0)', async (t) =
     vm.createContext(sandbox);
     vm.runInContext(swCode, sandbox, { filename: 'sw.js' });
 
-    assert.equal(sandbox.self.CACHE_NAME, 'nocturne-v3.1.0', 'self.CACHE_NAME must be nocturne-v3.1.0');
-    assert.equal(sandbox.self.CACHE_VERSION, 'v3.1.0', 'self.CACHE_VERSION must be v3.1.0');
+    assert.equal(sandbox.self.CACHE_NAME, 'nocturne-v3.1.1', 'self.CACHE_NAME must be nocturne-v3.1.1');
+    assert.equal(sandbox.self.CACHE_VERSION, 'v3.1.1', 'self.CACHE_VERSION must be v3.1.1');
 
     let settledPromise;
     listeners.activate({ waitUntil(p) { settledPromise = p; } });
@@ -72,7 +72,7 @@ test('Code Audit & Cloud Auth Upgrades Verification Suite (v3.1.0)', async (t) =
     assert.equal(cacheStore.has('nocturne-v3'), false, 'Stale nocturne-v3 cache must be purged on activate');
     assert.equal(cacheStore.has('nocturne-v2'), false, 'Stale nocturne-v2 cache must be purged on activate');
     assert.equal(cacheStore.has('nocturne-v0'), false, 'Stale nocturne-v0 cache must be purged on activate');
-    assert.equal(cacheStore.has('nocturne-v3.1.0'), true, 'Active nocturne-v3.1.0 cache must be opened');
+    assert.equal(cacheStore.has('nocturne-v3.1.1'), true, 'Active nocturne-v3.1.1 cache must be opened');
     assert.equal(sandbox.self.claimed, true, 'Service worker must claim clients on activate');
   });
 

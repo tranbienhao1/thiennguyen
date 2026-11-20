@@ -4406,8 +4406,16 @@
           const swapStartedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
           const deck = audio;
           const deckRouter = (state.activeDeck && state.activeDeck.element === deck && state.activeDeck.router && state.activeDeck.router.gain) ? state.activeDeck.router.gain : null;
+          let routerRestoreTimer = null;
+          const restoreDeckGain = () => {
+            if (routerRestoreTimer) { clearTimeout(routerRestoreTimer); routerRestoreTimer = null; }
+            if (deckRouter && state.context) {
+              try { deckRouter.setTargetAtTime(1, state.context.currentTime, 0.007); } catch (_) { deckRouter.value = 1; }
+            }
+          };
           if (deckRouter && !wasPaused && !endedEarly && state.context) {
             try { deckRouter.setTargetAtTime(0.0001, state.context.currentTime, 0.005); } catch (_) {}
+            routerRestoreTimer = setTimeout(restoreDeckGain, 1500);
           }
           // Pha A — giữ đúng deck đang phát lát đầu: handler
           // 'loadedmetadata' chạy bất đồng bộ; nếu deck đã đổi (bấm Next
@@ -4428,10 +4436,10 @@
             if (!wasPaused || endedEarly) {
               if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') { try { state.context.resume().catch(() => {}); } catch (_) {} }
               deck.play().then(() => {
-                if (deckRouter && state.context) { try { deckRouter.setTargetAtTime(1, state.context.currentTime, 0.007); } catch (_) { deckRouter.value = 1; } }
+                restoreDeckGain();
                 if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
               }).catch(error => {
-                if (deckRouter && state.context) { try { deckRouter.setTargetAtTime(1, state.context.currentTime, 0.007); } catch (_) { deckRouter.value = 1; } }
+                restoreDeckGain();
                 console.warn('Could not resume after upgrading to the full audio file:', error.message || error);
                 if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
               });
@@ -11364,33 +11372,15 @@
     function unlockAudioDecksOnGesture() {
       if (state._decksUnlockedByGesture) return;
       state._decksUnlockedByGesture = true;
-      for (const el of [standbyAudio, audio]) {
-        if (!el || el.src || !el.paused) continue;
-        try {
-          const prevMuted = el.muted;
-          el.muted = true;
-          el.src = SILENT_UNLOCK_WAV;
-          const p = el.play();
-          if (p && typeof p.then === 'function') {
-            p.then(() => {
-              if (el.src === SILENT_UNLOCK_WAV) {
-                el.pause();
-                el.removeAttribute('src');
-                el.muted = prevMuted;
-              }
-            }).catch(() => {
-              if (el.src === SILENT_UNLOCK_WAV) {
-                el.removeAttribute('src');
-                el.muted = prevMuted;
-              }
-            });
-          } else {
-            el.pause();
-            el.removeAttribute('src');
-            el.muted = prevMuted;
-          }
-        } catch (_) {}
-      }
+      try {
+        if (typeof Audio !== 'function') return;
+        const probe = new Audio(SILENT_UNLOCK_WAV);
+        probe.muted = true;
+        const p = probe.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => { try { probe.pause(); probe.removeAttribute('src'); } catch (_) {} }).catch(() => {});
+        }
+      } catch (_) {}
     }
     async function safeResumeAudioContext(timeoutMs = 350) {
       if (!state.context || state.context.state !== 'suspended' || typeof state.context.resume !== 'function') return;
@@ -16229,6 +16219,8 @@
         const gaplessLookaheadEligible = Boolean(
           element === audio &&
           !element.paused &&
+          !element.ended &&
+          !state.isPlaybackLoading &&
           !(state.crossfadeSeconds > 0) &&
           state.repeat !== 2 &&
           !state.sleepAtTrackEnd &&

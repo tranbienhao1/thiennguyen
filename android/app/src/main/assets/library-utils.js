@@ -8323,7 +8323,7 @@
     return `Nạp đệm: ${loaded}/${total} đoạn (${mb} MB · ${percent}%)`;
   }
 
-  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v3.1.0') {
+  function buildServiceWorkerCacheManifest(routes, version = 'nocturne-v3.1.1') {
     const validRoutes = Array.isArray(routes) ? routes.filter(r => typeof r === 'string' && r.trim().length > 0) : [];
     const normalized = [...new Set(validRoutes.map(r => r.trim()))];
     return {
