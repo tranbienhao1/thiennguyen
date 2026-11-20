@@ -2718,6 +2718,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void updateMediaNotification(String title, String artist, String album, boolean isPlaying) {
         mIsMediaPlaying = isPlaying;
+        NocturnePlaybackService.sCurrentAlbumArt = loadCachedCoverBitmap(album, artist);
         if (isPlaying) {
             boolean needWifi = !(mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying() && !mBitPerfectPlayer.isRemoteStream());
             acquireWakeLock(needWifi);
@@ -2796,6 +2797,7 @@ public class MainActivity extends AppCompatActivity {
                 mb.putLong(MediaMetadata.METADATA_KEY_DURATION, mBitPerfectPlayer.getDurationMs());
             }
             android.graphics.Bitmap coverBmp = loadCachedCoverBitmap(album, displayArtist);
+            NocturnePlaybackService.sCurrentAlbumArt = coverBmp;
             if (coverBmp != null) {
                 mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, coverBmp);
             }
@@ -4048,11 +4050,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.28";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.29";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.28\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.29\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

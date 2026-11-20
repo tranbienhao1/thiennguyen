@@ -2342,7 +2342,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.28</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.29</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3701,7 +3701,12 @@
               state.preloadDsdSliceWorker = null;
               state.preloadDsdSliceTrackId = null;
             }
-            const activeSrc = (typeof audio !== 'undefined' && audio && audio.src) ? audio.src : '';
+            const activeEl = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : (typeof audio !== 'undefined' ? audio : null);
+            const activeSrc = (activeEl && activeEl.src) ? activeEl.src : '';
+            const inCrossfade = Boolean(state.crossfadeUntil && state.context && state.context.currentTime < state.crossfadeUntil);
+            if (Number(level) >= 15 && !inCrossfade && typeof clearStalePreload === 'function') {
+              try { clearStalePreload(); } catch (_) {}
+            }
             if (state.dsdBlob && (!state.dsdUrl || activeSrc !== state.dsdUrl || Number(level) >= 15)) {
               state.dsdBlob = null;
             }
@@ -3710,6 +3715,14 @@
                 if (url !== activeSrc && url !== state.dsdUrl && url !== state.preloadReadyUrl) {
                   try { URL.revokeObjectURL(url); } catch (_) {}
                   state.objectUrls.delete(url);
+                  if (Array.isArray(state.tracks)) {
+                    for (let i = 0; i < state.tracks.length; i++) {
+                      const tr = state.tracks[i];
+                      if (!tr) continue;
+                      if (tr.url === url) tr.url = '';
+                      if (tr.fullAudioUrl === url) tr.fullAudioUrl = null;
+                    }
+                  }
                 }
               }
             }

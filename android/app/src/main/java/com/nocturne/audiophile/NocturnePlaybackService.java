@@ -39,6 +39,17 @@ public class NocturnePlaybackService extends Service {
     private static final String ACTION_PREV = "com.nocturne.audiophile.ACTION_PREVIOUS";
 
     public static volatile MediaSession.Token sMediaSessionToken = null;
+    public static volatile android.graphics.Bitmap sCurrentAlbumArt = null;
+    public static final long PAUSE_IDLE_TIMEOUT_MS = 20L * 60L * 1000L;
+
+    private final android.os.Handler mIdleHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable mIdleStopRunnable = new Runnable() {
+        @Override
+        public void run() {
+            stopForegroundCompat();
+            stopSelf();
+        }
+    };
 
     @Override
     public void onCreate() {
@@ -48,6 +59,7 @@ public class NocturnePlaybackService extends Service {
 
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+        mIdleHandler.removeCallbacks(mIdleStopRunnable);
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
             stopForegroundCompat();
             stopSelf();
@@ -79,7 +91,9 @@ public class NocturnePlaybackService extends Service {
                 }
             }
         } else {
-            // Keep service & MediaSession alive when paused so FiiO M11S hardware buttons still resume with screen off
+            // Keep service & MediaSession alive when paused so FiiO M11S hardware buttons still resume with screen off,
+            // and auto-stop after 20 minutes of unattended pause to conserve DAP battery.
+            mIdleHandler.postDelayed(mIdleStopRunnable, PAUSE_IDLE_TIMEOUT_MS);
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     stopForeground(STOP_FOREGROUND_DETACH);
@@ -189,12 +203,17 @@ public class NocturnePlaybackService extends Service {
             .addAction(playPauseAction)
             .addAction(nextAction)
             .setStyle(mediaStyle);
+        android.graphics.Bitmap art = sCurrentAlbumArt;
+        if (art != null && !art.isRecycled()) {
+            builder.setLargeIcon(art);
+        }
 
         return builder.build();
     }
 
     @Override
     public void onDestroy() {
+        mIdleHandler.removeCallbacks(mIdleStopRunnable);
         stopForegroundCompat();
         super.onDestroy();
     }
