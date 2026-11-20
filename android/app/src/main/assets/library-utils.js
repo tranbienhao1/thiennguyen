@@ -12252,6 +12252,13 @@
       }
     }
 
+    if (!resolved && (track.uri || track.path) && typeof buildFiioCoverUrl === 'function') {
+      const fiioUrl = buildFiioCoverUrl(track);
+      if (fiioUrl) {
+        resolved = fiioUrl;
+      }
+    }
+
     if (resolved) {
       track.cover = resolved;
       if (key && key !== ':::' && coverMap) {
@@ -12393,6 +12400,14 @@
           resolved = sibling.cover;
           break;
         }
+      }
+    }
+
+    // Tier 5.5: FiiO DAP native local-cover endpoint fallback
+    if (!resolved && (track.uri || track.path) && typeof buildFiioCoverUrl === 'function') {
+      const fiioUrl = buildFiioCoverUrl(track);
+      if (fiioUrl) {
+        resolved = fiioUrl;
       }
     }
 

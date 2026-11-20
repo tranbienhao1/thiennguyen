@@ -1860,7 +1860,7 @@ public class MainActivity extends AppCompatActivity {
                 for (File kid : kids) {
                     if (kid == null || !kid.isFile()) continue;
                     String name = kid.getName().toLowerCase(Locale.US);
-                    if (name.equals(base + ".jpg") || name.equals(base + ".jpeg") || name.equals(base + ".png")) {
+                    if (name.equals(base + ".jpg") || name.equals(base + ".jpeg") || name.equals(base + ".png") || name.equals(base + ".webp")) {
                         byte[] jpeg = coverBytesToJpeg(coverReadSmallFile(kid, 8L * 1024L * 1024L), size);
                         if (jpeg != null) return jpeg;
                     }
@@ -1874,7 +1874,7 @@ public class MainActivity extends AppCompatActivity {
                 for (File kid : kids) {
                     if (kid == null || !kid.isFile()) continue;
                     String name = kid.getName().toLowerCase(Locale.US);
-                    if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png")) {
+                    if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") || name.endsWith(".webp")) {
                         long len = kid.length();
                         if (len > bestLen && len <= 10L * 1024L * 1024L) {
                             bestLen = len;
@@ -4077,11 +4077,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.30";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.31";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.30\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.31\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

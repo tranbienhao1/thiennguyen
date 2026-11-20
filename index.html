@@ -2342,7 +2342,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.30</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.31</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -5644,8 +5644,11 @@
           artistMap.set(key, entry);
         }
         entry.count++;
-        if (!entry.cover && t.cover && t.cover !== '♫' && !failedNativeCovers.has(t.cover)) {
-          entry.cover = t.cover;
+        if (!entry.cover) {
+          const tCover = (t.cover && t.cover !== '♫') ? t.cover : (typeof library !== 'undefined' && typeof library.resolveTrackCover === 'function' ? library.resolveTrackCover(t, state.albumCovers, tracks) : null);
+          if (tCover && tCover !== '♫' && !failedNativeCovers.has(tCover)) {
+            entry.cover = tCover;
+          }
         }
       }
 
@@ -6621,7 +6624,7 @@
       hero.setAttribute('data-hero-type', isAlbum ? 'album' : 'artist');
       if (titleEl) titleEl.textContent = entry.name || (isAlbum ? 'Album' : 'Nghệ sĩ');
       if (artistEl) {
-        artistEl.textContent = isAlbum ? (entry.artist || '—') : `${(entry.tracks || []).length} bài hát`;
+        artistEl.textContent = isAlbum ? (entry.artist || '—') : `${entry.albums ? entry.albums.length : (typeof buildArtistAlbums === 'function' ? buildArtistAlbums(entry).length : 1)} album`;
         const canTapArtist = Boolean(isAlbum && entry.artist && entry.artist !== '—' && entry.artist !== 'Unknown Artist');
         artistEl.classList.toggle('cursor-pointer', canTapArtist);
         artistEl.classList.toggle('hover:underline', canTapArtist);
@@ -6640,10 +6643,22 @@
           'border-white/10 bg-white/5 text-zinc-300';
         qualityEl.className = `rounded border px-2 py-0.5 text-[9px] font-medium ${tone}`;
       }
-      if (tracksEl) tracksEl.textContent = `${(summary && summary.trackCount != null ? summary.trackCount : (entry.tracks || []).length)} bài`;
+      if (tracksEl) tracksEl.textContent = `${(summary && summary.trackCount != null ? summary.trackCount : (entry.tracks || []).length)} bài hát`;
       if (durationEl) durationEl.textContent = (summary && summary.formattedDuration) || '—';
       if (coverEl) {
-        coverEl.innerHTML = entry.cover ? `<img src="${escapeHtml(entry.cover)}" class="h-full w-full object-cover" alt="">` : `<span class="grid h-full w-full place-items-center text-4xl text-zinc-500">♫</span>`;
+        if (entry.cover) {
+          coverEl.innerHTML = `<img src="${escapeHtml(entry.cover)}" class="h-full w-full object-cover" alt="">`;
+        } else {
+          const rawName = String(entry.name || '').trim();
+          const words = rawName ? rawName.split(/\s+/) : [];
+          let inits = '';
+          for (let w = 0; w < Math.min(2, words.length); w++) {
+            if (words[w]) inits += words[w].charAt(0).toUpperCase();
+          }
+          coverEl.innerHTML = isAlbum
+            ? `<span class="grid h-full w-full place-items-center text-4xl text-zinc-500">${escapeHtml(inits || '♫')}</span>`
+            : `<span class="grid h-full w-full place-items-center text-3xl font-semibold text-white bg-gradient-to-br from-purple-600/40 to-indigo-900/60" style="border-radius:50%">${escapeHtml(inits || '♫')}</span>`;
+        }
       }
 
       const playBtn = $('album-hero-play');
@@ -6655,6 +6670,8 @@
       const backBtn = $('album-hero-back');
 
       if (playBtn) {
+        const playBtnLabel = playBtn.querySelector('span:last-child');
+        if (playBtnLabel) playBtnLabel.textContent = isAlbum ? 'Phát album' : 'Phát tất cả';
         playBtn.onclick = () => {
           if (entry.tracks && entry.tracks.length > 0) {
             if (typeof library !== 'undefined' && library && typeof library.sortAlbumTracks === 'function' && entry.tracks.length > 1) {
@@ -6664,12 +6681,12 @@
             if (state.context && state.context.state === 'suspended') {
               state.context.resume().catch(e => console.debug('AudioContext resume in album-hero-play:', e));
             }
-            state.playbackContext = { type: 'album', key: entry.key, name: entry.name, trackIds: entry.tracks.map(t => t.id) };
+            state.playbackContext = { type: isAlbum ? 'album' : 'artist', key: entry.key, name: entry.name, trackIds: entry.tracks.map(t => t.id) };
             state.queueTrackIds = entry.tracks.slice(1).map(t => t.id);
             if (state.preloadTrackId && state.preloadTrackId !== entry.tracks[0].id && state.preloadTrackId !== (state.queueTrackIds[0] || null) && typeof clearStalePreload === 'function') clearStalePreload();
             renderQueue();
             playTrack(entry.tracks[0].id);
-            toast(`Đang phát Album: ${entry.name} (Tuần tự bài 1 đến hết)`);
+            toast(isAlbum ? `Đang phát Album: ${entry.name} (Tuần tự bài 1 đến hết)` : `Đang phát nghệ sĩ: ${entry.name} (${entry.tracks.length} bài)`);
           }
         };
       }
@@ -7126,7 +7143,7 @@
           const action = entry.action || (isArtistView ? 'artist' : 'album');
           const albumSummary = (!isArtistView && !isGenreView) ? library.summarizeAlbum(entry.tracks) : null;
           const formatBadge = (!isArtistView && !isGenreView && albumSummary && albumSummary.highestQuality && albumSummary.highestQuality.label) ? `<span class="album-format-badge format-badge format-${albumSummary.highestQuality.tier}">${albumSummary.highestQuality.label}</span>` : '';
-          return `<button type="button" class="collection-card" data-collection-action="${action}" data-collection-key="${escapeHtml(entry.key)}" aria-label="${escapeHtml(entry.name)}${entry.artist ? ` — ${escapeHtml(entry.artist)}` : ''}"><span class="collection-art ${isArtistView || !entry.cover ? 'is-artist' : ''}">${image}${formatBadge}</span><span class="collection-title">${escapeHtml(entry.name)}</span><span class="collection-subtitle">${subtitle}</span></button>`;
+          return `<button type="button" class="collection-card" data-collection-action="${action}" data-collection-key="${escapeHtml(entry.key)}" aria-label="${escapeHtml(entry.name)}${entry.artist ? ` — ${escapeHtml(entry.artist)}` : ''}"><span class="collection-art ${isArtistView ? 'is-artist' : ''}">${image}${formatBadge}</span><span class="collection-title">${escapeHtml(entry.name)}</span><span class="collection-subtitle">${subtitle}</span></button>`;
         }).join('');
 
         grid.innerHTML = cards;
@@ -7322,7 +7339,7 @@
         // đổi thành ▶ khi hover, tiêu đề text-sm rõ hơn nghệ sĩ text-xs,
         // huy hiệu chất lượng thành pill, thời lượng text-xs.
         return `<div role="button" tabindex="0" class="track-row${versionInfo.versionIndex > 0 ? ' track-version-row' : ''} ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[.06] ${versionInfo.versionIndex > 0 ? 'py-2 pl-10 pr-4' : 'px-4 py-2'} text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]" aria-label="Phát ${escapeHtml(metadata.title)} — ${escapeHtml(metadata.artist)}" data-track-index="${trackIndex + 1}" data-track-id="${escapeHtml(track.id)}">
-          <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" loading="lazy" decoding="async" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${titleHtml}${annBadge}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${artistHtml}</span>${mobileAlbumInlineHtml} <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
+          <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" loading="lazy" decoding="async" class="h-full w-full object-cover" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${titleHtml}${annBadge}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${artistHtml}</span>${mobileAlbumInlineHtml} <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
           <span class="hidden truncate text-xs text-zinc-500 sm:block"><span class="album-link hover:underline cursor-pointer">${albumHtml}</span></span><span class="hidden sm:block"><span class="rounded-full border px-2 py-0.5 text-[9px] font-medium tracking-wide ${q.tone}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${q.label}</span></span><span class="flex items-center justify-end gap-1"><span class="track-rating hidden sm:inline-block mr-1 text-[11px] text-amber-400 cursor-pointer select-none hover:opacity-80" data-rating-track-id="${escapeHtml(track.id)}" title="Đánh giá: ${trRating}/5 sao">${trStars}</span>${versionInfo.versionIndex === 0 && versionInfo.versionGroup.versions.length > 1 ? `<button type="button" data-version-action="toggle" data-version-key="${escapeHtml(versionInfo.versionGroup.key)}" class="shrink-0 rounded-full border border-violet-400/40 px-2 py-0.5 text-[10px] font-medium text-violet-200 hover:bg-violet-400/10" aria-expanded="${expandedVersions.has(versionInfo.versionGroup.key)}" aria-label="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn' : 'Mở rộng'} ${versionInfo.versionGroup.versions.length} phiên bản của ${escapeHtml(metadata.title)}" title="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn các phiên bản' : 'Xem các phiên bản khác'}">${versionInfo.versionGroup.versions.length} phiên bản ${expandedVersions.has(versionInfo.versionGroup.key) ? '▴' : '▾'}</button>` : ''}<span class="text-right text-xs tabular-nums text-zinc-400">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button><button type="button" data-queue-action="play_next" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Phát tiếp theo" title="Phát tiếp theo">⏭</button><button type="button" data-queue-action="append" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Thêm vào cuối" title="Thêm vào cuối">➕</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
         </div>`;
       }
@@ -10634,8 +10651,8 @@
       const displayTracks = library.queueDisplayOrder(trackById(state.currentId), tracks);
       list.innerHTML = displayTracks.map((track, index) => {
         const metadata = library.trackMetadata(track);
-        if (track.id === state.currentId) return `<div class="flex items-center gap-2 rounded-xl border border-violet-300/30 bg-violet-300/[.06] p-2" data-queue-current-row="${escapeHtml(track.id)}"><span class="w-5 text-center text-[10px] font-semibold text-violet-300">▶</span><span class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-violet-200">${track.cover ? `<img src="${escapeHtml(track.cover)}" loading="lazy" decoding="async" class="h-full w-full object-contain" alt="">` : '♫'}</span><span class="min-w-0 flex-1"><span class="block truncate text-xs font-medium text-zinc-100">${escapeHtml(metadata.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(metadata.artist)} · ${escapeHtml(track.format || sourceLabel(track.source))}</span></span><span class="shrink-0 rounded border border-violet-300/30 px-1.5 py-1 text-[9px] font-medium text-violet-200">Đang phát</span></div>`;
-        return `<div class="group/q flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] p-2 transition-all cursor-grab active:cursor-grabbing hover:bg-white/[.04]" data-queue-row="${escapeHtml(track.id)}" draggable="true" aria-grabbed="false"><span class="queue-drag-handle w-4 text-center text-xs text-zinc-500 group-hover/q:text-violet-300 cursor-grab select-none font-mono" title="Kéo thả để sắp xếp lại">⠿</span><span class="w-4 text-center text-[10px] tabular-nums text-zinc-600">${tracks.indexOf(track) + 1}</span><button type="button" data-queue-play="${escapeHtml(track.id)}" class="flex min-w-0 flex-1 items-center gap-3 text-left"><span class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-violet-200">${track.cover ? `<img src="${escapeHtml(track.cover)}" loading="lazy" decoding="async" class="h-full w-full object-contain" alt="">` : '♫'}</span><span class="min-w-0"><span class="block truncate text-xs font-medium text-zinc-200">${escapeHtml(metadata.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(metadata.artist)} · ${escapeHtml(track.format || sourceLabel(track.source))}</span></span></button><button type="button" data-queue-move="up" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-white" aria-label="Chuyển lên">↑</button><button type="button" data-queue-move="down" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-white" aria-label="Chuyển xuống">↓</button><button type="button" data-queue-action="remove" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-rose-300" aria-label="Xóa khỏi hàng đợi">×</button></div>`;
+        if (track.id === state.currentId) return `<div class="flex items-center gap-2 rounded-xl border border-violet-300/30 bg-violet-300/[.06] p-2" data-queue-current-row="${escapeHtml(track.id)}"><span class="w-5 text-center text-[10px] font-semibold text-violet-300">▶</span><span class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-violet-200">${track.cover ? `<img src="${escapeHtml(track.cover)}" loading="lazy" decoding="async" class="h-full w-full object-cover" alt="">` : '♫'}</span><span class="min-w-0 flex-1"><span class="block truncate text-xs font-medium text-zinc-100">${escapeHtml(metadata.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(metadata.artist)} · ${escapeHtml(track.format || sourceLabel(track.source))}</span></span><span class="shrink-0 rounded border border-violet-300/30 px-1.5 py-1 text-[9px] font-medium text-violet-200">Đang phát</span></div>`;
+        return `<div class="group/q flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] p-2 transition-all cursor-grab active:cursor-grabbing hover:bg-white/[.04]" data-queue-row="${escapeHtml(track.id)}" draggable="true" aria-grabbed="false"><span class="queue-drag-handle w-4 text-center text-xs text-zinc-500 group-hover/q:text-violet-300 cursor-grab select-none font-mono" title="Kéo thả để sắp xếp lại">⠿</span><span class="w-4 text-center text-[10px] tabular-nums text-zinc-600">${tracks.indexOf(track) + 1}</span><button type="button" data-queue-play="${escapeHtml(track.id)}" class="flex min-w-0 flex-1 items-center gap-3 text-left"><span class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-zinc-800 text-violet-200">${track.cover ? `<img src="${escapeHtml(track.cover)}" loading="lazy" decoding="async" class="h-full w-full object-cover" alt="">` : '♫'}</span><span class="min-w-0"><span class="block truncate text-xs font-medium text-zinc-200">${escapeHtml(metadata.title)}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${escapeHtml(metadata.artist)} · ${escapeHtml(track.format || sourceLabel(track.source))}</span></span></button><button type="button" data-queue-move="up" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-white" aria-label="Chuyển lên">↑</button><button type="button" data-queue-move="down" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-white" aria-label="Chuyển xuống">↓</button><button type="button" data-queue-action="remove" class="rounded px-2 py-1 text-xs text-zinc-500 hover:text-rose-300" aria-label="Xóa khỏi hàng đợi">×</button></div>`;
       }).join('');
       list.querySelectorAll('[data-queue-play]').forEach(button => button.addEventListener('click', () => playTrack(button.dataset.queuePlay)));
       list.querySelectorAll('[data-queue-action="remove"]').forEach(button => button.addEventListener('click', () => removeFromQueue(button.closest('[data-queue-row]').dataset.queueRow)));
