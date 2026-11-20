@@ -3413,11 +3413,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.7";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.8";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.7\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.8\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -3719,49 +3719,70 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public String scanDirectory(String dirPath, int maxFiles) {
             JSONArray results = new JSONArray();
-            if (dirPath == null || dirPath.isEmpty()) return results.toString();
+            try {
+                if (dirPath == null || dirPath.isEmpty()) return results.toString();
 
-            File dir = new File(dirPath);
-            if (!dir.exists() || !dir.canRead()) return results.toString();
+                File dir = new File(dirPath);
+                if (!dir.exists() || !dir.canRead()) return results.toString();
 
-            int limit = maxFiles > 0 ? maxFiles : 10000;
-            List<File> audioFiles = new ArrayList<>();
-            scanDirInternal(dir, audioFiles, limit);
+                int limit = maxFiles > 0 ? maxFiles : 10000;
+                List<File> audioFiles = new ArrayList<>();
+                Set<String> visitedDirs = new HashSet<>();
+                scanDirInternal(dir, audioFiles, limit, 0, visitedDirs);
 
-            for (File file : audioFiles) {
-                try {
-                    JSONObject obj = new JSONObject();
-                    obj.put("name", file.getName());
-                    obj.put("path", file.getAbsolutePath());
-                    obj.put("size", file.length());
-                    obj.put("lastModified", file.lastModified());
-                    results.put(obj);
-                } catch (Exception ignored) {}
+                for (File file : audioFiles) {
+                    try {
+                        JSONObject obj = new JSONObject();
+                        obj.put("name", file.getName());
+                        obj.put("path", file.getAbsolutePath());
+                        obj.put("size", file.length());
+                        obj.put("lastModified", file.lastModified());
+                        results.put(obj);
+                    } catch (Exception ignored) {}
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "scanDirectory safe catch for " + dirPath + ": " + t.getMessage());
             }
             return results.toString();
         }
 
-        private void scanDirInternal(File current, List<File> collected, int limit) {
-            if (collected.size() >= limit || current == null || !current.exists()) return;
-            File[] files = current.listFiles();
+        private void scanDirInternal(File current, List<File> collected, int limit, int depth, Set<String> visitedDirs) {
+            if (depth > 16 || collected.size() >= limit || current == null || !current.exists()) return;
+            try {
+                String canonical = current.getCanonicalPath();
+                if (!visitedDirs.add(canonical)) return;
+            } catch (Exception ignored) {}
+
+            File[] files;
+            try {
+                files = current.listFiles();
+            } catch (Throwable t) {
+                return;
+            }
             if (files == null) return;
 
             for (File file : files) {
                 if (collected.size() >= limit) break;
-                if (file.isDirectory()) {
-                    if (!file.getName().startsWith(".")) {
-                        scanDirInternal(file, collected, limit);
+                if (file == null) continue;
+                try {
+                    if (file.isDirectory()) {
+                        String dName = file.getName();
+                        if (dName == null || dName.startsWith(".") ||
+                                "Android".equals(dName) || "proc".equals(dName) || "sys".equals(dName)) {
+                            continue;
+                        }
+                        scanDirInternal(file, collected, limit, depth + 1, visitedDirs);
+                    } else {
+                        String name = file.getName().toLowerCase(Locale.US);
+                        if (name.endsWith(".flac") || name.endsWith(".dsf") || name.endsWith(".dff") ||
+                                name.endsWith(".wav") || name.endsWith(".mp3") || name.endsWith(".m4a") ||
+                                name.endsWith(".alac") || name.endsWith(".aiff") || name.endsWith(".aif") ||
+                                name.endsWith(".ogg") || name.endsWith(".opus") || name.endsWith(".ape") ||
+                                name.endsWith(".cue") || name.endsWith(".iso") || name.endsWith(".wma")) {
+                            collected.add(file);
+                        }
                     }
-                } else {
-                    String name = file.getName().toLowerCase(Locale.US);
-                    if (name.endsWith(".flac") || name.endsWith(".dsf") || name.endsWith(".dff") ||
-                            name.endsWith(".wav") || name.endsWith(".mp3") || name.endsWith(".m4a") ||
-                            name.endsWith(".alac") || name.endsWith(".aiff") || name.endsWith(".aif") ||
-                            name.endsWith(".ogg") || name.endsWith(".opus") || name.endsWith(".ape") ||
-                            name.endsWith(".cue") || name.endsWith(".iso") || name.endsWith(".wma")) {
-                        collected.add(file);
-                    }
-                }
+                } catch (Throwable ignored) {}
             }
         }
 
