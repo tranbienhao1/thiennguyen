@@ -1187,6 +1187,9 @@ public class MainActivity extends AppCompatActivity {
                         switch (focusChange) {
                             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
                                 // Smoothly duck volume during GPS/notification chime without pausing
+                                if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                                    mBitPerfectPlayer.setDucking(true);
+                                }
                                 if (mWebView != null) {
                                     mWebView.post(() -> mWebView.evaluateJavascript(
                                             "if (typeof window.onAndroidAudioDuck === 'function') window.onAndroidAudioDuck(true);",
@@ -1211,6 +1214,9 @@ public class MainActivity extends AppCompatActivity {
                                 break;
                             case AudioManager.AUDIOFOCUS_GAIN:
                                 mHasAudioFocus = true;
+                                if (mBitPerfectPlayer != null) {
+                                    mBitPerfectPlayer.setDucking(false);
+                                }
                                 if (mWebView != null) {
                                     mWebView.post(() -> mWebView.evaluateJavascript(
                                             "if (typeof window.onAndroidAudioDuck === 'function') window.onAndroidAudioDuck(false);",
@@ -1950,7 +1956,7 @@ public class MainActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             if (intent != null && AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(intent.getAction())) {
                 try {
-                    if (mBitPerfectPlaying.get() && !mBitPerfectPaused.get()) {
+                    if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
                         pauseBitPerfectPlayback();
                     }
                 } catch (Exception ignored) {}
@@ -1969,7 +1975,11 @@ public class MainActivity extends AppCompatActivity {
         if (!mIsBecomingNoisyRegistered) {
             try {
                 IntentFilter noisyFilter = new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY);
-                registerReceiver(mBecomingNoisyReceiver, noisyFilter);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    registerReceiver(mBecomingNoisyReceiver, noisyFilter, Context.RECEIVER_NOT_EXPORTED);
+                } else {
+                    registerReceiver(mBecomingNoisyReceiver, noisyFilter);
+                }
                 mIsBecomingNoisyRegistered = true;
             } catch (Exception ignored) {}
         }
@@ -2609,6 +2619,15 @@ public class MainActivity extends AppCompatActivity {
             mSeekTargetUs.set(Math.max(0, positionMs * 1000L));
             synchronized (mPauseLock) {
                 mPauseLock.notifyAll();
+            }
+        }
+
+        public void setDucking(boolean ducked) {
+            AudioTrack track = mAudioTrack;
+            if (track != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                try {
+                    track.setVolume(ducked ? 0.25f : 1.0f);
+                } catch (Exception ignored) {}
             }
         }
 

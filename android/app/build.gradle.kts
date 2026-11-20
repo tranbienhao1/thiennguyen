@@ -11,8 +11,8 @@ android {
         applicationId = "com.nocturne.audiophile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 57 // History: versionCode = 29, versionCode = 28, versionCode = 27, versionCode = 26, versionCode = 25, versionCode = 24, versionCode = 23, versionCode = 22, versionCode = 21, versionCode = 20, versionCode = 19, versionCode = 18, versionCode = 17, versionCode = 16, versionCode = 15
-        versionName = "3.9.3" // History: versionName = "2.6.1", versionName = "2.6.0", versionName = "2.5.0", versionName = "2.4.0", versionName = "2.3.0", versionName = "2.2.0", versionName = "2.1.3", versionName = "2.1.2", versionName = "2.1.1", versionName = "2.1.0", versionName = "2.0.9", versionName = "2.0.8", versionName = "2.0.7", versionName = "2.0.6", versionName = "2.0.5"
+        versionCode = 59 // History: versionCode = 29, versionCode = 28, versionCode = 27, versionCode = 26, versionCode = 25, versionCode = 24, versionCode = 23, versionCode = 22, versionCode = 21, versionCode = 20, versionCode = 19, versionCode = 18, versionCode = 17, versionCode = 16, versionCode = 15
+        versionName = "3.9.5" // History: versionName = "2.6.1", versionName = "2.6.0", versionName = "2.5.0", versionName = "2.4.0", versionName = "2.3.0", versionName = "2.2.0", versionName = "2.1.3", versionName = "2.1.2", versionName = "2.1.1", versionName = "2.1.0", versionName = "2.0.9", versionName = "2.0.8", versionName = "2.0.7", versionName = "2.0.6", versionName = "2.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

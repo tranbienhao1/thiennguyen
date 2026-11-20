@@ -513,3 +513,54 @@ test('v3.9.3: Seeking past first-slice buffered range queues _pendingSeekAfterFu
   const seekBlock = html.slice(seekStart, seekStart + 2400);
   assert.ok(seekBlock.includes('curTrack._pendingSeekAfterFullUpgrade = targetSeekSec;'), 'seekbar must queue targetSeekSec when seeking beyond buffered first-slice');
 });
+
+test('v3.9.4: applySmartSeekTime protects #room-seek, seekByStep & MediaSession seekto from first-slice truncated EOF', () => {
+  const fnStart = html.indexOf('function applySmartSeekTime(curAudio, curTrack, targetSec)');
+  const fnEnd = html.indexOf("$('room-seek').addEventListener('change'", fnStart);
+  const fnSrc = html.slice(fnStart, fnEnd);
+  const toasts = [];
+  const applySmartSeekTime = new Function('toast', 'formatTime', `${fnSrc}\nreturn applySmartSeekTime;`)(
+    msg => toasts.push(msg),
+    s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+  );
+  const mockAudio = {
+    currentTime: 5,
+    duration: 240,
+    buffered: { length: 1, end: () => 24 }
+  };
+  const sliceTrack = { firstSlicePlayback: true, fullAudioPromise: Promise.resolve('blob:full'), lastSlicePosition: 5 };
+  // Seeking to 120s (past 24s buffer) must queue _pendingSeekAfterFullUpgrade and NOT touch audio.currentTime
+  const appliedFar = applySmartSeekTime(mockAudio, sliceTrack, 120);
+  assert.equal(appliedFar, false, 'Seeking past first-slice buffer must return false (queued)');
+  assert.equal(mockAudio.currentTime, 5, 'audio.currentTime must remain untouched while waiting for full FLAC');
+  assert.equal(sliceTrack._pendingSeekAfterFullUpgrade, 120, '_pendingSeekAfterFullUpgrade must record 120s');
+  assert.equal(sliceTrack.lastSlicePosition, 120, 'lastSlicePosition must update to 120s');
+
+  // Seeking to 15s (within 24s buffer) must seek immediately and clear pending seek
+  const appliedNear = applySmartSeekTime(mockAudio, sliceTrack, 15);
+  assert.equal(appliedNear, true, 'Seeking within first-slice buffer must apply immediately');
+  assert.equal(mockAudio.currentTime, 15, 'audio.currentTime must jump to 15s');
+  assert.equal(sliceTrack._pendingSeekAfterFullUpgrade, null, '_pendingSeekAfterFullUpgrade must be cleared');
+});
+
+test('v3.9.5: MainActivity.java has zero undeclared mBitPerfect* symbols, guards Android 13+ RECEIVER_NOT_EXPORTED & ducks BitPerfect AudioTrack', () => {
+  const mainJava = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'com', 'nocturne', 'audiophile', 'MainActivity.java'), 'utf8');
+  assert.ok(!mainJava.includes('mBitPerfectPlaying'), 'mBitPerfectPlaying undeclared symbol must not exist in MainActivity.java');
+  assert.ok(!mainJava.includes('mBitPerfectPaused'), 'mBitPerfectPaused undeclared symbol must not exist in MainActivity.java');
+  assert.ok(mainJava.includes('if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {\n                        pauseBitPerfectPlayback();'), 'mBecomingNoisyReceiver must pause via mBitPerfectPlayer.isPlaying()');
+  assert.ok(mainJava.includes('registerReceiver(mBecomingNoisyReceiver, noisyFilter, Context.RECEIVER_NOT_EXPORTED)'), 'mBecomingNoisyReceiver must pass RECEIVER_NOT_EXPORTED on Android 13+');
+  assert.ok(mainJava.includes('public void setDucking(boolean ducked)'), 'BitPerfectAudioPlayer must implement setDucking(boolean)');
+  assert.ok(mainJava.includes('mBitPerfectPlayer.setDucking(true);') && mainJava.includes('mBitPerfectPlayer.setDucking(false);'), 'AudioFocus listener must duck and restore BitPerfectAudioPlayer');
+});
+
+test('v3.9.5: clearAudioSliceCacheAndMemory clears revoked fullAudioUrl/preloadReadyUrl & stall watchdog never jumps backward near EOF', () => {
+  const clearStart = html.indexOf('async function clearAudioSliceCacheAndMemory()');
+  const clearBlock = html.slice(clearStart, clearStart + 2600);
+  assert.ok(clearBlock.includes("if (t.fullAudioUrl && String(t.fullAudioUrl).startsWith('blob:') && !state.objectUrls.has(t.fullAudioUrl))"), 'clearAudioSliceCacheAndMemory must clear revoked fullAudioUrl');
+  assert.ok(clearBlock.includes("if (state.preloadReadyUrl && String(state.preloadReadyUrl).startsWith('blob:') && !state.objectUrls.has(state.preloadReadyUrl))"), 'clearAudioSliceCacheAndMemory must reset revoked preloadReadyUrl');
+
+  const wdStart = html.indexOf('function runPlaybackStallWatchdogTick()');
+  const wdBlock = html.slice(wdStart, wdStart + 2200);
+  assert.ok(wdBlock.includes('(audio.duration - curT) > 0.25'), 'stall watchdog must not nudge within 0.25s of track end');
+  assert.ok(wdBlock.includes('Math.max(curT, Math.min(curT + 0.05, audio.duration - 0.15))'), 'stall watchdog targetPos must never jump backward');
+});

@@ -15302,6 +15302,25 @@
         $('room-remaining').textContent = formatRemainingTime(previewTime, audio.duration);
       }
     });
+    function applySmartSeekTime(curAudio, curTrack, targetSec) {
+      if (!curAudio || !Number.isFinite(targetSec)) return false;
+      const safeSec = Math.max(0, Number.isFinite(curAudio.duration) && curAudio.duration > 0 ? Math.min(targetSec, curAudio.duration) : targetSec);
+      if (curTrack && curTrack.firstSlicePlayback && curTrack.fullAudioPromise) {
+        let bufferedEnd = 0;
+        try {
+          if (curAudio.buffered && curAudio.buffered.length > 0) bufferedEnd = curAudio.buffered.end(curAudio.buffered.length - 1);
+        } catch (_) {}
+        if (bufferedEnd > 0 && safeSec > bufferedEnd + 0.5) {
+          curTrack._pendingSeekAfterFullUpgrade = safeSec;
+          curTrack.lastSlicePosition = safeSec;
+          toast(`⏳ Đang tải bản FLAC đầy đủ — sẽ nhảy tới ${formatTime(safeSec)} ngay khi xong...`);
+          return false;
+        }
+        curTrack._pendingSeekAfterFullUpgrade = null;
+      }
+      curAudio.currentTime = safeSec;
+      return true;
+    }
     $('room-seek').addEventListener('change', event => {
       const curTrack = state.tracks.find(t => t.id === state.currentId);
       const ratio = Number(event.currentTarget.value) / 1000;
@@ -15311,7 +15330,7 @@
       } else if (curTrack && curTrack.cueStart !== undefined) {
         audio.currentTime = curTrack.cueStart + (ratio * curTrack.duration);
       } else if (Number.isFinite(audio.duration)) {
-        audio.currentTime = ratio * audio.duration;
+        applySmartSeekTime(audio, curTrack, ratio * audio.duration);
       }
       updatePositionState();
     });
@@ -15385,9 +15404,10 @@
         toast(`Đã tua tới ${formatTime(res.targetTrackTime)} / ${formatTime(curTrack.duration)}.`);
         return;
       }
-      curAudio.currentTime = next;
-      updatePositionState(true);
-      toast(`Đã tua tới ${formatTime(next)} / ${formatTime(audio.duration)}.`);
+      if (applySmartSeekTime(curAudio, curTrack, next)) {
+        updatePositionState(true);
+        toast(`Đã tua tới ${formatTime(next)} / ${formatTime(audio.duration)}.`);
+      }
     };
     document.addEventListener('keydown', event => {
       // Global Command Palette Shortcut: Ctrl+K or Cmd+K
@@ -16641,17 +16661,22 @@
           const res = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
             ? library.calculateSeekTargetTime(0, curTrack, curAudio.duration, { delta, currentRawTime: curAudio.currentTime })
             : { targetAbsoluteTime: Math.min(curAudio.duration || 0, (curAudio.currentTime || 0) + delta) };
-          curAudio.currentTime = res.targetAbsoluteTime;
+          applySmartSeekTime(curAudio, curTrack, res.targetAbsoluteTime);
           updatePositionState(true);
         });
         action('seekto', event => {
           if (event.seekTime != null) {
             const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
             const curTrack = state.tracks.find(t => t.id === state.currentId);
+            if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && window.NocturneNative.seekBitPerfectPlayback) {
+              window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(Number(event.seekTime) * 1000)));
+              updatePositionState(true);
+              return;
+            }
             const res = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
               ? library.calculateSeekTargetTime(event.seekTime, curTrack, curAudio.duration)
               : { targetAbsoluteTime: Math.min(Math.max(0, event.seekTime), curAudio.duration || 0) };
-            curAudio.currentTime = res.targetAbsoluteTime;
+            applySmartSeekTime(curAudio, curTrack, res.targetAbsoluteTime);
             updatePositionState(true);
           }
         });
@@ -18003,11 +18028,20 @@
           }
         }
         for (const t of (state.tracks || [])) {
-          if (t && t.id !== state.currentId && t.url && String(t.url).startsWith('blob:') && !state.objectUrls.has(t.url)) {
+          if (!t || t.id === state.currentId) continue;
+          if (t.url && String(t.url).startsWith('blob:') && !state.objectUrls.has(t.url)) {
             t.url = '';
             t.firstSlicePlayback = false;
             t.firstSliceCached = false;
           }
+          if (t.fullAudioUrl && String(t.fullAudioUrl).startsWith('blob:') && !state.objectUrls.has(t.fullAudioUrl)) {
+            t.fullAudioUrl = '';
+            t.sliceEndedEarly = false;
+          }
+        }
+        if (state.preloadReadyUrl && String(state.preloadReadyUrl).startsWith('blob:') && !state.objectUrls.has(state.preloadReadyUrl)) {
+          state.preloadTrackId = null;
+          state.preloadReadyUrl = null;
         }
       } catch (_) {}
       toast(`🧹 Đã dọn ${clearedEntries} lát cache và giải phóng ${revokedUrls} bộ nhớ tạm.`);
@@ -18532,12 +18566,14 @@
           if (watchdogStallTicks >= 2 && (nowMs - watchdogLastNudgeAt) >= 20000) {
             watchdogLastNudgeAt = nowMs;
             watchdogStallTicks = 0;
-            try {
-              const targetPos = Number.isFinite(audio.duration) && audio.duration > 1 ? Math.min(curT + 0.05, audio.duration - 0.5) : (curT + 0.05);
-              audio.currentTime = Math.max(0, targetPos);
-            } catch (_) {}
-            const p = audio.play();
-            if (p && typeof p.catch === 'function') p.catch(() => {});
+            if (!Number.isFinite(audio.duration) || audio.duration <= 0 || (audio.duration - curT) > 0.25) {
+              try {
+                const targetPos = Number.isFinite(audio.duration) && audio.duration > 1 ? Math.max(curT, Math.min(curT + 0.05, audio.duration - 0.15)) : (curT + 0.05);
+                audio.currentTime = Math.max(0, targetPos);
+              } catch (_) {}
+              const p = audio.play();
+              if (p && typeof p.catch === 'function') p.catch(() => {});
+            }
           }
         } else {
           watchdogLastTime = curT;
