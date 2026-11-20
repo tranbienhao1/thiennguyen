@@ -5,6 +5,26 @@
  */
 'use strict';
 
+// Chromium 74 (FiiO M11S WebView 74) polyfill: Blob.prototype.arrayBuffer landed in Chrome 76
+if (typeof Blob !== 'undefined' && Blob.prototype && typeof Blob.prototype.arrayBuffer !== 'function') {
+  Blob.prototype.arrayBuffer = function () {
+    const selfBlob = this;
+    if (typeof FileReaderSync === 'function') {
+      try {
+        return Promise.resolve(new FileReaderSync().readAsArrayBuffer(selfBlob));
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    }
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () { resolve(reader.result); };
+      reader.onerror = function () { reject(reader.error || new Error('DSD worker Blob.arrayBuffer read failed')); };
+      reader.readAsArrayBuffer(selfBlob);
+    });
+  };
+}
+
 const DEFAULT_TARGET_RATE = 44100;
 const PCM_RATE_FAMILIES = [[44100, 88200, 176400], [48000, 96000, 192000]];
 const SUPPORTED_TARGET_RATES = PCM_RATE_FAMILIES.flat();

@@ -1659,6 +1659,8 @@ public class MainActivity extends AppCompatActivity {
         if (lower.endsWith(".opus")) return "audio/opus";
         if (lower.endsWith(".aiff") || lower.endsWith(".aif")) return "audio/aiff";
         if (lower.endsWith(".ape")) return "audio/x-ape";
+        if (lower.endsWith(".wv")) return "audio/x-wavpack";
+        if (lower.endsWith(".mka")) return "audio/x-matroska";
         if (lower.endsWith(".wma")) return "audio/x-ms-wma";
         return "audio/octet-stream";
     }
@@ -1909,7 +1911,12 @@ public class MainActivity extends AppCompatActivity {
                 try { afd.close(); } catch (IOException ignored) {}
                 return new WebResourceResponse(mimeType, null, 200, "OK", respHeaders, new ByteArrayInputStream(new byte[0]));
             }
-            return new WebResourceResponse(mimeType, null, 200, "OK", respHeaders, afd.createInputStream());
+            try {
+                return new WebResourceResponse(mimeType, null, 200, "OK", respHeaders, afd.createInputStream());
+            } catch (IOException openErr) {
+                try { afd.close(); } catch (IOException ignored) {}
+                throw openErr;
+            }
         }
 
         long start = 0;
@@ -1969,8 +1976,13 @@ public class MainActivity extends AppCompatActivity {
             return new WebResourceResponse(mimeType, null, statusCode, statusReason, respHeaders, new ByteArrayInputStream(new byte[0]));
         }
 
-        InputStream is = new BoundedContentUriInputStream(afd, start, contentLength);
-        return new WebResourceResponse(mimeType, null, statusCode, statusReason, respHeaders, is);
+        try {
+            InputStream is = new BoundedContentUriInputStream(afd, start, contentLength);
+            return new WebResourceResponse(mimeType, null, statusCode, statusReason, respHeaders, is);
+        } catch (IOException streamErr) {
+            try { afd.close(); } catch (IOException ignored) {}
+            throw streamErr;
+        }
     }
 
     /**
@@ -3638,11 +3650,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.22";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.23";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.22\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.23\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
