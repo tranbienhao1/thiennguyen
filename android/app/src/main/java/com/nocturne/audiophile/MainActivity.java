@@ -3638,11 +3638,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.20";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.21";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.20\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.21\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -4339,8 +4339,10 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public String getOtaStatusJson() {
             String active = mActivity.getCurrentActiveWebVersion().replace("\"", "");
+            String bundled = mActivity.readBundledCacheName().replace("\"", "");
             String pending = mActivity.mOtaPendingVersion != null ? mActivity.mOtaPendingVersion.replace("\"", "") : "";
-            return "{\"activeVersion\":\"" + active + "\",\"pendingVersion\":\"" + pending + "\",\"apkVersionCode\":" + BuildConfig.VERSION_CODE + "}";
+            boolean isOtaActive = new File(mActivity.getOtaActiveDir(), ".ota_ready").exists() && !active.isEmpty() && !active.equals(bundled);
+            return "{\"activeVersion\":\"" + active + "\",\"bundledVersion\":\"" + bundled + "\",\"pendingVersion\":\"" + pending + "\",\"isOtaActive\":" + (isOtaActive ? "true" : "false") + ",\"apkVersionCode\":" + BuildConfig.VERSION_CODE + "}";
         }
     }
 

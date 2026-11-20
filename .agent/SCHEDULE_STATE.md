@@ -1,18 +1,18 @@
 # Nocturne Autonomous Tail-Chaining Schedule State
 
-- **run_id**: 7
-- **timestamp**: 2026-11-20T16:12:45+07:00
-- **current_version**: v3.9.20
-- **versionCode**: 74
-- **last_commit**: 7cb0e82 -> v3.9.20
+- **run_id**: 8
+- **timestamp**: 2026-11-20T16:21:55+07:00
+- **current_version**: v3.9.21
+- **versionCode**: 75
+- **last_commit**: dc41688 -> v3.9.21
 - **status**: DONE
 - **active_chain**: none
 
 ## next_queue
-1. `[P2]` Refine Settings OTA Web Assets status badge (show active web version vs bundled APK version + 1-tap safe rollback to bundled assets) and compact catalog maintenance.
-2. `[P1]` Run full repository test suite sweep (`test/*.test.cjs`) and audit `android/app/src/main/assets` + `sw.js` `APP_SHELL` parity and any stale/broken edge-case tests across Web & APK.
+1. `[P0]` Investigate & fix the 8 failing legacy/core test files surfaced by the 182-file repo sweep (`android-project-integrity.test.cjs`, `auto-advance-next-song.test.cjs`, `code-audit-upgrades.test.cjs`, `eq-relocate-minihud-smooth.test.cjs`, `full-audio-failure.test.cjs`, `fullscreen-room-merged.test.cjs`, `mobile-ui-android.test.cjs`, `v2-6-3-slice-eof-and-smart-album.test.cjs`) — fix any genuine playback/integrity bugs first and align any stale test slices to reach 182/182 PASS.
 
 ## completed_history
+- `Run #8 (2026-11-20 16:21 +07 | v3.9.20 -> v3.9.21, versionCode 75)`: [P2+P1] Enhanced `MainActivity.getOtaStatusJson()` with `bundledVersion` & `isOtaActive`; added `window.refreshOtaStatusBadge()` + 1-tap safe rollback button (`#ota-rollback-btn`, hidden unless OTA active) in Settings (`index.html`), automatically refreshed in `setupFiioIntegration()` & `showSettings()`; verified 13/13 root `*.js` <-> Android assets Unix LF parity; swept all 182 repo test files (`174/182 PASS`, surfacing 8 exact files queued for Run #9); verified 90/90 core/FiiO/OTA/ES5 tests + `assembleDebug` APK (`6.60 MB`).
 - `Run #7 (2026-11-20 16:12 +07 | v3.9.19 -> v3.9.20, versionCode 74)`: [P1] Hardened FiiO M11S 3GB RAM & DSD memory hygiene: added 180-entry in-memory LRU cap to `syncAlbumCoversImmediate`, debounced `saveAlbumCoversCache()` (800ms) with 1.5MB byte-budget + `QuotaExceededError` half-trimming recovery; upgraded `window.onAndroidLowMemory(level)` to cancel/terminate `preloadDsdSliceWorker`, release `state.dsdBlob`, and trim `state.albumCovers` down to 40 entries (preserving current album) on critical memory pressure; made `stopDsdWorker()` exception-safe while clearing `fullAudioPromise` and made `playDsdTrack()` revoke late decoded WAV ObjectURLs if skipped during `AudioContext.resume()`; verified 129/129 tests (0 ES2020+ syntax) + `assembleDebug` APK (`6.60 MB`).
 - `Run #6 (2026-11-20 16:05 +07 | v3.9.18 -> v3.9.19, versionCode 73)`: [P1] Added OneDrive 401/403 instant first-slice token refresh parity in `fetchCloudTrack` (Graph `/content` URLs only, preserving SharePoint `downloadUrl` fallback); upgraded `loadMicrosoftFiles` to progressive page-by-page rendering (`scheduleTrackRender`) with deferred `queueCloudMetadata` in `finally`; reduced FiiO MicroSD `localStorage` catalog payload by >35% by omitting reconstructible `/local-media?` URLs and empty defaults with lossless `hydrateFiioStoredTrack` restoration and graceful `QuotaExceededError` ultra-lean/trimming recovery; verified 105/105 tests (0 ES2020+ syntax) + `assembleDebug` APK (`6.59 MB`).
 - `Run #5 (2026-11-20 15:58 +07 | v3.9.17 -> v3.9.18, versionCode 72)`: [P1] Audited & hardened Android screen-off battery and background keep-alive hygiene: `MainActivity.acquireWakeLock(needWifiLock)` releases `WifiLock` during local MicroSD/internal Bit-Perfect playback while keeping `WifiLock` for remote cloud streams; `onPause()` guarantees `WakeLock`/`WifiLock` release when paused/idle; throttled Bit-Perfect WebView position IPC 8× (`250ms` -> `2000ms`) when `mIsInBackground` with instant snap-sync on `onResume()`; published `MediaMetadata.METADATA_KEY_DURATION` to `MediaSession`; guarded CUE `timeupdate` & `progress` DOM/canvas updates when `document.hidden`; suspended idle `AudioContext` on Android background when paused and resumed on foreground playback; verified 85/85 tests (0 ES2020+ syntax) + `assembleDebug` APK (`6.59 MB`).
