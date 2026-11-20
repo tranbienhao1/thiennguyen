@@ -2200,7 +2200,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.16</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.17</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -7187,12 +7187,12 @@
           filter.Q.setTargetAtTime(sanitized.q, state.context.currentTime, .015);
           filter.gain.setTargetAtTime(sanitized.gain, state.context.currentTime, .015);
         });
-        const enabled = $('eq-enabled').checked;
-        const phaseMult = state.phaseInvert ? -1 : 1;
+        const enabled = !state.bitPerfectEnabled && Boolean($('eq-enabled') && $('eq-enabled').checked);
+        const phaseMult = state.bitPerfectEnabled ? 1 : (state.phaseInvert ? -1 : 1);
         deck.preamp.gain.setTargetAtTime(enabled ? phaseMult * Math.pow(10, effectivePreamp / 20) : 0, state.context.currentTime, .015);
         deck.direct.gain.setTargetAtTime(enabled ? 0 : phaseMult * 1, state.context.currentTime, .015);
       });
-      state.activeAnalyser = $('eq-enabled').checked ? state.analyser : state.directAnalyser;
+      state.activeAnalyser = (!state.bitPerfectEnabled && Boolean($('eq-enabled') && $('eq-enabled').checked)) ? state.analyser : state.directAnalyser;
       if (typeof renderSignalPathChain === 'function' && state.currentId) {
         const cur = state.tracks.find(t => t.id === state.currentId);
         if (cur) renderSignalPathChain(cur);
@@ -7455,7 +7455,7 @@
       if (!state.context) return;
       [state.deckA, state.deckB].filter(Boolean).forEach(rebuildDeckRoute);
       state.filters = state.deckA ? state.deckA.filters : [];
-      state.bands.forEach((band, index) => [state.deckA, state.deckB].forEach(deck => { const filter = deck.filters[index]; filter.type = band.type; filter.frequency.setTargetAtTime(band.frequency, state.context.currentTime, .015); filter.Q.setTargetAtTime(band.q, state.context.currentTime, .015); filter.gain.setTargetAtTime(band.gain, state.context.currentTime, .015); }));
+      state.bands.forEach((band, index) => [state.deckA, state.deckB].filter(Boolean).forEach(deck => { const filter = deck.filters[index]; if (!filter) return; filter.type = band.type; filter.frequency.setTargetAtTime(band.frequency, state.context.currentTime, .015); filter.Q.setTargetAtTime(band.q, state.context.currentTime, .015); filter.gain.setTargetAtTime(band.gain, state.context.currentTime, .015); }));
       if (typeof library !== 'undefined' && library && typeof library.reconcileAudioNodeGraphForSampleRate === 'function' && state.context.sampleRate) {
         library.reconcileAudioNodeGraphForSampleRate(state, state.context.sampleRate);
       }
@@ -7465,8 +7465,17 @@
       const maxBoost = state.bands.reduce((max, band) => Math.max(max, band.gain), 0), effectivePreamp = Math.max(-60, Math.min(0, -maxBoost + (Number($('eq-preamp').value) || 0)));
       const enabled = $('eq-enabled').checked;
       const phaseMult = state.phaseInvert ? -1 : 1;
-      [state.deckA, state.deckB].forEach(deck => { deck.preamp.gain.setTargetAtTime(enabled ? phaseMult * Math.pow(10, effectivePreamp / 20) : 0, state.context.currentTime, .015); deck.direct.gain.setTargetAtTime(enabled ? 0 : phaseMult * 1, state.context.currentTime, .015); });
+      [state.deckA, state.deckB].filter(Boolean).forEach(deck => { deck.preamp.gain.setTargetAtTime(enabled ? phaseMult * Math.pow(10, effectivePreamp / 20) : 0, state.context.currentTime, .015); deck.direct.gain.setTargetAtTime(enabled ? 0 : phaseMult * 1, state.context.currentTime, .015); });
       state.activeAnalyser = enabled ? state.analyser : state.directAnalyser;
+      if (state.directAnalyser && typeof state.directAnalyser.disconnect === 'function') {
+        try {
+          state.directAnalyser.disconnect();
+          if (!state.bitPerfectEnabled) {
+            const directDownstream = state.panner || (state.crossfeedNodes ? state.crossfeedNodes.input : state.context.destination);
+            if (directDownstream) state.directAnalyser.connect(directDownstream);
+          }
+        } catch (_) {}
+      }
       if (state.bitPerfectEnabled) {
         // Pure Direct DSP Bypass: in Bit-Perfect mode, bypass EQ nodes, crossfeed nodes, tone controls, dynamic compression and limiter; route source directly to state.context.destination with unity gain (gain 1.0).
         [state.deckA, state.deckB].filter(Boolean).forEach(deck => {
@@ -7573,12 +7582,18 @@
         }
       }
       state.toneNodes = createToneNodes(state.context);
+      if (state.toneNodes && typeof applyToneControls === 'function') {
+        applyToneControls();
+      }
       state.deckA = attachAudioElement(audio); state.deckB = attachAudioElement(standbyAudio); state.activeDeck = state.deckA;
       rebuildAudioRoutes();
       if (typeof library !== 'undefined' && library && typeof library.reconcileAudioNodeGraphForSampleRate === 'function') {
         library.reconcileAudioNodeGraphForSampleRate(state, state.context.sampleRate);
       }
-      document.addEventListener('visibilitychange', () => { if (document.hidden || (audio.paused && !(state.isFullscreen && state.fullscreenViewMode === 'stage'))) setVisualizerRunning(false); else setVisualizerRunning(true); });
+      if (!state._audioVisibilityBound) {
+        state._audioVisibilityBound = true;
+        document.addEventListener('visibilitychange', () => { if (document.hidden || (audio.paused && !(state.isFullscreen && state.fullscreenViewMode === 'stage'))) setVisualizerRunning(false); else setVisualizerRunning(true); });
+      }
     }
     // Pha B — đo peak trước/sau limiter: analyser phụ trước limiter cho
     // biết EQ đẩy peak lên bao nhiêu, so với peak sau limiter để hiện mức
@@ -8312,7 +8327,7 @@
 
       bass.connect(treble);
       treble.connect(ctx.destination);
-      return { bass, treble, input: bass, output: treble };
+      return { bass, treble, input: bass, output: treble, _routedToTone: false };
     }
     function applyToneControls() {
       const nodes = state.toneNodes;
@@ -8320,7 +8335,7 @@
         nodes.bass.gain.setTargetAtTime(state.toneBass || 0, state.context.currentTime, .015);
         nodes.treble.gain.setTargetAtTime(state.toneTreble || 0, state.context.currentTime, .015);
         const hasTone = Math.abs(state.toneBass || 0) > 0.05 || Math.abs(state.toneTreble || 0) > 0.05;
-        if (state.crossfeedNodes) {
+        if (state.crossfeedNodes && nodes._routedToTone !== hasTone) {
           try {
             state.crossfeedNodes.output.disconnect();
             if (hasTone) {
@@ -8328,6 +8343,7 @@
             } else {
               state.crossfeedNodes.output.connect(state.context.destination);
             }
+            nodes._routedToTone = hasTone;
           } catch (_) {}
         }
       }
@@ -8480,11 +8496,20 @@
           ? library.calculateAcousticWetDry(validKey, validWet)
           : { wetGain: 0, dryGain: 1 };
 
+        const now = state.context.currentTime;
         if (nodes.dryGain && nodes.dryGain.gain) {
-          nodes.dryGain.gain.setValueAtTime(dryGain, state.context.currentTime);
+          if (typeof nodes.dryGain.gain.setTargetAtTime === 'function') {
+            nodes.dryGain.gain.setTargetAtTime(dryGain, now, 0.015);
+          } else {
+            nodes.dryGain.gain.setValueAtTime(dryGain, now);
+          }
         }
         if (nodes.wetGain && nodes.wetGain.gain) {
-          nodes.wetGain.gain.setValueAtTime(wetGain, state.context.currentTime);
+          if (typeof nodes.wetGain.gain.setTargetAtTime === 'function') {
+            nodes.wetGain.gain.setTargetAtTime(wetGain, now, 0.015);
+          } else {
+            nodes.wetGain.gain.setValueAtTime(wetGain, now);
+          }
         }
 
         if (nodes.convolver) {
@@ -8709,11 +8734,20 @@
 
       if (state.dsdUltrasonicNodes && state.dsdUltrasonicNodes.filter) {
         const maxSafeHz = Math.max(10, Math.floor(((state.context && state.context.sampleRate) || 44100) * 0.495));
-        if (filter.id === 'bypass' || !filter.cutoffHz) {
-          state.dsdUltrasonicNodes.filter.frequency.value = Math.min(96000, maxSafeHz);
-        } else {
-          state.dsdUltrasonicNodes.filter.frequency.value = Math.min(filter.cutoffHz, maxSafeHz);
-          state.dsdUltrasonicNodes.filter.Q.value = filter.qFactor || 0.707;
+        const now = state.context ? state.context.currentTime : 0;
+        const targetHz = (filter.id === 'bypass' || !filter.cutoffHz)
+          ? Math.min(96000, maxSafeHz)
+          : Math.min(filter.cutoffHz, maxSafeHz);
+        const targetQ = (filter.id === 'bypass' || !filter.cutoffHz) ? 0.707 : (filter.qFactor || 0.707);
+        const fParam = state.dsdUltrasonicNodes.filter.frequency;
+        const qParam = state.dsdUltrasonicNodes.filter.Q;
+        if (fParam) {
+          if (typeof fParam.setTargetAtTime === 'function') fParam.setTargetAtTime(targetHz, now, 0.015);
+          else fParam.value = targetHz;
+        }
+        if (qParam) {
+          if (typeof qParam.setTargetAtTime === 'function') qParam.setTargetAtTime(targetQ, now, 0.015);
+          else qParam.value = targetQ;
         }
       }
 

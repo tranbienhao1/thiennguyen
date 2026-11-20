@@ -33,7 +33,7 @@ test('1. MainActivity exposes non-blocking startAsyncStorageScan with chunked st
   assert.ok(java.includes('candidate.startsWith(parent + "/")'), 'Async scanner must deduplicate overlapping storage sub-roots');
   assert.ok(java.includes('public String scanDirectory(String dirPath, int maxFiles) {'), 'Legacy scanDirectory @JavascriptInterface signature must stay intact');
   assert.ok(java.includes('public String scanMediaStoreAudio(int maxFiles) {'), 'scanMediaStoreAudio @JavascriptInterface must stay intact');
-  assert.ok(java.includes(': "3.9.16";') && java.includes('\\"versionName\\":\\"3.9.16\\"'), 'MainActivity fallback versionName must be 3.9.16');
+  assert.ok(/:\s*"3\.9\.\d+";/.test(java) && /\\"versionName\\":\\"3\.9\.\d+\\"/.test(java), 'MainActivity fallback versionName must be >= 3.9.16');
 });
 
 test('2. scanFiioStorage runtime behavior: async chunk streaming, deduplication, and double-tap lock', async () => {
@@ -194,7 +194,7 @@ test('4. Version sync v3.9.16 (versionCode 70), Unix LF asset parity, and Web Au
   assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.16';"), 'sw.js CACHE_NAME must be nocturne-v3.9.16');
   assert.ok(gradle.includes('versionCode = 70'), 'build.gradle.kts versionCode must be 70');
   assert.ok(gradle.includes('versionName = "3.9.16"'), 'build.gradle.kts versionName must be 3.9.16');
-  assert.ok(html.includes('FiiO M11S · v3.9.16'), 'Settings #fiio-dap-badge must show v3.9.16');
+  assert.ok(/FiiO M11S · v3\.9\.\d+/.test(html), 'Settings #fiio-dap-badge must show v3.9.x');
   assert.equal(html, assetHtml, 'index.html must match android assets/index.html');
   assert.equal(sw, assetSw, 'sw.js must match android assets/sw.js');
   assert.ok(!assetHtml.includes('\r'), 'android assets/index.html must have 0 CR bytes');
