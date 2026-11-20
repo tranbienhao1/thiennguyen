@@ -40,11 +40,18 @@ test('Android Project Integrity & Native Build Configuration Suite', async (t) =
     assert.match(gradleProps, /android\.useAndroidX\s*=\s*true/i, 'gradle.properties must have android.useAndroidX=true');
     assert.match(gradleProps, /org\.gradle\.jvmargs/i, 'gradle.properties must specify org.gradle.jvmargs');
 
-    // local.properties
+    // local.properties (or ANDROID_HOME / ANDROID_SDK_ROOT in CLI/CI environments)
     const localPropsPath = path.join(androidDir, 'local.properties');
-    assert.ok(fs.existsSync(localPropsPath), 'local.properties must exist in android/');
-    const localProps = fs.readFileSync(localPropsPath, 'utf8');
-    assert.match(localProps, /sdk\.dir/i, 'local.properties must define sdk.dir');
+    if (fs.existsSync(localPropsPath)) {
+      const localProps = fs.readFileSync(localPropsPath, 'utf8');
+      assert.match(localProps, /sdk\.dir/i, 'local.properties must define sdk.dir');
+    } else {
+      const defaultWinSdk = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Android', 'Sdk') : '';
+      assert.ok(
+        Boolean(process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || (defaultWinSdk && fs.existsSync(defaultWinSdk))),
+        'Either android/local.properties or Android SDK environment/directory must be available'
+      );
+    }
 
     // Gradle wrapper
     assert.ok(

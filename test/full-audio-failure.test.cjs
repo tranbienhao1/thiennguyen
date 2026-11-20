@@ -120,6 +120,7 @@ function makeUpgradeContext(fetchAudioBlob) {
   // được giữ lại như trước.
   {
     const ctx = makeUpgradeContext(async () => new Blob(['full-audio-bytes'], {type: 'audio/flac'}));
+    ctx.state.currentId = 'track-3';
     const track = {id: 'track-3', source: 'google', name: 'test.flac', title: 'Test FLAC', format: 'FLAC', fullAudioError: new Error('lỗi cũ'), url: 'https://drive.example/file'};
     const fullUrl = await ctx.upgradeSliceToFullAudio(track, 'blob:slice', 'https://drive.example/file', {}, 'google');
     assert.equal(track.fullAudioError, null, 'A successful background download should clear any stale recorded error');

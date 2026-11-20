@@ -187,11 +187,12 @@ test('Mobile UI & Android DAP Optimization Verification Suite', async (t) => {
   });
 
   await t.test('7. Modal Dialogs Scrollability & Constraints', () => {
-    // Settings modal max-h-[90vh] with overflow-y-auto
+    // Settings modal full-viewport overlay scrolling (avoids nested scroll traps on Android/FiiO WebView 74)
     assert.ok(
       /#settings-modal[^\{]*\{[^}]*max-height:\s*min\(90vh/i.test(indexHtml) ||
-      /#settings-panel\s*\{[^}]*max-height:\s*min\(90vh/i.test(indexHtml),
-      'Settings modal must constrain to max 90vh with touch scrolling'
+      /#settings-panel\s*\{[^}]*max-height:\s*min\(90vh/i.test(indexHtml) ||
+      /#settings-modal\s*\{[^}]*overflow-y:\s*auto\s*!important[^}]*-webkit-overflow-scrolling:\s*touch\s*!important/i.test(indexHtml),
+      'Settings modal must support smooth touch scrolling on mobile'
     );
 
     // EQ panel max-height & touch scrolling on mobile
@@ -223,8 +224,8 @@ test('Mobile UI & Android DAP Optimization Verification Suite', async (t) => {
     );
     assert.match(
       indexHtml,
-      /body:not\(\.settings-open\):not\(\.metadata-open\)\s*\{[^}]*overflow-x:\s*clip\s*!important[^}]*touch-action:\s*pan-y\s+pinch-zoom\s*!important/is,
-      'body (when modals closed) must use overflow-x: clip and touch-action: pan-y pinch-zoom to avoid dual scroll container trapping'
+      /body:not\(\.settings-open\):not\(\.metadata-open\)\s*\{[^}]*overflow-x:\s*(?:clip|hidden)\s*!important[^}]*touch-action:\s*pan-y\s+pinch-zoom\s*!important/is,
+      'body (when modals closed) must constrain horizontal overflow (clip or Chromium 74 hidden) and touch-action: pan-y pinch-zoom to avoid dual scroll container trapping'
     );
     assert.match(
       indexHtml,

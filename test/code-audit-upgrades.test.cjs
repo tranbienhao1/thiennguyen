@@ -57,8 +57,9 @@ test('Code Audit & Cloud Auth Upgrades Verification Suite (v3.1.1)', async (t) =
     vm.createContext(sandbox);
     vm.runInContext(swCode, sandbox, { filename: 'sw.js' });
 
-    assert.equal(sandbox.self.CACHE_NAME, 'nocturne-v3.1.1', 'self.CACHE_NAME must be nocturne-v3.1.1');
-    assert.equal(sandbox.self.CACHE_VERSION, 'v3.1.1', 'self.CACHE_VERSION must be v3.1.1');
+    assert.match(sandbox.self.CACHE_NAME, /^nocturne-v3\.\d+\.\d+$/, 'self.CACHE_NAME must follow nocturne-v3.x.y format');
+    assert.match(sandbox.self.CACHE_VERSION, /^v3\.\d+\.\d+$/, 'self.CACHE_VERSION must follow v3.x.y format');
+    assert.equal(sandbox.self.CACHE_NAME, 'nocturne-' + sandbox.self.CACHE_VERSION, 'CACHE_NAME must match CACHE_VERSION');
 
     let settledPromise;
     listeners.activate({ waitUntil(p) { settledPromise = p; } });
@@ -72,7 +73,7 @@ test('Code Audit & Cloud Auth Upgrades Verification Suite (v3.1.1)', async (t) =
     assert.equal(cacheStore.has('nocturne-v3'), false, 'Stale nocturne-v3 cache must be purged on activate');
     assert.equal(cacheStore.has('nocturne-v2'), false, 'Stale nocturne-v2 cache must be purged on activate');
     assert.equal(cacheStore.has('nocturne-v0'), false, 'Stale nocturne-v0 cache must be purged on activate');
-    assert.equal(cacheStore.has('nocturne-v3.1.1'), true, 'Active nocturne-v3.1.1 cache must be opened');
+    assert.equal(cacheStore.has(sandbox.self.CACHE_NAME), true, 'Active cache must be opened');
     assert.equal(sandbox.self.claimed, true, 'Service worker must claim clients on activate');
   });
 

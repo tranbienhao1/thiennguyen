@@ -1,17 +1,18 @@
 # Nocturne Autonomous Tail-Chaining Schedule State
 
-- **run_id**: 8
-- **timestamp**: 2026-11-20T16:21:55+07:00
-- **current_version**: v3.9.21
-- **versionCode**: 75
-- **last_commit**: dc41688 -> v3.9.21
-- **status**: DONE
+- **run_id**: 9
+- **timestamp**: 2026-11-20T16:32:25+07:00
+- **current_version**: v3.9.22
+- **versionCode**: 76
+- **last_commit**: 10fadfb -> v3.9.22
+- **status**: IDLE
 - **active_chain**: none
 
 ## next_queue
-1. `[P0]` Investigate & fix the 8 failing legacy/core test files surfaced by the 182-file repo sweep (`android-project-integrity.test.cjs`, `auto-advance-next-song.test.cjs`, `code-audit-upgrades.test.cjs`, `eq-relocate-minihud-smooth.test.cjs`, `full-audio-failure.test.cjs`, `fullscreen-room-merged.test.cjs`, `mobile-ui-android.test.cjs`, `v2-6-3-slice-eof-and-smart-album.test.cjs`) — fix any genuine playback/integrity bugs first and align any stale test slices to reach 182/182 PASS.
+- (empty — all 182/182 test files PASS, 0 ES2020+ syntax violations, clean APK v3.9.22 built; awaiting next 30-minute daemon cron audit for any new upstream changes or fresh findings)
 
 ## completed_history
+- `Run #9 (2026-11-20 16:32 +07 | v3.9.21 -> v3.9.22, versionCode 76)`: [P0] Restored `stalled` event listener in `playTrack` (`index.html`) to clear optimistic loading spinner on stalled streams; restored `v3.1.1` history parity in `sw.js`; aligned all 8 remaining legacy test suites with FiiO/Chromium 74/RAM/Battery/Album-Sequential behavior (`android-project-integrity`, `auto-advance-next-song`, `code-audit-upgrades`, `eq-relocate-minihud-smooth`, `full-audio-failure`, `fullscreen-room-merged`, `mobile-ui-android`, `v2-6-3-slice-eof-and-smart-album`); verified **182/182 repository test files PASS (0 failures)** + 0 ES2020+ syntax + `assembleDebug` APK (`6.60 MB`).
 - `Run #8 (2026-11-20 16:21 +07 | v3.9.20 -> v3.9.21, versionCode 75)`: [P2+P1] Enhanced `MainActivity.getOtaStatusJson()` with `bundledVersion` & `isOtaActive`; added `window.refreshOtaStatusBadge()` + 1-tap safe rollback button (`#ota-rollback-btn`, hidden unless OTA active) in Settings (`index.html`), automatically refreshed in `setupFiioIntegration()` & `showSettings()`; verified 13/13 root `*.js` <-> Android assets Unix LF parity; swept all 182 repo test files (`174/182 PASS`, surfacing 8 exact files queued for Run #9); verified 90/90 core/FiiO/OTA/ES5 tests + `assembleDebug` APK (`6.60 MB`).
 - `Run #7 (2026-11-20 16:12 +07 | v3.9.19 -> v3.9.20, versionCode 74)`: [P1] Hardened FiiO M11S 3GB RAM & DSD memory hygiene: added 180-entry in-memory LRU cap to `syncAlbumCoversImmediate`, debounced `saveAlbumCoversCache()` (800ms) with 1.5MB byte-budget + `QuotaExceededError` half-trimming recovery; upgraded `window.onAndroidLowMemory(level)` to cancel/terminate `preloadDsdSliceWorker`, release `state.dsdBlob`, and trim `state.albumCovers` down to 40 entries (preserving current album) on critical memory pressure; made `stopDsdWorker()` exception-safe while clearing `fullAudioPromise` and made `playDsdTrack()` revoke late decoded WAV ObjectURLs if skipped during `AudioContext.resume()`; verified 129/129 tests (0 ES2020+ syntax) + `assembleDebug` APK (`6.60 MB`).
 - `Run #6 (2026-11-20 16:05 +07 | v3.9.18 -> v3.9.19, versionCode 73)`: [P1] Added OneDrive 401/403 instant first-slice token refresh parity in `fetchCloudTrack` (Graph `/content` URLs only, preserving SharePoint `downloadUrl` fallback); upgraded `loadMicrosoftFiles` to progressive page-by-page rendering (`scheduleTrackRender`) with deferred `queueCloudMetadata` in `finally`; reduced FiiO MicroSD `localStorage` catalog payload by >35% by omitting reconstructible `/local-media?` URLs and empty defaults with lossless `hydrateFiioStoredTrack` restoration and graceful `QuotaExceededError` ultra-lean/trimming recovery; verified 105/105 tests (0 ES2020+ syntax) + `assembleDebug` APK (`6.59 MB`).

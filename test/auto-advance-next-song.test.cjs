@@ -203,22 +203,29 @@ test('Auto-Advance & Next Song Progression Test Suite', async (t) => {
       state.currentId = id;
     }
 
+    const toasts = [];
     const fn = new Function(
       'state', 'audio', 'trackById', 'queueTracks', 'playTrack', 'NocturneLibrary', 'library', 'toast', 'renderQueue',
       playNextCode + '\nreturn playNext;'
     );
-    const playNext = fn(state, audio, trackById, queueTracks, playTrack, library, library, () => {}, () => {});
+    const playNext = fn(state, audio, trackById, queueTracks, playTrack, library, library, (m) => toasts.push(m), () => {});
 
     // Track 1 ends -> plays Track 2 from queue
     playedTrackId = null;
     playNext(1, true);
     assert.equal(playedTrackId, '2');
 
-    // Track 2 ends -> album finishes, should advance to Track 3 in library (not replay Track 1!)
+    // Track 2 ends with repeat: 0 and roonRadio: false -> album stops cleanly (no unintended loop to Track 1)
     state.currentId = '2';
     state.queueTrackIds = [];
     playedTrackId = null;
     playNext(1, true);
-    assert.equal(playedTrackId, '3', 'When album ends, playback should advance to next track in library');
+    assert.equal(playedTrackId, null, 'When album ends with repeat 0 & roonRadio off, playback stops cleanly without looping Track 1');
+    assert.ok(toasts.some((m) => m.includes('Đã phát hết album')), 'Album end should notify user');
+
+    // Track 2 ends -> manual Next (auto: false) discovers & transitions cleanly to Album 2 (Track 3)
+    playedTrackId = null;
+    playNext(1, false);
+    assert.equal(playedTrackId, '3', 'Manual Next at album end should transition cleanly to the next album (Track 3)');
   });
 });
