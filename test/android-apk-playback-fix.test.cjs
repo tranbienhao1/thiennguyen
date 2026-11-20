@@ -153,9 +153,10 @@ test('Android APK Audio Playback & Native Media Engine Fix Suite (All 8 Root Cau
       !focusBlock.includes("$('play-button')?.click()"),
       'OnAudioFocusChangeListener must NEVER click #play-button on WebView (prevents WebView self-pause bug)'
     );
-    assert.match(
-      focusBlock,
-      /case\s+AudioManager\.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:\s*(?:\/\/[^\n]*\n\s*)*break;/,
+    const duckCaseMatch = focusBlock.match(/case\s+AudioManager\.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:([\s\S]*?)break;/);
+    assert.ok(duckCaseMatch, 'AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK case must exist');
+    assert.ok(
+      !duckCaseMatch[1].includes('.pause()') && !duckCaseMatch[1].includes('play-button'),
       'AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK must never pause playback'
     );
     assert.ok(

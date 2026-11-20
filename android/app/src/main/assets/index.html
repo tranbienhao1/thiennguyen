@@ -186,6 +186,17 @@
     body.fiio-dap-mode #app-ambient-backdrop {
       display: none !important;
     }
+    body.fiio-dap-mode #fullscreen-bg-cover {
+      filter: blur(16px) brightness(0.62) saturate(1.15) !important;
+      -webkit-filter: blur(16px) brightness(0.62) saturate(1.15) !important;
+      transform: scale(1.06) !important;
+    }
+    body.fiio-dap-mode .track-row,
+    body.fiio-dap-mode .collection-card {
+      contain: layout style;
+      box-shadow: none !important;
+      transition: none !important;
+    }
     .glass { background:rgba(20,22,24,.96); backdrop-filter:blur(22px); }
     .surface { background:linear-gradient(112deg,#22282b 0%,#1a1d1f 56%,#191b1d 100%); }
     .range,input[type=range] { accent-color:#92cce2; }
@@ -3606,7 +3617,7 @@
     function runCloudMetadataQueue() {
       if (cloudMetadataPausedUntil && Date.now() < cloudMetadataPausedUntil) return;
       if (state.isPlaybackLoading) return;
-      const maxMetaConcurrency = IS_LEGACY_ANDROID ? 1 : CLOUD_METADATA_CONCURRENCY;
+      const maxMetaConcurrency = (IS_LEGACY_ANDROID || (typeof state !== 'undefined' && state && state.fiioDapMode)) ? 1 : CLOUD_METADATA_CONCURRENCY;
       while (cloudMetadataActive < maxMetaConcurrency && cloudMetadataQueue.length) {
         if (state.isPlaybackLoading) break;
         const track = cloudMetadataQueue.shift();
@@ -4681,7 +4692,8 @@
         const image = new Image();
         image.onload = () => {
           try {
-            const maxEdge = 512, naturalWidth = image.naturalWidth || maxEdge, naturalHeight = image.naturalHeight || maxEdge;
+            const isLowRamDap = Boolean(IS_LEGACY_ANDROID || (typeof state !== 'undefined' && state && state.fiioDapMode));
+            const maxEdge = isLowRamDap ? 320 : 512, naturalWidth = image.naturalWidth || maxEdge, naturalHeight = image.naturalHeight || maxEdge;
             if (Math.max(naturalWidth, naturalHeight) <= maxEdge) return resolve(cover);
             const scale = maxEdge / Math.max(naturalWidth, naturalHeight);
             const canvas = document.createElement('canvas');
@@ -4690,7 +4702,7 @@
             const context = canvas.getContext('2d');
             if (!context) return resolve(cover);
             context.drawImage(image, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL('image/jpeg', .82));
+            resolve(canvas.toDataURL('image/jpeg', isLowRamDap ? .78 : .82));
           } catch (error) { console.warn('Could not downscale cover art; keeping original:', error); resolve(cover); }
         };
         image.onerror = () => resolve(cover);
@@ -15248,6 +15260,37 @@
     window.onHardwarePlayPause = () => { const btn = $('play-button'); if (btn) btn.click(); };
     window.onHardwareNext = () => { const btn = $('next-button'); if (btn) btn.click(); else if (typeof playNext === 'function') playNext(1); };
     window.onHardwarePrevious = () => { const btn = $('previous-button'); if (btn) btn.click(); else if (typeof playNext === 'function') playNext(-1); };
+    window.onHardwareSeekOffset = (deltaSeconds) => {
+      const delta = Number(deltaSeconds) || 0;
+      if (!delta) return;
+      if (state.isNativeBitPerfectPlaying && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function' && typeof window.NocturneNative.getBitPerfectPosition === 'function') {
+        const curMs = Number(window.NocturneNative.getBitPerfectPosition()) || 0;
+        const durMs = (typeof window.NocturneNative.getBitPerfectDuration === 'function') ? (Number(window.NocturneNative.getBitPerfectDuration()) || 0) : 0;
+        let nextMs = Math.max(0, curMs + delta * 1000);
+        if (durMs > 0) nextMs = Math.min(durMs, nextMs);
+        window.NocturneNative.seekBitPerfectPlayback(Math.round(nextMs));
+        return;
+      }
+      if (audio && Number.isFinite(audio.currentTime)) {
+        const dur = Number.isFinite(audio.duration) ? audio.duration : 0;
+        let nextSec = Math.max(0, audio.currentTime + delta);
+        if (dur > 0) nextSec = Math.min(dur, nextSec);
+        try { audio.currentTime = nextSec; } catch (_) {}
+      }
+    };
+    window.onHardwareSeekTo = (posMs) => {
+      const targetMs = Math.max(0, Number(posMs) || 0);
+      if (state.isNativeBitPerfectPlaying && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+        window.NocturneNative.seekBitPerfectPlayback(Math.round(targetMs));
+        return;
+      }
+      if (audio && Number.isFinite(targetMs)) {
+        const dur = Number.isFinite(audio.duration) ? audio.duration : 0;
+        let nextSec = targetMs / 1000;
+        if (dur > 0) nextSec = Math.min(dur, nextSec);
+        try { audio.currentTime = nextSec; } catch (_) {}
+      }
+    };
     const openListeningRoom = (preferredMode) => {
       /* $('listening-room')?.classList.add('hidden') */ safeClass($('listening-room'), 'add', 'hidden');
       $('room-play').textContent = !audio.src || audio.paused ? '▶' : 'Ⅱ';

@@ -104,20 +104,20 @@ test('FiiO M11S Native Optimization & Hardware Integration Test Suite', async (t
       assert.ok(mainSource.includes(kc), `Must intercept ${kc}`);
     }
 
-    // Dispatches to web view selectors
+    // Dispatches to web view selectors (ES5-safe for Chromium 74 FiiO M11S WebView)
     assert.match(
       mainSource,
-      /\$\('play-button'\)\?\.click\(\)/i,
+      /getElementById\('play-button'\);\s*if\s*\(b\)\s*b\.click\(\)/i,
       'Must dispatch play-button click to web view'
     );
     assert.match(
       mainSource,
-      /\$\('next-button'\)\?\.click\(\)/i,
+      /getElementById\('next-button'\);\s*if\s*\(b\)\s*b\.click\(\)/i,
       'Must dispatch next-button click to web view'
     );
     assert.match(
       mainSource,
-      /\$\('previous-button'\)\?\.click\(\)/i,
+      /getElementById\('previous-button'\);\s*if\s*\(b\)\s*b\.click\(\)/i,
       'Must dispatch previous-button click to web view'
     );
 

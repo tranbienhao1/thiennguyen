@@ -89,7 +89,10 @@ test('9. Fast-Tap Direct Activation & Focus Outline Elimination for FiiO Touchsc
 
 test('10. Cache Busting & Service Worker Bypass for Native Android & FiiO M11S', () => {
   const mainAct = fs.readFileSync(MAIN_ACTIVITY_PATH, 'utf8');
-  assert.ok(mainAct.includes('settings.setCacheMode(WebSettings.LOAD_NO_CACHE);'), 'MainActivity must disable disk HTTP caching');
+  assert.ok(
+    mainAct.includes('settings.setCacheMode(WebSettings.LOAD_DEFAULT);') && mainAct.includes('BuildConfig.VERSION_CODE'),
+    'MainActivity must use version-gated cache busting with LOAD_DEFAULT for remote cover caching'
+  );
   assert.ok(mainAct.includes('mWebView.clearCache(true);'), 'MainActivity must clear WebView cache on startup');
   assert.ok(mainAct.includes('caches.delete(k)'), 'Bridge must delete lingering CacheStorage');
   assert.ok(mainAct.includes('r.unregister()'), 'Bridge must unregister lingering ServiceWorkers');

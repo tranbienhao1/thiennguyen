@@ -12546,6 +12546,14 @@
       ? ('https://appassets.androidplatform.net/local-media?uri=' + encodeURIComponent(uri) + '&name=' + encodeURIComponent(file.name || rawName))
       : ('https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(path));
 
+    const extractedOrder = (typeof extractDiscAndTrackFromPath === 'function')
+      ? extractDiscAndTrackFromPath({ path: path, name: rawName })
+      : { discNumber: null, trackNumber: null };
+    const resolvedTrackNo = (typeof parseOrderNumber === 'function' ? parseOrderNumber(file.trackNumber, null) : null) || extractedOrder.trackNumber || null;
+    const resolvedDiscNo = (typeof parseOrderNumber === 'function' ? parseOrderNumber(file.discNumber, null) : null) || extractedOrder.discNumber || null;
+    const rawYear = Number(file.year);
+    const resolvedYear = (Number.isFinite(rawYear) && rawYear > 0) ? Math.trunc(rawYear) : null;
+
     const track = {
       id,
       title: resolvedTitle,
@@ -12560,6 +12568,9 @@
       album: resolvedAlbum,
       duration: resolvedDuration
     };
+    if (resolvedTrackNo != null) track.trackNumber = resolvedTrackNo;
+    if (resolvedDiscNo != null) track.discNumber = resolvedDiscNo;
+    if (resolvedYear != null) track.year = resolvedYear;
     if (uri) track.uri = uri;
     return track;
   }

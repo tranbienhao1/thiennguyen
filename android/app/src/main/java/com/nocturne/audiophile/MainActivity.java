@@ -18,6 +18,7 @@ import android.os.BatteryManager;
 import android.provider.Settings;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
@@ -42,9 +43,12 @@ import android.os.Process;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
 import android.os.SystemClock;
@@ -160,6 +164,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView mWebView;
     private ProgressBar mProgressBar;
     private PowerManager.WakeLock mWakeLock;
+    private WifiManager.WifiLock mWifiLock;
     private AudioManager mAudioManager;
     private AudioFocusRequest mAudioFocusRequest;
     private boolean mHasAudioFocus = false;
@@ -212,7 +217,15 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         mWebView = findViewById(R.id.web_view);
-        mWebView.clearCache(true);
+        // Only clear WebView HTTP cache when APK version changes so FiiO M11S caches remote covers & starts faster
+        try {
+            SharedPreferences prefs = getSharedPreferences("nocturne_prefs", Context.MODE_PRIVATE);
+            int lastVer = prefs.getInt("last_version_code", -1);
+            if (lastVer != BuildConfig.VERSION_CODE) {
+                mWebView.clearCache(true);
+                prefs.edit().putInt("last_version_code", BuildConfig.VERSION_CODE).apply();
+            }
+        } catch (Exception ignored) {}
         mProgressBar = findViewById(R.id.loading_indicator);
         if (mProgressBar != null) {
             mProgressBar.setClickable(false);
@@ -273,6 +286,19 @@ public class MainActivity extends AppCompatActivity {
         if (pm != null) {
             mWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKELOCK_TAG);
             mWakeLock.setReferenceCounted(false);
+        }
+
+        try {
+            WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wm != null) {
+                int wifiMode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                        ? WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                        : WifiManager.WIFI_MODE_FULL_HIGH_PERF;
+                mWifiLock = wm.createWifiLock(wifiMode, "Nocturne:HiResWifiLock");
+                mWifiLock.setReferenceCounted(false);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "WifiLock unavailable: " + e.getMessage());
         }
 
         mAudioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
@@ -686,8 +712,8 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowFileAccessFromFileURLs(true);
 
         // 8. Cache mode & viewport
-        // Disable HTTP disk caching completely for local bundled assets to prevent stale updates on APK upgrade
-        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        // Local bundled assets are served directly via WebViewAssetLoader (never stale), while LOAD_DEFAULT caches remote album art/thumbnails on FiiO M11S
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         // Ensure WebView on FiiO M11S (Android 10) matches physical screen dp bounds (360px viewport) without desktop zoom out
         settings.setUseWideViewPort(false);
         settings.setLoadWithOverviewMode(false);
@@ -1208,6 +1234,14 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             Log.w(TAG, "Failed to acquire WakeLock: " + e.getMessage());
         }
+        try {
+            if (mWifiLock != null && !mWifiLock.isHeld()) {
+                mWifiLock.acquire();
+                Log.d(TAG, "Acquired Hi-Res playback WifiLock");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to acquire WifiLock: " + e.getMessage());
+        }
     }
 
     public void releaseWakeLock() {
@@ -1218,6 +1252,14 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (Exception e) {
             Log.w(TAG, "Failed to release WakeLock: " + e.getMessage());
+        }
+        try {
+            if (mWifiLock != null && mWifiLock.isHeld()) {
+                mWifiLock.release();
+                Log.d(TAG, "Released Hi-Res playback WifiLock");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Failed to release WifiLock: " + e.getMessage());
         }
     }
 
@@ -1908,7 +1950,9 @@ public class MainActivity extends AppCompatActivity {
                 keyCode == KeyEvent.KEYCODE_HEADSETHOOK ||
                 keyCode == KeyEvent.KEYCODE_MEDIA_STOP ||
                 keyCode == KeyEvent.KEYCODE_MEDIA_NEXT ||
-                keyCode == KeyEvent.KEYCODE_MEDIA_PREVIOUS;
+                keyCode == KeyEvent.KEYCODE_MEDIA_PREVIOUS ||
+                keyCode == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD ||
+                keyCode == KeyEvent.KEYCODE_MEDIA_REWIND;
     }
 
     public void handleMediaKey(int keyCode) {
@@ -1919,6 +1963,12 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
                 dispatchPreviousToWeb();
+                break;
+            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+                dispatchSeekOffsetToWeb(10);
+                break;
+            case KeyEvent.KEYCODE_MEDIA_REWIND:
+                dispatchSeekOffsetToWeb(-10);
                 break;
             case KeyEvent.KEYCODE_MEDIA_PLAY:
             case KeyEvent.KEYCODE_MEDIA_PAUSE:
@@ -1965,14 +2015,28 @@ public class MainActivity extends AppCompatActivity {
     public void dispatchPlayPauseToWeb() {
         runOnUiThread(() -> {
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
+                boolean nowPlaying;
                 if (mBitPerfectPlayer.isPlaying()) {
                     mBitPerfectPlayer.pause();
+                    nowPlaying = false;
                 } else {
                     mBitPerfectPlayer.resume();
+                    nowPlaying = true;
                 }
+                if (mWebView != null) {
+                    mWebView.evaluateJavascript(
+                            "if (typeof window.onNativeBitPerfectStateChange === 'function') { window.onNativeBitPerfectStateChange(" + (nowPlaying ? "true" : "false") + "); }",
+                            null
+                    );
+                }
+                return;
             }
             if (mWebView != null) {
-                mWebView.evaluateJavascript("if (window.onHardwarePlayPause) { window.onHardwarePlayPause(); } else if (typeof $ !== 'undefined') { $('play-button')?.click(); } else { const b = document.getElementById('play-button'); if (b) b.click(); }", null);
+                // Pure ES5 JS (zero optional chaining ?.) so FiiO M11S Chromium 74 WebView executes physical buttons reliably
+                mWebView.evaluateJavascript(
+                        "if (typeof window.onHardwarePlayPause === 'function') { window.onHardwarePlayPause(); } else { var b = document.getElementById('play-button'); if (b) b.click(); }",
+                        null
+                );
             }
         });
     }
@@ -1980,7 +2044,10 @@ public class MainActivity extends AppCompatActivity {
     public void dispatchNextToWeb() {
         runOnUiThread(() -> {
             if (mWebView != null) {
-                mWebView.evaluateJavascript("if (window.onHardwareNext) { window.onHardwareNext(); } else if (typeof $ !== 'undefined') { $('next-button')?.click(); } else { const b = document.getElementById('next-button'); if (b) b.click(); }", null);
+                mWebView.evaluateJavascript(
+                        "if (typeof window.onHardwareNext === 'function') { window.onHardwareNext(); } else { var b = document.getElementById('next-button'); if (b) b.click(); }",
+                        null
+                );
             }
         });
     }
@@ -1988,7 +2055,43 @@ public class MainActivity extends AppCompatActivity {
     public void dispatchPreviousToWeb() {
         runOnUiThread(() -> {
             if (mWebView != null) {
-                mWebView.evaluateJavascript("if (window.onHardwarePrevious) { window.onHardwarePrevious(); } else if (typeof $ !== 'undefined') { $('previous-button')?.click(); } else { const b = document.getElementById('previous-button'); if (b) b.click(); }", null);
+                mWebView.evaluateJavascript(
+                        "if (typeof window.onHardwarePrevious === 'function') { window.onHardwarePrevious(); } else { var b = document.getElementById('previous-button'); if (b) b.click(); }",
+                        null
+                );
+            }
+        });
+    }
+
+    public void dispatchSeekOffsetToWeb(final int deltaSeconds) {
+        runOnUiThread(() -> {
+            if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
+                long targetMs = Math.max(0L, mBitPerfectPlayer.getPositionMs() + (deltaSeconds * 1000L));
+                long durMs = mBitPerfectPlayer.getDurationMs();
+                if (durMs > 0L) targetMs = Math.min(targetMs, durMs);
+                mBitPerfectPlayer.seek(targetMs);
+                return;
+            }
+            if (mWebView != null) {
+                mWebView.evaluateJavascript(
+                        "if (typeof window.onHardwareSeekOffset === 'function') { window.onHardwareSeekOffset(" + deltaSeconds + "); }",
+                        null
+                );
+            }
+        });
+    }
+
+    public void dispatchSeekToWeb(final long positionMs) {
+        runOnUiThread(() -> {
+            if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
+                mBitPerfectPlayer.seek(Math.max(0L, positionMs));
+                return;
+            }
+            if (mWebView != null) {
+                mWebView.evaluateJavascript(
+                        "if (typeof window.onHardwareSeekTo === 'function') { window.onHardwareSeekTo(" + Math.max(0L, positionMs) + "); }",
+                        null
+                );
             }
         });
     }
@@ -2154,11 +2257,28 @@ public class MainActivity extends AppCompatActivity {
                 public void onStop() {
                     dispatchPlayPauseToWeb();
                 }
+
+                @Override
+                public void onSeekTo(long pos) {
+                    dispatchSeekToWeb(pos);
+                }
+
+                @Override
+                public void onFastForward() {
+                    dispatchSeekOffsetToWeb(10);
+                }
+
+                @Override
+                public void onRewind() {
+                    dispatchSeekOffsetToWeb(-10);
+                }
             });
             PlaybackState.Builder psb = new PlaybackState.Builder()
                     .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE |
                             PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT |
-                            PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP)
+                            PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP |
+                            PlaybackState.ACTION_SEEK_TO | PlaybackState.ACTION_FAST_FORWARD |
+                            PlaybackState.ACTION_REWIND)
                     .setState(PlaybackState.STATE_PAUSED, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 0.0f);
             mMediaSession.setPlaybackState(psb.build());
             mMediaSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
@@ -2216,7 +2336,10 @@ public class MainActivity extends AppCompatActivity {
                 pauseIntent.putExtra(NocturnePlaybackService.EXTRA_ALBUM, album);
                 pauseIntent.putExtra(NocturnePlaybackService.EXTRA_IS_PLAYING, false);
                 startService(pauseIntent);
-            } catch (Exception ignored) {}
+            } catch (Exception bgPauseErr) {
+                // On Android 10 (FiiO M11S) with screen off, startService may throw IllegalStateException; fall back to direct notification update
+                showMediaNotification(title, artist, album, false);
+            }
             updateMediaSessionMetadata(title, artist, album, false);
             releaseWakeLock();
         }
@@ -2230,9 +2353,13 @@ public class MainActivity extends AppCompatActivity {
             PlaybackState.Builder psb = new PlaybackState.Builder()
                 .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE |
                     PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT |
-                    PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP)
+                    PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP |
+                    PlaybackState.ACTION_SEEK_TO | PlaybackState.ACTION_FAST_FORWARD |
+                    PlaybackState.ACTION_REWIND)
                 .setState(isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
-                    PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f);
+                    mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())
+                        ? mBitPerfectPlayer.getPositionMs() : PlaybackState.PLAYBACK_POSITION_UNKNOWN,
+                    isPlaying ? 1.0f : 0.0f);
             mMediaSession.setPlaybackState(psb.build());
             MediaMetadata.Builder mb = new MediaMetadata.Builder();
             mb.putString(MediaMetadata.METADATA_KEY_TITLE, displayTitle);
@@ -2590,15 +2717,17 @@ public class MainActivity extends AppCompatActivity {
         private String mCurrentTrackAlbum = "";
 
         public synchronized boolean start(String urlOrPath, int sampleRate, int bitDepth) {
-            stop();
+            stopInternal(true);
 
             if (urlOrPath == null || urlOrPath.trim().isEmpty()) {
                 Log.e(TAG, "BitPerfect: Cannot start playback with null or empty URL/path");
+                stopInternal(false);
                 return false;
             }
             String trimmedUrl = urlOrPath.trim();
             if (trimmedUrl.startsWith("blob:") || trimmedUrl.startsWith("data:")) {
                 Log.w(TAG, "BitPerfect: Rejecting non-native blob:/data: URL so Web Audio handles playback");
+                stopInternal(false);
                 return false;
             }
 
@@ -2695,6 +2824,10 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public synchronized void stop() {
+            stopInternal(false);
+        }
+
+        private synchronized void stopInternal(boolean preserveSession) {
             mIsStopped = true;
             synchronized (mPauseLock) {
                 mIsPaused = false;
@@ -2716,9 +2849,11 @@ public class MainActivity extends AppCompatActivity {
             }
             mIsPlaying = false;
             mIsPaused = false;
-            cancelMediaNotification();
-            releaseWakeLock();
-            abandonAudioFocus();
+            if (!preserveSession) {
+                cancelMediaNotification();
+                releaseWakeLock();
+                abandonAudioFocus();
+            }
         }
 
         public boolean isPlaying() {
@@ -2898,13 +3033,15 @@ public class MainActivity extends AppCompatActivity {
                 }
                 audioAttributes = attrBuilder.build();
 
-                // 5. Build AudioTrack
+                // 5. Build AudioTrack (preserve full 24-bit/32-bit Hi-Res precision via ENCODING_PCM_FLOAT on FiiO M11S Android 10 API 29)
                 int channelMask = (channels == 1) ? AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
                 int pcmEncoding = AudioFormat.ENCODING_PCM_16BIT;
                 if (requestedBitDepth == 24 && Build.VERSION.SDK_INT >= 31) {
                     pcmEncoding = AudioFormat.ENCODING_PCM_24BIT_PACKED;
                 } else if (requestedBitDepth == 32 && Build.VERSION.SDK_INT >= 31) {
                     pcmEncoding = AudioFormat.ENCODING_PCM_32BIT;
+                } else if (requestedBitDepth >= 24 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    pcmEncoding = AudioFormat.ENCODING_PCM_FLOAT;
                 }
 
                 AudioFormat audioFormat = new AudioFormat.Builder()
@@ -2914,10 +3051,20 @@ public class MainActivity extends AppCompatActivity {
                         .build();
 
                 int minBufSize = AudioTrack.getMinBufferSize(sampleRate, channelMask, pcmEncoding);
+                if (minBufSize <= 0 && pcmEncoding != AudioFormat.ENCODING_PCM_16BIT) {
+                    pcmEncoding = AudioFormat.ENCODING_PCM_16BIT;
+                    audioFormat = new AudioFormat.Builder()
+                            .setEncoding(pcmEncoding)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(channelMask)
+                            .build();
+                    minBufSize = AudioTrack.getMinBufferSize(sampleRate, channelMask, pcmEncoding);
+                }
                 if (minBufSize <= 0) {
                     minBufSize = sampleRate * channels * 4;
                 }
-                int bufferSize = Math.max(minBufSize * 4, 131072);
+                boolean fiioHiRes = isFiioDevice() && sampleRate >= 88200;
+                int bufferSize = fiioHiRes ? Math.max(minBufSize * 6, 196608) : Math.max(minBufSize * 4, 131072);
 
                 // 6. Resolve preferred DAC device & apply Android 14+ Bit-Perfect Mixer Attributes BEFORE AudioTrack.build()
                 preferredDevice = findPreferredBitPerfectDevice();
@@ -3073,7 +3220,8 @@ public class MainActivity extends AppCompatActivity {
                                     .build();
                             minBufSize = AudioTrack.getMinBufferSize(sampleRate, channelMask, pcmEncoding);
                             if (minBufSize <= 0) minBufSize = sampleRate * channels * 4;
-                            bufferSize = Math.max(minBufSize * 4, 131072);
+                            boolean fiioHiResRebuild = isFiioDevice() && sampleRate >= 88200;
+                            bufferSize = fiioHiResRebuild ? Math.max(minBufSize * 6, 196608) : Math.max(minBufSize * 4, 131072);
 
                             if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
                                     (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
@@ -3445,11 +3593,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.12";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.13";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.12\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.13\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -3681,7 +3829,9 @@ public class MainActivity extends AppCompatActivity {
                     MediaStore.Audio.Media.DURATION,
                     MediaStore.Audio.Media.SIZE,
                     MediaStore.Audio.Media.MIME_TYPE,
-                    MediaStore.Audio.Media.DATA
+                    MediaStore.Audio.Media.DATA,
+                    MediaStore.Audio.Media.TRACK,
+                    MediaStore.Audio.Media.YEAR
             };
             String sortOrder = MediaStore.Audio.Media.DATE_ADDED + " DESC";
             try (Cursor cursor = mActivity.getContentResolver().query(
@@ -3701,6 +3851,8 @@ public class MainActivity extends AppCompatActivity {
                     int sizeCol = cursor.getColumnIndex(MediaStore.Audio.Media.SIZE);
                     int mimeCol = cursor.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE);
                     int dataCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA);
+                    int trackCol = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
+                    int yearCol = cursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
 
                     int count = 0;
                     while (cursor.moveToNext() && count < limit) {
@@ -3723,6 +3875,8 @@ public class MainActivity extends AppCompatActivity {
                         String artist = artistCol >= 0 ? cursor.getString(artistCol) : null;
                         String album = albumCol >= 0 ? cursor.getString(albumCol) : null;
                         long durationMs = durCol >= 0 ? cursor.getLong(durCol) : 0L;
+                        int rawTrack = trackCol >= 0 ? cursor.getInt(trackCol) : 0;
+                        int year = yearCol >= 0 ? cursor.getInt(yearCol) : 0;
 
                         JSONObject obj = new JSONObject();
                         obj.put("uri", contentUri.toString());
@@ -3734,6 +3888,13 @@ public class MainActivity extends AppCompatActivity {
                         obj.put("size", size);
                         obj.put("mimeType", mimeType != null ? mimeType : getAudioMimeType(displayName));
                         obj.put("path", dataPath != null ? dataPath : "");
+                        if (rawTrack > 0) {
+                            int discNo = rawTrack >= 1000 ? (rawTrack / 1000) : 0;
+                            int trackNo = rawTrack >= 1000 ? (rawTrack % 1000) : rawTrack;
+                            if (trackNo > 0) obj.put("trackNumber", trackNo);
+                            if (discNo > 0) obj.put("discNumber", discNo);
+                        }
+                        if (year > 0) obj.put("year", year);
                         results.put(obj);
                         count++;
                     }
@@ -3810,6 +3971,7 @@ public class MainActivity extends AppCompatActivity {
                                 name.endsWith(".wav") || name.endsWith(".mp3") || name.endsWith(".m4a") ||
                                 name.endsWith(".alac") || name.endsWith(".aiff") || name.endsWith(".aif") ||
                                 name.endsWith(".ogg") || name.endsWith(".opus") || name.endsWith(".ape") ||
+                                name.endsWith(".wv") || name.endsWith(".aac") || name.endsWith(".mka") ||
                                 name.endsWith(".cue") || name.endsWith(".iso") || name.endsWith(".wma")) {
                             collected.add(file);
                         }
