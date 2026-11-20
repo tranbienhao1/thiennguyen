@@ -1,15 +1,17 @@
 # Nocturne Autonomous Tail-Chaining Schedule State
 
 - **run_id**: 28
-- **timestamp**: 2026-11-21T04:59:30+07:00
+- **timestamp**: 2026-11-21T05:02:45+07:00
 - **current_version**: v3.9.41
 - **versionCode**: 95
-- **last_commit**: v3.9.41
-- **status**: IDLE
+- **last_commit**: d44886d
+- **status**: DONE
 - **active_chain**: none
 
 ## next_queue
-- (empty — Run #28 resolved Repeat-One/Previous Bit-Perfect & CUE sub-track parity, dynamic displayTrack notification state when paused, MediaSession Bit-Perfect playbackState/setPositionState sync, paused lockscreen/hardware seek synchronization, and DSD multi-surface transport button sync through v3.9.41; awaiting next 30-minute daemon cron audit)
+- `[P1 - APK + WEB]` Native Bit-Perfect CUE sub-track start offset & boundary advance: khi `playTrack` chạy bài CUE (`track.cueStart > 0`) qua `startBitPerfectPlayback`, tự động gọi `seekBitPerfectPlayback(Math.round(track.cueStart * 1000))` ngay khi khởi chạy, và trong `window.onNativeBitPerfectPosition` kiểm tra khi vị trí vượt `cueStart + duration` để tự động chuyển sang bài CUE kế tiếp (`playNext(1, true)`) thay vì phát tràn sang bài sau trong cùng file FLAC/WAV.
+- `[P1 - FIIO + WEB]` `displayTrack(track)` `#room-play` Bit-Perfect sync: sửa dòng `$('room-play').textContent` trong `displayTrack(track)` dùng `isNotifPlaying` (bao gồm `state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused`) thay vì chỉ kiểm tra `!audio.src || audio.paused`.
+- `[P2 - WEB + APK]` Đồng bộ thời lượng & vị trí tương đối CUE trong `window.onNativeBitPerfectPosition` (hiển thị `current-time`, `room-current-time`, `room-remaining` và seekbar theo mốc `0..track.duration` của sub-track CUE thay vì toàn file).
 
 ## completed_history
 - `Run #28 (2026-11-21 04:59 +07 | v3.9.40 -> v3.9.41, versionCode 95)`: [P0/P1 - WEB + APK] Repeat-One/Previous Bit-Perfect & CUE Parity, Paused Notification & Lockscreen Seek Sync, MediaSession Bit-Perfect & DSD Multi-Surface Sync: (1) Native Lockscreen Seek While Paused (`MainActivity.java`): `BitPerfectAudioPlayer.seek(long positionMs)` clamps against `mDurationMs`, updates `mCurrentPositionMs` immediately, refreshes `updateMediaSessionMetadata(..., isPlaying())`, and posts `window.onNativeBitPerfectPosition` via `runOnUiThread` so notification/lockscreen seekbars respond instantly even while paused; (2) `displayTrack` False-Playing Fix (`index.html`): computes dynamic `isNotifPlaying` (`isPlaybackLoading || active Native Bit-Perfect || unpaused deck`) instead of hardcoded `true` before calling `NocturneNative.updateMediaNotification`; (3) `MediaSession` Bit-Perfect Sync (`index.html`): `updateMediaSession` respects `isNativeBitPerfectPlaying && !isNativeBitPerfectPaused`, and `updatePositionState` passes virtual Bit-Perfect duration/position into `library.resolveMediaSessionPositionState`; (4) Repeat-One, Previous `>3s` & Hardware Seek CUE/Bit-Perfect Parity (`index.html`): `playNext` restarts Bit-Perfect Repeat-One via `playTrack(state.currentId)`, seeks CUE Repeat-One and Previous `>3s` relative to `cueStart` (`cue0`), syncs seekbar/waveform/MediaSession (staying inside legacy 8000-char test slice), and `onHardwareSeekOffset`/`onHardwareSeekTo` support CUE `cueStart`, `applySmartSeekTime`, waveform, and `updatePositionState(true)`; (5) DSD Multi-Surface Transport Sync (`index.html`): `stopDsdWorker`, `playDsdFirstSlice`, and `playDsdTrack` call guarded `syncPlaybackButtonsUi` alongside `$('play-button').textContent`; verified `node sync-assets.cjs` Unix LF (`0` CR), `1803/1803` tests (`172` suites) PASS, 0 ES2020+ syntax, `.\gradlew.bat assembleDebug` (`6670847` bytes / `6.67 MB`).
