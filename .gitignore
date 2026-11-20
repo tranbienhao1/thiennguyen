@@ -7,4 +7,5 @@ android/build/
 android/app/build/
 android/local.properties
 *.apk
+!Nocturne-Android.apk
 
