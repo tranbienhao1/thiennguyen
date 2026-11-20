@@ -293,7 +293,7 @@ test('6. index.html integrates lazy cover observer, retry-once + online fallback
   assert.ok(html.includes("Object.defineProperty(file, 'relativePath'"), 'pickFolder must preserve subfolder relativePath for folder art & artist/album inference');
   assert.ok(html.includes('fiioScanUpgradedCount > 0'), 'finalizeFiioScanUi must refresh UI when existing tracks are enriched on rescan');
   assert.ok(html.includes('#collection-grid .collection-art img {\n      position: absolute !important;'), 'Must apply Chromium 74 absolute grid image rule');
-  assert.ok(html.includes('FiiO M11S · v3.9.32'), 'Badge must reflect v3.9.32');
+  assert.ok(/FiiO M11S · v3\.9\.(?:3[2-9]|[4-9]\d|\d{3,})/.test(html), 'Badge must reflect v3.9.32+');
   assert.ok(html.includes('state.crossfeedNodes.output.connect(state.context.destination)'), 'CRITICAL Web Audio graph invariant must hold');
 });
 

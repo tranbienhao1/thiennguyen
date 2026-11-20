@@ -80,25 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.32';
-  const name = process.argv[3] || `Nocturne ${tag} (Sửa triệt để ảnh Album/Nghệ sĩ FiiO M11S + Nâng cấp FLAC/Artwork Web & Cloud)`;
+  const tag = process.argv[2] || 'v3.9.33';
+  const name = process.argv[3] || `Nocturne ${tag} (Web Desktop lưu thư mục cục bộ IndexedDB + tự quét cover.jpg trên Google Drive & OneDrive)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} — Tối ưu Ảnh Album / Nghệ sĩ FiiO M11S & Nâng cấp Web / Cloud
+    : `### Nocturne ${tag} — Nâng cấp Web Desktop & Cloud Artwork Discovery
 
-#### 1. Sửa triệt để nguyên nhân gốc gây mất ảnh Album & Ca sĩ trên FiiO M11S (Android 10):
-- **Tăng song song & gộp luồng (Single-Flight)**: Nâng \`COVER_ART_PERMITS\` từ \`2\` -> \`4\` và timeout \`4s\` -> \`15s\`, đồng bộ khóa theo hash album (\`mCoverHashLocks\`) để không trả về lỗi \`503 Busy\` khi cuộn danh sách dài trên WebView 74.
-- **Đọc trực tiếp nhị phân FLAC & Vorbis Base64**: Bổ sung \`extractFlacPictureFromStream\` (block 6 \`PICTURE\` + Vorbis \`METADATA_BLOCK_PICTURE\` base64) cho mọi tệp Hi-Res FLAC kể cả khi \`MediaMetadataRetriever\` Android 10 trả về null; hỗ trợ đọc qua cả \`File\` lẫn \`content://\` URI.
-- **Fallback Android 10 MediaStore \`ALBUM_ID\` + Thư mục ảnh**: Tra cứu thêm \`content://media/external/audio/albumart/<album_id>\` và kiểm tra thư mục con \`Artwork/\`, \`Cover/\`, \`Covers/\`, \`Scans/\`, \`Images/\`.
-- **Làm mới cache cũ v3.9.27–v3.9.31**: Nâng namespace cache lên \`v3k:\`/\`v3s:\` (loại bỏ toàn bộ tệp âm tính \`.none\` cũ) và đặt TTL \`10 phút\` cho \`.none\`.
-- **Lazy Load \`IntersectionObserver\` & Thử lại thông minh**: Chỉ tải ảnh \`/local-cover\` khi cuộn tới trên FiiO/Android cũ, thử lại 1 lần sau 1.2s trước khi đánh dấu lỗi, và tự gọi quét lại giao diện ngay cả khi quét lại không thêm bài mới (\`fiioScanUpgradedCount\`).
-- **Sửa CSS WebView 74 Grid**: Bổ sung \`position: absolute\` cho ảnh trong \`.collection-art\` và \`width: 100%\` cho \`.collection-card\` để thẻ không bao giờ bị xẹp chiều cao.
+#### 1. Bản Web Desktop: Lưu thư mục cục bộ vào IndexedDB & Mở lại 1 chạm
+- **Lưu \`FileSystemDirectoryHandle\` vào IndexedDB (\`folderHandles\`, \`CLOUD_CATALOG_VERSION = 5\`)**: Khi chọn thư mục nhạc trên trình duyệt máy tính (\`showDirectoryPicker\`), tay cầm thư mục được lưu lại bền vững thay vì mất trắng sau mỗi lần tải lại trang.
+- **Nút mở lại thư mục gần nhất (\`#reopen-folder\`, \`#empty-reopen-folder\`)**: Hiển thị ngay ở thanh bên và màn hình thư viện trống; tự động khôi phục khi trình duyệt còn quyền (\`queryPermission\`), hoặc xin cấp lại chỉ bằng 1 chạm (\`requestPermission\`).
 
-#### 2. Nâng cấp mạnh cho bản Web & Cloud (Google Drive / OneDrive / Local PC):
-- **Đọc thẻ & ảnh bìa FLAC thuần JS (\`parseFlacMetadataSafe\`)**: Hỗ trợ đầy đủ nhạc FLAC nội bộ (slice 2 MiB) và nhạc FLAC trên Google Drive/OneDrive qua HTTP Range không phụ thuộc CDN \`jsmediatags\`.
-- **Tự động tải ảnh Album & chân dung Ca sĩ online khi thiếu ảnh nhúng**: Tích hợp API Wikipedia (vi/en) + iTunes Search API (CORS verified) cho cả Web và FiiO M11S.
-- **Sửa lỗi chọn thư mục Web (\`pickFolder()\`)**: Giữ nguyên \`relativePath\` thư mục con và nạp luôn tệp lời nhạc \`.lrc\`, giúp tự động ghép \`cover.jpg\`, Suy luận Ca sĩ/Album và đồng bộ lyrics trên trình duyệt máy tính.
+#### 2. Google Drive & OneDrive: Tự tìm ảnh bìa \`cover.jpg\` / \`folder.jpg\` cùng thư mục
+- **Google Drive (\`discoverGoogleDriveFolderArtwork\`)**: Giữ nguyên bộ lọc tìm file nhạc tốc độ cao (\`GOOGLE_DRIVE_CANDIDATE_QUERY\`), đồng thời lưu \`parents\` trên từng bài hát Drive để tìm hàng loạt ảnh bìa (\`cover\`, \`folder\`, \`front\`, \`albumart\`, \`artwork\`) cùng thư mục mẹ trong nền.
+- **OneDrive (\`applyMicrosoftSiblingFolderCovers\`)**: Tận dụng ngay danh sách mục trả về khi duyệt từng thư mục trên Microsoft Graph (\`loadMicrosoftFiles\`) để chấm điểm và áp ảnh bìa thư mục cho mọi bài FLAC/DSD/WAV chưa nhúng ảnh.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

@@ -1831,6 +1831,10 @@
             <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-white/10 text-[11px] text-zinc-400 shadow-sm transition-transform group-hover:scale-105">＋</span>
             <span class="font-medium text-zinc-200 group-hover:text-white">Thêm thư mục nhạc</span>
           </button>
+          <button id="reopen-folder" type="button" class="roon-sidebar-tool hidden group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5" title="Mở lại thư mục nhạc cục bộ đã chọn lần trước">
+            <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-violet-500/20 text-[11px] font-bold text-violet-300 shadow-sm transition-transform group-hover:scale-105">↺</span>
+            <span id="reopen-folder-label" class="min-w-0 flex-1 truncate font-medium text-violet-200 group-hover:text-white">Mở lại thư mục</span>
+          </button>
         </div>
       </div>
       <div class="mt-auto flex items-center justify-between px-2 pt-5"><span class="text-xs font-medium uppercase">Danh sách ›</span><button id="add-files" type="button" aria-label="Thêm nhạc">＋</button><button id="open-settings-sidebar" type="button" class="roon-sidebar-tool" aria-label="Cài đặt">···</button></div>
@@ -2080,7 +2084,10 @@
           <div class="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-xl text-zinc-500">♫</div>
           <h3 class="mt-4 text-sm font-medium text-zinc-300">Thư viện đang trống</h3>
           <p class="mx-auto mt-2 max-w-sm text-xs leading-5 text-zinc-500">Chọn thư mục/file nhạc, kéo thả vào đây hoặc kết nối tài khoản cloud để bắt đầu nghe. DSD cần localhost/HTTPS; hỗ trợ DSF/DFF không nén, không gồm DST.</p>
-          <button id="empty-add" class="mt-4 text-xs font-medium text-violet-300 hover:text-violet-200">Thêm nhạc từ thiết bị →</button>
+          <div class="mt-4 flex flex-wrap items-center justify-center gap-3">
+            <button id="empty-add" class="text-xs font-medium text-violet-300 hover:text-violet-200">Thêm nhạc từ thiết bị →</button>
+            <button id="empty-reopen-folder" type="button" class="hidden rounded-lg border border-violet-400/30 bg-violet-500/15 px-3 py-1.5 text-xs font-medium text-violet-200 transition hover:bg-violet-500/25">↺ Mở lại thư mục gần nhất</button>
+          </div>
         </div>
       </section>
     </section>
@@ -2353,7 +2360,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.32</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.33</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3623,7 +3630,8 @@
     };
     const CLOUD_CATALOG_STORE = 'cloudCatalog';
     const FIRST_SLICE_CACHE_STORE = 'firstSliceCache';
-    const CLOUD_CATALOG_VERSION = 4;
+    const FOLDER_HANDLES_STORE = 'folderHandles';
+    const CLOUD_CATALOG_VERSION = 5;
     let cloudRestorePromise = null;
     let cloudSyncPromise = null;
     const cloudStatus = (provider, message, tone = 'text-zinc-500') => {
@@ -3641,10 +3649,12 @@
       if (!cover.startsWith('data:image')) return cover;
       return cover.length > MAX_CATALOG_COVER_CHARS ? null : cover;
     }
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, savedAt:Date.now()});
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, savedAt:Date.now()});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
-      return {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', thumbnailUrl:file.thumbnailLink || '', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
+      const track = {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', thumbnailUrl:file.thumbnailLink || '', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
+      if (Array.isArray(file.parents) && file.parents.length) track.parents = file.parents.slice(0, 3);
+      return track;
     };
     const microsoftTrack = (item, remotePath = '', existing = null) => {
       const format = audioFormat(item), fallback = existing || filenameMetadata(item.name || '');
@@ -5661,7 +5671,7 @@
       if (activeMainDbPromise) return activeMainDbPromise;
       activeMainDbPromise = new Promise((resolve, reject) => {
         const request = indexedDB.open('nocturne-player', CLOUD_CATALOG_VERSION);
-        request.onupgradeneeded = () => { const db = request.result; if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id', autoIncrement: true }); if (!db.objectStoreNames.contains(CLOUD_CATALOG_STORE)) db.createObjectStore(CLOUD_CATALOG_STORE, {keyPath:'id'}); if (!db.objectStoreNames.contains(FIRST_SLICE_CACHE_STORE)) db.createObjectStore(FIRST_SLICE_CACHE_STORE, {keyPath:'key'}); };
+        request.onupgradeneeded = () => { const db = request.result; if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id', autoIncrement: true }); if (!db.objectStoreNames.contains(CLOUD_CATALOG_STORE)) db.createObjectStore(CLOUD_CATALOG_STORE, {keyPath:'id'}); if (!db.objectStoreNames.contains(FIRST_SLICE_CACHE_STORE)) db.createObjectStore(FIRST_SLICE_CACHE_STORE, {keyPath:'key'}); if (!db.objectStoreNames.contains(FOLDER_HANDLES_STORE)) db.createObjectStore(FOLDER_HANDLES_STORE, {keyPath:'id'}); };
         request.onblocked = () => { console.warn('IndexedDB upgrade waiting for other open tabs to close.'); };
         request.onsuccess = () => {
           const db = request.result;
@@ -5716,6 +5726,72 @@
       }
     }
     function sliceCacheRequest(request) { return new Promise((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); }
+    const RECENT_FOLDER_HANDLE_KEY = 'recent-local-folder';
+    let savedLocalFolderRecord = null;
+    function updateSavedFolderButtons(record) {
+      savedLocalFolderRecord = record && record.handle ? record : null;
+      if (typeof document === 'undefined') return;
+      const isDesktopWeb = !window.isNativeAndroid && !window.NocturneNative && typeof window.showDirectoryPicker === 'function';
+      const show = Boolean(isDesktopWeb && savedLocalFolderRecord);
+      const labelName = savedLocalFolderRecord && savedLocalFolderRecord.name ? String(savedLocalFolderRecord.name) : 'thư mục gần nhất';
+      const sideBtn = $('reopen-folder');
+      const sideLabel = $('reopen-folder-label');
+      const emptyBtn = $('empty-reopen-folder');
+      if (sideBtn) {
+        if (show) {
+          sideBtn.classList.remove('hidden');
+          if (sideLabel) sideLabel.textContent = `Mở lại: ${labelName}`;
+          sideBtn.title = `Mở lại thư mục "${labelName}"`;
+        } else {
+          sideBtn.classList.add('hidden');
+        }
+      }
+      if (emptyBtn) {
+        if (show) {
+          emptyBtn.classList.remove('hidden');
+          emptyBtn.textContent = `↺ Mở lại "${labelName}"`;
+        } else {
+          emptyBtn.classList.add('hidden');
+        }
+      }
+    }
+    async function saveRecentLocalFolderHandle(dirHandle) {
+      if (!dirHandle || window.isNativeAndroid || window.NocturneNative) return false;
+      const record = { id: RECENT_FOLDER_HANDLE_KEY, name: dirHandle.name || 'Thư mục nhạc', handle: dirHandle, savedAt: Date.now() };
+      updateSavedFolderButtons(record);
+      try {
+        const db = await openDatabase();
+        if (!db || !db.objectStoreNames.contains(FOLDER_HANDLES_STORE)) return false;
+        const store = db.transaction(FOLDER_HANDLES_STORE, 'readwrite').objectStore(FOLDER_HANDLES_STORE);
+        await sliceCacheRequest(store.put(record));
+        return true;
+      } catch (error) {
+        console.debug('Could not persist folder handle in IndexedDB:', error && error.message ? error.message : error);
+        return false;
+      }
+    }
+    async function loadRecentLocalFolderHandle() {
+      if (window.isNativeAndroid || window.NocturneNative) return null;
+      try {
+        const db = await openDatabase();
+        if (!db || !db.objectStoreNames.contains(FOLDER_HANDLES_STORE)) return null;
+        const store = db.transaction(FOLDER_HANDLES_STORE, 'readonly').objectStore(FOLDER_HANDLES_STORE);
+        const rec = await sliceCacheRequest(store.get(RECENT_FOLDER_HANDLE_KEY));
+        return rec && rec.handle ? rec : null;
+      } catch (error) {
+        console.debug('Could not load persisted folder handle:', error && error.message ? error.message : error);
+        return null;
+      }
+    }
+    async function clearRecentLocalFolderHandle() {
+      updateSavedFolderButtons(null);
+      try {
+        const db = await openDatabase();
+        if (!db || !db.objectStoreNames.contains(FOLDER_HANDLES_STORE)) return;
+        const store = db.transaction(FOLDER_HANDLES_STORE, 'readwrite').objectStore(FOLDER_HANDLES_STORE);
+        await sliceCacheRequest(store.delete(RECENT_FOLDER_HANDLE_KEY));
+      } catch (_) {}
+    }
     async function getCachedFirstSlice(track, expectedMeta) {
       const key = library.historyTrackKey(track);
       if (!key) return null;
@@ -13617,6 +13693,29 @@
       }
       $('file-input').click();
     }
+    async function collectAudioAndCoverFilesFromDirectoryHandle(dirHandle) {
+      const files = [];
+      async function walk(handle, prefix) {
+        for await (const entry of handle.values()) {
+          if (entry.kind === 'file') {
+            const file = await entry.getFile();
+            if (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name) || /\.cue$/i.test(file.name) || /\.lrc$/i.test(file.name) || /\.(jpe?g|png|webp|bmp|gif)$/i.test(file.name)) {
+              const relPath = prefix ? (prefix + '/' + file.name) : file.name;
+              try {
+                Object.defineProperty(file, 'relativePath', { value: relPath, configurable: true });
+              } catch (_) {
+                try { file.relativePath = relPath; } catch (_2) {}
+              }
+              files.push(file);
+            }
+          } else if (entry.kind === 'directory') {
+            await walk(entry, prefix ? (prefix + '/' + entry.name) : entry.name);
+          }
+        }
+      }
+      await walk(dirHandle, '');
+      return files;
+    }
     async function pickFolder() {
       if (window.isNativeAndroid || window.NocturneNative || !('webkitdirectory' in document.createElement('input'))) {
         $('file-input').click();
@@ -13624,29 +13723,63 @@
       }
       if (window.showDirectoryPicker) {
         try {
-          const dir = await window.showDirectoryPicker({ mode: 'read' }), files = [];
-          async function walk(handle, prefix) {
-            for await (const entry of handle.values()) {
-              if (entry.kind === 'file') {
-                const file = await entry.getFile();
-                if (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name) || /\.cue$/i.test(file.name) || /\.lrc$/i.test(file.name) || /\.(jpe?g|png|webp|bmp|gif)$/i.test(file.name)) {
-                  const relPath = prefix ? (prefix + '/' + file.name) : file.name;
-                  try {
-                    Object.defineProperty(file, 'relativePath', { value: relPath, configurable: true });
-                  } catch (_) {
-                    try { file.relativePath = relPath; } catch (_2) {}
-                  }
-                  files.push(file);
-                }
-              } else if (entry.kind === 'directory') {
-                await walk(entry, prefix ? (prefix + '/' + entry.name) : entry.name);
-              }
-            }
-          }
-          await walk(dir, ''); await addLocalFiles(files); return;
+          const dir = await window.showDirectoryPicker({ mode: 'read' });
+          saveRecentLocalFolderHandle(dir).catch(() => {});
+          const files = await collectAudioAndCoverFilesFromDirectoryHandle(dir);
+          await addLocalFiles(files);
+          return;
         } catch (error) { if (error.name === 'AbortError') return; console.warn('Directory picker failed; using input fallback:', error); }
       }
       $('folder-input').click();
+    }
+    async function reopenSavedFolder(options) {
+      const opts = options || {};
+      if (window.isNativeAndroid || window.NocturneNative || typeof window.showDirectoryPicker !== 'function') return false;
+      const record = savedLocalFolderRecord || await loadRecentLocalFolderHandle();
+      if (!record || !record.handle) {
+        if (!opts.silentIfGranted) toast('Chưa có thư mục gần nhất được lưu.');
+        return false;
+      }
+      updateSavedFolderButtons(record);
+      const handle = record.handle;
+      try {
+        let perm = (typeof handle.queryPermission === 'function')
+          ? await handle.queryPermission({ mode: 'read' })
+          : 'granted';
+        if (perm !== 'granted') {
+          if (opts.silentIfGranted || typeof handle.requestPermission !== 'function') return false;
+          perm = await handle.requestPermission({ mode: 'read' });
+        }
+        if (perm !== 'granted') {
+          if (!opts.silentIfGranted) toast('Trình duyệt chưa được cấp quyền đọc thư mục.');
+          return false;
+        }
+        if (!opts.silentIfGranted) toast(`Đang nạp lại thư mục "${record.name || handle.name}"…`);
+        const files = await collectAudioAndCoverFilesFromDirectoryHandle(handle);
+        if (files.length) {
+          await addLocalFiles(files);
+          return true;
+        }
+        if (!opts.silentIfGranted) toast(`Thư mục "${record.name || handle.name}" không chứa tệp âm thanh được hỗ trợ.`);
+        return false;
+      } catch (error) {
+        if (error && (error.name === 'NotFoundError' || error.name === 'TypeMismatchError')) {
+          await clearRecentLocalFolderHandle();
+          if (!opts.silentIfGranted) toast('Thư mục đã lưu không còn tồn tại hoặc đã bị di chuyển.');
+          return false;
+        }
+        if (error && error.name === 'AbortError') return false;
+        console.warn('Reopen saved local folder failed:', error);
+        if (!opts.silentIfGranted) toast('Không thể mở lại thư mục cũ. Hãy chọn lại thư mục.');
+        return false;
+      }
+    }
+    async function restoreSavedLocalFolderOnStartup() {
+      if (window.isNativeAndroid || window.NocturneNative || typeof window.showDirectoryPicker !== 'function') return;
+      const record = await loadRecentLocalFolderHandle();
+      if (!record || !record.handle) return;
+      updateSavedFolderButtons(record);
+      await reopenSavedFolder({ silentIfGranted: true });
     }
 
     let googleScriptPromise = null;
@@ -13976,6 +14109,130 @@
       }
     }
 
+    const checkedGoogleArtParents = new Set();
+    async function fetchCloudImageCandidateDataUrl(imageUrl, fallbackAuthUrl, getAuthToken) {
+      let resp = null;
+      if (imageUrl) {
+        try {
+          resp = await fetch(imageUrl, { credentials: 'omit', referrerPolicy: 'no-referrer' });
+          if (!resp.ok) resp = null;
+        } catch (_) { resp = null; }
+      }
+      if (!resp && fallbackAuthUrl && typeof getAuthToken === 'function') {
+        try {
+          const authToken = await getAuthToken();
+          if (authToken) {
+            resp = await fetch(fallbackAuthUrl, { headers: { Authorization: `Bearer ${authToken}` } });
+            if (!resp.ok) resp = null;
+          }
+        } catch (_) { resp = null; }
+      }
+      if (!resp) return null;
+      const dataUrl = await cloudImageDataUrl(await resp.blob());
+      if (!dataUrl) return null;
+      return typeof normalizeCoverImage === 'function' ? normalizeCoverImage(dataUrl) : dataUrl;
+    }
+    function applyDiscoveredCloudFolderCover(matchingTracks, cover) {
+      if (!cover || !Array.isArray(matchingTracks) || !matchingTracks.length) return [];
+      const updated = [];
+      for (let i = 0; i < matchingTracks.length; i++) {
+        const tr = matchingTracks[i];
+        if (!tr || (tr.cover && tr.cover !== '♫')) continue;
+        tr.cover = cover;
+        if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(cover, tr);
+        const aKey = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function') ? library.buildAlbumKey(tr) : (tr.album || '');
+        if (typeof broadcastCoverUpdate === 'function') broadcastCoverUpdate(aKey, cover, [tr.id]);
+        updated.push(tr);
+      }
+      return updated;
+    }
+    async function discoverGoogleDriveFolderArtwork(candidateTracks) {
+      const tracks = Array.isArray(candidateTracks) && candidateTracks.length ? candidateTracks : state.tracks;
+      const tracksByParent = new Map();
+      for (let i = 0; i < tracks.length; i++) {
+        const tr = tracks[i];
+        if (!tr || tr.source !== 'google' || (tr.cover && tr.cover !== '♫') || !Array.isArray(tr.parents)) continue;
+        for (let j = 0; j < tr.parents.length; j++) {
+          const pid = String(tr.parents[j] || '').trim();
+          if (!pid || checkedGoogleArtParents.has(pid)) continue;
+          if (!tracksByParent.has(pid)) tracksByParent.set(pid, []);
+          tracksByParent.get(pid).push(tr);
+        }
+      }
+      const parentIds = Array.from(tracksByParent.keys());
+      if (!parentIds.length) return 0;
+      let token = await ensureGoogleToken();
+      let appliedCount = 0;
+      const CHUNK_SIZE = 15;
+      const bestByParent = new Map();
+      const scoreFn = (typeof library !== 'undefined' && typeof library.scoreFolderCoverFilename === 'function')
+        ? library.scoreFolderCoverFilename
+        : () => 10;
+      for (let offset = 0; offset < parentIds.length; offset += CHUNK_SIZE) {
+        const chunk = parentIds.slice(offset, offset + CHUNK_SIZE);
+        for (let k = 0; k < chunk.length; k++) checkedGoogleArtParents.add(chunk[k]);
+        const parentClause = chunk.map(pid => `'${String(pid).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' in parents`).join(' or ');
+        const q = `trashed = false and mimeType contains 'image/' and (${parentClause})`;
+        const params = new URLSearchParams({
+          q,
+          fields: 'files(id,name,parents,thumbnailLink,mimeType,size)',
+          pageSize: '100',
+          supportsAllDrives: 'true',
+          includeItemsFromAllDrives: 'true'
+        });
+        const resp = await fetchGoogleDrivePageWithRetry(
+          `https://www.googleapis.com/drive/v3/files?${params}`,
+          () => token,
+          async () => { token = await ensureGoogleToken(true); return token; }
+        );
+        if (!resp || !resp.ok) continue;
+        const data = await resp.json();
+        const files = (data && data.files) || [];
+        for (let fIdx = 0; fIdx < files.length; fIdx++) {
+          const img = files[fIdx];
+          if (!img || !img.id || !Array.isArray(img.parents)) continue;
+          const score = scoreFn(img.name || '');
+          if (score <= 0) continue;
+          for (let pIdx = 0; pIdx < img.parents.length; pIdx++) {
+            const pid = img.parents[pIdx];
+            if (!tracksByParent.has(pid)) continue;
+            const prev = bestByParent.get(pid);
+            if (!prev || score > prev.score) bestByParent.set(pid, { file: img, score });
+          }
+        }
+      }
+      const entries = Array.from(bestByParent.entries());
+      const updatedTracks = [];
+      let cursor = 0;
+      const workerCount = Math.min(3, entries.length);
+      await Promise.all(Array.from({ length: workerCount }, async () => {
+        while (cursor < entries.length) {
+          const pair = entries[cursor++];
+          const pid = pair[0];
+          const chosen = pair[1] && pair[1].file;
+          if (!chosen) continue;
+          const matched = tracksByParent.get(pid) || [];
+          if (!matched.some(tr => !tr.cover || tr.cover === '♫')) continue;
+          const highResThumb = chosen.thumbnailLink ? String(chosen.thumbnailLink).replace(/=s\d+([^&]*)$/, '=s512$1') : '';
+          const altMediaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(chosen.id)}?alt=media&supportsAllDrives=true`;
+          const cover = await fetchCloudImageCandidateDataUrl(highResThumb, altMediaUrl, () => ensureGoogleToken());
+          if (!cover) continue;
+          const changed = applyDiscoveredCloudFolderCover(matched, cover);
+          if (changed.length) {
+            appliedCount += changed.length;
+            updatedTracks.push(...changed);
+          }
+        }
+      }));
+      if (updatedTracks.length) {
+        if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
+        trackMetadataRevision++;
+        scheduleTrackRender();
+        await persistCloudCatalog(updatedTracks, { skipPrune: true }).catch(() => {});
+      }
+      return appliedCount;
+    }
+
     async function loadGoogleFiles() {
       await restoreCloudCatalog();
       let token = await ensureGoogleToken();
@@ -14073,6 +14330,9 @@
           track => track.source === 'google' && (!track.metadataLoaded || !track.cover)
         );
         if (pendingMeta.length > 0) queueCloudMetadata(pendingMeta);
+        if (typeof discoverGoogleDriveFolderArtwork === 'function') {
+          discoverGoogleDriveFolderArtwork(newlyAddedTracks.length ? newlyAddedTracks : state.tracks).catch(() => {});
+        }
       }
     }
     async function fetchCloudFile(track, url, options, provider) {
@@ -14237,11 +14497,67 @@
       }
       return state.microsoftAccessToken;
     }
+    async function applyMicrosoftSiblingFolderCovers(siblingCoversByDir) {
+      if (!siblingCoversByDir || !siblingCoversByDir.size) return 0;
+      const dirTracksMap = new Map();
+      for (let i = 0; i < state.tracks.length; i++) {
+        const tr = state.tracks[i];
+        if (!tr || tr.source !== 'onedrive' || (tr.cover && tr.cover !== '♫')) continue;
+        const rp = String(tr.remotePath || tr.name || '');
+        const slash = rp.lastIndexOf('/');
+        const dir = slash > 0 ? rp.slice(0, slash) : '';
+        if (!siblingCoversByDir.has(dir)) continue;
+        if (!dirTracksMap.has(dir)) dirTracksMap.set(dir, []);
+        dirTracksMap.get(dir).push(tr);
+      }
+      const entries = Array.from(dirTracksMap.entries());
+      if (!entries.length) return 0;
+      let cursor = 0, appliedCount = 0;
+      const updatedTracks = [];
+      const workerCount = Math.min(3, entries.length);
+      await Promise.all(Array.from({ length: workerCount }, async () => {
+        while (cursor < entries.length) {
+          const pair = entries[cursor++];
+          const dir = pair[0];
+          const matched = pair[1];
+          const cand = siblingCoversByDir.get(dir);
+          if (!cand || !matched.some(tr => !tr.cover || tr.cover === '♫')) continue;
+          let thumbUrl = cand.downloadUrl || '';
+          if (!thumbUrl) {
+            try {
+              const tResp = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(cand.id)}/thumbnails?$select=small,medium,large`);
+              const tSet = tResp && tResp.value && tResp.value[0];
+              const thumb = tSet && (tSet.large || tSet.medium || tSet.small);
+              if (thumb && thumb.url) thumbUrl = thumb.url;
+            } catch (_) {}
+          }
+          const fallbackContentUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(cand.id)}/content`;
+          const cover = await fetchCloudImageCandidateDataUrl(thumbUrl, fallbackContentUrl, () => state.microsoftAccessToken || getMicrosoftToken(false));
+          if (!cover) continue;
+          const changed = applyDiscoveredCloudFolderCover(matched, cover);
+          if (changed.length) {
+            appliedCount += changed.length;
+            updatedTracks.push(...changed);
+          }
+        }
+      }));
+      if (updatedTracks.length) {
+        if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
+        trackMetadataRevision++;
+        scheduleTrackRender();
+        await persistCloudCatalog(updatedTracks, true).catch(() => {});
+      }
+      return appliedCount;
+    }
     async function loadMicrosoftFiles(token) {
       await restoreCloudCatalog();
       state.microsoftAccessToken = token;
       let added = 0, scannedFolders = 0;
       const knownIds = new Set(state.tracks.filter(track => track.source === 'onedrive').map(track => track.remoteId));
+      const siblingCoversByDir = new Map();
+      const scoreFolderCover = (typeof library !== 'undefined' && typeof library.scoreFolderCoverFilename === 'function')
+        ? library.scoreFolderCoverFilename
+        : () => 0;
       const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,size,audio&$top=500', path:''}];
       try {
         while (queue.length) {
@@ -14261,7 +14577,17 @@
                 queue.push({url:`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,size,audio&$top=500`, path:itemPath});
                 continue;
               }
-              if (!isCloudAudio(item) || knownIds.has(item.id)) continue;
+              if (!isCloudAudio(item)) {
+                const coverScore = scoreFolderCover(item.name || '');
+                if (coverScore > 0) {
+                  const prevCand = siblingCoversByDir.get(path);
+                  if (!prevCand || coverScore > prevCand.score) {
+                    siblingCoversByDir.set(path, { id: item.id, name: item.name, score: coverScore, downloadUrl: item['@microsoft.graph.downloadUrl'] || '' });
+                  }
+                }
+                continue;
+              }
+              if (knownIds.has(item.id)) continue;
               const track = microsoftTrack(item, itemPath);
               state.tracks.push(track); pageTracks.push(track); knownIds.add(item.id); added++;
             }
@@ -14288,6 +14614,9 @@
           track => track.source === 'onedrive' && (!track.metadataLoaded || !track.cover)
         );
         if (pendingMsMeta.length > 0) queueCloudMetadata(pendingMsMeta);
+        if (siblingCoversByDir.size > 0 && typeof applyMicrosoftSiblingFolderCovers === 'function') {
+          applyMicrosoftSiblingFolderCovers(siblingCoversByDir).catch(() => {});
+        }
       }
     }
     // Pha C — OneDrive dùng thẳng downloadUrl: link tải tạm thời của Graph
@@ -14529,6 +14858,8 @@
     $('empty-add').addEventListener('click', pickLocalFiles);
     $('folders-button').addEventListener('click', pickFolder);
     $('choose-folder').addEventListener('click', pickFolder);
+    if ($('reopen-folder')) $('reopen-folder').addEventListener('click', () => reopenSavedFolder({ silentIfGranted: false }));
+    if ($('empty-reopen-folder')) $('empty-reopen-folder').addEventListener('click', () => reopenSavedFolder({ silentIfGranted: false }));
     $('file-input').addEventListener('change', event => { addLocalFiles(event.target.files); event.target.value = ''; });
     $('folder-input').addEventListener('change', event => { addLocalFiles(event.target.files); event.target.value = ''; });
     $('settings-trigger').addEventListener('click', showSettings);
@@ -20606,6 +20937,9 @@
       };
       setTimeout(refresh, 800);
     }).catch(error => console.warn('Không thể khôi phục danh mục cloud:', error));
+    setTimeout(() => {
+      if (typeof restoreSavedLocalFolderOnStartup === 'function') restoreSavedLocalFolderOnStartup().catch(() => {});
+    }, 300);
     setTimeout(checkForAppUpdate, 20000);
     setInterval(() => { if (!document.hidden) checkForAppUpdate(); }, UPDATE_CHECK_INTERVAL);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForAppUpdate(); });
