@@ -337,6 +337,15 @@
       try { detail = (await response.text()).slice(0, 240); } catch (_) {}
       const error = new Error(`${provider} tải âm thanh thất bại (HTTP ${response.status})${detail ? `: ${detail}` : ''}`);
       error.status = response.status;
+      const retryAfterRaw = (response.headers && typeof response.headers.get === 'function')
+        ? response.headers.get('retry-after')
+        : '';
+      if (retryAfterRaw && (response.status === 429 || response.status >= 500)) {
+        const retrySec = Number(retryAfterRaw);
+        if (Number.isFinite(retrySec) && retrySec > 0) {
+          error.retryAfterMs = Math.min(8000, Math.round(retrySec * 1000));
+        }
+      }
       throw error;
     }
     const contentType = (response.headers && response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
@@ -345,11 +354,26 @@
     }
     return response;
   }
+  async function readAudioResponseBlob(response, options, provider, emptyMessage) {
+    let blob;
+    try { blob = await response.blob(); }
+    catch (error) {
+      if ((error && error.name === 'AbortError') || (options && options.signal && options.signal.aborted)) {
+        const abortErr = new Error('Đã hủy tải luồng âm thanh.');
+        abortErr.name = 'AbortError';
+        abortErr.aborted = true;
+        throw abortErr;
+      }
+      const wrapped = new Error(`${provider} bị gián đoạn luồng khi đang tải dữ liệu âm thanh. (${(error && error.message) || error})`);
+      wrapped.retryable = true;
+      throw wrapped;
+    }
+    if (!blob || !blob.size) throw new Error(emptyMessage || `${provider} trả về file âm thanh rỗng.`);
+    return blob;
+  }
   async function fetchAudioBlobOnce(url, options, provider) {
     const response = await fetchAudioResponse(url, options, provider);
-    const blob = await response.blob();
-    if (!blob || !blob.size) throw new Error(`${provider} trả về file âm thanh rỗng.`);
-    return blob;
+    return readAudioResponseBlob(response, options, provider, `${provider} trả về file âm thanh rỗng.`);
   }
   // Pha C — lát đầu để phát ngay: chỉ tải 1 MB đầu bằng Range để bài hát
   // bắt đầu phát trong tích tắc thay vì chờ tải cả file (1 MB ≈ 2 giây
@@ -391,17 +415,19 @@
   async function fetchAudioFirstSlice(url, options = {}, provider = 'Cloud') {
     const sliceHeaders = end => ({...(options.headers || {}), Range:`bytes=0-${end - 1}`});
     let end = (Number(options && options.initialSliceBytes) > FIRST_SLICE_BYTES) ? Math.min(Number(options.initialSliceBytes), FIRST_SLICE_MAX_BYTES) : FIRST_SLICE_BYTES;
-    let response;
+    let response, blob;
     try {
       response = await fetchAudioResponse(url, {...options, headers: sliceHeaders(end)}, provider);
+      blob = await readAudioResponseBlob(response, options, provider, `${provider} trả về lát âm thanh đầu rỗng.`);
     } catch (firstErr) {
       if (!isFetchAudioRetryable(firstErr)) throw firstErr;
-      const retryDelay = Number.isFinite(Number(options && options.retryDelayMs)) ? Math.max(0, Number(options.retryDelayMs)) : 300;
+      const retryDelay = Number.isFinite(Number(options && options.retryDelayMs))
+        ? Math.max(0, Number(options.retryDelayMs))
+        : (Number.isFinite(firstErr.retryAfterMs) && firstErr.retryAfterMs > 0 ? firstErr.retryAfterMs : 300);
       if (retryDelay > 0) await new Promise(resolve => setTimeout(resolve, retryDelay));
       response = await fetchAudioResponse(url, {...options, headers: sliceHeaders(end)}, provider);
+      blob = await readAudioResponseBlob(response, options, provider, `${provider} trả về lát âm thanh đầu rỗng.`);
     }
-    let blob = await response.blob();
-    if (!blob || !blob.size) throw new Error(`${provider} trả về lát âm thanh đầu rỗng.`);
     const contentRange = (response.headers && response.headers.get('content-range')) || '';
     const totalMatch = String(contentRange).match(/\/(\d+)\s*$/);
     const contentLength = Number(response.headers && response.headers.get('content-length')) || 0;
@@ -521,7 +547,10 @@
       catch (error) {
         lastError = error;
         if (!isFetchAudioRetryable(error) || attempt === FETCH_AUDIO_MAX_ATTEMPTS - 1) throw error;
-        await new Promise(resolve => setTimeout(resolve, fetchAudioRetryDelayMs(attempt)));
+        const waitMs = Number.isFinite(Number(options && options.retryDelayMs))
+          ? Math.max(0, Number(options.retryDelayMs))
+          : (Number.isFinite(error.retryAfterMs) && error.retryAfterMs > 0 ? error.retryAfterMs : fetchAudioRetryDelayMs(attempt));
+        if (waitMs > 0) await new Promise(resolve => setTimeout(resolve, waitMs));
       }
     }
     throw lastError;

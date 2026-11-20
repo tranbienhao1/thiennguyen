@@ -80,19 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.43';
-  const name = process.argv[3] || `Nocturne ${tag} (Tự phục hồi luồng phát Nội bộ / CUE / FileHandle, chống nhân đôi thư mục & tối ưu fallback OneDrive/Drive)`;
+  const tag = process.argv[2] || 'v3.9.44';
+  const name = process.argv[3] || `Nocturne ${tag} (Tự thử lại luồng nhạc Cloud bị đứt giữa chừng, đồng bộ đa luồng OneDrive & khôi phục DSD directUrl)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 97) — Tự phục hồi luồng phát Nội bộ / CUE / FileHandle, chống nhân đôi thư mục & tối ưu fallback OneDrive/Drive
+    : `### Nocturne ${tag} (versionCode 98) — Tự thử lại luồng nhạc Cloud bị đứt giữa chừng, đồng bộ đa luồng OneDrive & khôi phục DSD directUrl
 
-#### 1. Tự phục hồi URL phát nhạc Nội bộ, CUE & \`FileSystemFileHandle\` trên Web + APK (\`index.html\`)
-- **\`restoreLocalTrackUrlSync\` & \`ensureLocalTrackPlayableUrl\`**: Phát hiện và tái tạo tức thì \`blob:\` URL đã bị thu hồi (không còn trong \`state.objectUrls\`), tự động đồng bộ \`blob:\` URL mới cho toàn bộ các bài CUE sub-track dùng chung cùng một file gốc (\`track.file\`), tự nạp lại \`File\` từ \`track.fileHandle.getFile()\` khi bộ nhớ bị giải phóng, và tự khôi phục URL \`/local-media?uri=...\` / \`/local-media?path=...\` trên FiiO M11S & Android APK trong cả \`playTrack\` lẫn \`preloadNext\`.
-- **Chống nhân đôi bài hát & CUE khi mở lại thư mục nội bộ (\`localTrack\` & \`addLocalFiles\`)**: Lưu \`relativePath\` và \`fileHandle\` ngay trên mỗi track nội bộ, làm mới \`file\`/\`fileHandle\`/\`url\` cho mọi định dạng khi quét lại thư mục, và chống nhân đôi các bài cắt từ file \`.cue\`.
+#### 1. Tự thử lại luồng tải nhạc Google Drive / OneDrive khi đứt mạng giữa thân file & hỗ trợ \`Retry-After\` (\`library-utils.js\` + \`index.html\`)
+- **\`readAudioResponseBlob\` & \`fetchAudioResponse\`**: Gắn cờ \`retryable = true\` khi \`response.blob()\` bị ngắt kết nối giữa chừng trong lúc đang tải thân file FLAC/ALAC/WAV/DSD dung lượng lớn (cả trong \`fetchAudioBlob\` lẫn \`fetchAudioFirstSlice\`), đồng thời đọc header \`Retry-After\` trên mã \`429\`/\`5xx\` để tự động thử lại mượt mà mà không làm ngắt bài.
+- **\`fetchCloudFile\` OneDrive \`directUrl\` Recovery**: Khi tải bài DSD/full-file từ OneDrive gặp \`401\`/\`403\` do link tạm \`@microsoft.graph.downloadUrl\` hết hạn, tự động xóa \`track.downloadUrl\`, xin lại \`resolveMicrosoftDownloadUrl(track)\` mới hoặc chuyển sang Microsoft Graph \`/content\` kèm \`Bearer token\`.
 
-#### 2. Tối ưu tốc độ fallback OneDrive \`directUrl\` trong \`fetchCloudTrack\` (\`index.html\`)
-- Khi \`fetchAudioFirstSlice\` trên \`@microsoft.graph.downloadUrl\` gặp lỗi \`401\`/\`403\`, chuyển thẳng về \`loadMicrosoftAudio\` để phát Range slice qua Microsoft Graph \`/content\` ngay lập tức (không tốn thêm lượt tải toàn bộ file vô ích vào link tạm đã hết hạn), đồng thời hỗ trợ fallback Graph \`/content\` ngay trong nhánh tải full file M4A/ALAC (\`moovAtTail\`).
+#### 2. Đồng bộ thư mục OneDrive đa luồng theo lô & chống lỗi giới hạn Graph API (\`index.html\`)
+- **\`graphGet\` Resilient Retry**: Tự động thử lại tối đa 3 lần khi Microsoft Graph trả về \`429\` / \`500..504\` hoặc lỗi mạng ngắn hạn (tôn trọng \`Retry-After\` + exponential backoff) và làm mới \`state.microsoftAccessToken\` khi gặp \`401\`.
+- **\`loadMicrosoftFiles\` Parallel Folder Batching**: Quét đồng thời theo lô tối đa 3 thư mục OneDrive mỗi đợt (\`FOLDER_BATCH_CONCURRENCY = 3\`) và lưu bền các bài hiện có được cập nhật (\`downloadUrl\`, \`remotePath\`, \`size\`, \`audio\`) xuống IndexedDB \`catalog\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

@@ -2363,7 +2363,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.43</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.44</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -15101,7 +15101,22 @@
             throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
           }
         } else if (!isGraphContentUrl(url)) {
-          throw error;
+          if (track && track.source === 'onedrive' && track.remoteId && typeof getMicrosoftToken === 'function') {
+            track.downloadUrl = '';
+            track.downloadUrlAt = 0;
+            const freshDirect = (typeof resolveMicrosoftDownloadUrl === 'function')
+              ? await resolveMicrosoftDownloadUrl(track).catch(() => '')
+              : '';
+            if (freshDirect && freshDirect !== url) {
+              blob = await library.fetchAudioBlob(freshDirect, {}, provider);
+            } else {
+              const token = await getMicrosoftToken(false);
+              const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
+              blob = await library.fetchAudioBlob(graphUrl, {headers:{Authorization:`Bearer ${token}`}}, provider);
+            }
+          } else {
+            throw error;
+          }
         } else {
           const token = await getMicrosoftToken(false);
           blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
@@ -15192,13 +15207,39 @@
     }
     async function connectMicrosoftAndHandleAuth() { await connectMicrosoft(); }
     async function graphGet(url, token = state.microsoftAccessToken) {
-      let response = await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
-      if (response.status === 401) {
-        token = await getMicrosoftToken(false);
-        response = await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
+      let retryCount = 0;
+      let refreshedOnce = false;
+      while (true) {
+        let response;
+        try {
+          response = await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
+        } catch (netErr) {
+          if (retryCount < 3) {
+            retryCount++;
+            await new Promise(resolve => setTimeout(resolve, Math.min(400 * Math.pow(2, retryCount), 4000)));
+            continue;
+          }
+          throw netErr;
+        }
+        if (response.status === 401 && !refreshedOnce) {
+          refreshedOnce = true;
+          token = await getMicrosoftToken(false);
+          state.microsoftAccessToken = token;
+          continue;
+        }
+        if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 3) {
+          retryCount++;
+          const retryAfterHeader = response.headers && typeof response.headers.get === 'function' ? response.headers.get('retry-after') : '';
+          const retryAfterSec = retryAfterHeader ? Number(retryAfterHeader) : 0;
+          const waitMs = (Number.isFinite(retryAfterSec) && retryAfterSec > 0)
+            ? Math.min(8000, Math.round(retryAfterSec * 1000))
+            : Math.min(400 * Math.pow(2, retryCount), 4000);
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+          continue;
+        }
+        if (!response.ok) throw new Error(`Microsoft Graph ${response.status}: ${await response.text()}`);
+        return response.json();
       }
-      if (!response.ok) throw new Error(`Microsoft Graph ${response.status}: ${await response.text()}`);
-      return response.json();
     }
     const microsoftOAuthRefreshScheduler = (typeof library !== 'undefined' && library && typeof library.createProactiveOAuthTokenRefreshScheduler === 'function')
       ? library.createProactiveOAuthTokenRefreshScheduler({
@@ -15310,9 +15351,11 @@
         ? library.scoreFolderCoverFilename
         : () => 0;
       const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,size,audio&$top=500', path:''}];
+      const updatedExistingTracks = [];
       try {
-        while (queue.length) {
-          const {url, path} = queue.shift();
+        const FOLDER_BATCH_CONCURRENCY = 3;
+        const scanFolderNode = async (folderNode) => {
+          const url = folderNode.url, path = folderNode.path;
           scannedFolders++;
           let next = url, pageTracks = [];
           while (next) {
@@ -15324,14 +15367,26 @@
               if (!item.folder && knownIds.has(item.id)) {
                 const existing = existingByRemoteId.get(item.id);
                 if (existing) {
+                  let touched = false;
                   if (item['@microsoft.graph.downloadUrl']) {
                     existing.downloadUrl = item['@microsoft.graph.downloadUrl'];
                     existing.downloadUrlAt = Date.now();
+                    touched = true;
                   }
-                  if (itemPath && existing.remotePath !== itemPath) existing.remotePath = itemPath;
+                  if (itemPath && existing.remotePath !== itemPath) {
+                    existing.remotePath = itemPath;
+                    touched = true;
+                  }
+                  const iSize = Number(item.size) || 0;
+                  if (iSize > 0 && existing.size !== iSize) {
+                    existing.size = iSize;
+                    touched = true;
+                  }
                   if (item.audio && (!existing.metadataLoaded || !existing.cover)) {
                     mergeMicrosoftTrack(existing, item, itemPath);
+                    touched = true;
                   }
+                  if (touched) updatedExistingTracks.push(existing);
                 }
               }
               if (item.folder) {
@@ -15362,6 +15417,13 @@
             cloudStatus('microsoft', `Đang quét OneDrive… ${scannedFolders} thư mục · ${knownIds.size} bài`, 'text-sky-300');
             next = data['@odata.nextLink'] || '';
           }
+        };
+        while (queue.length) {
+          const folderBatch = queue.splice(0, FOLDER_BATCH_CONCURRENCY);
+          await Promise.all(folderBatch.map(node => scanFolderNode(node)));
+        }
+        if (updatedExistingTracks.length > 0) {
+          persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => {});
         }
         await persistChain;
         if (seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {

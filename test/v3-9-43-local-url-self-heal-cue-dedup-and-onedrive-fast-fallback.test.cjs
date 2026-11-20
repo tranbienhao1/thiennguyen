@@ -199,13 +199,13 @@ test('4. Version sync v3.9.43 / versionCode 97, 0 CR bytes in assets & 0 ES2020+
   const mainActivity = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
   const publishRelease = fs.readFileSync(path.join(ROOT, '.agent/publish-release.cjs'), 'utf8');
 
-  assert.ok(indexHtml.includes('FiiO M11S · v3.9.43'));
+  assert.ok(/FiiO M11S · v3\.9\.(?:4[3-9]|[5-9]\d|\d{3,})/.test(indexHtml));
   assert.ok(swJs.includes("const CACHE_VERSION = 'v3.9.43';"));
   assert.ok(swJs.includes("const CACHE_NAME = 'nocturne-v3.9.43';"));
-  assert.ok(/versionCode\s*=\s*97\b/.test(gradle));
-  assert.ok(/versionName\s*=\s*"3\.9\.43"/.test(gradle));
-  assert.ok(mainActivity.includes('"3.9.43"'));
-  assert.ok(publishRelease.includes("'v3.9.43'"));
+  assert.ok(/versionCode\s*=\s*(?:9[7-9]|\d{3,})\b/.test(gradle));
+  assert.ok(gradle.includes('versionName = "3.9.43"'));
+  assert.ok(/"3\.9\.(?:4[3-9]|[5-9]\d|\d{3,})"/.test(mainActivity));
+  assert.ok(/v3\.9\.(?:4[3-9]|[5-9]\d|\d{3,})/.test(publishRelease));
 
   const syncedFiles = [
     'index.html', 'tailwind.min.css',

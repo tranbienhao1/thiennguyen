@@ -2363,7 +2363,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.42</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.44</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -5372,10 +5372,67 @@
       if (track.id === state.currentId) return;
       // Chỉ thu hồi blob URL tạm thời; giữ nguyên URL stream nội bộ (FiiO SD card https://appassets...) để phát lại
       if (!track.url.startsWith('blob:')) return;
-      const absoluteUrl = new URL(track.url, location.href).href;
+      const revokedBlobUrl = track.url;
+      const absoluteUrl = new URL(revokedBlobUrl, location.href).href;
       if ([audio, standbyAudio].some(element => element.src === absoluteUrl)) return;
-      releaseTrackUrl(track.url);
+      if (state.tracks && state.tracks.some(other => other && other.id === state.currentId && other.url === revokedBlobUrl)) return;
+      releaseTrackUrl(revokedBlobUrl);
       track.url = '';
+      if (state.tracks) {
+        for (let i = 0; i < state.tracks.length; i++) {
+          const sibling = state.tracks[i];
+          if (sibling && sibling.source === 'local' && sibling.url === revokedBlobUrl) sibling.url = '';
+        }
+      }
+    }
+    function restoreLocalTrackUrlSync(track) {
+      if (!track || track.source !== 'local') return '';
+      if (track.url && track.url.indexOf('blob:') === 0 && state.objectUrls && typeof state.objectUrls.has === 'function' && !state.objectUrls.has(track.url)) {
+        track.url = '';
+      }
+      if (!track.url && !track.isDsd && track.file && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+        try {
+          const freshUrl = URL.createObjectURL(track.file);
+          track.url = freshUrl;
+          if (state.objectUrls && typeof state.objectUrls.add === 'function') state.objectUrls.add(freshUrl);
+          if (track.isCue && state.tracks) {
+            for (let i = 0; i < state.tracks.length; i++) {
+              const sib = state.tracks[i];
+              if (sib && sib.source === 'local' && sib.file === track.file && (!sib.url || (sib.url.indexOf('blob:') === 0 && state.objectUrls && !state.objectUrls.has(sib.url)))) {
+                sib.url = freshUrl;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      if (!track.url) {
+        if (track.uri) {
+          track.url = 'https://appassets.androidplatform.net/local-media?uri=' + encodeURIComponent(track.uri) + '&name=' + encodeURIComponent(track.name || track.title || '');
+        } else if (track.path) {
+          track.url = 'https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(track.path);
+        }
+      }
+      return track.url || '';
+    }
+    async function ensureLocalTrackPlayableUrl(track) {
+      if (!track || track.source !== 'local') return track ? (track.url || '') : '';
+      restoreLocalTrackUrlSync(track);
+      if ((!track.file || (!track.url && !track.isDsd)) && track.fileHandle && typeof track.fileHandle.getFile === 'function') {
+        try {
+          const reacquiredFile = await track.fileHandle.getFile();
+          if (reacquiredFile) {
+            track.file = reacquiredFile;
+            if (track.isCue && state.tracks) {
+              for (let i = 0; i < state.tracks.length; i++) {
+                const sib = state.tracks[i];
+                if (sib && sib.source === 'local' && sib.fileHandle === track.fileHandle) sib.file = reacquiredFile;
+              }
+            }
+          }
+        } catch (_) {}
+        restoreLocalTrackUrlSync(track);
+      }
+      return track.url || '';
     }
     // Pha C — hủy bản preload cũ khi chuyển bài: tăng generation để hủy
     // preload đang chạy dở, xóa trạng thái preload, gỡ src của deck chờ và
@@ -5902,7 +5959,12 @@
             else { cacheFirstSlice(track, sliceBlob, firstSlice.totalBytes); upgradeSliceToFullAudio(track, sliceUrl, url, options, provider).catch(error => console.warn('Could not finish downloading the full audio file in the background:', error.message || error)); }
             return sliceUrl;
           }
-        } catch (error) { console.debug('First-slice playback unavailable, downloading the full file instead:', error.message || error); }
+        } catch (error) {
+          if (error && (error.status === 401 || error.status === 403) && track && track.source === 'onedrive' && !isGraphContentUrl(url)) {
+            throw error;
+          }
+          console.debug('First-slice playback unavailable, downloading the full file instead:', error.message || error);
+        }
         let blob;
         try { blob = await library.fetchAudioBlob(url, options, provider); }
         catch (error) {
@@ -5921,6 +5983,12 @@
           } else if (track.source === 'onedrive' && isGraphContentUrl(url)) {
             const token = await getMicrosoftToken(false);
             blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
+          } else if (track && track.source === 'onedrive' && !isGraphContentUrl(url) && track.remoteId && typeof getMicrosoftToken === 'function') {
+            track.downloadUrl = '';
+            track.downloadUrlAt = 0;
+            const token = await getMicrosoftToken(false);
+            const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
+            blob = await library.fetchAudioBlob(graphUrl, {headers:{Authorization:`Bearer ${token}`}}, provider);
           } else throw error;
         }
         blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
@@ -6823,8 +6891,10 @@
         bitDepth: technical.bitDepth,
         channels: technical.channels,
         duration: technical.duration,
-        size: file.size
+        size: file.size,
+        relativePath: file.relativePath || file.webkitRelativePath || file.name
       };
+      if (file._fileHandle) trackObj.fileHandle = file._fileHandle;
       if (mergedTags.albumArtist) trackObj.albumArtist = String(mergedTags.albumArtist).trim();
       if (technical.iTunNORM) trackObj.iTunNORM = technical.iTunNORM;
       if (technical.replayGainTrackGain !== undefined) trackObj.replayGainTrackGain = technical.replayGainTrackGain;
@@ -6902,7 +6972,7 @@
         toast('Không tìm thấy file âm thanh hoặc file CUE được hỗ trợ.');
         return;
       }
-      const existing = new Map(state.tracks.filter(track => track.source === 'local').map(track => [`${track.relativePath || track.name || track.title}-${track.size}`, track]));
+      const existing = new Map(state.tracks.filter(track => track.source === 'local').map(track => [track.cueDedupKey || `${track.relativePath || track.name || track.title}-${track.size}`, track]));
       const additions = [], pending = [];
 
       for (const cueFile of cueFiles) {
@@ -6943,14 +7013,28 @@
           for (const ct of parsedTracks) {
             const trackDur = ct.duration > 0 ? ct.duration : (siblingTrack && siblingTrack.duration ? Math.max(0, siblingTrack.duration - (ct.offset || 0)) : 0);
             const tPath = cueFile.relativePath || cueFile.webkitRelativePath || cueFile.name || '';
+            const cueDedupKey = `${tPath}::cue::${ct.number || ct.track || ct.title || ''}-${Math.round((ct.offset || 0) * 100)}`;
+            if (existing.has(cueDedupKey)) {
+              const existingCue = existing.get(cueDedupKey);
+              if (existingCue) {
+                if (matchedAudioFile) existingCue.file = matchedAudioFile;
+                if (matchedAudioFile && matchedAudioFile._fileHandle) existingCue.fileHandle = matchedAudioFile._fileHandle;
+                if (siblingTrack && siblingTrack.url) existingCue.url = siblingTrack.url;
+                restoreLocalTrackUrlSync(existingCue);
+              }
+              continue;
+            }
             let tDir = '';
             if (tPath.includes('/')) tDir = tPath.slice(0, tPath.lastIndexOf('/'));
             else if (tPath.includes('\\')) tDir = tPath.slice(0, tPath.lastIndexOf('\\'));
             const folderCover = folderCoverByDir.get(tDir) || (folderCoverByDir.size === 1 ? folderCoverByDir.values().next().value : null);
+            const resolvedCueUrl = (siblingTrack ? siblingTrack.url : "") || (matchedAudioFile ? URL.createObjectURL(matchedAudioFile) : '');
+            if (resolvedCueUrl && resolvedCueUrl.indexOf('blob:') === 0 && state.objectUrls) state.objectUrls.add(resolvedCueUrl);
             const vTrack = {
               id: id(),
               file: matchedAudioFile || null,
-              url: (siblingTrack ? siblingTrack.url : "") || (matchedAudioFile ? URL.createObjectURL(matchedAudioFile) : ''),
+              fileHandle: (matchedAudioFile && matchedAudioFile._fileHandle) || (siblingTrack && siblingTrack.fileHandle) || null,
+              url: resolvedCueUrl,
               source: 'local',
               name: ct.title || `Track ${ct.number}`,
               title: ct.title || `Track ${ct.number}`,
@@ -6971,11 +7055,15 @@
               lyricsText: '',
               isCue: true,
               cueFile: cueFile.name,
+              relativePath: tPath,
+              size: matchedAudioFile ? (matchedAudioFile.size || 0) : 0,
+              cueDedupKey,
               parentFile: matchedAudioFile ? matchedAudioFile.name : (parsedTracks.file || '')
             };
             getTrackRating(vTrack);
             if (vTrack.cover && typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(vTrack.cover, vTrack);
             additions.push(vTrack);
+            existing.set(cueDedupKey, vTrack);
           }
 
           if (matchedAudioFile) {
@@ -6989,7 +7077,15 @@
 
       for (const file of candidates) {
         const key = localFileKey(file);
-        if (existing.has(key)) { const current = existing.get(key); if (current && (file.name.toLowerCase().endsWith('.dsf') || file.name.toLowerCase().endsWith('.dff'))) current.file = file; continue; }
+        if (existing.has(key)) {
+          const current = existing.get(key);
+          if (current) {
+            current.file = file;
+            if (file._fileHandle) current.fileHandle = file._fileHandle;
+            restoreLocalTrackUrlSync(current);
+          }
+          continue;
+        }
         existing.set(key, null); pending.push({file,key});
       }
       let nextFile = 0;
@@ -13095,6 +13191,7 @@
         });
       }
       if (!force && state._preloadFailedTrackId === next.id && state._preloadFailedAt && (Date.now() - state._preloadFailedAt) < 30000) return;
+      if (typeof ensureLocalTrackPlayableUrl === 'function') await ensureLocalTrackPlayableUrl(next);
       if (next.source === 'local' && !next.isDsd && !next.url && next.file) {
         try { next.url = URL.createObjectURL(next.file); state.objectUrls.add(next.url); } catch (_) {}
       }
@@ -13495,6 +13592,7 @@
       track.timeToFirstAudioMs = null; track.timeToFirstAudioMode = null;
       // Pha C — phát lại bài local đã bị thu hồi blob URL: tạo lại URL từ
       // track.file (file gốc vẫn giữ trong RAM) để phát được ngay.
+      if (typeof ensureLocalTrackPlayableUrl === 'function') await ensureLocalTrackPlayableUrl(track);
       if (track.source === 'local' && !track.isDsd && !track.url && track.file) { track.url = URL.createObjectURL(track.file); state.objectUrls.add(track.url); }
       const generation = ++state.playGeneration;
       state.autoCrossfadeGeneration = 0;
@@ -14258,7 +14356,12 @@
       if (window.showOpenFilePicker) {
         try {
           const handles = await window.showOpenFilePicker({ multiple: true, types: [{ description: 'Audio files', accept: {'audio/*':['.flac','.wav','.alac','.m4a','.mp3','.mp2','.ogg','.opus','.aac','.aiff','.aif','.wma','.dsf','.dff','.cue']} }] });
-          await addLocalFiles(await Promise.all(handles.map(handle => handle.getFile()))); return;
+          const filesWithHandles = await Promise.all(handles.map(async handle => {
+            const f = await handle.getFile();
+            try { Object.defineProperty(f, '_fileHandle', { value: handle, configurable: true }); } catch (_) { try { f._fileHandle = handle; } catch (_2) {} }
+            return f;
+          }));
+          await addLocalFiles(filesWithHandles); return;
         } catch (error) { if (error.name === 'AbortError') return; console.warn('Open file picker unavailable:', error); }
       }
       $('file-input').click();
@@ -14275,6 +14378,11 @@
                 Object.defineProperty(file, 'relativePath', { value: relPath, configurable: true });
               } catch (_) {
                 try { file.relativePath = relPath; } catch (_2) {}
+              }
+              try {
+                Object.defineProperty(file, '_fileHandle', { value: entry, configurable: true });
+              } catch (_) {
+                try { file._fileHandle = entry; } catch (_2) {}
               }
               files.push(file);
             }
@@ -14993,7 +15101,22 @@
             throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
           }
         } else if (!isGraphContentUrl(url)) {
-          throw error;
+          if (track && track.source === 'onedrive' && track.remoteId && typeof getMicrosoftToken === 'function') {
+            track.downloadUrl = '';
+            track.downloadUrlAt = 0;
+            const freshDirect = (typeof resolveMicrosoftDownloadUrl === 'function')
+              ? await resolveMicrosoftDownloadUrl(track).catch(() => '')
+              : '';
+            if (freshDirect && freshDirect !== url) {
+              blob = await library.fetchAudioBlob(freshDirect, {}, provider);
+            } else {
+              const token = await getMicrosoftToken(false);
+              const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
+              blob = await library.fetchAudioBlob(graphUrl, {headers:{Authorization:`Bearer ${token}`}}, provider);
+            }
+          } else {
+            throw error;
+          }
         } else {
           const token = await getMicrosoftToken(false);
           blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
@@ -15084,13 +15207,39 @@
     }
     async function connectMicrosoftAndHandleAuth() { await connectMicrosoft(); }
     async function graphGet(url, token = state.microsoftAccessToken) {
-      let response = await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
-      if (response.status === 401) {
-        token = await getMicrosoftToken(false);
-        response = await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
+      let retryCount = 0;
+      let refreshedOnce = false;
+      while (true) {
+        let response;
+        try {
+          response = await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
+        } catch (netErr) {
+          if (retryCount < 3) {
+            retryCount++;
+            await new Promise(resolve => setTimeout(resolve, Math.min(400 * Math.pow(2, retryCount), 4000)));
+            continue;
+          }
+          throw netErr;
+        }
+        if (response.status === 401 && !refreshedOnce) {
+          refreshedOnce = true;
+          token = await getMicrosoftToken(false);
+          state.microsoftAccessToken = token;
+          continue;
+        }
+        if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 3) {
+          retryCount++;
+          const retryAfterHeader = response.headers && typeof response.headers.get === 'function' ? response.headers.get('retry-after') : '';
+          const retryAfterSec = retryAfterHeader ? Number(retryAfterHeader) : 0;
+          const waitMs = (Number.isFinite(retryAfterSec) && retryAfterSec > 0)
+            ? Math.min(8000, Math.round(retryAfterSec * 1000))
+            : Math.min(400 * Math.pow(2, retryCount), 4000);
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+          continue;
+        }
+        if (!response.ok) throw new Error(`Microsoft Graph ${response.status}: ${await response.text()}`);
+        return response.json();
       }
-      if (!response.ok) throw new Error(`Microsoft Graph ${response.status}: ${await response.text()}`);
-      return response.json();
     }
     const microsoftOAuthRefreshScheduler = (typeof library !== 'undefined' && library && typeof library.createProactiveOAuthTokenRefreshScheduler === 'function')
       ? library.createProactiveOAuthTokenRefreshScheduler({
@@ -15202,9 +15351,11 @@
         ? library.scoreFolderCoverFilename
         : () => 0;
       const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,size,audio&$top=500', path:''}];
+      const updatedExistingTracks = [];
       try {
-        while (queue.length) {
-          const {url, path} = queue.shift();
+        const FOLDER_BATCH_CONCURRENCY = 3;
+        const scanFolderNode = async (folderNode) => {
+          const url = folderNode.url, path = folderNode.path;
           scannedFolders++;
           let next = url, pageTracks = [];
           while (next) {
@@ -15216,14 +15367,26 @@
               if (!item.folder && knownIds.has(item.id)) {
                 const existing = existingByRemoteId.get(item.id);
                 if (existing) {
+                  let touched = false;
                   if (item['@microsoft.graph.downloadUrl']) {
                     existing.downloadUrl = item['@microsoft.graph.downloadUrl'];
                     existing.downloadUrlAt = Date.now();
+                    touched = true;
                   }
-                  if (itemPath && existing.remotePath !== itemPath) existing.remotePath = itemPath;
+                  if (itemPath && existing.remotePath !== itemPath) {
+                    existing.remotePath = itemPath;
+                    touched = true;
+                  }
+                  const iSize = Number(item.size) || 0;
+                  if (iSize > 0 && existing.size !== iSize) {
+                    existing.size = iSize;
+                    touched = true;
+                  }
                   if (item.audio && (!existing.metadataLoaded || !existing.cover)) {
                     mergeMicrosoftTrack(existing, item, itemPath);
+                    touched = true;
                   }
+                  if (touched) updatedExistingTracks.push(existing);
                 }
               }
               if (item.folder) {
@@ -15254,6 +15417,13 @@
             cloudStatus('microsoft', `Đang quét OneDrive… ${scannedFolders} thư mục · ${knownIds.size} bài`, 'text-sky-300');
             next = data['@odata.nextLink'] || '';
           }
+        };
+        while (queue.length) {
+          const folderBatch = queue.splice(0, FOLDER_BATCH_CONCURRENCY);
+          await Promise.all(folderBatch.map(node => scanFolderNode(node)));
+        }
+        if (updatedExistingTracks.length > 0) {
+          persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => {});
         }
         await persistChain;
         if (seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {
