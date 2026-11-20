@@ -15,6 +15,7 @@
   const MAX_RANGE = 8 * 1024 * 1024, MAX_TOTAL = 16 * 1024 * 1024;
   const MP4_HINT_RE = /\.(?:m4a|mp4|m4b|alac)(?:$|[?#])/i;
   const DSF_HINT_RE = /\.dsf(?:$|[?#])/i;
+  const FLAC_HINT_RE = /\.flac(?:$|[?#])/i;
 
   function isMp4SourceHint(source) {
     if (!source || typeof source !== 'object') return false;
@@ -31,6 +32,15 @@
     if (DSF_HINT_RE.test(nameOrUrl)) return true;
     const mime = String(source.mimeType || source.type || '').toLowerCase();
     return mime.includes('dsf') || mime.includes('x-dsf') || mime.includes('dsd');
+  }
+
+  function isFlacSourceHint(source) {
+    if (!source || typeof source !== 'object') return false;
+    if (String(source.format || '').toUpperCase() === 'FLAC') return true;
+    const nameOrUrl = String(source.name || source.filename || source.url || '');
+    if (FLAC_HINT_RE.test(nameOrUrl)) return true;
+    const mime = String(source.mimeType || source.type || '').toLowerCase();
+    return mime.includes('flac');
   }
 
   function makeRangeReader(fetchImpl, options = {}, limits = {}) {
@@ -387,6 +397,74 @@
     return convertParsedDsfToRemoteTags(headInfo, tailRes && tailRes.metadata);
   }
 
+  function convertParsedFlacToRemoteTags(parsed) {
+    const out = { format: 'FLAC' };
+    if (!parsed || !parsed.valid) return out;
+    if (parsed.title) out.title = parsed.title;
+    if (parsed.artist) out.artist = parsed.artist;
+    if (parsed.album) out.album = parsed.album;
+    if (parsed.albumArtist) {
+      out.albumartist = parsed.albumArtist;
+      out.albumArtist = parsed.albumArtist;
+    }
+    if (parsed.track) out.track = parsed.track;
+    if (parsed.trackNumber > 0) out.trackNumber = parsed.trackNumber;
+    if (parsed.discNumber > 0) out.discNumber = parsed.discNumber;
+    if (parsed.year > 0) out.year = parsed.year;
+    if (parsed.genre) out.genre = parsed.genre;
+    if (parsed.lyrics) out.lyrics = parsed.lyrics;
+    if (parsed.picture) out.picture = parsed.picture;
+    if (parsed.sampleRate > 0) out.sampleRate = parsed.sampleRate;
+    if (parsed.bitDepth > 0) out.bitDepth = parsed.bitDepth;
+    if (parsed.channels > 0) out.channels = parsed.channels;
+    if (parsed.durationSeconds > 0) out.duration = parsed.durationSeconds;
+    if (parsed.hasReplayGain) {
+      out.hasReplayGain = true;
+      if (parsed.replayGainTrackGain !== undefined) out.replayGainTrackGain = parsed.replayGainTrackGain;
+      if (parsed.replayGainTrackPeak !== undefined) out.replayGainTrackPeak = parsed.replayGainTrackPeak;
+      if (parsed.replayGainAlbumGain !== undefined) out.replayGainAlbumGain = parsed.replayGainAlbumGain;
+      if (parsed.replayGainAlbumPeak !== undefined) out.replayGainAlbumPeak = parsed.replayGainAlbumPeak;
+    }
+    return out;
+  }
+
+  async function readRemoteFlacMetadata(source, options = {}, limits = {}) {
+    if (!source || !source.url || !(Number(source.size) > 0)) {
+      throw new Error('A cloud URL and file size are required for tag ranges.');
+    }
+    const fetchImpl = limits.fetch || (typeof fetch === 'function' && fetch.bind(globalThis));
+    if (typeof fetchImpl !== 'function') {
+      throw new Error('Fetch is unavailable for metadata ranges.');
+    }
+    const lib = typeof getLib === 'function' ? getLib() : null;
+    if (!lib || typeof lib.parseFlacMetadataSafe !== 'function') {
+      throw new Error('FLAC metadata parser is unavailable.');
+    }
+
+    const maxRange = Math.max(1, Number(limits.maxRangeBytes) || MAX_RANGE);
+    const maxTotal = Math.max(maxRange, Number(limits.maxTotalBytes) || MAX_TOTAL);
+    const FileReader = makeRangeReader(fetchImpl, options, limits);
+    const reader = new FileReader(source);
+    const fileSize = reader.getSize();
+
+    const initialProbeLen = Math.min(fileSize, maxRange, Math.max(4096, Number(limits.headProbeBytes) || 131072));
+    const headBytes = await loadReaderRangeAsync(reader, 0, initialProbeLen - 1);
+    let parsed = lib.parseFlacMetadataSafe(headBytes, { includeComments: false });
+
+    if (parsed && parsed.valid && !parsed.lastBlockReached && !parsed.picture && initialProbeLen < fileSize) {
+      const capTotal = Math.min(fileSize, maxTotal, Math.min(maxRange + initialProbeLen, 4 * 1024 * 1024));
+      const targetEnd = Math.min(capTotal, Math.max(parsed.truncatedBlockEnd || 0, Math.min(capTotal, 1024 * 1024)));
+      if (targetEnd > initialProbeLen) {
+        const tailBytes = await loadReaderRangeAsync(reader, initialProbeLen, targetEnd - 1);
+        const combined = new Uint8Array(headBytes.byteLength + tailBytes.byteLength);
+        combined.set(headBytes, 0);
+        combined.set(tailBytes, headBytes.byteLength);
+        parsed = lib.parseFlacMetadataSafe(combined, { includeComments: false });
+      }
+    }
+    return convertParsedFlacToRemoteTags(parsed);
+  }
+
   function isFatalTransportOrSafetyError(err) {
     const msg = String((err && err.message) || err || '');
     return (
@@ -401,6 +479,9 @@
   function readRemoteTags(jsmediatags, source, options = {}, limits = {}) {
     if (isDsfSourceHint(source)) {
       return readRemoteDsfMetadata(source, options, limits);
+    }
+    if (isFlacSourceHint(source)) {
+      return readRemoteFlacMetadata(source, options, limits);
     }
     const mp4Hint = isMp4SourceHint(source);
     if (!jsmediatags || typeof jsmediatags.Reader !== 'function') {
@@ -436,5 +517,5 @@
       return readRemoteMp4Ilst(source, options, limits);
     });
   }
-  return {readRemoteTags, readRemoteMp4Ilst, readRemoteDsfMetadata, makeRangeReader, MAX_RANGE, MAX_TOTAL};
+  return {readRemoteTags, readRemoteMp4Ilst, readRemoteDsfMetadata, readRemoteFlacMetadata, makeRangeReader, MAX_RANGE, MAX_TOTAL};
 });

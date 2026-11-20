@@ -542,7 +542,7 @@
   </style>
   <style id="roon-collection-responsive">
     #collection-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));column-gap:clamp(20px,2.1vw,40px);row-gap:30px} #collection-grid.hidden{display:none!important}
-    .collection-card{display:block;min-width:0;padding:0;border:0;background:transparent;color:#f2f2f2;text-align:left;cursor:pointer;content-visibility:auto;contain-intrinsic-size:auto 300px}
+    .collection-card{display:block;width:100%;min-width:0;padding:0;border:0;background:transparent;color:#f2f2f2;text-align:left;cursor:pointer;content-visibility:auto;contain-intrinsic-size:auto 300px}
     .collection-art{position:relative;display:grid;width:100%;aspect-ratio:1;place-items:center;overflow:hidden;background:#3b3b3d}
     .collection-art img{width:100%;height:100%;object-fit:cover} .collection-art.is-artist{width:100%;border-radius:50%}
     .collection-initials{color:white;font-family:Georgia,"Times New Roman",serif;font-size:clamp(50px,5vw,76px);line-height:1}
@@ -1671,6 +1671,17 @@
       height: 100% !important;
       object-fit: cover !important;
     }
+    #collection-grid .collection-art {
+      position: relative !important;
+      overflow: hidden !important;
+    }
+    #collection-grid .collection-art img {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      display: block !important;
+      z-index: 1 !important;
+    }
     #track-list .track-row .track-number {
       margin-right: 8px !important;
     }
@@ -2342,7 +2353,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.31</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.32</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3747,6 +3758,15 @@
                 dropped++;
               }
             }
+            if (Number(level) >= 15 && state.artistPortraits && state.artistPortraits.size > 60) {
+              const dropPortraits = state.artistPortraits.size - 60;
+              let dCount = 0;
+              for (const pKey of Array.from(state.artistPortraits.keys())) {
+                if (dCount >= dropPortraits) break;
+                state.artistPortraits.delete(pKey);
+                dCount++;
+              }
+            }
           }
           console.warn('[LegacyAndroid] Low memory trim executed, level=' + level);
         } catch (_) {}
@@ -3991,7 +4011,7 @@
     };
     let audio = $('audio');
     let standbyAudio = $('preload-audio');
-    const state = { tracks: [], currentId: null, selectedArtistEntry: null, isPlaybackLoading: false, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackAnnotations: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-annotations') || '{}')) || {}, trackScope: null, currentCollectionEntry: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false, zeroAllocScratchpad: (typeof library !== 'undefined' && library && typeof library.createZeroAllocFrameScratchpad === 'function') ? library.createZeroAllocFrameScratchpad(128) : null, lyricsPreloadLifecycle: (typeof library !== 'undefined' && library && typeof library.createPreloadLifecycleController === 'function') ? library.createPreloadLifecycleController({ delayMs: 3000 }) : null };
+    const state = { tracks: [], currentId: null, selectedArtistEntry: null, isPlaybackLoading: false, albumCovers: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-album-covers'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) { console.warn('Could not load cached album covers:', e); } return new Map(); })(), artistPortraits: (() => { try { const raw = typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-artist-portraits'); if (raw) { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return new Map(parsed); if (parsed && typeof parsed === 'object') return new Map(Object.entries(parsed)); } } catch (e) {} return new Map(); })(), queue: [], lyricsAutoScrollSuspended: false, filter: 'all', artist: '*', album: '*', groupBy: 'none', query: '', sortAsc: true, collectionSort: 'artist', collectionAscending: true, activeView: 'home', viewScroll: {}, focusOnly: false, recentMode: 'played', favoritesOnly: false, favoritesTier: 'all', trackRatings: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-ratings') || '{}')) || {}, trackAnnotations: (typeof localStorage !== 'undefined' && JSON.parse(localStorage.getItem('nocturne-track-annotations') || '{}')) || {}, trackScope: null, currentCollectionEntry: null, playbackContext: null, shuffle: false, repeat: 0, autoplay: true, queueTrackIds: [], expandedVersions: new Set(), sleepTimer: null, sleepFadeTimer: null, sleepFadeInterval: null, sleepCountdownInterval: null, sleepOriginalVolume: null, sleepOriginalGain: null, sleepDeadline: 0, sleepAtTrackEnd: false, lastSessionSaveTime: 0, pendingResumePosition: null, favorites: new Set(), recentHistory: [], historyRestoreGeneration: 0, historyClearedAt: 0, objectUrls: new Set(), googleToken: null, googleExpiresAt: 0, msal: null, msAccount: null, microsoftAccessToken: null, dsdOutputRate: 44100, dsdOutputDepth: 16, crossfadeSeconds: 0, crossfadeUntil: 0, crossfadeSecondsBeforeOff: 0, crossfadeCurve: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfade-curve')) || 'equal-power', context: null, analyser: null, sourceNode: null, filters: [], preamp: null, directGain: null, directAnalyser: null, limiter: null, preLimiterAnalyser: null, limiterMode: 'transparent', roomAcousticProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-room-acoustics-profile')) || 'bypass', roomAcousticWet: (typeof localStorage !== 'undefined' && Number(localStorage.getItem('nocturne-room-acoustics-wet'))) || 0.2, roomAcousticNodes: null, subBassPunchProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-punch')) || 'off', subBassPunchIntensity: (typeof localStorage !== 'undefined' && parseFloat(localStorage.getItem('nocturne-sub-bass-intensity'))) || 1.0, subBassPunchNodes: null, tubeEmulationProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-tube-emulation')) || 'off', tubeEmulationNodes: null, dsdUltrasonicFilter: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-dsd-ultrasonic-filter')) || 'bypass', dsdUltrasonicNodes: null, subBassPhaseProfile: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-sub-bass-phase')) || 'bypass', activeAnalyser: null, panner: null, stereoBalance: 0, crossfeed: 0, crossfeedLast: 0.3, crossfeedPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-crossfeed-preset')) || 'bauer', crossfeedNodes: null, toneBass: 0, toneTreble: 0, toneNodes: null, bands: [], bandSerial: 0, preloadTrackId: null, preloadReadyUrl: null, preloadBusyId: null, preloadGeneration: 0, preloadDsdSliceTrackId: null, preloadDsdSliceWorker: null, playGeneration: 0, autoCrossfadeGeneration: 0, lyrics: [], lyricIndex: -1, errorSkipCount: 0, dsdWorker: null, dsdUrl: null, dsdBlob: null, dsdTrackId: null, db: null, isSeeking: false, roonRadio: true, replayGainEnabled: false, replayGainMode: 'track', replayGainPreamp: 0, replayGainMultiplier: 1, currentReplayGainResult: null, loudnessStandard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-standard')) || 'audiophile-album', loudnessAutoGuard: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-loudness-guard')) !== 'false', waveformPeaks: null, waveformTrackId: null, waveformDecoding: false, ambientMasterGain: null, ambientRainGain: null, ambientCampfireGain: null, ambientRainEnabled: false, ambientRainVolume: 40, ambientCampfireEnabled: false, ambientCampfireVolume: 30, ambientRainLfo: null, ambientNodes: null, ambientBuffers: null, activeZoneId: 'zone_dsp', zones: (typeof library !== 'undefined' && library && typeof library.createZoneModel === 'function') ? library.createZoneModel() : [{ id: 'zone_dsp', name: 'Phòng nghe Audiophile (PWA DSP)', isBitPerfect: false }, { id: 'zone_direct', name: 'Ngõ ra Trực tiếp (Bit-Perfect Direct)', isBitPerfect: true }], roonWs: null, roonWsStatus: 'disconnected', roonCoreEndpoint: '', roonZones: [], activeFocus: 'all', isFullscreen: false, autoEqProfile: 'none', phaseInvert: false, activeSmartPlaylist: null, activeSmartPlaylistKey: null, visualizerTheme: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-theme')) || 'cyber', visualizerMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-mode')) || 'spectrum', visualizerStrobeEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-visualizer-strobe')) !== 'false', stageAuraPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-stage-aura-preset')) || 'club-laser', waveformHoverFraction: null, fullscreenWaveformHoverFraction: null, ambientStageMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-ambient-stage-mode')) || 'reactive', leftAnalyser: null, rightAnalyser: null, lyricsOffset: 0, fullscreenViewMode: 'art', fullscreenStageMode: 'radar', thermalBallistics: null, prevVisualizerBins: null, bpmEnergyHistory: [], trackBpmInfo: null, contextualPreset: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-contextual-preset')) || 'auto', contextualRecommendation: null, networkProfile: null, networkSpeedSamples: [], lookaheadPipelineReport: null, miniHudHoverFraction: null, vuGravityState: null, fiioDapMode: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-fiio-dap-mode') !== null) ? (localStorage.getItem('nocturne-fiio-dap-mode') === 'true') : (typeof window !== 'undefined' && Boolean(window.isNativeAndroid || window.NocturneNative)), bitPerfectEnabled: (typeof localStorage !== 'undefined' && localStorage.getItem('nocturne-bitperfect-enabled') === 'true') || false, isNativeBitPerfectPlaying: false, isNativeBitPerfectPaused: false, zeroAllocScratchpad: (typeof library !== 'undefined' && library && typeof library.createZeroAllocFrameScratchpad === 'function') ? library.createZeroAllocFrameScratchpad(128) : null, lyricsPreloadLifecycle: (typeof library !== 'undefined' && library && typeof library.createPreloadLifecycleController === 'function') ? library.createPreloadLifecycleController({ delayMs: 3000 }) : null };
 
     function applyBitPerfectMode(enabled) {
       state.bitPerfectEnabled = Boolean(enabled);
@@ -4337,6 +4357,258 @@
       }
     }
     window.propagateAndBroadcastCovers = propagateAndBroadcastCovers;
+
+    let artistPortraitsSaveTimer = null;
+    function saveArtistPortraitsCache() {
+      const writeNow = () => {
+        artistPortraitsSaveTimer = null;
+        try {
+          if (typeof localStorage === 'undefined' || !state.artistPortraits) return;
+          const entries = Array.from(state.artistPortraits.entries()).filter(pair => {
+            const v = pair && pair[1];
+            return typeof v === 'string' && v.indexOf('https://') === 0;
+          });
+          const maxEntries = (state.fiioDapMode || IS_LEGACY_ANDROID) ? 180 : 400;
+          const sliced = entries.slice(-maxEntries);
+          localStorage.setItem('nocturne-artist-portraits', JSON.stringify(sliced));
+        } catch (_) {}
+      };
+      if (artistPortraitsSaveTimer) clearTimeout(artistPortraitsSaveTimer);
+      artistPortraitsSaveTimer = setTimeout(writeNow, 800);
+    }
+
+    const LAZY_COVER_PLACEHOLDER_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    let sharedCoverObserver = null;
+    function getLazyCoverObserver() {
+      if (sharedCoverObserver || typeof IntersectionObserver !== 'function') return sharedCoverObserver;
+      try {
+        sharedCoverObserver = new IntersectionObserver(function (entries) {
+          for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            if (!entry || !entry.isIntersecting) continue;
+            const img = entry.target;
+            const lazySrc = img && img.dataset ? img.dataset.lazySrc : '';
+            if (lazySrc) {
+              img.src = lazySrc;
+              delete img.dataset.lazySrc;
+            }
+            if (sharedCoverObserver && img) sharedCoverObserver.unobserve(img);
+          }
+        }, { rootMargin: '300px 0px', threshold: 0.01 });
+      } catch (_) {
+        sharedCoverObserver = null;
+      }
+      return sharedCoverObserver;
+    }
+    function observeLazyCovers(container) {
+      if (!container) return;
+      const imgs = container.querySelectorAll('img[data-lazy-src]');
+      if (!imgs || !imgs.length) return;
+      const obs = getLazyCoverObserver();
+      for (let i = 0; i < imgs.length; i++) {
+        const img = imgs[i];
+        if (!obs) {
+          img.src = img.dataset.lazySrc;
+          delete img.dataset.lazySrc;
+        } else {
+          obs.observe(img);
+        }
+      }
+    }
+
+    function applyArtistPortraitUrlToDom(artistName, artistKey, url) {
+      if (!url) return;
+      const targetKey = artistKey || ((typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+        ? library.normalizeSearchKey(artistName)
+        : String(artistName || '').trim().toLowerCase());
+      try {
+        document.querySelectorAll('#collection-grid .collection-card[data-collection-action="artist"]').forEach(function (card) {
+          if (card.dataset.collectionKey !== targetKey) return;
+          const artEl = card.querySelector('.collection-art');
+          if (!artEl) return;
+          const existingImg = artEl.querySelector('img');
+          if (existingImg) {
+            if (existingImg.dataset && existingImg.dataset.lazySrc) delete existingImg.dataset.lazySrc;
+            if (existingImg.getAttribute('src') !== url) existingImg.src = url;
+          } else {
+            const initEl = artEl.querySelector('.collection-initials');
+            if (initEl) initEl.remove();
+            const img = document.createElement('img');
+            img.src = url;
+            img.loading = 'lazy';
+            img.decoding = 'async';
+            img.alt = '';
+            artEl.insertBefore(img, artEl.firstChild);
+          }
+        });
+      } catch (_) {}
+      try {
+        const recentArtistsEl = $('recent-artists-list');
+        if (recentArtistsEl) {
+          recentArtistsEl.querySelectorAll('[data-recent-artist]').forEach(function (btn) {
+            const btnName = btn.getAttribute('data-recent-artist') || '';
+            const btnKey = (typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+              ? library.normalizeSearchKey(btnName)
+              : btnName.trim().toLowerCase();
+            if (btnKey !== targetKey) return;
+            const avatar = btn.querySelector('.artist-avatar');
+            if (!avatar) return;
+            avatar.innerHTML = '<img src="' + escapeHtml(url) + '" loading="lazy" decoding="async" class="h-full w-full object-cover rounded-full" alt="">';
+          });
+        }
+      } catch (_) {}
+      try {
+        const hero = $('album-hero');
+        const heroTitle = $('album-hero-title');
+        const heroCover = $('album-hero-cover');
+        if (hero && hero.getAttribute('data-hero-type') === 'artist' && heroTitle && heroCover && !hero.classList.contains('hidden')) {
+          const hKey = (typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+            ? library.normalizeSearchKey(heroTitle.textContent)
+            : String(heroTitle.textContent || '').trim().toLowerCase();
+          if (hKey === targetKey) {
+            heroCover.innerHTML = '<img src="' + escapeHtml(url) + '" class="h-full w-full object-cover" alt="">';
+          }
+        }
+      } catch (_) {}
+    }
+
+    function applyOnlineAlbumCoverToDom(albumName, artistName, coverUrl, tracksList) {
+      if (!coverUrl) return;
+      const list = Array.isArray(tracksList) ? tracksList : [];
+      const aNorm = (typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+        ? library.normalizeSearchKey(albumName)
+        : String(albumName || '').trim().toLowerCase();
+      const arNorm = (typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+        ? library.normalizeSearchKey(artistName)
+        : String(artistName || '').trim().toLowerCase();
+      const updatedIds = [];
+      let primaryKey = '';
+      for (let i = 0; i < list.length; i++) {
+        const tr = list[i];
+        if (!tr) continue;
+        if (!tr.cover || tr.cover === '♫') {
+          tr.cover = coverUrl;
+          updatedIds.push(tr.id);
+        }
+        if (!primaryKey && typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function') {
+          primaryKey = library.buildAlbumKey(tr);
+        }
+        if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(coverUrl, tr);
+      }
+      if (primaryKey && typeof broadcastCoverUpdate === 'function') {
+        broadcastCoverUpdate(primaryKey, coverUrl, updatedIds);
+      }
+      try {
+        const fullKey = aNorm + '\t' + arNorm;
+        document.querySelectorAll('#collection-grid .collection-card[data-collection-action="album"], #collection-grid .collection-card[data-collection-action="artist-album"]').forEach(function (card) {
+          const cKey = card.dataset.collectionKey || '';
+          const act = card.dataset.collectionAction;
+          if ((act === 'album' && cKey === fullKey) || (act === 'artist-album' && cKey === aNorm)) {
+            const artEl = card.querySelector('.collection-art');
+            if (!artEl) return;
+            const img = artEl.querySelector('img');
+            if (img) {
+              if (img.dataset && img.dataset.lazySrc) delete img.dataset.lazySrc;
+              img.src = coverUrl;
+            } else {
+              const initEl = artEl.querySelector('.collection-initials');
+              if (initEl) initEl.remove();
+              const newImg = document.createElement('img');
+              newImg.src = coverUrl;
+              newImg.loading = 'lazy';
+              newImg.decoding = 'async';
+              newImg.alt = '';
+              artEl.insertBefore(newImg, artEl.firstChild);
+            }
+          }
+        });
+      } catch (_) {}
+      try {
+        const hero = $('album-hero');
+        const heroTitle = $('album-hero-title');
+        const heroCover = $('album-hero-cover');
+        if (hero && hero.getAttribute('data-hero-type') === 'album' && heroTitle && heroCover && !hero.classList.contains('hidden')) {
+          const hKey = (typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+            ? library.normalizeSearchKey(heroTitle.textContent)
+            : String(heroTitle.textContent || '').trim().toLowerCase();
+          if (hKey === aNorm) {
+            heroCover.innerHTML = '<img src="' + escapeHtml(coverUrl) + '" class="h-full w-full object-cover" alt="">';
+          }
+        }
+      } catch (_) {}
+    }
+
+    const onlineArtAttempted = new Set();
+    const onlineArtQueue = [];
+    let onlineArtActive = 0;
+    function pumpOnlineArtQueue() {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      if (typeof window === 'undefined' || !window.NocturneMetadata) return;
+      while (onlineArtActive < 2 && onlineArtQueue.length > 0) {
+        const job = onlineArtQueue.shift();
+        if (!job) continue;
+        onlineArtActive++;
+        Promise.resolve().then(function () {
+          if (job.kind === 'artist') {
+            if (typeof window.NocturneMetadata.fetchOnlineArtistPortrait !== 'function') return '';
+            return window.NocturneMetadata.fetchOnlineArtistPortrait(job.artistName, { size: 300 });
+          }
+          if (typeof window.NocturneMetadata.fetchOnlineAlbumCover !== 'function') return '';
+          return window.NocturneMetadata.fetchOnlineAlbumCover(job.albumName, job.artistName, { title: job.titleHint || '', size: 300 });
+        }).then(function (url) {
+          if (!url) return;
+          if (job.kind === 'artist') {
+            if (!state.artistPortraits) state.artistPortraits = new Map();
+            state.artistPortraits.set(job.artistKey, url);
+            saveArtistPortraitsCache();
+            applyArtistPortraitUrlToDom(job.artistName, job.artistKey, url);
+          } else {
+            applyOnlineAlbumCoverToDom(job.albumName, job.artistName, url, job.tracks);
+          }
+        }).catch(function () {}).finally(function () {
+          onlineArtActive--;
+          pumpOnlineArtQueue();
+        });
+      }
+    }
+    function queueOnlineArtistPortrait(artistName, artistKey) {
+      if (!artistName || !window.NocturneMetadata) return;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      const key = artistKey || ((typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+        ? library.normalizeSearchKey(artistName)
+        : String(artistName).trim().toLowerCase());
+      if (!key) return;
+      if (state.artistPortraits && state.artistPortraits.has(key)) return;
+      const attemptKey = 'artist:' + key;
+      if (onlineArtAttempted.has(attemptKey)) return;
+      if (onlineArtAttempted.size > 1500) onlineArtAttempted.clear();
+      onlineArtAttempted.add(attemptKey);
+      onlineArtQueue.push({ kind: 'artist', artistName: artistName, artistKey: key });
+      pumpOnlineArtQueue();
+    }
+    function queueOnlineAlbumCover(albumName, artistName, tracksList) {
+      if (!albumName || !window.NocturneMetadata) return;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      const aKey = (typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+        ? library.normalizeSearchKey(albumName)
+        : String(albumName).trim().toLowerCase();
+      const arKey = (typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+        ? library.normalizeSearchKey(artistName)
+        : String(artistName || '').trim().toLowerCase();
+      const attemptKey = 'album:' + aKey + '|' + arKey;
+      if (onlineArtAttempted.has(attemptKey)) return;
+      if (onlineArtAttempted.size > 1500) onlineArtAttempted.clear();
+      onlineArtAttempted.add(attemptKey);
+      const firstTrack = Array.isArray(tracksList) && tracksList[0];
+      onlineArtQueue.push({
+        kind: 'album',
+        albumName: albumName,
+        artistName: artistName || '',
+        titleHint: firstTrack ? (firstTrack.title || firstTrack.name || '') : '',
+        tracks: tracksList || []
+      });
+      pumpOnlineArtQueue();
+    }
 
     function getTrackRating(track) {
       if (!track) return 0;
@@ -4935,14 +5207,20 @@
       releaseUnusedCloudUrl(oldPreload);
     }
     window.addEventListener('beforeunload', () => { if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.cancelAll('unload'); if (typeof savePlaybackSession === 'function') savePlaybackSession(true); for (const url of state.objectUrls) URL.revokeObjectURL(url); state.objectUrls.clear(); });
-    // v3.9.27/v3.9.28: native /local-cover art (FiiO MicroSD / MediaStore) may legitimately have no picture.
-    // Swap the broken <img> for a clean contextual placeholder (initials on Album/Artist cards, ♫ on rows) and forget the dead URL.
+    // v3.9.27/v3.9.28/v3.9.32: native /local-cover art retries once on transient busy/scroll abort, then swaps to clean placeholder + online fallback.
     const failedNativeCovers = new Set();
     window.addEventListener('error', function (event) {
       const el = event && event.target;
       if (!el || el.tagName !== 'IMG') return;
       const failedSrc = el.getAttribute('src') || '';
       if (failedSrc.indexOf('/local-cover?') < 0) return;
+      if (el.dataset && !el.dataset.coverRetried && !failedNativeCovers.has(failedSrc)) {
+        el.dataset.coverRetried = '1';
+        setTimeout(function () {
+          if (el.isConnected !== false) el.src = failedSrc;
+        }, 1200);
+        return;
+      }
       if (!failedNativeCovers.has(failedSrc)) {
         failedNativeCovers.add(failedSrc);
         if (Array.isArray(state.tracks)) {
@@ -4957,6 +5235,9 @@
           }
         }
       }
+      handleFailedLocalCoverElement(el);
+    }, true);
+    function handleFailedLocalCoverElement(el) {
       try {
         if (el.id === 'fullscreen-cover-img') {
           el.classList.add('hidden');
@@ -4972,7 +5253,15 @@
         if (collectionArt) {
           const card = typeof collectionArt.closest === 'function' ? collectionArt.closest('.collection-card') : null;
           const titleNode = card ? card.querySelector('.collection-title') : null;
+          const subNode = card ? card.querySelector('.collection-subtitle') : null;
           const rawTitle = (titleNode && titleNode.textContent) ? titleNode.textContent.trim() : '';
+          const rawSub = (subNode && subNode.textContent) ? subNode.textContent.trim() : '';
+          const action = card && card.dataset ? card.dataset.collectionAction : '';
+          if (action === 'artist' && rawTitle && typeof queueOnlineArtistPortrait === 'function') {
+            queueOnlineArtistPortrait(rawTitle, card.dataset.collectionKey);
+          } else if ((action === 'album' || action === 'artist-album') && rawTitle && typeof queueOnlineAlbumCover === 'function') {
+            queueOnlineAlbumCover(rawTitle, action === 'album' ? rawSub : '', []);
+          }
           const words = rawTitle ? rawTitle.split(/\s+/) : [];
           let initials = '';
           for (let w = 0; w < Math.min(2, words.length); w++) {
@@ -4986,6 +5275,9 @@
         }
         const artistAvatar = typeof el.closest === 'function' ? el.closest('.artist-avatar') : null;
         if (artistAvatar) {
+          const recentBtn = typeof artistAvatar.closest === 'function' ? artistAvatar.closest('[data-recent-artist]') : null;
+          const aName = recentBtn ? recentBtn.getAttribute('data-recent-artist') : '';
+          if (aName && typeof queueOnlineArtistPortrait === 'function') queueOnlineArtistPortrait(aName);
           const initialsAttr = artistAvatar.getAttribute('data-initials') || '♫';
           const span = document.createElement('span');
           span.textContent = initialsAttr;
@@ -4994,6 +5286,15 @@
         }
         const heroCover = typeof el.closest === 'function' ? el.closest('#album-hero-cover') : null;
         if (heroCover) {
+          const hero = $('album-hero');
+          const hType = hero ? hero.getAttribute('data-hero-type') : '';
+          const hTitle = $('album-hero-title') ? $('album-hero-title').textContent.trim() : '';
+          const hArtist = $('album-hero-artist') ? $('album-hero-artist').textContent.trim() : '';
+          if (hType === 'artist' && hTitle && typeof queueOnlineArtistPortrait === 'function') {
+            queueOnlineArtistPortrait(hTitle);
+          } else if (hType === 'album' && hTitle && typeof queueOnlineAlbumCover === 'function') {
+            queueOnlineAlbumCover(hTitle, hArtist, []);
+          }
           const span = document.createElement('span');
           span.className = 'grid h-full w-full place-items-center text-4xl text-zinc-500';
           span.textContent = '♫';
@@ -5005,7 +5306,7 @@
         ph.textContent = '♫';
         if (el.parentNode) el.parentNode.replaceChild(ph, el);
       } catch (_) {}
-    }, true);
+    }
     function normalizeCoverImage(cover) {
 
       return new Promise(resolve => {
@@ -5595,7 +5896,7 @@
         } else if (!trackCover && entry && typeof (library && library.resolveTrackCover) === 'function') {
           trackCover = library.resolveTrackCover(entry, state.albumCovers, state.tracks);
         }
-        const cover = trackCover ? `<img src="${escapeHtml(trackCover)}" class="h-full w-full object-contain" alt="">` : '<span>♫</span>';
+        const cover = trackCover ? `<img src="${escapeHtml(trackCover)}" class="h-full w-full object-cover" alt="">` : '<span>♫</span>';
         const active = track && track.id === state.currentId;
         const unavailable = !track;
         return `<button type="button" data-recent-track="${escapeHtml(entry.trackKey)}" ${unavailable ? 'disabled title="Thêm lại thư mục/file vào thư viện để phát bài này"' : ''} class="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[.07] bg-white/[.025] p-2 text-left transition hover:border-violet-300/20 hover:bg-white/[.055] focus:outline-none focus:ring-2 focus:ring-violet-400/50 disabled:cursor-not-allowed disabled:opacity-60"><span class="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-zinc-800 text-lg text-violet-200">${cover}</span><span class="min-w-0 flex-1"><span class="block truncate text-xs font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${title}</span><span class="mt-1 block truncate text-[10px] text-zinc-500">${unavailable ? 'Thêm lại file/thư viện để phát' : artist}</span></span><span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/[.06] text-xs text-zinc-300 transition group-hover:bg-violet-400 group-hover:text-zinc-950" aria-hidden="true">${active && audio && !audio.paused ? 'Ⅱ' : '▶'}</span></button>`;
@@ -5640,7 +5941,8 @@
         if (!key) continue;
         let entry = artistMap.get(key);
         if (!entry) {
-          entry = { key: key, name: name, count: 0, cover: '' };
+          const portraitCover = (state.artistPortraits && state.artistPortraits.get(key)) || '';
+          entry = { key: key, name: name, count: 0, cover: portraitCover };
           artistMap.set(key, entry);
         }
         entry.count++;
@@ -5673,6 +5975,9 @@
 
       const topArtists = entries.slice(0, 14);
       listEl.innerHTML = topArtists.map(function (artist) {
+        if (!artist.cover && typeof queueOnlineArtistPortrait === 'function') {
+          queueOnlineArtistPortrait(artist.name, artist.key);
+        }
         const words = artist.name.trim().split(/\s+/);
         let initials = '';
         for (let w = 0; w < Math.min(2, words.length); w++) {
@@ -5776,7 +6081,7 @@
           const meta = (typeof library !== 'undefined' && typeof library.trackMetadata === 'function') ? library.trackMetadata(t) : t;
           const tags = (typeof library !== 'undefined' && typeof library.autoTagTrackAcoustics === 'function') ? library.autoTagTrackAcoustics(t) : { dominantTag: 'Audio' };
           const isCurrent = t.id === state.currentId;
-          const coverHtml = t.cover ? `<img src="${escapeHtml(t.cover)}" loading="lazy" decoding="async" class="h-full w-full object-contain" alt="">` : '♫';
+          const coverHtml = t.cover ? `<img src="${escapeHtml(t.cover)}" loading="lazy" decoding="async" class="h-full w-full object-cover" alt="">` : '♫';
           return `<button type="button" data-contextual-track="${escapeHtml(t.id)}" class="group flex flex-col items-start gap-1.5 p-2 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.06] hover:border-violet-400/30 transition shrink-0 w-[130px] text-left">
             <div class="relative h-24 w-full rounded-lg bg-zinc-800 flex items-center justify-center overflow-hidden">
               ${coverHtml}
@@ -5979,6 +6284,39 @@
               flacOffset = 10 + tagSize + ((flags & 0x10) ? 10 : 0);
             }
             if (view.byteLength >= flacOffset + 42 && text(flacOffset, 4) === 'fLaC') {
+              if (typeof library !== 'undefined' && library && typeof library.parseFlacMetadataSafe === 'function') {
+                const flacMeta = library.parseFlacMetadataSafe(buffer, { includeComments: false });
+                if (flacMeta && flacMeta.valid && flacMeta.sampleRate > 0) {
+                  const flacOut = {
+                    sampleRate: flacMeta.sampleRate,
+                    bitDepth: flacMeta.bitDepth || 16,
+                    channels: flacMeta.channels || 2
+                  };
+                  if (flacMeta.durationSeconds > 0) flacOut.duration = flacMeta.durationSeconds;
+                  if (flacMeta.title) flacOut.title = flacMeta.title;
+                  if (flacMeta.artist) flacOut.artist = flacMeta.artist;
+                  if (flacMeta.album) flacOut.album = flacMeta.album;
+                  if (flacMeta.albumArtist) flacOut.albumArtist = flacMeta.albumArtist;
+                  if (flacMeta.track) flacOut.track = flacMeta.track;
+                  if (flacMeta.discNumber > 0) flacOut.discNumber = flacMeta.discNumber;
+                  if (flacMeta.year > 0) flacOut.year = flacMeta.year;
+                  if (flacMeta.genre) flacOut.genre = flacMeta.genre;
+                  if (flacMeta.lyrics) flacOut.lyrics = flacMeta.lyrics;
+                  if (flacMeta.hasReplayGain) {
+                    if (flacMeta.replayGainTrackGain !== undefined) flacOut.replayGainTrackGain = flacMeta.replayGainTrackGain;
+                    if (flacMeta.replayGainTrackPeak !== undefined) flacOut.replayGainTrackPeak = flacMeta.replayGainTrackPeak;
+                    if (flacMeta.replayGainAlbumGain !== undefined) flacOut.replayGainAlbumGain = flacMeta.replayGainAlbumGain;
+                    if (flacMeta.replayGainAlbumPeak !== undefined) flacOut.replayGainAlbumPeak = flacMeta.replayGainAlbumPeak;
+                  }
+                  if (flacMeta.picture && flacMeta.picture.data) {
+                    const pBytes = new Uint8Array(flacMeta.picture.data);
+                    let pBin = '';
+                    for (let i = 0; i < pBytes.length; i += 0x8000) pBin += String.fromCharCode(...pBytes.subarray(i, i + 0x8000));
+                    flacOut.cover = `data:${flacMeta.picture.format || 'image/jpeg'};base64,${btoa(pBin)}`;
+                  }
+                  return done(flacOut);
+                }
+              }
               let offset = flacOffset + 4;
               while (offset + 4 <= view.byteLength) {
                 const header = view.getUint8(offset), type = header & 0x7f;
@@ -6042,7 +6380,8 @@
           } catch (error) { console.warn('Could not read audio header:', error); done({}); }
         };
         try {
-          reader.readAsArrayBuffer(file.slice(0, 512 * 1024));
+          const isFlacFile = /\.(?:flac)$/i.test(file.name || '') || String(file.type || '').toLowerCase().indexOf('flac') >= 0;
+          reader.readAsArrayBuffer(file.slice(0, isFlacFile ? (2 * 1024 * 1024) : (512 * 1024)));
         } catch (_) {
           done({});
         }
@@ -6645,9 +6984,18 @@
       }
       if (tracksEl) tracksEl.textContent = `${(summary && summary.trackCount != null ? summary.trackCount : (entry.tracks || []).length)} bài hát`;
       if (durationEl) durationEl.textContent = (summary && summary.formattedDuration) || '—';
+      const heroArtistKey = (typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+        ? library.normalizeSearchKey(entry.name || entry.artist || '')
+        : String(entry.name || entry.artist || '').trim().toLowerCase();
+      const savedHeroPortrait = (!isAlbum && state.artistPortraits && heroArtistKey) ? state.artistPortraits.get(heroArtistKey) : '';
+      let heroCoverSrc = savedHeroPortrait || (entry.cover && !failedNativeCovers.has(entry.cover) ? entry.cover : '');
+      if (!heroCoverSrc) {
+        if (!isAlbum && entry.name && typeof queueOnlineArtistPortrait === 'function') queueOnlineArtistPortrait(entry.name, heroArtistKey);
+        else if (isAlbum && entry.name && typeof queueOnlineAlbumCover === 'function') queueOnlineAlbumCover(entry.name, entry.artist, entry.tracks);
+      }
       if (coverEl) {
-        if (entry.cover) {
-          coverEl.innerHTML = `<img src="${escapeHtml(entry.cover)}" class="h-full w-full object-cover" alt="">`;
+        if (heroCoverSrc) {
+          coverEl.innerHTML = `<img src="${escapeHtml(heroCoverSrc)}" class="h-full w-full object-cover" alt="">`;
         } else {
           const rawName = String(entry.name || '').trim();
           const words = rawName ? rawName.split(/\s+/) : [];
@@ -6681,7 +7029,11 @@
             if (state.context && state.context.state === 'suspended') {
               state.context.resume().catch(e => console.debug('AudioContext resume in album-hero-play:', e));
             }
-            state.playbackContext = { type: isAlbum ? 'album' : 'artist', key: entry.key, name: entry.name, trackIds: entry.tracks.map(t => t.id) };
+            if (isAlbum) {
+              state.playbackContext = { type: 'album', key: entry.key, name: entry.name, trackIds: entry.tracks.map(t => t.id) };
+            } else {
+              state.playbackContext = { type: 'artist', key: entry.key, name: entry.name, trackIds: entry.tracks.map(t => t.id) };
+            }
             state.queueTrackIds = entry.tracks.slice(1).map(t => t.id);
             if (state.preloadTrackId && state.preloadTrackId !== entry.tracks[0].id && state.preloadTrackId !== (state.queueTrackIds[0] || null) && typeof clearStalePreload === 'function') clearStalePreload();
             renderQueue();
@@ -6883,10 +7235,17 @@
       const col = $('content-col');
       const prevScrollTop = col ? col.scrollTop : 0;
 
-      const cards = (artistAlbums || []).map(album => {
+      const cards = (artistAlbums || []).map((album, albumIdx) => {
         const entryName = String(album.name || 'Unknown');
         const initials = entryName.trim().split(/\s+/u).slice(0, 2).map(word => [...word][0] || '').join('').toLocaleUpperCase('vi');
-        const image = album.cover ? `<img src="${escapeHtml(album.cover)}" loading="lazy" decoding="async" alt="">` : `<span class="collection-initials">${escapeHtml(initials || '♫')}</span>`;
+        const validCover = (album.cover && album.cover !== '♫' && !failedNativeCovers.has(album.cover)) ? album.cover : '';
+        if (!validCover && typeof queueOnlineAlbumCover === 'function') {
+          queueOnlineAlbumCover(album.name, album.artist, album.tracks);
+        }
+        const useLazyLocal = Boolean((state.fiioDapMode || IS_LEGACY_ANDROID) && albumIdx >= 10 && validCover && validCover.indexOf('/local-cover?') >= 0);
+        const image = validCover
+          ? `<img src="${useLazyLocal ? LAZY_COVER_PLACEHOLDER_SRC : escapeHtml(validCover)}"${useLazyLocal ? ` data-lazy-src="${escapeHtml(validCover)}"` : ''} loading="lazy" decoding="async" alt="">`
+          : `<span class="collection-initials">${escapeHtml(initials || '♫')}</span>`;
         const subtitle = `${(album.tracks || []).length} bài hát`;
         const albumSummary = (typeof library !== 'undefined' && library && typeof library.summarizeAlbum === 'function') ? library.summarizeAlbum(album.tracks) : null;
         const formatBadge = (albumSummary && albumSummary.highestQuality && albumSummary.highestQuality.label)
@@ -6896,6 +7255,7 @@
       }).join('');
 
       grid.innerHTML = cards;
+      if (typeof observeLazyCovers === 'function') observeLazyCovers(grid);
       if (col && prevScrollTop > 0) col.scrollTop = prevScrollTop;
 
       grid.querySelectorAll('[data-collection-action="artist-album"]').forEach(card => card.addEventListener('click', () => {
@@ -7035,13 +7395,16 @@
           track.cover = library.resolveTrackCover(track, state.albumCovers, state.tracks);
         }
         const info = metadata(track), artistKey = library.normalizeSearchKey(info.artist);
-        if (!artists.has(artistKey)) artists.set(artistKey,{key:artistKey,name:info.artist,tracks:[],cover:track.cover || ''});
+        const savedPortrait = (state.artistPortraits && state.artistPortraits.get(artistKey)) || '';
+        const usableTrackCover = (track.cover && track.cover !== '♫' && !failedNativeCovers.has(track.cover)) ? track.cover : '';
+        if (!artists.has(artistKey)) artists.set(artistKey,{key:artistKey,name:info.artist,tracks:[],cover:savedPortrait || usableTrackCover || ''});
         artists.get(artistKey).tracks.push(track);
         const albumKey = `${library.normalizeSearchKey(info.album)}\t${artistKey}`;
-        if (!albums.has(albumKey)) albums.set(albumKey,{key:albumKey,name:info.album,artist:info.artist,tracks:[],cover:track.cover || ''});
+        if (!albums.has(albumKey)) albums.set(albumKey,{key:albumKey,name:info.album,artist:info.artist,tracks:[],cover:usableTrackCover || ''});
         albums.get(albumKey).tracks.push(track);
         const artKey = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function') ? library.buildAlbumKey(track) : null;
-        const albumCover = track.cover || (artKey && state.albumCovers ? state.albumCovers.get(artKey) : null);
+        const cachedCover = artKey && state.albumCovers ? state.albumCovers.get(artKey) : null;
+        const albumCover = usableTrackCover || (cachedCover && !failedNativeCovers.has(cachedCover) ? cachedCover : '');
         if (!albums.get(albumKey).cover && albumCover) albums.get(albumKey).cover = albumCover;
         if (!artists.get(artistKey).cover && albumCover) artists.get(artistKey).cover = albumCover;
       }
@@ -7116,7 +7479,12 @@
               const imgEl = artEl.querySelector('img');
               if (entry.cover) {
                 if (imgEl) {
-                  if (imgEl.getAttribute('src') !== entry.cover) imgEl.src = entry.cover;
+                  const curLazy = imgEl.dataset ? imgEl.dataset.lazySrc : '';
+                  if (curLazy && curLazy !== entry.cover) {
+                    imgEl.dataset.lazySrc = entry.cover;
+                  } else if (!curLazy && imgEl.getAttribute('src') !== entry.cover) {
+                    imgEl.src = entry.cover;
+                  }
                 } else {
                   const initials = artEl.querySelector('.collection-initials');
                   if (initials) initials.remove();
@@ -7135,10 +7503,21 @@
         const col = $('content-col');
         const prevScrollTop = col ? col.scrollTop : 0;
 
-        const cards = entries.map(entry => {
+        const cards = entries.map((entry, cardIdx) => {
           const entryName = String(entry.name || 'Unknown');
           const initials = entryName.trim().split(/\s+/u).slice(0,2).map(word => [...word][0] || '').join('').toLocaleUpperCase('vi');
-          const image = entry.cover ? `<img src="${escapeHtml(entry.cover)}" loading="lazy" decoding="async" alt="">` : `<span class="collection-initials">${escapeHtml(initials || '♫')}</span>`;
+          const validCover = (entry.cover && entry.cover !== '♫' && !failedNativeCovers.has(entry.cover)) ? entry.cover : '';
+          if (!validCover) {
+            if (isArtistView && typeof queueOnlineArtistPortrait === 'function') {
+              queueOnlineArtistPortrait(entry.name, entry.key);
+            } else if (!isArtistView && !isGenreView && typeof queueOnlineAlbumCover === 'function') {
+              queueOnlineAlbumCover(entry.name, entry.artist, entry.tracks);
+            }
+          }
+          const useLazyLocal = Boolean((state.fiioDapMode || IS_LEGACY_ANDROID) && cardIdx >= 10 && validCover && validCover.indexOf('/local-cover?') >= 0);
+          const image = validCover
+            ? `<img src="${useLazyLocal ? LAZY_COVER_PLACEHOLDER_SRC : escapeHtml(validCover)}"${useLazyLocal ? ` data-lazy-src="${escapeHtml(validCover)}"` : ''} loading="lazy" decoding="async" alt="">`
+            : `<span class="collection-initials">${escapeHtml(initials || '♫')}</span>`;
           const subtitle = entry.subtitle || (isArtistView ? `${entry.tracks.length} bài` : escapeHtml(entry.artist));
           const action = entry.action || (isArtistView ? 'artist' : 'album');
           const albumSummary = (!isArtistView && !isGenreView) ? library.summarizeAlbum(entry.tracks) : null;
@@ -7147,6 +7526,7 @@
         }).join('');
 
         grid.innerHTML = cards;
+        if (typeof observeLazyCovers === 'function') observeLazyCovers(grid);
         lastCollectionStructureKey = currentStructureKey;
 
         if (col && prevScrollTop > 0) {
@@ -13245,8 +13625,25 @@
       if (window.showDirectoryPicker) {
         try {
           const dir = await window.showDirectoryPicker({ mode: 'read' }), files = [];
-          async function walk(handle) { for await (const entry of handle.values()) { if (entry.kind === 'file') { const file = await entry.getFile(); if (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name) || /\.cue$/i.test(file.name) || /\.(jpe?g|png|webp|bmp|gif)$/i.test(file.name)) files.push(file); } else if (entry.kind === 'directory') await walk(entry); } }
-          await walk(dir); await addLocalFiles(files); return;
+          async function walk(handle, prefix) {
+            for await (const entry of handle.values()) {
+              if (entry.kind === 'file') {
+                const file = await entry.getFile();
+                if (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name) || /\.cue$/i.test(file.name) || /\.lrc$/i.test(file.name) || /\.(jpe?g|png|webp|bmp|gif)$/i.test(file.name)) {
+                  const relPath = prefix ? (prefix + '/' + file.name) : file.name;
+                  try {
+                    Object.defineProperty(file, 'relativePath', { value: relPath, configurable: true });
+                  } catch (_) {
+                    try { file.relativePath = relPath; } catch (_2) {}
+                  }
+                  files.push(file);
+                }
+              } else if (entry.kind === 'directory') {
+                await walk(entry, prefix ? (prefix + '/' + entry.name) : entry.name);
+              }
+            }
+          }
+          await walk(dir, ''); await addLocalFiles(files); return;
         } catch (error) { if (error.name === 'AbortError') return; console.warn('Directory picker failed; using input fallback:', error); }
       }
       $('folder-input').click();
@@ -15614,6 +16011,7 @@
     let pendingAndroidStorageScan = false;
     let fiioScanInProgress = false;
     let fiioScanWatchdogTimer = null;
+    let fiioScanUpgradedCount = 0;
 
     function buildExistingFiioTrackSets() {
       const existingPaths = new Set();
@@ -15676,6 +16074,7 @@
         if ((normPath && existingPaths.has(normPath)) || (normUri && existingUris.has(normUri))) {
           const prevTrack = (normPath && existingByPath.get(normPath)) || (normUri && existingByUri.get(normUri)) || null;
           if (prevTrack) {
+            const bCov = prevTrack.cover || '', bMeta = (prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '');
             if (normUri && !prevTrack.uri) prevTrack.uri = normUri;
             if (normPath && !prevTrack.path) prevTrack.path = normPath;
             if (Number(file.duration) > 0 && !(Number(prevTrack.duration) > 0)) prevTrack.duration = Number(file.duration);
@@ -15685,6 +16084,7 @@
             if (typeof library !== 'undefined' && typeof library.enrichFiioTrackMetadata === 'function') {
               library.enrichFiioTrackMetadata(prevTrack);
             }
+            if ((prevTrack.cover || '') !== bCov || ((prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '')) !== bMeta) fiioScanUpgradedCount++;
           }
           continue;
         }
@@ -15727,10 +16127,11 @@
     }
 
     function finalizeFiioScanUi(totalFound, addedCount, silent, silentIfEmpty) {
-      if (addedCount > 0) {
+      if (addedCount > 0 || fiioScanUpgradedCount > 0 || totalFound > 0) {
         try { if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers(); } catch (_) {}
         try { renderTracks(); } catch (rErr) { console.warn('renderTracks after scan warning:', rErr); }
         try { if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks); } catch (cErr) { console.warn('renderCollectionCards after scan warning:', cErr); }
+        try { if (typeof renderRecentArtists === 'function') renderRecentArtists(); } catch (_) {}
         try { saveCatalog(); } catch (sErr) { console.warn('saveCatalog after scan warning:', sErr); }
       }
       if (!silent && (!silentIfEmpty || totalFound > 0)) {
@@ -15768,6 +16169,7 @@
         }
         pendingAndroidStorageScan = false;
         fiioScanInProgress = true;
+        fiioScanUpgradedCount = 0;
 
         const existingSets = buildExistingFiioTrackSets();
         const existingPaths = existingSets.existingPaths;

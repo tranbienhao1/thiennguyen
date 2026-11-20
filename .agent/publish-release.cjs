@@ -80,20 +80,28 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = 'v3.9.31';
-  const name = 'Nocturne v3.9.31 (FiiO M11S UI, Album Art & Artist Overhaul)';
-  const bodyText = `### Nocturne v3.9.31 (FiiO M11S UI, Album Art & Artist Overhaul)
+  const tag = process.argv[2] || 'v3.9.32';
+  const name = process.argv[3] || `Nocturne ${tag} (Sửa triệt để ảnh Album/Nghệ sĩ FiiO M11S + Nâng cấp FLAC/Artwork Web & Cloud)`;
+  const notesFile = process.argv[4];
+  const bodyText = (notesFile && fs.existsSync(notesFile))
+    ? fs.readFileSync(notesFile, 'utf8')
+    : `### Nocturne ${tag} — Tối ưu Ảnh Album / Nghệ sĩ FiiO M11S & Nâng cấp Web / Cloud
 
-#### Điểm mới & Cải tiến:
-- **Khắc phục lỗi hiển thị Album không có ảnh bìa**: Sửa lỗi gán nhầm \`.is-artist\` (50% border radius) khiến các album không có bìa bị biến thành hình tròn thay vì bìa vuông tiêu chuẩn trên FiiO M11S.
-- **Trích xuất ảnh bìa tự động (Native \`/local-cover\`)**: \`library.resolveTrackCover\` và \`instantResolveTrackCover\` tự động trích xuất ảnh bìa \`/local-cover\` cho các bài hát MicroSD (đường dẫn \`path\`) và MediaStore (\`content:// uri\`), tự động chia sẻ ảnh bìa trong cùng album mà không tốn RAM.
-- **Tối ưu hóa ảnh đại diện Nghệ sĩ ở Trang chủ**: \`renderRecentArtists\` tự động tra cứu ảnh bìa từ danh mục bài hát của nghệ sĩ đó để hiển thị avatar nghệ sĩ dạng tròn sắc nét thay vì chữ cái viết tắt.
-- **Nâng cấp trang chi tiết Nghệ sĩ (Artist Hero)**: Phân tách rõ ràng số lượng Album và số lượng bài hát, gắn nhãn nút *"Phát tất cả"* thay cho *"Phát album"*, và tự tạo avatar monogram nghệ sĩ trên nền dải màu tím-chàm (purple-indigo gradient) khi nghệ sĩ chưa có ảnh.
-- **Hiển thị ảnh bìa tràn viền trong danh sách bài**: Nâng cấp \`object-contain\` lên \`object-cover\` cho \`.track-art img\`, loại bỏ viền đen/xám trên màn hình 5-inch 720x1280 của FiiO M11S.
-- **Hỗ trợ định dạng WebP**: Bổ sung trích xuất ảnh bìa thư mục dạng \`.webp\` (\`cover.webp\`, \`folder.webp\`,...) trong \`MainActivity.java\`.
+#### 1. Sửa triệt để nguyên nhân gốc gây mất ảnh Album & Ca sĩ trên FiiO M11S (Android 10):
+- **Tăng song song & gộp luồng (Single-Flight)**: Nâng \`COVER_ART_PERMITS\` từ \`2\` -> \`4\` và timeout \`4s\` -> \`15s\`, đồng bộ khóa theo hash album (\`mCoverHashLocks\`) để không trả về lỗi \`503 Busy\` khi cuộn danh sách dài trên WebView 74.
+- **Đọc trực tiếp nhị phân FLAC & Vorbis Base64**: Bổ sung \`extractFlacPictureFromStream\` (block 6 \`PICTURE\` + Vorbis \`METADATA_BLOCK_PICTURE\` base64) cho mọi tệp Hi-Res FLAC kể cả khi \`MediaMetadataRetriever\` Android 10 trả về null; hỗ trợ đọc qua cả \`File\` lẫn \`content://\` URI.
+- **Fallback Android 10 MediaStore \`ALBUM_ID\` + Thư mục ảnh**: Tra cứu thêm \`content://media/external/audio/albumart/<album_id>\` và kiểm tra thư mục con \`Artwork/\`, \`Cover/\`, \`Covers/\`, \`Scans/\`, \`Images/\`.
+- **Làm mới cache cũ v3.9.27–v3.9.31**: Nâng namespace cache lên \`v3k:\`/\`v3s:\` (loại bỏ toàn bộ tệp âm tính \`.none\` cũ) và đặt TTL \`10 phút\` cho \`.none\`.
+- **Lazy Load \`IntersectionObserver\` & Thử lại thông minh**: Chỉ tải ảnh \`/local-cover\` khi cuộn tới trên FiiO/Android cũ, thử lại 1 lần sau 1.2s trước khi đánh dấu lỗi, và tự gọi quét lại giao diện ngay cả khi quét lại không thêm bài mới (\`fiioScanUpgradedCount\`).
+- **Sửa CSS WebView 74 Grid**: Bổ sung \`position: absolute\` cho ảnh trong \`.collection-art\` và \`width: 100%\` cho \`.collection-card\` để thẻ không bao giờ bị xẹp chiều cao.
+
+#### 2. Nâng cấp mạnh cho bản Web & Cloud (Google Drive / OneDrive / Local PC):
+- **Đọc thẻ & ảnh bìa FLAC thuần JS (\`parseFlacMetadataSafe\`)**: Hỗ trợ đầy đủ nhạc FLAC nội bộ (slice 2 MiB) và nhạc FLAC trên Google Drive/OneDrive qua HTTP Range không phụ thuộc CDN \`jsmediatags\`.
+- **Tự động tải ảnh Album & chân dung Ca sĩ online khi thiếu ảnh nhúng**: Tích hợp API Wikipedia (vi/en) + iTunes Search API (CORS verified) cho cả Web và FiiO M11S.
+- **Sửa lỗi chọn thư mục Web (\`pickFolder()\`)**: Giữ nguyên \`relativePath\` thư mục con và nạp luôn tệp lời nhạc \`.lrc\`, giúp tự động ghép \`cover.jpg\`, Suy luận Ca sĩ/Album và đồng bộ lyrics trên trình duyệt máy tính.
 
 #### Tệp đính kèm:
-- **Nocturne-Android.apk** (6.61 MB)`;
+- **Nocturne-Android.apk**`;
 
   const headers = {
     'Authorization': `Bearer ${token}`,

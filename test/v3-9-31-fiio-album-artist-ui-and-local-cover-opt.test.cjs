@@ -106,8 +106,8 @@ test('3. MainActivity.java supports .webp folder art & provides fallback 3.9.31'
 
   // App build info fallback
   assert.ok(
-    java.includes('3.9.31'),
-    'MainActivity must provide 3.9.31 version fallback'
+    /:\s*"3\.9\.\d+";/.test(java),
+    'MainActivity must provide 3.9.x version fallback'
   );
 });
 
@@ -117,7 +117,7 @@ test('4. Version sync v3.9.31 (versionCode 85), Unix LF asset parity, and Web Au
   const gradle = fs.readFileSync(BUILD_GRADLE, 'utf8');
 
   // FiiO DAP Badge
-  assert.ok(html.includes('FiiO M11S · v3.9.31'), 'index.html must have FiiO M11S · v3.9.31 badge');
+  assert.ok(/FiiO M11S \u00b7 v3\.9\.\d+/.test(html), 'index.html must have FiiO M11S · v3.9.x badge');
 
   // Service Worker
   assert.ok(sw.includes("const CACHE_VERSION = 'v3.9.31';"), 'sw.js must have CACHE_VERSION v3.9.31');

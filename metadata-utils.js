@@ -11,8 +11,146 @@
   const normalizeKind = kind => ({track:'recording', song:'recording', recording:'recording', album:'release', release:'release', artist:'artist'})[kind] || '';
   const usableMetadata = value => {
     const text = String(value || '').trim();
-    return /^(?:|[-—?]|unknown(?: artist| album)?|nghệ sĩ không xác định|bài hát không tên|chưa rõ album|n\/a)$/i.test(text) ? '' : text;
+    return /^(?:|[-—?]|unknown(?: artist| album)?|nghệ sĩ không xác định|bài hát không tên|chưa rõ album|fiio internal & sd card|single\s*\/\s*chưa rõ album|<unknown>|n\/a)$/i.test(text) ? '' : text;
   };
+
+  function isTrustedArtworkUrl(rawUrl, allowedHostSuffixes) {
+    if (!rawUrl || typeof rawUrl !== 'string') return '';
+    try {
+      const parsed = new URL(rawUrl.trim());
+      if (parsed.protocol !== 'https:') return '';
+      const host = parsed.hostname.toLowerCase();
+      for (let i = 0; i < allowedHostSuffixes.length; i++) {
+        const suffix = allowedHostSuffixes[i];
+        if (host === suffix || host.endsWith('.' + suffix)) return parsed.href;
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  function upgradeItunesArtworkUrl(rawUrl, sizePx) {
+    const safe = isTrustedArtworkUrl(rawUrl, ['mzstatic.com']);
+    if (!safe) return '';
+    const px = Number(sizePx) >= 500 ? 500 : 300;
+    return safe.replace(/\/\d+x\d+bb\.(jpe?g|png|webp)(\?.*)?$/i, '/' + px + 'x' + px + 'bb.$1$2');
+  }
+
+  function normMatchText(val) {
+    return String(val || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  }
+
+  async function fetchOnlineAlbumCover(album, artist, options) {
+    const opts = options || {};
+    const fetchFn = opts.fetchImpl || (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : null);
+    if (typeof fetchFn !== 'function') return '';
+    const cleanAlbum = usableMetadata(album);
+    const cleanArtist = usableMetadata(artist);
+    const cleanTitle = usableMetadata(opts.title);
+    const sizePx = Number(opts.size) || 300;
+    if (!cleanAlbum && !(cleanArtist && cleanTitle)) return '';
+
+    const runQuery = async function (term, entity, limit) {
+      try {
+        const url = 'https://itunes.apple.com/search?term=' + encodeURIComponent(term) + '&entity=' + entity + '&limit=' + limit;
+        const res = await fetchFn(url, { headers: { Accept: 'application/json' } });
+        if (!res || !res.ok) return [];
+        const data = await res.json();
+        return data && Array.isArray(data.results) ? data.results : [];
+      } catch (_) {
+        return [];
+      }
+    };
+
+    try {
+      const albumNorm = normMatchText(cleanAlbum);
+      const artistNorm = normMatchText(cleanArtist);
+      if (cleanAlbum) {
+        const primaryTerm = cleanArtist ? (cleanAlbum + ' ' + cleanArtist) : cleanAlbum;
+        const results = await runQuery(primaryTerm, 'album', 4);
+        let bestUrl = '';
+        let bestScore = -1;
+        for (let i = 0; i < results.length; i++) {
+          const item = results[i];
+          if (!item) continue;
+          const art = upgradeItunesArtworkUrl(item.artworkUrl100 || item.artworkUrl60, sizePx);
+          if (!art) continue;
+          const itemCol = normMatchText(item.collectionName);
+          const itemArt = normMatchText(item.artistName);
+          let score = 0;
+          if (albumNorm && itemCol && (itemCol.indexOf(albumNorm) >= 0 || albumNorm.indexOf(itemCol) >= 0)) score += 3;
+          if (artistNorm && itemArt && (itemArt.indexOf(artistNorm) >= 0 || artistNorm.indexOf(itemArt) >= 0)) score += 2;
+          if (!cleanArtist && itemCol) score += 1;
+          if (score > bestScore) {
+            bestScore = score;
+            bestUrl = art;
+          }
+        }
+        if (bestUrl && bestScore > 0) return bestUrl;
+      }
+
+      if (cleanTitle) {
+        const songTerm = cleanArtist ? (cleanTitle + ' ' + cleanArtist) : cleanTitle;
+        const songResults = await runQuery(songTerm, 'song', 3);
+        const titleNorm = normMatchText(cleanTitle);
+        for (let i = 0; i < songResults.length; i++) {
+          const item = songResults[i];
+          if (!item) continue;
+          const art = upgradeItunesArtworkUrl(item.artworkUrl100 || item.artworkUrl60, sizePx);
+          if (!art) continue;
+          const itemTitle = normMatchText(item.trackName);
+          const itemArt = normMatchText(item.artistName);
+          const titleOk = titleNorm && itemTitle && (itemTitle.indexOf(titleNorm) >= 0 || titleNorm.indexOf(itemTitle) >= 0);
+          const artistOk = !artistNorm || (itemArt && (itemArt.indexOf(artistNorm) >= 0 || artistNorm.indexOf(itemArt) >= 0));
+          if (titleOk && artistOk) return art;
+        }
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  async function fetchOnlineArtistPortrait(artist, options) {
+    const opts = options || {};
+    const fetchFn = opts.fetchImpl || (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : null);
+    if (typeof fetchFn !== 'function') return '';
+    const cleanArtist = usableMetadata(artist);
+    if (!cleanArtist) return '';
+    const sizePx = Number(opts.size) || 300;
+    const slug = encodeURIComponent(cleanArtist.replace(/\s+/g, '_'));
+    const wikiHosts = ['https://vi.wikipedia.org', 'https://en.wikipedia.org'];
+
+    for (let w = 0; w < wikiHosts.length; w++) {
+      try {
+        const res = await fetchFn(wikiHosts[w] + '/api/rest_v1/page/summary/' + slug, {
+          headers: { Accept: 'application/json' }
+        });
+        if (!res || !res.ok) continue;
+        const data = await res.json();
+        const thumbSrc = data && data.thumbnail && data.thumbnail.source;
+        const safeThumb = isTrustedArtworkUrl(thumbSrc, ['upload.wikimedia.org']);
+        if (safeThumb) return safeThumb;
+      } catch (_) {}
+    }
+
+    try {
+      const url = 'https://itunes.apple.com/search?term=' + encodeURIComponent(cleanArtist) + '&entity=album&limit=3';
+      const res = await fetchFn(url, { headers: { Accept: 'application/json' } });
+      if (res && res.ok) {
+        const data = await res.json();
+        const list = data && Array.isArray(data.results) ? data.results : [];
+        const artistNorm = normMatchText(cleanArtist);
+        for (let i = 0; i < list.length; i++) {
+          const item = list[i];
+          if (!item) continue;
+          const itemArt = normMatchText(item.artistName);
+          if (artistNorm && itemArt && (itemArt.indexOf(artistNorm) >= 0 || artistNorm.indexOf(itemArt) >= 0)) {
+            const art = upgradeItunesArtworkUrl(item.artworkUrl100 || item.artworkUrl60, sizePx);
+            if (art) return art;
+          }
+        }
+      }
+    } catch (_) {}
+    return '';
+  }
 
   function buildSearchQuery(kind, metadata = {}, query = '') {
     const entityKind = normalizeKind(kind);
@@ -117,5 +255,5 @@
     return {search, details, coverArt, wikipediaSummary};
   }
 
-  return {buildSearchQuery, createMetadataClient};
+  return {buildSearchQuery, createMetadataClient, fetchOnlineAlbumCover, fetchOnlineArtistPortrait};
 });

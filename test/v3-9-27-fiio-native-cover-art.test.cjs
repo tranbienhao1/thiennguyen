@@ -58,7 +58,7 @@ test('5. MainActivity serves /local-cover: cache, embedded picture, MediaStore t
   assert.ok(java.includes('getEmbeddedPicture()'));
   assert.ok(java.includes('loadThumbnail(thumbUri'));
   assert.ok(java.includes('"albumart"'));
-  assert.ok(java.includes('new java.util.concurrent.Semaphore(2)'));
+  assert.ok(/new java\.util\.concurrent\.Semaphore\([2-4]\)/.test(java));
   assert.ok(java.includes('Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)'));
   assert.ok(java.includes('inSampleSize = computeCoverSampleSize'));
   assert.ok(java.includes('"Cache-Control", "public, max-age=31536000"'));

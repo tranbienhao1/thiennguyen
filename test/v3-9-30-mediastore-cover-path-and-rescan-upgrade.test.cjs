@@ -30,8 +30,8 @@ test('2. MainActivity.extractCoverJpeg resolves both contentUri and file (includ
   const java = fs.readFileSync(MAIN_ACTIVITY, 'utf8');
   assert.ok(java.includes('private File resolveFileFromContentUri(Uri contentUri)'));
   assert.ok(java.includes('if ((file == null || !file.exists()) && contentUri != null) {\n            file = resolveFileFromContentUri(contentUri);\n        }'));
-  assert.ok(java.includes('String identity = (keyParam != null && !keyParam.isEmpty()) ? "v2k:" + keyParam : "v2s:" + source;'));
-  assert.ok(java.includes('String hash = coverSha1Hex("v2k:" + key + "|320");'));
+  assert.ok(/String identity = \(keyParam != null && !keyParam\.isEmpty\(\)\) \? "v[23]k:" \+ keyParam : "v[23]s:" \+ source;/.test(java));
+  assert.ok(/coverSha1Hex\("v[23]k:" \+ key \+ "\|320"\)/.test(java));
 });
 
 test('3. ingestFiioScannedFilesChunk upgrades existing tracks in-place with MediaStore tags & folder metadata on rescan', () => {

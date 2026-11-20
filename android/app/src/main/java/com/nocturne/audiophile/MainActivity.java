@@ -1712,9 +1712,10 @@ public class MainActivity extends AppCompatActivity {
 
     // ===== v3.9.27: native album-art pipeline for FiiO M11S (MicroSD / MediaStore tracks) =====
     // https://appassets.androidplatform.net/local-cover?uri=<content://..>|path=<file>&key=<album key>&size=<px>
-    // Order: disk cache -> embedded picture -> MediaStore thumbnail (API 29+) -> folder.jpg/cover.jpg.
+    // Order: disk cache -> embedded picture -> binary FLAC/ID3 -> MediaStore albumart/thumbnail -> folder.jpg (+Artwork/).
     // Output is a small JPEG cached under cacheDir/covers so the WebView never keeps base64 art in RAM.
-    private static final java.util.concurrent.Semaphore COVER_ART_PERMITS = new java.util.concurrent.Semaphore(2);
+    private static final java.util.concurrent.Semaphore COVER_ART_PERMITS = new java.util.concurrent.Semaphore(4);
+    private final java.util.concurrent.ConcurrentHashMap<String, Object> mCoverHashLocks = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.concurrent.atomic.AtomicInteger mCoverWrites = new java.util.concurrent.atomic.AtomicInteger(0);
     private static final long COVER_CACHE_MAX_BYTES = 48L * 1024L * 1024L;
     private static final int COVER_CACHE_MAX_FILES = 1500;
@@ -1795,6 +1796,229 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private static boolean readFullyLenient(InputStream in, byte[] dst, int off, int len) throws IOException {
+        int total = 0;
+        while (total < len) {
+            int n = in.read(dst, off + total, len - total);
+            if (n < 0) return false;
+            total += n;
+        }
+        return true;
+    }
+
+    private static boolean skipFullyLenient(InputStream in, long bytesToSkip) throws IOException {
+        long remaining = bytesToSkip;
+        byte[] skipBuf = null;
+        while (remaining > 0) {
+            long skipped = in.skip(remaining);
+            if (skipped > 0) {
+                remaining -= skipped;
+                continue;
+            }
+            if (skipBuf == null) skipBuf = new byte[4096];
+            int n = in.read(skipBuf, 0, (int) Math.min(skipBuf.length, remaining));
+            if (n < 0) return false;
+            remaining -= n;
+        }
+        return true;
+    }
+
+    private static byte[] readStreamBounded(InputStream in, long maxBytes) {
+        if (in == null) return null;
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream(32 * 1024)) {
+            byte[] buf = new byte[8192];
+            long total = 0L;
+            int n;
+            while ((n = in.read(buf)) != -1) {
+                total += n;
+                if (total > maxBytes) return null;
+                out.write(buf, 0, n);
+            }
+            return out.size() > 0 ? out.toByteArray() : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static byte[] parseFlacPictureBlock(byte[] buf, int off, int len, boolean[] isFrontOut) {
+        if (buf == null || off < 0 || len < 32 || off + len > buf.length) return null;
+        int end = off + len;
+        int pos = off;
+        int picType = ((buf[pos] & 0xFF) << 24) | ((buf[pos + 1] & 0xFF) << 16) | ((buf[pos + 2] & 0xFF) << 8) | (buf[pos + 3] & 0xFF);
+        pos += 4;
+        if (pos + 4 > end) return null;
+        int mimeLen = ((buf[pos] & 0xFF) << 24) | ((buf[pos + 1] & 0xFF) << 16) | ((buf[pos + 2] & 0xFF) << 8) | (buf[pos + 3] & 0xFF);
+        pos += 4;
+        if (mimeLen < 0 || mimeLen > 256 || pos + mimeLen + 4 > end) return null;
+        pos += mimeLen;
+        int descLen = ((buf[pos] & 0xFF) << 24) | ((buf[pos + 1] & 0xFF) << 16) | ((buf[pos + 2] & 0xFF) << 8) | (buf[pos + 3] & 0xFF);
+        pos += 4;
+        if (descLen < 0 || descLen > 16384 || (long) pos + descLen + 20L > end) return null;
+        pos += descLen + 16; // skip width(4), height(4), depth(4), colors(4)
+        int dataLen = ((buf[pos] & 0xFF) << 24) | ((buf[pos + 1] & 0xFF) << 16) | ((buf[pos + 2] & 0xFF) << 8) | (buf[pos + 3] & 0xFF);
+        pos += 4;
+        if (dataLen <= 16 || dataLen > 8 * 1024 * 1024 || (long) pos + dataLen > end) return null;
+        if (isFrontOut != null && isFrontOut.length > 0) isFrontOut[0] = (picType == 3);
+        byte[] out = new byte[dataLen];
+        System.arraycopy(buf, pos, out, 0, dataLen);
+        return out;
+    }
+
+    /**
+     * v3.9.32: Pure-Java FLAC METADATA_BLOCK_PICTURE (type 6) & Vorbis METADATA_BLOCK_PICTURE (type 4 base64)
+     * extractor so Hi-Res / 24-bit FLAC files work even when Android 10 MediaMetadataRetriever returns null.
+     */
+    private static byte[] extractFlacPictureFromStream(InputStream rawIn) {
+        if (rawIn == null) return null;
+        try {
+            byte[] magic = new byte[4];
+            if (!readFullyLenient(rawIn, magic, 0, 4)) return null;
+            if (magic[0] == 'I' && magic[1] == 'D' && magic[2] == '3') {
+                byte[] id3Rest = new byte[6];
+                if (!readFullyLenient(rawIn, id3Rest, 0, 6)) return null;
+                int flags = id3Rest[1] & 0xFF;
+                long tagSize = ((long) (id3Rest[2] & 0x7F) << 21) | ((long) (id3Rest[3] & 0x7F) << 14)
+                        | ((long) (id3Rest[4] & 0x7F) << 7) | (long) (id3Rest[5] & 0x7F);
+                long skipId3 = tagSize + ((flags & 0x10) != 0 ? 10L : 0L);
+                if (skipId3 < 0 || skipId3 > 16L * 1024L * 1024L || !skipFullyLenient(rawIn, skipId3)) return null;
+                if (!readFullyLenient(rawIn, magic, 0, 4)) return null;
+            }
+            if (magic[0] != 'f' || magic[1] != 'L' || magic[2] != 'a' || magic[3] != 'C') return null;
+
+            byte[] hdr = new byte[4];
+            byte[] fallbackPic = null;
+            long totalRead = 4L;
+            boolean[] isFront = new boolean[1];
+            for (int iter = 0; iter < 64 && totalRead < 16L * 1024L * 1024L; iter++) {
+                if (!readFullyLenient(rawIn, hdr, 0, 4)) break;
+                totalRead += 4L;
+                boolean isLast = (hdr[0] & 0x80) != 0;
+                int blockType = hdr[0] & 0x7F;
+                int blockLen = ((hdr[1] & 0xFF) << 16) | ((hdr[2] & 0xFF) << 8) | (hdr[3] & 0xFF);
+                if (blockLen < 0) break;
+
+                if (blockType == 6 && blockLen >= 32 && blockLen <= 8 * 1024 * 1024) {
+                    byte[] block = new byte[blockLen];
+                    if (!readFullyLenient(rawIn, block, 0, blockLen)) break;
+                    totalRead += blockLen;
+                    isFront[0] = false;
+                    byte[] pic = parseFlacPictureBlock(block, 0, blockLen, isFront);
+                    if (pic != null) {
+                        if (isFront[0]) return pic;
+                        if (fallbackPic == null) fallbackPic = pic;
+                    }
+                } else if (blockType == 4 && fallbackPic == null && blockLen >= 8 && blockLen <= 4 * 1024 * 1024) {
+                    byte[] vc = new byte[blockLen];
+                    if (!readFullyLenient(rawIn, vc, 0, blockLen)) break;
+                    totalRead += blockLen;
+                    int pos = 0;
+                    if (pos + 4 <= blockLen) {
+                        int vendorLen = (vc[pos] & 0xFF) | ((vc[pos + 1] & 0xFF) << 8) | ((vc[pos + 2] & 0xFF) << 16) | ((vc[pos + 3] & 0xFF) << 24);
+                        pos += 4;
+                        if (vendorLen >= 0 && pos + vendorLen + 4 <= blockLen) {
+                            pos += vendorLen;
+                            int count = (vc[pos] & 0xFF) | ((vc[pos + 1] & 0xFF) << 8) | ((vc[pos + 2] & 0xFF) << 16) | ((vc[pos + 3] & 0xFF) << 24);
+                            pos += 4;
+                            for (int c = 0; c < count && pos + 4 <= blockLen; c++) {
+                                int itemLen = (vc[pos] & 0xFF) | ((vc[pos + 1] & 0xFF) << 8) | ((vc[pos + 2] & 0xFF) << 16) | ((vc[pos + 3] & 0xFF) << 24);
+                                pos += 4;
+                                if (itemLen < 0 || pos + itemLen > blockLen) break;
+                                if (itemLen > 24 && itemLen <= 4 * 1024 * 1024) {
+                                    String prefix = new String(vc, pos, 23, StandardCharsets.US_ASCII);
+                                    if ("METADATA_BLOCK_PICTURE=".equalsIgnoreCase(prefix)) {
+                                        try {
+                                            String b64 = new String(vc, pos + 23, itemLen - 23, StandardCharsets.US_ASCII);
+                                            byte[] decoded = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
+                                            isFront[0] = false;
+                                            byte[] pic = parseFlacPictureBlock(decoded, 0, decoded.length, isFront);
+                                            if (pic != null) {
+                                                if (isFront[0]) return pic;
+                                                if (fallbackPic == null) fallbackPic = pic;
+                                            }
+                                        } catch (Throwable ignored) {}
+                                    }
+                                }
+                                pos += itemLen;
+                            }
+                        }
+                    }
+                } else {
+                    if (blockLen > 16 * 1024 * 1024 || !skipFullyLenient(rawIn, blockLen)) break;
+                    totalRead += blockLen;
+                }
+                if (isLast) break;
+            }
+            return fallbackPic;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static byte[] extractId3v2ApicFromBuffer(byte[] tagBuf, int readLen) {
+        if (tagBuf == null || readLen <= 16) return null;
+        for (int i = 0; i + 10 < readLen; i++) {
+            boolean isApic = tagBuf[i] == 'A' && tagBuf[i + 1] == 'P' && tagBuf[i + 2] == 'I' && tagBuf[i + 3] == 'C';
+            boolean isPic22 = !isApic && tagBuf[i] == 'P' && tagBuf[i + 1] == 'I' && tagBuf[i + 2] == 'C'
+                    && ((tagBuf[i + 3] & 0xFF) == 0);
+            if (isApic || isPic22) {
+                int headerAdvance = isApic ? 10 : 6;
+                int searchEnd = Math.min(readLen - 4, i + headerAdvance + 3 * 1024 * 1024);
+                for (int j = i + headerAdvance; j < searchEnd; j++) {
+                    boolean isJpeg = (tagBuf[j] & 0xFF) == 0xFF && (tagBuf[j + 1] & 0xFF) == 0xD8 && (tagBuf[j + 2] & 0xFF) == 0xFF;
+                    boolean isPng = (tagBuf[j] & 0xFF) == 0x89 && tagBuf[j + 1] == 'P' && tagBuf[j + 2] == 'N' && tagBuf[j + 3] == 'G';
+                    if (isJpeg || isPng) {
+                        int maxPicLen = readLen - j;
+                        byte[] pic = new byte[maxPicLen];
+                        System.arraycopy(tagBuf, j, pic, 0, maxPicLen);
+                        return pic;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static byte[] extractId3v2ApicFromChannel(java.nio.channels.FileChannel ch) {
+        if (ch == null) return null;
+        try {
+            long fileLen = ch.size();
+            if (fileLen < 38) return null;
+            java.nio.ByteBuffer magicBuf = java.nio.ByteBuffer.allocate(4);
+            ch.position(0L);
+            if (ch.read(magicBuf) < 4) return null;
+            byte[] magic = magicBuf.array();
+            long id3Offset = -1L;
+            if (magic[0] == 'D' && magic[1] == 'S' && magic[2] == 'D' && magic[3] == ' ') {
+                java.nio.ByteBuffer ptrBuf = java.nio.ByteBuffer.allocate(8);
+                ch.position(20L);
+                if (ch.read(ptrBuf) < 8) return null;
+                byte[] ptrBytes = ptrBuf.array();
+                long ptr = 0L;
+                for (int i = 0; i < 8; i++) ptr |= ((long) (ptrBytes[i] & 0xFF)) << (i * 8);
+                if (ptr >= 28 && ptr + 10 < fileLen) id3Offset = ptr;
+            } else if (magic[0] == 'I' && magic[1] == 'D' && magic[2] == '3') {
+                id3Offset = 0L;
+            }
+            if (id3Offset < 0) return null;
+            ch.position(id3Offset);
+            java.nio.ByteBuffer hdrBuf = java.nio.ByteBuffer.allocate(10);
+            if (ch.read(hdrBuf) < 10) return null;
+            byte[] hdr = hdrBuf.array();
+            if (hdr[0] != 'I' || hdr[1] != 'D' || hdr[2] != '3') return null;
+            int tagSize = ((hdr[6] & 0x7F) << 21) | ((hdr[7] & 0x7F) << 14) | ((hdr[8] & 0x7F) << 7) | (hdr[9] & 0x7F);
+            int readLen = (int) Math.min((long) tagSize, Math.min(4L * 1024L * 1024L, fileLen - (id3Offset + 10)));
+            if (readLen <= 16) return null;
+            byte[] tagBuf = new byte[readLen];
+            java.nio.ByteBuffer tagBb = java.nio.ByteBuffer.wrap(tagBuf);
+            while (tagBb.hasRemaining()) {
+                if (ch.read(tagBb) < 0) break;
+            }
+            return extractId3v2ApicFromBuffer(tagBuf, readLen - tagBb.remaining());
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     /**
      * v3.9.28: Extracts embedded ID3v2 APIC cover art directly from .dsf (DSD tail ID3 pointer at bytes 20..27)
      * or leading ID3v2 tags when Android's MediaMetadataRetriever does not support the container (e.g. DSF/DFF).
@@ -1802,49 +2026,37 @@ public class MainActivity extends AppCompatActivity {
     private static byte[] extractId3v2ApicFromFile(File file) {
         if (file == null || !file.isFile() || !file.canRead()) return null;
         try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            long fileLen = raf.length();
-            if (fileLen < 38) return null;
-            byte[] magic = new byte[4];
-            raf.readFully(magic);
-            long id3Offset = -1L;
-            if (magic[0] == 'D' && magic[1] == 'S' && magic[2] == 'D' && magic[3] == ' ') {
-                raf.seek(20);
-                byte[] ptrBytes = new byte[8];
-                raf.readFully(ptrBytes);
-                long ptr = 0L;
-                for (int i = 0; i < 8; i++) {
-                    ptr |= ((long) (ptrBytes[i] & 0xFF)) << (i * 8);
-                }
-                if (ptr >= 28 && ptr + 10 < fileLen) {
-                    id3Offset = ptr;
-                }
-            } else if (magic[0] == 'I' && magic[1] == 'D' && magic[2] == '3') {
-                id3Offset = 0L;
+            return extractId3v2ApicFromChannel(raf.getChannel());
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private byte[] extractBinaryEmbeddedArt(@Nullable Uri contentUri, @Nullable File file) {
+        try {
+            if (file != null && file.isFile() && file.canRead()) {
+                try (FileInputStream fis = new FileInputStream(file)) {
+                    byte[] flacPic = extractFlacPictureFromStream(fis);
+                    if (flacPic != null) return flacPic;
+                } catch (Throwable ignored) {}
+            } else if (contentUri != null) {
+                try (InputStream is = getContentResolver().openInputStream(contentUri)) {
+                    byte[] flacPic = extractFlacPictureFromStream(is);
+                    if (flacPic != null) return flacPic;
+                } catch (Throwable ignored) {}
             }
-            if (id3Offset < 0) return null;
-            raf.seek(id3Offset);
-            byte[] hdr = new byte[10];
-            raf.readFully(hdr);
-            if (hdr[0] != 'I' || hdr[1] != 'D' || hdr[2] != '3') return null;
-            int tagSize = ((hdr[6] & 0x7F) << 21) | ((hdr[7] & 0x7F) << 14) | ((hdr[8] & 0x7F) << 7) | (hdr[9] & 0x7F);
-            int readLen = (int) Math.min((long) tagSize, Math.min(4L * 1024L * 1024L, fileLen - (id3Offset + 10)));
-            if (readLen <= 16) return null;
-            byte[] tagBuf = new byte[readLen];
-            raf.readFully(tagBuf);
-            for (int i = 0; i + 16 < readLen; i++) {
-                if (tagBuf[i] == 'A' && tagBuf[i + 1] == 'P' && tagBuf[i + 2] == 'I' && tagBuf[i + 3] == 'C') {
-                    int searchEnd = Math.min(readLen - 4, i + 10 + 3 * 1024 * 1024);
-                    for (int j = i + 10; j < searchEnd; j++) {
-                        boolean isJpeg = (tagBuf[j] & 0xFF) == 0xFF && (tagBuf[j + 1] & 0xFF) == 0xD8 && (tagBuf[j + 2] & 0xFF) == 0xFF;
-                        boolean isPng = (tagBuf[j] & 0xFF) == 0x89 && tagBuf[j + 1] == 'P' && tagBuf[j + 2] == 'N' && tagBuf[j + 3] == 'G';
-                        if (isJpeg || isPng) {
-                            int maxPicLen = readLen - j;
-                            byte[] pic = new byte[maxPicLen];
-                            System.arraycopy(tagBuf, j, pic, 0, maxPicLen);
-                            return pic;
+            if (file != null && file.isFile() && file.canRead()) {
+                byte[] id3Pic = extractId3v2ApicFromFile(file);
+                if (id3Pic != null) return id3Pic;
+            }
+            if (contentUri != null) {
+                try (ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(contentUri, "r")) {
+                    if (pfd != null) {
+                        try (FileInputStream fis = new FileInputStream(pfd.getFileDescriptor())) {
+                            byte[] id3Pic = extractId3v2ApicFromChannel(fis.getChannel());
+                            if (id3Pic != null) return id3Pic;
                         }
                     }
-                }
+                } catch (Throwable ignored) {}
             }
         } catch (Throwable ignored) {}
         return null;
@@ -1913,6 +2125,69 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
+    private static final long COVER_NONE_TTL_MS = 10L * 60L * 1000L;
+
+    private byte[] extractArtworkSubfolderCover(File parent, int size) {
+        if (parent == null || !parent.isDirectory()) return null;
+        try {
+            File[] kids = parent.listFiles();
+            if (kids == null) return null;
+            for (File kid : kids) {
+                if (kid == null || !kid.isDirectory()) continue;
+                String name = kid.getName() != null ? kid.getName().trim().toLowerCase(Locale.US) : "";
+                if ("artwork".equals(name) || "cover".equals(name) || "covers".equals(name)
+                        || "scans".equals(name) || "images".equals(name)) {
+                    byte[] art = extractFolderCoverFromDir(kid, size);
+                    if (art != null) return art;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private byte[] extractMediaStoreAlbumArt(@Nullable Uri audioUri, int size) {
+        if (audioUri == null || !"media".equals(audioUri.getAuthority())) return null;
+        long albumId = -1L;
+        try (Cursor cursor = getContentResolver().query(
+                audioUri,
+                new String[]{MediaStore.Audio.Media.ALBUM_ID},
+                null,
+                null,
+                null
+        )) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int col = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID);
+                if (col >= 0) albumId = cursor.getLong(col);
+            }
+        } catch (Throwable ignored) {}
+        if (albumId <= 0L) return null;
+
+        try {
+            Uri albumArtUri = ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId);
+            try (InputStream is = getContentResolver().openInputStream(albumArtUri)) {
+                byte[] bytes = readStreamBounded(is, 8L * 1024L * 1024L);
+                byte[] jpeg = coverBytesToJpeg(bytes, size);
+                if (jpeg != null) return jpeg;
+            }
+        } catch (Throwable ignored) {}
+
+        if (Build.VERSION.SDK_INT >= 29) {
+            try {
+                Uri albumItemUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, albumId);
+                android.graphics.Bitmap thumb = getContentResolver().loadThumbnail(albumItemUri, new android.util.Size(size, size), null);
+                if (thumb != null) {
+                    try {
+                        byte[] jpeg = coverBitmapToJpeg(thumb, size);
+                        if (jpeg != null) return jpeg;
+                    } finally {
+                        try { thumb.recycle(); } catch (Throwable ignored) {}
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+        return null;
+    }
+
     private byte[] extractCoverJpeg(String uriParam, String pathParam, int size) {
         Uri contentUri = null;
         File file = null;
@@ -1923,7 +2198,8 @@ public class MainActivity extends AppCompatActivity {
             file = new File(pathParam);
             if (!file.exists()) {
                 try {
-                    File decoded = new File(URLDecoder.decode(pathParam, StandardCharsets.UTF_8.name()));
+                    String safeEncoded = pathParam.replace("+", "%2B");
+                    File decoded = new File(URLDecoder.decode(safeEncoded, StandardCharsets.UTF_8.name()));
                     if (decoded.exists()) file = decoded;
                 } catch (Exception ignored) {}
             }
@@ -1951,18 +2227,18 @@ public class MainActivity extends AppCompatActivity {
             try { mmr.release(); } catch (Throwable ignored) {}
         }
 
-        // 1b. Direct DSF tail ID3v2 / leading ID3v2 APIC extraction (for DSD .dsf files unsupported by MediaMetadataRetriever)
-        if (file != null && file.canRead()) {
-            byte[] dsfApic = extractId3v2ApicFromFile(file);
-            if (dsfApic != null) {
-                byte[] jpeg = coverBytesToJpeg(dsfApic, size);
-                if (jpeg != null) return jpeg;
-            }
+        // 1b. Binary FLAC METADATA_BLOCK_PICTURE / Vorbis base64 + DSF tail ID3v2 APIC / PIC (File & contentUri)
+        byte[] binaryArt = extractBinaryEmbeddedArt(contentUri, file);
+        if (binaryArt != null) {
+            byte[] jpeg = coverBytesToJpeg(binaryArt, size);
+            if (jpeg != null) return jpeg;
         }
 
-        // 2. MediaStore thumbnail (Android 10+, also covers folder art indexed by MediaStore)
+        // 2. MediaStore album art (ALBUM_ID) & thumbnail (Android 10+)
         Uri thumbUri = contentUri;
         if (thumbUri == null && file != null) thumbUri = resolveMediaStoreContentUriForPath(file.getAbsolutePath());
+        byte[] msAlbumArt = extractMediaStoreAlbumArt(thumbUri, size);
+        if (msAlbumArt != null) return msAlbumArt;
         if (Build.VERSION.SDK_INT >= 29 && thumbUri != null && "media".equals(thumbUri.getAuthority())) {
             try {
                 android.graphics.Bitmap thumb = getContentResolver().loadThumbnail(thumbUri, new android.util.Size(size, size), null);
@@ -1977,16 +2253,21 @@ public class MainActivity extends AppCompatActivity {
             } catch (Throwable ignored) {}
         }
 
-        // 3. Folder art next to the track (and parent album folder if track is inside CD1 / Disc 1)
+        // 3. Folder art next to the track, multi-disc parent folder, or Artwork/Covers subfolders
         File parent = file != null ? file.getParentFile() : null;
         if (parent != null) {
             byte[] directFolderArt = extractFolderCoverFromDir(parent, size);
             if (directFolderArt != null) return directFolderArt;
             String pName = parent.getName() != null ? parent.getName().trim().toLowerCase(Locale.US) : "";
             if (pName.matches("^(?:cd|disc|disk|sacd|side)\\s*[-_#.]?\\s*(?:\\d+|[a-d]|[ivx]+).*")) {
-                byte[] albumParentArt = extractFolderCoverFromDir(parent.getParentFile(), size);
+                File grandParent = parent.getParentFile();
+                byte[] albumParentArt = extractFolderCoverFromDir(grandParent, size);
                 if (albumParentArt != null) return albumParentArt;
+                byte[] subArt = extractArtworkSubfolderCover(grandParent, size);
+                if (subArt != null) return subArt;
             }
+            byte[] directSubArt = extractArtworkSubfolderCover(parent, size);
+            if (directSubArt != null) return directSubArt;
         }
         return null;
     }
@@ -2029,14 +2310,14 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception ignored) {}
             if (uriParam != null && !uriParam.isEmpty() && !uriParam.startsWith("content://")) {
                 try {
-                    String decodedUri = URLDecoder.decode(uriParam, StandardCharsets.UTF_8.name());
+                    String decodedUri = URLDecoder.decode(uriParam.replace("+", "%2B"), StandardCharsets.UTF_8.name());
                     if (decodedUri.startsWith("content://")) uriParam = decodedUri;
                 } catch (Exception ignored) {}
             }
             String source = (uriParam != null && !uriParam.isEmpty()) ? uriParam : (pathParam != null ? pathParam : "");
             if (source.isEmpty()) return buildCoverResponse(400, "Bad Request", null);
 
-            String identity = (keyParam != null && !keyParam.isEmpty()) ? "v2k:" + keyParam : "v2s:" + source;
+            String identity = (keyParam != null && !keyParam.isEmpty()) ? "v3k:" + keyParam : "v3s:" + source;
             String hash = coverSha1Hex(identity + "|" + size);
             File dir = new File(getCacheDir(), "covers");
             if (!dir.exists()) dir.mkdirs();
@@ -2048,36 +2329,55 @@ public class MainActivity extends AppCompatActivity {
                 jpg.setLastModified(System.currentTimeMillis());
                 return buildCoverResponse(200, "OK", cached);
             }
-            if (none.exists()) return buildCoverResponse(404, "Not Found", null);
-
-            boolean acquired = false;
-            try {
-                acquired = COVER_ART_PERMITS.tryAcquire(4, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-            }
-            if (!acquired) return buildCoverResponse(503, "Busy", null);
-            int previousPriority = Process.getThreadPriority(Process.myTid());
-            try {
-                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
-                cached = coverReadSmallFile(jpg, 2L * 1024L * 1024L);
-                if (cached != null) return buildCoverResponse(200, "OK", cached);
-                if (none.exists()) return buildCoverResponse(404, "Not Found", null);
-                byte[] jpeg = extractCoverJpeg(uriParam, pathParam, size);
-                if (jpeg == null) {
-                    try { none.createNewFile(); } catch (Throwable ignored) {}
+            if (none.exists()) {
+                if ((System.currentTimeMillis() - none.lastModified()) < COVER_NONE_TTL_MS) {
                     return buildCoverResponse(404, "Not Found", null);
                 }
-                File tmp = new File(dir, hash + ".tmp");
-                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tmp)) {
-                    fos.write(jpeg);
+                try { none.delete(); } catch (Throwable ignored) {}
+            }
+
+            if (mCoverHashLocks.size() > 256) mCoverHashLocks.clear();
+            Object hashLock = mCoverHashLocks.computeIfAbsent(hash, k -> new Object());
+            synchronized (hashLock) {
+                cached = coverReadSmallFile(jpg, 2L * 1024L * 1024L);
+                if (cached != null) {
+                    jpg.setLastModified(System.currentTimeMillis());
+                    return buildCoverResponse(200, "OK", cached);
                 }
-                if (!tmp.renameTo(jpg)) tmp.delete();
-                if (mCoverWrites.incrementAndGet() % 20 == 0) pruneCoverCache(dir);
-                return buildCoverResponse(200, "OK", jpeg);
-            } finally {
-                try { Process.setThreadPriority(previousPriority); } catch (Throwable ignored) {}
-                COVER_ART_PERMITS.release();
+                if (none.exists() && (System.currentTimeMillis() - none.lastModified()) < COVER_NONE_TTL_MS) {
+                    return buildCoverResponse(404, "Not Found", null);
+                }
+
+                boolean acquired = false;
+                try {
+                    acquired = COVER_ART_PERMITS.tryAcquire(15, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+                if (!acquired) return buildCoverResponse(503, "Busy", null);
+                int previousPriority = Process.getThreadPriority(Process.myTid());
+                try {
+                    Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+                    byte[] jpeg = extractCoverJpeg(uriParam, pathParam, size);
+                    if (jpeg == null) {
+                        try {
+                            none.createNewFile();
+                            none.setLastModified(System.currentTimeMillis());
+                        } catch (Throwable ignored) {}
+                        return buildCoverResponse(404, "Not Found", null);
+                    }
+                    try { if (none.exists()) none.delete(); } catch (Throwable ignored) {}
+                    File tmp = new File(dir, hash + ".tmp");
+                    try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tmp)) {
+                        fos.write(jpeg);
+                    }
+                    if (!tmp.renameTo(jpg)) tmp.delete();
+                    if (mCoverWrites.incrementAndGet() % 20 == 0) pruneCoverCache(dir);
+                    return buildCoverResponse(200, "OK", jpeg);
+                } finally {
+                    try { Process.setThreadPriority(previousPriority); } catch (Throwable ignored) {}
+                    COVER_ART_PERMITS.release();
+                }
             }
         } catch (Throwable t) {
             Log.w(TAG, "local-cover failed: " + t.getMessage());
@@ -2789,7 +3089,7 @@ public class MainActivity extends AppCompatActivity {
                 return null;
             }
             String key = (a + "|" + ar).toLowerCase(Locale.US);
-            String hash = coverSha1Hex("v2k:" + key + "|320");
+            String hash = coverSha1Hex("v3k:" + key + "|320");
             File jpg = new File(new File(getCacheDir(), "covers"), hash + ".jpg");
             if (!jpg.isFile() || jpg.length() <= 0 || jpg.length() > 1024 * 1024) return null;
             return android.graphics.BitmapFactory.decodeFile(jpg.getAbsolutePath());
@@ -4077,11 +4377,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.31";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.32";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.31\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.32\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
