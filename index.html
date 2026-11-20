@@ -1466,7 +1466,7 @@
         </div>
         <div id="context-row">
           <button id="focus-button" type="button" aria-pressed="false">›&nbsp; Focus <span id="focus-heart">♥</span></button>
-          <div id="collection-tools"><button id="jump-to-playing-btn" type="button" title="Cuộn nhanh tới bài đang phát (Phím G)">◎&nbsp; Đang phát</button><button id="random-album-btn" type="button" title="Khám phá & phát ngẫu nhiên 1 Album (Phím D)">🎲&nbsp; Album ngẫu nhiên</button><button id="quick-fav-toggle-btn" type="button" title="Lọc nhanh bài hát Yêu thích">♥&nbsp; Yêu thích</button><button id="quick-sleep-btn" type="button" title="Hẹn giờ ngủ nhanh (15/30/45/60p / Hết bài)">🌙&nbsp; Ngủ</button><button id="night-dimmer-btn" type="button" title="Chế độ Đêm OLED / Dịu mắt (Phím N)">🕶&nbsp; Đêm</button><button id="quick-bookmark-btn" type="button" title="Đánh dấu đoạn hay (Phím B) · Nhấn Shift+B để nhảy tới đoạn đã lưu">🔖&nbsp; Dấu mốc</button><button id="sort-button" type="button">By artist&nbsp;⌄</button><button id="filter-toggle" type="button" aria-expanded="false">⌕&nbsp; Filter</button><button id="clear-filters-btn" type="button" class="hidden" title="Xóa toàn bộ bộ lọc & từ khóa tìm kiếm">✕&nbsp; Xóa lọc</button><button id="library-stats-btn" type="button" title="Thống kê thư viện Audiophile (Phím I)">📊</button><button id="shortcuts-help-btn" type="button" title="Bảng phím tắt (Phím ?)">?</button></div>
+          <div id="collection-tools"><button id="jump-to-playing-btn" type="button" title="Cuộn nhanh tới bài đang phát (Phím G)">◎&nbsp; Đang phát</button><button id="random-album-btn" type="button" title="Khám phá & phát ngẫu nhiên 1 Album (Phím D)">🎲&nbsp; Album ngẫu nhiên</button><button id="quick-fav-toggle-btn" type="button" title="Lọc nhanh bài hát Yêu thích">♥&nbsp; Yêu thích</button><button id="quick-sleep-btn" type="button" class="hidden lg:inline-flex" title="Hẹn giờ ngủ nhanh (15/30/45/60p / Hết bài)">🌙&nbsp; Ngủ</button><button id="night-dimmer-btn" type="button" class="hidden lg:inline-flex" title="Chế độ Đêm OLED / Dịu mắt (Phím N)">🕶&nbsp; Đêm</button><button id="quick-bookmark-btn" type="button" class="hidden lg:inline-flex" title="Đánh dấu đoạn hay (Phím B) · Nhấn Shift+B để nhảy tới đoạn đã lưu">🔖&nbsp; Dấu mốc</button><button id="sort-button" type="button">By artist&nbsp;⌄</button><button id="filter-toggle" type="button" aria-expanded="false">⌕&nbsp; Filter</button><button id="clear-filters-btn" type="button" class="hidden" title="Xóa toàn bộ bộ lọc & từ khóa tìm kiếm">✕&nbsp; Xóa lọc</button><button id="library-stats-btn" type="button" title="Thống kê thư viện Audiophile (Phím I)">📊</button><button id="shortcuts-help-btn" type="button" title="Bảng phím tắt (Phím ?)">?</button></div>
         </div>
         <div id="filter-controls" hidden>
           <select id="source-filter" aria-label="Lọc theo nguồn"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option><option value="Subsonic">Subsonic</option><option value="Jellyfin">Jellyfin</option><option value="Black Candy">Black Candy</option></select>
@@ -1928,6 +1928,7 @@
             <button id="import-prefs-btn" type="button" class="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-medium text-zinc-200 hover:bg-white/10 transition">Nhập JSON</button>
             <input id="import-prefs-input" type="file" accept="application/json,.json" class="hidden">
             <button id="open-android-sound-btn" type="button" class="hidden rounded-lg border border-amber-400/30 bg-amber-500/15 px-3 py-1.5 text-[11px] font-medium text-amber-100 hover:bg-amber-500/25 transition">Âm thanh Android</button>
+            <button id="open-android-battery-btn" type="button" class="hidden rounded-lg border border-sky-400/30 bg-sky-500/15 px-3 py-1.5 text-[11px] font-medium text-sky-100 hover:bg-sky-500/25 transition">Chạy nền không bị tắt</button>
           </div>
         </div>
       </section>
@@ -4266,7 +4267,17 @@
     }
     function groupTracks(tracks, groupBy) { return library.groupTracks(tracks, groupBy); }
     function releaseUnusedCloudUrl(track) {
-      if (!track || !['google','onedrive'].includes(track.source) || !track.url) return;
+      if (!track || !['google','onedrive'].includes(track.source)) return;
+      if (track.fullAudioUrl && track.fullAudioUrl !== track.url) {
+        try {
+          const fullAbs = new URL(track.fullAudioUrl, location.href).href;
+          if (![audio, standbyAudio].some(element => element && element.src === fullAbs)) {
+            releaseTrackUrl(track.fullAudioUrl);
+            track.fullAudioUrl = null;
+          }
+        } catch (_) {}
+      }
+      if (!track.url) return;
       const absoluteUrl = new URL(track.url, location.href).href;
       if ([audio, standbyAudio].some(element => element.src === absoluteUrl)) return;
       releaseTrackUrl(track.url);
@@ -4394,10 +4405,11 @@
               } else {
                 throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
               }
+            } else {
+              if (!isGraphContentUrl(url)) throw error;
+              const token = await getMicrosoftToken(false);
+              blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
             }
-            if (!isGraphContentUrl(url)) throw error;
-            const token = await getMicrosoftToken(false);
-            blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
           }
         } catch (error) {
           // Pha C — ghi lại lỗi tải nền thất bại: khi lát đầu hết mà
@@ -4440,7 +4452,7 @@
           // / bài tự chuyển trong lúc chờ metadata) thì đừng seek/play
           // nhầm sang deck mới đang phát bài khác.
           deck.addEventListener('loadedmetadata', () => {
-            if (deck !== audio || track.id !== state.currentId) return;
+            if (deck !== audio || track.id !== state.currentId) { restoreDeckGain(); return; }
             try {
               // Bù trễ nạp metadata khi đang phát liên tục để không bị giật lùi 0.2-0.4s
               const rawElapsed = (!wasPaused && !endedEarly) ? ((((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - swapStartedAt) / 1000) : 0;
@@ -18184,9 +18196,6 @@
       if (typeof triggerHapticTick === 'function') triggerHapticTick();
       syncQuickSleepPill();
     });
-    setInterval(() => {
-      if (!document.hidden && (state.sleepDeadline > 0 || state.sleepAtTrackEnd)) syncQuickSleepPill();
-    }, 15000);
 
     function applyAdaptiveLowRamMode() {
       try {
@@ -18223,7 +18232,6 @@
         if (document.title !== nextTitle) document.title = nextTitle;
       } catch (_) {}
     }
-    setInterval(() => { syncDynamicTabTitle(); }, 2000);
 
     function exportNocturnePreferences() {
       try {
@@ -18315,6 +18323,14 @@
           if (typeof window.NocturneNative.getAppBuildInfoJson === 'function') {
             const bi = JSON.parse(window.NocturneNative.getAppBuildInfoJson());
             if (bi && bi.model) parts.push(`${bi.model} · APK v${bi.versionName || '3.5.0'}`);
+          }
+        } catch (_) {}
+        try {
+          if (typeof window.NocturneNative.getNativeOutputSampleRateHz === 'function' && typeof window.NocturneNative.getNativeOutputFramesPerBuffer === 'function') {
+            const hz = window.NocturneNative.getNativeOutputSampleRateHz();
+            const fpb = window.NocturneNative.getNativeOutputFramesPerBuffer();
+            const latMs = typeof window.NocturneNative.getAudioLatencyEstimateMs === 'function' ? window.NocturneNative.getAudioLatencyEstimateMs() : -1;
+            if (hz > 0 && fpb > 0) parts.push(`DAC ${(hz / 1000).toFixed(hz % 1000 ? 1 : 0)}kHz / ${fpb}f${latMs > 0 ? ' (~' + latMs + 'ms)' : ''}`);
           }
         } catch (_) {}
       } else if (typeof navigator !== 'undefined' && typeof navigator.deviceMemory === 'number') {
@@ -18448,7 +18464,252 @@
       } catch (_) {}
     }
     checkAndroidThermalGuard();
-    setInterval(() => { if (!document.hidden) checkAndroidThermalGuard(); }, 60000);
+
+    // === v3.6.0: Playback Stall Recovery Watchdog, Proactive Gapless Pre-Buffer & Network Reconnect Auto-Resume ===
+    let watchdogLastSrc = '';
+    let watchdogLastTime = -1;
+    let watchdogStallTicks = 0;
+    let watchdogLastNudgeAt = 0;
+    function runPlaybackStallWatchdogTick() {
+      try {
+        if (state.isNativeBitPerfectPlaying || state.isPlaybackLoading || !audio || !audio.src || audio.paused || audio.ended) {
+          watchdogStallTicks = 0;
+          return;
+        }
+        if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
+          state.context.resume().catch(() => {});
+        }
+        const curTrack = state.tracks.find(t => t && t.id === state.currentId);
+        if (curTrack && curTrack.firstSlicePlayback && (curTrack.fullAudioPromise || curTrack.sliceEndedEarly)) {
+          watchdogStallTicks = 0;
+          return;
+        }
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          watchdogStallTicks = 0;
+          return;
+        }
+        const curSrc = String(audio.src || '');
+        const curT = Number(audio.currentTime) || 0;
+        if (curSrc !== watchdogLastSrc) {
+          watchdogLastSrc = curSrc;
+          watchdogLastTime = curT;
+          watchdogStallTicks = 0;
+          return;
+        }
+        if (Math.abs(curT - watchdogLastTime) < 0.02 && audio.readyState <= 2) {
+          watchdogStallTicks++;
+          const nowMs = Date.now();
+          if (watchdogStallTicks >= 2 && (nowMs - watchdogLastNudgeAt) >= 20000) {
+            watchdogLastNudgeAt = nowMs;
+            watchdogStallTicks = 0;
+            try {
+              const targetPos = Number.isFinite(audio.duration) && audio.duration > 1 ? Math.min(curT + 0.05, audio.duration - 0.5) : (curT + 0.05);
+              audio.currentTime = Math.max(0, targetPos);
+            } catch (_) {}
+            const p = audio.play();
+            if (p && typeof p.catch === 'function') p.catch(() => {});
+          }
+        } else {
+          watchdogLastTime = curT;
+          watchdogStallTicks = 0;
+        }
+      } catch (_) {}
+    }
+
+    function runProactiveGaplessPreloadTick() {
+      try {
+        if (state.isNativeBitPerfectPlaying || state.isPlaybackLoading || !audio || audio.paused || audio.ended) return;
+        if (audio.readyState < 3 || state.preloadBusyId || state.preloadReadyUrl) return;
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+        if (typeof queueIndex === 'function' && queueIndex() >= 0 && typeof preloadNext === 'function') {
+          preloadNext(false);
+        }
+      } catch (_) {}
+    }
+
+    window.addEventListener('online', () => {
+      try {
+        if (audio && audio.src && !audio.paused && !audio.ended && audio.readyState <= 2 && !state.isPlaybackLoading) {
+          const p = audio.play();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+        }
+      } catch (_) {}
+    });
+
+    // === v3.7.0: Long-Session Playback Continuity — Screen-Wake AudioContext Rescue, Drive Token Keep-Alive, Long-Track Resume & Android Doze Guard ===
+    document.addEventListener('visibilitychange', () => {
+      try {
+        if (!document.hidden && audio && audio.src && !audio.paused && !audio.ended) {
+          if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
+            state.context.resume().catch(() => {});
+          }
+        }
+      } catch (_) {}
+    });
+
+    let lastTokenKeepAliveAt = 0;
+    function runGoogleTokenKeepAliveTick() {
+      try {
+        if (!state.googleToken || !state.googleExpiresAt) return;
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+        const remainingMs = state.googleExpiresAt - Date.now();
+        const nowMs = Date.now();
+        if (remainingMs > 0 && remainingMs < 5 * 60 * 1000 && (nowMs - lastTokenKeepAliveAt) >= 120000) {
+          lastTokenKeepAliveAt = nowMs;
+          if (typeof ensureGoogleToken === 'function') {
+            ensureGoogleToken(false).catch(() => {});
+          }
+        }
+      } catch (_) {}
+    }
+
+    const LONG_TRACK_POS_KEY = 'nocturne-long-track-positions';
+    function saveLongTrackPositionTick() {
+      try {
+        if (!audio || audio.paused || audio.ended || !Number.isFinite(audio.duration) || audio.duration < 600) return;
+        const curT = Number(audio.currentTime) || 0;
+        if (curT < 15 || curT > audio.duration - 15) return;
+        const cur = state.tracks.find(t => t && t.id === state.currentId);
+        if (!cur) return;
+        const key = (typeof library !== 'undefined' && library && typeof library.historyTrackKey === 'function') ? library.historyTrackKey(cur) : String(cur.id);
+        const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(LONG_TRACK_POS_KEY) : null;
+        const mapObj = raw ? JSON.parse(raw) : {};
+        mapObj[key] = Math.floor(curT);
+        const keys = Object.keys(mapObj);
+        if (keys.length > 40) delete mapObj[keys[0]];
+        if (typeof localStorage !== 'undefined') localStorage.setItem(LONG_TRACK_POS_KEY, JSON.stringify(mapObj));
+      } catch (_) {}
+    }
+
+    function syncAndroidBatteryOptimizationControl() {
+      try {
+        const batBtn = $('open-android-battery-btn');
+        if (!batBtn || typeof window === 'undefined' || !window.NocturneNative) return;
+        if (typeof window.NocturneNative.openBatteryOptimizationSettings === 'function') {
+          const isIgnored = typeof window.NocturneNative.isIgnoringBatteryOptimizations === 'function'
+            ? Boolean(window.NocturneNative.isIgnoringBatteryOptimizations())
+            : false;
+          batBtn.classList.remove('hidden');
+          batBtn.textContent = isIgnored ? '✓ Chạy nền tối ưu' : 'Chạy nền không bị tắt';
+        }
+      } catch (_) {}
+    }
+    safeOn($('open-android-battery-btn'), 'click', () => {
+      try {
+        if (window.NocturneNative && typeof window.NocturneNative.openBatteryOptimizationSettings === 'function') {
+          window.NocturneNative.openBatteryOptimizationSettings();
+        }
+      } catch (_) {}
+    });
+    syncAndroidBatteryOptimizationControl();
+
+    // === v3.8.0: 1-Tap Long-Track Resume Pill & Non-Intrusive EQ True-Peak Clip Guard ===
+    let lastLongResumePromptKey = '';
+    let longResumeHideTimer = null;
+    let pendingLongResumeSec = 0;
+    function hideLongTrackResumePill() {
+      const pill = $('long-track-resume-pill');
+      if (pill) pill.classList.add('hidden');
+      if (longResumeHideTimer) { clearTimeout(longResumeHideTimer); longResumeHideTimer = null; }
+    }
+    function checkLongTrackResumeOfferTick() {
+      try {
+        if (!audio || audio.paused || audio.ended || !Number.isFinite(audio.duration) || audio.duration < 600) return;
+        const curT = Number(audio.currentTime) || 0;
+        if (curT > 12) return;
+        const cur = state.tracks.find(t => t && t.id === state.currentId);
+        if (!cur) return;
+        const key = (typeof library !== 'undefined' && library && typeof library.historyTrackKey === 'function') ? library.historyTrackKey(cur) : String(cur.id);
+        if (key === lastLongResumePromptKey) return;
+        const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(LONG_TRACK_POS_KEY) : null;
+        const mapObj = raw ? JSON.parse(raw) : {};
+        const savedSec = Number(mapObj[key]);
+        if (!Number.isFinite(savedSec) || savedSec < 20 || savedSec >= audio.duration - 20) return;
+        lastLongResumePromptKey = key;
+        pendingLongResumeSec = savedSec;
+        const pill = $('long-track-resume-pill');
+        const actBtn = $('long-track-resume-action');
+        if (pill && actBtn) {
+          actBtn.textContent = `⏩ Tiếp tục từ ${typeof formatTime === 'function' ? formatTime(savedSec) : Math.round(savedSec) + 's'}`;
+          pill.classList.remove('hidden');
+          if (longResumeHideTimer) clearTimeout(longResumeHideTimer);
+          longResumeHideTimer = setTimeout(hideLongTrackResumePill, 12000);
+        }
+      } catch (_) {}
+    }
+    safeOn($('long-track-resume-action'), 'click', () => {
+      try {
+        if (audio && pendingLongResumeSec > 0) {
+          audio.currentTime = Number.isFinite(audio.duration) ? Math.min(pendingLongResumeSec, Math.max(0, audio.duration - 1)) : pendingLongResumeSec;
+          if (typeof triggerHapticTick === 'function') triggerHapticTick();
+        }
+      } catch (_) {}
+      hideLongTrackResumePill();
+    });
+    safeOn($('long-track-resume-dismiss'), 'click', hideLongTrackResumePill);
+
+    let clipNoticeCooldownUntil = 0;
+    let clipStreakCount = 0;
+    let clipSampleBuf = null;
+    function runPlaybackClipGuardTick() {
+      try {
+        if (state.bitPerfectEnabled || state.isNativeBitPerfectPlaying || !audio || audio.paused || audio.ended) {
+          clipStreakCount = 0;
+          return;
+        }
+        const analyser = state.activeAnalyser || state.analyser;
+        if (!analyser || typeof analyser.getFloatTimeDomainData !== 'function') return;
+        if (!clipSampleBuf || clipSampleBuf.length !== analyser.fftSize) {
+          clipSampleBuf = new Float32Array(analyser.fftSize);
+        }
+        analyser.getFloatTimeDomainData(clipSampleBuf);
+        let peak = 0;
+        for (let i = 0; i < clipSampleBuf.length; i++) {
+          const a = Math.abs(clipSampleBuf[i]);
+          if (a > peak) peak = a;
+        }
+        if (peak >= 0.995) {
+          clipStreakCount++;
+          const nowMs = Date.now();
+          if (clipStreakCount >= 3 && nowMs > clipNoticeCooldownUntil) {
+            clipNoticeCooldownUntil = nowMs + 120000;
+            clipStreakCount = 0;
+            toast('⚠ Tín hiệu EQ đang chạm trần 0 dBFS — giảm nhẹ Preamp để giữ độ động sạch.');
+          }
+        } else {
+          clipStreakCount = 0;
+        }
+      } catch (_) {}
+    }
+
+    // === v3.9.0: Coalesced Background Maintenance Scheduler (replaces 9 separate timers -> 1 lightweight 2s loop) ===
+    let nocturneMaintenanceTick = 0;
+    function runNocturneMaintenanceTick() {
+      nocturneMaintenanceTick++;
+      const isVisible = typeof document === 'undefined' || !document.hidden;
+      if (isVisible) {
+        if (typeof syncDynamicTabTitle === 'function') syncDynamicTabTitle();
+        if (typeof checkLongTrackResumeOfferTick === 'function') checkLongTrackResumeOfferTick();
+        if (typeof runPlaybackClipGuardTick === 'function') runPlaybackClipGuardTick();
+        if (nocturneMaintenanceTick % 8 === 0 && (state.sleepDeadline > 0 || state.sleepAtTrackEnd) && typeof syncQuickSleepPill === 'function') {
+          syncQuickSleepPill();
+        }
+        if (nocturneMaintenanceTick % 30 === 0 && typeof checkAndroidThermalGuard === 'function') {
+          checkAndroidThermalGuard();
+        }
+      }
+      if (nocturneMaintenanceTick % 2 === 0 && typeof runPlaybackStallWatchdogTick === 'function') {
+        runPlaybackStallWatchdogTick();
+      }
+      if (nocturneMaintenanceTick % 3 === 0) {
+        if (typeof runProactiveGaplessPreloadTick === 'function') runProactiveGaplessPreloadTick();
+        if (typeof saveLongTrackPositionTick === 'function') saveLongTrackPositionTick();
+      }
+      if (nocturneMaintenanceTick % 60 === 0 && typeof runGoogleTokenKeepAliveTick === 'function') {
+        runGoogleTokenKeepAliveTick();
+      }
+    }
+    setInterval(runNocturneMaintenanceTick, 2000);
 
     applyBitPerfectMode(state.bitPerfectEnabled);
     restoreFiioCatalog();
@@ -18740,5 +19001,6 @@
   </div>
 
 <div id="night-dimmer-overlay" aria-hidden="true"></div>
+<div id="long-track-resume-pill" class="hidden fixed bottom-24 right-5 z-50 flex items-center gap-2 rounded-full border border-violet-400/40 bg-zinc-950/90 px-3.5 py-2 text-xs text-violet-100 shadow-xl backdrop-blur-md"><button id="long-track-resume-action" type="button" class="font-medium hover:text-violet-300 transition">⏩ Tiếp tục</button><button id="long-track-resume-dismiss" type="button" class="text-zinc-400 hover:text-white transition" aria-label="Đóng">✕</button></div>
 </body>
 </html>

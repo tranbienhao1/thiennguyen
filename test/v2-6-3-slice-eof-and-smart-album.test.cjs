@@ -426,3 +426,43 @@ test('v3.5.0: Track Timestamp Bookmarks (B/Shift+B) + Android Thermal Guard & Ap
   assert.ok(html.includes('function saveOrJumpTrackBookmark('), 'saveOrJumpTrackBookmark must exist');
   assert.ok(html.includes('function checkAndroidThermalGuard()'), 'checkAndroidThermalGuard must exist');
 });
+
+test('v3.6.0: Playback Stall Recovery Watchdog, Proactive Gapless Pre-Buffer & Native Android DAC SampleRate/Buffer Telemetry', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('public int getNativeOutputSampleRateHz()'), 'MainActivity must expose getNativeOutputSampleRateHz');
+  assert.ok(mainJava.includes('public int getNativeOutputFramesPerBuffer()'), 'MainActivity must expose getNativeOutputFramesPerBuffer');
+  assert.ok(html.includes('function runPlaybackStallWatchdogTick()'), 'runPlaybackStallWatchdogTick must exist');
+  assert.ok(html.includes('function runProactiveGaplessPreloadTick()'), 'runProactiveGaplessPreloadTick must exist');
+});
+
+test('v3.7.0: Long-Session Playback Continuity — Token Keep-Alive, Long-Track Position Memory & Android Doze/Battery Guard', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('public boolean isIgnoringBatteryOptimizations()'), 'MainActivity must expose isIgnoringBatteryOptimizations');
+  assert.ok(mainJava.includes('public boolean openBatteryOptimizationSettings()'), 'MainActivity must expose openBatteryOptimizationSettings');
+  assert.ok(mainJava.includes('public boolean isExternalAudioGearConnected()'), 'MainActivity must expose isExternalAudioGearConnected');
+  assert.ok(html.includes('function runGoogleTokenKeepAliveTick()'), 'runGoogleTokenKeepAliveTick must exist');
+  assert.ok(html.includes('function saveLongTrackPositionTick()'), 'saveLongTrackPositionTick must exist');
+  assert.ok(html.includes('id="open-android-battery-btn"'), 'Settings must include Android background Doze guard button');
+});
+
+test('v3.8.0: 1-Tap Long-Track Resume Pill, EQ Clipping Headroom Guard & Android Latency/AudioFocus Bridge', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('public boolean isAudioFocusHeld()'), 'MainActivity must expose isAudioFocusHeld');
+  assert.ok(mainJava.includes('public int getAudioLatencyEstimateMs()'), 'MainActivity must expose getAudioLatencyEstimateMs');
+  assert.ok(html.includes('id="long-track-resume-pill"'), 'HTML must include long-track-resume-pill');
+  assert.ok(html.includes('function checkLongTrackResumeOfferTick()'), 'checkLongTrackResumeOfferTick must exist');
+  assert.ok(html.includes('function runPlaybackClipGuardTick()'), 'runPlaybackClipGuardTick must exist');
+});
+
+test('v3.9.0: Core audit fixes — Google 401 slice-upgrade retry does not fall through, fullAudioUrl RAM leak revoked, early-return restores deck gain & timers coalesced', () => {
+  const upStart = html.indexOf('async function upgradeSliceToFullAudio(');
+  const upBlock = html.slice(upStart, upStart + 5500);
+  assert.ok(upBlock.includes('} else {\n              if (!isGraphContentUrl(url)) throw error;'), 'Google 401 retry must NOT fall through to OneDrive !isGraphContentUrl throw');
+  assert.ok(upBlock.includes('if (deck !== audio || track.id !== state.currentId) { restoreDeckGain(); return; }'), 'Early return in loadedmetadata must restore deckRouter gain immediately');
+
+  const relStart = html.indexOf('function releaseUnusedCloudUrl(track)');
+  const relBlock = html.slice(relStart, relStart + 700);
+  assert.ok(relBlock.includes('releaseTrackUrl(track.fullAudioUrl)'), 'releaseUnusedCloudUrl must revoke unused track.fullAudioUrl blob to prevent 30-50MB RAM leaks');
+
+  assert.ok(html.includes('function runNocturneMaintenanceTick()'), 'Background timers must be coalesced into runNocturneMaintenanceTick');
+});

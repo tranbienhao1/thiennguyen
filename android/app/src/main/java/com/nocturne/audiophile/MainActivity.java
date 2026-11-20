@@ -3364,6 +3364,90 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public int getNativeOutputSampleRateHz() {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && mActivity.mAudioManager != null) {
+                    String rate = mActivity.mAudioManager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE);
+                    if (rate != null) return Integer.parseInt(rate);
+                }
+            } catch (Exception ignored) {}
+            return 48000;
+        }
+
+        @JavascriptInterface
+        public int getNativeOutputFramesPerBuffer() {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && mActivity.mAudioManager != null) {
+                    String frames = mActivity.mAudioManager.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER);
+                    if (frames != null) return Integer.parseInt(frames);
+                }
+            } catch (Exception ignored) {}
+            return 256;
+        }
+
+        @JavascriptInterface
+        public boolean isIgnoringBatteryOptimizations() {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    PowerManager pm = (PowerManager) mActivity.getSystemService(Context.POWER_SERVICE);
+                    return pm != null && pm.isIgnoringBatteryOptimizations(mActivity.getPackageName());
+                }
+                return true;
+            } catch (Exception e) { return false; }
+        }
+
+        @JavascriptInterface
+        public boolean openBatteryOptimizationSettings() {
+            try {
+                mActivity.runOnUiThread(() -> {
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            Intent intent = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                            mActivity.startActivity(intent);
+                        }
+                    } catch (Exception ignored) {}
+                });
+                return true;
+            } catch (Exception e) { return false; }
+        }
+
+        @JavascriptInterface
+        public boolean isExternalAudioGearConnected() {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && mActivity.mAudioManager != null) {
+                    AudioDeviceInfo[] outs = mActivity.mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+                    for (AudioDeviceInfo d : outs) {
+                        if (d == null) continue;
+                        int t = d.getType();
+                        if (t == AudioDeviceInfo.TYPE_USB_DEVICE || t == AudioDeviceInfo.TYPE_USB_HEADSET ||
+                            t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || t == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                            t == AudioDeviceInfo.TYPE_LINE_ANALOG || t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) {
+                            return true;
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+            return false;
+        }
+
+        @JavascriptInterface
+        public boolean isAudioFocusHeld() {
+            return mActivity.mHasAudioFocus;
+        }
+
+        @JavascriptInterface
+        public int getAudioLatencyEstimateMs() {
+            try {
+                int rate = getNativeOutputSampleRateHz();
+                int frames = getNativeOutputFramesPerBuffer();
+                if (rate > 0 && frames > 0) {
+                    return Math.max(1, Math.round((frames * 1000f) / rate));
+                }
+            } catch (Exception ignored) {}
+            return -1;
+        }
+
+        @JavascriptInterface
         public String getDeviceAudioTelemetry() {
             try {
                 boolean hasUsbDac = false;
