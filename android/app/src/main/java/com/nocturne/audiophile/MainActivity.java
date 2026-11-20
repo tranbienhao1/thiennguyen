@@ -1890,12 +1890,36 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
+    private File resolveFileFromContentUri(Uri contentUri) {
+        if (contentUri == null) return null;
+        try (Cursor cursor = getContentResolver().query(
+                contentUri,
+                new String[]{MediaStore.Audio.Media.DATA},
+                null,
+                null,
+                null
+        )) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int col = cursor.getColumnIndex(MediaStore.Audio.Media.DATA);
+                if (col >= 0) {
+                    String dataPath = cursor.getString(col);
+                    if (dataPath != null && !dataPath.trim().isEmpty()) {
+                        File f = new File(dataPath.trim());
+                        if (f.exists()) return f;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
     private byte[] extractCoverJpeg(String uriParam, String pathParam, int size) {
         Uri contentUri = null;
         File file = null;
         if (uriParam != null && uriParam.startsWith("content://")) {
             contentUri = Uri.parse(uriParam);
-        } else if (pathParam != null && !pathParam.isEmpty()) {
+        }
+        if (pathParam != null && !pathParam.isEmpty()) {
             file = new File(pathParam);
             if (!file.exists()) {
                 try {
@@ -1903,9 +1927,12 @@ public class MainActivity extends AppCompatActivity {
                     if (decoded.exists()) file = decoded;
                 } catch (Exception ignored) {}
             }
-            if (!file.exists() || !file.canRead()) {
+            if (contentUri == null && (!file.exists() || !file.canRead())) {
                 contentUri = resolveMediaStoreContentUriForPath(file.getAbsolutePath());
             }
+        }
+        if ((file == null || !file.exists()) && contentUri != null) {
+            file = resolveFileFromContentUri(contentUri);
         }
 
         // 1. Embedded picture (ID3 APIC / FLAC PICTURE / MP4 covr)
@@ -2009,7 +2036,7 @@ public class MainActivity extends AppCompatActivity {
             String source = (uriParam != null && !uriParam.isEmpty()) ? uriParam : (pathParam != null ? pathParam : "");
             if (source.isEmpty()) return buildCoverResponse(400, "Bad Request", null);
 
-            String identity = (keyParam != null && !keyParam.isEmpty()) ? "k:" + keyParam : "s:" + source;
+            String identity = (keyParam != null && !keyParam.isEmpty()) ? "v2k:" + keyParam : "v2s:" + source;
             String hash = coverSha1Hex(identity + "|" + size);
             File dir = new File(getCacheDir(), "covers");
             if (!dir.exists()) dir.mkdirs();
@@ -2762,7 +2789,7 @@ public class MainActivity extends AppCompatActivity {
                 return null;
             }
             String key = (a + "|" + ar).toLowerCase(Locale.US);
-            String hash = coverSha1Hex("k:" + key + "|320");
+            String hash = coverSha1Hex("v2k:" + key + "|320");
             File jpg = new File(new File(getCacheDir(), "covers"), hash + ".jpg");
             if (!jpg.isFile() || jpg.length() <= 0 || jpg.length() > 1024 * 1024) return null;
             return android.graphics.BitmapFactory.decodeFile(jpg.getAbsolutePath());
@@ -4050,11 +4077,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.29";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.30";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.29\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.30\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

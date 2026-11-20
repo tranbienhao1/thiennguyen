@@ -12548,6 +12548,7 @@
     const realAlbum = album && album !== 'FiiO Internal & SD Card' && album !== UNKNOWN_ALBUM && album !== 'Unknown Album';
     const realArtist = artist && artist !== 'Unknown Artist' && artist !== UNKNOWN_ARTIST;
     let url = FIIO_COVER_BASE_URL + (uri ? 'uri=' + encodeURIComponent(uri) : 'path=' + encodeURIComponent(path));
+    if (uri && path) url += '&path=' + encodeURIComponent(path);
     if (realAlbum && realArtist) url += '&key=' + encodeURIComponent((album + '|' + artist).toLowerCase());
     const px = Number(size) > 0 ? Math.max(96, Math.min(512, Math.round(Number(size)))) : FIIO_COVER_DEFAULT_SIZE;
     return url + '&size=' + px;

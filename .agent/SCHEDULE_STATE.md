@@ -1,17 +1,18 @@
 # Nocturne Autonomous Tail-Chaining Schedule State
 
-- **run_id**: 16
-- **timestamp**: 2026-11-20T18:16:30+07:00
-- **current_version**: v3.9.29
-- **versionCode**: 83
-- **last_commit**: 4bdbaea -> v3.9.29
+- **run_id**: 17
+- **timestamp**: 2026-11-20T18:54:30+07:00
+- **current_version**: v3.9.30
+- **versionCode**: 84
+- **last_commit**: ef5da0b -> v3.9.30
 - **status**: IDLE
 - **active_chain**: none
 
 ## next_queue
-- (empty — all P0/P1/P2 queue items completed through v3.9.29; awaiting next 30-minute daemon cron check)
+- (empty — all P0/P1/P2 queue items completed through v3.9.30; awaiting next 30-minute daemon cron check)
 
 ## completed_history
+- `Run #17 (2026-11-20 18:54 +07 | v3.9.29 -> v3.9.30, versionCode 84)`: [P0/P1] Fixed MediaStore (`content://`) tracks skipping folder art (`cover.jpg`/`folder.jpg`) and DSF ID3v2 APIC extraction on FiiO M11S: `buildFiioCoverUrl` now passes `&path=...` alongside `uri=...`, `MainActivity.extractCoverJpeg` resolves both `contentUri` and `file` (with `resolveFileFromContentUri(contentUri)` fallback when `path` is absent), bumped cover cache namespace to `v2k:`/`v2s:` so stale `.none` 404 markers from v3.9.27/v3.9.28 are bypassed, and upgraded `ingestFiioScannedFilesChunk` to enrich existing tracks in-place on rescan; verified 77/77 tests + `assembleDebug` APK + GitHub Release `v3.9.30`.
 - `Run #16 (2026-11-20 18:16 +07 | v3.9.28 -> v3.9.29, versionCode 83)`: [P1] Hardened `NocturnePlaybackService` foreground notification & pause lifecycle (attaches `sCurrentAlbumArt` large icon directly on the foreground service notification so album art is never lost when `startForeground` updates `NOTIFICATION_ID`, and auto-stops after 20 minutes of unattended pause via `PAUSE_IDLE_TIMEOUT_MS` to conserve FiiO M11S battery); upgraded `window.onAndroidLowMemory` (`index.html`) to check `state.activeDeck.element.src`, release `standbyAudio` preloaded FLAC ObjectURLs via `clearStalePreload()` when not mid-crossfade, and clear dead `tr.url`/`tr.fullAudioUrl` references on tracks whose ObjectURLs were revoked; verified 77/77 tests + `assembleDebug` APK + GitHub Release `v3.9.29`.
 - `Run #15 (2026-11-20 18:10 +07 | v3.9.27 -> v3.9.28, versionCode 82, user request)`: [P0/P1/P2] Complete FiiO M11S UI, Album Art, Artist Portrait & Song Row overhaul: (1) added `inferFiioFolderMetadata` & `enrichFiioTrackMetadata` (`library-utils.js`) wired into `hydrateFiioStoredTrack` & `ingestFiioScannedFilesChunk` so both existing stored and newly scanned MicroSD tracks automatically split into real Singers, real Albums, clean Song Titles, and shared `/local-cover` keys without needing a rescan; (2) added DSF tail ID3v2 `APIC` embedded picture extraction (`extractId3v2ApicFromFile`), multi-disc (`CD1`/`Disc 1`) parent folder art fallback (`extractFolderCoverFromDir`), and lockscreen/notification `METADATA_KEY_ALBUM_ART` + `setLargeIcon` (`loadCachedCoverBitmap`) in `MainActivity.java`; (3) fixed Chromium 74 (FiiO M11S WebView 74) missing `aspect-ratio`, `min()`, and Flexbox `gap` across Album cards (`.collection-art`), circular Artist portraits (`.collection-art.is-artist`), Album/Artist Hero (`#album-hero-cover`), Fullscreen Now Playing (`#fullscreen-cover-wrap`), and Song rows (`.track-row`, hiding invisible `opacity-0` desktop hover queue buttons on `<768px` to free +80px width and showing inline Album link on mobile); (4) fixed Fast-Tap selector priority so tapping `.artist-link` or `.album-link` opens the Singer/Album instead of playing the row, and added dynamic `renderRecentArtists()` Home carousel; verified 126/126 tests + `assembleDebug` APK + GitHub Release `v3.9.28`.
 - `Run #14 (2026-11-20 17:50 +07 | v3.9.26 -> v3.9.27, versionCode 81, user request)`: [P1/P2] FiiO M11S album/artist art: MicroSD/MediaStore tracks previously had no cover at all (scan never reads tags). Added native `/local-cover` endpoint in MainActivity (disk cache -> embedded picture -> MediaStore loadThumbnail -> folder.jpg, downscaled to <=320px JPEG, max 2 concurrent decodes on background priority, negative cache, LRU prune 48MB) + `library.buildFiioCoverUrl` (one extraction per real album key) wired into createFiioTrack and hydrateFiioStoredTrack (covers never persisted), plus dead-cover placeholder handler; artist grids reuse these covers; no base64 in RAM; full repo 1734/1734 tests PASS + assembleDebug APK + GitHub Release v3.9.27.
@@ -26,7 +27,6 @@
 - `Run #5 (2026-11-20 15:58 +07 | v3.9.17 -> v3.9.18, versionCode 72)`: [P1] Hardened Android screen-off battery & keep-alive hygiene (`acquireWakeLock(needWifiLock)` releasing `WifiLock` for local MicroSD playback, idle `onPause` lock release, 8× throttled screen-off Bit-Perfect IPC, `MediaSession` duration, screen-off CUE/progress DOM skip, background idle `AudioContext.suspend()`); verified 85/85 tests + `assembleDebug` APK (`6.59 MB`).
 - `Run #4 (2026-11-20 15:48 +07 | v3.9.16 -> v3.9.17, versionCode 71)`: [P1] Eliminated Bit-Perfect +6 dB double-routing distortion; click-free `setTargetAtTime` ramps across Room Acoustics & DSD Ultrasonic Filter; zero-dropout Tone Controls slider drag + persisted tone restoration + deduplicated `visibilitychange` listener; verified 120/120 tests + `assembleDebug` APK (`6.59 MB`).
 - `Run #3 (2026-11-20 15:40 +07 | v3.9.15 -> v3.9.16, versionCode 70)`: [P1] Implemented non-blocking chunked MicroSD & MediaStore scanner (`startAsyncStorageScan`, 250-track chunks, overlapping root dedup, `THREAD_PRIORITY_BACKGROUND`, double-tap lock, zero ANR); verified 70/70 tests + `assembleDebug` APK (`6.59 MB`).
-- `Run #2 (2026-11-20 15:29 +07 | v3.9.14 -> v3.9.15, versionCode 69)`: [P0] Made `fetchAudioResponse`/`fetchAudioBlob` abort-aware, wired `AbortController` into `upgradeSliceToFullAudio` to cancel abandoned 80MB+ FLAC downloads on track skip, and added Google Drive 401 instant first-slice refresh; verified 142/142 tests + `assembleDebug` APK (`6.58 MB`).
 
 ## do_not_repeat
 - Do not use ES2020+ syntax (`?.`, `??`, `.replaceAll`, `.at`) in `index.html` or root `*.js`.
