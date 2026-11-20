@@ -1,18 +1,19 @@
 # Nocturne Autonomous Tail-Chaining Schedule State
 
-- **run_id**: 10
-- **timestamp**: 2026-11-20T17:01:35+07:00
-- **current_version**: v3.9.23
-- **versionCode**: 77
-- **last_commit**: 283e0af -> v3.9.23
-- **status**: IDLE
+- **run_id**: 11
+- **timestamp**: 2026-11-20T17:27:30+07:00
+- **current_version**: v3.9.24
+- **versionCode**: 78
+- **last_commit**: 5ca8949 -> v3.9.24
+- **status**: DONE
 - **active_chain**: none
 
 ## next_queue
-- (empty — all core subsystems audited through v3.9.23, 0 ES2020+ syntax violations, Chromium 74 Blob.arrayBuffer/text polyfills live on main thread & DSD worker, clean APK v3.9.23 built; awaiting next 30-minute daemon cron audit)
+- `[P1] FiiO M11S 3GB RAM Preload Guard & Native BitPerfectAudioPlayer Thread/Codec Hygiene (Run #12)`: Audit `preloadNextTrack` in `index.html` to ensure FiiO MicroSD local `.dsf`/`.dff` tracks (`fiio_*` or `appassets.androidplatform.net/local-media`) do not pre-allocate a second 200MB raw DSD Blob into RAM during current playback on FiiO M11S, and audit `BitPerfectAudioPlayer` (`MainActivity.java`) for `MediaExtractor`/`MediaCodec`/`AudioTrack` cleanup safety on rapid track skip or seek.
 
 ## completed_history
-- `Run #10 (2026-11-20 17:01 +07 | v3.9.22 -> v3.9.23, versionCode 77)`: [P0] Fixed Chromium 74 (FiiO M11S WebView 74) crash where `Blob.prototype.arrayBuffer()`/`text()` (introduced in Chrome 76) threw `TypeError` during DSD `.dsf`/`.dff` decoding and binary metadata parsing: added `Blob.prototype.arrayBuffer` + `.text` polyfill in `<head>` of `index.html` (before `library-utils.js`) and `FileReaderSync` + `FileReader` polyfill at top of `dsd-worker.js`; closed `AssetFileDescriptor` on `IOException` in `MainActivity.streamContentUriResponse()` to eliminate native FD leaks and mapped `.wv` (`audio/x-wavpack`) & `.mka` (`audio/x-matroska`) MIME types in `getAudioMimeType()`; verified all 11 DSD suites (including full `dsd-worker.test.cjs`), FiiO/ES5/OTA/v3.9.23 tests PASS + `assembleDebug` APK (`6.60 MB`).
+- `Run #11 (2026-11-20 17:27 +07 | v3.9.23 -> v3.9.24, versionCode 78)`: [P0+P1] Fixed FiiO MicroSD DSD (`.dsf`/`.dff`) playback failure (`"Tốc độ DSDkhông rõ chưa hỗ trợ"`) by automatically probing `readAudioMetadata(track.file)` in `playTrack` and `playDsdTrack` whenever `!dsdSourceInfo(track.sampleRate)`; freed previous FiiO local track's `previousTrack.file = null` on track switch to prevent 200MB DSD Blobs from lingering in FiiO M11S 3GB RAM; immediately stopped active Native Bit-Perfect playback before awaiting uncached cloud track loads; closed `RandomAccessFile` on `seek()` `IOException` in `MainActivity.BoundedFileInputStream`; verified 73/73 tests + `assembleDebug` APK (`v3.9.24`) + published GitHub Release `v3.9.24`.
+- `Run #10 (2026-11-20 17:01 +07 | v3.9.22 -> v3.9.23, versionCode 77)`: [P0] Fixed Chromium 74 (FiiO M11S WebView 74) crash where `Blob.prototype.arrayBuffer()`/`text()` (introduced in Chrome 76) threw `TypeError` during DSD `.dsf`/`.dff` decoding and binary metadata parsing: added `Blob.prototype.arrayBuffer` + `.text` polyfill in `<head>` of `index.html` (before `library-utils.js`) and `FileReaderSync` + `FileReader` polyfill at top of `dsd-worker.js`; closed `AssetFileDescriptor` on `IOException` in `MainActivity.streamContentUriResponse()` to eliminate native FD leaks and mapped `.wv` (`audio/x-wavpack`) & `.mka` (`audio/x-matroska`) MIME types in `getAudioMimeType()`; verified all 11 DSD suites, FiiO/ES5/OTA/v3.9.23 tests PASS + `assembleDebug` APK (`6.60 MB`) + published GitHub Release `v3.9.23`.
 - `Run #9 (2026-11-20 16:32 +07 | v3.9.21 -> v3.9.22, versionCode 76)`: [P0] Restored `stalled` event listener in `playTrack` (`index.html`) to clear optimistic loading spinner on stalled streams; restored `v3.1.1` history parity in `sw.js`; aligned all 8 remaining legacy test suites with FiiO/Chromium 74/RAM/Battery/Album-Sequential behavior; verified **182/182 repository test files PASS (0 failures)** + 0 ES2020+ syntax + `assembleDebug` APK (`6.60 MB`).
 - `Run #8 (2026-11-20 16:21 +07 | v3.9.20 -> v3.9.21, versionCode 75)`: [P2+P1] Enhanced `MainActivity.getOtaStatusJson()` with `bundledVersion` & `isOtaActive`; added `window.refreshOtaStatusBadge()` + 1-tap safe rollback button (`#ota-rollback-btn`, hidden unless OTA active) in Settings (`index.html`); verified 13/13 root `*.js` <-> Android assets Unix LF parity + `assembleDebug` APK (`6.60 MB`).
 - `Run #7 (2026-11-20 16:12 +07 | v3.9.19 -> v3.9.20, versionCode 74)`: [P1] Hardened FiiO M11S 3GB RAM & DSD memory hygiene: 180-entry LRU cap on `syncAlbumCoversImmediate`, debounced `saveAlbumCoversCache()` with 1.5MB byte-budget + `QuotaExceededError` recovery, upgraded `onAndroidLowMemory` (DSD preload worker/blob/cover trim), exception-safe `stopDsdWorker()` + late DSD ObjectURL cleanup; verified 129/129 tests + `assembleDebug` APK (`6.60 MB`).
