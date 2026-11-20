@@ -213,9 +213,9 @@ test('v2.6.3: Smart album sequential playback covers all album contexts and resp
   assert.ok(!qiEndSection.includes('(current + 1) % state.tracks.length'), 'queueIndex must not jump to random outside track at album end');
 
   const pnStart = html.indexOf('function playNext(direction = 1, auto = false) {');
-  const pnBlock = html.slice(pnStart, pnStart + 4500);
+  const pnBlock = html.slice(pnStart, pnStart + 8000);
   const pnEndIdx = pnBlock.indexOf('if (seqResult && seqResult.isEnd && direction > 0)');
-  const pnEndSection = pnBlock.slice(pnEndIdx, pnEndIdx + 1200);
+  const pnEndSection = pnBlock.slice(pnEndIdx, pnEndIdx + 3500);
   assert.ok(pnEndSection.indexOf('state.repeat === 1') < pnEndSection.indexOf('state.roonRadio'), 'playNext must check repeat === 1 before roonRadio at album end');
   assert.ok(!pnEndSection.includes('(currentIndex + 1) % state.tracks.length'), 'playNext must not jump to random outside track at album end');
 });
@@ -329,4 +329,61 @@ test('v3.1.2: Safe per-deck gesture unlock + setupAudio never closes running Aud
   attachDeckEvents(deck);
   deck.fire('ended');
   assert.equal(playNextCalls, 0, 'ended during _unlockingGesture must NEVER trigger playNext');
+});
+
+test('v3.1.3: Next button inside an album ALWAYS advances strictly within the album (never jumps to random/Roon Radio/stale queue outside)', () => {
+  const resolveSrcStart = html.indexOf('function resolveActiveAlbumTracks(lib) {');
+  const resolveSrcEnd = html.indexOf('function queueIndex() {', resolveSrcStart);
+  const resolveSrc = html.slice(resolveSrcStart, resolveSrcEnd);
+  const pnStart = html.indexOf('function playNext(direction = 1, auto = false) {');
+  const pnEnd = html.indexOf('    function handle', pnStart) > 0 ? html.indexOf('    function handle', pnStart) : html.indexOf('\n    function ', pnStart + 40);
+  const pnSrc = html.slice(pnStart, pnEnd);
+
+  const albumA1 = { id: 'a1', title: 'Track 1', album: 'Album A', trackNumber: 1 };
+  const albumA2 = { id: 'a2', title: 'Track 2', album: 'Album A', trackNumber: 2 };
+  const outside1 = { id: 'o1', title: 'Outside 1', album: 'Other', trackNumber: 1 };
+  const outside2 = { id: 'o2', title: 'Outside 2', album: 'Other', trackNumber: 2 };
+
+  const played = [];
+  const state = {
+    tracks: [albumA1, outside1, albumA2, outside2],
+    currentId: 'a1',
+    shuffle: true,
+    repeat: 0,
+    autoplay: true,
+    roonRadio: true,
+    activeView: 'albums',
+    activeFocus: 'all',
+    currentCollectionEntry: { action: 'album', key: 'album:a', name: 'Album A', tracks: [albumA1, albumA2] },
+    trackScope: ['a1', 'a2'],
+    playbackContext: null,
+    queueTrackIds: ['o1'],
+    recentHistory: [],
+    favorites: new Set(),
+    preloadTrackId: 'o2'
+  };
+  const playNext = new Function('state', 'audio', 'library', 'NocturneLibrary', 'trackById', 'queueTracks', 'playTrack', 'renderQueue', 'toast', 'location', 'navigator', `${resolveSrc}\n${pnSrc}\nreturn playNext;`)(
+    state,
+    { currentTime: 0, src: '', pause() {}, play() {} },
+    library,
+    library,
+    id => state.tracks.find(x => String(x.id) === String(id)) || null,
+    () => state.queueTrackIds.map(id => state.tracks.find(x => x.id === id)).filter(Boolean),
+    id => { played.push(id); state.currentId = id; },
+    () => {},
+    () => {},
+    { href: 'https://example.test/' },
+    { onLine: true }
+  );
+
+  // Click Next on Track 1 -> must go to Track 2 of Album A (ignoring shuffle=true, stale queue o1, and preload o2)
+  playNext(1, false);
+  assert.equal(played[0], 'a2', 'Next on Track 1 inside album must advance to Track 2 of the album');
+
+  // Click Next on last track (Track 2 of Album A) -> must switch to Track 1 of a random OTHER album (Other) and continue sequentially inside it!
+  playNext(1, false);
+  assert.equal(played[1], 'o1', 'Manual Next on last track of Album A must start Track 1 of a random other album');
+  assert.equal(state.playbackContext.name, 'Other', 'playbackContext must switch to the new random album');
+  playNext(1, false);
+  assert.equal(played[2], 'o2', 'Next inside the newly picked random album must advance sequentially to Track 2');
 });

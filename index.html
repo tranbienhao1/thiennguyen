@@ -10998,22 +10998,54 @@
       }
     }
     window.updateRoonFullscreenUI = updateRoonFullscreenUI;
+    function resolveActiveAlbumTracks(lib) {
+      const currentIdStr = state.currentId != null ? String(state.currentId) : null;
+      if (lib && typeof lib.shouldEnforceSequentialPlayback === 'function' && lib.shouldEnforceSequentialPlayback(state.playbackContext)) {
+        const ctxTracks = (state.playbackContext.trackIds || [])
+          .map(id => (typeof trackById === 'function' ? trackById(id) : null) || state.tracks.find(t => t && String(t.id) === String(id)))
+          .filter(Boolean);
+        if (ctxTracks.length > 0 && (currentIdStr == null || ctxTracks.some(t => String(t.id) === currentIdStr))) {
+          return { tracks: ctxTracks, name: (state.playbackContext && state.playbackContext.name) || 'Album' };
+        }
+      }
+      const entry = state.currentCollectionEntry;
+      const isViewingAlbum = Boolean(
+        (entry && (entry.action === 'album' || state.activeView === 'albums') && Array.isArray(entry.tracks) && entry.tracks.length > 0) ||
+        (Array.isArray(state.trackScope) && state.trackScope.length > 0)
+      );
+      if (isViewingAlbum && currentIdStr != null) {
+        let candidateTracks = [];
+        if (entry && Array.isArray(entry.tracks) && entry.tracks.length > 0) {
+          candidateTracks = (lib && typeof lib.sortAlbumTracks === 'function')
+            ? lib.sortAlbumTracks(entry.tracks, { groupByAlbum: entry.action === 'artist' })
+            : entry.tracks;
+        } else if (Array.isArray(state.trackScope) && state.trackScope.length > 0) {
+          const scoped = state.trackScope
+            .map(id => (typeof trackById === 'function' ? trackById(id) : null) || state.tracks.find(t => t && String(t.id) === String(id)))
+            .filter(Boolean);
+          candidateTracks = (lib && typeof lib.sortAlbumTracks === 'function') ? lib.sortAlbumTracks(scoped) : scoped;
+        }
+        if (candidateTracks.length > 0 && candidateTracks.some(t => String(t.id) === currentIdStr)) {
+          return { tracks: candidateTracks, name: (entry && entry.name) || 'Album' };
+        }
+      }
+      return null;
+    }
     function queueIndex() {
       const currentIdStr = state.currentId != null ? String(state.currentId) : null;
       const current = state.tracks.findIndex(track => track && (track.id === state.currentId || String(track.id) === currentIdStr));
       if (current < 0) return -1;
       const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
       const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
-      const queuedList = queueTracks();
-      const queued = isOfflineMode && lib && typeof lib.canPlayOffline === 'function' ? queuedList.find(t => lib.canPlayOffline(t)) : queuedList[0];
-      if (queued && (currentIdStr == null || String(queued.id) !== currentIdStr)) return state.tracks.indexOf(queued);
-      if (!state.autoplay || state.repeat === 2) return -1;
-
-      const isSequentialAlbum = Boolean(lib && typeof lib.shouldEnforceSequentialPlayback === 'function' && lib.shouldEnforceSequentialPlayback(state.playbackContext));
+      const activeAlbum = typeof resolveActiveAlbumTracks === 'function' ? resolveActiveAlbumTracks(lib) : null;
+      const isSequentialAlbum = Boolean((lib && typeof lib.shouldEnforceSequentialPlayback === 'function' && lib.shouldEnforceSequentialPlayback(state.playbackContext)) || activeAlbum);
       if (isSequentialAlbum) {
-        const albumTracks = (state.playbackContext.trackIds || [])
-          .map(id => trackById(id) || state.tracks.find(t => t && String(t.id) === String(id)))
-          .filter(Boolean);
+        if (!state.autoplay || state.repeat === 2) return -1;
+        const albumTracks = (activeAlbum && activeAlbum.tracks && activeAlbum.tracks.length > 0)
+          ? activeAlbum.tracks
+          : ((state.playbackContext && state.playbackContext.trackIds) || [])
+              .map(id => trackById(id) || state.tracks.find(t => t && String(t.id) === String(id)))
+              .filter(Boolean);
         const seqResult = (lib && typeof lib.resolveNextSequentialTrack === 'function')
           ? lib.resolveNextSequentialTrack(state.currentId, albumTracks, 1, { repeat: state.repeat })
           : null;
@@ -11036,6 +11068,11 @@
           return -1;
         }
       }
+
+      const queuedList = queueTracks();
+      const queued = isOfflineMode && lib && typeof lib.canPlayOffline === 'function' ? queuedList.find(t => lib.canPlayOffline(t)) : queuedList[0];
+      if (queued && (currentIdStr == null || String(queued.id) !== currentIdStr)) return state.tracks.indexOf(queued);
+      if (!state.autoplay || state.repeat === 2) return -1;
 
       if (isOfflineMode && typeof (library && library.getNextPlayableTrack) === 'function') {
         const nextPlayable = library.getNextPlayableTrack(state.tracks, current, 1, {
@@ -11963,7 +12000,10 @@
       const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
       const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
 
-      if (direction > 0) {
+      const activeAlbum = typeof resolveActiveAlbumTracks === 'function' ? resolveActiveAlbumTracks(lib) : null;
+      const isSequentialAlbum = Boolean((lib && typeof lib.shouldEnforceSequentialPlayback === 'function' && lib.shouldEnforceSequentialPlayback(state.playbackContext)) || activeAlbum);
+
+      if (!isSequentialAlbum && direction > 0) {
         const queued = isOfflineMode && lib && typeof lib.canPlayOffline === 'function'
           ? queueTracks().find(t => lib.canPlayOffline(t))
           : queueTracks()[0];
@@ -11982,12 +12022,16 @@
       }
       if (direction > 0 && auto && !state.autoplay) return;
 
-      const isSequentialAlbum = Boolean(lib && typeof lib.shouldEnforceSequentialPlayback === 'function' && lib.shouldEnforceSequentialPlayback(state.playbackContext));
-
       if (isSequentialAlbum) {
-        const albumTracks = (state.playbackContext.trackIds || [])
-          .map(id => trackById(id) || state.tracks.find(t => t && String(t.id) === String(id)))
-          .filter(Boolean);
+        const albumTracks = (activeAlbum && activeAlbum.tracks && activeAlbum.tracks.length > 0)
+          ? activeAlbum.tracks
+          : ((state.playbackContext && state.playbackContext.trackIds) || [])
+              .map(id => trackById(id) || state.tracks.find(t => t && String(t.id) === String(id)))
+              .filter(Boolean);
+        const albumTitle = (activeAlbum && activeAlbum.name) || (state.playbackContext && state.playbackContext.name) || '';
+        if (albumTracks.length > 0 && (!state.playbackContext || state.playbackContext.type !== 'album')) {
+          state.playbackContext = { type: 'album', key: (state.currentCollectionEntry && state.currentCollectionEntry.key) || 'album', name: albumTitle || 'Album', trackIds: albumTracks.map(t => t.id) };
+        }
         const seqResult = (lib && typeof lib.resolveNextSequentialTrack === 'function')
           ? lib.resolveNextSequentialTrack(state.currentId, albumTracks, direction, { repeat: state.repeat })
           : null;
@@ -12012,7 +12056,39 @@
             playTrack(albumTracks[0].id);
             return;
           }
-          if (state.roonRadio && lib && typeof lib.selectRoonRadioTrack === 'function') {
+          if (!auto) {
+            if (typeof playRandomAlbumDiscovery === 'function') {
+              playRandomAlbumDiscovery();
+              return;
+            }
+            const albumMap = new Map();
+            const curKeyNorm = String((state.playbackContext && state.playbackContext.key) || (albumTitle ? 'album:' + albumTitle.toLowerCase() : '')).toLowerCase();
+            for (const t of (state.tracks || [])) {
+              if (!t) continue;
+              const m = (lib && typeof lib.trackMetadata === 'function') ? lib.trackMetadata(t) : t;
+              const aName = String((m && m.album) || t.album || '').trim();
+              if (!aName || (lib && aName === lib.UNKNOWN_ALBUM)) continue;
+              const k = 'album:' + aName.toLowerCase();
+              if (!albumMap.has(k)) albumMap.set(k, { key: k, name: aName, tracks: [] });
+              albumMap.get(k).tracks.push(t);
+            }
+            const allAlbums = [...albumMap.values()].filter(a => a.tracks.length > 0);
+            const otherAlbums = allAlbums.filter(a => a.key !== curKeyNorm && a.name.toLowerCase() !== String(albumTitle || '').toLowerCase());
+            const pickPool = otherAlbums.length > 0 ? otherAlbums : allAlbums;
+            if (pickPool.length > 0) {
+              const picked = pickPool[Math.floor(Math.random() * pickPool.length)];
+              const sortedPicked = (lib && typeof lib.sortAlbumTracks === 'function') ? lib.sortAlbumTracks(picked.tracks) : picked.tracks;
+              state.currentCollectionEntry = { action: 'album', key: picked.key, name: picked.name, tracks: sortedPicked };
+              state.trackScope = sortedPicked.map(t => t.id);
+              state.playbackContext = { type: 'album', key: picked.key, name: picked.name, trackIds: sortedPicked.map(t => t.id) };
+              state.queueTrackIds = sortedPicked.slice(1).map(t => t.id);
+              renderQueue();
+              toast(`🎲 Chuyển sang album ngẫu nhiên: ${picked.name} (${sortedPicked.length} bài · Phát tuần tự)`);
+              playTrack(sortedPicked[0].id);
+              return;
+            }
+          }
+          if (auto && state.roonRadio && lib && typeof lib.selectRoonRadioTrack === 'function') {
             const radio = lib.selectRoonRadioTrack(state.tracks[currentIndex] || albumTracks[albumTracks.length - 1], state.tracks, {
               recentHistory: state.recentHistory,
               favorites: state.favorites,
@@ -12026,14 +12102,25 @@
               return;
             }
           }
-          toast(`Đã phát hết album ${state.playbackContext && state.playbackContext.name ? state.playbackContext.name : ''}.`.trim());
+          toast(`Đã phát hết album ${albumTitle}.`.trim());
           return;
         }
 
         if (seqResult && seqResult.isStart && direction < 0) {
+          if (!auto && albumTracks.length > 1) {
+            const lastTrack = albumTracks[albumTracks.length - 1];
+            if (lib && typeof lib.resolveAlbumPlaybackQueue === 'function') {
+              const endQ = lib.resolveAlbumPlaybackQueue(lastTrack.id, albumTracks);
+              state.queueTrackIds = endQ.remainingTrackIds || [];
+              renderQueue();
+            }
+            playTrack(lastTrack.id);
+          }
           return;
         }
       }
+
+
 
       if (direction > 0 && state.shuffle && state.preloadTrackId && (currentIdStr == null || String(state.preloadTrackId) !== currentIdStr)) {
         const preloadedTrack = trackById(state.preloadTrackId);
@@ -17902,8 +17989,10 @@
       }
       const albums = [...albumMap.values()].filter(a => a.tracks.length > 0);
       if (!albums.length) { toast('Chưa tìm thấy album nào trong thư viện.'); return; }
-      const currentKey = state.playbackContext && state.playbackContext.key;
-      const candidates = albums.length > 1 ? albums.filter(a => a.key !== currentKey) : albums;
+      const currentKey = String((state.playbackContext && state.playbackContext.key) || (state.currentCollectionEntry && state.currentCollectionEntry.key) || '').toLowerCase();
+      const currentName = String((state.playbackContext && state.playbackContext.name) || (state.currentCollectionEntry && state.currentCollectionEntry.name) || '').trim().toLowerCase();
+      const filteredCandidates = albums.filter(a => a.key.toLowerCase() !== currentKey && a.name.trim().toLowerCase() !== currentName);
+      const candidates = filteredCandidates.length > 0 ? filteredCandidates : albums;
       const picked = candidates[Math.floor(Math.random() * candidates.length)];
       const sorted = (lib && typeof lib.sortAlbumTracks === 'function') ? lib.sortAlbumTracks(picked.tracks) : picked.tracks;
       const entry = { action: 'album', key: picked.key, name: picked.name, subtitle: picked.artist, tracks: sorted, cover: (sorted.find(t => t.cover) || {}).cover || '' };
@@ -17912,6 +18001,7 @@
       state.playbackContext = { type: 'album', key: entry.key, name: entry.name, trackIds: sorted.map(t => t.id) };
       state.queueTrackIds = sorted.slice(1).map(t => t.id);
       if (typeof clearStalePreload === 'function') clearStalePreload();
+      if (typeof showAlbumHero === 'function' && (state.activeView === 'albums' || state.activeView === 'artists')) showAlbumHero(entry, 'album');
       if (typeof renderTracks === 'function') renderTracks();
       if (typeof renderQueue === 'function') renderQueue();
       triggerHapticTick();
