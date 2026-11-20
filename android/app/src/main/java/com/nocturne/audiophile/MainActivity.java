@@ -3593,11 +3593,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.13";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.14";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.13\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.14\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -4179,14 +4179,18 @@ public class MainActivity extends AppCompatActivity {
             android.content.SharedPreferences prefs = getSharedPreferences(OTA_PREFS_NAME, Context.MODE_PRIVATE);
             int savedCode = prefs.getInt(OTA_KEY_APK_VERSION_CODE, -1);
             int currentCode = BuildConfig.VERSION_CODE;
-            if (savedCode != -1 && savedCode != currentCode) {
-                // Newer APK was installed: clear older OTA cache so freshly bundled APK assets take over
+            String activeOtaVer = prefs.getString(OTA_KEY_ACTIVE_VERSION, "");
+            String bundledVer = readBundledCacheName();
+            boolean staleOtaComparedToApk = activeOtaVer != null && !activeOtaVer.isEmpty()
+                    && compareSemverVersions(activeOtaVer, bundledVer) <= 0;
+            if ((savedCode != -1 && savedCode != currentCode) || staleOtaComparedToApk) {
+                // Newer or equal APK was installed: clear older OTA cache so freshly bundled APK assets take over
                 deleteDirRecursive(getOtaRootDir());
                 prefs.edit()
                         .remove(OTA_KEY_ACTIVE_VERSION)
                         .putInt(OTA_KEY_APK_VERSION_CODE, currentCode)
                         .apply();
-                Log.i(TAG, "OTA cache cleared after APK upgrade (" + savedCode + " -> " + currentCode + ")");
+                Log.i(TAG, "OTA cache cleared after APK upgrade (" + savedCode + " -> " + currentCode + ", ota=" + activeOtaVer + ", apk=" + bundledVer + ")");
             } else if (savedCode == -1) {
                 prefs.edit().putInt(OTA_KEY_APK_VERSION_CODE, currentCode).apply();
             }
@@ -4241,9 +4245,38 @@ public class MainActivity extends AppCompatActivity {
     private String extractCacheNameFromSw(String swText) {
         if (swText == null) return "";
         java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("const\s+CACHE_NAME\s*=\s*['\"]([^'\"]+)['\"]")
+                .compile("const\\s+CACHE_NAME\\s*=\\s*['\"]([^'\"]+)['\"]")
                 .matcher(swText);
         return m.find() ? m.group(1).trim() : "";
+    }
+
+    /**
+     * Compares SemVer tags such as "nocturne-v3.9.14" vs "nocturne-v3.9.13" numerically.
+     * Returns > 0 if a > b, 0 if equal, < 0 if a < b. Prevents stale CDN responses from downgrading a newer APK.
+     */
+    public static int compareSemverVersions(String a, String b) {
+        int[] pa = parseSemverTuple(a);
+        int[] pb = parseSemverTuple(b);
+        for (int i = 0; i < 3; i++) {
+            if (pa[i] != pb[i]) return Integer.compare(pa[i], pb[i]);
+        }
+        return 0;
+    }
+
+    private static int[] parseSemverTuple(String raw) {
+        int[] parts = new int[]{0, 0, 0};
+        if (raw == null || raw.isEmpty()) return parts;
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(\\d+)\\.(\\d+)\\.(\\d+)")
+                .matcher(raw);
+        if (m.find()) {
+            try {
+                parts[0] = Integer.parseInt(m.group(1));
+                parts[1] = Integer.parseInt(m.group(2));
+                parts[2] = Integer.parseInt(m.group(3));
+            } catch (NumberFormatException ignored) {}
+        }
+        return parts;
     }
 
     private String getCurrentActiveWebVersion() {
@@ -4272,7 +4305,7 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
                 String remoteVer = extractCacheNameFromSw(new String(remoteSwBytes, StandardCharsets.UTF_8));
-                if (remoteVer.isEmpty() || remoteVer.equals(currentVer)) {
+                if (remoteVer.isEmpty() || compareSemverVersions(remoteVer, currentVer) <= 0) {
                     if (notifyIfUpToDate) notifyWebOtaStatus("up_to_date", currentVer);
                     return;
                 }
@@ -4314,6 +4347,14 @@ public class MainActivity extends AppCompatActivity {
                         deleteDirRecursive(stagingDir);
                         if (notifyIfUpToDate) notifyWebOtaStatus("error", currentVer);
                         return;
+                    }
+                    if ("library-utils.js".equals(relFile)) {
+                        String head = new String(data, 0, Math.min(64, data.length), StandardCharsets.UTF_8).trim().toLowerCase(Locale.US);
+                        if (data.length < 50000 || head.startsWith("<")) {
+                            deleteDirRecursive(stagingDir);
+                            if (notifyIfUpToDate) notifyWebOtaStatus("error", currentVer);
+                            return;
+                        }
                     }
                     File outFile = new File(stagingDir, relFile);
                     try (java.io.FileOutputStream fos = new java.io.FileOutputStream(outFile)) {

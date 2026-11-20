@@ -1,4 +1,5 @@
 .agents/
+.agent/RUN.LOCK
 *.cjs.log
 .gradle/
 build/

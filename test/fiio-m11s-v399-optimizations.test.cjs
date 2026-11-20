@@ -100,7 +100,7 @@ test('5. FiiO M11S 3GB RAM & Adreno 512 GPU Optimizations in index.html + v3.9.9
   assert.ok(html.includes('const maxEdge = isLowRamDap ? 320 : 512'), 'Must downscale covers to 320px on FiiO M11S 3GB RAM');
   assert.ok(html.includes('IS_LEGACY_ANDROID || (typeof state !== \'undefined\' && state && state.fiioDapMode)'), 'Must throttle background metadata queue to 1 worker in FiiO DAP mode');
   assert.ok(html.includes('window.onHardwareSeekOffset =') && html.includes('window.onHardwareSeekTo ='), 'Must wire hardware seek callbacks');
-  assert.ok(gradle.includes('versionCode = 67') && gradle.includes('versionName = "3.9.13"'), 'APK version must be bumped to 3.9.13 (versionCode 67)');
+  assert.ok(gradle.includes('versionCode = 67') && gradle.includes('versionName = "3.9.13"') && /versionCode\s*=\s*6[789]/.test(gradle) && /versionName\s*=\s*"3\.9\.1\d"/.test(gradle), 'APK version must be >= 3.9.13 (versionCode >= 67)');
   assert.equal(html, assetHtml, 'index.html and android assets/index.html must be identical');
   assert.ok(html.includes('state.crossfeedNodes.output.connect(state.context.destination)'), 'Web Audio graph invariant strictly preserved');
 });

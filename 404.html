@@ -436,7 +436,8 @@
     #settings-modal { z-index:100!important;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;margin:0;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;overscroll-behavior:contain;touch-action:pan-y!important;border:0;padding:12px 10px;color:inherit;box-sizing:border-box; }
     #settings-modal::backdrop { background:rgba(0,0,0,.75);backdrop-filter:blur(4px); }
     #settings-modal>div,#settings-panel { display:block!important;width:100%;max-width:44rem;margin:8px auto 32px auto!important;box-sizing:border-box;border-color:#ffffff12;border-radius:16px;background:#191c1e;overscroll-behavior:contain;touch-action:pan-y!important; }
-    #settings-modal[open] { display:block!important; background:rgba(0,0,0,0.82)!important; }
+    #settings-modal[open] { display:block!important; }
+    #settings-modal[open] { background:rgba(0,0,0,0.82)!important; }
     #settings-modal button, #settings-modal input, #settings-modal select, #settings-modal section, #settings-modal label { touch-action:pan-y!important; }
     #settings-modal:not([open]) { display:none!important;pointer-events:none!important;visibility:hidden!important; }
     @keyframes fastTokenPulse { 0%,100% { box-shadow:0 0 0 0 rgba(56,189,248,0); } 50% { box-shadow:0 0 0 3px rgba(56,189,248,.45),0 0 18px rgba(56,189,248,.3); } }
@@ -2199,7 +2200,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.12</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.14</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -13322,12 +13323,8 @@
     function showSettings({clearError = true} = {}) {
       const modal = $('settings-modal');
       if (clearError) $('settings-error').classList.add('hidden');
-      const useOverlayDialog = Boolean(IS_LEGACY_ANDROID || (typeof state !== 'undefined' && state && state.fiioDapMode) || (typeof window !== 'undefined' && (window.isNativeAndroid || window.NocturneNative)));
-      if (useOverlayDialog) {
-        modal.setAttribute('open', '');
-      } else if (!modal.open) {
-        try { modal.showModal(); } catch (_) { modal.setAttribute('open', ''); }
-      }
+      // Always use non-Top-Layer overlay open attribute (never <dialog>.showModal()) to guarantee smooth touch scrolling on Android/FiiO M11S
+      modal.setAttribute('open', '');
       modal.scrollTop = 0;
       document.body.classList.add('settings-open');
       if (typeof updateStorageQuotaDisplay === 'function') updateStorageQuotaDisplay();

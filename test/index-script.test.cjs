@@ -95,7 +95,7 @@ assert.ok(appCode.includes("corpora:'allDrives'"), 'Google Drive listing should 
 assert.ok(!appCode.includes("requestGoogleToken('none')"), 'Google must not try an unreliable background silent token flow');
 assert.ok(!html.includes('data-gis="true" async defer'), 'GIS should not race a preloaded async script against its loader');
 assert.match(html, /<dialog id="settings-modal"[^>]*aria-labelledby="settings-title"/, 'Settings should use the native dialog top layer for reliable input and dismissal');
-assert.ok(appCode.includes("if (!modal.open) modal.showModal();") && appCode.includes('if (modal.open) modal.close();'), 'Settings should synchronize native dialog state when opening and closing');
+assert.ok(appCode.includes("modal.setAttribute('open', '');") && appCode.includes("modal.removeAttribute('open');"), 'Settings should synchronize overlay dialog state without Top-Layer showModal()');
 assert.ok(appCode.includes("event.currentTarget.dataset.backdropPointer === 'true'"), 'Backdrop dismissal should work on touch as well as mouse');
 assert.ok(!appCode.includes("modal.setAttribute('inert', '')"), 'Native dialog must manage focus and inert background state itself');
 assert.ok(!html.includes('id="settings-modal" class="fixed inset-0 z-[80] hidden items-center justify-center overflow-y-auto bg-black/75'), 'Settings must not remain an ordinary div overlay vulnerable to stacking contexts');
