@@ -2225,7 +2225,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.23</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.25</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -11731,6 +11731,12 @@
     // playTrack thử lại lúc chuyển bài, không nhảy bài im lặng ở đây.
     async function preloadDsdNext(next) {
       if (!next.load) return;
+      // v3.9.25: FiiO M11S (3GB RAM) — don't pin a second 100MB+ DSD Blob in RAM while the
+      // current track is still playing; MicroSD reads are fast enough to load it on demand.
+      if (String(next.id || '').indexOf('fiio_') === 0 && (state.fiioDapMode || (typeof IS_LEGACY_ANDROID !== 'undefined' && IS_LEGACY_ANDROID)) && !next.file && !(Number(next.size) > 0 && Number(next.size) <= 48 * 1024 * 1024)) {
+        clearStalePreload();
+        return;
+      }
       if (state.preloadTrackId === next.id && (next.file || state.preloadBusyId === next.id)) return;
       if (next.file) { state.preloadTrackId = next.id; state.preloadReadyUrl = null; prefetchDsdFirstSlice(next, state.preloadGeneration); return; }
       const generation = ++state.preloadGeneration;
@@ -12177,12 +12183,24 @@
             const dsdResp = await fetch(track.url);
             if (dsdResp.ok) track.file = await dsdResp.blob();
           }
+          if (track.file && !dsdSourceInfo(track.sampleRate) && typeof readAudioMetadata === 'function') {
+            try {
+              const dsdTech = await readAudioMetadata(track.file);
+              if (dsdTech && dsdTech.sampleRate) track.sampleRate = dsdTech.sampleRate;
+              if (dsdTech && dsdTech.bitDepth) track.bitDepth = dsdTech.bitDepth;
+              if (dsdTech && dsdTech.channels) track.channels = dsdTech.channels;
+              if (dsdTech && dsdTech.duration && !track.duration) track.duration = dsdTech.duration;
+            } catch (_) {}
+          }
           if (generation !== state.playGeneration) { setPlaybackLoading(false); return; }
           if (!track.file) throw new Error('Không tải được file DSD từ nguồn phát.');
           await playDsdTrack(track, generation, playRequestedAt);
           setPlaybackLoading(false);
           releaseUnusedCloudUrl(previousTrack);
           releaseUnusedLocalUrl(previousTrack);
+          if (previousTrack && previousTrack.id !== track.id && String(previousTrack.id || '').indexOf('fiio_') === 0 && previousTrack.file) {
+            previousTrack.file = null;
+          }
         }
         catch (error) { setPlaybackLoading(false); console.error('DSD playback setup failed:', error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); if (generation === state.playGeneration) $('play-button').textContent = '▶'; skipFailedTrack(generation, `Không thể chuẩn bị phát DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`); }
         return;
@@ -12193,6 +12211,11 @@
         if (typeof pauseCloudMetadataQueue === 'function') pauseCloudMetadataQueue(12000);
       }
       if (track.load && !cachedCloudUrl) {
+        if (state.isNativeBitPerfectPlaying) {
+          try { if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
+          state.isNativeBitPerfectPlaying = false;
+          state.isNativeBitPerfectPaused = false;
+        }
         if (typeof navigator !== 'undefined' && navigator.onLine === false) {
           const canPlay = typeof (library && library.canPlayOffline) === 'function' ? library.canPlayOffline(track) : (track.source === 'local' || !!track.file || !!track.blob);
           if (!canPlay) {
@@ -12458,6 +12481,16 @@
     async function playDsdTrack(track, generation, playRequestedAt) {
       stopDsdWorker(false);
       if (generation !== state.playGeneration) return;
+      if (!dsdSourceInfo(track.sampleRate) && track.file && typeof readAudioMetadata === 'function') {
+        try {
+          const probed = await readAudioMetadata(track.file);
+          if (probed && probed.sampleRate) track.sampleRate = probed.sampleRate;
+          if (probed && probed.bitDepth) track.bitDepth = probed.bitDepth;
+          if (probed && probed.channels) track.channels = probed.channels;
+          if (probed && probed.duration && !track.duration) track.duration = probed.duration;
+        } catch (_) {}
+        if (generation !== state.playGeneration) return;
+      }
       const sourceInfo = dsdSourceInfo(track.sampleRate);
       const sourceBaseRate = sourceInfo && sourceInfo.baseRate;
       const multiplier = sourceInfo && sourceInfo.multiplier;

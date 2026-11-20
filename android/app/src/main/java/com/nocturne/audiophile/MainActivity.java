@@ -118,6 +118,7 @@ import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -2761,6 +2762,8 @@ public class MainActivity extends AppCompatActivity {
         private volatile boolean mIsPaused = false;
         private volatile boolean mIsStopped = false;
         private volatile boolean mIsRemoteStream = false;
+        // v3.9.25: epoch guard so a stale (slow-to-die) playback thread can never clobber the next session's state.
+        private final AtomicInteger mPlaybackEpoch = new AtomicInteger(0);
         private final AtomicLong mSeekTargetUs = new AtomicLong(-1);
         private final AtomicLong mCurrentPositionMs = new AtomicLong(0);
         private final AtomicLong mDurationMs = new AtomicLong(0);
@@ -2821,9 +2824,10 @@ public class MainActivity extends AppCompatActivity {
                 updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, true);
             } catch (Exception ignored) {}
 
+            final int playbackEpoch = mPlaybackEpoch.incrementAndGet();
             mPlaybackThread = new Thread(() -> {
                 Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
-                runPlaybackLoop(trimmedUrl, sampleRate, bitDepth);
+                runPlaybackLoop(trimmedUrl, sampleRate, bitDepth, playbackEpoch);
             }, "BitPerfectAudioThread");
             mPlaybackThread.start();
 
@@ -2885,6 +2889,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private synchronized void stopInternal(boolean preserveSession) {
+            mPlaybackEpoch.incrementAndGet();
             mIsStopped = true;
             synchronized (mPauseLock) {
                 mIsPaused = false;
@@ -2964,7 +2969,7 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-        private void runPlaybackLoop(String urlOrPath, int requestedSampleRate, int requestedBitDepth) {
+        private void runPlaybackLoop(String urlOrPath, int requestedSampleRate, int requestedBitDepth, final int epoch) {
             MediaExtractor extractor = new MediaExtractor();
             MediaCodec decoder = null;
             AudioTrack track = null;
@@ -3197,7 +3202,7 @@ public class MainActivity extends AppCompatActivity {
                 final long TIMEOUT_US = 10000;
                 long lastUiUpdateElapsedMs = 0L;
 
-                while (!mIsStopped && !sawOutputEOS) {
+                while (!mIsStopped && !sawOutputEOS && mPlaybackEpoch.get() == epoch) {
                     // Check pause
                     synchronized (mPauseLock) {
                         while (mIsPaused && !mIsStopped) {
@@ -3347,7 +3352,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 // If completed naturally (sawOutputEOS)
-                if (sawOutputEOS && !mIsStopped) {
+                if (sawOutputEOS && !mIsStopped && mPlaybackEpoch.get() == epoch) {
                     mWebView.post(() -> {
                         mWebView.evaluateJavascript(
                                 "if (typeof window.onBitPerfectPlaybackComplete === 'function') window.onBitPerfectPlaybackComplete(); " +
@@ -3360,8 +3365,11 @@ public class MainActivity extends AppCompatActivity {
 
             } catch (Exception e) {
                 Log.e(TAG, "BitPerfect: Playback engine error: " + e.getMessage(), e);
-                notifyBitPerfectErrorToWeb(e.getMessage() != null ? e.getMessage() : "Bit-Perfect playback engine error");
+                if (mPlaybackEpoch.get() == epoch) {
+                    notifyBitPerfectErrorToWeb(e.getMessage() != null ? e.getMessage() : "Bit-Perfect playback engine error");
+                }
             } finally {
+                final boolean sessionCurrent = (mPlaybackEpoch.get() == epoch);
                 try {
                     if (track != null) {
                         try { track.stop(); } catch (Exception ignored) {}
@@ -3373,7 +3381,7 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Exception ignored) {}
 
                 try {
-                    if (mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
+                    if (sessionCurrent && mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
                         Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
                         mPreferredMixerAttributesSet = false;
                     }
@@ -3390,10 +3398,12 @@ public class MainActivity extends AppCompatActivity {
                     extractor.release();
                 } catch (Exception ignored) {}
 
-                mIsPlaying = false;
-                mIsPaused = false;
-                releaseWakeLock();
-                abandonAudioFocus();
+                if (sessionCurrent) {
+                    mIsPlaying = false;
+                    mIsPaused = false;
+                    releaseWakeLock();
+                    abandonAudioFocus();
+                }
             }
         }
     }
@@ -3655,11 +3665,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.24";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.25";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.24\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.25\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

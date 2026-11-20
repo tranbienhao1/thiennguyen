@@ -1,17 +1,19 @@
 # Nocturne Autonomous Tail-Chaining Schedule State
 
-- **run_id**: 11
-- **timestamp**: 2026-11-20T17:27:30+07:00
-- **current_version**: v3.9.24
-- **versionCode**: 78
-- **last_commit**: 5ca8949 -> v3.9.24
+- **run_id**: 12
+- **timestamp**: 2026-11-20T17:35:00+07:00
+- **current_version**: v3.9.25
+- **versionCode**: 79
+- **last_commit**: 01c0054 -> v3.9.25
 - **status**: DONE
 - **active_chain**: none
 
 ## next_queue
-- `[P1] FiiO M11S 3GB RAM Preload Guard & Native BitPerfectAudioPlayer Thread/Codec Hygiene (Run #12)`: Audit `preloadNextTrack` in `index.html` to ensure FiiO MicroSD local `.dsf`/`.dff` tracks (`fiio_*` or `appassets.androidplatform.net/local-media`) do not pre-allocate a second 200MB raw DSD Blob into RAM during current playback on FiiO M11S, and audit `BitPerfectAudioPlayer` (`MainActivity.java`) for `MediaExtractor`/`MediaCodec`/`AudioTrack` cleanup safety on rapid track skip or seek.
+- `[P1] Crossfade/gapless Web Audio deck RAM audit for 24/32-bit FLAC on FiiO M11S: verify standbyAudio/preloaded cloud ObjectURLs are released on seek/skip and during onAndroidLowMemory.`
+- `[P2] Audit OTA Web Assets download path (MainActivity) for partial-file cleanup on interrupted download.`
 
 ## completed_history
+- `Run #12 (2026-11-20 17:35 +07 | v3.9.24 -> v3.9.25, versionCode 79)`: [P0+P1] Fixed Bit-Perfect race on rapid track skip: added `mPlaybackEpoch` guard so a slow-to-die BitPerfectAudioThread can no longer reset `mIsPlaying`, release the new session's WakeLock/AudioFocus, clear its mixer attributes, or fire a false end-of-track (auto-skip) event; `preloadDsdNext` no longer pins a second >48MB raw DSD Blob in RAM for FiiO MicroSD tracks; committed missing 404.html parity; full repo 1724/1724 tests PASS + assembleDebug APK + GitHub Release v3.9.25.
 - `Run #11 (2026-11-20 17:27 +07 | v3.9.23 -> v3.9.24, versionCode 78)`: [P0+P1] Fixed FiiO MicroSD DSD (`.dsf`/`.dff`) playback failure (`"Tốc độ DSDkhông rõ chưa hỗ trợ"`) by automatically probing `readAudioMetadata(track.file)` in `playTrack` and `playDsdTrack` whenever `!dsdSourceInfo(track.sampleRate)`; freed previous FiiO local track's `previousTrack.file = null` on track switch to prevent 200MB DSD Blobs from lingering in FiiO M11S 3GB RAM; immediately stopped active Native Bit-Perfect playback before awaiting uncached cloud track loads; closed `RandomAccessFile` on `seek()` `IOException` in `MainActivity.BoundedFileInputStream`; verified 73/73 tests + `assembleDebug` APK (`v3.9.24`) + published GitHub Release `v3.9.24`.
 - `Run #10 (2026-11-20 17:01 +07 | v3.9.22 -> v3.9.23, versionCode 77)`: [P0] Fixed Chromium 74 (FiiO M11S WebView 74) crash where `Blob.prototype.arrayBuffer()`/`text()` (introduced in Chrome 76) threw `TypeError` during DSD `.dsf`/`.dff` decoding and binary metadata parsing: added `Blob.prototype.arrayBuffer` + `.text` polyfill in `<head>` of `index.html` (before `library-utils.js`) and `FileReaderSync` + `FileReader` polyfill at top of `dsd-worker.js`; closed `AssetFileDescriptor` on `IOException` in `MainActivity.streamContentUriResponse()` to eliminate native FD leaks and mapped `.wv` (`audio/x-wavpack`) & `.mka` (`audio/x-matroska`) MIME types in `getAudioMimeType()`; verified all 11 DSD suites, FiiO/ES5/OTA/v3.9.23 tests PASS + `assembleDebug` APK (`6.60 MB`) + published GitHub Release `v3.9.23`.
 - `Run #9 (2026-11-20 16:32 +07 | v3.9.21 -> v3.9.22, versionCode 76)`: [P0] Restored `stalled` event listener in `playTrack` (`index.html`) to clear optimistic loading spinner on stalled streams; restored `v3.1.1` history parity in `sw.js`; aligned all 8 remaining legacy test suites with FiiO/Chromium 74/RAM/Battery/Album-Sequential behavior; verified **182/182 repository test files PASS (0 failures)** + 0 ES2020+ syntax + `assembleDebug` APK (`6.60 MB`).
