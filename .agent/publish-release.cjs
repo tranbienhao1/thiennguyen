@@ -80,21 +80,22 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.37';
-  const name = process.argv[3] || `Nocturne ${tag} (Phím Media/Bluetooth chuẩn hóa, lời bài hát LRC/FLAC offline & đồng bộ tag FLAC Cloud)`;
+  const tag = process.argv[2] || 'v3.9.38';
+  const name = process.argv[3] || `Nocturne ${tag} (Lưu/khôi phục vị trí Bit-Perfect, tự phát lại sau AudioFocus tạm thời & nút Back modal lời)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} — Điều khiển MediaSession chuẩn, Lời bài hát offline FiiO & Cloud FLAC Metadata
+    : `### Nocturne ${tag} — Khôi phục vị trí Bit-Perfect, AudioFocus thông minh & Back Modal Lời
 
-#### 1. Chuẩn hóa Play / Pause / Stop không bị đảo nhầm qua tai nghe Bluetooth & MediaSession
-- **Tách riêng \`dispatchPlayToWeb()\` / \`dispatchPauseToWeb()\`** trong \`MainActivity.java\` và \`onHardwarePlay\` / \`onHardwarePause\` trong \`index.html\`: Nút Play, Pause, Stop từ tai nghe Bluetooth hoặc \`MediaSession\` sẽ không bị bấm nhầm thành toggle ngược trạng thái đang phát.
+#### 1. Tự phát lại khi nhận lại AudioFocus sau thông báo/cuộc gọi ngắn (\`MainActivity.java\`)
+- **Phân biệt \`AUDIOFOCUS_LOSS_TRANSIENT\` và \`AUDIOFOCUS_LOSS\` vĩnh viễn**: Ghi nhận \`mPausedByTransientFocusLoss\` để tự động \`resume()\` Native Bit-Perfect khi có \`AUDIOFOCUS_GAIN\`, đồng thời xóa cờ ngay khi người dùng chủ động nhấn Tạm dừng/Dừng.
 
-#### 2. Đọc lời bài hát \`.lrc\` & nhúng FLAC offline cho FiiO M11S
-- **Bổ sung \`NocturneNative.readLocalLyrics\`** trong \`MainActivity.java\`: Tự động tìm tệp lời bài hát cùng tên (\`.lrc\`, \`.lyricsfile\`, \`.txt\`, hỗ trợ UTF-8/UTF-16 BOM) ngay bên cạnh file nhạc trên bộ nhớ/MicroSD hoặc đọc thẻ \`LYRICS\` / \`UNSYNCEDLYRICS\` nhúng trong FLAC, ưu tiên chạy trước cả bước tìm mạng trong \`triggerLyricsFetch\`.
+#### 2. Lưu & khôi phục chuẩn xác vị trí phát trên Bit-Perfect, Web Audio & Cloud (\`index.html\`)
+- **Thống nhất \`getCurrentPlaybackPositionSeconds()\` & \`seekCurrentPlaybackToSeconds()\`**: Khôi phục phiên phát (\`#resume-session-banner\`, cập nhật OTA/PWA, \`visibilitychange\` khi ẩn app) hoạt động chính xác cho cả Bit-Perfect Native lẫn luồng FLAC/Cloud tải \`loadedmetadata\` bất đồng bộ.
+- **Đồng bộ nút \`#fullscreen-play-btn\`** qua \`onNativeBitPerfectStateChange\` và \`isAppPlaying()\`.
 
-#### 3. Giữ trọn tag FLAC, albumArtist, lời bài hát & ReplayGain trên Cloud
-- **Hợp nhất \`mergedTags\` trong \`loadCloudMetadata\`**: Ngăn trường \`undefined\`/\`""\` từ \`jsmediatags\` ghi đè thẻ FLAC Vorbis/MP4, giữ \`albumArtist\`, \`lyricsText\`, ReplayGain và ảnh bìa thư mục Drive/OneDrive đã ghép trước đó.
+#### 3. Nút Back Android đóng hộp thoại Sửa & Tra cứu Lời bài hát
+- **Mở rộng \`window.onAndroidBackPressed\`**: Tự đóng \`#lyrics-editor-modal\` (\`closeEditor\`) và \`#lyrics-search-modal\` (\`closeSearch\`) khi bấm nút Back cứng/cử chỉ thay vì thoát app.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

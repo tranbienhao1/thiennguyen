@@ -2360,7 +2360,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.37</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.38</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4100,6 +4100,7 @@
       window.onNativeBitPerfectPosition = (positionMs, durationMs) => {
         if (!state.isSeeking && Number.isFinite(positionMs) && positionMs >= 0) {
           const curSec = positionMs / 1000;
+          state.lastBitPerfectPositionSec = curSec;
           const curTrack = state.tracks.find(t => t && String(t.id) === String(state.currentId));
           const durSec = (durationMs && durationMs > 0) ? (durationMs / 1000) : ((curTrack && curTrack.duration) || 0);
           if (curTrack && durSec > 0 && !curTrack.duration) curTrack.duration = durSec;
@@ -4118,6 +4119,7 @@
           }
           if (typeof updateLyricsHighlight === 'function') updateLyricsHighlight(curSec);
           if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+          if (typeof savePlaybackSession === 'function') savePlaybackSession();
         }
       };
       window.onNativeBitPerfectError = (reason) => {
@@ -4141,9 +4143,11 @@
       window.onNativeBitPerfectStateChange = (isPlaying) => {
         state.isNativeBitPerfectPaused = !isPlaying;
         const symbol = isPlaying ? 'Ⅱ' : '▶';
-        $('play-button').textContent = symbol;
+        if ($('play-button')) $('play-button').textContent = symbol;
         if ($('room-play')) $('room-play').textContent = symbol;
         if ($('mini-play')) $('mini-play').textContent = symbol;
+        if ($('fullscreen-play-btn')) $('fullscreen-play-btn').textContent = symbol;
+        if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
       };
     }
     window.setupBitPerfectIntegration = setupBitPerfectIntegration;
@@ -4927,14 +4931,53 @@
       renderTracks();
       toast(state.activeFocus === 'offline' ? 'Đã lọc danh sách: Chỉ phát bài hát Ngoại tuyến.' : 'Đã hiển thị tất cả bài hát.');
     });
+    function getCurrentPlaybackPositionSeconds() {
+      if (state.isNativeBitPerfectPlaying) {
+        if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.getBitPerfectPosition === 'function') {
+          const ms = Number(window.NocturneNative.getBitPerfectPosition());
+          if (Number.isFinite(ms) && ms >= 0) return ms / 1000;
+        }
+        return (Number.isFinite(state.lastBitPerfectPositionSec) && state.lastBitPerfectPositionSec >= 0) ? state.lastBitPerfectPositionSec : 0;
+      }
+      const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      return (curAudio && Number.isFinite(curAudio.currentTime) && curAudio.currentTime >= 0) ? curAudio.currentTime : 0;
+    }
+    function seekCurrentPlaybackToSeconds(targetSec, expectedTrackId) {
+      const sec = Number(targetSec);
+      if (!Number.isFinite(sec) || sec <= 0) return false;
+      const trackIdToMatch = expectedTrackId !== undefined ? expectedTrackId : state.currentId;
+      if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+        try { window.NocturneNative.seekBitPerfectPlayback(Math.round(sec * 1000)); return true; } catch (_) {}
+      }
+      const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      if (!curAudio) return false;
+      const applySeek = () => {
+        if (trackIdToMatch && state.currentId !== trackIdToMatch) return;
+        try {
+          const maxDur = (Number.isFinite(curAudio.duration) && curAudio.duration > 0) ? Math.max(0, curAudio.duration - 0.5) : sec;
+          curAudio.currentTime = Math.min(sec, maxDur);
+        } catch (_) {}
+      };
+      if (Number(curAudio.readyState) >= 1 || typeof curAudio.addEventListener !== 'function') {
+        applySeek();
+      } else {
+        curAudio.addEventListener('loadedmetadata', applySeek, { once: true });
+      }
+      return true;
+    }
+    window.getCurrentPlaybackPositionSeconds = getCurrentPlaybackPositionSeconds;
+    window.seekCurrentPlaybackToSeconds = seekCurrentPlaybackToSeconds;
+
     function savePlaybackSession(force = false) {
       if (!state.currentId) return;
       const now = Date.now();
       if (!force && now - (state.lastSessionSaveTime || 0) < 3000) return;
       state.lastSessionSaveTime = now;
       const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
-      const pos = curAudio && Number.isFinite(curAudio.currentTime) ? curAudio.currentTime : 0;
-      const isPaused = !curAudio.src || curAudio.paused;
+      const pos = getCurrentPlaybackPositionSeconds();
+      const isPaused = state.isNativeBitPerfectPlaying
+        ? Boolean(state.isNativeBitPerfectPaused)
+        : (!curAudio || !curAudio.src || curAudio.paused);
       if (typeof (library && library.savePlaybackSession) === 'function') {
         const raw = library.savePlaybackSession(state.currentId, pos, state.queueTrackIds, {
           wasPlaying: !isPaused,
@@ -4946,6 +4989,7 @@
         }
       }
     }
+    window.savePlaybackSession = savePlaybackSession;
     function checkAndPromptResumeSession() {
       if (state.currentId || !state.tracks || state.tracks.length === 0) return;
       try {
@@ -4960,11 +5004,16 @@
             state.queueTrackIds = session.queueTrackIds;
           }
           playTrack(session.track.id).then(() => {
-            const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
-            if (curAudio && session.currentTime > 0) {
-              curAudio.currentTime = session.currentTime;
+            seekCurrentPlaybackToSeconds(session.currentTime, session.track.id);
+            if (session.paused) {
+              if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.pauseBitPerfectPlayback === 'function') {
+                try { window.NocturneNative.pauseBitPerfectPlayback(); } catch (_) {}
+                if (typeof window.onNativeBitPerfectStateChange === 'function') window.onNativeBitPerfectStateChange(false);
+              } else {
+                const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+                if (curAudio) curAudio.pause();
+              }
             }
-            if (session.paused && curAudio) curAudio.pause();
           }).catch(() => {});
           toast('Đã cập nhật lên phiên bản mới nhất thành công!');
           return;
@@ -4985,8 +5034,9 @@
       }
     }
     const isAppPlaying = () => {
-      try { return !!audio && !audio.paused && !audio.ended; }
-      catch (error) { return false; }
+      try {
+        return Boolean((state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) || (audio && !audio.paused && !audio.ended));
+      } catch (error) { return false; }
     };
     async function checkForAppUpdate() {
       if (location.protocol === 'file:' || typeof fetch !== 'function' || typeof DOMParser !== 'function' || updateCheckInFlight || Date.now() - lastUpdateCheckAt < 30000) return;
@@ -5021,10 +5071,10 @@
           const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
           const curTrack = (typeof trackById === 'function' && state.currentId ? trackById(state.currentId) : null)
             || state.tracks.find(t => t.id === state.currentId);
-          if (curTrack && curAudio) {
+          if (curTrack) {
             const session = {
               trackId: curTrack.id,
-              currentTime: curAudio.currentTime || 0,
+              currentTime: getCurrentPlaybackPositionSeconds(),
               paused: false,
               queueTrackIds: state.queueTrackIds || [],
               volume: (state.volume != null ? state.volume : 72),
@@ -5033,7 +5083,9 @@
             localStorage.setItem('nocturne-playback-session', JSON.stringify(session));
             localStorage.setItem('nocturne-auto-resume-on-update', 'true');
           }
-          if (curAudio && !curAudio.paused) {
+          if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.pauseBitPerfectPlayback === 'function') {
+            try { window.NocturneNative.pauseBitPerfectPlayback(); } catch (_) {}
+          } else if (curAudio && !curAudio.paused) {
             try { curAudio.pause(); } catch (_) {}
           }
         } catch (_) {}
@@ -5042,10 +5094,10 @@
         const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
         const curTrack = (typeof trackById === 'function' && state.currentId ? trackById(state.currentId) : null)
           || state.tracks.find(t => t.id === state.currentId);
-        if (curTrack && curAudio && !localStorage.getItem('nocturne-playback-session')) {
+        if (curTrack && !localStorage.getItem('nocturne-playback-session')) {
           const session = {
             trackId: curTrack.id,
-            currentTime: curAudio.currentTime || 0,
+            currentTime: getCurrentPlaybackPositionSeconds(),
             paused: false,
             queueTrackIds: state.queueTrackIds || [],
             volume: (state.volume != null ? state.volume : 72),
@@ -5102,10 +5154,7 @@
           state.queueTrackIds = session.queueTrackIds;
         }
         await playTrack(session.track.id);
-        const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
-        if (curAudio && session.currentTime > 0) {
-          curAudio.currentTime = session.currentTime;
-        }
+        seekCurrentPlaybackToSeconds(session.currentTime, session.track.id);
         toast(`Đang phát tiếp từ ${formatTime(session.currentTime)}.`);
       } catch (err) {
         console.error('Failed to resume playback session:', err);
@@ -18366,6 +18415,19 @@
         else metadataModal.classList.add('hidden');
         return true;
       }
+      const lyricsEditorModal = (typeof document !== 'undefined') ? document.getElementById('lyrics-editor-modal') : null;
+      const lyricsUiRef = (typeof window !== 'undefined' && window.LyricsEditorUI) ? window.LyricsEditorUI : null;
+      if ((lyricsUiRef && lyricsUiRef.editorState && lyricsUiRef.editorState.isOpen) || (lyricsEditorModal && !lyricsEditorModal.hidden && !lyricsEditorModal.classList.contains('hidden'))) {
+        if (lyricsUiRef && typeof lyricsUiRef.closeEditor === 'function') lyricsUiRef.closeEditor();
+        else if (lyricsEditorModal) { lyricsEditorModal.classList.add('hidden'); lyricsEditorModal.hidden = true; }
+        return true;
+      }
+      const lyricsSearchModal = (typeof document !== 'undefined') ? document.getElementById('lyrics-search-modal') : null;
+      if ((lyricsUiRef && lyricsUiRef.searchState && lyricsUiRef.searchState.isOpen) || (lyricsSearchModal && !lyricsSearchModal.hidden && !lyricsSearchModal.classList.contains('hidden'))) {
+        if (lyricsUiRef && typeof lyricsUiRef.closeSearch === 'function') lyricsUiRef.closeSearch();
+        else if (lyricsSearchModal) { lyricsSearchModal.classList.add('hidden'); lyricsSearchModal.hidden = true; }
+        return true;
+      }
       const sigPopover = $('signal-path-popover');
       if (sigPopover && !sigPopover.classList.contains('hidden')) {
         toggleSignalPathPopover(false);
@@ -20602,6 +20664,7 @@
     if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
+          if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
           if (activeScreenWakeLock) { try { activeScreenWakeLock.release(); } catch (_) {} activeScreenWakeLock = null; }
         } else if (state.isFullscreen) {
           syncScreenWakeLock(true);

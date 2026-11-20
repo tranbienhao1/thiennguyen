@@ -169,6 +169,7 @@ public class MainActivity extends AppCompatActivity {
     private AudioManager mAudioManager;
     private AudioFocusRequest mAudioFocusRequest;
     private boolean mHasAudioFocus = false;
+    private volatile boolean mPausedByTransientFocusLoss = false;
     private MediaSession mMediaSession;
     private volatile int mSafeInsetTopDp = 0;
     private volatile int mSafeInsetBottomDp = 0;
@@ -1321,8 +1322,8 @@ public class MainActivity extends AppCompatActivity {
                                 }
                                 break;
                             case AudioManager.AUDIOFOCUS_LOSS:
-                            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
                                 mHasAudioFocus = false;
+                                mPausedByTransientFocusLoss = false;
                                 // Only pause native BitPerfectAudioPlayer if actively playing.
                                 // NEVER blindly click #play-button on WebView because Chromium WebView
                                 // natively requests AUDIOFOCUS_GAIN for HTML5/WebAudio playback, which
@@ -1336,10 +1337,31 @@ public class MainActivity extends AppCompatActivity {
                                     }
                                 }
                                 break;
+                            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+                                mHasAudioFocus = false;
+                                if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                                    mPausedByTransientFocusLoss = true;
+                                    mBitPerfectPlayer.pause();
+                                    if (mWebView != null) {
+                                        mWebView.post(() -> mWebView.evaluateJavascript(
+                                                "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
+                                                null));
+                                    }
+                                }
+                                break;
                             case AudioManager.AUDIOFOCUS_GAIN:
                                 mHasAudioFocus = true;
                                 if (mBitPerfectPlayer != null) {
                                     mBitPerfectPlayer.setDucking(false);
+                                    if (mPausedByTransientFocusLoss && mBitPerfectPlayer.isPaused()) {
+                                        mPausedByTransientFocusLoss = false;
+                                        mBitPerfectPlayer.resume();
+                                        if (mWebView != null) {
+                                            mWebView.post(() -> mWebView.evaluateJavascript(
+                                                    "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(true);",
+                                                    null));
+                                        }
+                                    }
                                 }
                                 if (mWebView != null) {
                                     mWebView.post(() -> mWebView.evaluateJavascript(
@@ -1357,14 +1379,24 @@ public class MainActivity extends AppCompatActivity {
             @SuppressWarnings("deprecation")
             int result = mAudioManager.requestAudioFocus(
                     focusChange -> {
-                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
-                                focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                            mHasAudioFocus = false;
+                            mPausedByTransientFocusLoss = false;
+                            if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                                mBitPerfectPlayer.pause();
+                            }
+                        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
                             mHasAudioFocus = false;
                             if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                                mPausedByTransientFocusLoss = true;
                                 mBitPerfectPlayer.pause();
                             }
                         } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
                             mHasAudioFocus = true;
+                            if (mPausedByTransientFocusLoss && mBitPerfectPlayer != null && mBitPerfectPlayer.isPaused()) {
+                                mPausedByTransientFocusLoss = false;
+                                mBitPerfectPlayer.resume();
+                            }
                         }
                     },
                     AudioManager.STREAM_MUSIC,
@@ -2799,6 +2831,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void dispatchPlayPauseToWeb() {
+        mPausedByTransientFocusLoss = false;
         runOnUiThread(() -> {
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
                 boolean nowPlaying;
@@ -2828,6 +2861,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void dispatchPlayToWeb() {
+        mPausedByTransientFocusLoss = false;
         runOnUiThread(() -> {
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
                 if (mBitPerfectPlayer.isPaused()) {
@@ -2851,6 +2885,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void dispatchPauseToWeb() {
+        mPausedByTransientFocusLoss = false;
         runOnUiThread(() -> {
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
                 if (mBitPerfectPlayer.isPlaying()) {
@@ -4223,14 +4258,17 @@ public class MainActivity extends AppCompatActivity {
     private final BitPerfectAudioPlayer mBitPerfectPlayer = new BitPerfectAudioPlayer();
 
     public boolean startBitPerfectPlayback(String urlOrPath, int sampleRate, int bitDepth) {
+        mPausedByTransientFocusLoss = false;
         return mBitPerfectPlayer.start(urlOrPath, sampleRate, bitDepth);
     }
 
     public void pauseBitPerfectPlayback() {
+        mPausedByTransientFocusLoss = false;
         mBitPerfectPlayer.pause();
     }
 
     public void resumeBitPerfectPlayback() {
+        mPausedByTransientFocusLoss = false;
         mBitPerfectPlayer.resume();
     }
 
@@ -4239,6 +4277,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void stopBitPerfectPlayback() {
+        mPausedByTransientFocusLoss = false;
         mBitPerfectPlayer.stop();
     }
 
@@ -4477,11 +4516,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.37";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.38";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.37\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.38\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

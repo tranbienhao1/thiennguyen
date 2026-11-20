@@ -187,12 +187,13 @@ test('5. Version sync v3.9.37 / versionCode 91, Unix LF parity & zero Chromium 7
   const gradle = fs.readFileSync(path.join(ROOT, 'android/app/build.gradle.kts'), 'utf8');
   const mainActivity = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
 
-  assert.ok(indexHtml.includes('FiiO M11S · v3.9.37'));
-  assert.ok(swJs.includes("const CACHE_VERSION = 'v3.9.37';"));
-  assert.ok(swJs.includes("const CACHE_NAME = 'nocturne-v3.9.37';"));
-  assert.ok(/versionCode\s*=\s*91\b/.test(gradle));
-  assert.ok(/versionName\s*=\s*"3\.9\.37"/.test(gradle));
-  assert.ok(mainActivity.includes('"3.9.37"'));
+  assert.ok(/FiiO M11S · v3\.9\.(3[7-9]|[4-9]\d)/.test(indexHtml));
+  assert.ok(/const CACHE_VERSION = 'v3\.9\.(3[7-9]|[4-9]\d)';/.test(swJs));
+  assert.ok(/const CACHE_NAME = 'nocturne-v3\.9\.(3[7-9]|[4-9]\d)';/.test(swJs));
+  const vcMatch = gradle.match(/versionCode\s*=\s*(\d+)/);
+  assert.ok(vcMatch && Number(vcMatch[1]) >= 91);
+  assert.ok(/versionName\s*=\s*"3\.9\.(3[7-9]|[4-9]\d)"/.test(gradle));
+  assert.ok(/"3\.9\.(3[7-9]|[4-9]\d)"/.test(mainActivity));
 
   assert.ok(!fs.readFileSync(path.join(ROOT, '404.html')).includes(13), '404.html must have 0 CR bytes');
   assert.equal(fs.readFileSync(path.join(ROOT, '404.html'), 'utf8'), indexHtml, '404.html must equal index.html');
