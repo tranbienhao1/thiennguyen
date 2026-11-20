@@ -4047,9 +4047,31 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void seek(long positionMs) {
-            mSeekTargetUs.set(Math.max(0, positionMs * 1000L));
+            long clampedMs = Math.max(0L, positionMs);
+            long durMs = mDurationMs.get();
+            if (durMs > 0L) {
+                clampedMs = Math.min(clampedMs, durMs);
+            }
+            mSeekTargetUs.set(clampedMs * 1000L);
+            mCurrentPositionMs.set(clampedMs);
             synchronized (mPauseLock) {
                 mPauseLock.notifyAll();
+            }
+            if (!mIsStopped) {
+                updateMediaSessionMetadata(
+                        mCurrentTrackTitle,
+                        mCurrentTrackArtist,
+                        mCurrentTrackAlbum,
+                        isPlaying());
+                final long posForJs = clampedMs;
+                final long durForJs = Math.max(0L, durMs);
+                runOnUiThread(() -> {
+                    if (!mIsStopped && mWebView != null && !isFinishing() && !isDestroyed()) {
+                        mWebView.evaluateJavascript(
+                                "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + posForJs + ", " + durForJs + ");",
+                                null);
+                    }
+                });
             }
         }
 
@@ -4951,11 +4973,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.40";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.41";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.40\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.41\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

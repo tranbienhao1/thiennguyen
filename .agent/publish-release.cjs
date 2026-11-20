@@ -80,25 +80,25 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.40';
-  const name = process.argv[3] || `Nocturne ${tag} (Fix dứt điểm Play/Pause & bấm 1 lần phát ngay trên Web + APK, vuốt thanh phát cảm ứng, ảnh bìa M4A/WAV/Lockscreen)`;
+  const tag = process.argv[2] || 'v3.9.41';
+  const name = process.argv[3] || `Nocturne ${tag} (Lặp 1 bài & Previous Bit-Perfect/CUE, đồng bộ thông báo & tua màn hình khóa khi tạm dừng, MediaSession & DSD đa bề mặt)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} — Fix dứt điểm Play/Pause & bấm 1 lần phát ngay (Web + Android APK), vuốt thanh phát cảm ứng & ảnh bìa nhúng
+    : `### Nocturne ${tag} (versionCode 95) — Đồng bộ Repeat-One / Previous Bit-Perfect & CUE, MediaSession & tua màn hình khóa khi tạm dừng
 
-#### 1. Fix P0 Play/Pause & hiện tượng phải bấm Play nhiều lần mới phát (cả Web và APK)
-- **Triệt tiêu xung đột \`SILENT_UNLOCK_WAV\` & \`AbortError\`**: \`unlockAudioDecksOnGesture(excludeEl)\` bỏ qua trên Android WebView (\`window.NocturneNative\`), loại trừ \`standbyAudio\` khi phát ngay từ cache/local, đồng thời kiểm tra \`isSilentUnlockSrc\` và tự thử lại 1 lần khi gặp \`AbortError\`.
-- **Sửa \`#play-button\` & đồng bộ đổi deck**: Kiểm tra \`isBitPerfectActive()\` thực tế trên Native Android trước khi resume/pause, khôi phục \`router.gain\` và bỏ \`muted\` khi phát lại, tạm dừng cả \`audio\` + \`standbyAudio\`, đồng bộ tức thì \`#fullscreen-play-btn\`, visualizer, \`mediaSession.playbackState\` và thời lượng ngay trong \`finishPlaybackStart\`.
-- **Fast-Tap không còn đảo Play→Pause 2 lần hay nuốt User Gesture**: Miễn trừ các nút điều khiển phát (\`#play-button\`, \`#room-play\`, \`#fullscreen-play-btn\`, \`#mini-play\`, v.v.) và thanh waveform khỏi \`touchend\` tổng hợp; thêm \`button { touch-action: manipulation; }\`.
-- **\`BitPerfectAudioPlayer\` (\`MainActivity.java\`)**: Bổ sung \`isActive()\` / \`isBitPerfectActive()\`, chặn \`pause()\`/\`resume()\` ảo khi luồng phát đã dừng, và không gọi \`track.play()\` nếu đã bấm tạm dừng trong lúc đang nạp bộ giải mã.
+#### 1. Chuẩn hóa Repeat-One & Previous (> 3s) cho Native Bit-Perfect và CUE sub-track (\`index.html\`)
+- **Repeat-One (\`state.repeat === 2\`)**: Tự động phát lại qua \`playTrack(state.currentId)\` ở chế độ Bit-Perfect Native (thay vì gọi nhầm \`audio.play()\` trên phần tử rỗng), và quay về đúng mốc \`cueStart\` cho bài cắt CUE.
+- **Previous (\`> 3s\`)**: Tính mốc 3 giây theo vị trí tương đối trong CUE (\`rawPosPrev - cueOffsetPrev > 3\`) và tua về đúng \`cueOffsetPrev\` kèm đồng bộ seekbar/waveform/MediaSession khi Bit-Perfect đang phát.
 
-#### 2. Thanh phát nhạc & Phím tắt Bit-Perfect / Cảm ứng
-- **Gỡ kẹt \`state.isSeeking\`**: Tự nhả khóa \`isSeeking\` trên \`mouseup\`/\`pointerup\`/\`touchend\`/\`touchcancel\`/\`blur\`, tránh đứng thanh tiến trình sau khi kéo thả trượt.
-- **Vuốt dạng sóng cảm ứng (\`attachWaveformTouchScrub\`)** trên \`#waveform-canvas\`, \`#fullscreen-waveform\`, \`#mini-waveform\`, cùng \`seekByStep\` và phím \`0\`–\`9\` hoạt động chuẩn cả Bit-Perfect & CUE.
+#### 2. Triệt tiêu trạng thái Notification & MediaSession sai khi Tạm dừng / Bit-Perfect (\`index.html\`)
+- **\`displayTrack(track)\`**: Tính động trạng thái \`isNotifPlaying\` theo thực tế phát/nạp (\`isPlaybackLoading\`, Bit-Perfect chưa pause, hoặc deck đang phát) thay vì gửi cứng \`true\`, tránh bật nhầm biểu tượng Đang phát / WakeLock khi đang tạm dừng.
+- **\`updateMediaSession\` & \`updatePositionState\`**: Đồng bộ đúng \`playbackState\` và vị trí/thời lượng ảo từ engine Bit-Perfect cho \`navigator.mediaSession.setPositionState\`.
 
-#### 3. Ảnh bìa M4A/ALAC/WAV nhúng & Lockscreen (\`MainActivity.java\`)
-- Bổ sung tách ảnh nhúng MP4/ALAC \`covr\` và WAV \`ID3 \`/\`id3 \` \`APIC\` qua \`FileChannel\`, kèm tra cứu 3 tầng cho ảnh màn hình khóa/thông báo (\`loadCachedCoverBitmap\` + \`mCurrentSourceKey\`).
+#### 3. Tua màn hình khóa khi tạm dừng, \`onHardwareSeek*\` CUE & Nút DSD đa bề mặt (\`MainActivity.java\` + \`index.html\`)
+- **\`BitPerfectAudioPlayer.seek(long positionMs)\`**: Cập nhật ngay \`mCurrentPositionMs\`, gọi \`updateMediaSessionMetadata(..., isPlaying())\` và gửi \`window.onNativeBitPerfectPosition\` về WebView kể cả khi đang tạm dừng.
+- **\`onHardwareSeekOffset\` / \`onHardwareSeekTo\`**: Hỗ trợ đầy đủ CUE \`cueStart\`, \`applySmartSeekTime\`, waveform & \`MediaSession\`.
+- **DSD đa bề mặt**: \`stopDsdWorker\`, \`playDsdFirstSlice\` và \`playDsdTrack\` gọi \`syncPlaybackButtonsUi\` để đồng bộ cả \`#play-button\`, \`#room-play\`, \`#mini-play\`, \`#fullscreen-play-btn\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
