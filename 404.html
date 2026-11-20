@@ -1627,6 +1627,123 @@
       filter: blur(12px) brightness(0.45) !important;
       opacity: 0.35 !important;
     }
+
+    /* ==========================================================================
+       v3.9.28 FiiO M11S (Chromium 74 / 5-inch 360x640dp) Album, Artist & Song Row Polish
+       - Fixes Chromium 74 missing CSS aspect-ratio (Chrome 88+), min() (Chrome 79+), and Flexbox gap (Chrome 84+)
+       - Ensures 1:1 square Album cards, true circular Artist portraits, edge-to-edge thumbnails, and wide readable Song/Singer/Album rows
+       ========================================================================== */
+    #album-hero-cover {
+      width: 128px;
+      height: 128px;
+      min-width: 128px;
+      min-height: 128px;
+    }
+    #album-hero[data-hero-type="artist"] #album-hero-cover {
+      border-radius: 50% !important;
+    }
+    #fullscreen-cover-wrap {
+      width: 240px;
+      height: 240px;
+      max-width: 72vw;
+      max-height: 44vh;
+      border-radius: 16px;
+    }
+    @media (min-width: 640px) {
+      #album-hero-cover {
+        width: 160px;
+        height: 160px;
+        min-width: 160px;
+        min-height: 160px;
+      }
+      #fullscreen-cover-wrap {
+        width: 340px;
+        height: 340px;
+      }
+    }
+    #track-list .track-row .track-art img,
+    footer.glass #player-cover img,
+    #album-hero-cover img,
+    #collection-grid .collection-art img,
+    #recent-list button > span:first-child img,
+    #recent-artists-list .artist-avatar img {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+    }
+    #track-list .track-row .track-number {
+      margin-right: 8px !important;
+    }
+    #track-list .track-row .track-art {
+      margin-right: 11px !important;
+    }
+    #recent-artists-list > * + * {
+      margin-left: 14px !important;
+    }
+    #recent-artists-list .artist-avatar {
+      width: 72px !important;
+      height: 72px !important;
+      min-width: 72px !important;
+      min-height: 72px !important;
+      border-radius: 50% !important;
+      overflow: hidden !important;
+      margin-bottom: 6px !important;
+    }
+    #album-hero button + button {
+      margin-left: 6px;
+    }
+    #fullscreen-mode-pills > button + button {
+      margin-left: 4px;
+    }
+    @media (max-width: 767.98px) {
+      #collection-grid .collection-art {
+        width: 100% !important;
+        height: calc((100vw - 36px) / 2) !important;
+        min-height: 148px !important;
+        max-height: 196px !important;
+        border-radius: 12px !important;
+      }
+      #collection-grid .collection-art.is-artist {
+        width: calc((100vw - 56px) / 2) !important;
+        height: calc((100vw - 56px) / 2) !important;
+        min-width: 132px !important;
+        min-height: 132px !important;
+        max-width: 156px !important;
+        max-height: 156px !important;
+        margin: 0 auto !important;
+        border-radius: 50% !important;
+      }
+      #collection-grid .collection-card[data-collection-action="artist"] {
+        text-align: center !important;
+      }
+      #album-hero {
+        padding: 14px !important;
+        margin-bottom: 14px !important;
+      }
+      #album-hero-cover {
+        width: 88px !important;
+        height: 88px !important;
+        min-width: 88px !important;
+        min-height: 88px !important;
+        border-radius: 12px !important;
+      }
+      #album-hero button {
+        margin: 0 6px 6px 0 !important;
+      }
+      /* Hide invisible hover-only desktop queue buttons on 360px DAP screens so Song Title, Singer & Album get +80px width */
+      #track-list .track-row button[data-queue-action="play_next"],
+      #track-list .track-row button[data-queue-action="append"],
+      #track-list .track-row button[data-queue-action="add"] {
+        display: none !important;
+      }
+      #fullscreen-cover-wrap {
+        width: 64vw !important;
+        height: 64vw !important;
+        max-width: 228px !important;
+        max-height: 228px !important;
+        border-radius: 16px !important;
+      }
+    }
   </style>
 </head>
 
@@ -2225,7 +2342,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.27</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.28</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4805,8 +4922,8 @@
       releaseUnusedCloudUrl(oldPreload);
     }
     window.addEventListener('beforeunload', () => { if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.cancelAll('unload'); if (typeof savePlaybackSession === 'function') savePlaybackSession(true); for (const url of state.objectUrls) URL.revokeObjectURL(url); state.objectUrls.clear(); });
-    // v3.9.27: native /local-cover art (FiiO MicroSD / MediaStore) may legitimately have no picture.
-    // Swap the broken <img> for the neutral placeholder and forget the dead URL so it is never re-requested.
+    // v3.9.27/v3.9.28: native /local-cover art (FiiO MicroSD / MediaStore) may legitimately have no picture.
+    // Swap the broken <img> for a clean contextual placeholder (initials on Album/Artist cards, ♫ on rows) and forget the dead URL.
     const failedNativeCovers = new Set();
     window.addEventListener('error', function (event) {
       const el = event && event.target;
@@ -4821,8 +4938,55 @@
             if (t && t.cover === failedSrc) t.cover = '';
           }
         }
+        if (state.albumCovers && typeof state.albumCovers.entries === 'function') {
+          for (const entry of Array.from(state.albumCovers.entries())) {
+            if (entry[1] === failedSrc) state.albumCovers.delete(entry[0]);
+          }
+        }
       }
       try {
+        if (el.id === 'fullscreen-cover-img') {
+          el.classList.add('hidden');
+          const fsEmpty = $('fullscreen-cover-empty');
+          if (fsEmpty) fsEmpty.classList.remove('hidden');
+          return;
+        }
+        if (el.id === 'fullscreen-bg-cover') {
+          el.classList.add('hidden');
+          return;
+        }
+        const collectionArt = typeof el.closest === 'function' ? el.closest('.collection-art') : null;
+        if (collectionArt) {
+          const card = typeof collectionArt.closest === 'function' ? collectionArt.closest('.collection-card') : null;
+          const titleNode = card ? card.querySelector('.collection-title') : null;
+          const rawTitle = (titleNode && titleNode.textContent) ? titleNode.textContent.trim() : '';
+          const words = rawTitle ? rawTitle.split(/\s+/) : [];
+          let initials = '';
+          for (let w = 0; w < Math.min(2, words.length); w++) {
+            if (words[w]) initials += words[w].charAt(0).toUpperCase();
+          }
+          const span = document.createElement('span');
+          span.className = 'collection-initials';
+          span.textContent = initials || '♫';
+          if (el.parentNode) el.parentNode.replaceChild(span, el);
+          return;
+        }
+        const artistAvatar = typeof el.closest === 'function' ? el.closest('.artist-avatar') : null;
+        if (artistAvatar) {
+          const initialsAttr = artistAvatar.getAttribute('data-initials') || '♫';
+          const span = document.createElement('span');
+          span.textContent = initialsAttr;
+          if (el.parentNode) el.parentNode.replaceChild(span, el);
+          return;
+        }
+        const heroCover = typeof el.closest === 'function' ? el.closest('#album-hero-cover') : null;
+        if (heroCover) {
+          const span = document.createElement('span');
+          span.className = 'grid h-full w-full place-items-center text-4xl text-zinc-500';
+          span.textContent = '♫';
+          if (el.parentNode) el.parentNode.replaceChild(span, el);
+          return;
+        }
         const ph = document.createElement('span');
         ph.className = 'text-zinc-600';
         ph.textContent = '♫';
@@ -5428,8 +5592,115 @@
         if (track) playTrack(track.id);
       }));
       $('recent-section').classList.toggle('hidden', !recent.length || state.activeView !== 'home');
+      renderRecentArtists();
       renderContextualPlaylist();
     }
+
+    function renderRecentArtists() {
+      const listEl = $('recent-artists-list');
+      const sectionEl = $('recent-artists-section');
+      if (!listEl || !sectionEl) return;
+      const tracks = Array.isArray(state.tracks) ? state.tracks : [];
+      if (!tracks.length) return;
+
+      const artistMap = new Map();
+      const recentRank = new Map();
+      const historyList = Array.isArray(state.recentHistory) ? state.recentHistory : [];
+      for (let i = 0; i < historyList.length; i++) {
+        const h = historyList[i];
+        if (!h || !h.artist) continue;
+        const k = (typeof library !== 'undefined' && typeof library.normalizeSearchKey === 'function')
+          ? library.normalizeSearchKey(h.artist)
+          : String(h.artist).trim().toLowerCase();
+        if (k && !recentRank.has(k)) recentRank.set(k, i);
+      }
+
+      for (let i = 0; i < tracks.length; i++) {
+        const t = tracks[i];
+        if (!t) continue;
+        const meta = (typeof library !== 'undefined' && typeof library.trackMetadata === 'function') ? library.trackMetadata(t) : t;
+        const name = String((meta && meta.artist) || t.artist || '').trim();
+        if (!name) continue;
+        const key = (typeof library !== 'undefined' && typeof library.normalizeSearchKey === 'function')
+          ? library.normalizeSearchKey(name)
+          : name.toLowerCase();
+        if (!key) continue;
+        let entry = artistMap.get(key);
+        if (!entry) {
+          entry = { key: key, name: name, count: 0, cover: '' };
+          artistMap.set(key, entry);
+        }
+        entry.count++;
+        if (!entry.cover && t.cover && t.cover !== '♫' && !failedNativeCovers.has(t.cover)) {
+          entry.cover = t.cover;
+        }
+      }
+
+      let entries = Array.from(artistMap.values());
+      const namedEntries = entries.filter(function (e) {
+        const low = e.name.toLowerCase();
+        return low !== 'unknown artist' && low !== 'nghệ sĩ không xác định' && low !== '<unknown>';
+      });
+      if (namedEntries.length > 0) entries = namedEntries;
+      if (!entries.length) return;
+
+      entries.sort(function (a, b) {
+        const rA = recentRank.has(a.key) ? recentRank.get(a.key) : 999999;
+        const rB = recentRank.has(b.key) ? recentRank.get(b.key) : 999999;
+        if (rA !== rB) return rA - rB;
+        if ((Boolean(b.cover) ? 1 : 0) !== (Boolean(a.cover) ? 1 : 0)) {
+          return (b.cover ? 1 : 0) - (a.cover ? 1 : 0);
+        }
+        if (b.count !== a.count) return b.count - a.count;
+        return a.name.localeCompare(b.name, 'vi');
+      });
+
+      const topArtists = entries.slice(0, 14);
+      listEl.innerHTML = topArtists.map(function (artist) {
+        const words = artist.name.trim().split(/\s+/);
+        let initials = '';
+        for (let w = 0; w < Math.min(2, words.length); w++) {
+          if (words[w]) initials += words[w].charAt(0).toUpperCase();
+        }
+        if (!initials) initials = '♫';
+        const avatarInner = artist.cover
+          ? '<img src="' + escapeHtml(artist.cover) + '" loading="lazy" decoding="async" class="h-full w-full object-cover rounded-full" alt="">'
+          : '<span>' + escapeHtml(initials) + '</span>';
+        return '<button type="button" data-recent-artist="' + escapeHtml(artist.name) + '" class="group flex shrink-0 cursor-pointer flex-col items-center gap-1.5 bg-transparent border-0 p-0 text-center" title="' + escapeHtml(artist.name) + ' (' + artist.count + ' bài)">' +
+          '<div class="artist-avatar grid h-20 w-20 place-items-center rounded-full border border-purple-400/30 bg-gradient-to-br from-purple-600/40 to-indigo-900/60 text-lg font-semibold text-white shadow-lg overflow-hidden transition group-hover:scale-105" style="border-radius:50%" data-initials="' + escapeHtml(initials) + '">' +
+            avatarInner +
+          '</div>' +
+          '<span class="max-w-[88px] truncate text-center text-xs font-medium text-zinc-200 transition group-hover:text-purple-300">' + escapeHtml(artist.name) + '</span>' +
+          '<span class="max-w-[88px] truncate text-center text-[10px] text-zinc-500">' + artist.count + ' bài</span>' +
+        '</button>';
+      }).join('');
+
+      listEl.querySelectorAll('[data-recent-artist]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const artistName = btn.getAttribute('data-recent-artist');
+          if (artistName && typeof openArtist === 'function') openArtist(artistName);
+        });
+      });
+
+      if (!sectionEl._navBound) {
+        sectionEl._navBound = true;
+        const navBtns = sectionEl.querySelectorAll('button');
+        navBtns.forEach(function (b) {
+          const label = (b.getAttribute('aria-label') || b.textContent || '').trim();
+          if (label === 'Trước' || label === '<') {
+            b.addEventListener('click', function () { listEl.scrollBy({ left: -240, behavior: 'smooth' }); });
+          } else if (label === 'Tiếp' || label === '>') {
+            b.addEventListener('click', function () { listEl.scrollBy({ left: 240, behavior: 'smooth' }); });
+          } else if (label.toUpperCase() === 'MORE') {
+            b.addEventListener('click', function () {
+              const artistNav = document.querySelector('.nav-link[data-view=' + '"artists"]');
+              if (artistNav) artistNav.click();
+            });
+          }
+        });
+      }
+    }
+    window.renderRecentArtists = renderRecentArtists;
 
     function renderRecentActivity() {
       return renderRecentTracks();
@@ -6334,8 +6605,19 @@
       const durationEl = $('album-hero-duration');
       const coverEl = $('album-hero-cover');
 
-      if (titleEl) titleEl.textContent = entry.name || 'Album';
-      if (artistEl) artistEl.textContent = isAlbum ? (entry.artist || '—') : `${(entry.tracks || []).length} bài hát`;
+      hero.setAttribute('data-hero-type', isAlbum ? 'album' : 'artist');
+      if (titleEl) titleEl.textContent = entry.name || (isAlbum ? 'Album' : 'Nghệ sĩ');
+      if (artistEl) {
+        artistEl.textContent = isAlbum ? (entry.artist || '—') : `${(entry.tracks || []).length} bài hát`;
+        const canTapArtist = Boolean(isAlbum && entry.artist && entry.artist !== '—' && entry.artist !== 'Unknown Artist');
+        artistEl.classList.toggle('cursor-pointer', canTapArtist);
+        artistEl.classList.toggle('hover:underline', canTapArtist);
+        artistEl.classList.toggle('text-[#91cde5]', canTapArtist);
+        artistEl.onclick = canTapArtist ? function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          if (typeof openArtist === 'function') openArtist(entry.artist);
+        } : null;
+      }
       if (typeEl) typeEl.textContent = isAlbum ? 'ALBUM' : 'ARTIST';
       if (qualityEl) {
         /* summary?.highestQuality || { label: 'LOSSLESS', tier: 'lossless' } */ const qualityInfo = (summary && summary.highestQuality) || { label: 'LOSSLESS', tier: 'lossless' };
@@ -6709,6 +6991,8 @@
       document.querySelectorAll('.nav-link[data-view]').forEach(button => button.classList.toggle('is-active', button.dataset.view === state.activeView));
       showArtistAlbumsView(entry);
     }
+    window.openArtist = openArtist;
+    window.openAlbum = openAlbum;
 
     let lastCollectionStructureKey = '';
 
@@ -7010,12 +7294,22 @@
         const titleHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.title, state.query, {escape: true}) : escapeHtml(metadata.title);
         const artistHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.artist, state.query, {escape: true}) : escapeHtml(metadata.artist);
         const albumHtml = (typeof library !== 'undefined' && library && typeof library.highlightSearchMatch === 'function' && state.query) ? library.highlightSearchMatch(metadata.album, state.query, {escape: true}) : escapeHtml(metadata.album);
+        const showInlineMobileAlbum = Boolean(
+          metadata.album &&
+          metadata.album !== '—' &&
+          metadata.album !== 'FiiO Internal & SD Card' &&
+          metadata.album !== 'Unknown Album' &&
+          !(state.trackScope && state.currentCollectionEntry && state.currentCollectionEntry.action === 'album')
+        );
+        const mobileAlbumInlineHtml = showInlineMobileAlbum
+          ? ` <span class="sm:hidden text-zinc-400">· <span class="album-link hover:underline cursor-pointer">${albumHtml}</span></span>`
+          : '';
         // Pha B — hàng bài hát kiểu Tidal (Melissa chọn 20:35): hàng phẳng
         // ngăn bằng hairline thay vì thẻ bo tròn, bìa 48px, số thứ tự
         // đổi thành ▶ khi hover, tiêu đề text-sm rõ hơn nghệ sĩ text-xs,
         // huy hiệu chất lượng thành pill, thời lượng text-xs.
         return `<div role="button" tabindex="0" class="track-row${versionInfo.versionIndex > 0 ? ' track-version-row' : ''} ${active ? 'active' : ''} group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-white/[.06] ${versionInfo.versionIndex > 0 ? 'py-2 pl-10 pr-4' : 'px-4 py-2'} text-left transition hover:bg-white/[.04] sm:grid-cols-[minmax(0,1fr)_minmax(100px,.45fr)_minmax(110px,.5fr)_104px]" aria-label="Phát ${escapeHtml(metadata.title)} — ${escapeHtml(metadata.artist)}" data-track-index="${trackIndex + 1}" data-track-id="${escapeHtml(track.id)}">
-          <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" loading="lazy" decoding="async" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${titleHtml}${annBadge}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${artistHtml}</span> <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
+          <span class="flex min-w-0 items-center gap-3"><span class="track-number relative w-5 shrink-0 text-center text-[10px] tabular-nums text-zinc-600" aria-hidden="true"><span class="group-hover:invisible">${versionInfo.versionIndex > 0 ? '↳' : String(trackIndex + 1).padStart(2, '0')}</span><span class="track-hover-play absolute inset-0 hidden place-items-center text-[11px] text-zinc-100 group-hover:grid">▶</span></span><span class="track-art relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded bg-zinc-800 text-sm text-zinc-400">${track.cover ? `<img src="${escapeHtml(track.cover)}" loading="lazy" decoding="async" class="h-full w-full object-contain" alt="">` : '♫'}${active ? '<span class="track-playing-overlay absolute inset-0 grid place-items-center bg-black/45 text-white">♫</span>' : ''}</span><span class="min-w-0"><span class="track-title block truncate text-sm font-medium ${active ? 'text-violet-200' : 'text-zinc-200'}">${titleHtml}${annBadge}</span><span class="mt-0.5 block truncate text-xs text-zinc-500"><span class="artist-link text-[#7675ed] hover:underline cursor-pointer font-medium">${artistHtml}</span>${mobileAlbumInlineHtml} <span class="text-zinc-700">· ${sourceLabel(track.source)}${track.isDsd ? (track.dsdMultiplier ? ` · DSD${track.dsdMultiplier}` : track.sampleRate ? ` · DSD${track.sampleRate / 44100}` : '') : track.sampleRate ? ` · ${Math.round(track.sampleRate / 1000)} kHz` : ''}${track.isDsd ? (track.pcmRate ? ` · PCM ${(track.pcmRate / 1000).toFixed(1)} kHz/${track.pcmBitDepth}-bit` : '') : track.bitDepth ? ` / ${track.bitDepth}-bit` : ''}</span></span></span></span>
           <span class="hidden truncate text-xs text-zinc-500 sm:block"><span class="album-link hover:underline cursor-pointer">${albumHtml}</span></span><span class="hidden sm:block"><span class="rounded-full border px-2 py-0.5 text-[9px] font-medium tracking-wide ${q.tone}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${q.label}</span></span><span class="flex items-center justify-end gap-1"><span class="track-rating hidden sm:inline-block mr-1 text-[11px] text-amber-400 cursor-pointer select-none hover:opacity-80" data-rating-track-id="${escapeHtml(track.id)}" title="Đánh giá: ${trRating}/5 sao">${trStars}</span>${versionInfo.versionIndex === 0 && versionInfo.versionGroup.versions.length > 1 ? `<button type="button" data-version-action="toggle" data-version-key="${escapeHtml(versionInfo.versionGroup.key)}" class="shrink-0 rounded-full border border-violet-400/40 px-2 py-0.5 text-[10px] font-medium text-violet-200 hover:bg-violet-400/10" aria-expanded="${expandedVersions.has(versionInfo.versionGroup.key)}" aria-label="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn' : 'Mở rộng'} ${versionInfo.versionGroup.versions.length} phiên bản của ${escapeHtml(metadata.title)}" title="${expandedVersions.has(versionInfo.versionGroup.key) ? 'Thu gọn các phiên bản' : 'Xem các phiên bản khác'}">${versionInfo.versionGroup.versions.length} phiên bản ${expandedVersions.has(versionInfo.versionGroup.key) ? '▴' : '▾'}</button>` : ''}<span class="text-right text-xs tabular-nums text-zinc-400">${track.duration ? formatTime(track.duration) : '—'}</span><button type="button" data-metadata-action="open" data-metadata-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-sky-200/10 hover:text-sky-100 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Tra thông tin ${escapeHtml(metadata.title)} và nghệ sĩ" title="Thông tin bài hát, album và nghệ sĩ">ⓘ</button><button type="button" data-queue-action="play_next" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Phát tiếp theo" title="Phát tiếp theo">⏭</button><button type="button" data-queue-action="append" data-track-id="${escapeHtml(track.id)}" class="grid h-8 w-8 place-items-center rounded-md text-xs text-zinc-500 opacity-0 transition hover:bg-violet-400/20 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" aria-label="Thêm vào cuối" title="Thêm vào cuối">➕</button>${queued ? '<span data-queue-indicator="true" class="w-4 text-center text-xs text-violet-300" title="Đã có trong Phát tiếp theo">☷</span>' : `<button type="button" data-queue-action="add" data-track-id="${escapeHtml(track.id)}" class="w-4 text-center text-xs text-zinc-600 opacity-0 hover:text-violet-200 focus:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100" title="Phát tiếp theo">＋</button>`}</span>
         </div>`;
       }
@@ -7028,6 +7322,18 @@
           queueTrackIds: state.queueTrackIds,
           renderRow: (track, trackIndex) => renderSingleTrackRow(track, trackIndex),
           onRowClick: handleTrackRowActivation,
+          onArtistClick: function (trackId) {
+            const t = (typeof trackById === 'function') ? trackById(trackId) : (state.tracks || []).find(item => item.id === trackId);
+            if (!t) return;
+            const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(t) : t;
+            if (typeof openArtist === 'function') openArtist(meta.artist);
+          },
+          onAlbumClick: function (trackId) {
+            const t = (typeof trackById === 'function') ? trackById(trackId) : (state.tracks || []).find(item => item.id === trackId);
+            if (!t) return;
+            const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(t) : t;
+            if (typeof openAlbum === 'function') openAlbum(meta.album, meta.artist);
+          },
           onRowContextMenu: (trackId, e) => {
             if (typeof showTrackContextMenu === 'function') {
               showTrackContextMenu(e.clientX, e.clientY, trackId);
@@ -13763,7 +14069,7 @@
         if (isNativeControl) return;
 
         const interactiveEl = target && typeof target.closest === 'function' ? target.closest(
-          'button, a, summary, label, [role="button"], .nav-link, .source-btn, .roon-stat, .collection-card, .track-row, [data-view], [data-smart-playlist], [data-view-link], .star, [data-rating], [data-action]'
+          '.artist-link, .album-link, .track-annotation-indicator, [data-recent-artist], #album-hero-artist, #fullscreen-album, #fullscreen-performer, button, a, summary, label, [role="button"], .nav-link, .source-btn, .roon-stat, .collection-card, .track-row, [data-view], [data-smart-playlist], [data-view-link], .star, [data-rating], [data-action]'
         ) : null;
 
         if (interactiveEl && !interactiveEl.disabled) {
@@ -15187,8 +15493,9 @@
           hydrated.url = '';
         }
       }
-      // v3.9.27: covers are never persisted (URLs are deterministic) — rebuild the native /local-cover URL.
-      if (!hydrated.cover && typeof library !== 'undefined' && typeof library.buildFiioCoverUrl === 'function') {
+      if (typeof library !== 'undefined' && typeof library.enrichFiioTrackMetadata === 'function') {
+        library.enrichFiioTrackMetadata(hydrated);
+      } else if (!hydrated.cover && typeof library !== 'undefined' && typeof library.buildFiioCoverUrl === 'function') {
         hydrated.cover = library.buildFiioCoverUrl(hydrated);
       }
       return hydrated;
@@ -15331,6 +15638,9 @@
         if ((normPath && existingPaths.has(normPath)) || (normUri && existingUris.has(normUri))) continue;
         const track = hasFactory ? library.createFiioTrack(file) : createFiioFallbackTrack(file);
         if (track) {
+          if (typeof library !== 'undefined' && typeof library.enrichFiioTrackMetadata === 'function') {
+            library.enrichFiioTrackMetadata(track);
+          }
           state.tracks.push(track);
           if (normPath) existingPaths.add(normPath);
           if (normUri) existingUris.add(normUri);

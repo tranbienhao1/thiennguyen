@@ -1795,6 +1795,101 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * v3.9.28: Extracts embedded ID3v2 APIC cover art directly from .dsf (DSD tail ID3 pointer at bytes 20..27)
+     * or leading ID3v2 tags when Android's MediaMetadataRetriever does not support the container (e.g. DSF/DFF).
+     */
+    private static byte[] extractId3v2ApicFromFile(File file) {
+        if (file == null || !file.isFile() || !file.canRead()) return null;
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            long fileLen = raf.length();
+            if (fileLen < 38) return null;
+            byte[] magic = new byte[4];
+            raf.readFully(magic);
+            long id3Offset = -1L;
+            if (magic[0] == 'D' && magic[1] == 'S' && magic[2] == 'D' && magic[3] == ' ') {
+                raf.seek(20);
+                byte[] ptrBytes = new byte[8];
+                raf.readFully(ptrBytes);
+                long ptr = 0L;
+                for (int i = 0; i < 8; i++) {
+                    ptr |= ((long) (ptrBytes[i] & 0xFF)) << (i * 8);
+                }
+                if (ptr >= 28 && ptr + 10 < fileLen) {
+                    id3Offset = ptr;
+                }
+            } else if (magic[0] == 'I' && magic[1] == 'D' && magic[2] == '3') {
+                id3Offset = 0L;
+            }
+            if (id3Offset < 0) return null;
+            raf.seek(id3Offset);
+            byte[] hdr = new byte[10];
+            raf.readFully(hdr);
+            if (hdr[0] != 'I' || hdr[1] != 'D' || hdr[2] != '3') return null;
+            int tagSize = ((hdr[6] & 0x7F) << 21) | ((hdr[7] & 0x7F) << 14) | ((hdr[8] & 0x7F) << 7) | (hdr[9] & 0x7F);
+            int readLen = (int) Math.min((long) tagSize, Math.min(4L * 1024L * 1024L, fileLen - (id3Offset + 10)));
+            if (readLen <= 16) return null;
+            byte[] tagBuf = new byte[readLen];
+            raf.readFully(tagBuf);
+            for (int i = 0; i + 16 < readLen; i++) {
+                if (tagBuf[i] == 'A' && tagBuf[i + 1] == 'P' && tagBuf[i + 2] == 'I' && tagBuf[i + 3] == 'C') {
+                    int searchEnd = Math.min(readLen - 4, i + 10 + 3 * 1024 * 1024);
+                    for (int j = i + 10; j < searchEnd; j++) {
+                        boolean isJpeg = (tagBuf[j] & 0xFF) == 0xFF && (tagBuf[j + 1] & 0xFF) == 0xD8 && (tagBuf[j + 2] & 0xFF) == 0xFF;
+                        boolean isPng = (tagBuf[j] & 0xFF) == 0x89 && tagBuf[j + 1] == 'P' && tagBuf[j + 2] == 'N' && tagBuf[j + 3] == 'G';
+                        if (isJpeg || isPng) {
+                            int maxPicLen = readLen - j;
+                            byte[] pic = new byte[maxPicLen];
+                            System.arraycopy(tagBuf, j, pic, 0, maxPicLen);
+                            return pic;
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private byte[] extractFolderCoverFromDir(File dir, int size) {
+        if (dir == null || !dir.isDirectory()) return null;
+        try {
+            File[] kids = dir.listFiles();
+            if (kids == null || kids.length == 0) return null;
+            String[] preferred = new String[] {"cover", "folder", "front", "album", "albumart", "artwork", "thumb", "albumartsmall"};
+            for (String base : preferred) {
+                for (File kid : kids) {
+                    if (kid == null || !kid.isFile()) continue;
+                    String name = kid.getName().toLowerCase(Locale.US);
+                    if (name.equals(base + ".jpg") || name.equals(base + ".jpeg") || name.equals(base + ".png")) {
+                        byte[] jpeg = coverBytesToJpeg(coverReadSmallFile(kid, 8L * 1024L * 1024L), size);
+                        if (jpeg != null) return jpeg;
+                    }
+                }
+            }
+            // Fallback: pick the largest .jpg/.jpeg/.png in this album directory (skipping root /Music or /sdcard)
+            String dirName = dir.getName() != null ? dir.getName().toLowerCase(Locale.US) : "";
+            if (!dirName.equals("music") && !dirName.equals("dsd") && !dirName.equals("flac") && !dirName.equals("audio") && !dirName.equals("0") && !dirName.equals("sdcard")) {
+                File bestImg = null;
+                long bestLen = 0L;
+                for (File kid : kids) {
+                    if (kid == null || !kid.isFile()) continue;
+                    String name = kid.getName().toLowerCase(Locale.US);
+                    if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png")) {
+                        long len = kid.length();
+                        if (len > bestLen && len <= 10L * 1024L * 1024L) {
+                            bestLen = len;
+                            bestImg = kid;
+                        }
+                    }
+                }
+                if (bestImg != null) {
+                    return coverBytesToJpeg(coverReadSmallFile(bestImg, 10L * 1024L * 1024L), size);
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
     private byte[] extractCoverJpeg(String uriParam, String pathParam, int size) {
         Uri contentUri = null;
         File file = null;
@@ -1829,6 +1924,15 @@ public class MainActivity extends AppCompatActivity {
             try { mmr.release(); } catch (Throwable ignored) {}
         }
 
+        // 1b. Direct DSF tail ID3v2 / leading ID3v2 APIC extraction (for DSD .dsf files unsupported by MediaMetadataRetriever)
+        if (file != null && file.canRead()) {
+            byte[] dsfApic = extractId3v2ApicFromFile(file);
+            if (dsfApic != null) {
+                byte[] jpeg = coverBytesToJpeg(dsfApic, size);
+                if (jpeg != null) return jpeg;
+            }
+        }
+
         // 2. MediaStore thumbnail (Android 10+, also covers folder art indexed by MediaStore)
         Uri thumbUri = contentUri;
         if (thumbUri == null && file != null) thumbUri = resolveMediaStoreContentUriForPath(file.getAbsolutePath());
@@ -1846,24 +1950,16 @@ public class MainActivity extends AppCompatActivity {
             } catch (Throwable ignored) {}
         }
 
-        // 3. Folder art next to the track
+        // 3. Folder art next to the track (and parent album folder if track is inside CD1 / Disc 1)
         File parent = file != null ? file.getParentFile() : null;
         if (parent != null) {
-            try {
-                File[] kids = parent.listFiles();
-                if (kids != null) {
-                    String[] preferred = new String[] {"cover", "folder", "front", "album", "albumart", "albumartsmall"};
-                    for (String base : preferred) {
-                        for (File kid : kids) {
-                            String name = kid.getName().toLowerCase(Locale.US);
-                            if (name.equals(base + ".jpg") || name.equals(base + ".jpeg") || name.equals(base + ".png")) {
-                                byte[] jpeg = coverBytesToJpeg(coverReadSmallFile(kid, 8L * 1024L * 1024L), size);
-                                if (jpeg != null) return jpeg;
-                            }
-                        }
-                    }
-                }
-            } catch (Throwable ignored) {}
+            byte[] directFolderArt = extractFolderCoverFromDir(parent, size);
+            if (directFolderArt != null) return directFolderArt;
+            String pName = parent.getName() != null ? parent.getName().trim().toLowerCase(Locale.US) : "";
+            if (pName.matches("^(?:cd|disc|disk|sacd|side)\\s*[-_#.]?\\s*(?:\\d+|[a-d]|[ivx]+).*")) {
+                byte[] albumParentArt = extractFolderCoverFromDir(parent.getParentFile(), size);
+                if (albumParentArt != null) return albumParentArt;
+            }
         }
         return null;
     }
@@ -2656,6 +2752,24 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private android.graphics.Bitmap loadCachedCoverBitmap(@Nullable String album, @Nullable String artist) {
+        try {
+            if (album == null || artist == null) return null;
+            String a = album.trim();
+            String ar = artist.trim();
+            if (a.isEmpty() || ar.isEmpty() || "FiiO Internal & SD Card".equalsIgnoreCase(a) || "Unknown Artist".equalsIgnoreCase(ar)) {
+                return null;
+            }
+            String key = (a + "|" + ar).toLowerCase(Locale.US);
+            String hash = coverSha1Hex("k:" + key + "|320");
+            File jpg = new File(new File(getCacheDir(), "covers"), hash + ".jpg");
+            if (!jpg.isFile() || jpg.length() <= 0 || jpg.length() > 1024 * 1024) return null;
+            return android.graphics.BitmapFactory.decodeFile(jpg.getAbsolutePath());
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     private void updateMediaSessionMetadata(String title, String artist, String album, boolean isPlaying) {
         if (mMediaSession == null) return;
         try {
@@ -2680,6 +2794,10 @@ public class MainActivity extends AppCompatActivity {
             }
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused()) && mBitPerfectPlayer.getDurationMs() > 0) {
                 mb.putLong(MediaMetadata.METADATA_KEY_DURATION, mBitPerfectPlayer.getDurationMs());
+            }
+            android.graphics.Bitmap coverBmp = loadCachedCoverBitmap(album, displayArtist);
+            if (coverBmp != null) {
+                mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, coverBmp);
             }
             mMediaSession.setMetadata(mb.build());
         } catch (Exception ignored) {}
@@ -2707,6 +2825,7 @@ public class MainActivity extends AppCompatActivity {
             String displayTitle = (title != null && !title.trim().isEmpty()) ? title.trim() : "Nocturne Audiophile";
             String displayArtist = (artist != null && !artist.trim().isEmpty()) ? artist.trim() : "Nocturne Hi-Res Audio";
             String displayAlbum = (album != null && !album.trim().isEmpty()) ? album.trim() : null;
+            android.graphics.Bitmap coverBmp = loadCachedCoverBitmap(displayAlbum, displayArtist);
 
             NotificationCompat.Builder builder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                     .setSmallIcon(R.mipmap.ic_launcher)
@@ -2722,6 +2841,9 @@ public class MainActivity extends AppCompatActivity {
                     .addAction(isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
                             isPlaying ? "Pause" : "Play", pPlayPause)
                     .addAction(android.R.drawable.ic_media_next, "Next", pNext);
+            if (coverBmp != null) {
+                builder.setLargeIcon(coverBmp);
+            }
 
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null) {
@@ -2743,6 +2865,9 @@ public class MainActivity extends AppCompatActivity {
                     mb.putString(MediaMetadata.METADATA_KEY_ARTIST, displayArtist);
                     if (displayAlbum != null) {
                         mb.putString(MediaMetadata.METADATA_KEY_ALBUM, displayAlbum);
+                    }
+                    if (coverBmp != null) {
+                        mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, coverBmp);
                     }
                     mMediaSession.setMetadata(mb.build());
                 } catch (Exception ignored) {}
@@ -3923,11 +4048,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.27";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.28";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.27\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.28\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

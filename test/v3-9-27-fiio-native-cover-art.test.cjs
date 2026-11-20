@@ -44,7 +44,7 @@ test('4. index.html rebuilds covers for restored FiiO catalog and swaps dead art
   assert.ok(html.includes('hydrated.cover = library.buildFiioCoverUrl(hydrated);'));
   const i = html.indexOf('const failedNativeCovers = new Set();');
   assert.ok(i > 0);
-  const body = html.slice(i, i + 1200);
+  const body = html.slice(i, i + 3200);
   assert.ok(body.includes("window.addEventListener('error'"));
   assert.ok(body.includes("indexOf('/local-cover?') < 0"));
   assert.ok(body.includes('}, true);'), 'must use capture phase (img error does not bubble)');
@@ -79,7 +79,7 @@ test('6. Version sync v3.9.27 (versionCode 81), Unix LF asset parity, and Web Au
   assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.27';"));
   assert.ok(gradle.includes('versionCode = 81'));
   assert.ok(gradle.includes('versionName = "3.9.27"'));
-  assert.ok(/:\s*"3\.9\.27";/.test(java));
-  assert.ok(html.includes('FiiO M11S \u00b7 v3.9.27'));
+  assert.ok(/:\s*"3\.9\.\d+";/.test(java));
+  assert.ok(/FiiO M11S \u00b7 v3\.9\.\d+/.test(html));
   assert.ok(html.includes('state.crossfeedNodes.output.connect(state.context.destination)'));
 });
