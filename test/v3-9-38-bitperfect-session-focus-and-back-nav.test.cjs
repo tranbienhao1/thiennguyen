@@ -154,18 +154,19 @@ test('3. window.onAndroidBackPressed closes open Lyrics Editor & Lyrics Search m
   assert.equal(sandbox.window.onAndroidBackPressed(), false, 'Back should return false when no modal/collection is active');
 });
 
-test('4. Version sync v3.9.38 / versionCode 92, Unix LF parity & zero Chromium 74 ES2020+ syntax', () => {
+test('4. Version sync v3.9.38+ / versionCode >= 92, Unix LF parity & zero Chromium 74 ES2020+ syntax', () => {
   const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const swJs = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const gradle = fs.readFileSync(path.join(ROOT, 'android/app/build.gradle.kts'), 'utf8');
   const mainActivity = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
 
-  assert.ok(indexHtml.includes('FiiO M11S · v3.9.38'));
-  assert.ok(swJs.includes("const CACHE_VERSION = 'v3.9.38';"));
-  assert.ok(swJs.includes("const CACHE_NAME = 'nocturne-v3.9.38';"));
-  assert.ok(/versionCode\s*=\s*92\b/.test(gradle));
-  assert.ok(/versionName\s*=\s*"3\.9\.38"/.test(gradle));
-  assert.ok(mainActivity.includes('"3.9.38"'));
+  assert.match(indexHtml, /FiiO M11S · v3\.9\.(3[89]|[4-9]\d)/);
+  assert.match(swJs, /const CACHE_VERSION = 'v3\.9\.(3[89]|[4-9]\d)';/);
+  assert.match(swJs, /const CACHE_NAME = 'nocturne-v3\.9\.(3[89]|[4-9]\d)';/);
+  const vcMatch = gradle.match(/versionCode\s*=\s*(\d+)/);
+  assert.ok(vcMatch && Number(vcMatch[1]) >= 92, 'versionCode must be >= 92');
+  assert.match(gradle, /versionName\s*=\s*"3\.9\.(3[89]|[4-9]\d)"/);
+  assert.match(mainActivity, /"3\.9\.(3[89]|[4-9]\d)"/);
 
   assert.ok(!fs.readFileSync(path.join(ROOT, '404.html')).includes(13), '404.html must have 0 CR bytes');
   assert.equal(fs.readFileSync(path.join(ROOT, '404.html'), 'utf8'), indexHtml, '404.html must equal index.html');

@@ -170,6 +170,8 @@ public class MainActivity extends AppCompatActivity {
     private AudioFocusRequest mAudioFocusRequest;
     private boolean mHasAudioFocus = false;
     private volatile boolean mPausedByTransientFocusLoss = false;
+    private int mRendererRecoveryCount = 0;
+    private long mRendererRecoveryWindowStartMs = 0L;
     private MediaSession mMediaSession;
     private volatile int mSafeInsetTopDp = 0;
     private volatile int mSafeInsetBottomDp = 0;
@@ -865,6 +867,14 @@ public class MainActivity extends AppCompatActivity {
                     Log.w(TAG, "MainFrame load error: " + error.getDescription());
                 }
             }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                boolean didCrash = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && detail != null && detail.didCrash();
+                int priority = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && detail != null ? detail.rendererPriorityAtExit() : -1;
+                Log.e(TAG, "Main WebView render process gone (didCrash=" + didCrash + ", priority=" + priority + ")");
+                return recoverWebViewAfterRenderProcessGone(view);
+            }
         });
 
         mWebView.setWebChromeClient(new WebChromeClient() {
@@ -971,6 +981,27 @@ public class MainActivity extends AppCompatActivity {
                             return;
                         }
                         super.onPageStarted(view, url, favicon);
+                    }
+
+                    @Override
+                    public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                        boolean didCrash = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && detail != null && detail.didCrash();
+                        Log.w(TAG, "OAuth popup WebView render process gone (didCrash=" + didCrash + ")");
+                        android.view.ViewParent parent = view.getParent();
+                        if (parent instanceof ViewGroup) {
+                            ((ViewGroup) parent).removeView(view);
+                        }
+                        if (popupDialog.isShowing()) {
+                            popupDialog.dismiss();
+                        }
+                        try {
+                            popupWebView.destroy();
+                        } catch (Throwable ignored) {
+                        }
+                        if (mActivePopupDialog == popupDialog) {
+                            mActivePopupDialog = null;
+                        }
+                        return true;
                     }
                 });
 
@@ -1240,6 +1271,110 @@ public class MainActivity extends AppCompatActivity {
             mWebView.requestFocus();
             mWebView.requestFocusFromTouch();
         });
+    }
+
+    /**
+     * Safely detaches/destroys a crashed WebView renderer and recreates mWebView
+     * (capped at 3 recoveries per 60s) WITHOUT interrupting active Native Bit-Perfect playback.
+     */
+    private boolean recoverWebViewAfterRenderProcessGone(final WebView deadView) {
+        if (deadView != null && mWebView != null && deadView != mWebView) {
+            android.view.ViewParent staleParent = deadView.getParent();
+            if (staleParent instanceof ViewGroup) {
+                ((ViewGroup) staleParent).removeView(deadView);
+            }
+            try {
+                deadView.destroy();
+            } catch (Throwable ignored) {
+            }
+            return true;
+        }
+
+        if (isFinishing() || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && isDestroyed())) {
+            if (deadView != null) {
+                android.view.ViewParent deadParent = deadView.getParent();
+                if (deadParent instanceof ViewGroup) {
+                    ((ViewGroup) deadParent).removeView(deadView);
+                }
+                try {
+                    deadView.destroy();
+                } catch (Throwable ignored) {
+                }
+            }
+            return true;
+        }
+
+        long nowElapsedMs = SystemClock.elapsedRealtime();
+        if (mRendererRecoveryWindowStartMs == 0L || (nowElapsedMs - mRendererRecoveryWindowStartMs) > 60_000L) {
+            mRendererRecoveryWindowStartMs = nowElapsedMs;
+            mRendererRecoveryCount = 0;
+        }
+        mRendererRecoveryCount++;
+        if (mRendererRecoveryCount > 3) {
+            Log.e(TAG, "WebView renderer recovery limit exceeded (" + mRendererRecoveryCount + " in 60s); halting auto-recreate to preserve audio");
+            if (deadView != null) {
+                android.view.ViewParent deadParent = deadView.getParent();
+                if (deadParent instanceof ViewGroup) {
+                    ((ViewGroup) deadParent).removeView(deadView);
+                }
+                try {
+                    deadView.destroy();
+                } catch (Throwable ignored) {
+                }
+            }
+            return true;
+        }
+
+        ViewGroup parentGroup = null;
+        int childIndex = -1;
+        ViewGroup.LayoutParams existingLp = null;
+        int visibility = View.VISIBLE;
+        if (deadView != null) {
+            existingLp = deadView.getLayoutParams();
+            visibility = deadView.getVisibility();
+            android.view.ViewParent parent = deadView.getParent();
+            if (parent instanceof ViewGroup) {
+                parentGroup = (ViewGroup) parent;
+                childIndex = parentGroup.indexOfChild(deadView);
+                parentGroup.removeView(deadView);
+            }
+            try {
+                deadView.destroy();
+            } catch (Throwable ignored) {
+            }
+        }
+        if (parentGroup == null) {
+            View root = findViewById(R.id.root_layout);
+            if (root instanceof ViewGroup) {
+                parentGroup = (ViewGroup) root;
+                childIndex = 0;
+            }
+        }
+
+        WebView freshWebView = new WebView(MainActivity.this);
+        freshWebView.setId(R.id.web_view);
+        freshWebView.setVisibility(visibility);
+        if (existingLp != null) {
+            freshWebView.setLayoutParams(existingLp);
+        } else {
+            freshWebView.setLayoutParams(new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+
+        if (parentGroup != null) {
+            if (childIndex >= 0 && childIndex <= parentGroup.getChildCount()) {
+                parentGroup.addView(freshWebView, childIndex);
+            } else {
+                parentGroup.addView(freshWebView);
+            }
+        }
+
+        mWebView = freshWebView;
+        configureHighPerformanceWebView();
+        loadAppEntrypoint();
+        Log.i(TAG, "Recovered crashed main WebView (" + mRendererRecoveryCount + "/3 in window) without stopping mBitPerfectPlayer");
+        return true;
     }
 
     /**
@@ -2207,7 +2342,7 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
-    private static final long COVER_NONE_TTL_MS = 10L * 60L * 1000L;
+    private static final long COVER_NONE_TTL_MS = 2L * 60L * 1000L;
 
     private byte[] extractArtworkSubfolderCover(File parent, int size) {
         if (parent == null || !parent.isDirectory()) return null;
@@ -2374,9 +2509,12 @@ public class MainActivity extends AppCompatActivity {
     private WebResourceResponse buildCoverResponse(int status, String reason, byte[] body) {
         Map<String, String> headers = new HashMap<>(buildLocalMediaCorsHeaders());
         if (status == 200 && body != null) {
+            headers.put("Content-Type", "image/jpeg");
+            headers.put("Content-Length", String.valueOf(body.length));
             headers.put("Cache-Control", "public, max-age=31536000");
             return new WebResourceResponse("image/jpeg", null, status, reason, headers, new ByteArrayInputStream(body));
         }
+        headers.put("Cache-Control", "no-store");
         return new WebResourceResponse("text/plain", "UTF-8", status, reason, headers, new ByteArrayInputStream(new byte[0]));
     }
 
@@ -2401,10 +2539,11 @@ public class MainActivity extends AppCompatActivity {
 
             String identity = (keyParam != null && !keyParam.isEmpty()) ? "v3k:" + keyParam : "v3s:" + source;
             String hash = coverSha1Hex(identity + "|" + size);
+            String sourceHash = coverSha1Hex("v3src:" + source + "|" + size);
             File dir = new File(getCacheDir(), "covers");
             if (!dir.exists()) dir.mkdirs();
             File jpg = new File(dir, hash + ".jpg");
-            File none = new File(dir, hash + ".none");
+            File none = new File(dir, sourceHash + ".none");
 
             byte[] cached = coverReadSmallFile(jpg, 2L * 1024L * 1024L);
             if (cached != null) {
@@ -3785,6 +3924,12 @@ public class MainActivity extends AppCompatActivity {
             return mDurationMs.get();
         }
 
+        private static int pcmBytesPerFrame(int channels, int pcmEncoding) {
+            int bytesPerSample = (pcmEncoding == AudioFormat.ENCODING_PCM_16BIT) ? 2
+                    : (pcmEncoding == AudioFormat.ENCODING_PCM_24BIT_PACKED ? 3 : 4);
+            return Math.max(1, channels) * bytesPerSample;
+        }
+
         private void notifyBitPerfectFormatToWeb(int actualRate, int actualEncoding, boolean mixerBitPerfect, AudioDeviceInfo dev) {
             final int bits = (actualEncoding == AudioFormat.ENCODING_PCM_FLOAT || actualEncoding == 22) ? 32
                     : (actualEncoding == 21 ? 24 : 16);
@@ -3916,6 +4061,43 @@ public class MainActivity extends AppCompatActivity {
                 long durUs = format.containsKey(MediaFormat.KEY_DURATION) ?
                         format.getLong(MediaFormat.KEY_DURATION) : 0;
                 mDurationMs.set(durUs / 1000);
+                if (mDurationMs.get() <= 0) {
+                    android.media.MediaMetadataRetriever durMmr = new android.media.MediaMetadataRetriever();
+                    try {
+                        boolean mmrBound = false;
+                        if (resolvedUri != null && resolvedUri.startsWith("content://")) {
+                            durMmr.setDataSource(MainActivity.this, Uri.parse(resolvedUri));
+                            mmrBound = true;
+                        } else if (resolvedPath != null && !resolvedPath.isEmpty()) {
+                            File localDurFile = new File(resolvedPath);
+                            if (localDurFile.exists() && localDurFile.canRead()) {
+                                durMmr.setDataSource(resolvedPath);
+                                mmrBound = true;
+                            } else {
+                                Uri fallbackMediaUri = resolveMediaStoreContentUriForPath(resolvedPath);
+                                if (fallbackMediaUri != null) {
+                                    durMmr.setDataSource(MainActivity.this, fallbackMediaUri);
+                                    mmrBound = true;
+                                } else {
+                                    durMmr.setDataSource(resolvedPath);
+                                    mmrBound = true;
+                                }
+                            }
+                        }
+                        if (mmrBound) {
+                            String durStr = durMmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION);
+                            if (durStr != null && !durStr.isEmpty()) {
+                                long fallbackDurMs = Long.parseLong(durStr.trim());
+                                if (fallbackDurMs > 0) {
+                                    mDurationMs.set(fallbackDurMs);
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {
+                    } finally {
+                        try { durMmr.release(); } catch (Throwable ignored) {}
+                    }
+                }
 
                 // 3. Create and configure decoder (preserve >=24-bit Hi-Res precision via PCM_FLOAT when supported)
                 String mime = format.getString(MediaFormat.KEY_MIME);
@@ -4048,6 +4230,11 @@ public class MainActivity extends AppCompatActivity {
                 boolean sawOutputEOS = false;
                 final long TIMEOUT_US = 10000;
                 long lastUiUpdateElapsedMs = 0L;
+                long basePositionMs = 0L;
+                long writtenFramesSinceBase = 0L;
+                long lastPtsPosMs = -1L;
+                int stuckPtsCount = 0;
+                int bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
 
                 while (!mIsStopped && !sawOutputEOS && mPlaybackEpoch.get() == epoch) {
                     // Check pause
@@ -4076,6 +4263,24 @@ public class MainActivity extends AppCompatActivity {
                             decoder.flush();
                             track.flush();
                             sawInputEOS = false;
+                            basePositionMs = seekUs / 1000L;
+                            writtenFramesSinceBase = 0L;
+                            lastPtsPosMs = -1L;
+                            stuckPtsCount = 0;
+                            mCurrentPositionMs.set(basePositionMs);
+                            lastUiUpdateElapsedMs = SystemClock.uptimeMillis();
+                            if (mWebView != null && !mIsStopped) {
+                                final long seekReportPosMs = basePositionMs;
+                                final long seekReportDurMs = mDurationMs.get();
+                                mWebView.post(() -> {
+                                    if (!mIsStopped && mWebView != null) {
+                                        mWebView.evaluateJavascript(
+                                                "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + seekReportPosMs + ", " + seekReportDurMs + ");",
+                                                null
+                                        );
+                                    }
+                                });
+                            }
                         } catch (Exception e) {
                             Log.w(TAG, "BitPerfect: Seek error: " + e.getMessage());
                         }
@@ -4120,6 +4325,7 @@ public class MainActivity extends AppCompatActivity {
                             channels = newCh;
                             pcmEncoding = newEncoding;
                             channelMask = (channels == 1) ? AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+                            bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
 
                             try {
                                 track.stop();
@@ -4175,12 +4381,29 @@ public class MainActivity extends AppCompatActivity {
                         if (outBuf != null && info.size > 0 && track != null) {
                             outBuf.position(info.offset);
                             outBuf.limit(info.offset + info.size);
-                            track.write(outBuf, info.size, AudioTrack.WRITE_BLOCKING);
-                            long posMs = Math.max(0L, info.presentationTimeUs / 1000L);
+                            int written = track.write(outBuf, info.size, AudioTrack.WRITE_BLOCKING);
+                            if (written > 0) {
+                                writtenFramesSinceBase += (written / Math.max(1, bytesPerFrame));
+                            }
+                            long pcmPosMs = basePositionMs + ((writtenFramesSinceBase * 1000L) / Math.max(1, sampleRate));
+                            long ptsPosMs = info.presentationTimeUs > 0 ? (info.presentationTimeUs / 1000L) : -1L;
+                            if (ptsPosMs > 0 && ptsPosMs == lastPtsPosMs) {
+                                stuckPtsCount++;
+                            } else if (ptsPosMs > 0) {
+                                stuckPtsCount = 0;
+                                lastPtsPosMs = ptsPosMs;
+                            }
+                            long posMs = (ptsPosMs > 0 && stuckPtsCount < 3)
+                                    ? Math.max(ptsPosMs, Math.max(0L, pcmPosMs - 1500L))
+                                    : pcmPosMs;
+                            long knownDurMs = mDurationMs.get();
+                            if (knownDurMs > 0 && posMs > knownDurMs) {
+                                posMs = knownDurMs;
+                            }
                             mCurrentPositionMs.set(posMs);
                             long nowElapsed = SystemClock.uptimeMillis();
                             final long uiUpdateIntervalMs = mIsInBackground ? 2000L : 250L;
-                            if (nowElapsed - lastUiUpdateElapsedMs >= uiUpdateIntervalMs && !mIsStopped && mWebView != null) {
+                            if ((lastUiUpdateElapsedMs == 0L || (nowElapsed - lastUiUpdateElapsedMs >= uiUpdateIntervalMs)) && !mIsStopped && mWebView != null) {
                                 lastUiUpdateElapsedMs = nowElapsed;
                                 final long reportPosMs = posMs;
                                 final long reportDurMs = mDurationMs.get();
@@ -4516,11 +4739,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.38";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.39";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.38\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.39\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

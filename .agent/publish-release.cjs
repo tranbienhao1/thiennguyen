@@ -80,22 +80,22 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.38';
-  const name = process.argv[3] || `Nocturne ${tag} (Lưu/khôi phục vị trí Bit-Perfect, tự phát lại sau AudioFocus tạm thời & nút Back modal lời)`;
+  const tag = process.argv[2] || 'v3.9.39';
+  const name = process.argv[3] || `Nocturne ${tag} (Fix ảnh bài hát & thanh phát FiiO M11S, tự phục hồi WebView, Sleep Timer & MediaSession)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} — Khôi phục vị trí Bit-Perfect, AudioFocus thông minh & Back Modal Lời
+    : `### Nocturne ${tag} — Fix ảnh bài hát & thanh phát trên FiiO M11S, phục hồi WebView, Sleep Timer & MediaSession
 
-#### 1. Tự phát lại khi nhận lại AudioFocus sau thông báo/cuộc gọi ngắn (\`MainActivity.java\`)
-- **Phân biệt \`AUDIOFOCUS_LOSS_TRANSIENT\` và \`AUDIOFOCUS_LOSS\` vĩnh viễn**: Ghi nhận \`mPausedByTransientFocusLoss\` để tự động \`resume()\` Native Bit-Perfect khi có \`AUDIOFOCUS_GAIN\`, đồng thời xóa cờ ngay khi người dùng chủ động nhấn Tạm dừng/Dừng.
+#### 1. Fix ảnh bìa bài hát & thanh phát/seekbar trên FiiO M11S (\`MainActivity.java\` & \`index.html\`)
+- **Ảnh bìa \`/local-cover?\`**: Tách file negative cache \`.none\` theo từng bài (\`v3src:\`) thay vì chung cả album để 1 file thiếu tag không chặn ảnh của cả album; bổ sung \`Content-Type\`, \`Content-Length\` và \`Cache-Control: no-store\` cho phản hồi lỗi; giữ nguyên DOM \`<img id="room-cover">\` khi fallback, cho phép thử lại cache-bust \`_r=1..2\`, đồng bộ \`data-album-key\` & \`displayTrack\` với ảnh online fallback.
+- **Thanh phát & tiến trình Bit-Perfect / WebView 74**: Thêm fallback đọc thời lượng qua \`MediaMetadataRetriever\`, đếm frame PCM thực tế (\`writtenFramesSinceBase\`) làm dự phòng khi decoder \`presentationTimeUs\` đứng yên, đồng bộ đồng thời \`#seek\`, \`#seek-mobile\`, \`#room-seek\`, \`#fullscreen-time-cur/dur\`, \`#fullscreen-waveform\`, \`#mini-waveform\`, kèm \`-webkit-appearance: none\` chuẩn Chromium 74 và watchdog 500ms.
 
-#### 2. Lưu & khôi phục chuẩn xác vị trí phát trên Bit-Perfect, Web Audio & Cloud (\`index.html\`)
-- **Thống nhất \`getCurrentPlaybackPositionSeconds()\` & \`seekCurrentPlaybackToSeconds()\`**: Khôi phục phiên phát (\`#resume-session-banner\`, cập nhật OTA/PWA, \`visibilitychange\` khi ẩn app) hoạt động chính xác cho cả Bit-Perfect Native lẫn luồng FLAC/Cloud tải \`loadedmetadata\` bất đồng bộ.
-- **Đồng bộ nút \`#fullscreen-play-btn\`** qua \`onNativeBitPerfectStateChange\` và \`isAppPlaying()\`.
+#### 2. Khôi phục WebView \`onRenderProcessGone\` mà không ngắt nhạc (\`MainActivity.java\`)
+- **Phục hồi có giới hạn (tối đa 3 lần / 60 giây)**: Khi Chromium renderer bị crash/kill, tự khởi tạo mới \`R.id.web_view\` đúng vị trí/layout và nạp lại giao diện trong khi **giữ nguyên \`mBitPerfectPlayer\` đang phát**; tự đóng/hủy OAuth \`popupWebView\` khi gặp sự cố.
 
-#### 3. Nút Back Android đóng hộp thoại Sửa & Tra cứu Lời bài hát
-- **Mở rộng \`window.onAndroidBackPressed\`**: Tự đóng \`#lyrics-editor-modal\` (\`closeEditor\`) và \`#lyrics-search-modal\` (\`closeSearch\`) khi bấm nút Back cứng/cử chỉ thay vì thoát app.
+#### 3. Đồng bộ Hẹn giờ ngủ & \`navigator.mediaSession\`
+- \`setSleepTimer\` và \`sleepAtTrackEnd\` tạm dừng đồng thời Web Audio, \`standbyAudio\` và \`NocturneNative.pauseBitPerfectPlayback()\`; \`playNext(-1)\` và \`#sleep-album-end\` dùng \`getCurrentPlaybackPositionSeconds()\`; \`navigator.mediaSession\` hỗ trợ đầy đủ Bit-Perfect \`play\`/\`pause\`/\`seekbackward\`/\`seekforward\` và \`applySmartSeekTime\` cho Web \`seekbackward\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
