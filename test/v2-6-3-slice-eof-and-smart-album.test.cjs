@@ -244,3 +244,51 @@ test('v2.6.9: First-click playback after Google Drive sync unlocks decks synchro
   assert.ok(html.includes('async function safeResumeAudioContext('), 'safeResumeAudioContext must exist');
   assert.ok(html.includes('navigator.userActivation.isActive === false'), 'must not close unlocked AudioContext after async load when user gesture expired');
 });
+
+test('v2.7.0: Web DAC Output Picker, Audiophile Shortcuts (J/L/C), Android BecomingNoisy & USB DAC Hot-Plug', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('AudioManager.ACTION_AUDIO_BECOMING_NOISY'), 'MainActivity must auto-pause on headphone/DAC unplug');
+  assert.ok(mainJava.includes('AudioDeviceCallback'), 'MainActivity must detect USB DAC hot-plug/unplug');
+  assert.ok(html.includes('id="audio-output-device-select"'), 'Settings must include Web Audio Output Device Picker');
+  assert.ok(html.includes('window.onAndroidAudioBecomingNoisy'), 'Web bridge must handle Android becoming-noisy pause');
+  assert.ok(html.includes('window.onAndroidAudioDeviceChanged'), 'Web bridge must handle Android USB DAC hot-plug');
+  assert.ok(html.includes('function copyNowPlayingToClipboard()'), 'Copy Now Playing shortcut must exist');
+});
+
+test('v2.8.0: Keep-Screen-On (Web WakeLock + Android FLAG_KEEP_SCREEN_ON), 1-Click Cache Cleaner & Preconnect hints', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('FLAG_KEEP_SCREEN_ON'), 'MainActivity must support FLAG_KEEP_SCREEN_ON');
+  assert.ok(mainJava.includes('public void setKeepScreenOn(boolean enable)'), 'NocturneJsBridge must expose setKeepScreenOn');
+  assert.ok(mainJava.includes('public String getDeviceAudioTelemetry()'), 'NocturneJsBridge must expose getDeviceAudioTelemetry');
+  assert.ok(html.includes('rel="preconnect" href="https://www.googleapis.com"'), 'index.html must preconnect to googleapis.com');
+  assert.ok(html.includes('async function syncScreenWakeLock('), 'index.html must include syncScreenWakeLock');
+  assert.ok(html.includes('id="clear-slice-cache-btn"'), 'Settings must include 1-click slice cache cleaner button');
+});
+
+test('v2.9.0: Random Album Discovery, Smooth Android AudioFocus Ducking & Tactile Haptic Feedback', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('window.onAndroidAudioDuck(true)'), 'MainActivity must notify Web on transient audio focus duck');
+  assert.ok(mainJava.includes('public void hapticTick()'), 'NocturneJsBridge must expose hapticTick');
+  assert.ok(html.includes('id="random-album-btn"'), 'Toolbar must include Random Album Discovery button');
+  assert.ok(html.includes('function playRandomAlbumDiscovery()'), 'playRandomAlbumDiscovery must exist');
+  assert.ok(html.includes('window.onAndroidAudioDuck = (ducked) =>'), 'Web bridge must handle smooth audio ducking');
+});
+
+test('v3.0.0: Personal Listening Telemetry, Android Background Battery Saver, Hardware Volume Bridge & Scroll-to-Top', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes("window.onAndroidAppLifecycle('background')"), 'MainActivity onPause must notify Web for background battery saving');
+  assert.ok(mainJava.includes('public int getSystemVolumePercent()'), 'NocturneJsBridge must expose getSystemVolumePercent');
+  assert.ok(mainJava.includes('public void setSystemVolumePercent(int pct)'), 'NocturneJsBridge must expose setSystemVolumePercent');
+  assert.ok(html.includes('id="scroll-top-btn"'), 'Floating Scroll-to-Top pill must exist');
+  assert.ok(html.includes('function formatListeningTelemetrySummary()'), 'Personal listening telemetry summary must exist');
+  assert.ok(html.includes('window.onAndroidAppLifecycle = (phase) =>'), 'Web bridge must handle Android lifecycle visualizer pause');
+});
+
+test('v3.1.0: Quick Favorites Pill, 0-9 Percentage Seek & Smart Battery-Saver Mode (Web + APK)', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('public boolean isPowerSaveMode()'), 'NocturneJsBridge must expose isPowerSaveMode');
+  assert.ok(mainJava.includes('window.onAndroidPowerSaveChanged'), 'MainActivity onResume must forward PowerSaveMode');
+  assert.ok(html.includes('id="quick-fav-toggle-btn"'), 'Toolbar must include 1-tap Quick Favorites button');
+  assert.ok(html.includes("body.power-save-mode"), 'CSS must include lightweight power-save-mode rules');
+  assert.ok(html.includes('window.onAndroidPowerSaveChanged = (enabled) =>'), 'Web bridge must handle Android power-save mode');
+});

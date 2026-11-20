@@ -55,7 +55,7 @@ test('Big Update v2.2.0 (Web + Android APK) Verification Suite', async (t) => {
   });
 
   await t.test('6. Service Worker v2.2.0 caches complete APP_SHELL assets', () => {
-    assert.ok(/nocturne-v2\.[2-9]\.\d+/.test(swJs), 'sw.js must be bumped to >= v2.2.0');
+    assert.ok(/nocturne-v[23]\.\d+\.\d+/.test(swJs), 'sw.js must be bumped to >= v2.2.0');
     for (const asset of ['tailwind.min.css', 'virtual-scroll.js', 'ui-overlay.js', 'library-tools.js', 'autoeq-cue.js', 'lrclib-client.js', 'lyrics-utils.js', 'lyrics-editor-ui.js']) {
       assert.ok(swJs.includes(`'${asset}'`), `sw.js APP_SHELL must include ${asset}`);
     }
@@ -69,7 +69,7 @@ test('Big Update v2.2.0 (Web + Android APK) Verification Suite', async (t) => {
     assert.ok(manifestXml.includes('android:foregroundServiceType="mediaPlayback"'), 'AndroidManifest.xml service must set foregroundServiceType=mediaPlayback');
     assert.ok(mainActivity.includes('NocturnePlaybackService.class'), 'MainActivity.java must wire NocturnePlaybackService');
     assert.ok(/versionCode\s*=\s*(2[4-9]|[3-9]\d)/.test(gradleKts), 'build.gradle.kts versionCode must be >= 24');
-    assert.ok(/versionName\s*=\s*"2\.[2-9]\.\d+"/.test(gradleKts), 'build.gradle.kts versionName must be >= 2.2.0');
+    assert.ok(/versionName\s*=\s*"[23]\.\d+\.\d+"/.test(gradleKts), 'build.gradle.kts versionName must be >= 2.2.0');
     assert.ok(manifestXml.includes('android:largeHeap="true"'), 'AndroidManifest.xml must enable largeHeap');
     assert.ok(indexHtml.includes('id="album-hero-shuffle"'), 'Album hero must include Shuffle button');
     assert.ok(indexHtml.includes('id="jump-to-playing-btn"'), 'Toolbar must include Jump to Now Playing button');

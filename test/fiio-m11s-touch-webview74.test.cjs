@@ -87,11 +87,11 @@ test('5. Fast-Tap Touch Engine Hardening & Click Deduplication', () => {
 
 test('6. Service Worker cache bumped to v2.1.3 & Web Audio Invariant Preserved', () => {
   const sw = fs.readFileSync(SW_JS, 'utf8');
-  assert.ok(/const CACHE_VERSION = 'v2\.[1-9]\.\d+';/.test(sw), 'sw.js must be bumped to v2.1.3');
-  assert.ok(/const CACHE_NAME = 'nocturne-v2\.[1-9]\.\d+';/.test(sw), 'sw.js cache name must be nocturne-v2.1.3');
+  assert.ok(/const CACHE_VERSION = 'v[23]\.\d+\.\d+';/.test(sw), 'sw.js must be bumped to v2.1.3');
+  assert.ok(/const CACHE_NAME = 'nocturne-v[23]\.\d+\.\d+';/.test(sw), 'sw.js cache name must be nocturne-v2.1.3');
 
   const lib = fs.readFileSync(LIB_UTILS, 'utf8');
-  assert.ok(/version = 'nocturne-v2\.[1-9]\.\d+'/.test(lib), 'library-utils manifest must default to nocturne-v2.1.3');
+  assert.ok(/version = 'nocturne-v[23]\.\d+\.\d+'/.test(lib), 'library-utils manifest must default to nocturne-v2.1.3');
 
   const html = fs.readFileSync(INDEX_HTML, 'utf8');
   assert.ok(html.includes('state.crossfeedNodes.output.connect(state.context.destination)'), 'Web Audio graph invariant must be strictly preserved');

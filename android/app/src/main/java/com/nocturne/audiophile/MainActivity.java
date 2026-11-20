@@ -22,6 +22,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
 import android.media.AudioFocusRequest;
 import android.media.AudioFormat;
@@ -49,7 +50,9 @@ import android.provider.OpenableColumns;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.KeyEvent;
+import android.view.WindowManager;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -1180,7 +1183,12 @@ public class MainActivity extends AppCompatActivity {
                     .setOnAudioFocusChangeListener(focusChange -> {
                         switch (focusChange) {
                             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
-                                // Never pause on transient ducking (e.g. notification chime)
+                                // Smoothly duck volume during GPS/notification chime without pausing
+                                if (mWebView != null) {
+                                    mWebView.post(() -> mWebView.evaluateJavascript(
+                                            "if (typeof window.onAndroidAudioDuck === 'function') window.onAndroidAudioDuck(true);",
+                                            null));
+                                }
                                 break;
                             case AudioManager.AUDIOFOCUS_LOSS:
                             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
@@ -1200,6 +1208,11 @@ public class MainActivity extends AppCompatActivity {
                                 break;
                             case AudioManager.AUDIOFOCUS_GAIN:
                                 mHasAudioFocus = true;
+                                if (mWebView != null) {
+                                    mWebView.post(() -> mWebView.evaluateJavascript(
+                                            "if (typeof window.onAndroidAudioDuck === 'function') window.onAndroidAudioDuck(false);",
+                                            null));
+                                }
                                 break;
                         }
                     })
@@ -1245,6 +1258,13 @@ public class MainActivity extends AppCompatActivity {
         if (mWebView != null) {
             mWebView.onResume();
             mWebView.requestFocus();
+            boolean psm = false;
+            try {
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) psm = pm.isPowerSaveMode();
+            } catch (Exception ignored) {}
+            final boolean isPowerSave = psm;
+            mWebView.post(() -> mWebView.evaluateJavascript("if(typeof window.onAndroidAppLifecycle==='function'){window.onAndroidAppLifecycle('foreground');}if(typeof window.onAndroidPowerSaveChanged==='function'){window.onAndroidPowerSaveChanged(" + (isPowerSave ? "true" : "false") + ");}", null));
         }
     }
 
@@ -1270,7 +1290,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        // Do not pause webview timers during active background playback
+        // Keep audio playback running smoothly, but let Web pause heavy visualizers to save battery/RAM
+        if (mWebView != null) {
+            mWebView.post(() -> mWebView.evaluateJavascript("if(typeof window.onAndroidAppLifecycle==='function'){window.onAndroidAppLifecycle('background');}", null));
+        }
     }
 
     @Override
@@ -1918,6 +1941,79 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    private boolean mIsBecomingNoisyRegistered = false;
+    private final BroadcastReceiver mBecomingNoisyReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent != null && AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(intent.getAction())) {
+                try {
+                    if (mBitPerfectPlaying.get() && !mBitPerfectPaused.get()) {
+                        pauseBitPerfectPlayback();
+                    }
+                } catch (Exception ignored) {}
+                runOnUiThread(() -> {
+                    if (mWebView != null) {
+                        mWebView.evaluateJavascript("if(typeof window.onAndroidAudioBecomingNoisy==='function'){window.onAndroidAudioBecomingNoisy();}", null);
+                    }
+                });
+            }
+        }
+    };
+
+    private Object mAudioDeviceCallback = null;
+
+    private void registerAudioHardwareObservers() {
+        if (!mIsBecomingNoisyRegistered) {
+            try {
+                IntentFilter noisyFilter = new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY);
+                registerReceiver(mBecomingNoisyReceiver, noisyFilter);
+                mIsBecomingNoisyRegistered = true;
+            } catch (Exception ignored) {}
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && mAudioManager != null && mAudioDeviceCallback == null) {
+            try {
+                AudioDeviceCallback cb = new AudioDeviceCallback() {
+                    @Override
+                    public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
+                        notifyUsbDacChange(addedDevices, true);
+                    }
+                    @Override
+                    public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
+                        notifyUsbDacChange(removedDevices, false);
+                    }
+                };
+                mAudioManager.registerAudioDeviceCallback(cb, new Handler(Looper.getMainLooper()));
+                mAudioDeviceCallback = cb;
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void unregisterAudioHardwareObservers() {
+        if (mIsBecomingNoisyRegistered) {
+            try { unregisterReceiver(mBecomingNoisyReceiver); } catch (Exception ignored) {}
+            mIsBecomingNoisyRegistered = false;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && mAudioManager != null && mAudioDeviceCallback instanceof AudioDeviceCallback) {
+            try { mAudioManager.unregisterAudioDeviceCallback((AudioDeviceCallback) mAudioDeviceCallback); } catch (Exception ignored) {}
+            mAudioDeviceCallback = null;
+        }
+    }
+
+    private void notifyUsbDacChange(AudioDeviceInfo[] devices, boolean connected) {
+        if (devices == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        for (AudioDeviceInfo dev : devices) {
+            if (dev == null || !dev.isSink()) continue;
+            int t = dev.getType();
+            boolean isExternalDac = (t == AudioDeviceInfo.TYPE_USB_DEVICE || t == AudioDeviceInfo.TYPE_USB_HEADSET || t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || t == AudioDeviceInfo.TYPE_WIRED_HEADSET || t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP);
+            if (!isExternalDac) continue;
+            String rawName = dev.getProductName() != null ? dev.getProductName().toString() : "Audio Output";
+            String safeName = rawName.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ");
+            final String js = "if(typeof window.onAndroidAudioDeviceChanged==='function'){window.onAndroidAudioDeviceChanged('" + safeName + "'," + (connected ? "true" : "false") + ");}";
+            runOnUiThread(() -> { if (mWebView != null) mWebView.evaluateJavascript(js, null); });
+            break;
+        }
+    }
+
     private void registerMediaNotificationReceiver() {
         if (!mIsMediaReceiverRegistered) {
             IntentFilter filter = new IntentFilter();
@@ -1931,6 +2027,7 @@ public class MainActivity extends AppCompatActivity {
             }
             mIsMediaReceiverRegistered = true;
         }
+        registerAudioHardwareObservers();
     }
 
     private void unregisterMediaNotificationReceiver() {
@@ -1940,6 +2037,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception ignored) {}
             mIsMediaReceiverRegistered = false;
         }
+        unregisterAudioHardwareObservers();
     }
 
     private void initMediaSession() {
@@ -3059,6 +3157,78 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public boolean requestAudioFocus() {
             return mActivity.requestAudioFocus();
+        }
+
+        @JavascriptInterface
+        public void setKeepScreenOn(boolean enable) {
+            mActivity.runOnUiThread(() -> {
+                try {
+                    if (enable) {
+                        mActivity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    } else {
+                        mActivity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    }
+                } catch (Exception ignored) {}
+            });
+        }
+
+        @JavascriptInterface
+        public void hapticTick() {
+            mActivity.runOnUiThread(() -> {
+                try {
+                    if (mActivity.mWebView != null) {
+                        mActivity.mWebView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                    }
+                } catch (Exception ignored) {}
+            });
+        }
+
+        @JavascriptInterface
+        public int getSystemVolumePercent() {
+            try {
+                if (mActivity.mAudioManager == null) return 70;
+                int max = mActivity.mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                int cur = mActivity.mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+                return max > 0 ? Math.round((cur * 100f) / max) : 70;
+            } catch (Exception e) { return 70; }
+        }
+
+        @JavascriptInterface
+        public void setSystemVolumePercent(int pct) {
+            try {
+                if (mActivity.mAudioManager == null) return;
+                int clamped = Math.max(0, Math.min(100, pct));
+                int max = mActivity.mAudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                int target = Math.round((clamped * max) / 100f);
+                mActivity.mAudioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0);
+            } catch (Exception ignored) {}
+        }
+
+        @JavascriptInterface
+        public boolean isPowerSaveMode() {
+            try {
+                PowerManager pm = (PowerManager) mActivity.getSystemService(Context.POWER_SERVICE);
+                return pm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && pm.isPowerSaveMode();
+            } catch (Exception e) { return false; }
+        }
+
+        @JavascriptInterface
+        public String getDeviceAudioTelemetry() {
+            try {
+                boolean hasUsbDac = false;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && mActivity.mAudioManager != null) {
+                    AudioDeviceInfo[] outs = mActivity.mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+                    for (AudioDeviceInfo d : outs) {
+                        if (d != null && (d.getType() == AudioDeviceInfo.TYPE_USB_DEVICE || d.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                            hasUsbDac = true;
+                            break;
+                        }
+                    }
+                }
+                return "{\"sdk\":" + Build.VERSION.SDK_INT + ",\"hasUsbDac\":" + hasUsbDac + ",\"bitPerfectApi34\":" + (Build.VERSION.SDK_INT >= 34) + "}";
+            } catch (Exception e) {
+                return "{\"sdk\":" + Build.VERSION.SDK_INT + "}";
+            }
         }
 
         @JavascriptInterface
