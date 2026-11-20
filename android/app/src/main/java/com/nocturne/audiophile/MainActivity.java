@@ -2248,6 +2248,143 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
+    private static long[] findMp4BoxRange(java.nio.channels.FileChannel ch, long start, long end, String fourCc) throws IOException {
+        if (ch == null || start < 0 || end <= start + 8 || fourCc == null || fourCc.length() != 4) return null;
+        byte[] hdr = new byte[8];
+        byte[] ext = new byte[8];
+        long pos = start;
+        for (int iter = 0; iter < 128 && pos + 8 <= end; iter++) {
+            ch.position(pos);
+            java.nio.ByteBuffer hb = java.nio.ByteBuffer.wrap(hdr);
+            while (hb.hasRemaining()) {
+                if (ch.read(hb) < 0) return null;
+            }
+            long size = ((hdr[0] & 0xFFL) << 24) | ((hdr[1] & 0xFFL) << 16) | ((hdr[2] & 0xFFL) << 8) | (hdr[3] & 0xFFL);
+            int headerLen = 8;
+            if (size == 1L) {
+                if (pos + 16 > end) return null;
+                java.nio.ByteBuffer eb = java.nio.ByteBuffer.wrap(ext);
+                while (eb.hasRemaining()) {
+                    if (ch.read(eb) < 0) return null;
+                }
+                size = 0L;
+                for (int i = 0; i < 8; i++) size = (size << 8) | (ext[i] & 0xFFL);
+                headerLen = 16;
+            } else if (size == 0L) {
+                size = end - pos;
+            }
+            if (size < headerLen) return null;
+            long boxEnd = pos + size;
+            if (boxEnd > end) boxEnd = end;
+            if (boxEnd <= pos) return null;
+            if (hdr[4] == (byte) fourCc.charAt(0) && hdr[5] == (byte) fourCc.charAt(1)
+                    && hdr[6] == (byte) fourCc.charAt(2) && hdr[7] == (byte) fourCc.charAt(3)) {
+                return new long[]{pos + headerLen, boxEnd};
+            }
+            pos = boxEnd;
+        }
+        return null;
+    }
+
+    private static byte[] extractMp4CovrFromChannel(java.nio.channels.FileChannel ch) {
+        if (ch == null) return null;
+        try {
+            long fileLen = ch.size();
+            if (fileLen < 32) return null;
+            byte[] head = new byte[12];
+            ch.position(0L);
+            java.nio.ByteBuffer hb = java.nio.ByteBuffer.wrap(head);
+            while (hb.hasRemaining()) {
+                if (ch.read(hb) < 0) return null;
+            }
+            if (head[4] != 'f' || head[5] != 't' || head[6] != 'y' || head[7] != 'p') return null;
+            long[] moov = findMp4BoxRange(ch, 0L, fileLen, "moov");
+            if (moov == null) return null;
+            long[] udta = findMp4BoxRange(ch, moov[0], moov[1], "udta");
+            if (udta == null) return null;
+            long[] meta = findMp4BoxRange(ch, udta[0], udta[1], "meta");
+            if (meta == null || meta[1] - meta[0] <= 12) return null;
+            long[] ilst = findMp4BoxRange(ch, meta[0] + 4L, meta[1], "ilst");
+            if (ilst == null) return null;
+            long[] covr = findMp4BoxRange(ch, ilst[0], ilst[1], "covr");
+            if (covr == null) return null;
+            long[] data = findMp4BoxRange(ch, covr[0], covr[1], "data");
+            if (data == null || data[1] - data[0] <= 24) return null;
+            long picStart = data[0] + 8L;
+            long picLen = data[1] - picStart;
+            if (picLen <= 16 || picLen > 8L * 1024L * 1024L) return null;
+            byte[] pic = new byte[(int) picLen];
+            ch.position(picStart);
+            java.nio.ByteBuffer pb = java.nio.ByteBuffer.wrap(pic);
+            while (pb.hasRemaining()) {
+                if (ch.read(pb) < 0) break;
+            }
+            if (pb.hasRemaining()) return null;
+            boolean isJpeg = (pic[0] & 0xFF) == 0xFF && (pic[1] & 0xFF) == 0xD8 && (pic[2] & 0xFF) == 0xFF;
+            boolean isPng = (pic[0] & 0xFF) == 0x89 && pic[1] == 'P' && pic[2] == 'N' && pic[3] == 'G';
+            return (isJpeg || isPng) ? pic : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static byte[] extractWavId3ApicFromChannel(java.nio.channels.FileChannel ch) {
+        if (ch == null) return null;
+        try {
+            long fileLen = ch.size();
+            if (fileLen < 36) return null;
+            byte[] riff = new byte[12];
+            ch.position(0L);
+            java.nio.ByteBuffer rb = java.nio.ByteBuffer.wrap(riff);
+            while (rb.hasRemaining()) {
+                if (ch.read(rb) < 0) return null;
+            }
+            if (riff[0] != 'R' || riff[1] != 'I' || riff[2] != 'F' || riff[3] != 'F'
+                    || riff[8] != 'W' || riff[9] != 'A' || riff[10] != 'V' || riff[11] != 'E') {
+                return null;
+            }
+            byte[] chkHdr = new byte[8];
+            long pos = 12L;
+            for (int iter = 0; iter < 128 && pos + 8 <= fileLen; iter++) {
+                ch.position(pos);
+                java.nio.ByteBuffer hb = java.nio.ByteBuffer.wrap(chkHdr);
+                while (hb.hasRemaining()) {
+                    if (ch.read(hb) < 0) return null;
+                }
+                long chunkSize = (chkHdr[4] & 0xFFL) | ((chkHdr[5] & 0xFFL) << 8)
+                        | ((chkHdr[6] & 0xFFL) << 16) | ((chkHdr[7] & 0xFFL) << 24);
+                if (chunkSize < 0) return null;
+                long dataStart = pos + 8L;
+                long paddedSize = chunkSize + (chunkSize & 1L);
+                long nextPos = dataStart + paddedSize;
+                if (dataStart > fileLen || nextPos <= pos) return null;
+                String id = new String(chkHdr, 0, 4, StandardCharsets.US_ASCII);
+                if ("id3 ".equalsIgnoreCase(id) && chunkSize > 26 && dataStart < fileLen) {
+                    int readLen = (int) Math.min(chunkSize, Math.min(4L * 1024L * 1024L, fileLen - dataStart));
+                    if (readLen > 26) {
+                        byte[] buf = new byte[readLen];
+                        ch.position(dataStart);
+                        java.nio.ByteBuffer bb = java.nio.ByteBuffer.wrap(buf);
+                        while (bb.hasRemaining()) {
+                            if (ch.read(bb) < 0) break;
+                        }
+                        int actual = readLen - bb.remaining();
+                        if (actual > 26 && buf[0] == 'I' && buf[1] == 'D' && buf[2] == '3') {
+                            byte[] body = new byte[actual - 10];
+                            System.arraycopy(buf, 10, body, 0, body.length);
+                            return extractId3v2ApicFromBuffer(body, body.length);
+                        }
+                        if (actual > 16) {
+                            return extractId3v2ApicFromBuffer(buf, actual);
+                        }
+                    }
+                }
+                pos = nextPos;
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
     private byte[] extractBinaryEmbeddedArt(@Nullable Uri contentUri, @Nullable File file) {
         try {
             if (file != null && file.isFile() && file.canRead()) {
@@ -2262,15 +2399,27 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Throwable ignored) {}
             }
             if (file != null && file.isFile() && file.canRead()) {
-                byte[] id3Pic = extractId3v2ApicFromFile(file);
-                if (id3Pic != null) return id3Pic;
+                try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+                    java.nio.channels.FileChannel ch = raf.getChannel();
+                    byte[] id3Pic = extractId3v2ApicFromChannel(ch);
+                    if (id3Pic != null) return id3Pic;
+                    byte[] mp4Pic = extractMp4CovrFromChannel(ch);
+                    if (mp4Pic != null) return mp4Pic;
+                    byte[] wavPic = extractWavId3ApicFromChannel(ch);
+                    if (wavPic != null) return wavPic;
+                } catch (Throwable ignored) {}
             }
             if (contentUri != null) {
                 try (ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(contentUri, "r")) {
                     if (pfd != null) {
                         try (FileInputStream fis = new FileInputStream(pfd.getFileDescriptor())) {
-                            byte[] id3Pic = extractId3v2ApicFromChannel(fis.getChannel());
+                            java.nio.channels.FileChannel ch = fis.getChannel();
+                            byte[] id3Pic = extractId3v2ApicFromChannel(ch);
                             if (id3Pic != null) return id3Pic;
+                            byte[] mp4Pic = extractMp4CovrFromChannel(ch);
+                            if (mp4Pic != null) return mp4Pic;
+                            byte[] wavPic = extractWavId3ApicFromChannel(ch);
+                            if (wavPic != null) return wavPic;
                         }
                     }
                 } catch (Throwable ignored) {}
@@ -3354,19 +3503,55 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private static String stripFeaturedArtistForCoverKey(@Nullable String rawArtist) {
+        if (rawArtist == null) return "";
+        String cleaned = rawArtist.trim();
+        if (cleaned.isEmpty()) return "";
+        cleaned = cleaned.replaceAll("(?i)\\s*\\([^)]*(?:feat\\.?|ft\\.?|featuring|cùng|với|hợp\\s+tác)[^)]*\\)", "");
+        cleaned = cleaned.replaceAll("(?i)\\s*\\[[^\\]]*(?:feat\\.?|ft\\.?|featuring|cùng|với|hợp\\s+tác)[^\\]]*\\]", "");
+        cleaned = cleaned.replaceAll("(?i)\\s+(?:feat\\.?|ft\\.?|featuring|cùng|với|hợp\\s+tác|x|×)\\s+.*$", "");
+        String[] inlineSeps = new String[] { " & ", " + ", ";", ",", " · ", "、", " - " };
+        for (String sep : inlineSeps) {
+            int idx = cleaned.indexOf(sep);
+            if (idx > 0) cleaned = cleaned.substring(0, idx);
+        }
+        return cleaned.trim();
+    }
+
+    @Nullable
+    private android.graphics.Bitmap decodeCachedCoverHash(@Nullable String hash) {
+        if (hash == null || hash.isEmpty()) return null;
+        File jpg = new File(new File(getCacheDir(), "covers"), hash + ".jpg");
+        if (!jpg.isFile() || jpg.length() <= 0 || jpg.length() > 1024 * 1024) return null;
+        return android.graphics.BitmapFactory.decodeFile(jpg.getAbsolutePath());
+    }
+
     private android.graphics.Bitmap loadCachedCoverBitmap(@Nullable String album, @Nullable String artist) {
         try {
-            if (album == null || artist == null) return null;
-            String a = album.trim();
-            String ar = artist.trim();
-            if (a.isEmpty() || ar.isEmpty() || "FiiO Internal & SD Card".equalsIgnoreCase(a) || "Unknown Artist".equalsIgnoreCase(ar)) {
-                return null;
+            String a = album != null ? album.trim() : "";
+            String ar = artist != null ? artist.trim() : "";
+            boolean validAlbum = !a.isEmpty() && !"FiiO Internal & SD Card".equalsIgnoreCase(a) && !"Unknown Album".equalsIgnoreCase(a);
+            boolean validArtist = !ar.isEmpty() && !"Unknown Artist".equalsIgnoreCase(ar);
+            if (validAlbum && validArtist) {
+                String key = (a + "|" + ar).toLowerCase(Locale.US);
+                String hash = coverSha1Hex("v3k:" + key + "|320");
+                android.graphics.Bitmap exactBmp = decodeCachedCoverHash(hash);
+                if (exactBmp != null) return exactBmp;
+                String primaryAr = stripFeaturedArtistForCoverKey(ar);
+                if (!primaryAr.isEmpty() && !primaryAr.equalsIgnoreCase(ar)) {
+                    String primaryHash = coverSha1Hex("v3k:" + (a + "|" + primaryAr).toLowerCase(Locale.US) + "|320");
+                    android.graphics.Bitmap primaryBmp = decodeCachedCoverHash(primaryHash);
+                    if (primaryBmp != null) return primaryBmp;
+                }
             }
-            String key = (a + "|" + ar).toLowerCase(Locale.US);
-            String hash = coverSha1Hex("v3k:" + key + "|320");
-            File jpg = new File(new File(getCacheDir(), "covers"), hash + ".jpg");
-            if (!jpg.isFile() || jpg.length() <= 0 || jpg.length() > 1024 * 1024) return null;
-            return android.graphics.BitmapFactory.decodeFile(jpg.getAbsolutePath());
+            if (mBitPerfectPlayer != null) {
+                String activeSrc = mBitPerfectPlayer.getCurrentSourceKey();
+                if (activeSrc != null && !activeSrc.isEmpty()) {
+                    android.graphics.Bitmap srcBmp = decodeCachedCoverHash(coverSha1Hex("v3s:" + activeSrc + "|320"));
+                    if (srcBmp != null) return srcBmp;
+                }
+            }
+            return null;
         } catch (Throwable ignored) {
             return null;
         }
@@ -3757,6 +3942,7 @@ public class MainActivity extends AppCompatActivity {
         private Thread mPlaybackThread = null;
         private volatile AudioTrack mAudioTrack = null;
         private boolean mPreferredMixerAttributesSet = false;
+        private volatile String mCurrentSourceKey = "";
         private String mCurrentTrackTitle = "";
         private String mCurrentTrackArtist = "";
         private String mCurrentTrackAlbum = "";
@@ -3821,6 +4007,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void pause() {
+            if (!isActive()) return;
             synchronized (mPauseLock) {
                 mIsPaused = true;
                 mPauseLock.notifyAll();
@@ -3839,6 +4026,11 @@ public class MainActivity extends AppCompatActivity {
         public void resume() {
             acquireWakeLock(mIsRemoteStream);
             requestAudioFocus();
+            if (!isActive()) {
+                releaseWakeLock();
+                abandonAudioFocus();
+                return;
+            }
             synchronized (mPauseLock) {
                 mIsPaused = false;
                 mPauseLock.notifyAll();
@@ -3897,11 +4089,20 @@ public class MainActivity extends AppCompatActivity {
             }
             mIsPlaying = false;
             mIsPaused = false;
+            mCurrentSourceKey = "";
             if (!preserveSession) {
                 cancelMediaNotification();
                 releaseWakeLock();
                 abandonAudioFocus();
             }
+        }
+
+        public boolean isActive() {
+            return mIsPlaying && !mIsStopped && mPlaybackThread != null && mPlaybackThread.isAlive();
+        }
+
+        public String getCurrentSourceKey() {
+            return mCurrentSourceKey;
         }
 
         public boolean isPlaying() {
@@ -4012,6 +4213,10 @@ public class MainActivity extends AppCompatActivity {
                         if (parsedFile != null) resolvedPath = parsedFile;
                     } catch (Exception ignored) {}
                 }
+
+                mCurrentSourceKey = (resolvedUri != null && !resolvedUri.isEmpty())
+                        ? resolvedUri
+                        : (resolvedPath != null ? resolvedPath : "");
 
                 if (resolvedUri != null && resolvedUri.startsWith("content://")) {
                     extractor.setDataSource(MainActivity.this, Uri.parse(resolvedUri), null);
@@ -4224,7 +4429,9 @@ public class MainActivity extends AppCompatActivity {
                 notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, preferredDevice);
 
                 // 8. Playback loop
-                track.play();
+                if (!mIsPaused && !mIsStopped) {
+                    track.play();
+                }
                 MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
                 boolean sawInputEOS = false;
                 boolean sawOutputEOS = false;
@@ -4474,6 +4681,7 @@ public class MainActivity extends AppCompatActivity {
                     releaseWakeLock();
                     abandonAudioFocus();
                 }
+                if (sessionCurrent) mCurrentSourceKey = "";
             }
         }
     }
@@ -4506,6 +4714,10 @@ public class MainActivity extends AppCompatActivity {
 
     public boolean isBitPerfectPlaying() {
         return mBitPerfectPlayer.isPlaying();
+    }
+
+    public boolean isBitPerfectActive() {
+        return mBitPerfectPlayer.isActive();
     }
 
     public long getBitPerfectPosition() {
@@ -4739,11 +4951,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.39";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.40";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.39\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.40\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -5747,6 +5959,11 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public boolean isBitPerfectPlaying() {
             return mActivity.isBitPerfectPlaying();
+        }
+
+        @JavascriptInterface
+        public boolean isBitPerfectActive() {
+            return mActivity.isBitPerfectActive();
         }
 
         @JavascriptInterface

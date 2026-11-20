@@ -80,22 +80,25 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.39';
-  const name = process.argv[3] || `Nocturne ${tag} (Fix ảnh bài hát & thanh phát FiiO M11S, tự phục hồi WebView, Sleep Timer & MediaSession)`;
+  const tag = process.argv[2] || 'v3.9.40';
+  const name = process.argv[3] || `Nocturne ${tag} (Fix dứt điểm Play/Pause & bấm 1 lần phát ngay trên Web + APK, vuốt thanh phát cảm ứng, ảnh bìa M4A/WAV/Lockscreen)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} — Fix ảnh bài hát & thanh phát trên FiiO M11S, phục hồi WebView, Sleep Timer & MediaSession
+    : `### Nocturne ${tag} — Fix dứt điểm Play/Pause & bấm 1 lần phát ngay (Web + Android APK), vuốt thanh phát cảm ứng & ảnh bìa nhúng
 
-#### 1. Fix ảnh bìa bài hát & thanh phát/seekbar trên FiiO M11S (\`MainActivity.java\` & \`index.html\`)
-- **Ảnh bìa \`/local-cover?\`**: Tách file negative cache \`.none\` theo từng bài (\`v3src:\`) thay vì chung cả album để 1 file thiếu tag không chặn ảnh của cả album; bổ sung \`Content-Type\`, \`Content-Length\` và \`Cache-Control: no-store\` cho phản hồi lỗi; giữ nguyên DOM \`<img id="room-cover">\` khi fallback, cho phép thử lại cache-bust \`_r=1..2\`, đồng bộ \`data-album-key\` & \`displayTrack\` với ảnh online fallback.
-- **Thanh phát & tiến trình Bit-Perfect / WebView 74**: Thêm fallback đọc thời lượng qua \`MediaMetadataRetriever\`, đếm frame PCM thực tế (\`writtenFramesSinceBase\`) làm dự phòng khi decoder \`presentationTimeUs\` đứng yên, đồng bộ đồng thời \`#seek\`, \`#seek-mobile\`, \`#room-seek\`, \`#fullscreen-time-cur/dur\`, \`#fullscreen-waveform\`, \`#mini-waveform\`, kèm \`-webkit-appearance: none\` chuẩn Chromium 74 và watchdog 500ms.
+#### 1. Fix P0 Play/Pause & hiện tượng phải bấm Play nhiều lần mới phát (cả Web và APK)
+- **Triệt tiêu xung đột \`SILENT_UNLOCK_WAV\` & \`AbortError\`**: \`unlockAudioDecksOnGesture(excludeEl)\` bỏ qua trên Android WebView (\`window.NocturneNative\`), loại trừ \`standbyAudio\` khi phát ngay từ cache/local, đồng thời kiểm tra \`isSilentUnlockSrc\` và tự thử lại 1 lần khi gặp \`AbortError\`.
+- **Sửa \`#play-button\` & đồng bộ đổi deck**: Kiểm tra \`isBitPerfectActive()\` thực tế trên Native Android trước khi resume/pause, khôi phục \`router.gain\` và bỏ \`muted\` khi phát lại, tạm dừng cả \`audio\` + \`standbyAudio\`, đồng bộ tức thì \`#fullscreen-play-btn\`, visualizer, \`mediaSession.playbackState\` và thời lượng ngay trong \`finishPlaybackStart\`.
+- **Fast-Tap không còn đảo Play→Pause 2 lần hay nuốt User Gesture**: Miễn trừ các nút điều khiển phát (\`#play-button\`, \`#room-play\`, \`#fullscreen-play-btn\`, \`#mini-play\`, v.v.) và thanh waveform khỏi \`touchend\` tổng hợp; thêm \`button { touch-action: manipulation; }\`.
+- **\`BitPerfectAudioPlayer\` (\`MainActivity.java\`)**: Bổ sung \`isActive()\` / \`isBitPerfectActive()\`, chặn \`pause()\`/\`resume()\` ảo khi luồng phát đã dừng, và không gọi \`track.play()\` nếu đã bấm tạm dừng trong lúc đang nạp bộ giải mã.
 
-#### 2. Khôi phục WebView \`onRenderProcessGone\` mà không ngắt nhạc (\`MainActivity.java\`)
-- **Phục hồi có giới hạn (tối đa 3 lần / 60 giây)**: Khi Chromium renderer bị crash/kill, tự khởi tạo mới \`R.id.web_view\` đúng vị trí/layout và nạp lại giao diện trong khi **giữ nguyên \`mBitPerfectPlayer\` đang phát**; tự đóng/hủy OAuth \`popupWebView\` khi gặp sự cố.
+#### 2. Thanh phát nhạc & Phím tắt Bit-Perfect / Cảm ứng
+- **Gỡ kẹt \`state.isSeeking\`**: Tự nhả khóa \`isSeeking\` trên \`mouseup\`/\`pointerup\`/\`touchend\`/\`touchcancel\`/\`blur\`, tránh đứng thanh tiến trình sau khi kéo thả trượt.
+- **Vuốt dạng sóng cảm ứng (\`attachWaveformTouchScrub\`)** trên \`#waveform-canvas\`, \`#fullscreen-waveform\`, \`#mini-waveform\`, cùng \`seekByStep\` và phím \`0\`–\`9\` hoạt động chuẩn cả Bit-Perfect & CUE.
 
-#### 3. Đồng bộ Hẹn giờ ngủ & \`navigator.mediaSession\`
-- \`setSleepTimer\` và \`sleepAtTrackEnd\` tạm dừng đồng thời Web Audio, \`standbyAudio\` và \`NocturneNative.pauseBitPerfectPlayback()\`; \`playNext(-1)\` và \`#sleep-album-end\` dùng \`getCurrentPlaybackPositionSeconds()\`; \`navigator.mediaSession\` hỗ trợ đầy đủ Bit-Perfect \`play\`/\`pause\`/\`seekbackward\`/\`seekforward\` và \`applySmartSeekTime\` cho Web \`seekbackward\`.
+#### 3. Ảnh bìa M4A/ALAC/WAV nhúng & Lockscreen (\`MainActivity.java\`)
+- Bổ sung tách ảnh nhúng MP4/ALAC \`covr\` và WAV \`ID3 \`/\`id3 \` \`APIC\` qua \`FileChannel\`, kèm tra cứu 3 tầng cho ảnh màn hình khóa/thông báo (\`loadCachedCoverBitmap\` + \`mCurrentSourceKey\`).
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
