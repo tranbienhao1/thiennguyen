@@ -1,18 +1,19 @@
 # Nocturne Autonomous Tail-Chaining Schedule State
 
-- **run_id**: 5
-- **timestamp**: 2026-11-20T15:58:05+07:00
-- **current_version**: v3.9.18
-- **versionCode**: 72
-- **last_commit**: 23247f4 -> v3.9.18
+- **run_id**: 6
+- **timestamp**: 2026-11-20T16:05:00+07:00
+- **current_version**: v3.9.19
+- **versionCode**: 73
+- **last_commit**: 6bdeedf -> v3.9.19
 - **status**: DONE
 - **active_chain**: none
 
 ## next_queue
 1. `[P2]` Refine Settings OTA Web Assets status badge (show active web version vs bundled APK version + 1-tap safe rollback to bundled assets) and compact catalog maintenance.
-2. `[P1]` Audit OneDrive & Google Drive cloud sync/streaming resilience (401 token refresh parity on OneDrive `fetchCloudFile`/`fetchAudioFirstSlice`, offline/network reconnect handling, and compact catalog storage quota recovery).
+2. `[P1]` Audit DSD worker & `state.albumCovers` memory cap on FiiO M11S 3GB RAM (prevent unbounded `albumCovers` Map growth / `localStorage` overflow and ensure DSD worker termination cleanly revokes temporary ObjectURLs).
 
 ## completed_history
+- `Run #6 (2026-11-20 16:05 +07 | v3.9.18 -> v3.9.19, versionCode 73)`: [P1] Added OneDrive 401/403 instant first-slice token refresh parity in `fetchCloudTrack` (Graph `/content` URLs only, preserving SharePoint `downloadUrl` fallback); upgraded `loadMicrosoftFiles` to progressive page-by-page rendering (`scheduleTrackRender`) with deferred `queueCloudMetadata` in `finally`; reduced FiiO MicroSD `localStorage` catalog payload by >35% by omitting reconstructible `/local-media?` URLs and empty defaults with lossless `hydrateFiioStoredTrack` restoration and graceful `QuotaExceededError` ultra-lean/trimming recovery; verified 105/105 tests (0 ES2020+ syntax) + `assembleDebug` APK (`6.59 MB`).
 - `Run #5 (2026-11-20 15:58 +07 | v3.9.17 -> v3.9.18, versionCode 72)`: [P1] Audited & hardened Android screen-off battery and background keep-alive hygiene: `MainActivity.acquireWakeLock(needWifiLock)` releases `WifiLock` during local MicroSD/internal Bit-Perfect playback while keeping `WifiLock` for remote cloud streams; `onPause()` guarantees `WakeLock`/`WifiLock` release when paused/idle; throttled Bit-Perfect WebView position IPC 8× (`250ms` -> `2000ms`) when `mIsInBackground` with instant snap-sync on `onResume()`; published `MediaMetadata.METADATA_KEY_DURATION` to `MediaSession`; guarded CUE `timeupdate` & `progress` DOM/canvas updates when `document.hidden`; suspended idle `AudioContext` on Android background when paused and resumed on foreground playback; verified 85/85 tests (0 ES2020+ syntax) + `assembleDebug` APK (`6.59 MB`).
 - `Run #4 (2026-11-20 15:48 +07 | v3.9.16 -> v3.9.17, versionCode 71)`: [P1] Eliminated Bit-Perfect +6 dB double-routing distortion by disconnecting `state.directAnalyser` downstream when `state.bitPerfectEnabled` is active (preserving metering & pure `deck.direct -> destination`); made `rebuildAudioRoutes` null-safe for single-deck init and made `applyEq` respect `state.bitPerfectEnabled`; eliminated audible clicks/pops in `applyRoomAcoustics` and `applyDsdUltrasonicFilter` via `setTargetAtTime(..., 0.015)`; stopped `applyToneControls` from causing audio dropouts on continuous slider drag (`_routedToTone` guard) and restored persisted tone routing in `setupAudio` while deduplicating `visibilitychange` listener across sample-rate recreations; verified 120/120 tests (0 ES2020+ syntax) + `assembleDebug` APK (`6.59 MB`).
 - `Run #3 (2026-11-20 15:40 +07 | v3.9.15 -> v3.9.16, versionCode 70)`: [P1] Implemented non-blocking chunked MicroSD & MediaStore scanner (`MainActivity.startAsyncStorageScan` on `THREAD_PRIORITY_BACKGROUND` emitting 250-track chunks with overlapping root deduplication & `AtomicBoolean` concurrency guard; `index.html` `scanFiioStorage` consuming `onAndroidStorageScanChunk`/`onAndroidStorageScanDone` with `fiioScanInProgress` double-tap lock, 60s watchdog, progressive `scheduleTrackRender`, and yielding deduplicated legacy fallback); verified 70/70 tests (0 ES2020+ syntax) + `assembleDebug` APK (`6.59 MB`).

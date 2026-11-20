@@ -2200,7 +2200,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.18</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.19</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4973,6 +4973,13 @@
               options = Object.assign({}, options || {}, {
                 headers: Object.assign({}, (options && options.headers) || {}, { Authorization: `Bearer ${refreshedToken}` }),
                 _refreshedGoogleOnce: true
+              });
+              firstSlice = await library.fetchAudioFirstSlice(url, {...options, expectedTotalBytes: Number(track.size) || 0}, provider);
+            } else if ((sliceAuthErr && (sliceAuthErr.status === 401 || sliceAuthErr.status === 403)) && track.source === 'onedrive' && isGraphContentUrl(url) && (!options || !options._refreshedMicrosoftOnce) && typeof getMicrosoftToken === 'function') {
+              const refreshedMsToken = await getMicrosoftToken(false);
+              options = Object.assign({}, options || {}, {
+                headers: Object.assign({}, (options && options.headers) || {}, { Authorization: `Bearer ${refreshedMsToken}` }),
+                _refreshedMicrosoftOnce: true
               });
               firstSlice = await library.fetchAudioFirstSlice(url, {...options, expectedTotalBytes: Number(track.size) || 0}, provider);
             } else {
@@ -13329,7 +13336,6 @@
       state.microsoftAccessToken = token;
       let added = 0, scannedFolders = 0;
       const knownIds = new Set(state.tracks.filter(track => track.source === 'onedrive').map(track => track.remoteId));
-      queueCloudMetadata(state.tracks.filter(track => track.source === 'onedrive' && (!track.metadataLoaded || !track.cover)));
       const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,size,audio&$top=500', path:''}];
       try {
         while (queue.length) {
@@ -13343,7 +13349,7 @@
               const itemPath = path ? `${path}/${item.name}` : item.name;
               if (!item.folder && knownIds.has(item.id) && item.audio) {
                 const existing = state.tracks.find(track => track.source === 'onedrive' && track.remoteId === item.id);
-                if (existing && (!existing.metadataLoaded || !existing.cover)) { mergeMicrosoftTrack(existing, item, itemPath); if (!existing.cover) queueCloudMetadata([existing]); }
+                if (existing && (!existing.metadataLoaded || !existing.cover)) { mergeMicrosoftTrack(existing, item, itemPath); }
               }
               if (item.folder) {
                 queue.push({url:`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,size,audio&$top=500`, path:itemPath});
@@ -13356,7 +13362,7 @@
             if (pageTracks.length) {
               await persistCloudCatalog(pageTracks, true);
               if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
-              queueCloudMetadata(pageTracks);
+              if (typeof scheduleTrackRender === 'function') scheduleTrackRender();
               pageTracks = [];
             }
             cloudStatus('microsoft', `Đang quét OneDrive… ${scannedFolders} thư mục · ${knownIds.size} bài`, 'text-sky-300');
@@ -13371,6 +13377,11 @@
         renderTracks();
         if (added) toast(`Đã lưu ${added} bài mới trước khi đồng bộ bị gián đoạn.`);
         throw error;
+      } finally {
+        const pendingMsMeta = state.tracks.filter(
+          track => track.source === 'onedrive' && (!track.metadataLoaded || !track.cover)
+        );
+        if (pendingMsMeta.length > 0) queueCloudMetadata(pendingMsMeta);
       }
     }
     // Pha C — OneDrive dùng thẳng downloadUrl: link tải tạm thời của Graph
@@ -14955,39 +14966,89 @@
     }
     window.connectBlackCandyServer = connectBlackCandyServer;
 
-    function compactFiioTrackForStorage(t) {
-      return {
+    function compactFiioTrackForStorage(t, ultraLean) {
+      const rec = {
         id: t.id,
-        title: t.title || '',
-        name: t.name || '',
-        path: t.path || '',
-        uri: t.uri || undefined,
-        source: t.source || 'local',
-        url: t.url || '',
-        size: t.size || 0,
-        isDsd: Boolean(t.isDsd),
-        format: t.format || '',
-        artist: t.artist || '',
-        album: t.album || '',
-        duration: Number(t.duration) || 0,
-        trackNumber: t.trackNumber || 0,
-        discNumber: t.discNumber || 0,
-        year: t.year || '',
-        genre: t.genre || ''
+        title: t.title || ''
       };
+      if (t.name && t.name !== rec.title) rec.name = t.name;
+      if (t.path) rec.path = t.path;
+      if (t.uri) rec.uri = t.uri;
+      if (t.source && t.source !== 'local') rec.source = t.source;
+      const isReconstructibleLocalUrl = Boolean(
+        (t.uri || t.path) &&
+        t.url &&
+        String(t.url).indexOf('https://appassets.androidplatform.net/local-media?') === 0
+      );
+      if (t.url && !isReconstructibleLocalUrl) rec.url = t.url;
+      if (t.isDsd) rec.isDsd = true;
+      if (t.format) rec.format = t.format;
+      if (t.artist) rec.artist = t.artist;
+      if (t.album) rec.album = t.album;
+      const dur = Number(t.duration) || 0;
+      if (dur > 0) rec.duration = Math.round(dur * 10) / 10;
+      if (!ultraLean) {
+        if (t.size) rec.size = t.size;
+        if (t.trackNumber) rec.trackNumber = t.trackNumber;
+        if (t.discNumber) rec.discNumber = t.discNumber;
+        if (t.year) rec.year = t.year;
+        if (t.genre) rec.genre = t.genre;
+      }
+      return rec;
+    }
+    function hydrateFiioStoredTrack(t) {
+      if (!t || !t.id) return null;
+      const hydrated = Object.assign({}, t);
+      hydrated.source = hydrated.source || 'local';
+      hydrated.title = hydrated.title || hydrated.name || '';
+      hydrated.name = hydrated.name || hydrated.title || '';
+      hydrated.isDsd = Boolean(hydrated.isDsd || /^(dsf|dff)$/i.test(String(hydrated.format || '')));
+      hydrated.duration = Number(hydrated.duration) || 0;
+      if (!hydrated.url) {
+        if (hydrated.uri) {
+          hydrated.url = 'https://appassets.androidplatform.net/local-media?uri=' + encodeURIComponent(hydrated.uri) + '&name=' + encodeURIComponent(hydrated.name || '');
+        } else if (hydrated.path) {
+          hydrated.url = 'https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(hydrated.path);
+        } else {
+          hydrated.url = '';
+        }
+      }
+      return hydrated;
     }
     function saveFiioCatalog(tracks) {
       try {
         const list = tracks || state.tracks;
-        const fiioTracks = [];
+        const fiioSource = [];
         for (let i = 0; i < list.length; i++) {
           const t = list[i];
           if (t && t.id && String(t.id).startsWith('fiio_')) {
-            fiioTracks.push(compactFiioTrackForStorage(t));
+            fiioSource.push(t);
           }
         }
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('nocturne-fiio-catalog', JSON.stringify(fiioTracks));
+        if (typeof localStorage === 'undefined') return;
+        const compactList = [];
+        for (let i = 0; i < fiioSource.length; i++) compactList.push(compactFiioTrackForStorage(fiioSource[i], false));
+        try {
+          localStorage.setItem('nocturne-fiio-catalog', JSON.stringify(compactList));
+        } catch (quotaErr) {
+          // Graceful QuotaExceededError recovery for 8,000-10,000+ track MicroSD libraries
+          const leanList = [];
+          for (let i = 0; i < fiioSource.length; i++) leanList.push(compactFiioTrackForStorage(fiioSource[i], true));
+          try {
+            localStorage.setItem('nocturne-fiio-catalog', JSON.stringify(leanList));
+          } catch (quotaErr2) {
+            let cap = Math.floor(leanList.length * 0.75);
+            while (cap > 250) {
+              try {
+                localStorage.setItem('nocturne-fiio-catalog', JSON.stringify(leanList.slice(0, cap)));
+                console.warn('FiiO catalog trimmed to ' + cap + ' tracks to fit localStorage quota.');
+                return;
+              } catch (_) {
+                cap = Math.floor(cap * 0.75);
+              }
+            }
+            throw quotaErr2;
+          }
         }
       } catch (e) {
         console.warn('Could not persist FiiO catalog:', e);
@@ -15015,7 +15076,7 @@
             }
             let added = 0;
             for (let i = 0; i < tracks.length; i++) {
-              const t = tracks[i];
+              const t = hydrateFiioStoredTrack(tracks[i]);
               if (t && t.id && !existingIds.has(t.id)) {
                 existingIds.add(t.id);
                 state.tracks.push(t);
