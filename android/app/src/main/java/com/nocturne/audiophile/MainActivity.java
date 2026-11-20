@@ -3665,11 +3665,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.25";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.26";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.25\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.26\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -4567,15 +4567,25 @@ public class MainActivity extends AppCompatActivity {
                             return;
                         }
                     }
+                    if (!isPlausibleOtaPayload(relFile, data)) {
+                        Log.w(TAG, "OTA payload for " + relFile + " looks like HTML/captive-portal content, aborting cleanly");
+                        deleteDirRecursive(stagingDir);
+                        if (notifyIfUpToDate) notifyWebOtaStatus("error", currentVer);
+                        return;
+                    }
                     File outFile = new File(stagingDir, relFile);
                     try (java.io.FileOutputStream fos = new java.io.FileOutputStream(outFile)) {
                         fos.write(data);
+                        fos.flush();
+                        try { fos.getFD().sync(); } catch (Throwable ignored) {}
                     }
                 }
 
                 // Mark staging ready and perform atomic swap -> active
                 try (java.io.FileOutputStream fos = new java.io.FileOutputStream(new File(stagingDir, ".ota_ready"))) {
                     fos.write(remoteVer.getBytes(StandardCharsets.UTF_8));
+                    fos.flush();
+                    try { fos.getFD().sync(); } catch (Throwable ignored) {}
                 }
                 File activeDir = getOtaActiveDir();
                 File backupDir = new File(otaRoot, "old");
@@ -4602,11 +4612,24 @@ public class MainActivity extends AppCompatActivity {
                 notifyWebOtaStatus("ready", remoteVer);
             } catch (Throwable t) {
                 Log.w(TAG, "OTA background check failed: " + t.getMessage());
+                try { deleteDirRecursive(new File(getOtaRootDir(), "staging")); } catch (Throwable ignored) {}
                 if (notifyIfUpToDate) notifyWebOtaStatus("error", getCurrentActiveWebVersion());
             } finally {
                 mOtaChecking.set(false);
             }
         }, "NocturneOtaUpdater").start();
+    }
+
+    /** Rejects HTML error/captive-portal pages (HTTP 200) served in place of JS/CSS OTA assets. */
+    static boolean isPlausibleOtaPayload(String relFile, byte[] data) {
+        if (relFile == null || data == null || data.length == 0) return false;
+        boolean isJs = relFile.endsWith(".js");
+        boolean isCss = relFile.endsWith(".css");
+        if (!isJs && !isCss) return true;
+        int i = 0;
+        if (data.length >= 3 && (data[0] & 0xFF) == 0xEF && (data[1] & 0xFF) == 0xBB && (data[2] & 0xFF) == 0xBF) i = 3;
+        while (i < data.length && (data[i] == ' ' || data[i] == '\t' || data[i] == '\r' || data[i] == '\n')) i++;
+        return !(i < data.length && data[i] == '<');
     }
 
     private byte[] downloadUrlBytes(String urlStr, int timeoutMs) {
