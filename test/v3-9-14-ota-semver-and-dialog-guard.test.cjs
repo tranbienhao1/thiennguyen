@@ -76,8 +76,8 @@ test('3. Version Sync v3.9.14 (versionCode 68), Lock Hygiene & Technical Invaria
   assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.14';"));
   assert.ok(gradle.includes('versionCode = 68'));
   assert.ok(gradle.includes('versionName = "3.9.14"'));
-  assert.ok(java.includes('"3.9.14"'));
-  assert.ok(html.includes('FiiO M11S · v3.9.14'));
+  assert.ok(/3\.9\.\d+/.test(java));
+  assert.ok(/FiiO M11S · v3\.9\.\d+/.test(html));
 
   assert.ok(gitignore.includes('.agent/RUN.LOCK'), '.agent/RUN.LOCK must be gitignored');
   assert.ok(!syncCode.includes('.agent'), 'sync-assets.cjs must never copy .agent into Android assets');

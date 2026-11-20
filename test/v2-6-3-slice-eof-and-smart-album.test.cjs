@@ -456,7 +456,8 @@ test('v3.8.0: 1-Tap Long-Track Resume Pill, EQ Clipping Headroom Guard & Android
 
 test('v3.9.0: Core audit fixes — Google 401 slice-upgrade retry does not fall through, fullAudioUrl RAM leak revoked, early-return restores deck gain & timers coalesced', () => {
   const upStart = html.indexOf('async function upgradeSliceToFullAudio(');
-  const upBlock = html.slice(upStart, upStart + 5500);
+  const upEnd = html.indexOf('async function fetchCloudTrack(', upStart);
+  const upBlock = html.slice(upStart, upEnd > upStart ? upEnd : upStart + 7500);
   assert.ok(upBlock.includes('} else {\n              if (!isGraphContentUrl(url)) throw error;'), 'Google 401 retry must NOT fall through to OneDrive !isGraphContentUrl throw');
   assert.ok(upBlock.includes('if (deck !== audio || track.id !== state.currentId) { restoreDeckGain(); return; }'), 'Early return in loadedmetadata must restore deckRouter gain immediately');
 
@@ -506,7 +507,8 @@ test('v3.9.2: preloadNext recreates revoked local blob URLs for gapless repeat &
 
 test('v3.9.3: Seeking past first-slice buffered range queues _pendingSeekAfterFullUpgrade instead of hitting truncated EOF & snapping back', () => {
   const upStart = html.indexOf('async function upgradeSliceToFullAudio(');
-  const upBlock = html.slice(upStart, upStart + 5500);
+  const upEnd = html.indexOf('async function fetchCloudTrack(', upStart);
+  const upBlock = html.slice(upStart, upEnd > upStart ? upEnd : upStart + 7500);
   assert.ok(upBlock.includes('const pendingSeekPos = Number.isFinite(track._pendingSeekAfterFullUpgrade)'), 'upgradeSliceToFullAudio must honor _pendingSeekAfterFullUpgrade');
 
   const seekStart = html.indexOf("[$('seek'), $('seek-mobile')].forEach(");

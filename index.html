@@ -2200,7 +2200,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.14</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.15</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4644,8 +4644,28 @@
       return list;
     }
     function groupTracks(tracks, groupBy) { return library.groupTracks(tracks, groupBy); }
+    function abortStaleFullAudioUpgrades(keepTrackIds) {
+      if (!state || !Array.isArray(state.tracks)) return;
+      const keepSet = new Set();
+      if (Array.isArray(keepTrackIds)) {
+        for (let i = 0; i < keepTrackIds.length; i++) {
+          if (keepTrackIds[i] != null) keepSet.add(String(keepTrackIds[i]));
+        }
+      }
+      for (let i = 0; i < state.tracks.length; i++) {
+        const t = state.tracks[i];
+        if (!t || !t._fullUpgradeAbort) continue;
+        if (keepSet.has(String(t.id))) continue;
+        try { t._fullUpgradeAbort.abort(); } catch (_) {}
+        t._fullUpgradeAbort = null;
+      }
+    }
     function releaseUnusedCloudUrl(track) {
       if (!track || !['google','onedrive'].includes(track.source)) return;
+      if (track._fullUpgradeAbort && track.id !== state.currentId && track.id !== state.preloadTrackId) {
+        try { track._fullUpgradeAbort.abort(); } catch (_) {}
+        track._fullUpgradeAbort = null;
+      }
       if (track.fullAudioUrl && track.fullAudioUrl !== track.url) {
         try {
           const fullAbs = new URL(track.fullAudioUrl, location.href).href;
@@ -4771,32 +4791,56 @@
       // Pha C — xóa lỗi tải nền của lần phát trước để guard 'ended'/'error'
       // không dùng nhầm lỗi cũ; lỗi mới được ghi lại ở dưới.
       track.fullAudioError = null;
+      const upgradeController = (typeof AbortController === 'function') ? new AbortController() : null;
+      track._fullUpgradeAbort = upgradeController;
+      const fetchOpts = upgradeController ? Object.assign({}, options || {}, { signal: upgradeController.signal }) : options;
       track.fullAudioPromise = (async () => {
         let blob;
         try {
-          try { blob = await library.fetchAudioBlob(url, options, provider); }
+          try { blob = await library.fetchAudioBlob(url, fetchOpts, provider); }
           catch (error) {
+            if ((error && (error.name === 'AbortError' || error.aborted === true)) || (upgradeController && upgradeController.signal.aborted)) {
+              track.fullAudioError = null;
+              return null;
+            }
             if (error.status !== 401 && error.status !== 403) throw error;
             if (track.source === 'google') {
               if (typeof ensureGoogleToken === 'function') {
                 const refreshed = await ensureGoogleToken(true);
-                blob = await library.fetchAudioBlob(url, Object.assign({}, options, { headers: Object.assign({}, (options && options.headers) || {}, { Authorization: `Bearer ${refreshed}` }) }), provider);
+                const refreshedOpts = Object.assign({}, fetchOpts || {}, {
+                  headers: Object.assign({}, (fetchOpts && fetchOpts.headers) || {}, { Authorization: `Bearer ${refreshed}` })
+                });
+                blob = await library.fetchAudioBlob(url, refreshedOpts, provider);
               } else {
                 throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
               }
             } else {
               if (!isGraphContentUrl(url)) throw error;
               const token = await getMicrosoftToken(false);
-              blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
+              const msOpts = upgradeController
+                ? { headers: { Authorization: `Bearer ${token}` }, signal: upgradeController.signal }
+                : { headers: { Authorization: `Bearer ${token}` } };
+              blob = await library.fetchAudioBlob(url, msOpts, provider);
             }
           }
         } catch (error) {
+          if ((error && (error.name === 'AbortError' || error.aborted === true)) || (upgradeController && upgradeController.signal.aborted)) {
+            track.fullAudioError = null;
+            return null;
+          }
           // Pha C — ghi lại lỗi tải nền thất bại: khi lát đầu hết mà
           // fullAudioPromise đã null và fullAudioUrl chưa từng được set thì
           // guard 'ended'/'error' dùng cờ này để toast rõ lý do rồi mới
           // chuyển bài, thay vì nhảy im lặng sang bài kế.
           track.fullAudioError = error;
           throw error;
+        }
+        const sliceAbsoluteUrl = new URL(sliceUrl, location.href).href;
+        const stillNeeded = (track.id === state.currentId) || (track.id === state.preloadTrackId) ||
+          (audio && audio.src === sliceAbsoluteUrl) || (standbyAudio && standbyAudio.src === sliceAbsoluteUrl);
+        if (!stillNeeded || (upgradeController && upgradeController.signal.aborted)) {
+          // Track was skipped while downloading full FLAC/Hi-Res: discard blob immediately to prevent 3GB RAM leak on FiiO M11S
+          return null;
         }
         blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
         const fullUrl = URL.createObjectURL(blob);
@@ -4806,7 +4850,6 @@
         // play(), lúc đó audio.src chưa phải lát đầu nên điều kiện swap
         // trượt): guard 'ended'/'error' dùng lại URL này để phát tiếp.
         track.fullAudioUrl = fullUrl;
-        const sliceAbsoluteUrl = new URL(sliceUrl, location.href).href;
         if (track.id === state.currentId && audio.src === sliceAbsoluteUrl) {
           const endedEarly = !!track.sliceEndedEarly;
           // Pha C — lát đầu đã hết sớm thì currentTime đã nhảy về duration,
@@ -4880,7 +4923,10 @@
         return fullUrl;
       })();
       try { return await track.fullAudioPromise; }
-      finally { track.fullAudioPromise = null; }
+      finally {
+        track.fullAudioPromise = null;
+        if (track._fullUpgradeAbort === upgradeController) track._fullUpgradeAbort = null;
+      }
     }
     async function fetchCloudTrack(track, url, options, provider) {
       if (track.url && state.objectUrls.has(track.url)) return track.url;
@@ -4918,7 +4964,21 @@
           // luận lát đã là toàn file (xem library-utils.js).
           const wantInitialSlice = (Number(track.size) > 4 * 1024 * 1024 && /^(flac|wav|aiff|aif|alac|m4a|ape|wv)$/i.test(String(track.format || ''))) ? (4 * 1024 * 1024) : 0;
           if (wantInitialSlice) options = Object.assign({}, options || {}, { initialSliceBytes: wantInitialSlice });
-          const firstSlice = await library.fetchAudioFirstSlice(url, {...options, expectedTotalBytes: Number(track.size) || 0}, provider);
+          let firstSlice;
+          try {
+            firstSlice = await library.fetchAudioFirstSlice(url, {...options, expectedTotalBytes: Number(track.size) || 0}, provider);
+          } catch (sliceAuthErr) {
+            if ((sliceAuthErr && (sliceAuthErr.status === 401 || sliceAuthErr.status === 403)) && track.source === 'google' && (!options || !options._refreshedGoogleOnce) && typeof ensureGoogleToken === 'function') {
+              const refreshedToken = await ensureGoogleToken(true);
+              options = Object.assign({}, options || {}, {
+                headers: Object.assign({}, (options && options.headers) || {}, { Authorization: `Bearer ${refreshedToken}` }),
+                _refreshedGoogleOnce: true
+              });
+              firstSlice = await library.fetchAudioFirstSlice(url, {...options, expectedTotalBytes: Number(track.size) || 0}, provider);
+            } else {
+              throw sliceAuthErr;
+            }
+          }
           const sliceMoovMeta = firstSlice && (firstSlice.tailMoovMetadata || firstSlice.headMoovMetadata);
           if (sliceMoovMeta && typeof library.applyMp4SliceMetadataToTrack === 'function') {
             const enriched = library.applyMp4SliceMetadataToTrack(track, sliceMoovMeta);
@@ -11896,6 +11956,7 @@
       state.previousTrackId = null;
 
       state.currentId = track.id;
+      abortStaleFullAudioUpgrades([track.id, state.preloadTrackId]);
       if (typeof displayTrack === 'function') displayTrack(track);
       if (typeof applyOptimisticPlaybackUi === 'function') applyOptimisticPlaybackUi(track);
 

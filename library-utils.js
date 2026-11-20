@@ -307,13 +307,24 @@
   function fetchAudioRetryDelayMs(attempt) { return FETCH_AUDIO_RETRY_BASE_MS * (2 ** attempt); }
   function isFetchAudioRetryable(error) {
     if (!error || typeof error !== 'object') return false;
+    if (error.name === 'AbortError' || error.aborted === true) return false;
     if (error.retryable === true) return true;
     return Number.isInteger(error.status) && (error.status === 429 || error.status >= 500);
   }
   async function fetchAudioResponse(url, options, provider) {
     let response;
     try { response = await fetch(url, options); }
-    catch (error) { const wrapped = new Error(`${provider} không thể tải âm thanh. Kiểm tra kết nối, quyền truy cập và cấu hình CORS rồi thử lại. (${error.message || error})`); wrapped.retryable = true; throw wrapped; }
+    catch (error) {
+      if ((error && error.name === 'AbortError') || (options && options.signal && options.signal.aborted)) {
+        const abortErr = new Error('Đã hủy tải luồng âm thanh.');
+        abortErr.name = 'AbortError';
+        abortErr.aborted = true;
+        throw abortErr;
+      }
+      const wrapped = new Error(`${provider} không thể tải âm thanh. Kiểm tra kết nối, quyền truy cập và cấu hình CORS rồi thử lại. (${error.message || error})`);
+      wrapped.retryable = true;
+      throw wrapped;
+    }
     if (!response.ok) {
       let detail = '';
       try { detail = (await response.text()).slice(0, 240); } catch (_) {}
@@ -493,6 +504,12 @@
   async function fetchAudioBlob(url, options = {}, provider = 'Cloud') {
     let lastError;
     for (let attempt = 0; attempt < FETCH_AUDIO_MAX_ATTEMPTS; attempt++) {
+      if (options && options.signal && options.signal.aborted) {
+        const abortErr = new Error('Đã hủy tải luồng âm thanh.');
+        abortErr.name = 'AbortError';
+        abortErr.aborted = true;
+        throw abortErr;
+      }
       try { return await fetchAudioBlobOnce(url, options, provider); }
       catch (error) {
         lastError = error;
