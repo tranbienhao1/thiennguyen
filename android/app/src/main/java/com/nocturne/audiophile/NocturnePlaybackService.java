@@ -8,16 +8,18 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.graphics.drawable.Icon;
+import android.media.session.MediaSession;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
-import androidx.core.app.NotificationCompat;
 
 /**
  * Foreground media playback service keeping WebView & native Bit-Perfect audio
- * alive on Android 12-15 when the screen turns off or the app is backgrounded.
+ * alive on Android 10-15 (including FiiO M11S DAP) when the screen turns off or
+ * playback is temporarily paused.
  */
 public class NocturnePlaybackService extends Service {
     private static final String TAG = "NocturnePlaybackSvc";
@@ -35,6 +37,8 @@ public class NocturnePlaybackService extends Service {
     private static final String ACTION_PLAY_PAUSE = "com.nocturne.audiophile.ACTION_PLAY_PAUSE";
     private static final String ACTION_NEXT = "com.nocturne.audiophile.ACTION_NEXT";
     private static final String ACTION_PREV = "com.nocturne.audiophile.ACTION_PREVIOUS";
+
+    public static volatile MediaSession.Token sMediaSessionToken = null;
 
     @Override
     public void onCreate() {
@@ -56,22 +60,39 @@ public class NocturnePlaybackService extends Service {
         boolean isPlaying = intent == null || intent.getBooleanExtra(EXTRA_IS_PLAYING, true);
 
         Notification notification = buildNotification(title, artist, album, isPlaying);
-        try {
-            if (Build.VERSION.SDK_INT >= 29) {
-                startForeground(
-                    NOTIFICATION_ID,
-                    notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
-                );
-            } else {
-                startForeground(NOTIFICATION_ID, notification);
+        if (isPlaying) {
+            try {
+                if (Build.VERSION.SDK_INT >= 29) {
+                    startForeground(
+                        NOTIFICATION_ID,
+                        notification,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                    );
+                } else {
+                    startForeground(NOTIFICATION_ID, notification);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to enter foreground playback state: " + e.getMessage(), e);
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) {
+                    nm.notify(NOTIFICATION_ID, notification);
+                }
             }
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to enter foreground playback state: " + e.getMessage(), e);
-            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            if (nm != null) {
-                nm.notify(NOTIFICATION_ID, notification);
-            }
+        } else {
+            // Keep service & MediaSession alive when paused so FiiO M11S hardware buttons still resume with screen off
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    stopForeground(STOP_FOREGROUND_DETACH);
+                } else {
+                    stopForeground(false);
+                }
+            } catch (Exception ignored) {}
+            try {
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) {
+                    nm.notify(NOTIFICATION_ID, notification);
+                }
+            } catch (Exception ignored) {}
         }
 
         return START_STICKY;
@@ -99,6 +120,7 @@ public class NocturnePlaybackService extends Service {
                 channel.setDescription("Background Hi-Res and Bit-Perfect audio playback controls");
                 channel.setShowBadge(false);
                 channel.setSound(null, null);
+                channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
                 nm.createNotificationChannel(channel);
             }
         }
@@ -125,24 +147,50 @@ public class NocturnePlaybackService extends Service {
         String displayArtist = (artist != null && !artist.trim().isEmpty()) ? artist.trim() : "Nocturne Hi-Res Audio";
         String displayAlbum = (album != null && !album.trim().isEmpty()) ? album.trim() : null;
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        Notification.Builder builder = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            ? new Notification.Builder(this, CHANNEL_ID)
+            : new Notification.Builder(this);
+
+        Notification.Action prevAction = new Notification.Action.Builder(
+            Icon.createWithResource(this, android.R.drawable.ic_media_previous),
+            "Previous",
+            pPrev
+        ).build();
+
+        Notification.Action playPauseAction = new Notification.Action.Builder(
+            Icon.createWithResource(this, isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play),
+            isPlaying ? "Pause" : "Play",
+            pPlayPause
+        ).build();
+
+        Notification.Action nextAction = new Notification.Action.Builder(
+            Icon.createWithResource(this, android.R.drawable.ic_media_next),
+            "Next",
+            pNext
+        ).build();
+
+        Notification.MediaStyle mediaStyle = new Notification.MediaStyle()
+            .setShowActionsInCompactView(0, 1, 2);
+        MediaSession.Token token = sMediaSessionToken;
+        if (token != null) {
+            mediaStyle.setMediaSession(token);
+        }
+
+        builder
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(displayTitle)
             .setContentText(displayArtist)
             .setSubText(displayAlbum)
             .setOngoing(isPlaying)
             .setAutoCancel(false)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setContentIntent(contentPendingIntent)
-            .addAction(android.R.drawable.ic_media_previous, "Previous", pPrev)
-            .addAction(
-                isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
-                isPlaying ? "Pause" : "Play",
-                pPlayPause
-            )
-            .addAction(android.R.drawable.ic_media_next, "Next", pNext)
-            .build();
+            .addAction(prevAction)
+            .addAction(playPauseAction)
+            .addAction(nextAction)
+            .setStyle(mediaStyle);
+
+        return builder.build();
     }
 
     @Override

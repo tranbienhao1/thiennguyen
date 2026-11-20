@@ -7,8 +7,8 @@
  * Drive/OneDrive, luồng nhạc), yêu cầu no-store (bộ kiểm tra cập nhật trong
  * app) và yêu cầu Range không bao giờ đi qua cache.
  */
-const CACHE_VERSION = 'v3.1.1';
-const CACHE_NAME = 'nocturne-v3.9.5';
+const CACHE_VERSION = 'v3.9.7';
+const CACHE_NAME = 'nocturne-v3.9.7';
 self.CACHE_VERSION = CACHE_VERSION;
 self.CACHE_NAME = CACHE_NAME;
 const APP_SHELL = [
@@ -85,7 +85,7 @@ self.addEventListener('install', event => {
   // kích hoạt và trình duyệt cứ chạy worker DSD cũ; allSettled vẫn kích
   // hoạt worker mới, file lỗi sẽ được networkFirst nạp lại khi online.
   event.waitUntil(caches.open(CACHE_NAME)
-    .then(cache => Promise.allSettled(APP_SHELL.map(entry => cache.add(entry))))
+    .then(cache => Promise.all(APP_SHELL.map(entry => cache.add(entry).catch(() => null))))
     .then(() => self.skipWaiting()));
 });
 

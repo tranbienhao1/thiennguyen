@@ -27,6 +27,12 @@
     }
   </script>
   <style id="app-style">
+    /* Chromium 74 Preflight Fix: Tailwind :where() selector is dropped on WebView < 88, causing native gray 3D buttons */
+    button, input[type="button"], input[type="reset"], input[type="submit"] {
+      -webkit-appearance: button;
+      background-color: transparent;
+      background-image: none;
+    }
     /* Chromium 74 CSS Fallbacks & FiiO M11S Touchscreen Hardening: .hidden, [hidden] */
     .hidden:not(.sm\:block):not(.md\:block):not(.lg\:block):not(.sm\:flex):not(.md\:flex):not(.lg\:flex):not(.sm\:grid):not(.md\:grid):not(.lg\:grid),
     [hidden] {
@@ -176,7 +182,6 @@
     body.fiio-dap-mode #settings-modal::backdrop {
       backdrop-filter: none !important;
       -webkit-backdrop-filter: none !important;
-      box-shadow: none !important;
     }
     body.fiio-dap-mode #app-ambient-backdrop {
       display: none !important;
@@ -579,9 +584,10 @@
       }
       body:not(.settings-open):not(.metadata-open) {
         height: auto !important;
+        min-height: 100vh !important;
         min-height: 100dvh !important;
         overflow-y: visible !important;
-        overflow-x: clip !important;
+        overflow-x: hidden !important;
         touch-action: pan-y pinch-zoom !important;
         overscroll-behavior-y: auto !important;
         width: 100% !important;
@@ -591,31 +597,33 @@
       #app-shell {
         display: block !important;
         height: auto !important;
+        min-height: 100vh !important;
         min-height: 100dvh !important;
         max-height: none !important;
         width: 100% !important;
         max-width: 100vw !important;
         overflow: visible !important;
         overflow-y: visible !important;
-        overflow-x: clip !important;
+        overflow-x: hidden !important;
         box-sizing: border-box !important;
       }
       #content-col {
         display: block !important;
         height: auto !important;
+        min-height: 100vh !important;
         min-height: 100dvh !important;
         max-height: none !important;
         width: 100% !important;
         max-width: 100vw !important;
         overflow: visible !important;
         overflow-y: visible !important;
-        overflow-x: clip !important;
+        overflow-x: hidden !important;
         overscroll-behavior: auto !important;
         overscroll-behavior-y: auto !important;
         box-sizing: border-box !important;
         padding-bottom: calc(148px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
       }
-      #sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(300px,86vw);height:100dvh;max-height:100dvh;transform:translateX(0);box-sizing:border-box;touch-action:manipulation}
+      #sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:84vw;max-width:288px;width:min(300px,86vw);height:100vh;max-height:100vh;height:100dvh;max-height:100dvh;transform:translateX(0);box-sizing:border-box;touch-action:manipulation}
       body.sidebar-collapsed #sidebar{transform:translateX(-105%) !important;opacity:0 !important;pointer-events:none !important;visibility:hidden !important}
       body:not(.sidebar-collapsed) #sidebar{transform:translateX(0);opacity:1;visibility:visible !important;pointer-events:auto !important}
       #sidebar-toggle{display:grid} #sidebar-close{display:inline-grid}
@@ -639,9 +647,10 @@
       }
       body:not(.settings-open):not(.metadata-open) {
         height: auto !important;
+        min-height: 100vh !important;
         min-height: 100dvh !important;
         overflow-y: visible !important;
-        overflow-x: clip !important;
+        overflow-x: hidden !important;
         touch-action: pan-y pinch-zoom !important;
         overscroll-behavior-y: auto !important;
         width: 100% !important;
@@ -650,25 +659,27 @@
       #app-shell {
         display: block !important;
         height: auto !important;
+        min-height: 100vh !important;
         min-height: 100dvh !important;
         max-height: none !important;
         width: 100% !important;
         max-width: 100vw !important;
         overflow: visible !important;
         overflow-y: visible !important;
-        overflow-x: clip !important;
+        overflow-x: hidden !important;
         box-sizing: border-box !important;
       }
       #content-col {
         display: block !important;
         height: auto !important;
+        min-height: 100vh !important;
         min-height: 100dvh !important;
         max-height: none !important;
         width: 100% !important;
         max-width: 100vw !important;
         overflow: visible !important;
         overflow-y: visible !important;
-        overflow-x: clip !important;
+        overflow-x: hidden !important;
         overscroll-behavior: auto !important;
         overscroll-behavior-y: auto !important;
         box-sizing: border-box !important;
@@ -1054,15 +1065,18 @@
         padding: 8px 0 24px 0 !important;
       }
       #room-cover-wrap {
-        width: 100% !important;
-        max-width: min(76vw, 300px) !important;
+        width: 68vw !important;
+        max-width: 230px !important;
+        height: 68vw !important;
+        max-height: 230px !important;
         aspect-ratio: 1 / 1 !important;
         margin: 0 auto !important;
-        border-radius: 20px !important;
+        border-radius: 16px !important;
       }
       #room-title {
-        font-size: clamp(22px, 6vw, 30px) !important;
-        line-height: 1.2 !important;
+        font-size: 20px !important;
+        font-size: clamp(19px, 5.4vw, 26px) !important;
+        line-height: 1.25 !important;
       }
       #room-artist {
         font-size: 15px !important;
@@ -1115,6 +1129,7 @@
       }
       #settings-modal > div, #settings-panel {
         display: block !important;
+        max-height: 88vh !important;
         max-height: calc(100dvh - 1.5rem) !important;
         max-height: min(90vh, calc(100dvh - 1.5rem)) !important;
         overflow-y: auto !important;
@@ -1141,6 +1156,7 @@
         bottom: calc(76px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
         width: auto !important;
         max-width: none !important;
+        max-height: 82vh !important;
         max-height: min(85vh, calc(100dvh - 90px)) !important;
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch !important;
@@ -1164,6 +1180,7 @@
         bottom: calc(76px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
         width: auto !important;
         max-width: none !important;
+        max-height: 82vh !important;
         max-height: min(85vh, calc(100dvh - 90px)) !important;
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch !important;
@@ -1202,6 +1219,7 @@
 
       /* Zone modal & Signal Path modal */
       #zone-modal > div, #signal-path-popover > div {
+        max-height: 86vh !important;
         max-height: min(90vh, calc(100dvh - 2rem)) !important;
         overflow-y: auto !important;
         -webkit-overflow-scrolling: touch !important;
@@ -1251,6 +1269,288 @@
       #fullscreen-mode-pills button {
         padding: 4px 8px !important;
         font-size: 10.5px !important;
+      }
+    }
+
+    /* ==========================================================================
+       v3.9.6 FiiO M11S 5-inch DAP (360x640dp) Compact Ergonomics & WebView 74 Fix
+       ========================================================================== */
+    @media (max-width: 767.98px) {
+      /* 1. Clean 4-Tap Header: [Menu] [Back] — Title — [Search] [Settings] (fits 360px cleanly) */
+      #content-col > header {
+        min-height: calc(50px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+        padding-top: calc(6px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+        padding-bottom: 6px !important;
+        padding-left: calc(8px + var(--safe-area-left, env(safe-area-inset-left, 0px))) !important;
+        padding-right: calc(8px + var(--safe-area-right, env(safe-area-inset-right, 0px))) !important;
+        background: #141619 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+      }
+      #header-favorites,
+      #header-profile,
+      #fiio-scan-header-btn {
+        display: none !important;
+      }
+      #header-eq-btn {
+        display: inline-grid !important;
+        place-items: center !important;
+        min-width: 34px !important;
+        min-height: 36px !important;
+        height: 36px !important;
+        padding: 0 7px !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        border-radius: 9px !important;
+        border: 1px solid rgba(145, 205, 229, 0.25) !important;
+        background: rgba(145, 205, 229, 0.08) !important;
+        color: #91cde5 !important;
+      }
+      #sidebar-toggle,
+      #back-button,
+      #header-search,
+      #mobile-settings {
+        min-width: 40px !important;
+        min-height: 40px !important;
+        width: 40px !important;
+        height: 40px !important;
+        border-radius: 10px !important;
+      }
+      #page-title {
+        font-size: 15px !important;
+        padding: 0 6px !important;
+      }
+
+      /* 2. Clean 2-Row Mobile/DAP Footer: hide A-B loop & 1.0x speed pills so track title has full width */
+      footer.glass #ab-loop-btn,
+      footer.glass #speed-btn {
+        display: none !important;
+      }
+      footer.glass {
+        min-height: calc(86px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+        padding: 6px 10px calc(6px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) 10px !important;
+        background: #17191d !important;
+      }
+      footer.glass .footer-main-container > div:first-child,
+      footer.glass .footer-player-row {
+        height: 50px !important;
+        min-height: 50px !important;
+      }
+      footer.glass #player-cover {
+        width: 42px !important;
+        height: 42px !important;
+        min-width: 42px !important;
+        border-radius: 10px !important;
+      }
+      footer.glass #play-button {
+        width: 42px !important;
+        height: 42px !important;
+        min-width: 42px !important;
+        min-height: 42px !important;
+        font-size: 16px !important;
+      }
+      footer.glass #previous-button,
+      footer.glass #next-button {
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        min-height: 38px !important;
+        font-size: 22px !important;
+      }
+      #content-col {
+        padding-bottom: calc(122px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+      }
+
+      /* 3. Compact 5-inch Typography, Padding & 3-Column Stat Row */
+      #home-view,
+      #library-view {
+        padding: 12px 12px 24px !important;
+      }
+      #home-heading {
+        margin: 4px 0 14px !important;
+        font-size: 24px !important;
+        line-height: 1.2 !important;
+      }
+      #library-intro {
+        margin: 8px 0 14px !important;
+      }
+      #list-title {
+        font-size: 24px !important;
+        line-height: 1.2 !important;
+      }
+      .roon-stat-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 8px !important;
+        margin-bottom: 18px !important;
+      }
+      .roon-stat {
+        min-height: 68px !important;
+        padding: 10px 8px !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        justify-content: center !important;
+      }
+      .roon-stat-icon {
+        font-size: 18px !important;
+        margin-bottom: 2px !important;
+      }
+      .roon-stat-value {
+        font-size: 20px !important;
+        line-height: 1.15 !important;
+      }
+      .roon-stat-label {
+        font-size: 10px !important;
+      }
+      #discover-banner {
+        margin-bottom: 18px !important;
+        padding: 14px 16px !important;
+        border-radius: 14px !important;
+      }
+      #recent-section {
+        margin: 0 -12px !important;
+        padding: 16px 12px !important;
+      }
+      #collection-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 14px 12px !important;
+      }
+      #play-library-button {
+        min-height: 40px !important;
+        padding: 0 18px !important;
+        font-size: 13.5px !important;
+      }
+
+      /* 4. Compact One-Screen Listening Room for 360x640dp */
+      #listening-room {
+        padding-top: calc(10px + var(--safe-area-top, env(safe-area-inset-top, 0px))) !important;
+        padding-bottom: calc(16px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) !important;
+        padding-left: 14px !important;
+        padding-right: 14px !important;
+      }
+      #listening-room main {
+        gap: 12px !important;
+        padding: 4px 0 12px 0 !important;
+      }
+      #room-play {
+        width: 52px !important;
+        height: 52px !important;
+        min-width: 52px !important;
+        min-height: 52px !important;
+      }
+    }
+
+    /* 5. Chromium 74 Flexbox Gap Fallback (Chrome < 84 ignores gap on display:flex) */
+    body.legacy-android footer.glass .footer-main-container,
+    body.fiio-dap-mode footer.glass .footer-main-container {
+      gap: 0 !important;
+    }
+    body.legacy-android footer.glass .footer-main-container > div:last-child,
+    body.fiio-dap-mode footer.glass .footer-main-container > div:last-child {
+      margin-top: 4px !important;
+      gap: 0 !important;
+    }
+    body.legacy-android footer.glass .footer-main-container > div:last-child > * + *,
+    body.fiio-dap-mode footer.glass .footer-main-container > div:last-child > * + * {
+      margin-left: 8px !important;
+    }
+    body.legacy-android footer.glass .footer-player-row,
+    body.fiio-dap-mode footer.glass .footer-player-row {
+      gap: 0 !important;
+    }
+    body.legacy-android footer.glass .footer-left-col,
+    body.fiio-dap-mode footer.glass .footer-left-col {
+      gap: 0 !important;
+      margin-right: 8px !important;
+    }
+    body.legacy-android footer.glass .footer-left-col > #open-listening-room,
+    body.fiio-dap-mode footer.glass .footer-left-col > #open-listening-room {
+      margin-left: 10px !important;
+    }
+    body.legacy-android footer.glass .footer-center-controls > div:first-child,
+    body.fiio-dap-mode footer.glass .footer-center-controls > div:first-child {
+      gap: 0 !important;
+    }
+    body.legacy-android footer.glass .footer-center-controls > div:first-child > * + *,
+    body.fiio-dap-mode footer.glass .footer-center-controls > div:first-child > * + * {
+      margin-left: 4px !important;
+    }
+    body.legacy-android #content-col > header > div,
+    body.fiio-dap-mode #content-col > header > div {
+      gap: 0 !important;
+    }
+    body.legacy-android #content-col > header > div > * + *,
+    body.fiio-dap-mode #content-col > header > div > * + * {
+      margin-left: 4px !important;
+    }
+    @supports not (aspect-ratio: 1 / 1) {
+      @media (max-width: 640px) {
+        #collection-grid .collection-card img {
+          width: 100% !important;
+          height: 156px !important;
+        }
+      }
+    }
+    /* v3.9.7 Web-Parity Roon Audiophile Surface & Depth on FiiO M11S */
+    body.fiio-dap-mode,
+    body.legacy-android {
+      background: radial-gradient(ellipse at 76% -18%, #20282b 0, transparent 42%), #111315 !important;
+    }
+    body.fiio-dap-mode .glass,
+    body.fiio-dap-mode footer.glass {
+      background: #181b1f !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+      box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.45) !important;
+    }
+    body.fiio-dap-mode #content-col > header {
+      background: rgba(17, 19, 21, 0.96) !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    }
+    body.fiio-dap-mode .roon-stat,
+    body.legacy-android .roon-stat {
+      background: linear-gradient(145deg, #1d2226 0%, #16191c 100%) !important;
+      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      border-radius: 12px !important;
+    }
+    body.fiio-dap-mode #discover-banner,
+    body.legacy-android #discover-banner {
+      background: linear-gradient(135deg, #5265a2 0%, #3a4978 100%) !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    }
+    body.fiio-dap-mode #track-list .track-row.active,
+    body.legacy-android #track-list .track-row.active {
+      background: rgba(145, 205, 229, 0.12) !important;
+      box-shadow: inset 3px 0 #91cde5 !important;
+    }
+    body.fiio-dap-mode #sidebar .source-btn.is-active,
+    body.legacy-android #sidebar .source-btn.is-active {
+      background: #25292c !important;
+      box-shadow: inset 2px 0 #91cde5 !important;
+    }
+    body.fiio-dap-mode footer.glass #play-button,
+    body.legacy-android footer.glass #play-button {
+      background: #e4ecef !important;
+      color: #182025 !important;
+      box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45) !important;
+    }
+    body.fiio-dap-mode footer.glass #player-cover,
+    body.legacy-android footer.glass #player-cover {
+      border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+    @media (max-width: 767.98px) {
+      #mobile-quality {
+        display: inline-block !important;
+        max-width: 78px !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+        padding: 2px 5px !important;
+        border-radius: 5px !important;
+        border: 1px solid rgba(52, 211, 153, 0.3) !important;
+        background: rgba(16, 185, 129, 0.1) !important;
+        color: #6ee7b7 !important;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+        font-size: 9px !important;
+        font-weight: 600 !important;
+        flex-shrink: 0 !important;
       }
     }
   </style>
@@ -3329,8 +3629,16 @@
       if (!response.ok) throw new Error(`OneDrive thumbnail HTTP ${response.status}`);
       return cloudImageDataUrl(await response.blob());
     }
+    function allSettledCompat(promises) {
+      return Promise.all(promises.map(function (p) {
+        return Promise.resolve(p).then(
+          function (value) { return { status: 'fulfilled', value: value }; },
+          function (reason) { return { status: 'rejected', reason: reason }; }
+        );
+      }));
+    }
     async function enrichCloudTrack(track) {
-      const [tagResult, imageResult] = await Promise.allSettled([
+      const [tagResult, imageResult] = await allSettledCompat([
         cloudTagRequest(track),
         track.source === 'onedrive' ? microsoftThumbnail(track) : googleThumbnail(track)
       ]);
@@ -3577,6 +3885,20 @@
       }
     }
     window.applyFiioDapMode = applyFiioDapMode;
+    try {
+      if (state.fiioDapMode || IS_LEGACY_ANDROID) {
+        const storedDap = typeof localStorage !== 'undefined' ? localStorage.getItem('nocturne-fiio-dap-mode') : null;
+        if (storedDap !== 'false') applyFiioDapMode(true);
+      }
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        window.addEventListener('nocturne-native-ready', function () {
+          try {
+            const storedDap = typeof localStorage !== 'undefined' ? localStorage.getItem('nocturne-fiio-dap-mode') : null;
+            if (storedDap !== 'false') applyFiioDapMode(true);
+          } catch (_) {}
+        });
+      }
+    } catch (_) {}
 
     function saveAlbumCoversCache() {
       try {

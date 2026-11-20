@@ -164,6 +164,10 @@ public class MainActivity extends AppCompatActivity {
     private AudioFocusRequest mAudioFocusRequest;
     private boolean mHasAudioFocus = false;
     private MediaSession mMediaSession;
+    private volatile int mSafeInsetTopDp = 0;
+    private volatile int mSafeInsetBottomDp = 0;
+    private volatile int mSafeInsetLeftDp = 0;
+    private volatile int mSafeInsetRightDp = 0;
     private boolean mIsMediaReceiverRegistered = false;
 
     private ValueCallback<Uri[]> mFilePathCallback;
@@ -769,6 +773,11 @@ public class MainActivity extends AppCompatActivity {
                 super.onPageFinished(view, url);
                 mProgressBar.setVisibility(View.GONE);
                 injectAndroidEnvironmentBridge();
+                applySafeAreaInsetsToWebView();
+                View root = findViewById(R.id.root_layout);
+                if (root != null) {
+                    ViewCompat.requestApplyInsets(root);
+                }
             }
 
             @Override
@@ -979,7 +988,7 @@ public class MainActivity extends AppCompatActivity {
     private void injectAndroidEnvironmentBridge() {
         String js = "window.isNativeAndroid = true;" +
                 "window.androidPlatformInfo = { platform: 'Android', sdk: " + Build.VERSION.SDK_INT +
-                ", isDapCompatible: true, supportsLegacyStorage: " + (Build.VERSION.SDK_INT <= 30) + " };" +
+                ", isDapCompatible: true, isFiio: " + isFiioDevice() + ", supportsLegacyStorage: " + (Build.VERSION.SDK_INT <= 30) + " };" +
                 "try {" +
                 "  if (window.caches) { caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); }); }" +
                 "  if (navigator.serviceWorker) { navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); }); }" +
@@ -1021,22 +1030,34 @@ public class MainActivity extends AppCompatActivity {
             int rightPx = insets.right;
 
             float density = getResources().getDisplayMetrics().density;
-            int topDp = (int) (topPx / density);
-            int bottomDp = (int) (bottomPx / density);
-            int leftDp = (int) (leftPx / density);
-            int rightDp = (int) (rightPx / density);
+            if (density <= 0f) density = 1f;
+            mSafeInsetTopDp = Math.round(topPx / density);
+            mSafeInsetBottomDp = Math.round(bottomPx / density);
+            mSafeInsetLeftDp = Math.round(leftPx / density);
+            mSafeInsetRightDp = Math.round(rightPx / density);
 
-            String setCssVars = String.format(
-                    Locale.US,
-                    "document.documentElement.style.setProperty('--safe-inset-top', '%dpx');" +
-                    "document.documentElement.style.setProperty('--safe-inset-bottom', '%dpx');" +
-                    "document.documentElement.style.setProperty('--safe-inset-left', '%dpx');" +
-                    "document.documentElement.style.setProperty('--safe-inset-right', '%dpx');",
-                    topDp, bottomDp, leftDp, rightDp
-            );
-            mWebView.evaluateJavascript(setCssVars, null);
+            applySafeAreaInsetsToWebView();
 
             return windowInsets;
+        });
+    }
+
+    private void applySafeAreaInsetsToWebView() {
+        if (mWebView == null) return;
+        final String setCssVars = String.format(
+                Locale.US,
+                "try{document.documentElement.style.setProperty('--safe-inset-top','%dpx');" +
+                "document.documentElement.style.setProperty('--safe-inset-bottom','%dpx');" +
+                "document.documentElement.style.setProperty('--safe-inset-left','%dpx');" +
+                "document.documentElement.style.setProperty('--safe-inset-right','%dpx');}catch(e){}",
+                mSafeInsetTopDp, mSafeInsetBottomDp, mSafeInsetLeftDp, mSafeInsetRightDp
+        );
+        runOnUiThread(() -> {
+            if (mWebView != null) {
+                try {
+                    mWebView.evaluateJavascript(setCssVars, null);
+                } catch (Throwable ignored) {}
+            }
         });
     }
 
@@ -1339,6 +1360,12 @@ public class MainActivity extends AppCompatActivity {
         releaseWakeLock();
         abandonAudioFocus();
         unregisterMediaNotificationReceiver();
+        NocturnePlaybackService.sMediaSessionToken = null;
+        try {
+            Intent stopIntent = new Intent(this, NocturnePlaybackService.class);
+            stopIntent.setAction(NocturnePlaybackService.ACTION_STOP);
+            startService(stopIntent);
+        } catch (Exception ignored) {}
         if (mMediaSession != null) {
             try {
                 mMediaSession.setActive(false);
@@ -2104,6 +2131,7 @@ public class MainActivity extends AppCompatActivity {
             mMediaSession.setPlaybackState(psb.build());
             mMediaSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
             mMediaSession.setActive(true);
+            NocturnePlaybackService.sMediaSessionToken = mMediaSession.getSessionToken();
         } catch (Exception e) {
             Log.w(TAG, "Failed to initialize MediaSession: " + e.getMessage());
         }
@@ -2149,11 +2177,14 @@ public class MainActivity extends AppCompatActivity {
             updateMediaSessionMetadata(title, artist, album, true);
         } else {
             try {
-                Intent stopIntent = new Intent(this, NocturnePlaybackService.class);
-                stopIntent.setAction(NocturnePlaybackService.ACTION_STOP);
-                startService(stopIntent);
+                Intent pauseIntent = new Intent(this, NocturnePlaybackService.class);
+                pauseIntent.setAction(NocturnePlaybackService.ACTION_START_OR_UPDATE);
+                pauseIntent.putExtra(NocturnePlaybackService.EXTRA_TITLE, title);
+                pauseIntent.putExtra(NocturnePlaybackService.EXTRA_ARTIST, artist);
+                pauseIntent.putExtra(NocturnePlaybackService.EXTRA_ALBUM, album);
+                pauseIntent.putExtra(NocturnePlaybackService.EXTRA_IS_PLAYING, false);
+                startService(pauseIntent);
             } catch (Exception ignored) {}
-            cancelMediaNotification();
             updateMediaSessionMetadata(title, artist, album, false);
             releaseWakeLock();
         }
@@ -3382,11 +3413,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace(""", "") : "3.5.0";
-                String model = Build.MODEL != null ? Build.MODEL.replace(""", "") : "Android";
-                return "{"versionName":"" + vName + "","sdkInt":" + Build.VERSION.SDK_INT + ","model":"" + model + ""}";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.7";
+                String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
+                return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{"versionName":"3.5.0","sdkInt":" + Build.VERSION.SDK_INT + ","model":"Android"}";
+                return "{\"versionName\":\"3.9.7\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
