@@ -293,10 +293,40 @@ test('v3.1.0: Quick Favorites Pill, 0-9 Percentage Seek & Smart Battery-Saver Mo
   assert.ok(html.includes('window.onAndroidPowerSaveChanged = (enabled) =>'), 'Web bridge must handle Android power-save mode');
 });
 
-test('v3.1.1: unlockAudioDecksOnGesture uses detached Audio probe (never fires ended on player decks)', () => {
-  const start = html.indexOf('function unlockAudioDecksOnGesture()');
-  const end = html.indexOf('async function safeResumeAudioContext(', start);
-  const body = html.slice(start, end);
-  assert.ok(body.includes('new Audio(SILENT_UNLOCK_WAV)'), 'must use detached probe Audio element');
-  assert.ok(!body.includes('[standbyAudio, audio]'), 'must never assign SILENT_UNLOCK_WAV directly to audio or standbyAudio');
+test('v3.1.2: Safe per-deck gesture unlock + setupAudio never closes running AudioContext without userActivation + play-button resumes suspended context without pausing', () => {
+  const unlockStart = html.indexOf('function unlockAudioDecksOnGesture()');
+  const unlockEnd = html.indexOf('async function safeResumeAudioContext(', unlockStart);
+  const unlockBody = html.slice(unlockStart, unlockEnd);
+  assert.ok(unlockBody.includes('el._unlockingGesture = true'), 'unlockAudioDecksOnGesture must guard decks with _unlockingGesture');
+  assert.ok(unlockBody.includes('if (el.src === SILENT_UNLOCK_WAV)'), 'unlockAudioDecksOnGesture must only clear src if still SILENT_UNLOCK_WAV');
+
+  const setupStart = html.indexOf('function setupAudio() {');
+  const setupBlock = html.slice(setupStart, setupStart + 1200);
+  assert.ok(setupBlock.includes('navigator.userActivation.isActive === false'), 'setupAudio must not close a running AudioContext when userActivation has expired');
+
+  const playBtnStart = html.indexOf("$('play-button').addEventListener('click'");
+  const playBtnBlock = html.slice(playBtnStart, playBtnStart + 2600);
+  assert.ok(playBtnBlock.includes("const wasContextSuspended = Boolean(state.context && state.context.state === 'suspended')"), 'play-button must detect suspended AudioContext before resuming');
+  assert.ok(playBtnBlock.includes('if (!audio.paused && wasContextSuspended)'), 'play-button must resume suspended AudioContext instead of pausing silent audio');
+
+  // Behavioral check: attachDeckEvents ignores ended/pause while _unlockingGesture is true
+  const state = { tracks: [{ id: 't1' }], currentId: 't1', isPlaybackLoading: false, errorSkipCount: 0 };
+  let playNextCalls = 0;
+  const deck = {
+    _unlockingGesture: true,
+    handlers: {},
+    paused: false,
+    ended: true,
+    src: 'data:audio/wav;base64,test',
+    currentTime: 0,
+    duration: 0.01,
+    addEventListener(type, fn) { (this.handlers[type] ||= []).push(fn); },
+    fire(type) { (this.handlers[type] || []).forEach(fn => fn()); }
+  };
+  const attachDeckEvents = new Function('state', 'audio', 'standbyAudio', 'toast', 'playNext', 'setVisualizerRunning', '$', 'navigator', 'updatePositionState', `${deckEventsSource}\nreturn attachDeckEvents;`)(
+    state, deck, { paused: true, src: '' }, () => {}, () => { playNextCalls++; }, () => {}, () => ({ textContent: '', classList: { add() {}, remove() {} } }), {}, () => {}
+  );
+  attachDeckEvents(deck);
+  deck.fire('ended');
+  assert.equal(playNextCalls, 0, 'ended during _unlockingGesture must NEVER trigger playNext');
 });

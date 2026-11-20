@@ -6839,6 +6839,8 @@
       } catch (err) {
         try {
           const clone = element.cloneNode(true);
+          clone.defaultMuted = false;
+          if (typeof clone.removeAttribute === 'function') clone.removeAttribute('muted');
           if (element.parentNode) element.parentNode.replaceChild(clone, element);
           if (element === audio) audio = clone;
           else if (element === standbyAudio) standbyAudio = clone;
@@ -7012,7 +7014,9 @@
       const curTrack = state.tracks.find(t => t.id === state.currentId);
       const targetRate = (state.bitPerfectEnabled && curTrack && curTrack.sampleRate) ? curTrack.sampleRate : undefined;
       if (state.context) {
-        if (state.bitPerfectEnabled && targetRate && state.context.sampleRate !== targetRate) {
+        const canSafelyRecreateCtx = !(typeof navigator !== 'undefined' && navigator.userActivation && navigator.userActivation.isActive === false);
+        const isAlreadyRunning = state.context.state === 'running';
+        if (state.bitPerfectEnabled && targetRate && state.context.sampleRate !== targetRate && (canSafelyRecreateCtx || !isAlreadyRunning)) {
           try { state.context.close(); } catch (_) {}
           try {
             state.context = new AudioContextClass({ sampleRate: targetRate });
@@ -11206,6 +11210,9 @@
       if (target && target.dataset && track && track.id != null) target.dataset.trackId = String(track.id);
       if (track && track.firstSlicePlayback && !Number.isFinite(track.lastSlicePosition)) track.lastSlicePosition = 0;
       lastDisplayedPlaybackSecond = -1; lastPositionStateSecond = -1;
+      target._unlockingGesture = false;
+      target.defaultMuted = false;
+      if (typeof target.removeAttribute === 'function') target.removeAttribute('muted');
       target.muted = false;
       audio = target; standbyAudio = previous; state.activeDeck = newDeck;
       if (state.playbackRate) { audio.playbackRate = state.playbackRate; if (standbyAudio) standbyAudio.playbackRate = state.playbackRate; }
@@ -11372,15 +11379,34 @@
     function unlockAudioDecksOnGesture() {
       if (state._decksUnlockedByGesture) return;
       state._decksUnlockedByGesture = true;
-      try {
-        if (typeof Audio !== 'function') return;
-        const probe = new Audio(SILENT_UNLOCK_WAV);
-        probe.muted = true;
-        const p = probe.play();
-        if (p && typeof p.then === 'function') {
-          p.then(() => { try { probe.pause(); probe.removeAttribute('src'); } catch (_) {} }).catch(() => {});
+      [standbyAudio, audio].forEach(el => {
+        if (!el || el.src || el._unlockingGesture || typeof el.play !== 'function') return;
+        try {
+          el._unlockingGesture = true;
+          el.muted = true;
+          el.src = SILENT_UNLOCK_WAV;
+          const finishUnlock = () => {
+            try {
+              if (el.src === SILENT_UNLOCK_WAV) {
+                el.pause();
+                if (typeof el.removeAttribute === 'function') el.removeAttribute('src');
+              }
+            } catch (_) {}
+            el._unlockingGesture = false;
+          };
+          const p = el.play();
+          if (p && typeof p.then === 'function') {
+            p.then(finishUnlock, finishUnlock);
+          } else {
+            finishUnlock();
+          }
+          setTimeout(() => {
+            if (el._unlockingGesture) finishUnlock();
+          }, 250);
+        } catch (_) {
+          el._unlockingGesture = false;
         }
-      } catch (_) {}
+      });
     }
     async function safeResumeAudioContext(timeoutMs = 350) {
       if (!state.context || state.context.state !== 'suspended' || typeof state.context.resume !== 'function') return;
@@ -11598,11 +11624,13 @@
         toast('Không có URL phát cho bài hát này.');
         return;
       }
+      target._unlockingGesture = false;
       if (target.dataset) target.dataset.trackId = String(track.id);
       if (target.src !== playUrl || target.error) { target.src = playUrl; target.load(); }
       if (track.cueStart !== undefined && track.cueStart > 0) {
         try { target.currentTime = track.cueStart; } catch (_) {}
       }
+      target.defaultMuted = false; if (typeof target.removeAttribute === 'function') target.removeAttribute('muted');
       target.volume = audio.volume; target.muted = false;
       if (state.bitPerfectEnabled) {
         // In Bit-Perfect mode, maintain volume at unity gain (1.0 / 0 dB) to prevent software digital bit reduction, deferring volume to the external DAC / hardware.
@@ -11703,8 +11731,11 @@
       const sliceUrl = URL.createObjectURL(sliceBlob); state.objectUrls.add(sliceUrl);
       state.dsdUrl = sliceUrl; state.dsdTrackId = track.id;
       track.url = sliceUrl; track.firstSlicePlayback = true; track.lastSlicePosition = null;
+      audio._unlockingGesture = false;
       if (audio.dataset) audio.dataset.trackId = String(track.id);
       audio.src = sliceUrl;
+      audio.defaultMuted = false;
+      if (typeof audio.removeAttribute === 'function') audio.removeAttribute('muted');
       audio.muted = false;
       const volSliderEl = $('volume');
       const rawVolPct = (volSliderEl && volSliderEl.value !== '' && volSliderEl.value !== undefined) ? Number(volSliderEl.value) : 72;
@@ -14567,12 +14598,27 @@
         }
         return;
       }
+      const wasContextSuspended = Boolean(state.context && state.context.state === 'suspended');
       if (typeof setupAudio === 'function') setupAudio();
       if (state.context && state.context.state === 'suspended') {
         state.context.resume().catch(e => console.debug('AudioContext resume in play-button:', e));
       }
       if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; state.playGeneration++; stopDsdWorker(false); $('play-button').textContent = '▶'; toast('Đã dừng giải mã DSD.'); return; }
+      if (state.isPlaybackLoading && (!audio.src || audio.paused) && !audio.error && state._lastPlayTrackAt && (Date.now() - state._lastPlayTrackAt) < 5000) {
+        if (typeof unlockAudioDecksOnGesture === 'function') unlockAudioDecksOnGesture();
+        return;
+      }
       if (!audio.src || audio.error) { const current = state.tracks.find(track => track.id === state.currentId); const next = current || state.tracks[0]; if (next) playTrack(next.id); return; }
+      if (!audio.paused && wasContextSuspended) {
+        try { if (state.context && state.context.state === 'suspended') await state.context.resume(); } catch (_) {}
+        audio.defaultMuted = false;
+        if (typeof audio.removeAttribute === 'function') audio.removeAttribute('muted');
+        audio.muted = false;
+        if (state.activeDeck && state.activeDeck.router && state.activeDeck.router.gain) {
+          state.activeDeck.router.gain.value = 1;
+        }
+        return;
+      }
       if (audio.paused) {
         const curSliceTrack = state.tracks.find(track => track.id === state.currentId);
         if (curSliceTrack && curSliceTrack.firstSlicePlayback && audio.ended) {
@@ -16075,6 +16121,7 @@
       }
 
       element.addEventListener('timeupdate', () => {
+        if (element._unlockingGesture) return;
         if (element !== audio) return;
         if (state.isPlaybackLoading && element.dataset && element.dataset.trackId && state.currentId != null && String(element.dataset.trackId) !== String(state.currentId)) return;
         if (state.abLoop && state.abLoop.a != null && state.abLoop.b != null && state.abLoop.b > state.abLoop.a + 0.25 && !state.isSeeking) {
@@ -16246,6 +16293,7 @@
         if (preloaded && preloaded.url && element.src === new URL(preloaded.url, location.href).href) state.preloadReadyUrl = preloaded.url;
       });
       element.addEventListener('loadedmetadata', () => {
+        if (element._unlockingGesture) return;
         if (element !== audio) return;
         if (state.isPlaybackLoading && element.dataset && element.dataset.trackId && state.currentId != null && String(element.dataset.trackId) !== String(state.currentId)) return;
         lastDisplayedPlaybackSecond = -1; lastPositionStateSecond = -1;
@@ -16255,6 +16303,7 @@
         updatePositionState();
       });
       element.addEventListener('play', () => {
+        if (element._unlockingGesture) return;
         if (element !== audio) return;
         state.errorSkipCount = 0;
         setVisualizerRunning(true);
@@ -16273,6 +16322,7 @@
         if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
       });
       element.addEventListener('pause', () => {
+        if (element._unlockingGesture) return;
         if (element === audio && !standbyAudio.paused) return;
         if (element !== audio) return;
         if (state.isPlaybackLoading && element.dataset && element.dataset.trackId && state.currentId != null && String(element.dataset.trackId) !== String(state.currentId)) return;
@@ -16294,6 +16344,7 @@
         if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
       });
       element.addEventListener('ended', () => {
+        if (element._unlockingGesture) return;
         if (element !== audio) return;
         const track = state.tracks.find(item => item.id === state.currentId);
         if (typeof checkScrobbleEligibility === 'function' && track) checkScrobbleEligibility(track, track.duration || element.duration || element.currentTime, track.duration || element.duration);
@@ -16343,6 +16394,7 @@
         playNext(1, true);
       });
       element.addEventListener('error', () => {
+        if (element._unlockingGesture) return;
         if (element === standbyAudio) { state.preloadTrackId = null; state.preloadReadyUrl = null; console.warn('Next track preload failed.'); return; }
         if (element !== audio) return;
         const track = state.tracks.find(item => item.id === state.currentId);
