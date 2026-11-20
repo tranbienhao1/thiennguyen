@@ -168,6 +168,31 @@ public class MainActivity extends AppCompatActivity {
     private volatile int mSafeInsetBottomDp = 0;
     private volatile int mSafeInsetLeftDp = 0;
     private volatile int mSafeInsetRightDp = 0;
+
+    // OTA Web Assets Engine (auto-updates HTML/CSS/JS from GitHub main without reinstalling APK)
+    private static final String OTA_PREFS_NAME = "nocturne_ota_prefs";
+    private static final String OTA_KEY_ACTIVE_VERSION = "ota_active_version";
+    private static final String OTA_KEY_APK_VERSION_CODE = "ota_apk_version_code";
+    private static final String OTA_BASE_URL = "https://raw.githubusercontent.com/tranbienhao1/thiennguyen/main/";
+    private static final String[] OTA_FILES = new String[] {
+            "sw.js",
+            "index.html",
+            "tailwind.min.css",
+            "autoeq-cue.js",
+            "cloud-metadata.js",
+            "dsd-worker.js",
+            "library-tools.js",
+            "library-utils.js",
+            "lrclib-client.js",
+            "lyrics-editor-ui.js",
+            "lyrics-utils.js",
+            "metadata-ui.js",
+            "metadata-utils.js",
+            "ui-overlay.js",
+            "virtual-scroll.js"
+    };
+    private final java.util.concurrent.atomic.AtomicBoolean mOtaChecking = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private volatile String mOtaPendingVersion = "";
     private boolean mIsMediaReceiverRegistered = false;
 
     private ValueCallback<Uri[]> mFilePathCallback;
@@ -686,9 +711,15 @@ public class MainActivity extends AppCompatActivity {
         mWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         mWebView.setBackgroundColor(Color.parseColor("#111315"));
 
-        // 10. Setup AssetLoader for secure HTTPS local file loading (works with Web Workers & AudioContext)
+        // 10. Setup AssetLoader with OTA-first + bundled APK fallback (never bricks on offline/error)
+        ensureOtaMatchesCurrentApk();
+        final WebViewAssetLoader.AssetsPathHandler bundledAssetsHandler = new WebViewAssetLoader.AssetsPathHandler(this);
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
-                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .addPathHandler("/assets/", path -> {
+                    WebResourceResponse otaRes = serveOtaAssetIfAvailable(path);
+                    if (otaRes != null) return otaRes;
+                    return bundledAssetsHandler.handle(path);
+                })
                 .build();
 
         mWebView.setWebViewClient(new WebViewClient() {
@@ -778,6 +809,7 @@ public class MainActivity extends AppCompatActivity {
                 if (root != null) {
                     ViewCompat.requestApplyInsets(root);
                 }
+                mWebView.postDelayed(() -> checkAndDownloadOtaUpdateAsync(false), 4000);
             }
 
             @Override
@@ -3413,11 +3445,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.8";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.11";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.8\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.11\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -3940,5 +3972,299 @@ public class MainActivity extends AppCompatActivity {
         public long getBitPerfectDuration() {
             return mActivity.getBitPerfectDuration();
         }
+
+        @JavascriptInterface
+        public void checkOtaUpdateNow() {
+            mActivity.checkAndDownloadOtaUpdateAsync(true);
+        }
+
+        @JavascriptInterface
+        public void applyOtaReload() {
+            mActivity.runOnUiThread(() -> {
+                if (mActivity.mWebView != null) {
+                    mActivity.mWebView.reload();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public boolean resetOtaCache() {
+            return mActivity.resetOtaCache();
+        }
+
+        @JavascriptInterface
+        public String getOtaStatusJson() {
+            String active = mActivity.getCurrentActiveWebVersion().replace("\"", "");
+            String pending = mActivity.mOtaPendingVersion != null ? mActivity.mOtaPendingVersion.replace("\"", "") : "";
+            return "{\"activeVersion\":\"" + active + "\",\"pendingVersion\":\"" + pending + "\",\"apkVersionCode\":" + BuildConfig.VERSION_CODE + "}";
+        }
     }
+
+    // =========================================================================
+    // OTA WEB ASSETS ENGINE (GitHub main -> private storage -> instant reload)
+    // =========================================================================
+
+    private File getOtaRootDir() {
+        return new File(getFilesDir(), "web_ota");
+    }
+
+    private File getOtaActiveDir() {
+        return new File(getOtaRootDir(), "active");
+    }
+
+    private void ensureOtaMatchesCurrentApk() {
+        try {
+            android.content.SharedPreferences prefs = getSharedPreferences(OTA_PREFS_NAME, Context.MODE_PRIVATE);
+            int savedCode = prefs.getInt(OTA_KEY_APK_VERSION_CODE, -1);
+            int currentCode = BuildConfig.VERSION_CODE;
+            if (savedCode != -1 && savedCode != currentCode) {
+                // Newer APK was installed: clear older OTA cache so freshly bundled APK assets take over
+                deleteDirRecursive(getOtaRootDir());
+                prefs.edit()
+                        .remove(OTA_KEY_ACTIVE_VERSION)
+                        .putInt(OTA_KEY_APK_VERSION_CODE, currentCode)
+                        .apply();
+                Log.i(TAG, "OTA cache cleared after APK upgrade (" + savedCode + " -> " + currentCode + ")");
+            } else if (savedCode == -1) {
+                prefs.edit().putInt(OTA_KEY_APK_VERSION_CODE, currentCode).apply();
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private WebResourceResponse serveOtaAssetIfAvailable(String relPath) {
+        try {
+            if (relPath == null || relPath.isEmpty() || relPath.contains("..")) return null;
+            String cleanPath = relPath.startsWith("/") ? relPath.substring(1) : relPath;
+            File activeDir = getOtaActiveDir();
+            File readyMarker = new File(activeDir, ".ota_ready");
+            if (!readyMarker.exists()) return null;
+
+            File target = new File(activeDir, cleanPath);
+            if (!target.exists() || !target.isFile() || target.length() <= 0) return null;
+            if (!target.getCanonicalPath().startsWith(activeDir.getCanonicalPath())) return null;
+
+            String mime = getWebAssetMimeType(cleanPath);
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Access-Control-Allow-Origin", "*");
+            headers.put("Cache-Control", "no-store, no-cache, must-revalidate");
+            return new WebResourceResponse(mime, "UTF-8", 200, "OK", headers, new java.io.FileInputStream(target));
+        } catch (Throwable t) {
+            Log.w(TAG, "OTA serve fallback to bundled asset for " + relPath + ": " + t.getMessage());
+            return null;
+        }
+    }
+
+    private String getWebAssetMimeType(String path) {
+        String lower = path.toLowerCase(Locale.US);
+        if (lower.endsWith(".html") || lower.endsWith(".htm")) return "text/html";
+        if (lower.endsWith(".js") || lower.endsWith(".mjs")) return "application/javascript";
+        if (lower.endsWith(".css")) return "text/css";
+        if (lower.endsWith(".json")) return "application/json";
+        if (lower.endsWith(".svg")) return "image/svg+xml";
+        if (lower.endsWith(".png")) return "image/png";
+        return "application/octet-stream";
+    }
+
+    private String readBundledCacheName() {
+        try (InputStream is = getAssets().open("sw.js")) {
+            byte[] buf = new byte[4096];
+            int n = is.read(buf);
+            if (n > 0) {
+                return extractCacheNameFromSw(new String(buf, 0, n, StandardCharsets.UTF_8));
+            }
+        } catch (Throwable ignored) {}
+        return "nocturne-v" + BuildConfig.VERSION_NAME;
+    }
+
+    private String extractCacheNameFromSw(String swText) {
+        if (swText == null) return "";
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("const\s+CACHE_NAME\s*=\s*['\"]([^'\"]+)['\"]")
+                .matcher(swText);
+        return m.find() ? m.group(1).trim() : "";
+    }
+
+    private String getCurrentActiveWebVersion() {
+        android.content.SharedPreferences prefs = getSharedPreferences(OTA_PREFS_NAME, Context.MODE_PRIVATE);
+        String otaVer = prefs.getString(OTA_KEY_ACTIVE_VERSION, "");
+        if (otaVer != null && !otaVer.isEmpty() && new File(getOtaActiveDir(), ".ota_ready").exists()) {
+            return otaVer;
+        }
+        return readBundledCacheName();
+    }
+
+    public void checkAndDownloadOtaUpdateAsync(final boolean notifyIfUpToDate) {
+        if (!isNetworkConnected()) {
+            if (notifyIfUpToDate) notifyWebOtaStatus("offline", getCurrentActiveWebVersion());
+            return;
+        }
+        if (!mOtaChecking.compareAndSet(false, true)) return;
+
+        new Thread(() -> {
+            try {
+                String currentVer = getCurrentActiveWebVersion();
+                String swUrl = OTA_BASE_URL + "sw.js?t=" + System.currentTimeMillis();
+                byte[] remoteSwBytes = downloadUrlBytes(swUrl, 10000);
+                if (remoteSwBytes == null || remoteSwBytes.length < 100) {
+                    if (notifyIfUpToDate) notifyWebOtaStatus("error", currentVer);
+                    return;
+                }
+                String remoteVer = extractCacheNameFromSw(new String(remoteSwBytes, StandardCharsets.UTF_8));
+                if (remoteVer.isEmpty() || remoteVer.equals(currentVer)) {
+                    if (notifyIfUpToDate) notifyWebOtaStatus("up_to_date", currentVer);
+                    return;
+                }
+
+                Log.i(TAG, "OTA update detected: " + currentVer + " -> " + remoteVer);
+                File otaRoot = getOtaRootDir();
+                File stagingDir = new File(otaRoot, "staging");
+                deleteDirRecursive(stagingDir);
+                if (!stagingDir.mkdirs() && !stagingDir.exists()) {
+                    if (notifyIfUpToDate) notifyWebOtaStatus("error", currentVer);
+                    return;
+                }
+
+                long ts = System.currentTimeMillis();
+                for (String relFile : OTA_FILES) {
+                    byte[] data = "sw.js".equals(relFile)
+                            ? remoteSwBytes
+                            : downloadUrlBytes(OTA_BASE_URL + relFile + "?t=" + ts, 20000);
+                    if (data == null || data.length < 100) {
+                        Log.w(TAG, "OTA download failed/empty for " + relFile + ", aborting cleanly");
+                        deleteDirRecursive(stagingDir);
+                        if (notifyIfUpToDate) notifyWebOtaStatus("error", currentVer);
+                        return;
+                    }
+                    if ("index.html".equals(relFile)) {
+                        if (data.length < 50000) {
+                            deleteDirRecursive(stagingDir);
+                            if (notifyIfUpToDate) notifyWebOtaStatus("error", currentVer);
+                            return;
+                        }
+                        String tail = new String(data, Math.max(0, data.length - 4096), Math.min(4096, data.length), StandardCharsets.UTF_8);
+                        if (!tail.toLowerCase(Locale.US).contains("</html>")) {
+                            deleteDirRecursive(stagingDir);
+                            if (notifyIfUpToDate) notifyWebOtaStatus("error", currentVer);
+                            return;
+                        }
+                    }
+                    if ("tailwind.min.css".equals(relFile) && data.length < 10000) {
+                        deleteDirRecursive(stagingDir);
+                        if (notifyIfUpToDate) notifyWebOtaStatus("error", currentVer);
+                        return;
+                    }
+                    File outFile = new File(stagingDir, relFile);
+                    try (java.io.FileOutputStream fos = new java.io.FileOutputStream(outFile)) {
+                        fos.write(data);
+                    }
+                }
+
+                // Mark staging ready and perform atomic swap -> active
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(new File(stagingDir, ".ota_ready"))) {
+                    fos.write(remoteVer.getBytes(StandardCharsets.UTF_8));
+                }
+                File activeDir = getOtaActiveDir();
+                File backupDir = new File(otaRoot, "old");
+                deleteDirRecursive(backupDir);
+                if (activeDir.exists()) {
+                    activeDir.renameTo(backupDir);
+                }
+                boolean swapped = stagingDir.renameTo(activeDir);
+                if (!swapped) {
+                    if (backupDir.exists()) backupDir.renameTo(activeDir);
+                    deleteDirRecursive(stagingDir);
+                    if (notifyIfUpToDate) notifyWebOtaStatus("error", currentVer);
+                    return;
+                }
+                deleteDirRecursive(backupDir);
+
+                getSharedPreferences(OTA_PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit()
+                        .putString(OTA_KEY_ACTIVE_VERSION, remoteVer)
+                        .putInt(OTA_KEY_APK_VERSION_CODE, BuildConfig.VERSION_CODE)
+                        .apply();
+                mOtaPendingVersion = remoteVer;
+                Log.i(TAG, "OTA update staged and activated successfully: " + remoteVer);
+                notifyWebOtaStatus("ready", remoteVer);
+            } catch (Throwable t) {
+                Log.w(TAG, "OTA background check failed: " + t.getMessage());
+                if (notifyIfUpToDate) notifyWebOtaStatus("error", getCurrentActiveWebVersion());
+            } finally {
+                mOtaChecking.set(false);
+            }
+        }, "NocturneOtaUpdater").start();
+    }
+
+    private byte[] downloadUrlBytes(String urlStr, int timeoutMs) {
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(urlStr);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(timeoutMs);
+            conn.setReadTimeout(timeoutMs);
+            conn.setInstanceFollowRedirects(true);
+            conn.setRequestProperty("Cache-Control", "no-cache");
+            conn.setRequestProperty("User-Agent", "Nocturne-Android-OTA");
+            int code = conn.getResponseCode();
+            if (code != 200) return null;
+            try (InputStream is = conn.getInputStream();
+                 ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                byte[] buf = new byte[16384];
+                int n;
+                while ((n = is.read(buf)) != -1) {
+                    baos.write(buf, 0, n);
+                }
+                return baos.toByteArray();
+            }
+        } catch (Throwable t) {
+            return null;
+        } finally {
+            if (conn != null) {
+                try { conn.disconnect(); } catch (Throwable ignored) {}
+            }
+        }
+    }
+
+    private void deleteDirRecursive(File dir) {
+        if (dir == null || !dir.exists()) return;
+        File[] children = dir.listFiles();
+        if (children != null) {
+            for (File c : children) {
+                if (c.isDirectory()) deleteDirRecursive(c);
+                else c.delete();
+            }
+        }
+        dir.delete();
+    }
+
+    private void notifyWebOtaStatus(final String status, final String version) {
+        final String safeStatus = status != null ? status.replace("'", "") : "";
+        final String safeVer = version != null ? version.replace("'", "") : "";
+        runOnUiThread(() -> {
+            if (mWebView != null) {
+                try {
+                    mWebView.evaluateJavascript(
+                            "if(typeof window.onNocturneOtaStatus==='function'){window.onNocturneOtaStatus('" + safeStatus + "','" + safeVer + "');}",
+                            null
+                    );
+                } catch (Throwable ignored) {}
+            }
+        });
+    }
+
+    public boolean resetOtaCache() {
+        try {
+            deleteDirRecursive(getOtaRootDir());
+            getSharedPreferences(OTA_PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit()
+                    .remove(OTA_KEY_ACTIVE_VERSION)
+                    .apply();
+            mOtaPendingVersion = "";
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
 }
+

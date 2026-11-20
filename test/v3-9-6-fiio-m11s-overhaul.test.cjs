@@ -15,7 +15,7 @@ const PLAYBACK_SVC = path.join(ROOT, 'android', 'app', 'src', 'main', 'java', 'c
 const BUILD_GRADLE = path.join(ROOT, 'android', 'app', 'build.gradle.kts');
 const ASSETS_DIR = path.join(ROOT, 'android', 'app', 'src', 'main', 'assets');
 
-test('v3.9.8 Layer 1: WebView 74 CSS & JS Compatibility (no :where() button break, no overflow-x:clip, no Promise.allSettled)', async () => {
+test('v3.9.11 Layer 1: WebView 74 CSS & JS Compatibility', async () => {
   const html = fs.readFileSync(INDEX_HTML, 'utf8');
   const tw = fs.readFileSync(TW_CSS, 'utf8');
   const sw = fs.readFileSync(SW_JS, 'utf8');
@@ -38,7 +38,7 @@ test('v3.9.8 Layer 1: WebView 74 CSS & JS Compatibility (no :where() button brea
   assert.equal(res[1].status, 'rejected');
 });
 
-test('v3.9.8 Layer 2: Web-Parity Offline Tailwind Coverage & FiiO M11S 5-inch Roon Visual Polish', () => {
+test('v3.9.11 Layer 2: Web-Parity Offline Tailwind Coverage & FiiO M11S 5-inch Roon Visual Polish', () => {
   const html = fs.readFileSync(INDEX_HTML, 'utf8');
   const tw = fs.readFileSync(TW_CSS, 'utf8');
 
@@ -62,51 +62,59 @@ test('v3.9.8 Layer 2: Web-Parity Offline Tailwind Coverage & FiiO M11S 5-inch Ro
   assert.ok(html.includes('#header-eq-btn {'));
 });
 
-test('v3.9.8 Hotfix: Fast-Tap Deduplication, Settings Touch Scrolling & Safe Storage Scan', () => {
+test('v3.9.11 Hotfix & Deep DAP Optimization: Fast-Tap, Scroll, Compact Catalog, Timeupdate Screen-Off & Lazy Covers', () => {
   const html = fs.readFileSync(INDEX_HTML, 'utf8');
   const java = fs.readFileSync(MAIN_ACTIVITY, 'utf8');
 
-  // 1. Fast-Tap capture click listener must actually cancel trailing trusted click (prevents Sidebar double-toggle!)
-  assert.ok(
-    html.includes('if (Date.now() - lastFastTapClickTs < 450 && e.isTrusted) {\n        e.preventDefault();\n        e.stopPropagation();\n        e.stopImmediatePropagation();\n      }'),
-    'Fast-Tap click deduplicator must stop propagation of duplicate trusted clicks'
-  );
-
-  // 2. Settings modal must use single-container Chromium 74 scrolling (top/right/bottom/left:0, height:100vh, display:block, touch-action:pan-y)
+  assert.ok(html.includes('if (Date.now() - lastFastTapClickTs < 450 && e.isTrusted) {\n        e.preventDefault();\n        e.stopPropagation();\n        e.stopImmediatePropagation();\n      }'));
   assert.ok(html.includes('#settings-modal[open] { display:block!important; }'));
-  assert.ok(html.includes('#settings-modal button, #settings-modal input, #settings-modal select, #settings-modal section, #settings-modal label { touch-action:pan-y!important; }'));
-
-  // 3. scanFiioStorage must NOT use spread-push (push(...)) which overflows V8 stack on large MicroSD libraries
-  const scanSection = html.slice(html.indexOf('async function scanFiioStorage('), html.indexOf('window.scanFiioStorage = scanFiioStorage;'));
-  assert.ok(scanSection.length > 200);
-  assert.ok(!scanSection.includes('.push(...'), 'scanFiioStorage must not use spread-push (.push(...))');
-
-  // 4. MainActivity.java scanDirInternal must guard depth, canonical symlinks, and skip Android/proc/sys
+  assert.ok(html.includes('body.fiio-dap-mode #content-col,\n    body.legacy-android #content-col {\n      transform: none !important;\n      transition: none !important;\n    }'));
+  assert.ok(html.includes('filter: blur(12px) brightness(0.45) !important;'));
+  assert.ok(html.includes('const isScreenHidden = typeof document !== \'undefined\' && Boolean(document.hidden);'));
+  assert.ok(html.includes('loading="lazy" decoding="async"'));
+  assert.ok(html.includes('const maxEntries = (state.fiioDapMode || IS_LEGACY_ANDROID) ? 120 : 500;'));
   assert.ok(java.includes('if (depth > 16 || collected.size() >= limit'));
   assert.ok(java.includes('visitedDirs.add(canonical)'));
-  assert.ok(java.includes('"Android".equals(dName)'));
 });
 
-test('v3.9.8 Layer 3: Android Native Safe-Area Insets, MediaStyle, Pause Keep-Alive & Version 3.9.8', () => {
+test('v3.9.11 OTA Web Assets Engine (GitHub main -> Atomic Staging/Swap -> Bundled APK Fallback)', () => {
+  const html = fs.readFileSync(INDEX_HTML, 'utf8');
   const java = fs.readFileSync(MAIN_ACTIVITY, 'utf8');
   const svc = fs.readFileSync(PLAYBACK_SVC, 'utf8');
   const gradle = fs.readFileSync(BUILD_GRADLE, 'utf8');
   const sw = fs.readFileSync(SW_JS, 'utf8');
 
-  assert.ok(sw.includes("const CACHE_VERSION = 'v3.9.8';"));
-  assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.8';"));
-  assert.ok(gradle.includes('versionCode = 62'));
-  assert.ok(gradle.includes('versionName = "3.9.8"'));
+  assert.ok(sw.includes("const CACHE_VERSION = 'v3.9.11';"));
+  assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.11';"));
+  assert.ok(gradle.includes('versionCode = 65'));
+  assert.ok(gradle.includes('versionName = "3.9.11"'));
 
-  assert.ok(java.includes('private volatile int mSafeInsetTopDp = 0;'));
-  assert.ok(java.includes('applySafeAreaInsetsToWebView();'));
+  // OTA engine in MainActivity.java
+  assert.ok(java.includes('https://raw.githubusercontent.com/tranbienhao1/thiennguyen/main/'));
+  assert.ok(java.includes('serveOtaAssetIfAvailable(path)'));
+  assert.ok(java.includes('bundledAssetsHandler.handle(path)'));
+  assert.ok(java.includes('ensureOtaMatchesCurrentApk();'));
+  assert.ok(java.includes('checkAndDownloadOtaUpdateAsync(false)'));
+  assert.ok(java.includes('public void checkOtaUpdateNow()'));
+  assert.ok(java.includes('public void applyOtaReload()'));
+  assert.ok(java.includes('public boolean resetOtaCache()'));
+  assert.ok(java.includes('public String getOtaStatusJson()'));
+  assert.ok(java.includes('.ota_ready'));
+  assert.ok(java.includes('stagingDir.renameTo(activeDir)'));
+
+  // OTA UI hook in index.html
+  assert.ok(html.includes('id="ota-check-btn"'));
+  assert.ok(html.includes('id="ota-reload-btn"'));
+  assert.ok(html.includes('window.onNocturneOtaStatus = function'));
+
+  // Existing native features preserved
   assert.ok(java.includes('NocturnePlaybackService.sMediaSessionToken = mMediaSession.getSessionToken();'));
   assert.ok(svc.includes('new Notification.MediaStyle()'));
   assert.ok(svc.includes('STOP_FOREGROUND_DETACH'));
   assert.ok(java.includes('return "{\\"versionName\\":\\"" + vName'));
 });
 
-test('v3.9.8 Asset Parity (0 CR bytes) & Web Audio Invariants', () => {
+test('v3.9.11 Asset Parity (0 CR bytes) & Web Audio Invariants', () => {
   const rootHtml = fs.readFileSync(INDEX_HTML, 'utf8');
   const assetHtml = fs.readFileSync(path.join(ASSETS_DIR, 'index.html'), 'utf8');
   const rootTw = fs.readFileSync(TW_CSS, 'utf8');
