@@ -203,6 +203,13 @@ public class MainActivity extends AppCompatActivity {
     private volatile boolean mIsMediaPlaying = false;
     private volatile String mOtaPendingVersion = "";
     private boolean mIsMediaReceiverRegistered = false;
+    private boolean mIsStorageReceiverRegistered = false;
+    private static final String PREF_FIIO_STORAGE_LINKED = "fiio_storage_linked";
+    private static final String PREF_FIIO_LINKED_ROOTS = "fiio_linked_roots_json";
+    private static final String PREF_FIIO_LAST_COUNT = "fiio_last_scan_count";
+    private static final String PREF_FIIO_LAST_TS = "fiio_last_scan_ts";
+    private static final String FIIO_CATALOG_CACHE_FILE = "fiio_library_cache.json";
+    private static final int FIIO_CATALOG_MAX_BYTES = 16 * 1024 * 1024;
 
     private ValueCallback<Uri[]> mFilePathCallback;
     private ActivityResultLauncher<Intent> mFileChooserLauncher;
@@ -240,6 +247,7 @@ public class MainActivity extends AppCompatActivity {
         initPowerAndAudioManagers();
         initMediaSession();
         registerMediaNotificationReceiver();
+        registerStorageMountReceiver();
         createNotificationChannelIfNeeded();
 
         // 3. Register activity result launchers for file selection & permissions
@@ -1397,6 +1405,7 @@ public class MainActivity extends AppCompatActivity {
                 if (mWebView == null) return;
                 StringBuilder js = new StringBuilder();
                 js.append("if(typeof window.onAndroidAppLifecycle==='function'){window.onAndroidAppLifecycle('foreground');}");
+                js.append("if(typeof window.onAndroidStorageStateChanged==='function'){window.onAndroidStorageStateChanged('resume');}");
                 js.append("if(typeof window.onAndroidPowerSaveChanged==='function'){window.onAndroidPowerSaveChanged(")
                   .append(isPowerSave ? "true" : "false").append(");}");
                 if (syncBpPos) {
@@ -1468,6 +1477,46 @@ public class MainActivity extends AppCompatActivity {
         onTrimMemory(TRIM_MEMORY_COMPLETE);
     }
 
+    private final BroadcastReceiver mStorageMountReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null || mWebView == null) return;
+            final String action = intent.getAction();
+            if (Intent.ACTION_MEDIA_MOUNTED.equals(action) || Intent.ACTION_MEDIA_SCANNER_FINISHED.equals(action)) {
+                mWebView.post(() -> {
+                    if (mWebView != null) {
+                        mWebView.evaluateJavascript(
+                                "if(typeof window.onAndroidStorageStateChanged==='function'){window.onAndroidStorageStateChanged('mounted');}",
+                                null
+                        );
+                    }
+                });
+            }
+        }
+    };
+
+    private void registerStorageMountReceiver() {
+        if (mIsStorageReceiverRegistered) return;
+        try {
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(Intent.ACTION_MEDIA_MOUNTED);
+            filter.addAction(Intent.ACTION_MEDIA_SCANNER_FINISHED);
+            filter.addDataScheme("file");
+            registerReceiver(mStorageMountReceiver, filter);
+            mIsStorageReceiverRegistered = true;
+        } catch (Throwable t) {
+            Log.w(TAG, "registerStorageMountReceiver warning: " + t.getMessage());
+        }
+    }
+
+    private void unregisterStorageMountReceiver() {
+        if (!mIsStorageReceiverRegistered) return;
+        try {
+            unregisterReceiver(mStorageMountReceiver);
+        } catch (Throwable ignored) {}
+        mIsStorageReceiverRegistered = false;
+    }
+
     @Override
     protected void onDestroy() {
         stopBitPerfectPlayback();
@@ -1475,6 +1524,7 @@ public class MainActivity extends AppCompatActivity {
         releaseWakeLock();
         abandonAudioFocus();
         unregisterMediaNotificationReceiver();
+        unregisterStorageMountReceiver();
         NocturnePlaybackService.sMediaSessionToken = null;
         try {
             Intent stopIntent = new Intent(this, NocturnePlaybackService.class);
@@ -4377,11 +4427,107 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.34";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.35";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.34\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.35\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+            }
+        }
+
+        @JavascriptInterface
+        public boolean saveFiioCatalogNative(String catalogJson) {
+            if (catalogJson == null) return false;
+            try {
+                byte[] bytes = catalogJson.getBytes(StandardCharsets.UTF_8);
+                if (bytes.length > FIIO_CATALOG_MAX_BYTES) return false;
+                File target = new File(mActivity.getFilesDir(), FIIO_CATALOG_CACHE_FILE);
+                File tmp = new File(mActivity.getFilesDir(), FIIO_CATALOG_CACHE_FILE + ".tmp");
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tmp, false)) {
+                    fos.write(bytes);
+                    fos.flush();
+                    try { fos.getFD().sync(); } catch (Throwable ignored) {}
+                }
+                if (target.exists() && !target.delete()) {
+                    try (java.io.FileOutputStream fos2 = new java.io.FileOutputStream(target, false)) {
+                        fos2.write(bytes);
+                        fos2.flush();
+                    }
+                    try { tmp.delete(); } catch (Throwable ignored) {}
+                    return true;
+                }
+                return tmp.renameTo(target);
+            } catch (Throwable t) {
+                Log.w(TAG, "saveFiioCatalogNative warning: " + t.getMessage());
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public String loadFiioCatalogNative() {
+            try {
+                File target = new File(mActivity.getFilesDir(), FIIO_CATALOG_CACHE_FILE);
+                if (!target.exists() || !target.isFile()) return "";
+                long len = target.length();
+                if (len <= 0 || len > FIIO_CATALOG_MAX_BYTES) return "";
+                try (FileInputStream fis = new FileInputStream(target);
+                     ByteArrayOutputStream bos = new ByteArrayOutputStream((int) len)) {
+                    byte[] buf = new byte[16384];
+                    int read;
+                    while ((read = fis.read(buf)) != -1) {
+                        bos.write(buf, 0, read);
+                    }
+                    return new String(bos.toByteArray(), StandardCharsets.UTF_8);
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "loadFiioCatalogNative warning: " + t.getMessage());
+                return "";
+            }
+        }
+
+        @JavascriptInterface
+        public String getFiioStorageLinkStateJson() {
+            try {
+                SharedPreferences prefs = mActivity.getSharedPreferences("nocturne_prefs", Context.MODE_PRIVATE);
+                boolean linked = prefs.getBoolean(PREF_FIIO_STORAGE_LINKED, false);
+                String rootsRaw = prefs.getString(PREF_FIIO_LINKED_ROOTS, "[]");
+                int lastCount = prefs.getInt(PREF_FIIO_LAST_COUNT, 0);
+                long lastTs = prefs.getLong(PREF_FIIO_LAST_TS, 0L);
+                JSONArray rootsArr;
+                try {
+                    rootsArr = new JSONArray(rootsRaw);
+                } catch (Exception ignored) {
+                    rootsArr = new JSONArray();
+                }
+                JSONObject out = new JSONObject();
+                out.put("linked", linked);
+                out.put("hasPermission", mActivity.hasStoragePermission());
+                out.put("linkedRoots", rootsArr);
+                out.put("lastTrackCount", lastCount);
+                out.put("lastScanTs", lastTs);
+                return out.toString();
+            } catch (Throwable t) {
+                return "{\"linked\":false,\"hasPermission\":" + (mActivity.hasStoragePermission() ? "true" : "false") + ",\"linkedRoots\":[],\"lastTrackCount\":0,\"lastScanTs\":0}";
+            }
+        }
+
+        @JavascriptInterface
+        public boolean setFiioStorageLinkState(boolean linked, @Nullable String rootsJson, int trackCount) {
+            try {
+                SharedPreferences prefs = mActivity.getSharedPreferences("nocturne_prefs", Context.MODE_PRIVATE);
+                SharedPreferences.Editor ed = prefs.edit();
+                ed.putBoolean(PREF_FIIO_STORAGE_LINKED, linked);
+                if (rootsJson != null && !rootsJson.trim().isEmpty()) {
+                    ed.putString(PREF_FIIO_LINKED_ROOTS, rootsJson.trim());
+                }
+                if (trackCount >= 0) {
+                    ed.putInt(PREF_FIIO_LAST_COUNT, trackCount);
+                }
+                ed.putLong(PREF_FIIO_LAST_TS, System.currentTimeMillis());
+                ed.apply();
+                return true;
+            } catch (Throwable t) {
+                return false;
             }
         }
 
@@ -4626,7 +4772,7 @@ public class MainActivity extends AppCompatActivity {
         public String scanMediaStoreAudio(int maxFiles) {
             JSONArray results = new JSONArray();
             int limit = maxFiles > 0 ? maxFiles : 10000;
-            String[] projection = new String[]{
+            String[] baseProjection = new String[]{
                     MediaStore.Audio.Media._ID,
                     MediaStore.Audio.Media.DISPLAY_NAME,
                     MediaStore.Audio.Media.TITLE,
@@ -4639,20 +4785,47 @@ public class MainActivity extends AppCompatActivity {
                     MediaStore.Audio.Media.TRACK,
                     MediaStore.Audio.Media.YEAR
             };
+            String[] extendedProjection = new String[]{
+                    MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.DISPLAY_NAME,
+                    MediaStore.Audio.Media.TITLE,
+                    MediaStore.Audio.Media.ARTIST,
+                    MediaStore.Audio.Media.ALBUM,
+                    MediaStore.Audio.Media.DURATION,
+                    MediaStore.Audio.Media.SIZE,
+                    MediaStore.Audio.Media.MIME_TYPE,
+                    MediaStore.Audio.Media.DATA,
+                    MediaStore.Audio.Media.TRACK,
+                    MediaStore.Audio.Media.YEAR,
+                    "album_artist"
+            };
             String sortOrder = MediaStore.Audio.Media.DATE_ADDED + " DESC";
-            try (Cursor cursor = mActivity.getContentResolver().query(
-                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                    projection,
-                    null,
-                    null,
-                    sortOrder
-            )) {
+            Cursor cursor = null;
+            try {
+                try {
+                    cursor = mActivity.getContentResolver().query(
+                            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                            extendedProjection,
+                            null,
+                            null,
+                            sortOrder
+                    );
+                } catch (IllegalArgumentException | android.database.sqlite.SQLiteException colErr) {
+                    cursor = mActivity.getContentResolver().query(
+                            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                            baseProjection,
+                            null,
+                            null,
+                            sortOrder
+                    );
+                }
                 if (cursor != null) {
                     int idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
                     int nameCol = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME);
                     int titleCol = cursor.getColumnIndex(MediaStore.Audio.Media.TITLE);
                     int artistCol = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST);
                     int albumCol = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM);
+                    int albumArtistCol = cursor.getColumnIndex("album_artist");
                     int durCol = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION);
                     int sizeCol = cursor.getColumnIndex(MediaStore.Audio.Media.SIZE);
                     int mimeCol = cursor.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE);
@@ -4680,6 +4853,7 @@ public class MainActivity extends AppCompatActivity {
                         String title = titleCol >= 0 ? cursor.getString(titleCol) : null;
                         String artist = artistCol >= 0 ? cursor.getString(artistCol) : null;
                         String album = albumCol >= 0 ? cursor.getString(albumCol) : null;
+                        String albumArtist = albumArtistCol >= 0 ? cursor.getString(albumArtistCol) : null;
                         long durationMs = durCol >= 0 ? cursor.getLong(durCol) : 0L;
                         int rawTrack = trackCol >= 0 ? cursor.getInt(trackCol) : 0;
                         int year = yearCol >= 0 ? cursor.getInt(yearCol) : 0;
@@ -4690,6 +4864,9 @@ public class MainActivity extends AppCompatActivity {
                         obj.put("title", title != null ? title : "");
                         obj.put("artist", artist != null ? artist : "");
                         obj.put("album", album != null ? album : "");
+                        if (albumArtist != null && !albumArtist.trim().isEmpty()) {
+                            obj.put("albumArtist", albumArtist.trim());
+                        }
                         obj.put("duration", durationMs > 0 ? (durationMs / 1000.0) : 0);
                         obj.put("size", size);
                         obj.put("mimeType", mimeType != null ? mimeType : getAudioMimeType(displayName));
@@ -4707,6 +4884,10 @@ public class MainActivity extends AppCompatActivity {
                 }
             } catch (Exception e) {
                 Log.w(TAG, "scanMediaStoreAudio error: " + e.getMessage(), e);
+            } finally {
+                if (cursor != null) {
+                    try { cursor.close(); } catch (Throwable ignored) {}
+                }
             }
             return results.toString();
         }
@@ -4757,10 +4938,18 @@ public class MainActivity extends AppCompatActivity {
                     // Phase 2: Deduplicated top-level storage roots (SD cards / DSD files not indexed by MediaStore)
                     List<String> rawRoots = new ArrayList<>();
                     try {
+                        SharedPreferences linkPrefs = mActivity.getSharedPreferences("nocturne_prefs", Context.MODE_PRIVATE);
+                        JSONArray savedRootsArr = new JSONArray(linkPrefs.getString(PREF_FIIO_LINKED_ROOTS, "[]"));
+                        for (int i = 0; i < savedRootsArr.length(); i++) {
+                            String sr = savedRootsArr.optString(i, "").trim();
+                            if (!sr.isEmpty() && !rawRoots.contains(sr)) rawRoots.add(sr);
+                        }
+                    } catch (Throwable ignored) {}
+                    try {
                         JSONArray rootsArr = new JSONArray(getStoragePaths());
                         for (int i = 0; i < rootsArr.length(); i++) {
                             String r = rootsArr.optString(i, "").trim();
-                            if (!r.isEmpty()) rawRoots.add(r);
+                            if (!r.isEmpty() && !rawRoots.contains(r)) rawRoots.add(r);
                         }
                     } catch (Throwable ignored) {}
                     Collections.sort(rawRoots, (a, b) -> Integer.compare(a.length(), b.length()));
@@ -4777,10 +4966,12 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     Set<String> visitedDirs = new HashSet<>();
+                    List<String> activeRoots = new ArrayList<>();
                     for (String rootPath : minimalRoots) {
                         if (totalEmitted >= limit) break;
                         File rootDir = new File(rootPath);
                         if (!rootDir.exists() || !rootDir.canRead()) continue;
+                        activeRoots.add(rootPath);
                         List<File> collected = new ArrayList<>();
                         scanDirInternal(rootDir, collected, Math.max(1, limit - totalEmitted), 0, visitedDirs);
                         for (File f : collected) {
@@ -4805,6 +4996,13 @@ public class MainActivity extends AppCompatActivity {
 
                     if (batch.length() > 0) {
                         emitStorageScanChunk(batch, totalEmitted, "Storage");
+                    }
+                    if (totalEmitted > 0) {
+                        JSONArray linkedRootsJson = new JSONArray();
+                        for (String ar : (activeRoots.isEmpty() ? minimalRoots : activeRoots)) {
+                            linkedRootsJson.put(ar);
+                        }
+                        setFiioStorageLinkState(true, linkedRootsJson.toString(), totalEmitted);
                     }
                 } catch (Throwable t) {
                     errorMsg = t.getMessage() != null ? t.getMessage() : "Storage scan failed";

@@ -80,21 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.34';
-  const name = process.argv[3] || `Nocturne ${tag} (Web PWA UX Polish + Nút Làm mới ảnh bìa Web & FiiO)`;
+  const tag = process.argv[2] || 'v3.9.35';
+  const name = process.argv[3] || `Nocturne ${tag} (FiiO M11S tự giữ kết nối bộ nhớ vĩnh viễn + Gộp Album/Nghệ sĩ chỉ giữ Ca sĩ chính)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} — Hoàn thiện PWA UX & Làm mới Ảnh bìa (Web + FiiO M11S)
+    : `### Nocturne ${tag} — Giữ kết nối bộ nhớ FiiO M11S & Sửa lỗi tách Nghệ sĩ phụ
 
-#### 1. Tối ưu Web PWA trên Desktop & Mobile Browser
-- **Loại bỏ icon trùng trong \`manifest.json\`**: Giữ 3 entry chuẩn duy nhất (\`icon.svg\`, \`192x192\`, \`512x512\`) chuẩn Lighthouse PWA.
-- **Đồng bộ \`MediaSession\` theo thời gian thực**: Khi ảnh bìa album/ca sĩ được nạp bất đồng bộ sau khi phát (\`broadcastCoverUpdate\`), thông tin \`navigator.mediaSession.metadata\` và \`setPositionState\` tự động cập nhật ngay lập tức trên khóa màn hình và điều khiển hệ thống.
-- **Sửa lỗi Kéo-Thả (Drag & Drop)**: Chặn lớp phủ \`#drop-target\` bật nhầm khi kéo sắp xếp hàng đợi nội bộ (\`isExternalFileDrag\`), đồng thời giữ nguyên \`relativePath\` thư mục con khi thả cả folder album để ghép \`cover.jpg\` và \`.lrc\` chính xác.
-- **Nhắc cập nhật PWA gọn nhẹ (\`notifyPwaServiceWorkerUpdate\`)**: Service Worker lắng nghe \`reg.waiting\` và \`updatefound\` để hiển thị biểu ngữ \`#update-banner\` không ép tải lại, tự lưu vị trí đang phát nếu người dùng chọn cập nhật.
+#### 1. FiiO M11S tự động giữ kết nối bộ nhớ vĩnh viễn (không phải bấm quét/kết nối lại)
+- **Lưu kép danh mục & trạng thái kết nối ở tầng Native Android (\`MainActivity.java\`)**: Ngay khi quét được nhạc trên bộ nhớ máy/thẻ MicroSD, APK tự lưu lại trạng thái đã kết nối (\`PREF_FIIO_STORAGE_LINKED\`, danh sách thư mục gốc MicroSD) vào \`SharedPreferences\` và sao lưu danh mục \`fiio_library_cache.json\` trong \`filesDir\` (an toàn kể cả khi xóa cache WebView hoặc cập nhật OTA).
+- **Tự khôi phục & lắng nghe gắn lại thẻ MicroSD (\`ACTION_MEDIA_MOUNTED\`)**: Tự động khôi phục danh mục khi mở app, tự động đồng bộ nền ngay cả khi đã có danh sách nhạc Cloud, và tự thử lại nếu thẻ MicroSD vừa khởi động xong.
 
-#### 2. Nút "Làm mới ảnh bìa" trong Cài đặt (\`#refresh-cover-art-btn\`)
-- **Xóa cache ảnh cũ 1 chạm cho cả Web & FiiO APK**: Thêm \`NocturneNative.clearLocalCoverCache()\` trên Android (\`MainActivity.java\`) kết hợp \`refreshAllArtworkCaches()\` xóa \`albumCovers\`, \`artistPortraits\`, \`failedNativeCovers\`, làm mới tham số chống cache HTTP \`&r=\` cho \`/local-cover\`, và kích hoạt quét lại ảnh bìa mà không mất thư viện hay danh sách yêu thích.
+#### 2. Sửa triệt để lỗi đọc Album & Nghệ sĩ tách quá nhiều ca sĩ phụ
+- **Đọc \`ALBUM_ARTIST\` từ MediaStore & thẻ nhạc**: \`scanMediaStoreAudio\` tự động đọc thêm cột \`album_artist\` (có fallback an toàn cho Android 10 FiiO M11S) và truyền sang \`library-utils.js\`.
+- **Nâng cấp \`primaryArtistName\` & gom nhóm thông minh (\`buildLibraryCollections\`)**: Lọc sạch nghệ sĩ phụ (\`ft.Min\`, \`feat.\`, \`HIEUTHUHAI X Negav\`, \`Sơn Tùng M-TP / Onionn\`, \`A - B\`, \`cùng\`, \`với\`, \`·\`, \`、\`, trong ngoặc \`(...)\`), đồng thời gom các bài cùng thư mục album/nghệ sĩ album về 1 Nghệ sĩ chính duy nhất (hoặc \`Various Artists\` cho album tổng hợp nhiều ca sĩ).
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

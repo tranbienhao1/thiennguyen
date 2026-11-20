@@ -330,18 +330,18 @@ test('5. Settings "Làm mới ảnh bìa" clears stale web & native caches and b
   assert.ok(toasts[0].includes('14') && toasts[0].includes('2'));
 });
 
-test('6. Version sync v3.9.34 / versionCode 88 & zero Chromium 74 ES2020+ syntax violations', () => {
+test('6. Version sync v3.9.34+ / versionCode 88+ & zero Chromium 74 ES2020+ syntax violations', () => {
   const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const swJs = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const gradle = fs.readFileSync(path.join(ROOT, 'android/app/build.gradle.kts'), 'utf8');
   const mainActivity = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
 
-  assert.ok(indexHtml.includes('FiiO M11S · v3.9.34'));
-  assert.ok(swJs.includes("const CACHE_VERSION = 'v3.9.34';"));
-  assert.ok(swJs.includes("const CACHE_NAME = 'nocturne-v3.9.34';"));
-  assert.ok(/versionCode\s*=\s*88\b/.test(gradle));
-  assert.ok(/versionName\s*=\s*"3\.9\.34"/.test(gradle));
-  assert.ok(mainActivity.includes('"3.9.34"'));
+  assert.ok(/FiiO M11S · v3\.9\.(?:3[4-9]|[4-9]\d|\d{3,})/.test(indexHtml));
+  assert.ok(/const CACHE_VERSION = 'v3\.9\.(?:3[4-9]|[4-9]\d|\d{3,})';/.test(swJs));
+  assert.ok(/const CACHE_NAME = 'nocturne-v3\.9\.(?:3[4-9]|[4-9]\d|\d{3,})';/.test(swJs));
+  assert.ok(/versionCode\s*=\s*(?:8[89]|9\d|\d{3,})\b/.test(gradle));
+  assert.ok(/versionName\s*=\s*"3\.9\.(?:3[4-9]|[4-9]\d|\d{3,})"/.test(gradle));
+  assert.ok(/"3\.9\.(?:3[4-9]|[4-9]\d|\d{3,})"/.test(mainActivity));
 
   const filesToScan = [
     'index.html',

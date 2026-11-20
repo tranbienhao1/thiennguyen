@@ -2360,7 +2360,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.34</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.35</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -2373,6 +2373,7 @@
           <button id="fiio-scan-settings-btn" type="button" class="w-full rounded-lg bg-amber-500/20 border border-amber-400/40 px-3 py-2.5 text-xs font-medium text-amber-200 hover:bg-amber-500/30 transition flex items-center justify-center gap-2">
             <span>⚡</span> Quét thẻ nhớ FiiO &amp; Bộ nhớ máy
           </button>
+          <p id="fiio-storage-link-status" class="mt-2 hidden w-full text-[10px] font-medium text-emerald-300"></p>
         </div>
         <div class="mt-3 pt-3 border-t border-white/10">
           <label class="flex items-center justify-between cursor-pointer">
@@ -3650,7 +3651,7 @@
       if (!cover.startsWith('data:image')) return cover;
       return cover.length > MAX_CATALOG_COVER_CHARS ? null : cover;
     }
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, savedAt:Date.now()});
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, savedAt:Date.now()});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
       const track = {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', thumbnailUrl:file.thumbnailLink || '', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
@@ -3663,13 +3664,16 @@
       const thumbnailSet = Array.isArray(thumbnailSets) ? thumbnailSets[0] : null;
       const thumbnail = thumbnailSet && (thumbnailSet.large || thumbnailSet.medium || thumbnailSet.small);
       const graphMetadataLoaded = !!item.audio && (!!item.audio.title || !!item.audio.artist || !!item.audio.album);
+      const rawAlbumArtist = (item.audio && item.audio.albumArtist) ? String(item.audio.albumArtist).trim() : '';
       const graphMetadata = library.resolveTrackMetadata({
         title:item.audio && item.audio.title,
         artist:item.audio && item.audio.artist,
         album:item.audio && item.audio.album,
-        albumArtist:item.audio && item.audio.albumArtist
+        albumArtist:rawAlbumArtist
       }, fallback);
-      return {id:`onedrive:${item.id}`, remoteId:item.id, remotePath, name:item.name || `Audio ${item.id}`, ...graphMetadata, format, size:Number(item.size) || 0, source:'onedrive', url:'', thumbnailUrl:thumbnail && thumbnail.url || '', downloadUrl:item['@microsoft.graph.downloadUrl'] || '', duration:Number(item.audio && item.audio.duration) / 1000 || 0, isDsd:isDsdFormat(format), metadataLoaded:graphMetadataLoaded, load:() => loadMicrosoftAudio(item.id)};
+      const msTrack = {id:`onedrive:${item.id}`, remoteId:item.id, remotePath, name:item.name || `Audio ${item.id}`, ...graphMetadata, format, size:Number(item.size) || 0, source:'onedrive', url:'', thumbnailUrl:thumbnail && thumbnail.url || '', downloadUrl:item['@microsoft.graph.downloadUrl'] || '', duration:Number(item.audio && item.audio.duration) / 1000 || 0, isDsd:isDsdFormat(format), metadataLoaded:graphMetadataLoaded, load:() => loadMicrosoftAudio(item.id)};
+      if (rawAlbumArtist) msTrack.albumArtist = rawAlbumArtist;
+      return msTrack;
     };
     function mergeMicrosoftTrack(track, item, remotePath = '') {
       const currentUrl = track.url, currentFile = track.file;
@@ -3928,6 +3932,8 @@
         }
         const metadata = library.resolveTrackMetadata(tags, {title:track.title, artist:track.artist, album:track.album});
         Object.assign(track, metadata);
+        const tagAa = String(tags.albumartist || tags.albumArtist || tags.album_artist || '').trim();
+        if (tagAa && !track.albumArtist) track.albumArtist = tagAa;
         if (tags.iTunNORM && !track.iTunNORM) track.iTunNORM = tags.iTunNORM;
         if (tags.replayGainTrackGain !== undefined) track.replayGainTrackGain = tags.replayGainTrackGain;
         if (tags.replayGainTrackPeak !== undefined) track.replayGainTrackPeak = tags.replayGainTrackPeak;
@@ -6007,25 +6013,32 @@
 
       const artistMap = new Map();
       const recentRank = new Map();
+      const collections = (typeof library !== 'undefined' && typeof library.buildLibraryCollections === 'function')
+        ? library.buildLibraryCollections(tracks)
+        : null;
       const historyList = Array.isArray(state.recentHistory) ? state.recentHistory : [];
       for (let i = 0; i < historyList.length; i++) {
         const h = historyList[i];
         if (!h || !h.artist) continue;
+        const primaryHistArtist = (typeof library !== 'undefined' && typeof library.primaryArtistName === 'function')
+          ? library.primaryArtistName(h.artist, h.artist)
+          : h.artist;
         const k = (typeof library !== 'undefined' && typeof library.normalizeSearchKey === 'function')
-          ? library.normalizeSearchKey(h.artist)
-          : String(h.artist).trim().toLowerCase();
+          ? library.normalizeSearchKey(primaryHistArtist)
+          : String(primaryHistArtist).trim().toLowerCase();
         if (k && !recentRank.has(k)) recentRank.set(k, i);
       }
 
       for (let i = 0; i < tracks.length; i++) {
         const t = tracks[i];
         if (!t) continue;
+        const colInfo = collections ? collections.getTrackCollection(t) : null;
         const meta = (typeof library !== 'undefined' && typeof library.trackMetadata === 'function') ? library.trackMetadata(t) : t;
-        const name = String((meta && meta.artist) || t.artist || '').trim();
+        const name = String((colInfo && colInfo.artist) || (meta && meta.artist) || t.artist || '').trim();
         if (!name) continue;
-        const key = (typeof library !== 'undefined' && typeof library.normalizeSearchKey === 'function')
+        const key = (colInfo && colInfo.artistKey) || ((typeof library !== 'undefined' && typeof library.normalizeSearchKey === 'function')
           ? library.normalizeSearchKey(name)
-          : name.toLowerCase();
+          : name.toLowerCase());
         if (!key) continue;
         let entry = artistMap.get(key);
         if (!entry) {
@@ -6551,6 +6564,7 @@
         duration: technical.duration,
         size: file.size
       };
+      if (mergedTags.albumArtist) trackObj.albumArtist = String(mergedTags.albumArtist).trim();
       if (technical.iTunNORM) trackObj.iTunNORM = technical.iTunNORM;
       if (technical.replayGainTrackGain !== undefined) trackObj.replayGainTrackGain = technical.replayGainTrackGain;
       if (technical.replayGainTrackPeak !== undefined) trackObj.replayGainTrackPeak = technical.replayGainTrackPeak;
@@ -7230,26 +7244,34 @@
       if (!albumName) return;
       const targetAlbum = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey(albumName) : String(albumName).toLowerCase();
       const targetArtist = (artistName && typeof library !== 'undefined' && library) ? library.normalizeSearchKey(artistName) : (artistName ? String(artistName).toLowerCase() : null);
+      const collections = (typeof library !== 'undefined' && typeof library.buildLibraryCollections === 'function')
+        ? library.buildLibraryCollections(state.tracks || [])
+        : null;
       const albumTracks = (state.tracks || []).filter(t => {
+        const col = collections ? collections.getTrackCollection(t) : null;
         const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(t) : t;
-        const mAlbum = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey(meta.album) : String(meta.album || '').toLowerCase();
+        const mAlbum = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey((col && col.album) || meta.album) : String(meta.album || '').toLowerCase();
         if (mAlbum !== targetAlbum) return false;
         if (targetArtist) {
-          const mArtist = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey(meta.artist) : String(meta.artist || '').toLowerCase();
-          return mArtist === targetArtist;
+          const mAlbumArtist = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey((col && col.albumArtist) || meta.artist) : String(meta.artist || '').toLowerCase();
+          const mPrimary = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey((col && col.artist) || meta.artist) : String(meta.artist || '').toLowerCase();
+          return mAlbumArtist === targetArtist || mPrimary === targetArtist;
         }
         return true;
       });
       if (!albumTracks.length) return;
       
+      const col0 = collections ? collections.getTrackCollection(albumTracks[0]) : null;
       const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(albumTracks[0]) : albumTracks[0];
       const sortedAlbumTracks = (typeof library !== 'undefined' && typeof library.sortAlbumTracks === 'function')
         ? library.sortAlbumTracks(albumTracks, { groupByAlbum: false })
         : albumTracks;
+      const resolvedAlbumArtist = (col0 && col0.albumArtist) || meta.artist || artistName || 'Unknown Artist';
+      const resolvedArtistKey = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey(resolvedAlbumArtist) : resolvedAlbumArtist.toLowerCase();
       const entry = {
-        key: `${targetAlbum}\t${targetArtist || ''}`,
+        key: `${targetAlbum}\t${targetArtist || resolvedArtistKey}`,
         name: meta.album || albumName,
-        artist: meta.artist || artistName || 'Unknown Artist',
+        artist: resolvedAlbumArtist,
         tracks: sortedAlbumTracks,
         cover: ((function () { const c = sortedAlbumTracks.find(t => t.cover); return c ? c.cover : ''; })()),
         action: 'album'
@@ -7441,19 +7463,28 @@
 
     function openArtist(artistName) {
       if (!artistName) return;
-      const targetArtist = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey(artistName) : String(artistName).toLowerCase();
+      const primaryTarget = (typeof library !== 'undefined' && typeof library.primaryArtistName === 'function')
+        ? library.primaryArtistName(artistName, artistName)
+        : artistName;
+      const targetArtist = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey(primaryTarget) : String(primaryTarget).toLowerCase();
+      const collections = (typeof library !== 'undefined' && typeof library.buildLibraryCollections === 'function')
+        ? library.buildLibraryCollections(state.tracks || [])
+        : null;
       const artistTracks = (state.tracks || []).filter(t => {
+        const col = collections ? collections.getTrackCollection(t) : null;
+        if (col && col.artistKey === targetArtist) return true;
         const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(t) : t;
         const mArtist = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey(meta.artist) : String(meta.artist || '').toLowerCase();
         return mArtist === targetArtist;
       });
       if (!artistTracks.length) return;
       
+      const col0 = collections ? collections.getTrackCollection(artistTracks[0]) : null;
       const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(artistTracks[0]) : artistTracks[0];
       const entry = {
         key: targetArtist,
-        name: meta.artist || artistName,
-        artist: meta.artist || artistName,
+        name: (col0 && col0.artist) || meta.artist || primaryTarget,
+        artist: (col0 && col0.artist) || meta.artist || primaryTarget,
         tracks: artistTracks,
         cover: ((function () { const c = artistTracks.find(t => t.cover); return c ? c.cover : ''; })()),
         action: 'artist'
@@ -7477,18 +7508,25 @@
     function renderCollectionCards(tracks) {
       const grid = $('collection-grid'), view = state.activeView;
       const metadata = track => library.trackMetadata(track);
+      const collections = (typeof library !== 'undefined' && typeof library.buildLibraryCollections === 'function')
+        ? library.buildLibraryCollections(tracks)
+        : null;
       const artists = new Map(), albums = new Map();
       for (const track of tracks) {
         if (!track.cover && typeof (library && library.resolveTrackCover) === 'function') {
           track.cover = library.resolveTrackCover(track, state.albumCovers, state.tracks);
         }
-        const info = metadata(track), artistKey = library.normalizeSearchKey(info.artist);
+        const info = metadata(track);
+        const colInfo = collections ? collections.getTrackCollection(track) : null;
+        const artistName = (colInfo && colInfo.artist) || info.artist;
+        const artistKey = (colInfo && colInfo.artistKey) || library.normalizeSearchKey(info.artist);
+        const albumArtistName = (colInfo && colInfo.albumArtist) || info.artist;
         const savedPortrait = (state.artistPortraits && state.artistPortraits.get(artistKey)) || '';
         const usableTrackCover = (track.cover && track.cover !== '♫' && !failedNativeCovers.has(track.cover)) ? track.cover : '';
-        if (!artists.has(artistKey)) artists.set(artistKey,{key:artistKey,name:info.artist,tracks:[],cover:savedPortrait || usableTrackCover || ''});
+        if (!artists.has(artistKey)) artists.set(artistKey,{key:artistKey,name:artistName,tracks:[],cover:savedPortrait || usableTrackCover || ''});
         artists.get(artistKey).tracks.push(track);
-        const albumKey = `${library.normalizeSearchKey(info.album)}\t${artistKey}`;
-        if (!albums.has(albumKey)) albums.set(albumKey,{key:albumKey,name:info.album,artist:info.artist,tracks:[],cover:usableTrackCover || ''});
+        const albumKey = (colInfo && colInfo.albumKey) || `${library.normalizeSearchKey(info.album)}\t${artistKey}`;
+        if (!albums.has(albumKey)) albums.set(albumKey,{key:albumKey,name:info.album,artist:albumArtistName,tracks:[],cover:usableTrackCover || ''});
         albums.get(albumKey).tracks.push(track);
         const artKey = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function') ? library.buildAlbumKey(track) : null;
         const cachedCover = artKey && state.albumCovers ? state.albumCovers.get(artKey) : null;
@@ -7513,8 +7551,14 @@
       } else {
         entries = (isArtistView ? [...artists.values()] : [...albums.values()]).filter(entry => {
           if (state.focusOnly && !entry.tracks.some(isFavorite)) return false;
-          if (state.artist !== '*' && !entry.tracks.some(track => library.normalizeSearchKey(metadata(track).artist) === state.artist)) return false;
-          if (state.album !== '*' && !entry.tracks.some(track => `${library.normalizeSearchKey(metadata(track).album)}\t${library.normalizeSearchKey(metadata(track).artist)}` === state.album)) return false;
+          if (state.artist !== '*' && !entry.tracks.some(track => {
+            const colInfo = collections ? collections.getTrackCollection(track) : null;
+            return (colInfo && colInfo.artistKey === state.artist) || library.normalizeSearchKey(metadata(track).artist) === state.artist;
+          })) return false;
+          if (state.album !== '*' && !entry.tracks.some(track => {
+            const colInfo = collections ? collections.getTrackCollection(track) : null;
+            return ((colInfo && colInfo.albumKey) || `${library.normalizeSearchKey(metadata(track).album)}\t${library.normalizeSearchKey(metadata(track).artist)}`) === state.album;
+          })) return false;
           if (state.query && !library.normalizeSearchKey(`${entry.name} ${entry.artist || ''}`).includes(library.normalizeSearchKey(state.query))) return false;
           return true;
         });
@@ -16291,6 +16335,7 @@
       if (t.format) rec.format = t.format;
       if (t.artist) rec.artist = t.artist;
       if (t.album) rec.album = t.album;
+      if (t.albumArtist && t.albumArtist !== t.artist) rec.albumArtist = t.albumArtist;
       const dur = Number(t.duration) || 0;
       if (dur > 0) rec.duration = Math.round(dur * 10) / 10;
       if (!ultraLean) {
@@ -16336,17 +16381,26 @@
             fiioSource.push(t);
           }
         }
-        if (typeof localStorage === 'undefined') return;
         const compactList = [];
         for (let i = 0; i < fiioSource.length; i++) compactList.push(compactFiioTrackForStorage(fiioSource[i], false));
+        const compactJson = JSON.stringify(compactList);
+        const native = (typeof window !== 'undefined') ? window.NocturneNative : null;
+        if (native && typeof native.saveFiioCatalogNative === 'function') {
+          try { native.saveFiioCatalogNative(compactJson); } catch (_) {}
+        }
+        if (typeof localStorage === 'undefined') return;
         try {
-          localStorage.setItem('nocturne-fiio-catalog', JSON.stringify(compactList));
+          localStorage.setItem('nocturne-fiio-catalog', compactJson);
         } catch (quotaErr) {
           // Graceful QuotaExceededError recovery for 8,000-10,000+ track MicroSD libraries
           const leanList = [];
           for (let i = 0; i < fiioSource.length; i++) leanList.push(compactFiioTrackForStorage(fiioSource[i], true));
+          const leanJson = JSON.stringify(leanList);
+          if (native && typeof native.saveFiioCatalogNative === 'function') {
+            try { native.saveFiioCatalogNative(leanJson); } catch (_) {}
+          }
           try {
-            localStorage.setItem('nocturne-fiio-catalog', JSON.stringify(leanList));
+            localStorage.setItem('nocturne-fiio-catalog', leanJson);
           } catch (quotaErr2) {
             let cap = Math.floor(leanList.length * 0.75);
             while (cap > 250) {
@@ -16377,28 +16431,49 @@
 
     function restoreFiioCatalog() {
       try {
+        let localTracks = null;
+        let nativeTracks = null;
         const raw = (typeof localStorage !== 'undefined') && localStorage.getItem('nocturne-fiio-catalog');
         if (raw) {
-          const tracks = JSON.parse(raw);
-          if (Array.isArray(tracks) && tracks.length) {
-            const existingIds = new Set();
-            for (let i = 0; i < state.tracks.length; i++) {
-              if (state.tracks[i] && state.tracks[i].id) existingIds.add(state.tracks[i].id);
+          try {
+            const parsedLocal = JSON.parse(raw);
+            if (Array.isArray(parsedLocal)) localTracks = parsedLocal;
+          } catch (_) {}
+        }
+        const native = (typeof window !== 'undefined') ? window.NocturneNative : null;
+        if (native && typeof native.loadFiioCatalogNative === 'function') {
+          try {
+            const nativeRaw = native.loadFiioCatalogNative();
+            if (nativeRaw) {
+              const parsedNative = JSON.parse(nativeRaw);
+              if (Array.isArray(parsedNative)) nativeTracks = parsedNative;
             }
-            let added = 0;
-            for (let i = 0; i < tracks.length; i++) {
-              const t = hydrateFiioStoredTrack(tracks[i]);
-              if (t && t.id && !existingIds.has(t.id)) {
-                existingIds.add(t.id);
-                state.tracks.push(t);
-                added++;
-              }
+          } catch (_) {}
+        }
+        const tracks = (nativeTracks && (!localTracks || nativeTracks.length > localTracks.length))
+          ? nativeTracks
+          : localTracks;
+        if (Array.isArray(tracks) && tracks.length) {
+          if (nativeTracks && tracks === nativeTracks && typeof localStorage !== 'undefined') {
+            try { localStorage.setItem('nocturne-fiio-catalog', JSON.stringify(tracks)); } catch (_) {}
+          }
+          const existingIds = new Set();
+          for (let i = 0; i < state.tracks.length; i++) {
+            if (state.tracks[i] && state.tracks[i].id) existingIds.add(state.tracks[i].id);
+          }
+          let added = 0;
+          for (let i = 0; i < tracks.length; i++) {
+            const t = hydrateFiioStoredTrack(tracks[i]);
+            if (t && t.id && !existingIds.has(t.id)) {
+              existingIds.add(t.id);
+              state.tracks.push(t);
+              added++;
             }
-            if (added > 0) {
-              if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
-              renderTracks();
-              if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks);
-            }
+          }
+          if (added > 0) {
+            if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
+            renderTracks();
+            if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks);
           }
         }
       } catch (err) {
@@ -16453,23 +16528,25 @@
       };
     }
 
+    function buildExistingFiioTrackMaps() {
+      const existingByPath = new Map(), existingByUri = new Map();
+      for (let e = 0; e < state.tracks.length; e++) {
+        const et = state.tracks[e];
+        if (et) { if (et.path) existingByPath.set(et.path, et); if (et.uri) existingByUri.set(et.uri, et); }
+      }
+      return { existingByPath: existingByPath, existingByUri: existingByUri };
+    }
+
     function ingestFiioScannedFilesChunk(chunkFiles, existingPaths, existingUris) {
       if (!Array.isArray(chunkFiles) || chunkFiles.length === 0) return 0;
       let added = 0;
       const hasFactory = typeof library !== 'undefined' && typeof library.createFiioTrack === 'function';
-      const existingByPath = new Map();
-      const existingByUri = new Map();
-      for (let e = 0; e < state.tracks.length; e++) {
-        const et = state.tracks[e];
-        if (!et) continue;
-        if (et.path) existingByPath.set(et.path, et);
-        if (et.uri) existingByUri.set(et.uri, et);
-      }
+      const maps = buildExistingFiioTrackMaps();
+      const existingByPath = maps.existingByPath, existingByUri = maps.existingByUri;
       for (let i = 0; i < chunkFiles.length; i++) {
         const file = chunkFiles[i];
         if (!file || (!file.path && !file.uri)) continue;
-        const normPath = file.path ? String(file.path).trim() : '';
-        const normUri = file.uri ? String(file.uri).trim() : '';
+        const normPath = file.path ? String(file.path).trim() : '', normUri = file.uri ? String(file.uri).trim() : '';
         if ((normPath && existingPaths.has(normPath)) || (normUri && existingUris.has(normUri))) {
           const prevTrack = (normPath && existingByPath.get(normPath)) || (normUri && existingByUri.get(normUri)) || null;
           if (prevTrack) {
@@ -16479,10 +16556,9 @@
             if (Number(file.duration) > 0 && !(Number(prevTrack.duration) > 0)) prevTrack.duration = Number(file.duration);
             if (file.artist && file.artist !== '<unknown>' && (!prevTrack.artist || prevTrack.artist === 'Unknown Artist')) prevTrack.artist = String(file.artist).trim();
             if (file.album && file.album !== '<unknown>' && (!prevTrack.album || prevTrack.album === 'FiiO Internal & SD Card')) prevTrack.album = String(file.album).trim();
+            if (file.albumArtist && file.albumArtist !== '<unknown>' && !prevTrack.albumArtist) prevTrack.albumArtist = String(file.albumArtist).trim();
             if (file.title && file.title !== '<unknown>' && (!prevTrack.title || prevTrack.title === prevTrack.name)) prevTrack.title = String(file.title).trim();
-            if (typeof library !== 'undefined' && typeof library.enrichFiioTrackMetadata === 'function') {
-              library.enrichFiioTrackMetadata(prevTrack);
-            }
+            if (typeof library !== 'undefined' && library && library.enrichFiioTrackMetadata) library.enrichFiioTrackMetadata(prevTrack);
             if ((prevTrack.cover || '') !== bCov || ((prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '')) !== bMeta) fiioScanUpgradedCount++;
           }
           continue;
@@ -16532,6 +16608,9 @@
         try { if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks); } catch (cErr) { console.warn('renderCollectionCards after scan warning:', cErr); }
         try { if (typeof renderRecentArtists === 'function') renderRecentArtists(); } catch (_) {}
         try { saveCatalog(); } catch (sErr) { console.warn('saveCatalog after scan warning:', sErr); }
+        if (typeof markFiioStorageConnected === 'function') {
+          try { markFiioStorageConnected(totalFound || state.tracks.filter(function (t) { return t && t.id && String(t.id).indexOf('fiio_') === 0; }).length); } catch (_) {}
+        }
       }
       if (!silent && (!silentIfEmpty || totalFound > 0)) {
         toast('Đã quét xong: tìm thấy ' + totalFound + ' bài hát trên bộ nhớ FiiO & thẻ MicroSD' + (addedCount > 0 ? (' (+' + addedCount + ' mới).') : '.'));
@@ -16608,6 +16687,7 @@
               finish(totalSeen, null);
             }, 60000);
 
+            let lastChunkSavedAtTotal = 0;
             window.onAndroidStorageScanChunk = function (chunk, totalSoFar, sourceLabel) {
               try {
                 if (Array.isArray(chunk) && chunk.length > 0) {
@@ -16616,6 +16696,10 @@
                   totalSeen = Math.max(totalSeen + chunk.length, Number(totalSoFar) || 0);
                   if (addedNow > 0 && typeof scheduleTrackRender === 'function') {
                     scheduleTrackRender();
+                  }
+                  if (totalAdded - lastChunkSavedAtTotal >= 500) {
+                    lastChunkSavedAtTotal = totalAdded;
+                    try { if (typeof saveFiioCatalog === 'function') saveFiioCatalog(); } catch (_) {}
                   }
                   const now = Date.now();
                   if (!silent && totalSeen >= 250 && (now - lastChunkToastAt) > 2200) {
@@ -16727,8 +16811,115 @@
       }
     }
     window.scanFiioStorage = scanFiioStorage;
+
+    const FIIO_STORAGE_LINKED_KEY = 'nocturne-fiio-storage-linked';
+    let lastFiioStorageSyncAt = 0;
+    function getFiioTrackCount() {
+      let c = 0;
+      const list = (state && Array.isArray(state.tracks)) ? state.tracks : [];
+      for (let i = 0; i < list.length; i++) {
+        if (list[i] && list[i].id && String(list[i].id).indexOf('fiio_') === 0) c++;
+      }
+      return c;
+    }
+    function readFiioStorageLinkInfo() {
+      const native = (typeof window !== 'undefined') ? window.NocturneNative : null;
+      let nativeInfo = null;
+      if (native && typeof native.getFiioStorageLinkStateJson === 'function') {
+        try {
+          const raw = native.getFiioStorageLinkStateJson();
+          if (raw) nativeInfo = JSON.parse(raw);
+        } catch (_) {}
+      }
+      let localLinked = false;
+      try {
+        localLinked = (typeof localStorage !== 'undefined') && localStorage.getItem(FIIO_STORAGE_LINKED_KEY) === '1';
+      } catch (_) {}
+      const fiioCount = getFiioTrackCount();
+      const linked = Boolean((nativeInfo && nativeInfo.linked) || localLinked || fiioCount > 0);
+      const count = Math.max(fiioCount, Number(nativeInfo && nativeInfo.lastTrackCount) || 0);
+      return {
+        linked: linked,
+        hasPermission: (nativeInfo && typeof nativeInfo.hasPermission === 'boolean')
+          ? nativeInfo.hasPermission
+          : (native && typeof native.hasStoragePermission === 'function' ? Boolean(native.hasStoragePermission()) : true),
+        count: count,
+        linkedRoots: (nativeInfo && Array.isArray(nativeInfo.linkedRoots)) ? nativeInfo.linkedRoots : []
+      };
+    }
+    function updateFiioStorageLinkUi(info) {
+      const status = info || readFiioStorageLinkInfo();
+      const statusEl = typeof $ === 'function' ? $('fiio-storage-link-status') : null;
+      if (statusEl) {
+        if (status.linked && status.count > 0) {
+          statusEl.textContent = '🔗 Tự động giữ kết nối bộ nhớ FiiO · ' + status.count + ' bài';
+          statusEl.classList.remove('hidden');
+        } else {
+          statusEl.classList.add('hidden');
+        }
+      }
+      const headerBtn = typeof $ === 'function' ? $('fiio-scan-header-btn') : null;
+      if (headerBtn && status.linked && status.count > 0) {
+        headerBtn.title = 'Bộ nhớ FiiO đang tự động kết nối (' + status.count + ' bài) — bấm để quét cập nhật thêm';
+      }
+    }
+    function markFiioStorageConnected(trackCount) {
+      const count = Math.max(Number(trackCount) || 0, getFiioTrackCount());
+      if (count <= 0) return;
+      try { if (typeof localStorage !== 'undefined') localStorage.setItem(FIIO_STORAGE_LINKED_KEY, '1'); } catch (_) {}
+      const native = (typeof window !== 'undefined') ? window.NocturneNative : null;
+      if (native && typeof native.setFiioStorageLinkState === 'function') {
+        try { native.setFiioStorageLinkState(true, '', count); } catch (_) {}
+      }
+      updateFiioStorageLinkUi({ linked: true, count: count });
+    }
+    function ensureFiioStorageConnectedOnStartup(retryAttempt) {
+      const attempt = Number(retryAttempt) || 0;
+      const isNative = Boolean((typeof window !== 'undefined') && (window.isNativeAndroid || window.NocturneNative));
+      if (!isNative) return;
+      const native = (typeof window !== 'undefined') ? window.NocturneNative : null;
+      const info = readFiioStorageLinkInfo();
+      if (info.linked && getFiioTrackCount() > 0) {
+        markFiioStorageConnected(getFiioTrackCount());
+      } else {
+        updateFiioStorageLinkUi(info);
+      }
+      if (!info.hasPermission) return;
+      const shouldAutoSync = info.linked || getFiioTrackCount() === 0;
+      if (!shouldAutoSync) return;
+      const delayMs = attempt === 0 ? 350 : (attempt === 1 ? 2500 : 5000);
+      setTimeout(function () {
+        lastFiioStorageSyncAt = Date.now();
+        Promise.resolve(scanFiioStorage({ silent: true, silentIfEmpty: true })).then(function () {
+          const afterCount = getFiioTrackCount();
+          if (afterCount > 0) {
+            markFiioStorageConnected(afterCount);
+          } else if (info.linked && attempt < 2) {
+            ensureFiioStorageConnectedOnStartup(attempt + 1);
+          }
+        }).catch(function () {});
+      }, delayMs);
+    }
+    window.markFiioStorageConnected = markFiioStorageConnected;
+    window.ensureFiioStorageConnectedOnStartup = ensureFiioStorageConnectedOnStartup;
+    window.onAndroidStorageStateChanged = function (reason) {
+      const info = readFiioStorageLinkInfo();
+      updateFiioStorageLinkUi(info);
+      if (!info.hasPermission) return;
+      const now = Date.now();
+      const fiioCount = getFiioTrackCount();
+      if (reason === 'mounted') {
+        lastFiioStorageSyncAt = now;
+        scanFiioStorage({ silent: true, silentIfEmpty: true });
+      } else if (reason === 'resume' && info.linked && fiioCount === 0) {
+        if (now - lastFiioStorageSyncAt < 5000) return;
+        lastFiioStorageSyncAt = now;
+        scanFiioStorage({ silent: true, silentIfEmpty: true });
+      }
+    };
     window.onAndroidStoragePermissionGranted = () => {
-      if (pendingAndroidStorageScan || state.tracks.length === 0) {
+      const info = readFiioStorageLinkInfo();
+      if (pendingAndroidStorageScan || getFiioTrackCount() === 0 || info.linked) {
         pendingAndroidStorageScan = false;
         scanFiioStorage({ silentIfEmpty: true });
       }
@@ -21024,14 +21215,10 @@
 
     applyBitPerfectMode(state.bitPerfectEnabled);
     restoreFiioCatalog();
-    if ((typeof window !== 'undefined') && (window.isNativeAndroid || window.NocturneNative) && window.NocturneNative && typeof window.NocturneNative.hasStoragePermission === 'function') {
-      try {
-        if (window.NocturneNative.hasStoragePermission() && state.tracks.length === 0) {
-          setTimeout(() => {
-            if (state.tracks.length === 0) scanFiioStorage({ silent: true, silentIfEmpty: true });
-          }, 350);
-        }
-      } catch (_) {}
+    if ((typeof window !== 'undefined') && (window.isNativeAndroid || window.NocturneNative)) {
+      if (typeof ensureFiioStorageConnectedOnStartup === 'function') {
+        ensureFiioStorageConnectedOnStartup();
+      }
     }
     renderTracks();
     // Persist cloud catalog metadata locally; MSAL independently manages its own token cache.
