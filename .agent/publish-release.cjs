@@ -80,22 +80,19 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.42';
-  const name = process.argv[3] || `Nocturne ${tag} (Phát nhạc & đồng bộ Google Drive, OneDrive, Nội bộ / CUE Bit-Perfect cho Web + APK)`;
+  const tag = process.argv[2] || 'v3.9.43';
+  const name = process.argv[3] || `Nocturne ${tag} (Tự phục hồi luồng phát Nội bộ / CUE / FileHandle, chống nhân đôi thư mục & tối ưu fallback OneDrive/Drive)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 96) — Nâng cấp Phát nhạc & Đồng bộ Google Drive, OneDrive, Nội bộ / CUE (Web + Android APK)
+    : `### Nocturne ${tag} (versionCode 97) — Tự phục hồi luồng phát Nội bộ / CUE / FileHandle, chống nhân đôi thư mục & tối ưu fallback OneDrive/Drive
 
-#### 1. Khắc phục đứt nhạc OneDrive khi \`directUrl\` hết hạn giữa bài (\`index.html\`)
-- **\`upgradeSliceToFullAudio\`**: Khi tải nền file đầy đủ từ \`@microsoft.graph.downloadUrl\` gặp lỗi \`401\`/\`403\` (đặc biệt khi lát đầu phát từ IndexedDB cache mà link tạm đã hết hạn), tự động xóa \`track.downloadUrl\`, xin lại \`resolveMicrosoftDownloadUrl(track)\` mới hoặc fallback sang Microsoft Graph \`/content\` kèm \`Bearer token\` để không bị dừng nhạc sau lát đầu.
+#### 1. Tự phục hồi URL phát nhạc Nội bộ, CUE & \`FileSystemFileHandle\` trên Web + APK (\`index.html\`)
+- **\`restoreLocalTrackUrlSync\` & \`ensureLocalTrackPlayableUrl\`**: Phát hiện và tái tạo tức thì \`blob:\` URL đã bị thu hồi (không còn trong \`state.objectUrls\`), tự động đồng bộ \`blob:\` URL mới cho toàn bộ các bài CUE sub-track dùng chung cùng một file gốc (\`track.file\`), tự nạp lại \`File\` từ \`track.fileHandle.getFile()\` khi bộ nhớ bị giải phóng, và tự khôi phục URL \`/local-media?uri=...\` / \`/local-media?path=...\` trên FiiO M11S & Android APK trong cả \`playTrack\` lẫn \`preloadNext\`.
+- **Chống nhân đôi bài hát & CUE khi mở lại thư mục nội bộ (\`localTrack\` & \`addLocalFiles\`)**: Lưu \`relativePath\` và \`fileHandle\` ngay trên mỗi track nội bộ, làm mới \`file\`/\`fileHandle\`/\`url\` cho mọi định dạng khi quét lại thư mục, và chống nhân đôi các bài cắt từ file \`.cue\`.
 
-#### 2. Đồng bộ tăng trưởng & dọn bài đã xóa trên Google Drive và OneDrive (\`index.html\`)
-- **\`loadGoogleFiles\`**: Tự động bổ sung \`parents\`, \`thumbnailUrl\`, \`size\`, \`name\` cho các bài đã lưu trong catalog từ phiên trước (để \`discoverGoogleDriveFolderArtwork\` nhận diện đầy đủ ảnh bìa thư mục) và dọn sạch các bài đã bị xóa khỏi Drive sau khi quét hoàn tất (bảo vệ bài đang phát \`state.currentId\`).
-- **\`loadMicrosoftFiles\`**: Chuyển \`persistCloudCatalog\` sang chuỗi lưu nền không chặn (\`persistChain\`), tra cứu O(1) qua \`existingByRemoteId\`, cập nhật \`downloadUrl\`/\`remotePath\` mới và tự động loại bỏ các bài đã xóa khỏi OneDrive.
-
-#### 3. Chuẩn hóa phát nhạc nội bộ & CUE sub-track trên Bit-Perfect Native (\`index.html\`)
-- **\`playTrack\` & \`window.onNativeBitPerfectPosition\`**: Tự động gọi \`seekBitPerfectPlayback(Math.round(track.cueStart * 1000))\` khi khởi chạy bài CUE, hiển thị thời gian và thanh tiến trình tương đối \`0..track.duration\`, tự động chuyển bài tại ranh giới \`cueStart + duration\`, và đồng bộ \`#room-play\` theo \`isNotifPlaying\` trong \`displayTrack(track)\`.
+#### 2. Tối ưu tốc độ fallback OneDrive \`directUrl\` trong \`fetchCloudTrack\` (\`index.html\`)
+- Khi \`fetchAudioFirstSlice\` trên \`@microsoft.graph.downloadUrl\` gặp lỗi \`401\`/\`403\`, chuyển thẳng về \`loadMicrosoftAudio\` để phát Range slice qua Microsoft Graph \`/content\` ngay lập tức (không tốn thêm lượt tải toàn bộ file vô ích vào link tạm đã hết hạn), đồng thời hỗ trợ fallback Graph \`/content\` ngay trong nhánh tải full file M4A/ALAC (\`moovAtTail\`).
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

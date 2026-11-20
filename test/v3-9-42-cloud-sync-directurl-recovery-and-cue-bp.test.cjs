@@ -264,20 +264,21 @@ test('3. Native Bit-Perfect CUE sub-track initial seek, relative time/duration d
   assert.equal(bpSandbox.state.isNativeBitPerfectPlaying, false);
 });
 
-test('4. Version sync v3.9.42 / versionCode 96, 0 CR bytes in assets & 0 ES2020+ syntax', () => {
+test('4. Version sync v3.9.42+ / versionCode >= 96, 0 CR bytes in assets & 0 ES2020+ syntax', () => {
   const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const swJs = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const gradle = fs.readFileSync(path.join(ROOT, 'android/app/build.gradle.kts'), 'utf8');
   const mainActivity = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
   const publishRelease = fs.readFileSync(path.join(ROOT, '.agent/publish-release.cjs'), 'utf8');
 
-  assert.ok(indexHtml.includes('FiiO M11S · v3.9.42'));
-  assert.ok(swJs.includes("const CACHE_VERSION = 'v3.9.42';"));
-  assert.ok(swJs.includes("const CACHE_NAME = 'nocturne-v3.9.42';"));
-  assert.ok(/versionCode\s*=\s*96\b/.test(gradle));
-  assert.ok(/versionName\s*=\s*"3\.9\.42"/.test(gradle));
-  assert.ok(mainActivity.includes('"3.9.42"'));
-  assert.ok(publishRelease.includes("'v3.9.42'"));
+  assert.match(indexHtml, /FiiO M11S · v3\.9\.(4[2-9]|[5-9]\d)/);
+  assert.match(swJs, /const CACHE_VERSION = 'v3\.9\.(4[2-9]|[5-9]\d)';/);
+  assert.match(swJs, /const CACHE_NAME = 'nocturne-v3\.9\.(4[2-9]|[5-9]\d)';/);
+  const vcMatch = gradle.match(/versionCode\s*=\s*(\d+)\b/);
+  assert.ok(vcMatch && Number(vcMatch[1]) >= 96, 'versionCode must be >= 96');
+  assert.match(gradle, /versionName\s*=\s*"3\.9\.(4[2-9]|[5-9]\d)"/);
+  assert.match(mainActivity, /"3\.9\.(4[2-9]|[5-9]\d)"/);
+  assert.match(publishRelease, /'v3\.9\.(4[2-9]|[5-9]\d)'/);
 
   const syncedFiles = [
     'index.html', 'tailwind.min.css',
