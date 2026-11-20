@@ -2360,7 +2360,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.33</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.34</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -2534,6 +2534,7 @@
           <button id="export-user-settings-btn" type="button" class="flex-1 min-w-[120px] rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-[11px] font-medium text-cyan-200 transition hover:bg-cyan-400/20">⚡ Xuất Settings Cloud (.json)</button>
           <button id="import-user-settings-btn" type="button" class="flex-1 min-w-[120px] rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-400/20">📥 Nhập Settings Cloud</button>
           <button id="fetch-online-covers-btn" type="button" class="flex-1 min-w-[120px] rounded-lg border border-violet-400/30 bg-violet-400/10 px-3 py-2 text-[11px] font-medium text-violet-200 transition hover:bg-violet-400/20">🎨 Tải bìa Online (Cover Art)</button>
+          <button id="refresh-cover-art-btn" type="button" class="flex-1 min-w-[120px] rounded-lg border border-sky-400/30 bg-sky-400/10 px-3 py-2 text-[11px] font-medium text-sky-200 transition hover:bg-sky-400/20">🔄 Làm mới ảnh bìa</button>
           <input id="import-user-settings-file" type="file" accept=".json,application/json" class="hidden">
         </div>
       </section>
@@ -4305,6 +4306,9 @@
           if (miniCover) {
             miniCover.innerHTML = `<img src="${escapeHtml(coverUrl)}" class="h-full w-full object-cover" alt="">`;
           }
+
+          if (!curTrack.cover || curTrack.cover === '♫') curTrack.cover = coverUrl;
+          if (typeof updateMediaSession === 'function') updateMediaSession(curTrack);
         }
 
         // 5. Track rows in track list
@@ -4893,6 +4897,14 @@
       $('update-banner').classList.add('hidden');
       $('update-banner').classList.remove('flex');
     }
+    window.notifyPwaServiceWorkerUpdate = function (fingerprint) {
+      const fp = String(fingerprint || 'sw-update');
+      if (fp === dismissedUpdateFingerprint) return false;
+      updatePending = true;
+      pendingUpdateFingerprint = fp;
+      setUpdateBanner('Bản Web PWA mới đã sẵn sàng. Nhấn “Cập nhật” để áp dụng ngay (nhạc sẽ tự phát tiếp).');
+      return true;
+    };
     function updateNetworkStatus(isOnline) {
       const banner = $('offline-banner');
       if (!banner) return;
@@ -9948,13 +9960,15 @@
           artwork
         });
         navigator.mediaSession.playbackState = curAudio && !curAudio.paused ? 'playing' : 'paused';
+        if (typeof updatePositionState === 'function') updatePositionState(true);
       } catch (error) { console.warn('Could not update media session:', error); }
     }
     let lastPositionStateSecond = -1;
     function updatePositionState(force = false) {
       if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return;
       const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
-      const curTrack = state.tracks.find(t => t.id === state.currentId);
+      const curTrack = (typeof trackById === 'function' && state.currentId != null ? trackById(state.currentId) : null)
+        || state.tracks.find(t => t.id === state.currentId);
       const sessionState = (typeof library !== 'undefined' && library && typeof library.resolveMediaSessionPositionState === 'function')
         ? library.resolveMediaSessionPositionState(curAudio, curTrack)
         : (Number.isFinite(curAudio.duration) && curAudio.duration > 0 ? { duration: curAudio.duration, playbackRate: curAudio.playbackRate || 1, position: Math.min(curAudio.currentTime || 0, curAudio.duration) } : null);
@@ -15243,6 +15257,60 @@
       }
     });
 
+    async function refreshAllArtworkCaches() {
+      let clearedNativeFiles = 0;
+      try {
+        if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.clearLocalCoverCache === 'function') {
+          clearedNativeFiles = Number(window.NocturneNative.clearLocalCoverCache()) || 0;
+        }
+      } catch (_) {}
+      if (state.albumCovers && typeof state.albumCovers.clear === 'function') state.albumCovers.clear();
+      if (state.artistPortraits && typeof state.artistPortraits.clear === 'function') state.artistPortraits.clear();
+      if (typeof failedNativeCovers !== 'undefined' && typeof failedNativeCovers.clear === 'function') failedNativeCovers.clear();
+      if (typeof onlineArtAttempted !== 'undefined' && typeof onlineArtAttempted.clear === 'function') onlineArtAttempted.clear();
+      if (typeof checkedGoogleArtParents !== 'undefined' && typeof checkedGoogleArtParents.clear === 'function') checkedGoogleArtParents.clear();
+      if (typeof localStorage !== 'undefined') {
+        try { localStorage.removeItem('nocturne-album-covers'); } catch (_) {}
+        try { localStorage.removeItem('nocturne-artist-portraits'); } catch (_) {}
+      }
+      const bustTs = Date.now();
+      let refreshedCount = 0;
+      const tracks = state.tracks || [];
+      for (let i = 0; i < tracks.length; i++) {
+        const tr = tracks[i];
+        if (!tr) continue;
+        if (tr.thumbnailRetryAt) delete tr.thumbnailRetryAt;
+        const cov = String(tr.cover || '');
+        if (!cov) continue;
+        if (cov.indexOf('/local-cover?') !== -1) {
+          tr.cover = cov.replace(/&r=\d+/g, '') + '&r=' + bustTs;
+          refreshedCount++;
+        } else if (cov.indexOf('http://') === 0 || cov.indexOf('https://') === 0) {
+          tr.cover = '';
+          refreshedCount++;
+        }
+      }
+      if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
+      if (typeof renderTracks === 'function') renderTracks();
+      if (typeof renderRecentArtists === 'function') renderRecentArtists();
+      if (state.currentCollectionEntry && typeof showAlbumHero === 'function') showAlbumHero(state.currentCollectionEntry);
+      if (state.googleToken && typeof discoverGoogleDriveFolderArtwork === 'function') {
+        discoverGoogleDriveFolderArtwork(tracks).catch(() => {});
+      }
+      if (state.currentId && typeof trackById === 'function' && typeof updateMediaSession === 'function') {
+        const cur = trackById(state.currentId);
+        if (cur) updateMediaSession(cur);
+      }
+      if (typeof toast === 'function') {
+        toast(clearedNativeFiles > 0
+          ? `Đã xóa ${clearedNativeFiles} tệp cache và làm mới ${refreshedCount} ảnh bìa.`
+          : `Đã xóa cache cũ và làm mới ${refreshedCount} ảnh bìa.`);
+      }
+      return { clearedNativeFiles, refreshedCount };
+    }
+    if (typeof window !== 'undefined') window.refreshAllArtworkCaches = refreshAllArtworkCaches;
+    safeOn($('refresh-cover-art-btn'), 'click', refreshAllArtworkCaches);
+
     // Playlist M3U/M3U8 Export & Import
     function getM3uExportTracks() {
       if (state.queueTrackIds && state.queueTrackIds.length > 0) {
@@ -19240,18 +19308,64 @@
     attachTouchSwipe($('fullscreen-cover-wrap'), { isFullscreen: true });
 
     let dragDepth = 0;
-    document.addEventListener('dragenter', event => { event.preventDefault(); dragDepth++; $('drop-target').classList.remove('hidden'); $('drop-target').classList.add('flex'); });
-    document.addEventListener('dragover', event => event.preventDefault());
-    document.addEventListener('dragleave', event => { event.preventDefault(); dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) { $('drop-target').classList.add('hidden'); $('drop-target').classList.remove('flex'); } });
+    function isExternalFileDrag(event) {
+      const dt = event && event.dataTransfer;
+      if (!dt || !dt.types) return false;
+      try {
+        return Array.from(dt.types).indexOf('Files') !== -1;
+      } catch (_) {
+        return false;
+      }
+    }
+    document.addEventListener('dragenter', event => {
+      if (!isExternalFileDrag(event)) return;
+      event.preventDefault();
+      dragDepth++;
+      $('drop-target').classList.remove('hidden');
+      $('drop-target').classList.add('flex');
+    });
+    document.addEventListener('dragover', event => {
+      if (!isExternalFileDrag(event)) return;
+      event.preventDefault();
+    });
+    document.addEventListener('dragleave', event => {
+      if (!isExternalFileDrag(event)) return;
+      event.preventDefault();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (!dragDepth) { $('drop-target').classList.add('hidden'); $('drop-target').classList.remove('flex'); }
+    });
     document.addEventListener('drop', async event => {
+      if (!isExternalFileDrag(event)) return;
       event.preventDefault(); dragDepth = 0; $('drop-target').classList.add('hidden'); $('drop-target').classList.remove('flex');
       const files = [];
-      async function readEntry(entry) {
-        if (entry.isFile) await new Promise(resolve => entry.file(file => { files.push(file); resolve(); }, error => { console.warn('Could not read dropped file:', error); resolve(); }));
-        else if (entry.isDirectory) { const reader = entry.createReader(); let entries = []; do { entries = await new Promise(resolve => reader.readEntries(resolve, error => { console.warn('Could not scan dropped folder:', error); resolve([]); })); for (const child of entries) await readEntry(child); } while (entries.length); }
+      async function readEntry(entry, prefix) {
+        if (!entry) return;
+        const cleanPrefix = prefix || '';
+        const relPath = cleanPrefix ? (cleanPrefix + '/' + entry.name) : (entry.fullPath ? String(entry.fullPath).replace(/^\/+/, '') : entry.name);
+        if (entry.isFile) {
+          await new Promise(resolve => entry.file(file => {
+            if (file && relPath && relPath !== file.name) {
+              try {
+                Object.defineProperty(file, 'relativePath', { value: relPath, configurable: true });
+              } catch (_) {
+                try { file.relativePath = relPath; } catch (_2) {}
+              }
+            }
+            files.push(file);
+            resolve();
+          }, error => { console.warn('Could not read dropped file:', error); resolve(); }));
+        } else if (entry.isDirectory) {
+          const nextPrefix = cleanPrefix ? (cleanPrefix + '/' + entry.name) : entry.name;
+          const reader = entry.createReader();
+          let entries = [];
+          do {
+            entries = await new Promise(resolve => reader.readEntries(resolve, error => { console.warn('Could not scan dropped folder:', error); resolve([]); }));
+            for (const child of entries) await readEntry(child, nextPrefix);
+          } while (entries.length);
+        }
       }
       const entries = [...(event.dataTransfer.items || [])].map(item => item.webkitGetAsEntry && item.webkitGetAsEntry()).filter(Boolean);
-      if (entries.length) for (const entry of entries) await readEntry(entry);
+      if (entries.length) for (const entry of entries) await readEntry(entry, '');
       else files.push(...event.dataTransfer.files);
       await addLocalFiles(files);
     });
@@ -21012,7 +21126,22 @@
       if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
       if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(error => console.debug('Không đăng ký được service worker:', error));
+        navigator.serviceWorker.register('sw.js').then(reg => {
+          if (!reg) return;
+          const promptIfWaiting = worker => {
+            if (worker && navigator.serviceWorker.controller && typeof window.notifyPwaServiceWorkerUpdate === 'function') {
+              window.notifyPwaServiceWorkerUpdate('sw:' + (worker.scriptURL || 'sw.js'));
+            }
+          };
+          if (reg.waiting) promptIfWaiting(reg.waiting);
+          reg.addEventListener('updatefound', () => {
+            const nw = reg.installing;
+            if (!nw) return;
+            nw.addEventListener('statechange', () => {
+              if (nw.state === 'installed' && navigator.serviceWorker.controller) promptIfWaiting(nw);
+            });
+          });
+        }).catch(error => console.debug('Không đăng ký được service worker:', error));
       });
     })();
   </script>

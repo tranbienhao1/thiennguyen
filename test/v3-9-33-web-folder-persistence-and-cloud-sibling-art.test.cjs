@@ -370,18 +370,18 @@ test('4. OneDrive loadMicrosoftFiles collects sibling cover images per folder pa
   assert.equal(persisted[0].length, 2);
 });
 
-test('5. Version v3.9.33 / versionCode 87 sync & zero Chromium 74 ES2020+ syntax regressions', () => {
+test('5. Version v3.9.33+ / versionCode 87+ sync & zero Chromium 74 ES2020+ syntax regressions', () => {
   const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const swJs = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const gradle = fs.readFileSync(path.join(ROOT, 'android/app/build.gradle.kts'), 'utf8');
   const mainActivity = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
 
-  assert.ok(indexHtml.includes('FiiO M11S · v3.9.33'), 'index.html must display FiiO M11S · v3.9.33');
-  assert.ok(swJs.includes("const CACHE_VERSION = 'v3.9.33';"), 'sw.js CACHE_VERSION must be v3.9.33');
-  assert.ok(swJs.includes("const CACHE_NAME = 'nocturne-v3.9.33';"), 'sw.js CACHE_NAME must be nocturne-v3.9.33');
-  assert.ok(gradle.includes('versionCode = 87'), 'build.gradle.kts versionCode must be 87');
-  assert.ok(gradle.includes('versionName = "3.9.33"'), 'build.gradle.kts versionName must be 3.9.33');
-  assert.ok(mainActivity.includes('"3.9.33"'), 'MainActivity.java build info fallback must be 3.9.33');
+  assert.ok(/FiiO M11S · v3\.9\.(?:3[3-9]|[4-9]\d|\d{3,})/.test(indexHtml), 'index.html must display FiiO M11S · v3.9.33+');
+  assert.ok(/const CACHE_VERSION = 'v3\.9\.(?:3[3-9]|[4-9]\d|\d{3,})';/.test(swJs), 'sw.js CACHE_VERSION must be v3.9.33+');
+  assert.ok(/const CACHE_NAME = 'nocturne-v3\.9\.(?:3[3-9]|[4-9]\d|\d{3,})';/.test(swJs), 'sw.js CACHE_NAME must be nocturne-v3.9.33+');
+  assert.ok(/versionCode\s*=\s*(?:8[7-9]|9\d|\d{3,})\b/.test(gradle), 'build.gradle.kts versionCode must be >= 87');
+  assert.ok(/versionName\s*=\s*"3\.9\.(?:3[3-9]|[4-9]\d|\d{3,})"/.test(gradle), 'build.gradle.kts versionName must be >= 3.9.33');
+  assert.ok(/"3\.9\.(?:3[3-9]|[4-9]\d|\d{3,})"/.test(mainActivity), 'MainActivity.java build info fallback must be >= 3.9.33');
 
   const filesToScan = [
     'index.html',

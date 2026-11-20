@@ -80,20 +80,21 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.33';
-  const name = process.argv[3] || `Nocturne ${tag} (Web Desktop lưu thư mục cục bộ IndexedDB + tự quét cover.jpg trên Google Drive & OneDrive)`;
+  const tag = process.argv[2] || 'v3.9.34';
+  const name = process.argv[3] || `Nocturne ${tag} (Web PWA UX Polish + Nút Làm mới ảnh bìa Web & FiiO)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} — Nâng cấp Web Desktop & Cloud Artwork Discovery
+    : `### Nocturne ${tag} — Hoàn thiện PWA UX & Làm mới Ảnh bìa (Web + FiiO M11S)
 
-#### 1. Bản Web Desktop: Lưu thư mục cục bộ vào IndexedDB & Mở lại 1 chạm
-- **Lưu \`FileSystemDirectoryHandle\` vào IndexedDB (\`folderHandles\`, \`CLOUD_CATALOG_VERSION = 5\`)**: Khi chọn thư mục nhạc trên trình duyệt máy tính (\`showDirectoryPicker\`), tay cầm thư mục được lưu lại bền vững thay vì mất trắng sau mỗi lần tải lại trang.
-- **Nút mở lại thư mục gần nhất (\`#reopen-folder\`, \`#empty-reopen-folder\`)**: Hiển thị ngay ở thanh bên và màn hình thư viện trống; tự động khôi phục khi trình duyệt còn quyền (\`queryPermission\`), hoặc xin cấp lại chỉ bằng 1 chạm (\`requestPermission\`).
+#### 1. Tối ưu Web PWA trên Desktop & Mobile Browser
+- **Loại bỏ icon trùng trong \`manifest.json\`**: Giữ 3 entry chuẩn duy nhất (\`icon.svg\`, \`192x192\`, \`512x512\`) chuẩn Lighthouse PWA.
+- **Đồng bộ \`MediaSession\` theo thời gian thực**: Khi ảnh bìa album/ca sĩ được nạp bất đồng bộ sau khi phát (\`broadcastCoverUpdate\`), thông tin \`navigator.mediaSession.metadata\` và \`setPositionState\` tự động cập nhật ngay lập tức trên khóa màn hình và điều khiển hệ thống.
+- **Sửa lỗi Kéo-Thả (Drag & Drop)**: Chặn lớp phủ \`#drop-target\` bật nhầm khi kéo sắp xếp hàng đợi nội bộ (\`isExternalFileDrag\`), đồng thời giữ nguyên \`relativePath\` thư mục con khi thả cả folder album để ghép \`cover.jpg\` và \`.lrc\` chính xác.
+- **Nhắc cập nhật PWA gọn nhẹ (\`notifyPwaServiceWorkerUpdate\`)**: Service Worker lắng nghe \`reg.waiting\` và \`updatefound\` để hiển thị biểu ngữ \`#update-banner\` không ép tải lại, tự lưu vị trí đang phát nếu người dùng chọn cập nhật.
 
-#### 2. Google Drive & OneDrive: Tự tìm ảnh bìa \`cover.jpg\` / \`folder.jpg\` cùng thư mục
-- **Google Drive (\`discoverGoogleDriveFolderArtwork\`)**: Giữ nguyên bộ lọc tìm file nhạc tốc độ cao (\`GOOGLE_DRIVE_CANDIDATE_QUERY\`), đồng thời lưu \`parents\` trên từng bài hát Drive để tìm hàng loạt ảnh bìa (\`cover\`, \`folder\`, \`front\`, \`albumart\`, \`artwork\`) cùng thư mục mẹ trong nền.
-- **OneDrive (\`applyMicrosoftSiblingFolderCovers\`)**: Tận dụng ngay danh sách mục trả về khi duyệt từng thư mục trên Microsoft Graph (\`loadMicrosoftFiles\`) để chấm điểm và áp ảnh bìa thư mục cho mọi bài FLAC/DSD/WAV chưa nhúng ảnh.
+#### 2. Nút "Làm mới ảnh bìa" trong Cài đặt (\`#refresh-cover-art-btn\`)
+- **Xóa cache ảnh cũ 1 chạm cho cả Web & FiiO APK**: Thêm \`NocturneNative.clearLocalCoverCache()\` trên Android (\`MainActivity.java\`) kết hợp \`refreshAllArtworkCaches()\` xóa \`albumCovers\`, \`artistPortraits\`, \`failedNativeCovers\`, làm mới tham số chống cache HTTP \`&r=\` cho \`/local-cover\`, và kích hoạt quét lại ảnh bìa mà không mất thư viện hay danh sách yêu thích.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

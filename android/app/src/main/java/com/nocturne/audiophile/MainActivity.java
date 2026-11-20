@@ -4377,12 +4377,34 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.33";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.34";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.33\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.34\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
+        }
+
+        @JavascriptInterface
+        public int clearLocalCoverCache() {
+            int deleted = 0;
+            try {
+                File dir = new File(mActivity.getCacheDir(), "covers");
+                if (dir.exists() && dir.isDirectory()) {
+                    File[] files = dir.listFiles();
+                    if (files != null) {
+                        for (File f : files) {
+                            try {
+                                if (f != null && f.isFile() && f.delete()) {
+                                    deleted++;
+                                }
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                }
+                mActivity.mCoverHashLocks.clear();
+            } catch (Throwable ignored) {}
+            return deleted;
         }
 
         @JavascriptInterface
