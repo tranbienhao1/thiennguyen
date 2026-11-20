@@ -2200,7 +2200,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.17</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.18</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -16967,6 +16967,7 @@
       }
 
       function updateBufferPipelineTelemetry(targetEl) {
+        if (typeof document !== 'undefined' && document.hidden) return;
         const activeEl = targetEl || ((state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio);
         if (!activeEl) return;
         let bufferedEnd = 0;
@@ -17037,49 +17038,52 @@
             playNext(1, true);
             return;
           }
-          const playbackSecond = Math.floor(trackCurrentTime);
-          if (playbackSecond !== lastDisplayedPlaybackSecond) {
-            lastDisplayedPlaybackSecond = playbackSecond;
-            const time = formatTime(trackCurrentTime);
-            $('current-time').textContent = time; $('current-time-mobile').textContent = time; $('room-current-time').textContent = time;
-            if (Number.isFinite(curTrack.duration)) { $('duration').textContent = formatTime(curTrack.duration); $('duration-mobile').textContent = formatTime(curTrack.duration); $('room-duration').textContent = formatTime(curTrack.duration); $('room-remaining').textContent = formatRemainingTime(trackCurrentTime, curTrack.duration); }
-          }
-          if (!state.isSeeking && Number.isFinite(curTrack.duration) && curTrack.duration > 0) syncSeek(Math.round(trackCurrentTime / curTrack.duration * 1000));
-          if (!$('room-seek').matches(':active')) { const roomPosition = Number.isFinite(curTrack.duration) && curTrack.duration ? Math.round(trackCurrentTime / curTrack.duration * 1000) : 0; $('room-seek').value = String(roomPosition); paintSeek($('room-seek'), roomPosition); }
-          if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
-          if (typeof library.calculateBufferLookahead === 'function') {
-            const lookaheadSec = library.calculateBufferLookahead(element.currentTime, element.buffered);
-            const isGaplessReady = Boolean(standbyAudio && standbyAudio.src && state.preloadReadyUrl);
-            const bufText = library.formatBufferLookahead(lookaheadSec, isGaplessReady);
-            const dotTone = lookaheadSec >= 5 ? 'bg-emerald-400' : (lookaheadSec > 0 ? 'bg-amber-400' : 'bg-zinc-600');
-            const roomBuf = $('room-buffer-status');
-            if (roomBuf) roomBuf.textContent = bufText;
-            const fsRoomBuf = $('fs-room-buffer-status');
-            if (fsRoomBuf) fsRoomBuf.textContent = bufText;
-            const roomBufDot = $('room-buffer-dot');
-            if (roomBufDot) roomBufDot.className = `inline-block h-1.5 w-1.5 rounded-full ${dotTone}`;
-            const fsRoomBufDot = $('fs-room-buffer-dot');
-            if (fsRoomBufDot) fsRoomBufDot.className = `inline-block h-1.5 w-1.5 shrink-0 rounded-full ${dotTone}`;
-            if (typeof library.calculatePreloadReadiness === 'function') {
-              const nextIdx = queueIndex();
-              const nextTrack = nextIdx >= 0 ? state.tracks[nextIdx] : null;
-              const readiness = library.calculatePreloadReadiness(nextTrack, standbyAudio, { lookaheadSeconds: lookaheadSec });
-              const badgeMeta = library.formatPreloadReadinessBadge(readiness);
-              const readinessEl = $('room-preload-readiness');
-              if (readinessEl) {
-                readinessEl.textContent = badgeMeta.text;
-                readinessEl.className = `rounded border px-1.5 py-0.5 text-[8px] font-medium hidden sm:inline ${badgeMeta.colorClass}`;
-              }
-              const fsReadinessEl = $('fs-room-preload-readiness');
-              if (fsReadinessEl) {
-                fsReadinessEl.textContent = badgeMeta.text;
-                fsReadinessEl.className = `mt-1 rounded border px-1.5 py-0.5 text-[8px] font-medium hidden sm:inline-block ${badgeMeta.colorClass}`;
+          const isCueScreenHidden = typeof document !== 'undefined' && Boolean(document.hidden);
+          if (!isCueScreenHidden) {
+            const playbackSecond = Math.floor(trackCurrentTime);
+            if (playbackSecond !== lastDisplayedPlaybackSecond) {
+              lastDisplayedPlaybackSecond = playbackSecond;
+              const time = formatTime(trackCurrentTime);
+              $('current-time').textContent = time; $('current-time-mobile').textContent = time; $('room-current-time').textContent = time;
+              if (Number.isFinite(curTrack.duration)) { $('duration').textContent = formatTime(curTrack.duration); $('duration-mobile').textContent = formatTime(curTrack.duration); $('room-duration').textContent = formatTime(curTrack.duration); $('room-remaining').textContent = formatRemainingTime(trackCurrentTime, curTrack.duration); }
+            }
+            if (!state.isSeeking && Number.isFinite(curTrack.duration) && curTrack.duration > 0) syncSeek(Math.round(trackCurrentTime / curTrack.duration * 1000));
+            if (!$('room-seek').matches(':active')) { const roomPosition = Number.isFinite(curTrack.duration) && curTrack.duration ? Math.round(trackCurrentTime / curTrack.duration * 1000) : 0; $('room-seek').value = String(roomPosition); paintSeek($('room-seek'), roomPosition); }
+            if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+            if (typeof library.calculateBufferLookahead === 'function') {
+              const lookaheadSec = library.calculateBufferLookahead(element.currentTime, element.buffered);
+              const isGaplessReady = Boolean(standbyAudio && standbyAudio.src && state.preloadReadyUrl);
+              const bufText = library.formatBufferLookahead(lookaheadSec, isGaplessReady);
+              const dotTone = lookaheadSec >= 5 ? 'bg-emerald-400' : (lookaheadSec > 0 ? 'bg-amber-400' : 'bg-zinc-600');
+              const roomBuf = $('room-buffer-status');
+              if (roomBuf) roomBuf.textContent = bufText;
+              const fsRoomBuf = $('fs-room-buffer-status');
+              if (fsRoomBuf) fsRoomBuf.textContent = bufText;
+              const roomBufDot = $('room-buffer-dot');
+              if (roomBufDot) roomBufDot.className = `inline-block h-1.5 w-1.5 rounded-full ${dotTone}`;
+              const fsRoomBufDot = $('fs-room-buffer-dot');
+              if (fsRoomBufDot) fsRoomBufDot.className = `inline-block h-1.5 w-1.5 shrink-0 rounded-full ${dotTone}`;
+              if (typeof library.calculatePreloadReadiness === 'function') {
+                const nextIdx = queueIndex();
+                const nextTrack = nextIdx >= 0 ? state.tracks[nextIdx] : null;
+                const readiness = library.calculatePreloadReadiness(nextTrack, standbyAudio, { lookaheadSeconds: lookaheadSec });
+                const badgeMeta = library.formatPreloadReadinessBadge(readiness);
+                const readinessEl = $('room-preload-readiness');
+                if (readinessEl) {
+                  readinessEl.textContent = badgeMeta.text;
+                  readinessEl.className = `rounded border px-1.5 py-0.5 text-[8px] font-medium hidden sm:inline ${badgeMeta.colorClass}`;
+                }
+                const fsReadinessEl = $('fs-room-preload-readiness');
+                if (fsReadinessEl) {
+                  fsReadinessEl.textContent = badgeMeta.text;
+                  fsReadinessEl.className = `mt-1 rounded border px-1.5 py-0.5 text-[8px] font-medium hidden sm:inline-block ${badgeMeta.colorClass}`;
+                }
               }
             }
+            updatePositionState();
+            updateBufferPipelineTelemetry(element);
+            updateLyricsHighlight();
           }
-          updatePositionState();
-          updateBufferPipelineTelemetry(element);
-          updateLyricsHighlight();
           if (typeof checkScrobbleEligibility === 'function') checkScrobbleEligibility(curTrack, trackCurrentTime, curTrack.duration);
           if (library.shouldPreloadNext(curTrack.duration, trackCurrentTime, standbyAudio.src, state.preloadReadyUrl, library.PRELOAD_LEAD_SECONDS, location.href)) preloadNext();
           return;
@@ -17190,7 +17194,7 @@
         }
         if (typeof savePlaybackSession === 'function') savePlaybackSession();
       });
-      element.addEventListener('progress', () => updateBufferPipelineTelemetry(element));
+      element.addEventListener('progress', () => { if (!(typeof document !== 'undefined' && document.hidden)) updateBufferPipelineTelemetry(element); });
       element.addEventListener('canplay', () => {
         if (element !== standbyAudio) return;
         const preloaded = state.tracks.find(item => item.id === state.preloadTrackId);
@@ -18889,11 +18893,20 @@
 
     window.onAndroidAppLifecycle = (phase) => {
       try {
+        const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
         if (phase === 'background') {
           if (typeof setVisualizerRunning === 'function') setVisualizerRunning(false);
+          const isIdlePaused = (!curAudio || curAudio.paused) && !state.isNativeBitPerfectPlaying;
+          if (isIdlePaused && state.context && state.context.state === 'running' && typeof state.context.suspend === 'function') {
+            try { state.context.suspend().catch(function () {}); } catch (_) {}
+          }
         } else if (phase === 'foreground') {
-          const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
-          if (curAudio && !curAudio.paused && typeof setVisualizerRunning === 'function') setVisualizerRunning(true);
+          if (curAudio && !curAudio.paused) {
+            if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
+              try { state.context.resume().catch(function () {}); } catch (_) {}
+            }
+            if (typeof setVisualizerRunning === 'function') setVisualizerRunning(true);
+          }
         }
       } catch (_) {}
     };

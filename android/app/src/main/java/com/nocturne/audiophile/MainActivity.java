@@ -198,6 +198,8 @@ public class MainActivity extends AppCompatActivity {
     };
     private final java.util.concurrent.atomic.AtomicBoolean mOtaChecking = new java.util.concurrent.atomic.AtomicBoolean(false);
     private final java.util.concurrent.atomic.AtomicBoolean mStorageScanRunning = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private volatile boolean mIsInBackground = false;
+    private volatile boolean mIsMediaPlaying = false;
     private volatile String mOtaPendingVersion = "";
     private boolean mIsMediaReceiverRegistered = false;
 
@@ -1224,9 +1226,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Native WakeLock control for uninterrupted high-resolution audio playback
+     * Native WakeLock control for uninterrupted high-resolution audio playback.
+     * Holds WifiLock only when streaming remotely so local MicroSD playback saves battery.
      */
     public void acquireWakeLock() {
+        acquireWakeLock(true);
+    }
+
+    public void acquireWakeLock(boolean needWifiLock) {
         try {
             if (mWakeLock != null && !mWakeLock.isHeld()) {
                 mWakeLock.acquire(10 * 60 * 60 * 1000L); // 10 hours max safety timeout
@@ -1236,12 +1243,17 @@ public class MainActivity extends AppCompatActivity {
             Log.w(TAG, "Failed to acquire WakeLock: " + e.getMessage());
         }
         try {
-            if (mWifiLock != null && !mWifiLock.isHeld()) {
-                mWifiLock.acquire();
-                Log.d(TAG, "Acquired Hi-Res playback WifiLock");
+            if (needWifiLock) {
+                if (mWifiLock != null && !mWifiLock.isHeld()) {
+                    mWifiLock.acquire();
+                    Log.d(TAG, "Acquired Hi-Res playback WifiLock");
+                }
+            } else if (mWifiLock != null && mWifiLock.isHeld()) {
+                mWifiLock.release();
+                Log.d(TAG, "Released WifiLock for offline local playback");
             }
         } catch (Exception e) {
-            Log.w(TAG, "Failed to acquire WifiLock: " + e.getMessage());
+            Log.w(TAG, "Failed to update WifiLock: " + e.getMessage());
         }
     }
 
@@ -1360,6 +1372,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        mIsInBackground = false;
         if (mWebView != null) {
             mWebView.onResume();
             mWebView.requestFocus();
@@ -1369,7 +1382,21 @@ public class MainActivity extends AppCompatActivity {
                 if (pm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) psm = pm.isPowerSaveMode();
             } catch (Exception ignored) {}
             final boolean isPowerSave = psm;
-            mWebView.post(() -> mWebView.evaluateJavascript("if(typeof window.onAndroidAppLifecycle==='function'){window.onAndroidAppLifecycle('foreground');}if(typeof window.onAndroidPowerSaveChanged==='function'){window.onAndroidPowerSaveChanged(" + (isPowerSave ? "true" : "false") + ");}", null));
+            final boolean syncBpPos = mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused());
+            final long bpPosMs = syncBpPos ? mBitPerfectPlayer.getPositionMs() : 0L;
+            final long bpDurMs = syncBpPos ? mBitPerfectPlayer.getDurationMs() : 0L;
+            mWebView.post(() -> {
+                if (mWebView == null) return;
+                StringBuilder js = new StringBuilder();
+                js.append("if(typeof window.onAndroidAppLifecycle==='function'){window.onAndroidAppLifecycle('foreground');}");
+                js.append("if(typeof window.onAndroidPowerSaveChanged==='function'){window.onAndroidPowerSaveChanged(")
+                  .append(isPowerSave ? "true" : "false").append(");}");
+                if (syncBpPos) {
+                    js.append("if(typeof window.onNativeBitPerfectPosition==='function'){window.onNativeBitPerfectPosition(")
+                      .append(bpPosMs).append(",").append(bpDurMs).append(");}");
+                }
+                mWebView.evaluateJavascript(js.toString(), null);
+            });
         }
     }
 
@@ -1395,6 +1422,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        mIsInBackground = true;
+        // Release WakeLock/WifiLock immediately if playback is paused/idle when entering background
+        if (!mIsMediaPlaying && (mBitPerfectPlayer == null || !mBitPerfectPlayer.isPlaying())) {
+            releaseWakeLock();
+        }
         // Keep audio playback running smoothly, but let Web pause heavy visualizers to save battery/RAM
         if (mWebView != null) {
             mWebView.post(() -> mWebView.evaluateJavascript("if(typeof window.onAndroidAppLifecycle==='function'){window.onAndroidAppLifecycle('background');}", null));
@@ -2313,8 +2345,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void updateMediaNotification(String title, String artist, String album, boolean isPlaying) {
+        mIsMediaPlaying = isPlaying;
         if (isPlaying) {
-            acquireWakeLock();
+            boolean needWifi = !(mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying() && !mBitPerfectPlayer.isRemoteStream());
+            acquireWakeLock(needWifi);
             try {
                 Intent svcIntent = new Intent(this, NocturnePlaybackService.class);
                 svcIntent.setAction(NocturnePlaybackService.ACTION_START_OR_UPDATE);
@@ -2367,6 +2401,9 @@ public class MainActivity extends AppCompatActivity {
             mb.putString(MediaMetadata.METADATA_KEY_ARTIST, displayArtist);
             if (album != null && !album.trim().isEmpty()) {
                 mb.putString(MediaMetadata.METADATA_KEY_ALBUM, album.trim());
+            }
+            if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused()) && mBitPerfectPlayer.getDurationMs() > 0) {
+                mb.putLong(MediaMetadata.METADATA_KEY_DURATION, mBitPerfectPlayer.getDurationMs());
             }
             mMediaSession.setMetadata(mb.build());
         } catch (Exception ignored) {}
@@ -2706,6 +2743,7 @@ public class MainActivity extends AppCompatActivity {
         private volatile boolean mIsPlaying = false;
         private volatile boolean mIsPaused = false;
         private volatile boolean mIsStopped = false;
+        private volatile boolean mIsRemoteStream = false;
         private final AtomicLong mSeekTargetUs = new AtomicLong(-1);
         private final AtomicLong mCurrentPositionMs = new AtomicLong(0);
         private final AtomicLong mDurationMs = new AtomicLong(0);
@@ -2735,11 +2773,12 @@ public class MainActivity extends AppCompatActivity {
             mIsStopped = false;
             mIsPaused = false;
             mIsPlaying = true;
+            mIsRemoteStream = !(trimmedUrl.startsWith("/") || trimmedUrl.startsWith("file://") || trimmedUrl.startsWith("content://") || trimmedUrl.contains("/local-media?"));
             mSeekTargetUs.set(-1);
             mCurrentPositionMs.set(0);
             mDurationMs.set(0);
 
-            acquireWakeLock();
+            acquireWakeLock(mIsRemoteStream);
             requestAudioFocus();
 
             // Derive display title from file name or ?name= parameter
@@ -2791,7 +2830,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void resume() {
-            acquireWakeLock();
+            acquireWakeLock(mIsRemoteStream);
             requestAudioFocus();
             synchronized (mPauseLock) {
                 mIsPaused = false;
@@ -2863,6 +2902,10 @@ public class MainActivity extends AppCompatActivity {
 
         public boolean isPaused() {
             return mIsPaused;
+        }
+
+        public boolean isRemoteStream() {
+            return mIsRemoteStream;
         }
 
         public long getPositionMs() {
@@ -3267,7 +3310,8 @@ public class MainActivity extends AppCompatActivity {
                             long posMs = Math.max(0L, info.presentationTimeUs / 1000L);
                             mCurrentPositionMs.set(posMs);
                             long nowElapsed = SystemClock.uptimeMillis();
-                            if (nowElapsed - lastUiUpdateElapsedMs >= 250L && !mIsStopped && mWebView != null) {
+                            final long uiUpdateIntervalMs = mIsInBackground ? 2000L : 250L;
+                            if (nowElapsed - lastUiUpdateElapsedMs >= uiUpdateIntervalMs && !mIsStopped && mWebView != null) {
                                 lastUiUpdateElapsedMs = nowElapsed;
                                 final long reportPosMs = posMs;
                                 final long reportDurMs = mDurationMs.get();
@@ -3594,11 +3638,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.17";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.18";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.17\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.18\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

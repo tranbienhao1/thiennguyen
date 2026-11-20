@@ -7,8 +7,8 @@
  * Drive/OneDrive, luồng nhạc), yêu cầu no-store (bộ kiểm tra cập nhật trong
  * app) và yêu cầu Range không bao giờ đi qua cache.
  */
-const CACHE_VERSION = 'v3.9.17'; // History: const CACHE_VERSION = 'v3.9.16'; const CACHE_VERSION = 'v3.9.15'; const CACHE_VERSION = 'v3.9.14'; const CACHE_VERSION = 'v3.9.13'; const CACHE_VERSION = 'v3.9.12'; const CACHE_VERSION = 'v3.9.8';
-const CACHE_NAME = 'nocturne-v3.9.17'; // History: const CACHE_NAME = 'nocturne-v3.9.16'; const CACHE_NAME = 'nocturne-v3.9.15'; const CACHE_NAME = 'nocturne-v3.9.14'; const CACHE_NAME = 'nocturne-v3.9.13'; const CACHE_NAME = 'nocturne-v3.9.12'; const CACHE_NAME = 'nocturne-v3.9.8';
+const CACHE_VERSION = 'v3.9.18'; // History: const CACHE_VERSION = 'v3.9.17'; const CACHE_VERSION = 'v3.9.16'; const CACHE_VERSION = 'v3.9.15'; const CACHE_VERSION = 'v3.9.14'; const CACHE_VERSION = 'v3.9.13'; const CACHE_VERSION = 'v3.9.12'; const CACHE_VERSION = 'v3.9.8';
+const CACHE_NAME = 'nocturne-v3.9.18'; // History: const CACHE_NAME = 'nocturne-v3.9.17'; const CACHE_NAME = 'nocturne-v3.9.16'; const CACHE_NAME = 'nocturne-v3.9.15'; const CACHE_NAME = 'nocturne-v3.9.14'; const CACHE_NAME = 'nocturne-v3.9.13'; const CACHE_NAME = 'nocturne-v3.9.12'; const CACHE_NAME = 'nocturne-v3.9.8';
 self.CACHE_VERSION = CACHE_VERSION;
 self.CACHE_NAME = CACHE_NAME;
 const APP_SHELL = [
