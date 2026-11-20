@@ -256,6 +256,9 @@
     body.power-save-mode .backdrop-blur-md { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
     body.power-save-mode #ambient-glow,
     body.power-save-mode #app-ambient-backdrop { opacity: 0 !important; transition: none !important; }
+    body.low-ram-mode .backdrop-blur-2xl,
+    body.low-ram-mode .backdrop-blur-xl { backdrop-filter: blur(6px) !important; -webkit-backdrop-filter: blur(6px) !important; }
+    #night-dimmer-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 9998; background: #000; opacity: 0; transition: opacity 220ms ease; }
   </style>
   <style id="roon-inspired-theme">
     :root { --accent:126 189 216; --line:rgba(255,255,255,.075); color-scheme:dark; }
@@ -1463,7 +1466,7 @@
         </div>
         <div id="context-row">
           <button id="focus-button" type="button" aria-pressed="false">›&nbsp; Focus <span id="focus-heart">♥</span></button>
-          <div id="collection-tools"><button id="jump-to-playing-btn" type="button" title="Cuộn nhanh tới bài đang phát (Phím G)">◎&nbsp; Đang phát</button><button id="random-album-btn" type="button" title="Khám phá & phát ngẫu nhiên 1 Album (Phím D)">🎲&nbsp; Album ngẫu nhiên</button><button id="quick-fav-toggle-btn" type="button" title="Lọc nhanh bài hát Yêu thích">♥&nbsp; Yêu thích</button><button id="sort-button" type="button">By artist&nbsp;⌄</button><button id="filter-toggle" type="button" aria-expanded="false">⌕&nbsp; Filter</button><button id="clear-filters-btn" type="button" class="hidden" title="Xóa toàn bộ bộ lọc & từ khóa tìm kiếm">✕&nbsp; Xóa lọc</button><button id="library-stats-btn" type="button" title="Thống kê thư viện Audiophile (Phím I)">📊</button><button id="shortcuts-help-btn" type="button" title="Bảng phím tắt (Phím ?)">?</button></div>
+          <div id="collection-tools"><button id="jump-to-playing-btn" type="button" title="Cuộn nhanh tới bài đang phát (Phím G)">◎&nbsp; Đang phát</button><button id="random-album-btn" type="button" title="Khám phá & phát ngẫu nhiên 1 Album (Phím D)">🎲&nbsp; Album ngẫu nhiên</button><button id="quick-fav-toggle-btn" type="button" title="Lọc nhanh bài hát Yêu thích">♥&nbsp; Yêu thích</button><button id="quick-sleep-btn" type="button" title="Hẹn giờ ngủ nhanh (15/30/45/60p / Hết bài)">🌙&nbsp; Ngủ</button><button id="night-dimmer-btn" type="button" title="Chế độ Đêm OLED / Dịu mắt (Phím N)">🕶&nbsp; Đêm</button><button id="quick-bookmark-btn" type="button" title="Đánh dấu đoạn hay (Phím B) · Nhấn Shift+B để nhảy tới đoạn đã lưu">🔖&nbsp; Dấu mốc</button><button id="sort-button" type="button">By artist&nbsp;⌄</button><button id="filter-toggle" type="button" aria-expanded="false">⌕&nbsp; Filter</button><button id="clear-filters-btn" type="button" class="hidden" title="Xóa toàn bộ bộ lọc & từ khóa tìm kiếm">✕&nbsp; Xóa lọc</button><button id="library-stats-btn" type="button" title="Thống kê thư viện Audiophile (Phím I)">📊</button><button id="shortcuts-help-btn" type="button" title="Bảng phím tắt (Phím ?)">?</button></div>
         </div>
         <div id="filter-controls" hidden>
           <select id="source-filter" aria-label="Lọc theo nguồn"><option value="all">Mọi nguồn</option><option value="local">Local</option><option value="google">Google Drive</option><option value="onedrive">OneDrive</option><option value="Subsonic">Subsonic</option><option value="Jellyfin">Jellyfin</option><option value="Black Candy">Black Candy</option></select>
@@ -1911,6 +1914,21 @@
             <p class="mt-1 text-[10px] leading-4 text-zinc-500">Xóa cache lát nhạc cũ trong IndexedDB và giải phóng bộ nhớ tạm mà vẫn giữ nguyên thư viện Google Drive, yêu thích và đánh giá sao.</p>
           </div>
           <button id="clear-slice-cache-btn" type="button" class="shrink-0 rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-3 py-1.5 text-[11px] font-medium text-cyan-100 hover:bg-cyan-500/25 transition">Dọn cache</button>
+        </div>
+      </section>
+      <section class="mt-4 rounded-2xl border border-emerald-400/15 bg-emerald-400/[.03] p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="text-sm font-medium text-emerald-100">Sao lưu & Khôi phục Thiết lập Audiophile</h3>
+            <p class="mt-1 text-[10px] leading-4 text-zinc-500">Xuất hoặc nhập file JSON chứa cấu hình EQ, yêu thích, đánh giá sao, crossfade và thống kê nghe nhạc (không bao gồm token đăng nhập).</p>
+            <p id="device-telemetry-pill" class="mt-1.5 text-[10px] font-mono text-emerald-300/80"></p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="export-prefs-btn" type="button" class="rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-3 py-1.5 text-[11px] font-medium text-emerald-100 hover:bg-emerald-500/25 transition">Xuất JSON</button>
+            <button id="import-prefs-btn" type="button" class="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-medium text-zinc-200 hover:bg-white/10 transition">Nhập JSON</button>
+            <input id="import-prefs-input" type="file" accept="application/json,.json" class="hidden">
+            <button id="open-android-sound-btn" type="button" class="hidden rounded-lg border border-amber-400/30 bg-amber-500/15 px-3 py-1.5 text-[11px] font-medium text-amber-100 hover:bg-amber-500/25 transition">Âm thanh Android</button>
+          </div>
         </div>
       </section>
       <section class="mt-4 rounded-2xl border border-amber-300/15 bg-amber-300/[.03] p-4">
@@ -17840,6 +17858,14 @@
       const depthPart = cur.bitDepth ? `${cur.bitDepth}-bit` : '';
       const tech = [cur.format || '', [ratePart, depthPart].filter(Boolean).join('/')].filter(Boolean).join(' ');
       const text = `${meta.artist || 'Unknown'} — ${meta.title || cur.name}${meta.album ? ' [' + meta.album + ']' : ''}${tech ? ' · ' + tech : ''}`;
+      if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.shareText === 'function') {
+        try {
+          if (window.NocturneNative.shareText('Nocturne Now Playing', text)) {
+            toast(`📤 Đang chia sẻ: ${text}`);
+            return;
+          }
+        } catch (_) {}
+      }
       if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
         navigator.clipboard.writeText(text).then(() => toast(`📋 Đã sao chép: ${text}`)).catch(() => toast(text));
       } else {
@@ -18119,6 +18145,310 @@
         }).catch(() => {});
       } catch (_) {}
     }
+
+    // === v3.2.0: Quick 1-Tap Sleep Timer Pill, Low-RAM GPU Auto-Guard & Native Android Share ===
+    const QUICK_SLEEP_STEPS = [0, 15, 30, 45, 60, 'track-end'];
+    let quickSleepStepIdx = 0;
+    function syncQuickSleepPill() {
+      const btn = $(quick-sleep-btn);
+      if (!btn) return;
+      const isTrackEnd = Boolean(state.sleepAtTrackEnd);
+      const hasDeadline = Boolean(state.sleepDeadline && state.sleepDeadline > Date.now());
+      const active = isTrackEnd || hasDeadline;
+      btn.classList.toggle(text-indigo-300, active);
+      btn.classList.toggle(border-indigo-400/50, active);
+      btn.setAttribute(aria-pressed, String(active));
+      if (isTrackEnd) {
+        btn.innerHTML = '🌙&nbsp; Hết bài';
+      } else if (hasDeadline) {
+        const minsLeft = Math.max(1, Math.ceil((state.sleepDeadline - Date.now()) / 60000));
+        btn.innerHTML = `🌙&nbsp; ${minsLeft}p`;
+      } else {
+        btn.innerHTML = '🌙&nbsp; Ngủ';
+      }
+    }
+    safeOn($(quick-sleep-btn), 'click', () => {
+      quickSleepStepIdx = (quickSleepStepIdx + 1) % QUICK_SLEEP_STEPS.length;
+      const step = QUICK_SLEEP_STEPS[quickSleepStepIdx];
+      if (step === 0) {
+        if (typeof clearSleepTimer === 'function') clearSleepTimer();
+        toast('🌙 Đã tắt hẹn giờ ngủ.');
+      } else if (step === 'track-end') {
+        if (typeof clearSleepTimer === 'function') clearSleepTimer();
+        state.sleepAtTrackEnd = true;
+        if (typeof updateSleepStatus === 'function') updateSleepStatus();
+        toast('🌙 Hẹn giờ ngủ: sẽ tạm dừng khi hết bài hiện tại.');
+      } else if (typeof setSleepTimer === 'function') {
+        setSleepTimer(step);
+      }
+      if (typeof triggerHapticTick === 'function') triggerHapticTick();
+      syncQuickSleepPill();
+    });
+    setInterval(() => {
+      if (!document.hidden && (state.sleepDeadline > 0 || state.sleepAtTrackEnd)) syncQuickSleepPill();
+    }, 15000);
+
+    function applyAdaptiveLowRamMode() {
+      try {
+        let isLowRam = false;
+        if (typeof window !== 'undefined' && window.NocturneNative) {
+          if (typeof window.NocturneNative.isLowRamDevice === 'function' && window.NocturneNative.isLowRamDevice()) {
+            isLowRam = true;
+          } else if (typeof window.NocturneNative.getAvailableMemoryMb === 'function') {
+            const availMb = window.NocturneNative.getAvailableMemoryMb();
+            if (availMb > 0 && availMb < 512) isLowRam = true;
+          }
+        } else if (typeof navigator !== 'undefined' && typeof navigator.deviceMemory === 'number' && navigator.deviceMemory <= 4) {
+          isLowRam = true;
+        }
+        if (document.body) document.body.classList.toggle('low-ram-mode', isLowRam);
+      } catch (_) {}
+    }
+    applyAdaptiveLowRamMode();
+
+    // === v3.3.0: Dynamic Tab Title Sync, Preferences Backup/Restore & Android Battery/Sound Bridge ===
+    const DEFAULT_NOCTURNE_TITLE = (typeof document !== 'undefined' && document.title) ? document.title : 'Nocturne — Audiophile Lossless Player';
+    function syncDynamicTabTitle() {
+      try {
+        if (typeof document === 'undefined') return;
+        const isPlayingNow = Boolean((state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) || (audio && !audio.paused && audio.src));
+        const cur = state.tracks.find(t => t && t.id === state.currentId);
+        let nextTitle = DEFAULT_NOCTURNE_TITLE;
+        if (isPlayingNow && cur) {
+          const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(cur) : cur;
+          const titlePart = (meta && meta.title) || cur.title || cur.name || '';
+          const artistPart = (meta && meta.artist) || cur.artist || '';
+          if (titlePart) nextTitle = `▶ ${titlePart}${artistPart ? ' — ' + artistPart : ''} · Nocturne`;
+        }
+        if (document.title !== nextTitle) document.title = nextTitle;
+      } catch (_) {}
+    }
+    setInterval(() => { syncDynamicTabTitle(); }, 2000);
+
+    function exportNocturnePreferences() {
+      try {
+        const dump = { version: '3.3.0', exportedAt: new Date().toISOString(), prefs: {} };
+        if (typeof localStorage !== 'undefined') {
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (!k || !k.startsWith('nocturne-')) continue;
+            if (/token|auth|secret|msal/i.test(k)) continue;
+            dump.prefs[k] = localStorage.getItem(k);
+          }
+        }
+        const jsonStr = JSON.stringify(dump, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        a.href = url;
+        a.download = `nocturne-backup-${stamp}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 1500);
+        toast(`💾 Đã xuất ${Object.keys(dump.prefs).length} thiết lập Nocturne ra file JSON.`);
+      } catch (err) {
+        toast('Không thể xuất file sao lưu thiết lập.');
+      }
+    }
+    function importNocturnePreferences(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result || ''));
+          const prefs = parsed && parsed.prefs && typeof parsed.prefs === 'object' ? parsed.prefs : null;
+          if (!prefs) { toast('File sao lưu không hợp lệ.'); return; }
+          let count = 0;
+          Object.keys(prefs).forEach(k => {
+            if (!k.startsWith('nocturne-') || /token|auth|secret|msal/i.test(k)) return;
+            if (typeof prefs[k] === 'string') {
+              localStorage.setItem(k, prefs[k]);
+              count++;
+            }
+          });
+          toast(`✅ Đã khôi phục ${count} thiết lập. Tải lại trang để áp dụng đầy đủ.`);
+        } catch (_) {
+          toast('Không thể đọc file JSON sao lưu.');
+        }
+      };
+      reader.readAsText(file);
+    }
+    safeOn($('export-prefs-btn'), 'click', () => exportNocturnePreferences());
+    safeOn($('import-prefs-btn'), 'click', () => { const inp = $('import-prefs-input'); if (inp) inp.click(); });
+    safeOn($('import-prefs-input'), 'change', e => {
+      const f = e && e.target && e.target.files ? e.target.files[0] : null;
+      if (f) importNocturnePreferences(f);
+      if (e && e.target) e.target.value = '';
+    });
+
+    function refreshDeviceTelemetryPill() {
+      const pill = $('device-telemetry-pill');
+      const soundBtn = $('open-android-sound-btn');
+      const parts = [];
+      if (typeof window !== 'undefined' && window.NocturneNative) {
+        if (soundBtn && typeof window.NocturneNative.openAppAudioSettings === 'function') {
+          soundBtn.classList.remove('hidden');
+        }
+        try {
+          if (typeof window.NocturneNative.getBatteryInfoJson === 'function') {
+            const b = JSON.parse(window.NocturneNative.getBatteryInfoJson());
+            if (b && typeof b.level === 'number' && b.level >= 0) {
+              parts.push(`🔋 Pin ${b.level}%${b.charging ? ' (Đang sạc)' : ''}`);
+            }
+          }
+        } catch (_) {}
+        try {
+          if (typeof window.NocturneNative.getAvailableMemoryMb === 'function') {
+            const mb = window.NocturneNative.getAvailableMemoryMb();
+            if (mb > 0) parts.push(`RAM trống ~${mb} MB`);
+          }
+        } catch (_) {}
+        try {
+          if (typeof window.NocturneNative.getAudioOutputRouteName === 'function') {
+            const routeName = window.NocturneNative.getAudioOutputRouteName();
+            if (routeName) parts.push(`🎧 ${routeName}`);
+          }
+        } catch (_) {}
+        try {
+          if (typeof window.NocturneNative.getAppBuildInfoJson === 'function') {
+            const bi = JSON.parse(window.NocturneNative.getAppBuildInfoJson());
+            if (bi && bi.model) parts.push(`${bi.model} · APK v${bi.versionName || '3.5.0'}`);
+          }
+        } catch (_) {}
+      } else if (typeof navigator !== 'undefined' && typeof navigator.deviceMemory === 'number') {
+        parts.push(`Thiết bị ~${navigator.deviceMemory} GB RAM`);
+      }
+      if (pill && parts.length) pill.textContent = parts.join(' · ');
+    }
+    safeOn($('open-android-sound-btn'), 'click', () => {
+      try {
+        if (window.NocturneNative && typeof window.NocturneNative.openAppAudioSettings === 'function') {
+          window.NocturneNative.openAppAudioSettings();
+        }
+      } catch (_) {}
+    });
+    refreshDeviceTelemetryPill();
+
+    // === v3.4.0: Night Dimmer / OLED Eye-Comfort Mode (Web + Android Window Brightness) ===
+    const NIGHT_DIMMER_LEVELS = [
+      { key: 'off', label: '🕶  Đêm', opacity: 0, androidPct: -1, toast: 'Đã tắt Chế độ Đêm OLED.' },
+      { key: 'soft', label: '🕶  Dịu mắt', opacity: 0.28, androidPct: 45, toast: '🕶 Đã bật Chế độ Dịu mắt (OLED 75%).' },
+      { key: 'deep', label: '🕶  Đêm sâu', opacity: 0.54, androidPct: 18, toast: '🕶 Đã bật Chế độ Đêm sâu OLED (45%).' }
+    ];
+    let nightDimmerIdx = 0;
+    try {
+      const savedDim = typeof localStorage !== 'undefined' ? localStorage.getItem('nocturne-night-dimmer') : null;
+      const foundIdx = NIGHT_DIMMER_LEVELS.findIndex(item => item.key === savedDim);
+      if (foundIdx >= 0) nightDimmerIdx = foundIdx;
+    } catch (_) {}
+    function applyNightDimmerLevel(idx, showToast) {
+      nightDimmerIdx = ((idx % NIGHT_DIMMER_LEVELS.length) + NIGHT_DIMMER_LEVELS.length) % NIGHT_DIMMER_LEVELS.length;
+      const cfg = NIGHT_DIMMER_LEVELS[nightDimmerIdx];
+      const overlay = $('night-dimmer-overlay');
+      if (overlay) overlay.style.opacity = String(cfg.opacity);
+      const btn = $('night-dimmer-btn');
+      if (btn) {
+        btn.textContent = cfg.label;
+        const active = cfg.key !== 'off';
+        btn.classList.toggle('text-amber-300', active);
+        btn.classList.toggle('border-amber-400/50', active);
+        btn.setAttribute('aria-pressed', String(active));
+      }
+      try {
+        if (typeof localStorage !== 'undefined') localStorage.setItem('nocturne-night-dimmer', cfg.key);
+      } catch (_) {}
+      try {
+        if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setScreenBrightnessPercent === 'function') {
+          window.NocturneNative.setScreenBrightnessPercent(cfg.androidPct);
+        }
+      } catch (_) {}
+      if (showToast && typeof toast === 'function') toast(cfg.toast);
+    }
+    safeOn($('night-dimmer-btn'), 'click', () => {
+      applyNightDimmerLevel(nightDimmerIdx + 1, true);
+      if (typeof triggerHapticTick === 'function') triggerHapticTick();
+    });
+    document.addEventListener('keydown', e => {
+      if (!e || e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = e.target && e.target.tagName ? String(e.target.tagName).toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target && e.target.isContentEditable)) return;
+      if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        applyNightDimmerLevel(nightDimmerIdx + 1, true);
+      }
+    });
+    applyNightDimmerLevel(nightDimmerIdx, false);
+
+    // === v3.5.0: Track Timestamp Bookmarks (B / Shift+B) & Android Thermal Guard ===
+    const TRACK_BOOKMARKS_KEY = 'nocturne-track-bookmarks';
+    function readTrackBookmarks() {
+      try {
+        const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(TRACK_BOOKMARKS_KEY) : null;
+        return raw ? JSON.parse(raw) : {};
+      } catch (_) { return {}; }
+    }
+    function writeTrackBookmarks(mapObj) {
+      try {
+        if (typeof localStorage !== 'undefined') localStorage.setItem(TRACK_BOOKMARKS_KEY, JSON.stringify(mapObj || {}));
+      } catch (_) {}
+    }
+    function saveOrJumpTrackBookmark(jumpOnly) {
+      const cur = state.tracks.find(t => t && t.id === state.currentId);
+      if (!cur) { toast('Chưa có bài hát nào đang phát.'); return; }
+      const bKey = (typeof library !== 'undefined' && library && typeof library.historyTrackKey === 'function') ? library.historyTrackKey(cur) : String(cur.id);
+      const mapObj = readTrackBookmarks();
+      if (jumpOnly) {
+        const savedSec = Number(mapObj[bKey]);
+        if (!Number.isFinite(savedSec) || savedSec < 0) {
+          toast('Bài này chưa có dấu mốc nào. Bấm 🔖 hoặc phím B để lưu đoạn hay.');
+          return;
+        }
+        try {
+          if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
+            audio.currentTime = Math.min(savedSec, Math.max(0, audio.duration - 0.5));
+          } else if (audio) {
+            audio.currentTime = savedSec;
+          }
+          toast(`🔖 Đã nhảy tới dấu mốc ${typeof formatTime === 'function' ? formatTime(savedSec) : Math.round(savedSec) + 's'}.`);
+        } catch (_) {}
+        return;
+      }
+      const curSec = (audio && Number.isFinite(audio.currentTime)) ? Math.max(0, Math.floor(audio.currentTime)) : 0;
+      mapObj[bKey] = curSec;
+      writeTrackBookmarks(mapObj);
+      if (typeof triggerHapticTick === 'function') triggerHapticTick();
+      toast(`🔖 Đã lưu dấu mốc ${typeof formatTime === 'function' ? formatTime(curSec) : curSec + 's'} (Nhấn Shift+B để nhảy lại).`);
+    }
+    safeOn($('quick-bookmark-btn'), 'click', e => {
+      saveOrJumpTrackBookmark(Boolean(e && e.shiftKey));
+    });
+    document.addEventListener('keydown', e => {
+      if (!e || e.ctrlKey || e.metaKey || e.altKey) return;
+      const tag = e.target && e.target.tagName ? String(e.target.tagName).toLowerCase() : '';
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target && e.target.isContentEditable)) return;
+      if (e.key === 'b' || e.key === 'B') {
+        e.preventDefault();
+        saveOrJumpTrackBookmark(Boolean(e.shiftKey));
+      }
+    });
+
+    function checkAndroidThermalGuard() {
+      try {
+        if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.getDeviceThermalStatus === 'function') {
+          const st = String(window.NocturneNative.getDeviceThermalStatus() || 'NOMINAL');
+          if (st === 'SEVERE' || st === 'CRITICAL') {
+            if (document.body && !document.body.classList.contains('power-save-mode')) {
+              document.body.classList.add('power-save-mode');
+              toast('🌡 Thiết bị đang ấm — đã tự động giảm hiệu ứng đồ họa để giữ âm thanh ổn định.');
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    checkAndroidThermalGuard();
+    setInterval(() => { if (!document.hidden) checkAndroidThermalGuard(); }, 60000);
 
     applyBitPerfectMode(state.bitPerfectEnabled);
     restoreFiioCatalog();
@@ -18409,5 +18739,6 @@
     </div>
   </div>
 
+<div id="night-dimmer-overlay" aria-hidden="true"></div>
 </body>
 </html>

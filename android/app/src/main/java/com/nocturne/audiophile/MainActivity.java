@@ -13,6 +13,9 @@ import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.ContentUris;
 import android.content.Context;
+import android.app.ActivityManager;
+import android.os.BatteryManager;
+import android.provider.Settings;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
@@ -3210,6 +3213,154 @@ public class MainActivity extends AppCompatActivity {
                 PowerManager pm = (PowerManager) mActivity.getSystemService(Context.POWER_SERVICE);
                 return pm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && pm.isPowerSaveMode();
             } catch (Exception e) { return false; }
+        }
+
+        @JavascriptInterface
+        public boolean isLowRamDevice() {
+            try {
+                ActivityManager am = (ActivityManager) mActivity.getSystemService(Context.ACTIVITY_SERVICE);
+                return am != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && am.isLowRamDevice();
+            } catch (Exception e) { return false; }
+        }
+
+        @JavascriptInterface
+        public int getAvailableMemoryMb() {
+            try {
+                ActivityManager am = (ActivityManager) mActivity.getSystemService(Context.ACTIVITY_SERVICE);
+                if (am == null) return -1;
+                ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
+                am.getMemoryInfo(mi);
+                return (int) Math.max(0, mi.availMem / (1024L * 1024L));
+            } catch (Exception e) { return -1; }
+        }
+
+        @JavascriptInterface
+        public boolean shareText(final String title, final String text) {
+            if (text == null || text.trim().isEmpty()) return false;
+            try {
+                mActivity.runOnUiThread(() -> {
+                    try {
+                        Intent sendIntent = new Intent(Intent.ACTION_SEND);
+                        sendIntent.setType("text/plain");
+                        if (title != null && !title.isEmpty()) sendIntent.putExtra(Intent.EXTRA_SUBJECT, title);
+                        sendIntent.putExtra(Intent.EXTRA_TEXT, text);
+                        mActivity.startActivity(Intent.createChooser(sendIntent, title != null && !title.isEmpty() ? title : "Chia sẻ bài hát"));
+                    } catch (Exception ignored) {}
+                });
+                return true;
+            } catch (Exception e) { return false; }
+        }
+
+        @JavascriptInterface
+        public String getBatteryInfoJson() {
+            try {
+                IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+                Intent batteryStatus = mActivity.registerReceiver(null, filter);
+                if (batteryStatus == null) return "{\"level\":-1,\"charging\":false}";
+                int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                int pct = (level >= 0 && scale > 0) ? Math.round((level * 100f) / scale) : -1;
+                int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+                boolean charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL;
+                return "{\"level\":" + pct + ",\"charging\":" + charging + "}";
+            } catch (Exception e) {
+                return "{\"level\":-1,\"charging\":false}";
+            }
+        }
+
+        @JavascriptInterface
+        public boolean openAppAudioSettings() {
+            try {
+                mActivity.runOnUiThread(() -> {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_SOUND_SETTINGS);
+                        mActivity.startActivity(intent);
+                    } catch (Exception ignored) {}
+                });
+                return true;
+            } catch (Exception e) { return false; }
+        }
+
+        @JavascriptInterface
+        public String getAudioOutputRouteName() {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && mActivity.mAudioManager != null) {
+                    AudioDeviceInfo[] outs = mActivity.mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+                    for (AudioDeviceInfo d : outs) {
+                        if (d == null) continue;
+                        int t = d.getType();
+                        if (t == AudioDeviceInfo.TYPE_USB_DEVICE || t == AudioDeviceInfo.TYPE_USB_HEADSET) return "USB DAC";
+                    }
+                    for (AudioDeviceInfo d : outs) {
+                        if (d == null) continue;
+                        int t = d.getType();
+                        if (t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || t == AudioDeviceInfo.TYPE_WIRED_HEADSET || t == AudioDeviceInfo.TYPE_LINE_ANALOG) return "Wired Headphones";
+                    }
+                    for (AudioDeviceInfo d : outs) {
+                        if (d == null) continue;
+                        int t = d.getType();
+                        if (t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) return "Bluetooth Hi-Res";
+                    }
+                }
+            } catch (Exception ignored) {}
+            return "Phone Speaker";
+        }
+
+        @JavascriptInterface
+        public int getScreenBrightnessPercent() {
+            try {
+                float b = mActivity.getWindow().getAttributes().screenBrightness;
+                if (b < 0f) return -1;
+                return Math.max(5, Math.min(100, Math.round(b * 100f)));
+            } catch (Exception e) { return -1; }
+        }
+
+        @JavascriptInterface
+        public void setScreenBrightnessPercent(final int pct) {
+            try {
+                mActivity.runOnUiThread(() -> {
+                    try {
+                        android.view.WindowManager.LayoutParams lp = mActivity.getWindow().getAttributes();
+                        if (pct < 0) {
+                            lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+                        } else {
+                            int clamped = Math.max(10, Math.min(100, pct));
+                            lp.screenBrightness = clamped / 100f;
+                        }
+                        mActivity.getWindow().setAttributes(lp);
+                    } catch (Exception ignored) {}
+                });
+            } catch (Exception ignored) {}
+        }
+
+        @JavascriptInterface
+        public String getDeviceThermalStatus() {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    PowerManager pm = (PowerManager) mActivity.getSystemService(Context.POWER_SERVICE);
+                    if (pm != null) {
+                        int st = pm.getCurrentThermalStatus();
+                        if (st >= PowerManager.THERMAL_STATUS_CRITICAL) return "CRITICAL";
+                        if (st >= PowerManager.THERMAL_STATUS_SEVERE) return "SEVERE";
+                        if (st >= PowerManager.THERMAL_STATUS_MODERATE) return "MODERATE";
+                        if (st >= PowerManager.THERMAL_STATUS_LIGHT) return "LIGHT";
+                        return "NOMINAL";
+                    }
+                }
+            } catch (Exception ignored) {}
+            return "NOMINAL";
+        }
+
+        @JavascriptInterface
+        public String getAppBuildInfoJson() {
+            try {
+                android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace(""", "") : "3.5.0";
+                String model = Build.MODEL != null ? Build.MODEL.replace(""", "") : "Android";
+                return "{"versionName":"" + vName + "","sdkInt":" + Build.VERSION.SDK_INT + ","model":"" + model + ""}";
+            } catch (Exception e) {
+                return "{"versionName":"3.5.0","sdkInt":" + Build.VERSION.SDK_INT + ","model":"Android"}";
+            }
         }
 
         @JavascriptInterface

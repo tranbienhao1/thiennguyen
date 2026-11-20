@@ -387,3 +387,42 @@ test('v3.1.3: Next button inside an album ALWAYS advances strictly within the al
   playNext(1, false);
   assert.equal(played[2], 'o2', 'Next inside the newly picked random album must advance sequentially to Track 2');
 });
+
+test('v3.2.0: Quick 1-Tap Sleep Timer Pill, Adaptive Low-RAM GPU Guard & Native Android Share Sheet', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('public boolean isLowRamDevice()'), 'MainActivity must expose isLowRamDevice');
+  assert.ok(mainJava.includes('public int getAvailableMemoryMb()'), 'MainActivity must expose getAvailableMemoryMb');
+  assert.ok(mainJava.includes('public boolean shareText(final String title, final String text)'), 'MainActivity must expose native shareText');
+  assert.ok(html.includes('id="quick-sleep-btn"'), 'Toolbar must include Quick 1-Tap Sleep Timer pill');
+  assert.ok(html.includes('body.low-ram-mode'), 'CSS must include adaptive low-ram-mode rules');
+  assert.ok(html.includes('function applyAdaptiveLowRamMode()'), 'applyAdaptiveLowRamMode must exist');
+});
+
+test('v3.3.0: Dynamic Tab Title Sync, Preferences JSON Backup/Restore & Android Battery/Sound Bridge', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('public String getBatteryInfoJson()'), 'MainActivity must expose getBatteryInfoJson');
+  assert.ok(mainJava.includes('public boolean openAppAudioSettings()'), 'MainActivity must expose openAppAudioSettings');
+  assert.ok(html.includes('id="export-prefs-btn"'), 'Settings must include Export JSON preferences button');
+  assert.ok(html.includes('id="import-prefs-btn"'), 'Settings must include Import JSON preferences button');
+  assert.ok(html.includes('function syncDynamicTabTitle()'), 'syncDynamicTabTitle must exist');
+  assert.ok(html.includes('function refreshDeviceTelemetryPill()'), 'refreshDeviceTelemetryPill must exist');
+});
+
+test('v3.4.0: Night Dimmer OLED Eye-Comfort Mode + Android Audio Output Route & Window Brightness Bridge', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('public String getAudioOutputRouteName()'), 'MainActivity must expose getAudioOutputRouteName');
+  assert.ok(mainJava.includes('public int getScreenBrightnessPercent()'), 'MainActivity must expose getScreenBrightnessPercent');
+  assert.ok(mainJava.includes('public void setScreenBrightnessPercent(final int pct)'), 'MainActivity must expose setScreenBrightnessPercent');
+  assert.ok(html.includes('id="night-dimmer-btn"'), 'Toolbar must include Night Dimmer pill');
+  assert.ok(html.includes('id="night-dimmer-overlay"'), 'HTML must include non-blocking night-dimmer-overlay');
+  assert.ok(html.includes('function applyNightDimmerLevel('), 'applyNightDimmerLevel must exist');
+});
+
+test('v3.5.0: Track Timestamp Bookmarks (B/Shift+B) + Android Thermal Guard & App Build Telemetry', () => {
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('public String getDeviceThermalStatus()'), 'MainActivity must expose getDeviceThermalStatus');
+  assert.ok(mainJava.includes('public String getAppBuildInfoJson()'), 'MainActivity must expose getAppBuildInfoJson');
+  assert.ok(html.includes('id="quick-bookmark-btn"'), 'Toolbar must include Quick Bookmark pill');
+  assert.ok(html.includes('function saveOrJumpTrackBookmark('), 'saveOrJumpTrackBookmark must exist');
+  assert.ok(html.includes('function checkAndroidThermalGuard()'), 'checkAndroidThermalGuard must exist');
+});
