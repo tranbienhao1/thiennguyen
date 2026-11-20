@@ -80,20 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.44';
-  const name = process.argv[3] || `Nocturne ${tag} (Tự thử lại luồng nhạc Cloud bị đứt giữa chừng, đồng bộ đa luồng OneDrive & khôi phục DSD directUrl)`;
+  const tag = process.argv[2] || 'v3.9.45';
+  const name = process.argv[3] || `Nocturne ${tag} (Tiền làm mới token/downloadUrl Cloud trong preloadNext, khớp CUE đa thư mục & đồng bộ tăng trưởng bộ nhớ nội bộ/MicroSD)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 98) — Tự thử lại luồng nhạc Cloud bị đứt giữa chừng, đồng bộ đa luồng OneDrive & khôi phục DSD directUrl
+    : `### Nocturne ${tag} (versionCode 99) — Tiền làm mới token/downloadUrl Cloud trong preloadNext, khớp CUE đa thư mục & đồng bộ tăng trưởng bộ nhớ nội bộ/MicroSD
 
-#### 1. Tự thử lại luồng tải nhạc Google Drive / OneDrive khi đứt mạng giữa thân file & hỗ trợ \`Retry-After\` (\`library-utils.js\` + \`index.html\`)
-- **\`readAudioResponseBlob\` & \`fetchAudioResponse\`**: Gắn cờ \`retryable = true\` khi \`response.blob()\` bị ngắt kết nối giữa chừng trong lúc đang tải thân file FLAC/ALAC/WAV/DSD dung lượng lớn (cả trong \`fetchAudioBlob\` lẫn \`fetchAudioFirstSlice\`), đồng thời đọc header \`Retry-After\` trên mã \`429\`/\`5xx\` để tự động thử lại mượt mà mà không làm ngắt bài.
-- **\`fetchCloudFile\` OneDrive \`directUrl\` Recovery**: Khi tải bài DSD/full-file từ OneDrive gặp \`401\`/\`403\` do link tạm \`@microsoft.graph.downloadUrl\` hết hạn, tự động xóa \`track.downloadUrl\`, xin lại \`resolveMicrosoftDownloadUrl(track)\` mới hoặc chuyển sang Microsoft Graph \`/content\` kèm \`Bearer token\`.
+#### 1. Tiền làm mới \`downloadUrl\` OneDrive & OAuth Token Google Drive / OneDrive trong \`preloadNext\` & \`preloadDsdNext\` (\`index.html\`)
+- **\`prepareCloudTrackForPreload(track)\`**: Tự động phát hiện \`track.downloadUrl\` OneDrive sắp chạm ngưỡng hết hạn (còn dưới 5 phút của chu kỳ 30 phút hoặc thiếu \`downloadUrlAt\`) để xóa và xin lại link mới qua \`resolveMicrosoftDownloadUrl\`, đồng thời chủ động làm mới token Google Drive (\`ensureGoogleToken\`) và OneDrive (\`getMicrosoftToken\`) khi còn dưới 3 phút hiệu lực ngay trong bước nạp trước (\`preloadNext\` / \`preloadDsdNext\`).
+- Giảm thời gian chờ thử lại preload từ 30 giây xuống 8 giây và xóa cờ lỗi preload ngay khi nạp trước thành công.
 
-#### 2. Đồng bộ thư mục OneDrive đa luồng theo lô & chống lỗi giới hạn Graph API (\`index.html\`)
-- **\`graphGet\` Resilient Retry**: Tự động thử lại tối đa 3 lần khi Microsoft Graph trả về \`429\` / \`500..504\` hoặc lỗi mạng ngắn hạn (tôn trọng \`Retry-After\` + exponential backoff) và làm mới \`state.microsoftAccessToken\` khi gặp \`401\`.
-- **\`loadMicrosoftFiles\` Parallel Folder Batching**: Quét đồng thời theo lô tối đa 3 thư mục OneDrive mỗi đợt (\`FOLDER_BATCH_CONCURRENCY = 3\`) và lưu bền các bài hiện có được cập nhật (\`downloadUrl\`, \`remotePath\`, \`size\`, \`audio\`) xuống IndexedDB \`catalog\`.
+#### 2. Khớp file âm thanh gốc cho CUE đa thư mục / đổi đuôi & Đồng bộ tăng trưởng bộ nhớ nội bộ / MicroSD (\`index.html\`)
+- **\`addLocalFiles\` Smart CUE Matching**: Ưu tiên khớp file âm thanh nằm cùng thư mục (\`cueDir\`), tự động bỏ tiền tố đường dẫn trong \`FILE "..."\`, hỗ trợ khớp theo tên gốc khi file nhạc đã chuyển từ \`.wav\` sang \`.flac\`/\`.ape\`/\`.wv\` hoặc file \`.cue\` có đuôi kép (\`album.flac.cue\`), và bỏ qua \`makeLocalTrack\` dư thừa khi toàn bộ CUE sub-track đã tồn tại khi quét lại thư mục.
+- **\`ingestFiioScannedFilesChunk\` Incremental Upgrade**: Đồng bộ hai chiều \`existingUris\`/\`existingPaths\` khi bài hát nội bộ nhận thêm \`content://\` URI hoặc đường dẫn, bổ sung \`size\` và \`trackNumber\` còn thiếu, và tự động gọi \`restoreLocalTrackUrlSync\` để đảm bảo URL \`/local-media\` luôn hợp lệ.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

@@ -2363,7 +2363,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.44</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.45</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -6986,24 +6986,56 @@
           const parsedTracks = library.parseCueSheet(cueText);
           if (!parsedTracks || !parsedTracks.length) continue;
 
-          const targetFilename = (parsedTracks.file || '').toLowerCase();
+          const cueFullPath = String(cueFile.relativePath || cueFile.webkitRelativePath || cueFile.name || '').replace(/\\/g, '/');
+          const cueSlashIdx = cueFullPath.lastIndexOf('/');
+          const cueDir = cueSlashIdx > 0 ? cueFullPath.slice(0, cueSlashIdx).toLowerCase() : '';
+          const rawCueTarget = String(parsedTracks.file || '').replace(/\\/g, '/');
+          const targetFilename = (rawCueTarget.indexOf('/') >= 0 ? rawCueTarget.slice(rawCueTarget.lastIndexOf('/') + 1) : rawCueTarget).toLowerCase();
+          const targetBase = targetFilename.replace(/\.[^.]+$/, '');
           const cueBase = cueFile.name.replace(/\.[^.]+$/, '').toLowerCase();
+          const cueBaseClean = cueBase.replace(/\.(flac|wav|ape|wv|m4a|alac|aiff|aif|mp3|ogg|opus|dsf|dff)$/i, '');
+          const getFileDirLower = f => {
+            const fp = String((f && (f.relativePath || f.webkitRelativePath || f.name)) || '').replace(/\\/g, '/');
+            const s = fp.lastIndexOf('/');
+            return s > 0 ? fp.slice(0, s).toLowerCase() : '';
+          };
+          const matchesCueName = f => {
+            const fname = String((f && f.name) || '').toLowerCase();
+            const fbase = fname.replace(/\.[^.]+$/, '');
+            return (targetFilename && fname === targetFilename) ||
+              (targetBase && fbase === targetBase) ||
+              fbase === cueBase ||
+              (cueBaseClean && fbase === cueBaseClean);
+          };
 
-          let matchedAudioFile = candidates.find(f => {
-            const fname = f.name.toLowerCase();
-            return (targetFilename && fname === targetFilename) || fname.replace(/\.[^.]+$/, '') === cueBase;
-          });
-          if (!matchedAudioFile && candidates.length === 1 && cueFiles.length === 1) {
-            matchedAudioFile = candidates[0];
+          let matchedAudioFile = candidates.find(f => getFileDirLower(f) === cueDir && matchesCueName(f)) ||
+            candidates.find(matchesCueName);
+          if (!matchedAudioFile) {
+            const sameDirAudio = candidates.filter(f => getFileDirLower(f) === cueDir);
+            const sameDirCues = cueFiles.filter(cf => getFileDirLower(cf) === cueDir);
+            if (sameDirAudio.length === 1 && sameDirCues.length === 1) {
+              matchedAudioFile = sameDirAudio[0];
+            } else if (candidates.length === 1 && cueFiles.length === 1) {
+              matchedAudioFile = candidates[0];
+            }
           }
 
+          const tPath = cueFile.relativePath || cueFile.webkitRelativePath || cueFile.name || '';
+          const allCueSubTracksExist = parsedTracks.every(ct => {
+            const dk = `${tPath}::cue::${ct.number || ct.track || ct.title || ''}-${Math.round((ct.offset || 0) * 100)}`;
+            return existing.has(dk);
+          });
+
           let siblingTrack = null;
-          if (matchedAudioFile) {
+          if (matchedAudioFile && !allCueSubTracksExist) {
             siblingTrack = await makeLocalTrack(matchedAudioFile);
-          } else {
+          } else if (!matchedAudioFile) {
             siblingTrack = state.tracks.find(t => {
               const tname = (t.name || t.title || '').toLowerCase();
-              return (targetFilename && tname.includes(targetFilename)) || (t.file && t.file.name.toLowerCase() === targetFilename);
+              const tbase = tname.replace(/\.[^.]+$/, '');
+              return (targetFilename && tname.includes(targetFilename)) ||
+                (targetBase && tbase === targetBase) ||
+                (t.file && matchesCueName(t.file));
             });
             if (siblingTrack && siblingTrack.file) {
               matchedAudioFile = siblingTrack.file;
@@ -7012,7 +7044,6 @@
 
           for (const ct of parsedTracks) {
             const trackDur = ct.duration > 0 ? ct.duration : (siblingTrack && siblingTrack.duration ? Math.max(0, siblingTrack.duration - (ct.offset || 0)) : 0);
-            const tPath = cueFile.relativePath || cueFile.webkitRelativePath || cueFile.name || '';
             const cueDedupKey = `${tPath}::cue::${ct.number || ct.track || ct.title || ''}-${Math.round((ct.offset || 0) * 100)}`;
             if (existing.has(cueDedupKey)) {
               const existingCue = existing.get(cueDedupKey);
@@ -13099,6 +13130,28 @@
     // tải từ Drive và giải mã ngay, tránh chờ tải toàn file lúc hết
     // bài. Chỉ tải khi chưa có file và chưa đang tải; lỗi tải thì để
     // playTrack thử lại lúc chuyển bài, không nhảy bài im lặng ở đây.
+    async function prepareCloudTrackForPreload(track) {
+      if (!track || !track.source) return;
+      try {
+        if (track.source === 'onedrive') {
+          const maxAge = (typeof MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS === 'number' && MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS > 0) ? MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS : (30 * 60 * 1000);
+          if (track.downloadUrl && (!track.downloadUrlAt || (Date.now() - track.downloadUrlAt) >= (maxAge - 5 * 60 * 1000))) {
+            track.downloadUrl = '';
+            track.downloadUrlAt = 0;
+          }
+          if (state.microsoftAccessToken && state.microsoftExpiresAt && Date.now() >= (state.microsoftExpiresAt - 3 * 60 * 1000) && typeof getMicrosoftToken === 'function') {
+            await getMicrosoftToken(false).catch(() => {});
+          }
+          if (!track.downloadUrl && track.remoteId && typeof resolveMicrosoftDownloadUrl === 'function') {
+            await resolveMicrosoftDownloadUrl(track).catch(() => '');
+          }
+        } else if (track.source === 'google') {
+          if (state.googleToken && state.googleExpiresAt && Date.now() >= (state.googleExpiresAt - 3 * 60 * 1000) && typeof ensureGoogleToken === 'function') {
+            await ensureGoogleToken(false).catch(() => {});
+          }
+        }
+      } catch (_) {}
+    }
     async function preloadDsdNext(next) {
       if (!next.load) return;
       // v3.9.25: FiiO M11S (3GB RAM) — don't pin a second 100MB+ DSD Blob in RAM while the
@@ -13112,6 +13165,7 @@
       const generation = ++state.preloadGeneration;
       state.preloadTrackId = next.id; state.preloadBusyId = next.id; state.preloadReadyUrl = null;
       try {
+        if (typeof prepareCloudTrackForPreload === 'function') await prepareCloudTrackForPreload(next);
         await next.load();
         if (generation !== state.preloadGeneration) return;
         prefetchDsdFirstSlice(next, generation);
@@ -13190,7 +13244,7 @@
           saveData: isSaveData
         });
       }
-      if (!force && state._preloadFailedTrackId === next.id && state._preloadFailedAt && (Date.now() - state._preloadFailedAt) < 30000) return;
+      if (!force && state._preloadFailedTrackId === next.id && state._preloadFailedAt && (Date.now() - state._preloadFailedAt) < 8000) return;
       if (typeof ensureLocalTrackPlayableUrl === 'function') await ensureLocalTrackPlayableUrl(next);
       if (next.source === 'local' && !next.isDsd && !next.url && next.file) {
         try { next.url = URL.createObjectURL(next.file); state.objectUrls.add(next.url); } catch (_) {}
@@ -13208,11 +13262,15 @@
       }
       try {
         const cloudUrlCached = next.url && state.objectUrls.has(next.url);
-        if (next.load && !cloudUrlCached) await next.load();
+        if (next.load && !cloudUrlCached) {
+          if (typeof prepareCloudTrackForPreload === 'function') await prepareCloudTrackForPreload(next);
+          await next.load();
+        }
         if (generation !== state.preloadGeneration || !next.url) {
           if (generation !== state.preloadGeneration && next.id !== state.currentId && next.id !== state.preloadTrackId) releaseUnusedCloudUrl(next);
           return;
         }
+        if (state._preloadFailedTrackId === next.id) { state._preloadFailedTrackId = null; state._preloadFailedAt = 0; }
         const readyUrl = new URL(next.url, location.href).href;
         if (standbyAudio.src !== readyUrl) { standbyAudio.src = readyUrl; standbyAudio.volume = audio.volume; standbyAudio.muted = true; standbyAudio.load(); }
         if (standbyAudio.readyState >= 2) state.preloadReadyUrl = next.url;
@@ -17324,6 +17382,20 @@
       return { existingByPath: existingByPath, existingByUri: existingByUri };
     }
 
+    function applyFiioRescanFields(prevTrack, file, normPath, normUri, existingPaths, existingUris, existingByPath, existingByUri) {
+      if (normUri) { if (!prevTrack.uri) prevTrack.uri = normUri; existingUris.add(normUri); existingByUri.set(normUri, prevTrack); }
+      if (normPath) { if (!prevTrack.path) prevTrack.path = normPath; existingPaths.add(normPath); existingByPath.set(normPath, prevTrack); }
+      if (Number(file.duration) > 0 && !(Number(prevTrack.duration) > 0)) prevTrack.duration = Number(file.duration);
+      if (Number(file.size) > 0 && !(Number(prevTrack.size) > 0)) prevTrack.size = Number(file.size);
+      const fTrackNo = Number(file.trackNumber || file.track) || 0;
+      if (fTrackNo > 0 && !(Number(prevTrack.trackNumber) > 0)) prevTrack.trackNumber = fTrackNo;
+      if (file.artist && file.artist !== '<unknown>' && (!prevTrack.artist || prevTrack.artist === 'Unknown Artist')) prevTrack.artist = String(file.artist).trim();
+      if (file.album && file.album !== '<unknown>' && (!prevTrack.album || prevTrack.album === 'FiiO Internal & SD Card')) prevTrack.album = String(file.album).trim();
+      if (file.albumArtist && file.albumArtist !== '<unknown>' && !prevTrack.albumArtist) prevTrack.albumArtist = String(file.albumArtist).trim();
+      if (file.title && file.title !== '<unknown>' && (!prevTrack.title || prevTrack.title === prevTrack.name)) prevTrack.title = String(file.title).trim();
+      if (typeof restoreLocalTrackUrlSync === 'function') restoreLocalTrackUrlSync(prevTrack);
+    }
+
     function ingestFiioScannedFilesChunk(chunkFiles, existingPaths, existingUris) {
       if (!Array.isArray(chunkFiles) || chunkFiles.length === 0) return 0;
       let added = 0;
@@ -17337,16 +17409,10 @@
         if ((normPath && existingPaths.has(normPath)) || (normUri && existingUris.has(normUri))) {
           const prevTrack = (normPath && existingByPath.get(normPath)) || (normUri && existingByUri.get(normUri)) || null;
           if (prevTrack) {
-            const bCov = prevTrack.cover || '', bMeta = (prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '');
-            if (normUri && !prevTrack.uri) prevTrack.uri = normUri;
-            if (normPath && !prevTrack.path) prevTrack.path = normPath;
-            if (Number(file.duration) > 0 && !(Number(prevTrack.duration) > 0)) prevTrack.duration = Number(file.duration);
-            if (file.artist && file.artist !== '<unknown>' && (!prevTrack.artist || prevTrack.artist === 'Unknown Artist')) prevTrack.artist = String(file.artist).trim();
-            if (file.album && file.album !== '<unknown>' && (!prevTrack.album || prevTrack.album === 'FiiO Internal & SD Card')) prevTrack.album = String(file.album).trim();
-            if (file.albumArtist && file.albumArtist !== '<unknown>' && !prevTrack.albumArtist) prevTrack.albumArtist = String(file.albumArtist).trim();
-            if (file.title && file.title !== '<unknown>' && (!prevTrack.title || prevTrack.title === prevTrack.name)) prevTrack.title = String(file.title).trim();
+            const bCov = prevTrack.cover || '', bMeta = (prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '') + '|' + (prevTrack.size || 0);
+            applyFiioRescanFields(prevTrack, file, normPath, normUri, existingPaths, existingUris, existingByPath, existingByUri);
             if (typeof library !== 'undefined' && library && library.enrichFiioTrackMetadata) library.enrichFiioTrackMetadata(prevTrack);
-            if ((prevTrack.cover || '') !== bCov || ((prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '')) !== bMeta) fiioScanUpgradedCount++;
+            if ((prevTrack.cover || '') !== bCov || ((prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '') + '|' + (prevTrack.size || 0)) !== bMeta) fiioScanUpgradedCount++;
           }
           continue;
         }
