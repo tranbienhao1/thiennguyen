@@ -466,3 +466,50 @@ test('v3.9.0: Core audit fixes — Google 401 slice-upgrade retry does not fall 
 
   assert.ok(html.includes('function runNocturneMaintenanceTick()'), 'Background timers must be coalesced into runNocturneMaintenanceTick');
 });
+
+test('v3.9.1: fetchAudioFirstSlice recovers from transient 503 with 1 fast retry & BitPerfectAudioPlayer uses volatile AudioTrack + resume focus/wakelock', async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  try {
+    globalThis.fetch = async () => {
+      calls++;
+      if (calls === 1) {
+        return { ok: false, status: 503, headers: new Headers(), text: async () => 'Service Unavailable' };
+      }
+      const bytes = new Uint8Array(2048);
+      return {
+        ok: true,
+        status: 206,
+        headers: new Headers({ 'content-type': 'audio/flac', 'content-range': 'bytes 0-2047/10000000' }),
+        blob: async () => new Blob([bytes], { type: 'audio/flac' })
+      };
+    };
+    const res = await library.fetchAudioFirstSlice('https://example.test/track.flac', { retryDelayMs: 0, expectedTotalBytes: 10000000 }, 'Drive');
+    assert.equal(calls, 2, 'fetchAudioFirstSlice must retry once on transient 503');
+    assert.equal(res.blob.size, 2048, 'fetchAudioFirstSlice must return valid slice blob on retry');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
+  assert.ok(mainJava.includes('private volatile AudioTrack mAudioTrack = null;'), 'BitPerfectAudioPlayer.mAudioTrack must be volatile');
+  assert.ok(mainJava.includes('public void resume() {\n            acquireWakeLock();\n            requestAudioFocus();'), 'BitPerfectAudioPlayer.resume must re-acquire WakeLock and AudioFocus');
+});
+
+test('v3.9.2: preloadNext recreates revoked local blob URLs for gapless repeat & backs off 30s on failed preload', () => {
+  const pnStart = html.indexOf('async function preloadNext(force = false)');
+  const pnBlock = html.slice(pnStart, pnStart + 5000);
+  assert.ok(pnBlock.includes("if (next.source === 'local' && !next.isDsd && !next.url && next.file)"), 'preloadNext must recreate revoked local blob URLs from next.file');
+  assert.ok(pnBlock.includes('state._preloadFailedTrackId === next.id'), 'preloadNext must back off 30s on failed track preload unless forced');
+  assert.ok(pnBlock.includes('state._preloadFailedAt = Date.now()'), 'preloadNext catch must record failure timestamp and clear stale preloadTrackId');
+});
+
+test('v3.9.3: Seeking past first-slice buffered range queues _pendingSeekAfterFullUpgrade instead of hitting truncated EOF & snapping back', () => {
+  const upStart = html.indexOf('async function upgradeSliceToFullAudio(');
+  const upBlock = html.slice(upStart, upStart + 5500);
+  assert.ok(upBlock.includes('const pendingSeekPos = Number.isFinite(track._pendingSeekAfterFullUpgrade)'), 'upgradeSliceToFullAudio must honor _pendingSeekAfterFullUpgrade');
+
+  const seekStart = html.indexOf("[$('seek'), $('seek-mobile')].forEach(");
+  const seekBlock = html.slice(seekStart, seekStart + 2400);
+  assert.ok(seekBlock.includes('curTrack._pendingSeekAfterFullUpgrade = targetSeekSec;'), 'seekbar must queue targetSeekSec when seeking beyond buffered first-slice');
+});

@@ -4432,7 +4432,9 @@
           const endedEarly = !!track.sliceEndedEarly;
           // Pha C — lát đầu đã hết sớm thì currentTime đã nhảy về duration,
           // seek về vị trí thật đã ghi trong timeupdate thay vì cuối bài.
-          const position = endedEarly && Number.isFinite(track.lastSlicePosition) ? track.lastSlicePosition : audio.currentTime, wasPaused = audio.paused;
+          const pendingSeekPos = Number.isFinite(track._pendingSeekAfterFullUpgrade) ? track._pendingSeekAfterFullUpgrade : null;
+          if (pendingSeekPos !== null) track._pendingSeekAfterFullUpgrade = null;
+          const position = pendingSeekPos !== null ? pendingSeekPos : (endedEarly && Number.isFinite(track.lastSlicePosition) ? track.lastSlicePosition : audio.currentTime), wasPaused = audio.paused;
           const swapStartedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
           const deck = audio;
           const deckRouter = (state.activeDeck && state.activeDeck.element === deck && state.activeDeck.router && state.activeDeck.router.gain) ? state.activeDeck.router.gain : null;
@@ -11229,6 +11231,10 @@
           saveData: isSaveData
         });
       }
+      if (!force && state._preloadFailedTrackId === next.id && state._preloadFailedAt && (Date.now() - state._preloadFailedAt) < 30000) return;
+      if (next.source === 'local' && !next.isDsd && !next.url && next.file) {
+        try { next.url = URL.createObjectURL(next.file); state.objectUrls.add(next.url); } catch (_) {}
+      }
       const preloadUrl = next.url ? new URL(next.url, location.href).href : '';
       if (!force && state.preloadTrackId === next.id && (state.preloadBusyId === next.id || (preloadUrl && standbyAudio.src === preloadUrl))) return;
       const oldPreload = state.tracks.find(track => track.id === state.preloadTrackId);
@@ -11250,7 +11256,15 @@
         const readyUrl = new URL(next.url, location.href).href;
         if (standbyAudio.src !== readyUrl) { standbyAudio.src = readyUrl; standbyAudio.volume = audio.volume; standbyAudio.muted = true; standbyAudio.load(); }
         if (standbyAudio.readyState >= 2) state.preloadReadyUrl = next.url;
-      } catch (error) { console.warn('Could not preload next track:', error); }
+      } catch (error) {
+        if (generation === state.preloadGeneration) {
+          state.preloadTrackId = null;
+          state.preloadReadyUrl = null;
+          state._preloadFailedTrackId = next.id;
+          state._preloadFailedAt = Date.now();
+        }
+        console.warn('Could not preload next track:', error);
+      }
       finally { if (generation === state.preloadGeneration) state.preloadBusyId = null; }
     }
     function skipFailedTrack(generation, message) {
@@ -16131,7 +16145,23 @@
         } else if (curTrack && curTrack.cueStart !== undefined) {
           audio.currentTime = curTrack.cueStart + (ratio * curTrack.duration);
         } else if (Number.isFinite(audio.duration)) {
-          audio.currentTime = ratio * audio.duration;
+          const targetSeekSec = ratio * audio.duration;
+          if (curTrack && curTrack.firstSlicePlayback && curTrack.fullAudioPromise) {
+            let bufferedEnd = 0;
+            try {
+              if (audio.buffered && audio.buffered.length > 0) bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
+            } catch (_) {}
+            if (bufferedEnd > 0 && targetSeekSec > bufferedEnd + 0.5) {
+              curTrack._pendingSeekAfterFullUpgrade = targetSeekSec;
+              curTrack.lastSlicePosition = targetSeekSec;
+              toast(`⏳ Đang tải bản FLAC đầy đủ — sẽ nhảy tới ${formatTime(targetSeekSec)} ngay khi xong...`);
+            } else {
+              curTrack._pendingSeekAfterFullUpgrade = null;
+              audio.currentTime = targetSeekSec;
+            }
+          } else {
+            audio.currentTime = targetSeekSec;
+          }
         }
         state.isSeeking = false;
         updatePositionState();

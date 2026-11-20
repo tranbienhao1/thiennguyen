@@ -2510,7 +2510,7 @@ public class MainActivity extends AppCompatActivity {
         private final AtomicLong mDurationMs = new AtomicLong(0);
 
         private Thread mPlaybackThread = null;
-        private AudioTrack mAudioTrack = null;
+        private volatile AudioTrack mAudioTrack = null;
         private boolean mPreferredMixerAttributesSet = false;
         private String mCurrentTrackTitle = "";
         private String mCurrentTrackArtist = "";
@@ -2576,22 +2576,30 @@ public class MainActivity extends AppCompatActivity {
                 mIsPaused = true;
                 mPauseLock.notifyAll();
             }
-            if (mAudioTrack != null && mAudioTrack.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+            AudioTrack track = mAudioTrack;
+            if (track != null) {
                 try {
-                    mAudioTrack.pause();
+                    if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                        track.pause();
+                    }
                 } catch (Exception ignored) {}
             }
             updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, false);
         }
 
         public void resume() {
+            acquireWakeLock();
+            requestAudioFocus();
             synchronized (mPauseLock) {
                 mIsPaused = false;
                 mPauseLock.notifyAll();
             }
-            if (mAudioTrack != null && mAudioTrack.getPlayState() == AudioTrack.PLAYSTATE_PAUSED) {
+            AudioTrack track = mAudioTrack;
+            if (track != null) {
                 try {
-                    mAudioTrack.play();
+                    if (track.getPlayState() == AudioTrack.PLAYSTATE_PAUSED) {
+                        track.play();
+                    }
                 } catch (Exception ignored) {}
             }
             updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, true);

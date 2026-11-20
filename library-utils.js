@@ -373,7 +373,15 @@
   async function fetchAudioFirstSlice(url, options = {}, provider = 'Cloud') {
     const sliceHeaders = end => ({...(options.headers || {}), Range:`bytes=0-${end - 1}`});
     let end = (Number(options && options.initialSliceBytes) > FIRST_SLICE_BYTES) ? Math.min(Number(options.initialSliceBytes), FIRST_SLICE_MAX_BYTES) : FIRST_SLICE_BYTES;
-    let response = await fetchAudioResponse(url, {...options, headers: sliceHeaders(end)}, provider);
+    let response;
+    try {
+      response = await fetchAudioResponse(url, {...options, headers: sliceHeaders(end)}, provider);
+    } catch (firstErr) {
+      if (!isFetchAudioRetryable(firstErr)) throw firstErr;
+      const retryDelay = Number.isFinite(Number(options && options.retryDelayMs)) ? Math.max(0, Number(options.retryDelayMs)) : 300;
+      if (retryDelay > 0) await new Promise(resolve => setTimeout(resolve, retryDelay));
+      response = await fetchAudioResponse(url, {...options, headers: sliceHeaders(end)}, provider);
+    }
     let blob = await response.blob();
     if (!blob || !blob.size) throw new Error(`${provider} trả về lát âm thanh đầu rỗng.`);
     const contentRange = (response.headers && response.headers.get('content-range')) || '';
