@@ -51,7 +51,7 @@ test('4. Version sync v3.9.26 (versionCode 80), Unix LF asset parity, and Web Au
   assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.26';"));
   assert.ok(gradle.includes('versionCode = 80'));
   assert.ok(gradle.includes('versionName = "3.9.26"'));
-  assert.ok(/:\s*"3\.9\.26";/.test(java));
-  assert.ok(html.includes('FiiO M11S \u00b7 v3.9.26'));
+  assert.ok(/:\s*"3\.9\.\d+";/.test(java));
+  assert.ok(/FiiO M11S \u00b7 v3\.9\.\d+/.test(html));
   assert.ok(html.includes('state.crossfeedNodes.output.connect(state.context.destination)'));
 });

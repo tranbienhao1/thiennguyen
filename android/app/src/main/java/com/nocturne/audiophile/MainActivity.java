@@ -770,6 +770,13 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
 
+                // v3.9.27: native album-art (embedded picture / MediaStore thumbnail / folder.jpg) as small cached JPEG
+                if ("https".equalsIgnoreCase(scheme) &&
+                        "appassets.androidplatform.net".equalsIgnoreCase(host) &&
+                        "/local-cover".equalsIgnoreCase(path)) {
+                    return handleLocalCoverArt(request);
+                }
+
                 // Intercept tailwindcss CDN to prevent blocking HTML parsing and syntax crashes in Chromium 74
                 if (host != null && host.contains("cdn.tailwindcss.com")) {
                     Map<String, String> headers = new HashMap<>();
@@ -1703,6 +1710,257 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
+    // ===== v3.9.27: native album-art pipeline for FiiO M11S (MicroSD / MediaStore tracks) =====
+    // https://appassets.androidplatform.net/local-cover?uri=<content://..>|path=<file>&key=<album key>&size=<px>
+    // Order: disk cache -> embedded picture -> MediaStore thumbnail (API 29+) -> folder.jpg/cover.jpg.
+    // Output is a small JPEG cached under cacheDir/covers so the WebView never keeps base64 art in RAM.
+    private static final java.util.concurrent.Semaphore COVER_ART_PERMITS = new java.util.concurrent.Semaphore(2);
+    private final java.util.concurrent.atomic.AtomicInteger mCoverWrites = new java.util.concurrent.atomic.AtomicInteger(0);
+    private static final long COVER_CACHE_MAX_BYTES = 48L * 1024L * 1024L;
+    private static final int COVER_CACHE_MAX_FILES = 1500;
+
+    static int computeCoverSampleSize(int srcWidth, int srcHeight, int targetEdge) {
+        int sample = 1;
+        int maxEdge = Math.max(srcWidth, srcHeight);
+        if (targetEdge <= 0) return 1;
+        while (maxEdge / (sample * 2) >= targetEdge) sample *= 2;
+        return sample;
+    }
+
+    private static String coverSha1Hex(String value) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-1");
+            byte[] digest = md.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(digest.length * 2);
+            for (byte b : digest) sb.append(String.format(Locale.US, "%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            return Integer.toHexString(value.hashCode());
+        }
+    }
+
+    private byte[] coverBitmapToJpeg(android.graphics.Bitmap source, int size) {
+        if (source == null) return null;
+        android.graphics.Bitmap scaled = source;
+        try {
+            int w = source.getWidth(), h = source.getHeight();
+            int maxEdge = Math.max(w, h);
+            if (maxEdge > size) {
+                float ratio = (float) size / (float) maxEdge;
+                scaled = android.graphics.Bitmap.createScaledBitmap(source, Math.max(1, Math.round(w * ratio)), Math.max(1, Math.round(h * ratio)), true);
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream(32 * 1024);
+            if (!scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, out)) return null;
+            return out.toByteArray();
+        } catch (Throwable t) {
+            return null;
+        } finally {
+            if (scaled != null && scaled != source) { try { scaled.recycle(); } catch (Throwable ignored) {} }
+        }
+    }
+
+    private byte[] coverBytesToJpeg(byte[] raw, int size) {
+        if (raw == null || raw.length == 0) return null;
+        try {
+            android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeByteArray(raw, 0, raw.length, bounds);
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null;
+            android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+            opts.inSampleSize = computeCoverSampleSize(bounds.outWidth, bounds.outHeight, size);
+            opts.inPreferredConfig = android.graphics.Bitmap.Config.RGB_565;
+            android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeByteArray(raw, 0, raw.length, opts);
+            if (bmp == null) return null;
+            try {
+                return coverBitmapToJpeg(bmp, size);
+            } finally {
+                try { bmp.recycle(); } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static byte[] coverReadSmallFile(File file, long maxBytes) {
+        if (file == null || !file.isFile()) return null;
+        long len = file.length();
+        if (len <= 0 || len > maxBytes) return null;
+        try (FileInputStream in = new FileInputStream(file); ByteArrayOutputStream out = new ByteArrayOutputStream((int) len)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+            return out.toByteArray();
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private byte[] extractCoverJpeg(String uriParam, String pathParam, int size) {
+        Uri contentUri = null;
+        File file = null;
+        if (uriParam != null && uriParam.startsWith("content://")) {
+            contentUri = Uri.parse(uriParam);
+        } else if (pathParam != null && !pathParam.isEmpty()) {
+            file = new File(pathParam);
+            if (!file.exists()) {
+                try {
+                    File decoded = new File(URLDecoder.decode(pathParam, StandardCharsets.UTF_8.name()));
+                    if (decoded.exists()) file = decoded;
+                } catch (Exception ignored) {}
+            }
+            if (!file.exists() || !file.canRead()) {
+                contentUri = resolveMediaStoreContentUriForPath(file.getAbsolutePath());
+            }
+        }
+
+        // 1. Embedded picture (ID3 APIC / FLAC PICTURE / MP4 covr)
+        android.media.MediaMetadataRetriever mmr = new android.media.MediaMetadataRetriever();
+        try {
+            if (contentUri != null) {
+                mmr.setDataSource(MainActivity.this, contentUri);
+            } else if (file != null && file.canRead()) {
+                mmr.setDataSource(file.getAbsolutePath());
+            }
+            byte[] pic = mmr.getEmbeddedPicture();
+            byte[] jpeg = coverBytesToJpeg(pic, size);
+            if (jpeg != null) return jpeg;
+        } catch (Throwable ignored) {
+        } finally {
+            try { mmr.release(); } catch (Throwable ignored) {}
+        }
+
+        // 2. MediaStore thumbnail (Android 10+, also covers folder art indexed by MediaStore)
+        Uri thumbUri = contentUri;
+        if (thumbUri == null && file != null) thumbUri = resolveMediaStoreContentUriForPath(file.getAbsolutePath());
+        if (Build.VERSION.SDK_INT >= 29 && thumbUri != null && "media".equals(thumbUri.getAuthority())) {
+            try {
+                android.graphics.Bitmap thumb = getContentResolver().loadThumbnail(thumbUri, new android.util.Size(size, size), null);
+                if (thumb != null) {
+                    try {
+                        byte[] jpeg = coverBitmapToJpeg(thumb, size);
+                        if (jpeg != null) return jpeg;
+                    } finally {
+                        try { thumb.recycle(); } catch (Throwable ignored) {}
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        // 3. Folder art next to the track
+        File parent = file != null ? file.getParentFile() : null;
+        if (parent != null) {
+            try {
+                File[] kids = parent.listFiles();
+                if (kids != null) {
+                    String[] preferred = new String[] {"cover", "folder", "front", "album", "albumart", "albumartsmall"};
+                    for (String base : preferred) {
+                        for (File kid : kids) {
+                            String name = kid.getName().toLowerCase(Locale.US);
+                            if (name.equals(base + ".jpg") || name.equals(base + ".jpeg") || name.equals(base + ".png")) {
+                                byte[] jpeg = coverBytesToJpeg(coverReadSmallFile(kid, 8L * 1024L * 1024L), size);
+                                if (jpeg != null) return jpeg;
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+        return null;
+    }
+
+    private void pruneCoverCache(File dir) {
+        try {
+            File[] files = dir.listFiles();
+            if (files == null) return;
+            long total = 0;
+            for (File f : files) total += f.length();
+            if (files.length <= COVER_CACHE_MAX_FILES && total <= COVER_CACHE_MAX_BYTES) return;
+            java.util.Arrays.sort(files, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
+            int count = files.length;
+            for (File f : files) {
+                if (count <= COVER_CACHE_MAX_FILES * 3 / 4 && total <= COVER_CACHE_MAX_BYTES * 3 / 4) break;
+                long len = f.length();
+                if (f.delete()) { total -= len; count--; }
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private WebResourceResponse buildCoverResponse(int status, String reason, byte[] body) {
+        Map<String, String> headers = new HashMap<>(buildLocalMediaCorsHeaders());
+        if (status == 200 && body != null) {
+            headers.put("Cache-Control", "public, max-age=31536000");
+            return new WebResourceResponse("image/jpeg", null, status, reason, headers, new ByteArrayInputStream(body));
+        }
+        return new WebResourceResponse("text/plain", "UTF-8", status, reason, headers, new ByteArrayInputStream(new byte[0]));
+    }
+
+    private WebResourceResponse handleLocalCoverArt(WebResourceRequest request) {
+        try {
+            Uri uri = request.getUrl();
+            String uriParam = uri.getQueryParameter("uri");
+            String pathParam = uri.getQueryParameter("path");
+            String keyParam = uri.getQueryParameter("key");
+            int size = 320;
+            try {
+                size = Math.max(96, Math.min(512, Integer.parseInt(uri.getQueryParameter("size"))));
+            } catch (Exception ignored) {}
+            if (uriParam != null && !uriParam.isEmpty() && !uriParam.startsWith("content://")) {
+                try {
+                    String decodedUri = URLDecoder.decode(uriParam, StandardCharsets.UTF_8.name());
+                    if (decodedUri.startsWith("content://")) uriParam = decodedUri;
+                } catch (Exception ignored) {}
+            }
+            String source = (uriParam != null && !uriParam.isEmpty()) ? uriParam : (pathParam != null ? pathParam : "");
+            if (source.isEmpty()) return buildCoverResponse(400, "Bad Request", null);
+
+            String identity = (keyParam != null && !keyParam.isEmpty()) ? "k:" + keyParam : "s:" + source;
+            String hash = coverSha1Hex(identity + "|" + size);
+            File dir = new File(getCacheDir(), "covers");
+            if (!dir.exists()) dir.mkdirs();
+            File jpg = new File(dir, hash + ".jpg");
+            File none = new File(dir, hash + ".none");
+
+            byte[] cached = coverReadSmallFile(jpg, 2L * 1024L * 1024L);
+            if (cached != null) {
+                jpg.setLastModified(System.currentTimeMillis());
+                return buildCoverResponse(200, "OK", cached);
+            }
+            if (none.exists()) return buildCoverResponse(404, "Not Found", null);
+
+            boolean acquired = false;
+            try {
+                acquired = COVER_ART_PERMITS.tryAcquire(4, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            if (!acquired) return buildCoverResponse(503, "Busy", null);
+            int previousPriority = Process.getThreadPriority(Process.myTid());
+            try {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+                cached = coverReadSmallFile(jpg, 2L * 1024L * 1024L);
+                if (cached != null) return buildCoverResponse(200, "OK", cached);
+                if (none.exists()) return buildCoverResponse(404, "Not Found", null);
+                byte[] jpeg = extractCoverJpeg(uriParam, pathParam, size);
+                if (jpeg == null) {
+                    try { none.createNewFile(); } catch (Throwable ignored) {}
+                    return buildCoverResponse(404, "Not Found", null);
+                }
+                File tmp = new File(dir, hash + ".tmp");
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tmp)) {
+                    fos.write(jpeg);
+                }
+                if (!tmp.renameTo(jpg)) tmp.delete();
+                if (mCoverWrites.incrementAndGet() % 20 == 0) pruneCoverCache(dir);
+                return buildCoverResponse(200, "OK", jpeg);
+            } finally {
+                try { Process.setThreadPriority(previousPriority); } catch (Throwable ignored) {}
+                COVER_ART_PERMITS.release();
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "local-cover failed: " + t.getMessage());
+            return buildCoverResponse(404, "Not Found", null);
+        }
+    }
     /**
      * Handles local media streaming for URLs matching:
      * - https://appassets.androidplatform.net/local-media?uri=<encoded_content_uri>&name=<optional_filename>
@@ -3665,11 +3923,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.26";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.27";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.26\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.27\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
