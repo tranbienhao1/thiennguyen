@@ -80,20 +80,21 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.36';
-  const name = process.argv[3] || `Nocturne ${tag} (Đồng bộ bộ lọc Album/Nghệ sĩ, sửa drill-down & tối ưu quét khởi động FiiO M11S)`;
+  const tag = process.argv[2] || 'v3.9.37';
+  const name = process.argv[3] || `Nocturne ${tag} (Phím Media/Bluetooth chuẩn hóa, lời bài hát LRC/FLAC offline & đồng bộ tag FLAC Cloud)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} — Đồng bộ bộ lọc Album/Nghệ sĩ & Tối ưu đồng bộ FiiO M11S
+    : `### Nocturne ${tag} — Điều khiển MediaSession chuẩn, Lời bài hát offline FiiO & Cloud FLAC Metadata
 
-#### 1. Đồng bộ bộ lọc, nhóm Album/Nghệ sĩ & sửa lỗi lưới khi quay lại từ Nghệ sĩ
-- **Đồng bộ hoàn toàn \`metadataOptions\`, \`filterTracks\` và \`groupTracks\`**: Danh sách chọn Album/Nghệ sĩ và chế độ "Nhóm theo Album/Nghệ sĩ" dùng chung logic gom nhóm \`buildLibraryCollections\`, tránh tách trùng lặp album tổng hợp (\`Various Artists\`), \`albumArtist\` hoặc nghệ sĩ phụ.
-- **Sửa lỗi kẹt thẻ album khi quay lại tab Nghệ sĩ**: Xóa cache \`lastCollectionStructureKey\` trong \`showArtistAlbumsView\` / \`renderArtistAlbumGrid\` và kiểm tra khớp khóa + hành động thẻ trong \`renderCollectionCards\`.
+#### 1. Chuẩn hóa Play / Pause / Stop không bị đảo nhầm qua tai nghe Bluetooth & MediaSession
+- **Tách riêng \`dispatchPlayToWeb()\` / \`dispatchPauseToWeb()\`** trong \`MainActivity.java\` và \`onHardwarePlay\` / \`onHardwarePause\` trong \`index.html\`: Nút Play, Pause, Stop từ tai nghe Bluetooth hoặc \`MediaSession\` sẽ không bị bấm nhầm thành toggle ngược trạng thái đang phát.
 
-#### 2. Tối ưu hiệu năng quét khởi động FiiO M11S & dọn tệp đã xóa an toàn
-- **Không render/lưu lại khi không có thay đổi (zero-diff)**: Khởi động lại không gây giật Chromium 74 hay ghi lại 3MB JSON khi thư viện MicroSD giữ nguyên, đồng thời tái sử dụng \`activeFiioScanMaps\` trong cả phiên quét và ghi nhận nâng cấp \`albumArtist\`.
-- **Dọn bài hát đã xóa theo phân vùng đã mount**: \`pruneMissingFiioTracks\` tự gỡ tệp đã xóa khỏi bộ nhớ đang gắn mà vẫn bảo toàn nguyên vẹn nhạc trên thẻ MicroSD nếu thẻ chưa kịp mount lúc vừa bật máy.
+#### 2. Đọc lời bài hát \`.lrc\` & nhúng FLAC offline cho FiiO M11S
+- **Bổ sung \`NocturneNative.readLocalLyrics\`** trong \`MainActivity.java\`: Tự động tìm tệp lời bài hát cùng tên (\`.lrc\`, \`.lyricsfile\`, \`.txt\`, hỗ trợ UTF-8/UTF-16 BOM) ngay bên cạnh file nhạc trên bộ nhớ/MicroSD hoặc đọc thẻ \`LYRICS\` / \`UNSYNCEDLYRICS\` nhúng trong FLAC, ưu tiên chạy trước cả bước tìm mạng trong \`triggerLyricsFetch\`.
+
+#### 3. Giữ trọn tag FLAC, albumArtist, lời bài hát & ReplayGain trên Cloud
+- **Hợp nhất \`mergedTags\` trong \`loadCloudMetadata\`**: Ngăn trường \`undefined\`/\`""\` từ \`jsmediatags\` ghi đè thẻ FLAC Vorbis/MP4, giữ \`albumArtist\`, \`lyricsText\`, ReplayGain và ảnh bìa thư mục Drive/OneDrive đã ghép trước đó.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

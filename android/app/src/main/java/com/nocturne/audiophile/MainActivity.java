@@ -2753,10 +2753,14 @@ public class MainActivity extends AppCompatActivity {
                 dispatchSeekOffsetToWeb(-10);
                 break;
             case KeyEvent.KEYCODE_MEDIA_PLAY:
+                dispatchPlayToWeb();
+                break;
             case KeyEvent.KEYCODE_MEDIA_PAUSE:
+            case KeyEvent.KEYCODE_MEDIA_STOP:
+                dispatchPauseToWeb();
+                break;
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
             case KeyEvent.KEYCODE_HEADSETHOOK:
-            case KeyEvent.KEYCODE_MEDIA_STOP:
             default:
                 dispatchPlayPauseToWeb();
                 break;
@@ -2817,6 +2821,52 @@ public class MainActivity extends AppCompatActivity {
                 // Pure ES5 JS (zero optional chaining ?.) so FiiO M11S Chromium 74 WebView executes physical buttons reliably
                 mWebView.evaluateJavascript(
                         "if (typeof window.onHardwarePlayPause === 'function') { window.onHardwarePlayPause(); } else { var b = document.getElementById('play-button'); if (b) b.click(); }",
+                        null
+                );
+            }
+        });
+    }
+
+    public void dispatchPlayToWeb() {
+        runOnUiThread(() -> {
+            if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
+                if (mBitPerfectPlayer.isPaused()) {
+                    mBitPerfectPlayer.resume();
+                    if (mWebView != null) {
+                        mWebView.evaluateJavascript(
+                                "if (typeof window.onNativeBitPerfectStateChange === 'function') { window.onNativeBitPerfectStateChange(true); }",
+                                null
+                        );
+                    }
+                }
+                return;
+            }
+            if (mWebView != null) {
+                mWebView.evaluateJavascript(
+                        "if (typeof window.onHardwarePlay === 'function') { window.onHardwarePlay(); } else { var b = document.getElementById('play-button'); if (b && b.textContent && b.textContent.indexOf('\\u25B6') !== -1) b.click(); }",
+                        null
+                );
+            }
+        });
+    }
+
+    public void dispatchPauseToWeb() {
+        runOnUiThread(() -> {
+            if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
+                if (mBitPerfectPlayer.isPlaying()) {
+                    mBitPerfectPlayer.pause();
+                    if (mWebView != null) {
+                        mWebView.evaluateJavascript(
+                                "if (typeof window.onNativeBitPerfectStateChange === 'function') { window.onNativeBitPerfectStateChange(false); }",
+                                null
+                        );
+                    }
+                }
+                return;
+            }
+            if (mWebView != null) {
+                mWebView.evaluateJavascript(
+                        "if (typeof window.onHardwarePause === 'function') { window.onHardwarePause(); } else { var b = document.getElementById('play-button'); if (b && b.textContent && b.textContent.indexOf('\\u2161') !== -1) b.click(); }",
                         null
                 );
             }
@@ -3017,12 +3067,12 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void onPlay() {
-                    dispatchPlayPauseToWeb();
+                    dispatchPlayToWeb();
                 }
 
                 @Override
                 public void onPause() {
-                    dispatchPlayPauseToWeb();
+                    dispatchPauseToWeb();
                 }
 
                 @Override
@@ -3037,7 +3087,7 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void onStop() {
-                    dispatchPlayPauseToWeb();
+                    dispatchPauseToWeb();
                 }
 
                 @Override
@@ -4427,11 +4477,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.36";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.37";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.36\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.37\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -4529,6 +4579,177 @@ public class MainActivity extends AppCompatActivity {
             } catch (Throwable t) {
                 return false;
             }
+        }
+
+        private static final int MAX_LOCAL_LYRICS_TEXT_BYTES = 256 * 1024;
+        private static final int MAX_LOCAL_FLAC_VORBIS_BYTES = 512 * 1024;
+
+        private static long readLeUint32(byte[] buf, int off) {
+            if (buf == null || off < 0 || off + 4 > buf.length) return -1L;
+            return ((long) (buf[off] & 0xFF))
+                    | (((long) (buf[off + 1] & 0xFF)) << 8)
+                    | (((long) (buf[off + 2] & 0xFF)) << 16)
+                    | (((long) (buf[off + 3] & 0xFF)) << 24);
+        }
+
+        private static String decodeLyricsBytes(byte[] raw) {
+            if (raw == null || raw.length == 0) return "";
+            String text;
+            if (raw.length >= 3 && (raw[0] & 0xFF) == 0xEF && (raw[1] & 0xFF) == 0xBB && (raw[2] & 0xFF) == 0xBF) {
+                text = new String(raw, 3, raw.length - 3, StandardCharsets.UTF_8);
+            } else if (raw.length >= 2 && (raw[0] & 0xFF) == 0xFF && (raw[1] & 0xFF) == 0xFE) {
+                text = new String(raw, 2, raw.length - 2, StandardCharsets.UTF_16LE);
+            } else if (raw.length >= 2 && (raw[0] & 0xFF) == 0xFE && (raw[1] & 0xFF) == 0xFF) {
+                text = new String(raw, 2, raw.length - 2, StandardCharsets.UTF_16BE);
+            } else {
+                text = new String(raw, StandardCharsets.UTF_8);
+            }
+            if (text.startsWith("\uFEFF")) text = text.substring(1);
+            return text.trim();
+        }
+
+        private static String readLocalLyricsTextFile(File f) {
+            if (f == null || !f.exists() || !f.isFile() || !f.canRead()) return "";
+            long len = f.length();
+            if (len <= 0L || len > MAX_LOCAL_LYRICS_TEXT_BYTES) return "";
+            try (FileInputStream fis = new FileInputStream(f);
+                 ByteArrayOutputStream bos = new ByteArrayOutputStream((int) len)) {
+                byte[] buf = new byte[8192];
+                int read;
+                int total = 0;
+                while ((read = fis.read(buf)) != -1) {
+                    if (total + read > MAX_LOCAL_LYRICS_TEXT_BYTES) return "";
+                    bos.write(buf, 0, read);
+                    total += read;
+                }
+                return decodeLyricsBytes(bos.toByteArray());
+            } catch (Throwable ignored) {
+                return "";
+            }
+        }
+
+        private static String extractFlacVorbisLyricsFromFile(File f) {
+            if (f == null || !f.exists() || !f.isFile() || !f.canRead()) return "";
+            try (java.io.RandomAccessFile raf = new java.io.RandomAccessFile(f, "r")) {
+                long fileLen = raf.length();
+                if (fileLen < 42L) return "";
+                byte[] lead = new byte[14];
+                raf.readFully(lead);
+                long pos = 0L;
+                if (lead[0] == 'I' && lead[1] == 'D' && lead[2] == '3') {
+                    int flags = lead[5] & 0xFF;
+                    int tagSize = ((lead[6] & 0x7F) << 21)
+                            | ((lead[7] & 0x7F) << 14)
+                            | ((lead[8] & 0x7F) << 7)
+                            | (lead[9] & 0x7F);
+                    pos = 10L + tagSize + ((flags & 0x10) != 0 ? 10L : 0L);
+                }
+                if (pos < 0L || pos + 4L > fileLen) return "";
+                raf.seek(pos);
+                byte[] magic = new byte[4];
+                raf.readFully(magic);
+                if (magic[0] != 'f' || magic[1] != 'L' || magic[2] != 'a' || magic[3] != 'C') return "";
+                pos += 4L;
+                long maxScanPos = 16L * 1024L * 1024L;
+                byte[] bh = new byte[4];
+                for (int guard = 0; guard < 128 && pos + 4L <= fileLen && pos <= maxScanPos; guard++) {
+                    raf.seek(pos);
+                    raf.readFully(bh);
+                    int hdr = bh[0] & 0xFF;
+                    boolean isLast = (hdr & 0x80) != 0;
+                    int blockType = hdr & 0x7F;
+                    int blockLen = ((bh[1] & 0xFF) << 16) | ((bh[2] & 0xFF) << 8) | (bh[3] & 0xFF);
+                    long dataStart = pos + 4L;
+                    long dataEnd = dataStart + blockLen;
+                    if (blockLen < 0 || dataEnd > fileLen) break;
+                    if (blockType == 4 && blockLen >= 8 && blockLen <= MAX_LOCAL_FLAC_VORBIS_BYTES) {
+                        byte[] vc = new byte[blockLen];
+                        raf.readFully(vc);
+                        int vp = 0;
+                        long vendorLen = readLeUint32(vc, vp);
+                        vp += 4;
+                        if (vendorLen >= 0L && vendorLen <= blockLen && vp + (int) vendorLen + 4 <= blockLen) {
+                            vp += (int) vendorLen;
+                            long count = readLeUint32(vc, vp);
+                            vp += 4;
+                            String unsynced = "";
+                            for (long i = 0; i < count && i < 512L && vp + 4 <= blockLen; i++) {
+                                long itemLen = readLeUint32(vc, vp);
+                                vp += 4;
+                                if (itemLen < 0L || itemLen > (blockLen - vp)) break;
+                                String entry = new String(vc, vp, (int) itemLen, StandardCharsets.UTF_8);
+                                vp += (int) itemLen;
+                                int eq = entry.indexOf('=');
+                                if (eq > 0) {
+                                    String key = entry.substring(0, eq).trim().toUpperCase(Locale.US);
+                                    if ("LYRICS".equals(key)) {
+                                        String val = entry.substring(eq + 1).trim();
+                                        if (!val.isEmpty()) return val;
+                                    } else if ("UNSYNCEDLYRICS".equals(key) && unsynced.isEmpty()) {
+                                        String val = entry.substring(eq + 1).trim();
+                                        if (!val.isEmpty()) unsynced = val;
+                                    }
+                                }
+                            }
+                            if (!unsynced.isEmpty()) return unsynced;
+                        }
+                    }
+                    pos = dataEnd;
+                    if (isLast) break;
+                }
+            } catch (Throwable ignored) {}
+            return "";
+        }
+
+        @JavascriptInterface
+        public String readLocalLyrics(@Nullable String filePath, @Nullable String contentUri) {
+            try {
+                File audioFile = null;
+                if (filePath != null && !filePath.trim().isEmpty()) {
+                    File f = new File(filePath.trim());
+                    if (f.exists() && f.isFile()) audioFile = f;
+                }
+                if (audioFile == null && contentUri != null && !contentUri.trim().isEmpty()) {
+                    try {
+                        audioFile = mActivity.resolveFileFromContentUri(Uri.parse(contentUri.trim()));
+                    } catch (Throwable ignored) {}
+                }
+                if (audioFile == null || !audioFile.exists() || !audioFile.isFile()) return "";
+
+                String rawName = audioFile.getName();
+                int dot = rawName.lastIndexOf('.');
+                String baseName = dot > 0 ? rawName.substring(0, dot) : rawName;
+                File parent = audioFile.getParentFile();
+                if (parent != null && parent.isDirectory() && !baseName.isEmpty()) {
+                    File[] siblings = parent.listFiles();
+                    if (siblings != null) {
+                        File bestFile = null;
+                        int bestRank = 99;
+                        for (File kid : siblings) {
+                            if (kid == null || !kid.isFile()) continue;
+                            String kn = kid.getName();
+                            int kd = kn.lastIndexOf('.');
+                            if (kd <= 0) continue;
+                            if (!kn.substring(0, kd).equalsIgnoreCase(baseName)) continue;
+                            String ext = kn.substring(kd).toLowerCase(Locale.US);
+                            int rank = ".lrc".equals(ext) ? 1 : (".lyricsfile".equals(ext) ? 2 : (".txt".equals(ext) ? 3 : 99));
+                            if (rank < bestRank) {
+                                bestRank = rank;
+                                bestFile = kid;
+                            }
+                        }
+                        if (bestFile != null) {
+                            String sidecar = readLocalLyricsTextFile(bestFile);
+                            if (!sidecar.isEmpty()) return sidecar;
+                        }
+                    }
+                }
+                if (rawName.toLowerCase(Locale.US).endsWith(".flac")) {
+                    String embedded = extractFlacVorbisLyricsFromFile(audioFile);
+                    if (!embedded.isEmpty()) return embedded;
+                }
+            } catch (Throwable ignored) {}
+            return "";
         }
 
         @JavascriptInterface

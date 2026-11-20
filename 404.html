@@ -2360,7 +2360,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.36</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.37</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -5362,12 +5362,39 @@
     async function loadCloudMetadata(track, blob) {
       const filename = track.name || `${track.title}.${String(track.format || '').toLowerCase()}`;
       let fallback = filenameMetadata(filename);
+      const prevCover = track.cover;
+      const prevAlbumArtist = track.albumArtist;
+      const prevLyricsText = track.lyricsText;
       try {
         const file = new File([blob], filename, {type:blob.type || 'application/octet-stream'});
-        const [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
-        fallback = filenameMetadata(filename, tags.track || tags.tracknumber || tags.trackNumber);
-        Object.assign(track, library.resolveTrackMetadata(tags, fallback));
+        let [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
+        if (!tags || typeof tags !== 'object') tags = {};
+        const mergedTags = {};
+        if (technical && typeof technical === 'object') {
+          const techKeys = Object.keys(technical);
+          for (let k = 0; k < techKeys.length; k++) {
+            const key = techKeys[k];
+            if (technical[key] !== undefined && technical[key] !== null && technical[key] !== '') mergedTags[key] = technical[key];
+          }
+        }
+        const tagKeys = Object.keys(tags);
+        for (let k = 0; k < tagKeys.length; k++) {
+          const key = tagKeys[k];
+          if (tags[key] !== undefined && tags[key] !== null && tags[key] !== '') mergedTags[key] = tags[key];
+        }
+        fallback = filenameMetadata(filename, mergedTags.track || mergedTags.tracknumber || mergedTags.trackNumber);
+        Object.assign(track, library.resolveTrackMetadata(mergedTags, fallback));
+        if (mergedTags.albumArtist && !prevAlbumArtist) track.albumArtist = String(mergedTags.albumArtist).trim();
+        else if (prevAlbumArtist) track.albumArtist = prevAlbumArtist;
+        if (mergedTags.lyrics && !prevLyricsText) track.lyricsText = String(mergedTags.lyrics).trim();
+        else if (prevLyricsText) track.lyricsText = prevLyricsText;
+        if (!tags.cover && mergedTags.cover) {
+          try { tags.cover = mergedTags.cover; } catch (_) {}
+        }
         track.cover = await normalizeCoverImage(tags.cover);
+        if (!track.cover && mergedTags.cover && mergedTags.cover !== tags.cover) {
+          track.cover = await normalizeCoverImage(mergedTags.cover);
+        }
         if (track.cover) {
           if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(track.cover, track);
         } else {
@@ -5377,12 +5404,18 @@
           if (resolved) {
             track.cover = resolved;
             if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(resolved, track);
+          } else if (prevCover) {
+            track.cover = prevCover;
           }
         }
         track.sampleRate = technical.sampleRate;
         track.bitDepth = technical.bitDepth;
         track.channels = technical.channels;
         track.duration = technical.duration;
+        if (technical && technical.replayGainTrackGain !== undefined) track.replayGainTrackGain = technical.replayGainTrackGain;
+        if (technical && technical.replayGainTrackPeak !== undefined) track.replayGainTrackPeak = technical.replayGainTrackPeak;
+        if (technical && technical.replayGainAlbumGain !== undefined) track.replayGainAlbumGain = technical.replayGainAlbumGain;
+        if (technical && technical.replayGainAlbumPeak !== undefined) track.replayGainAlbumPeak = technical.replayGainAlbumPeak;
       } catch (error) {
         console.warn('Could not extract cloud audio metadata; using filename:', error);
         Object.assign(track, library.resolveTrackMetadata({}, fallback));
@@ -5392,6 +5425,14 @@
       filterOptionsSignature = '';
       updateMetadataFilters();
       scheduleTrackRender();
+      if (track.id === state.currentId && track.lyricsText && (!state.lyrics || !state.lyrics.length) && typeof renderLyrics === 'function') {
+        try {
+          const vaultEntry = (typeof library !== 'undefined' && library && typeof library.createLyricsVaultEntry === 'function')
+            ? library.createLyricsVaultEntry(track, track.lyricsText, { source: 'cloud-tags' })
+            : null;
+          renderLyrics(track.lyricsText, vaultEntry);
+        } catch (_) {}
+      }
       // Pha B — như timeupdate: metadata nền về sau khi displayTrack đã
       // ghi footer 0:00 (bài Google lần đầu chưa biết duration) thì đồng
       // bộ luôn footer nếu đây vẫn là bài đang phát; chỉ ghi khi duration
@@ -10494,6 +10535,35 @@
               if (state.currentId === track.id) {
                 renderLyrics(sidecarText, { source: 'local-sidecar', isSynced: /\[\d{1,2}:\d{2}/.test(sidecarText), matchScore: 100 });
                 toast(`Đã nạp lời bài hát từ tệp đính kèm (${sidecar.name})`);
+              }
+              return;
+            }
+          }
+        } catch (_) {}
+
+        try {
+          const native = (typeof window !== 'undefined') ? window.NocturneNative : null;
+          if (native && typeof native.readLocalLyrics === 'function' && (track.path || track.uri)) {
+            const nativeLrc = String(native.readLocalLyrics(track.path || '', track.uri || '') || '').trim();
+            if (nativeLrc) {
+              const lu = (typeof window !== 'undefined' && window.LyricsUtils) ? window.LyricsUtils : (typeof LyricsUtils !== 'undefined' ? LyricsUtils : null);
+              const client = (typeof window !== 'undefined' && window.LrclibClient) ? window.LrclibClient : (typeof LrclibClient !== 'undefined' ? LrclibClient : null);
+              track.lyricsText = nativeLrc;
+              track.lyricsSource = 'local-sidecar';
+              const fp = await getFingerprint();
+              if (client && typeof client.saveLyricsToVault === 'function') {
+                const vaultKey = fp || track.id;
+                await client.saveLyricsToVault(vaultKey, {
+                  key: vaultKey,
+                  lrc: nativeLrc,
+                  lyricsfile: (/^\s*version:\s/i.test(nativeLrc) ? nativeLrc : (lu && typeof lu.lrcToLyricsfile === 'function' ? lu.lrcToLyricsfile(nativeLrc, meta) : null)),
+                  metadata: meta,
+                  source: 'local-sidecar',
+                  updatedAt: Date.now()
+                }).catch(() => {});
+              }
+              if (state.currentId === track.id) {
+                renderLyrics(nativeLrc, { source: 'local-sidecar', isSynced: /\[\d{1,2}:\d{2}/.test(nativeLrc), matchScore: 100 });
               }
               return;
             }
@@ -17234,6 +17304,16 @@
     $('room-previous').addEventListener('click', () => playNext(-1));
     $('room-favorite').addEventListener('click', () => $('favorite-button').click());
     window.onHardwarePlayPause = () => { const btn = $('play-button'); if (btn) btn.click(); };
+    window.onHardwarePlay = () => {
+      if (state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) return;
+      if (!state.isNativeBitPerfectPlaying && audio && !audio.paused) return;
+      const btn = $('play-button'); if (btn) btn.click();
+    };
+    window.onHardwarePause = () => {
+      if (state.isNativeBitPerfectPlaying && state.isNativeBitPerfectPaused) return;
+      if (!state.isNativeBitPerfectPlaying && (!audio || audio.paused)) return;
+      const btn = $('play-button'); if (btn) btn.click();
+    };
     window.onHardwareNext = () => { const btn = $('next-button'); if (btn) btn.click(); else if (typeof playNext === 'function') playNext(1); };
     window.onHardwarePrevious = () => { const btn = $('previous-button'); if (btn) btn.click(); else if (typeof playNext === 'function') playNext(-1); };
     window.onHardwareSeekOffset = (deltaSeconds) => {
