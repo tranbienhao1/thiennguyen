@@ -197,6 +197,7 @@ public class MainActivity extends AppCompatActivity {
             "virtual-scroll.js"
     };
     private final java.util.concurrent.atomic.AtomicBoolean mOtaChecking = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private final java.util.concurrent.atomic.AtomicBoolean mStorageScanRunning = new java.util.concurrent.atomic.AtomicBoolean(false);
     private volatile String mOtaPendingVersion = "";
     private boolean mIsMediaReceiverRegistered = false;
 
@@ -3593,11 +3594,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.15";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.16";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.15\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.16\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -3903,6 +3904,143 @@ public class MainActivity extends AppCompatActivity {
                 Log.w(TAG, "scanMediaStoreAudio error: " + e.getMessage(), e);
             }
             return results.toString();
+        }
+
+        /**
+         * Non-blocking background chunked storage scanner for FiiO M11S & Android 10-15.
+         * Streams 250-track chunks to WebView without freezing the UI thread or triggering Android ANR
+         * on 5,000+ track MicroSD libraries, while skipping redundant overlapping sub-paths.
+         */
+        @JavascriptInterface
+        public boolean startAsyncStorageScan(final int maxFiles) {
+            if (!mActivity.mStorageScanRunning.compareAndSet(false, true)) {
+                return false;
+            }
+            final int limit = maxFiles > 0 ? maxFiles : 10000;
+            new Thread(() -> {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+                final int CHUNK_SIZE = 250;
+                int totalEmitted = 0;
+                String errorMsg = null;
+                try {
+                    Set<String> seenPaths = new HashSet<>();
+                    Set<String> seenUris = new HashSet<>();
+                    JSONArray batch = new JSONArray();
+
+                    // Phase 1: MediaStore ContentResolver
+                    try {
+                        String rawMs = scanMediaStoreAudio(limit);
+                        JSONArray msArr = new JSONArray(rawMs);
+                        for (int i = 0; i < msArr.length() && totalEmitted < limit; i++) {
+                            JSONObject item = msArr.optJSONObject(i);
+                            if (item == null) continue;
+                            String p = item.optString("path", "").trim();
+                            String u = item.optString("uri", "").trim();
+                            if (!p.isEmpty() && !seenPaths.add(p)) continue;
+                            if (!u.isEmpty() && !seenUris.add(u)) continue;
+                            batch.put(item);
+                            totalEmitted++;
+                            if (batch.length() >= CHUNK_SIZE) {
+                                emitStorageScanChunk(batch, totalEmitted, "MediaStore");
+                                batch = new JSONArray();
+                            }
+                        }
+                    } catch (Throwable msErr) {
+                        Log.w(TAG, "Async MediaStore scan warning: " + msErr.getMessage());
+                    }
+
+                    // Phase 2: Deduplicated top-level storage roots (SD cards / DSD files not indexed by MediaStore)
+                    List<String> rawRoots = new ArrayList<>();
+                    try {
+                        JSONArray rootsArr = new JSONArray(getStoragePaths());
+                        for (int i = 0; i < rootsArr.length(); i++) {
+                            String r = rootsArr.optString(i, "").trim();
+                            if (!r.isEmpty()) rawRoots.add(r);
+                        }
+                    } catch (Throwable ignored) {}
+                    Collections.sort(rawRoots, (a, b) -> Integer.compare(a.length(), b.length()));
+                    List<String> minimalRoots = new ArrayList<>();
+                    for (String candidate : rawRoots) {
+                        boolean covered = false;
+                        for (String parent : minimalRoots) {
+                            if (candidate.equals(parent) || candidate.startsWith(parent + "/")) {
+                                covered = true;
+                                break;
+                            }
+                        }
+                        if (!covered) minimalRoots.add(candidate);
+                    }
+
+                    Set<String> visitedDirs = new HashSet<>();
+                    for (String rootPath : minimalRoots) {
+                        if (totalEmitted >= limit) break;
+                        File rootDir = new File(rootPath);
+                        if (!rootDir.exists() || !rootDir.canRead()) continue;
+                        List<File> collected = new ArrayList<>();
+                        scanDirInternal(rootDir, collected, Math.max(1, limit - totalEmitted), 0, visitedDirs);
+                        for (File f : collected) {
+                            if (totalEmitted >= limit) break;
+                            String abs = f.getAbsolutePath();
+                            if (!seenPaths.add(abs)) continue;
+                            try {
+                                JSONObject obj = new JSONObject();
+                                obj.put("name", f.getName());
+                                obj.put("path", abs);
+                                obj.put("size", f.length());
+                                obj.put("lastModified", f.lastModified());
+                                batch.put(obj);
+                                totalEmitted++;
+                                if (batch.length() >= CHUNK_SIZE) {
+                                    emitStorageScanChunk(batch, totalEmitted, "MicroSD");
+                                    batch = new JSONArray();
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                    }
+
+                    if (batch.length() > 0) {
+                        emitStorageScanChunk(batch, totalEmitted, "Storage");
+                    }
+                } catch (Throwable t) {
+                    errorMsg = t.getMessage() != null ? t.getMessage() : "Storage scan failed";
+                    Log.w(TAG, "Async storage scan failed: " + errorMsg, t);
+                } finally {
+                    mActivity.mStorageScanRunning.set(false);
+                    emitStorageScanDone(totalEmitted, errorMsg);
+                }
+            }, "NocturneStorageScanner").start();
+            return true;
+        }
+
+        private void emitStorageScanChunk(final JSONArray chunk, final int totalSoFar, final String sourceLabel) {
+            final String quotedJson = JSONObject.quote(chunk.toString());
+            final String quotedLabel = JSONObject.quote(sourceLabel != null ? sourceLabel : "Storage");
+            mActivity.runOnUiThread(() -> {
+                if (mActivity.mWebView != null) {
+                    try {
+                        mActivity.mWebView.evaluateJavascript(
+                                "if(typeof window.onAndroidStorageScanChunk==='function'){window.onAndroidStorageScanChunk(JSON.parse("
+                                        + quotedJson + ")," + totalSoFar + "," + quotedLabel + ");}",
+                                null
+                        );
+                    } catch (Throwable ignored) {}
+                }
+            });
+        }
+
+        private void emitStorageScanDone(final int totalCount, @Nullable final String errorMsg) {
+            final String errArg = errorMsg != null ? JSONObject.quote(errorMsg) : "null";
+            mActivity.runOnUiThread(() -> {
+                if (mActivity.mWebView != null) {
+                    try {
+                        mActivity.mWebView.evaluateJavascript(
+                                "if(typeof window.onAndroidStorageScanDone==='function'){window.onAndroidStorageScanDone("
+                                        + totalCount + "," + errArg + ");}",
+                                null
+                        );
+                    } catch (Throwable ignored) {}
+                }
+            });
         }
 
         /**

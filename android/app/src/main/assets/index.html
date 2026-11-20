@@ -2200,7 +2200,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.15</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.16</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -15002,6 +15002,106 @@
     window.restoreFiioCatalog = restoreFiioCatalog;
 
     let pendingAndroidStorageScan = false;
+    let fiioScanInProgress = false;
+    let fiioScanWatchdogTimer = null;
+
+    function buildExistingFiioTrackSets() {
+      const existingPaths = new Set();
+      const existingUris = new Set();
+      for (let i = 0; i < state.tracks.length; i++) {
+        const t = state.tracks[i];
+        if (!t) continue;
+        if (t.path) existingPaths.add(t.path);
+        if (t.uri) existingUris.add(t.uri);
+        if (t.url && t.url.indexOf('/local-media?') !== -1) {
+          try {
+            const u = new URL(t.url, 'https://appassets.androidplatform.net');
+            const qp = u.searchParams.get('path');
+            const qu = u.searchParams.get('uri');
+            if (qp) existingPaths.add(qp);
+            if (qu) existingUris.add(qu);
+          } catch (_) {}
+        }
+      }
+      return { existingPaths: existingPaths, existingUris: existingUris };
+    }
+
+    function createFiioFallbackTrack(file) {
+      return {
+        id: 'fiio_' + btoa(encodeURIComponent(file.uri || file.path || file.name || '')).replace(/=/g, '').slice(-16) + '_' + Math.random().toString(36).slice(2, 6),
+        title: file.title || (file.name || '').replace(/\.[^/.]+$/, ''),
+        name: (file.name || '').replace(/\.[^/.]+$/, ''),
+        path: file.path || '',
+        uri: file.uri || undefined,
+        source: 'local',
+        url: file.uri
+          ? ('https://appassets.androidplatform.net/local-media?uri=' + encodeURIComponent(file.uri) + '&name=' + encodeURIComponent(file.name || ''))
+          : ('https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(file.path || '')),
+        size: file.size || 0,
+        isDsd: /\.(dsf|dff)$/i.test(file.name || ''),
+        format: (file.name || '').split('.').pop().toUpperCase(),
+        artist: file.artist || 'Unknown Artist',
+        album: file.album || 'FiiO Internal & SD Card',
+        duration: Number(file.duration) || 0
+      };
+    }
+
+    function ingestFiioScannedFilesChunk(chunkFiles, existingPaths, existingUris) {
+      if (!Array.isArray(chunkFiles) || chunkFiles.length === 0) return 0;
+      let added = 0;
+      const hasFactory = typeof library !== 'undefined' && typeof library.createFiioTrack === 'function';
+      for (let i = 0; i < chunkFiles.length; i++) {
+        const file = chunkFiles[i];
+        if (!file || (!file.path && !file.uri)) continue;
+        const normPath = file.path ? String(file.path).trim() : '';
+        const normUri = file.uri ? String(file.uri).trim() : '';
+        if ((normPath && existingPaths.has(normPath)) || (normUri && existingUris.has(normUri))) continue;
+        const track = hasFactory ? library.createFiioTrack(file) : createFiioFallbackTrack(file);
+        if (track) {
+          state.tracks.push(track);
+          if (normPath) existingPaths.add(normPath);
+          if (normUri) existingUris.add(normUri);
+          added++;
+        }
+      }
+      return added;
+    }
+
+    function deduplicateStorageRoots(rawPaths) {
+      if (!Array.isArray(rawPaths) || rawPaths.length === 0) return [];
+      const cleaned = [];
+      for (let i = 0; i < rawPaths.length; i++) {
+        const p = String(rawPaths[i] || '').trim().replace(/\/+$/, '');
+        if (p) cleaned.push(p);
+      }
+      cleaned.sort(function (a, b) { return a.length - b.length; });
+      const minimal = [];
+      for (let i = 0; i < cleaned.length; i++) {
+        const cand = cleaned[i];
+        let covered = false;
+        for (let j = 0; j < minimal.length; j++) {
+          const parent = minimal[j];
+          if (cand === parent || cand.indexOf(parent + '/') === 0) {
+            covered = true;
+            break;
+          }
+        }
+        if (!covered) minimal.push(cand);
+      }
+      return minimal;
+    }
+
+    function finalizeFiioScanUi(totalFound, addedCount, silent, silentIfEmpty) {
+      if (addedCount > 0) {
+        try { if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers(); } catch (_) {}
+        try { renderTracks(); } catch (rErr) { console.warn('renderTracks after scan warning:', rErr); }
+        try { if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks); } catch (cErr) { console.warn('renderCollectionCards after scan warning:', cErr); }
+        try { saveCatalog(); } catch (sErr) { console.warn('saveCatalog after scan warning:', sErr); }
+      }
+      if (!silent && (!silentIfEmpty || totalFound > 0)) {
+        toast('Đã quét xong: tìm thấy ' + totalFound + ' bài hát trên bộ nhớ FiiO & thẻ MicroSD' + (addedCount > 0 ? (' (+' + addedCount + ' mới).') : '.'));
+      }
+    }
 
     async function scanFiioStorage(options) {
       const isPlainOpts = Boolean(options && typeof options === 'object' && !options.target && !options.preventDefault);
@@ -15011,6 +15111,10 @@
       const native = (typeof window !== 'undefined') ? window.NocturneNative : null;
       if (!native && !isNative) {
         if (!silent) toast('Tính năng này chỉ khả dụng trên ứng dụng Android hoặc máy nghe nhạc FiiO DAP.');
+        return;
+      }
+      if (fiioScanInProgress) {
+        if (!silent) toast('Đang quét bộ nhớ FiiO & thẻ MicroSD...');
         return;
       }
       try {
@@ -15028,10 +15132,90 @@
           return;
         }
         pendingAndroidStorageScan = false;
+        fiioScanInProgress = true;
 
+        const existingSets = buildExistingFiioTrackSets();
+        const existingPaths = existingSets.existingPaths;
+        const existingUris = existingSets.existingUris;
+
+        // 1. Preferred path (v3.9.16+): Non-blocking background chunked scan on native thread (zero WebView ANR)
+        if (native && typeof native.startAsyncStorageScan === 'function') {
+          let totalAdded = 0;
+          let totalSeen = 0;
+          let lastChunkToastAt = 0;
+          if (!silent) toast('Đang quét thư viện nhạc trên máy & thẻ MicroSD...');
+
+          const clearWatchdog = function () {
+            if (fiioScanWatchdogTimer) {
+              clearTimeout(fiioScanWatchdogTimer);
+              fiioScanWatchdogTimer = null;
+            }
+          };
+
+          await new Promise(function (resolve) {
+            let settled = false;
+            const finish = function (totalCount, errMsg) {
+              if (settled) return;
+              settled = true;
+              clearWatchdog();
+              fiioScanInProgress = false;
+              if (errMsg && !silent) {
+                toast('Lỗi quét bộ nhớ: ' + errMsg);
+              } else {
+                const count = Number(totalCount) || totalSeen;
+                finalizeFiioScanUi(count, totalAdded, silent, silentIfEmpty);
+              }
+              resolve();
+            };
+
+            fiioScanWatchdogTimer = setTimeout(function () {
+              finish(totalSeen, null);
+            }, 60000);
+
+            window.onAndroidStorageScanChunk = function (chunk, totalSoFar, sourceLabel) {
+              try {
+                if (Array.isArray(chunk) && chunk.length > 0) {
+                  const addedNow = ingestFiioScannedFilesChunk(chunk, existingPaths, existingUris);
+                  totalAdded += addedNow;
+                  totalSeen = Math.max(totalSeen + chunk.length, Number(totalSoFar) || 0);
+                  if (addedNow > 0 && typeof scheduleTrackRender === 'function') {
+                    scheduleTrackRender();
+                  }
+                  const now = Date.now();
+                  if (!silent && totalSeen >= 250 && (now - lastChunkToastAt) > 2200) {
+                    lastChunkToastAt = now;
+                    toast('Đang quét ' + (sourceLabel || 'bộ nhớ') + ': đã nạp ' + totalSeen + ' bài...');
+                  }
+                }
+              } catch (chunkErr) {
+                console.warn('FiiO async scan chunk warning:', chunkErr);
+              }
+            };
+
+            window.onAndroidStorageScanDone = function (totalCount, errMsg) {
+              finish(totalCount, errMsg);
+            };
+
+            let started = false;
+            try {
+              started = Boolean(native.startAsyncStorageScan(10000));
+            } catch (startErr) {
+              console.warn('startAsyncStorageScan invoke error:', startErr);
+              started = false;
+            }
+            if (!started) {
+              finish(totalSeen, null);
+            }
+          });
+          return;
+        }
+
+        // 2. Legacy bridge fallback (sync native calls wrapped with macrotask yields & root deduplication)
+        const yieldFrame = function () {
+          return new Promise(function (r) { setTimeout(r, 0); });
+        };
         let allFiles = [];
 
-        // 1. Primary on Android 10-15: MediaStore.Audio.Media ContentResolver query (works under Scoped Storage!)
         if (native && typeof native.scanMediaStoreAudio === 'function') {
           try {
             const rawMediaStore = native.scanMediaStoreAudio(10000);
@@ -15042,9 +15226,9 @@
           } catch (msErr) {
             console.warn('MediaStore audio scan error:', msErr);
           }
+          await yieldFrame();
         }
 
-        // 2. Secondary / DAP SD-card supplement: recursive directory scan (finds .dsf/.dff DSD & legacy /storage mounts)
         let paths = [];
         if (native && typeof native.getStoragePaths === 'function') {
           try {
@@ -15053,10 +15237,12 @@
           } catch (_) {}
         }
         if (!Array.isArray(paths) || !paths.length) {
-          paths = ['/sdcard', '/sdcard/Music', '/storage'];
+          paths = ['/sdcard', '/storage'];
         }
+        const dedupedPaths = deduplicateStorageRoots(paths);
 
-        for (const p of paths) {
+        for (let pi = 0; pi < dedupedPaths.length; pi++) {
+          const p = dedupedPaths[pi];
           if (native && typeof native.scanDirectory === 'function') {
             try {
               const rawRes = native.scanDirectory(p, 10000);
@@ -15067,14 +15253,15 @@
             } catch (e) {
               console.warn('Scan directory error for ' + p, e);
             }
+            await yieldFrame();
           }
         }
 
-        // Deduplicate files by canonical path and content:// uri (MediaStore entries come first and retain uri + metadata)
         const seenPaths = new Set();
         const seenUris = new Set();
         const uniqueFiles = [];
-        for (const f of allFiles) {
+        for (let fi = 0; fi < allFiles.length; fi++) {
+          const f = allFiles[fi];
           if (!f || (!f.path && !f.uri)) continue;
           const normPath = f.path ? String(f.path).trim() : '';
           const normUri = f.uri ? String(f.uri).trim() : '';
@@ -15085,68 +15272,22 @@
           uniqueFiles.push(f);
         }
 
-        const existingPaths = new Set();
-        const existingUris = new Set();
-        for (const t of state.tracks) {
-          if (!t) continue;
-          if (t.path) existingPaths.add(t.path);
-          if (t.uri) existingUris.add(t.uri);
-          if (t.url && t.url.includes('/local-media?')) {
-            try {
-              const u = new URL(t.url, 'https://appassets.androidplatform.net');
-              const qp = u.searchParams.get('path');
-              const qu = u.searchParams.get('uri');
-              if (qp) existingPaths.add(qp);
-              if (qu) existingUris.add(qu);
-            } catch (_) {}
-          }
-        }
-
         let addedCount = 0;
-        const newTracks = [];
-        for (const file of uniqueFiles) {
-          if ((file.path && existingPaths.has(file.path)) || (file.uri && existingUris.has(file.uri))) continue;
-          const track = (typeof library !== 'undefined' && typeof library.createFiioTrack === 'function')
-            ? library.createFiioTrack(file)
-            : {
-                id: 'fiio_' + btoa(encodeURIComponent(file.uri || file.path || file.name || '')).replace(/=/g, '').slice(-16) + '_' + Math.random().toString(36).slice(2, 6),
-                title: file.title || (file.name || '').replace(/\.[^/.]+$/, ''),
-                name: (file.name || '').replace(/\.[^/.]+$/, ''),
-                path: file.path || '',
-                uri: file.uri || undefined,
-                source: 'local',
-                url: file.uri
-                  ? ('https://appassets.androidplatform.net/local-media?uri=' + encodeURIComponent(file.uri) + '&name=' + encodeURIComponent(file.name || ''))
-                  : ('https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(file.path || '')),
-                size: file.size || 0,
-                isDsd: /\.(dsf|dff)$/i.test(file.name || ''),
-                format: (file.name || '').split('.').pop().toUpperCase(),
-                artist: file.artist || 'Unknown Artist',
-                album: file.album || 'FiiO Internal & SD Card',
-                duration: Number(file.duration) || 0
-              };
-          if (track) {
-            newTracks.push(track);
-            if (file.path) existingPaths.add(file.path);
-            if (file.uri) existingUris.add(file.uri);
-            addedCount++;
+        const CHUNK_SIZE = 250;
+        for (let offset = 0; offset < uniqueFiles.length; offset += CHUNK_SIZE) {
+          const slice = uniqueFiles.slice(offset, offset + CHUNK_SIZE);
+          addedCount += ingestFiioScannedFilesChunk(slice, existingPaths, existingUris);
+          if (offset + CHUNK_SIZE < uniqueFiles.length) {
+            await yieldFrame();
           }
         }
 
-        if (newTracks.length > 0) {
-          for (let _i = 0; _i < newTracks.length; _i++) state.tracks.push(newTracks[_i]);
-          try { if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers(); } catch (_) {}
-          try { renderTracks(); } catch (rErr) { console.warn('renderTracks after scan warning:', rErr); }
-          try { if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks); } catch (cErr) { console.warn('renderCollectionCards after scan warning:', cErr); }
-          try { saveCatalog(); } catch (sErr) { console.warn('saveCatalog after scan warning:', sErr); }
-        }
-
-        if (!silent && (!silentIfEmpty || uniqueFiles.length > 0)) {
-          toast(`Đã quét xong: tìm thấy ${uniqueFiles.length} bài hát trên bộ nhớ FiiO & thẻ MicroSD.`);
-        }
+        fiioScanInProgress = false;
+        finalizeFiioScanUi(uniqueFiles.length, addedCount, silent, silentIfEmpty);
       } catch (err) {
+        fiioScanInProgress = false;
         console.warn('FiiO storage scan failed:', err);
-        if (!silent) toast(`Lỗi quét bộ nhớ: ${err.message || err}`);
+        if (!silent) toast('Lỗi quét bộ nhớ: ' + (err.message || err));
       }
     }
     window.scanFiioStorage = scanFiioStorage;
