@@ -36,7 +36,6 @@
         android:theme="@style/Theme.Nocturne"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
-        android:largeHeap="true"
         android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true"
         android:networkSecurityConfig="@xml/network_security_config"

@@ -564,3 +564,9 @@ test('v3.9.5: clearAudioSliceCacheAndMemory clears revoked fullAudioUrl/preloadR
   assert.ok(wdBlock.includes('(audio.duration - curT) > 0.25'), 'stall watchdog must not nudge within 0.25s of track end');
   assert.ok(wdBlock.includes('Math.max(curT, Math.min(curT + 0.05, audio.duration - 0.15))'), 'stall watchdog targetPos must never jump backward');
 });
+
+test('v3.9.5: AndroidManifest.xml has no duplicate largeHeap attribute', () => {
+  const manifest = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8');
+  const matches = manifest.match(/android:largeHeap=/g) || [];
+  assert.equal(matches.length, 1, 'android:largeHeap must appear exactly once in AndroidManifest.xml');
+});
