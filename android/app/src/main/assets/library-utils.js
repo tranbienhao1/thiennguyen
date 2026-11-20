@@ -585,18 +585,22 @@
 
   function metadataOptions(tracks, field, fallback) {
     const options = new Map();
-    for (const track of tracks) {
+    const list = Array.isArray(tracks) ? tracks : [];
+    const collections = (field === 'album' || field === 'artist') ? buildLibraryCollections(list) : null;
+    for (const track of list) {
       const metadata = trackMetadata(track);
+      const colInfo = collections ? collections.getTrackCollection(track) : null;
       if (field === 'album') {
-        const albumKey = metadataKey(metadata.album || fallback);
-        const artistKey = metadataKey(metadata.artist);
-        const key = `${albumKey}\t${artistKey}`;
+        const albumName = metadata.album || fallback;
+        const albumKey = metadataKey(albumName);
+        const artistKey = colInfo ? metadataKey(colInfo.albumArtist || colInfo.artist) : metadataKey(metadata.artist);
+        const key = (colInfo && colInfo.albumKey) || `${albumKey}\t${artistKey}`;
         const label = metadata.album === UNKNOWN_ALBUM ? 'Chưa rõ album' : metadata.album;
         if (!options.has(key)) options.set(key, label);
         continue;
       }
-      const cleaned = field === 'artist' ? metadata.artist : cleanMetadataValue(track && track[field], fallback);
-      const key = metadataKey(cleaned);
+      const cleaned = field === 'artist' ? ((colInfo && colInfo.artist) || metadata.artist) : cleanMetadataValue(track && track[field], fallback);
+      const key = (field === 'artist' && colInfo && colInfo.artistKey) ? colInfo.artistKey : metadataKey(cleaned);
       if (!options.has(key)) options.set(key, cleaned);
     }
     return [...options.entries()].sort(([a], [b]) => a.localeCompare(b, 'vi')).map(([key, label]) => ({key, label}));
@@ -640,6 +644,7 @@
   }
 
   function filterTracks(tracks, filters = {}) {
+    const list = Array.isArray(tracks) ? tracks : [];
     const query = metadataKey(filters.query);
     const artistKey = metadataKey(filters.artist);
     const albumSelection = String(filters.album || '');
@@ -648,13 +653,19 @@
     const hasArtist = !!filters.artist && filters.artist !== '*';
     const hasAlbum = !!filters.album && filters.album !== '*';
     const hasFavorites = !!filters.favoritesOnly;
-    const filtered = tracks.filter(track => {
+    const collections = (hasArtist || hasAlbum) ? buildLibraryCollections(list) : null;
+    const filtered = list.filter(track => {
       if (hasSource && track.source !== filters.source) return false;
       if (hasFavorites && (!filters.isFavorite || !filters.isFavorite(track))) return false;
       if (!hasArtist && !hasAlbum && !query) return true;
       const normalized = normalizedTrackMetadata(track);
-      if (hasArtist && normalized.artist !== artistKey) return false;
-      if (hasAlbum && (normalized.album !== selectedAlbumKey || (selectedAlbumArtistKey && normalized.artist !== selectedAlbumArtistKey))) return false;
+      const colInfo = collections ? collections.getTrackCollection(track) : null;
+      if (hasArtist && normalized.artist !== artistKey && !(colInfo && colInfo.artistKey === artistKey)) return false;
+      if (hasAlbum) {
+        const directColMatch = Boolean(colInfo && colInfo.albumKey === albumSelection);
+        const fallbackAlbumMatch = normalized.album === selectedAlbumKey && (!selectedAlbumArtistKey || normalized.artist === selectedAlbumArtistKey || (colInfo && metadataKey(colInfo.albumArtist) === selectedAlbumArtistKey));
+        if (!directColMatch && !fallbackAlbumMatch) return false;
+      }
       return !query || matchSearchQuery(normalized.search, query);
     });
     if (filters.rankByRelevance && query && filtered.length > 1) {
@@ -664,18 +675,22 @@
   }
 
   function groupTracks(tracks, groupBy = 'none') {
-    if (groupBy !== 'artist' && groupBy !== 'album') return [{label:'', tracks}];
+    const list = Array.isArray(tracks) ? tracks : [];
+    if (groupBy !== 'artist' && groupBy !== 'album') return [{label:'', tracks: list}];
     const groups = new Map();
-    for (const track of tracks) {
+    const collections = buildLibraryCollections(list);
+    for (const track of list) {
       const metadata = trackMetadata(track);
+      const colInfo = collections ? collections.getTrackCollection(track) : null;
       if (groupBy === 'artist') {
-        const key = metadataKey(metadata.artist);
-        if (!groups.has(key)) groups.set(key, {label:metadata.artist, tracks:[]});
+        const key = (colInfo && colInfo.artistKey) || metadataKey(metadata.artist);
+        const label = (colInfo && colInfo.artist) || metadata.artist;
+        if (!groups.has(key)) groups.set(key, {label, tracks:[]});
         groups.get(key).tracks.push(track);
       } else {
-        const artistKey = metadataKey(metadata.artist);
+        const artistKey = colInfo ? metadataKey(colInfo.albumArtist || colInfo.artist) : metadataKey(metadata.artist);
         const albumKey = metadataKey(metadata.album);
-        const key = `${albumKey}\t${artistKey}`;
+        const key = (colInfo && colInfo.albumKey) || `${albumKey}\t${artistKey}`;
         const label = metadata.album === UNKNOWN_ALBUM ? 'Chưa rõ album' : metadata.album;
         if (!groups.has(key)) groups.set(key, {label, tracks:[]});
         groups.get(key).tracks.push(track);

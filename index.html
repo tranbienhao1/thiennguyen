@@ -2360,7 +2360,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.35</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.36</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -7342,6 +7342,7 @@
 
     function renderArtistAlbumGrid(grid, artistAlbums) {
       if (!grid) return;
+      lastCollectionStructureKey = '';
       const col = $('content-col');
       const prevScrollTop = col ? col.scrollTop : 0;
 
@@ -7402,6 +7403,7 @@
 
     function showArtistAlbumsView(artistEntry) {
       if (!artistEntry) return;
+      lastCollectionStructureKey = '';
       const artistAlbums = buildArtistAlbums(artistEntry);
       state.selectedArtistEntry = { ...artistEntry, albums: artistAlbums };
       state.currentCollectionEntry = null;
@@ -7594,42 +7596,54 @@
 
         if (canPatchInPlace) {
           const existingCards = grid.querySelectorAll('.collection-card');
-          for (let i = 0; i < entries.length; i++) {
-            const entry = entries[i];
-            const card = existingCards[i];
-            if (!card) continue;
-            if (card.dataset.collectionKey !== entry.key) continue;
-
-            const subtitle = entry.subtitle || (isArtistView ? `${entry.tracks.length} bài` : escapeHtml(entry.artist));
-            const subEl = card.querySelector('.collection-subtitle');
-            if (subEl && subEl.innerHTML !== subtitle) {
-              subEl.innerHTML = subtitle;
-            }
-
-            const artEl = card.querySelector('.collection-art');
-            if (artEl) {
-              const imgEl = artEl.querySelector('img');
-              if (entry.cover) {
-                if (imgEl) {
-                  const curLazy = imgEl.dataset ? imgEl.dataset.lazySrc : '';
-                  if (curLazy && curLazy !== entry.cover) {
-                    imgEl.dataset.lazySrc = entry.cover;
-                  } else if (!curLazy && imgEl.getAttribute('src') !== entry.cover) {
-                    imgEl.src = entry.cover;
-                  }
-                } else {
-                  const initials = artEl.querySelector('.collection-initials');
-                  if (initials) initials.remove();
-                  const newImg = document.createElement('img');
-                  newImg.src = entry.cover;
-                  newImg.alt = '';
-                  artEl.insertBefore(newImg, artEl.firstChild);
-                  if (!isArtistView) artEl.classList.remove('is-artist');
-                }
+          const expectedAction = isGenreView ? 'genre' : (isArtistView ? 'artist' : 'album');
+          let allCardsMatch = existingCards.length === entries.length;
+          if (allCardsMatch) {
+            for (let k = 0; k < entries.length; k++) {
+              if (!existingCards[k] || existingCards[k].dataset.collectionKey !== entries[k].key || existingCards[k].dataset.collectionAction !== expectedAction) {
+                allCardsMatch = false;
+                break;
               }
             }
           }
-          return {showRows, tracks};
+          if (allCardsMatch) {
+            for (let i = 0; i < entries.length; i++) {
+              const entry = entries[i];
+              const card = existingCards[i];
+              if (!card) continue;
+              if (card.dataset.collectionKey !== entry.key) continue;
+
+              const subtitle = entry.subtitle || (isArtistView ? `${entry.tracks.length} bài` : escapeHtml(entry.artist));
+              const subEl = card.querySelector('.collection-subtitle');
+              if (subEl && subEl.innerHTML !== subtitle) {
+                subEl.innerHTML = subtitle;
+              }
+
+              const artEl = card.querySelector('.collection-art');
+              if (artEl) {
+                const imgEl = artEl.querySelector('img');
+                if (entry.cover) {
+                  if (imgEl) {
+                    const curLazy = imgEl.dataset ? imgEl.dataset.lazySrc : '';
+                    if (curLazy && curLazy !== entry.cover) {
+                      imgEl.dataset.lazySrc = entry.cover;
+                    } else if (!curLazy && imgEl.getAttribute('src') !== entry.cover) {
+                      imgEl.src = entry.cover;
+                    }
+                  } else {
+                    const initials = artEl.querySelector('.collection-initials');
+                    if (initials) initials.remove();
+                    const newImg = document.createElement('img');
+                    newImg.src = entry.cover;
+                    newImg.alt = '';
+                    artEl.insertBefore(newImg, artEl.firstChild);
+                    if (!isArtistView) artEl.classList.remove('is-artist');
+                  }
+                }
+              }
+            }
+            return {showRows, tracks};
+          }
         }
 
         const col = $('content-col');
@@ -16486,6 +16500,7 @@
     let fiioScanInProgress = false;
     let fiioScanWatchdogTimer = null;
     let fiioScanUpgradedCount = 0;
+    let activeFiioScanMaps = null;
 
     function buildExistingFiioTrackSets() {
       const existingPaths = new Set();
@@ -16529,6 +16544,7 @@
     }
 
     function buildExistingFiioTrackMaps() {
+      if (activeFiioScanMaps) return activeFiioScanMaps;
       const existingByPath = new Map(), existingByUri = new Map();
       for (let e = 0; e < state.tracks.length; e++) {
         const et = state.tracks[e];
@@ -16550,7 +16566,7 @@
         if ((normPath && existingPaths.has(normPath)) || (normUri && existingUris.has(normUri))) {
           const prevTrack = (normPath && existingByPath.get(normPath)) || (normUri && existingByUri.get(normUri)) || null;
           if (prevTrack) {
-            const bCov = prevTrack.cover || '', bMeta = (prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '');
+            const bCov = prevTrack.cover || '', bMeta = (prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '');
             if (normUri && !prevTrack.uri) prevTrack.uri = normUri;
             if (normPath && !prevTrack.path) prevTrack.path = normPath;
             if (Number(file.duration) > 0 && !(Number(prevTrack.duration) > 0)) prevTrack.duration = Number(file.duration);
@@ -16559,7 +16575,7 @@
             if (file.albumArtist && file.albumArtist !== '<unknown>' && !prevTrack.albumArtist) prevTrack.albumArtist = String(file.albumArtist).trim();
             if (file.title && file.title !== '<unknown>' && (!prevTrack.title || prevTrack.title === prevTrack.name)) prevTrack.title = String(file.title).trim();
             if (typeof library !== 'undefined' && library && library.enrichFiioTrackMetadata) library.enrichFiioTrackMetadata(prevTrack);
-            if ((prevTrack.cover || '') !== bCov || ((prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '')) !== bMeta) fiioScanUpgradedCount++;
+            if ((prevTrack.cover || '') !== bCov || ((prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '')) !== bMeta) fiioScanUpgradedCount++;
           }
           continue;
         }
@@ -16576,6 +16592,7 @@
       }
       return added;
     }
+    window.ingestFiioScannedFilesChunk = ingestFiioScannedFilesChunk;
 
     function deduplicateStorageRoots(rawPaths) {
       if (!Array.isArray(rawPaths) || rawPaths.length === 0) return [];
@@ -16601,21 +16618,86 @@
       return minimal;
     }
 
-    function finalizeFiioScanUi(totalFound, addedCount, silent, silentIfEmpty) {
-      if (addedCount > 0 || fiioScanUpgradedCount > 0 || totalFound > 0) {
+    function extractStorageRootPrefix(rawPath) {
+      const p = String(rawPath || '').trim().replace(/\\/g, '/');
+      if (!p) return '';
+      const emu = p.match(/^(\/storage\/emulated\/\d+\/)/i);
+      if (emu) return emu[1].toLowerCase();
+      const sto = p.match(/^(\/storage\/[^/]+\/)/i);
+      if (sto) return sto[1].toLowerCase();
+      const mnt = p.match(/^(\/mnt\/media_rw\/[^/]+\/)/i);
+      if (mnt) return mnt[1].toLowerCase();
+      if (/^\/sdcard\//i.test(p)) return '/sdcard/';
+      return '';
+    }
+
+    function pruneMissingFiioTracks(scannedPaths, scannedUris) {
+      const hasPaths = Boolean(scannedPaths && scannedPaths.size > 0);
+      const hasUris = Boolean(scannedUris && scannedUris.size > 0);
+      if (!hasPaths && !hasUris) return 0;
+      const mountedPrefixes = new Set();
+      if (hasPaths) {
+        scannedPaths.forEach(function (sp) {
+          const pref = extractStorageRootPrefix(sp);
+          if (pref) mountedPrefixes.add(pref);
+        });
+      }
+      const kept = [];
+      let removed = 0;
+      const list = Array.isArray(state.tracks) ? state.tracks : [];
+      for (let i = 0; i < list.length; i++) {
+        const t = list[i];
+        if (!t) continue;
+        const isFiio = Boolean(t.id && String(t.id).indexOf('fiio_') === 0);
+        if (!isFiio || (state.currentId && t.id === state.currentId)) {
+          kept.push(t);
+          continue;
+        }
+        const tPath = t.path ? String(t.path).trim() : '';
+        const tUri = t.uri ? String(t.uri).trim() : '';
+        let keep = true;
+        if (tPath) {
+          const prefix = extractStorageRootPrefix(tPath);
+          if (prefix && mountedPrefixes.has(prefix)) {
+            keep = (hasPaths && scannedPaths.has(tPath)) || Boolean(tUri && hasUris && scannedUris.has(tUri));
+          }
+        } else if (tUri) {
+          if (hasUris && !scannedUris.has(tUri)) keep = false;
+        }
+        if (keep) kept.push(t);
+        else removed++;
+      }
+      if (removed > 0) state.tracks = kept;
+      return removed;
+    }
+    window.extractStorageRootPrefix = extractStorageRootPrefix;
+    window.pruneMissingFiioTracks = pruneMissingFiioTracks;
+
+    function finalizeFiioScanUi(totalFound, addedCount, silent, silentIfEmpty, removedCount) {
+      const removed = Number(removedCount) || 0;
+      const hasChanges = addedCount > 0 || fiioScanUpgradedCount > 0 || removed > 0;
+      fiioScanUpgradedCount = 0;
+      if (hasChanges) {
         try { if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers(); } catch (_) {}
         try { renderTracks(); } catch (rErr) { console.warn('renderTracks after scan warning:', rErr); }
         try { if (typeof renderCollectionCards === 'function') renderCollectionCards(state.tracks); } catch (cErr) { console.warn('renderCollectionCards after scan warning:', cErr); }
         try { if (typeof renderRecentArtists === 'function') renderRecentArtists(); } catch (_) {}
         try { saveCatalog(); } catch (sErr) { console.warn('saveCatalog after scan warning:', sErr); }
+      }
+      if (hasChanges || totalFound > 0) {
         if (typeof markFiioStorageConnected === 'function') {
           try { markFiioStorageConnected(totalFound || state.tracks.filter(function (t) { return t && t.id && String(t.id).indexOf('fiio_') === 0; }).length); } catch (_) {}
         }
       }
-      if (!silent && (!silentIfEmpty || totalFound > 0)) {
-        toast('Đã quét xong: tìm thấy ' + totalFound + ' bài hát trên bộ nhớ FiiO & thẻ MicroSD' + (addedCount > 0 ? (' (+' + addedCount + ' mới).') : '.'));
+      if (!silent && (!silentIfEmpty || totalFound > 0 || removed > 0)) {
+        const diffParts = [];
+        if (addedCount > 0) diffParts.push('+' + addedCount + ' mới');
+        if (removed > 0) diffParts.push('-' + removed + ' đã xóa');
+        const diffSuffix = diffParts.length > 0 ? (' (' + diffParts.join(', ') + ').') : '.';
+        toast('Đã quét xong: tìm thấy ' + totalFound + ' bài hát trên bộ nhớ FiiO & thẻ MicroSD' + diffSuffix);
       }
     }
+    window.finalizeFiioScanUi = finalizeFiioScanUi;
 
     async function scanFiioStorage(options) {
       const isPlainOpts = Boolean(options && typeof options === 'object' && !options.target && !options.preventDefault);
@@ -16648,6 +16730,8 @@
         pendingAndroidStorageScan = false;
         fiioScanInProgress = true;
         fiioScanUpgradedCount = 0;
+        activeFiioScanMaps = null;
+        activeFiioScanMaps = buildExistingFiioTrackMaps();
 
         const existingSets = buildExistingFiioTrackSets();
         const existingPaths = existingSets.existingPaths;
@@ -16658,6 +16742,9 @@
           let totalAdded = 0;
           let totalSeen = 0;
           let lastChunkToastAt = 0;
+          let settledByWatchdog = false;
+          const scannedPaths = new Set();
+          const scannedUris = new Set();
           if (!silent) toast('Đang quét thư viện nhạc trên máy & thẻ MicroSD...');
 
           const clearWatchdog = function () {
@@ -16674,16 +16761,22 @@
               settled = true;
               clearWatchdog();
               fiioScanInProgress = false;
+              activeFiioScanMaps = null;
               if (errMsg && !silent) {
                 toast('Lỗi quét bộ nhớ: ' + errMsg);
-              } else {
+              } else if (!errMsg) {
                 const count = Number(totalCount) || totalSeen;
-                finalizeFiioScanUi(count, totalAdded, silent, silentIfEmpty);
+                let removedNow = 0;
+                if (!settledByWatchdog && (scannedPaths.size > 0 || scannedUris.size > 0)) {
+                  removedNow = pruneMissingFiioTracks(scannedPaths, scannedUris);
+                }
+                finalizeFiioScanUi(count, totalAdded, silent, silentIfEmpty, removedNow);
               }
               resolve();
             };
 
             fiioScanWatchdogTimer = setTimeout(function () {
+              settledByWatchdog = true;
               finish(totalSeen, null);
             }, 60000);
 
@@ -16691,6 +16784,12 @@
             window.onAndroidStorageScanChunk = function (chunk, totalSoFar, sourceLabel) {
               try {
                 if (Array.isArray(chunk) && chunk.length > 0) {
+                  for (let ci = 0; ci < chunk.length; ci++) {
+                    const cFile = chunk[ci];
+                    if (!cFile) continue;
+                    if (cFile.path) scannedPaths.add(String(cFile.path).trim());
+                    if (cFile.uri) scannedUris.add(String(cFile.uri).trim());
+                  }
                   const addedNow = ingestFiioScannedFilesChunk(chunk, existingPaths, existingUris);
                   totalAdded += addedNow;
                   totalSeen = Math.max(totalSeen + chunk.length, Number(totalSoFar) || 0);
@@ -16724,6 +16823,7 @@
               started = false;
             }
             if (!started) {
+              settledByWatchdog = true;
               finish(totalSeen, null);
             }
           });
@@ -16803,9 +16903,12 @@
         }
 
         fiioScanInProgress = false;
-        finalizeFiioScanUi(uniqueFiles.length, addedCount, silent, silentIfEmpty);
+        activeFiioScanMaps = null;
+        const removedLegacy = (seenPaths.size > 0 || seenUris.size > 0) ? pruneMissingFiioTracks(seenPaths, seenUris) : 0;
+        finalizeFiioScanUi(uniqueFiles.length, addedCount, silent, silentIfEmpty, removedLegacy);
       } catch (err) {
         fiioScanInProgress = false;
+        activeFiioScanMaps = null;
         console.warn('FiiO storage scan failed:', err);
         if (!silent) toast('Lỗi quét bộ nhớ: ' + (err.message || err));
       }

@@ -80,20 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.35';
-  const name = process.argv[3] || `Nocturne ${tag} (FiiO M11S tự giữ kết nối bộ nhớ vĩnh viễn + Gộp Album/Nghệ sĩ chỉ giữ Ca sĩ chính)`;
+  const tag = process.argv[2] || 'v3.9.36';
+  const name = process.argv[3] || `Nocturne ${tag} (Đồng bộ bộ lọc Album/Nghệ sĩ, sửa drill-down & tối ưu quét khởi động FiiO M11S)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} — Giữ kết nối bộ nhớ FiiO M11S & Sửa lỗi tách Nghệ sĩ phụ
+    : `### Nocturne ${tag} — Đồng bộ bộ lọc Album/Nghệ sĩ & Tối ưu đồng bộ FiiO M11S
 
-#### 1. FiiO M11S tự động giữ kết nối bộ nhớ vĩnh viễn (không phải bấm quét/kết nối lại)
-- **Lưu kép danh mục & trạng thái kết nối ở tầng Native Android (\`MainActivity.java\`)**: Ngay khi quét được nhạc trên bộ nhớ máy/thẻ MicroSD, APK tự lưu lại trạng thái đã kết nối (\`PREF_FIIO_STORAGE_LINKED\`, danh sách thư mục gốc MicroSD) vào \`SharedPreferences\` và sao lưu danh mục \`fiio_library_cache.json\` trong \`filesDir\` (an toàn kể cả khi xóa cache WebView hoặc cập nhật OTA).
-- **Tự khôi phục & lắng nghe gắn lại thẻ MicroSD (\`ACTION_MEDIA_MOUNTED\`)**: Tự động khôi phục danh mục khi mở app, tự động đồng bộ nền ngay cả khi đã có danh sách nhạc Cloud, và tự thử lại nếu thẻ MicroSD vừa khởi động xong.
+#### 1. Đồng bộ bộ lọc, nhóm Album/Nghệ sĩ & sửa lỗi lưới khi quay lại từ Nghệ sĩ
+- **Đồng bộ hoàn toàn \`metadataOptions\`, \`filterTracks\` và \`groupTracks\`**: Danh sách chọn Album/Nghệ sĩ và chế độ "Nhóm theo Album/Nghệ sĩ" dùng chung logic gom nhóm \`buildLibraryCollections\`, tránh tách trùng lặp album tổng hợp (\`Various Artists\`), \`albumArtist\` hoặc nghệ sĩ phụ.
+- **Sửa lỗi kẹt thẻ album khi quay lại tab Nghệ sĩ**: Xóa cache \`lastCollectionStructureKey\` trong \`showArtistAlbumsView\` / \`renderArtistAlbumGrid\` và kiểm tra khớp khóa + hành động thẻ trong \`renderCollectionCards\`.
 
-#### 2. Sửa triệt để lỗi đọc Album & Nghệ sĩ tách quá nhiều ca sĩ phụ
-- **Đọc \`ALBUM_ARTIST\` từ MediaStore & thẻ nhạc**: \`scanMediaStoreAudio\` tự động đọc thêm cột \`album_artist\` (có fallback an toàn cho Android 10 FiiO M11S) và truyền sang \`library-utils.js\`.
-- **Nâng cấp \`primaryArtistName\` & gom nhóm thông minh (\`buildLibraryCollections\`)**: Lọc sạch nghệ sĩ phụ (\`ft.Min\`, \`feat.\`, \`HIEUTHUHAI X Negav\`, \`Sơn Tùng M-TP / Onionn\`, \`A - B\`, \`cùng\`, \`với\`, \`·\`, \`、\`, trong ngoặc \`(...)\`), đồng thời gom các bài cùng thư mục album/nghệ sĩ album về 1 Nghệ sĩ chính duy nhất (hoặc \`Various Artists\` cho album tổng hợp nhiều ca sĩ).
+#### 2. Tối ưu hiệu năng quét khởi động FiiO M11S & dọn tệp đã xóa an toàn
+- **Không render/lưu lại khi không có thay đổi (zero-diff)**: Khởi động lại không gây giật Chromium 74 hay ghi lại 3MB JSON khi thư viện MicroSD giữ nguyên, đồng thời tái sử dụng \`activeFiioScanMaps\` trong cả phiên quét và ghi nhận nâng cấp \`albumArtist\`.
+- **Dọn bài hát đã xóa theo phân vùng đã mount**: \`pruneMissingFiioTracks\` tự gỡ tệp đã xóa khỏi bộ nhớ đang gắn mà vẫn bảo toàn nguyên vẹn nhạc trên thẻ MicroSD nếu thẻ chưa kịp mount lúc vừa bật máy.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

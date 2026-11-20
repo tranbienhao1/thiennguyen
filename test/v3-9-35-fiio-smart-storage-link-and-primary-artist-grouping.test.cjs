@@ -237,12 +237,13 @@ test('5. Version sync v3.9.35 / versionCode 89 & zero Chromium 74 ES2020+ syntax
 
   assert.ok(indexHtml.includes('library.buildLibraryCollections(tracks)'), 'renderCollectionCards must use buildLibraryCollections');
   assert.ok(indexHtml.includes('id="fiio-storage-link-status"'));
-  assert.ok(indexHtml.includes('FiiO M11S · v3.9.35'));
-  assert.ok(swJs.includes("const CACHE_VERSION = 'v3.9.35';"));
-  assert.ok(swJs.includes("const CACHE_NAME = 'nocturne-v3.9.35';"));
-  assert.ok(/versionCode\s*=\s*89\b/.test(gradle));
-  assert.ok(/versionName\s*=\s*"3\.9\.35"/.test(gradle));
-  assert.ok(mainActivity.includes('"3.9.35"'));
+  assert.ok(/FiiO M11S · v3\.9\.(3[5-9]|[4-9]\d)/.test(indexHtml));
+  assert.ok(/const CACHE_VERSION = 'v3\.9\.(3[5-9]|[4-9]\d)';/.test(swJs));
+  assert.ok(/const CACHE_NAME = 'nocturne-v3\.9\.(3[5-9]|[4-9]\d)';/.test(swJs));
+  const vcMatch = gradle.match(/versionCode\s*=\s*(\d+)/);
+  assert.ok(vcMatch && Number(vcMatch[1]) >= 89);
+  assert.ok(/versionName\s*=\s*"3\.9\.(3[5-9]|[4-9]\d)"/.test(gradle));
+  assert.ok(/"3\.9\.(3[5-9]|[4-9]\d)"/.test(mainActivity));
 
   const filesToScan = [
     'index.html',
