@@ -80,25 +80,22 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.41';
-  const name = process.argv[3] || `Nocturne ${tag} (Lặp 1 bài & Previous Bit-Perfect/CUE, đồng bộ thông báo & tua màn hình khóa khi tạm dừng, MediaSession & DSD đa bề mặt)`;
+  const tag = process.argv[2] || 'v3.9.42';
+  const name = process.argv[3] || `Nocturne ${tag} (Phát nhạc & đồng bộ Google Drive, OneDrive, Nội bộ / CUE Bit-Perfect cho Web + APK)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 95) — Đồng bộ Repeat-One / Previous Bit-Perfect & CUE, MediaSession & tua màn hình khóa khi tạm dừng
+    : `### Nocturne ${tag} (versionCode 96) — Nâng cấp Phát nhạc & Đồng bộ Google Drive, OneDrive, Nội bộ / CUE (Web + Android APK)
 
-#### 1. Chuẩn hóa Repeat-One & Previous (> 3s) cho Native Bit-Perfect và CUE sub-track (\`index.html\`)
-- **Repeat-One (\`state.repeat === 2\`)**: Tự động phát lại qua \`playTrack(state.currentId)\` ở chế độ Bit-Perfect Native (thay vì gọi nhầm \`audio.play()\` trên phần tử rỗng), và quay về đúng mốc \`cueStart\` cho bài cắt CUE.
-- **Previous (\`> 3s\`)**: Tính mốc 3 giây theo vị trí tương đối trong CUE (\`rawPosPrev - cueOffsetPrev > 3\`) và tua về đúng \`cueOffsetPrev\` kèm đồng bộ seekbar/waveform/MediaSession khi Bit-Perfect đang phát.
+#### 1. Khắc phục đứt nhạc OneDrive khi \`directUrl\` hết hạn giữa bài (\`index.html\`)
+- **\`upgradeSliceToFullAudio\`**: Khi tải nền file đầy đủ từ \`@microsoft.graph.downloadUrl\` gặp lỗi \`401\`/\`403\` (đặc biệt khi lát đầu phát từ IndexedDB cache mà link tạm đã hết hạn), tự động xóa \`track.downloadUrl\`, xin lại \`resolveMicrosoftDownloadUrl(track)\` mới hoặc fallback sang Microsoft Graph \`/content\` kèm \`Bearer token\` để không bị dừng nhạc sau lát đầu.
 
-#### 2. Triệt tiêu trạng thái Notification & MediaSession sai khi Tạm dừng / Bit-Perfect (\`index.html\`)
-- **\`displayTrack(track)\`**: Tính động trạng thái \`isNotifPlaying\` theo thực tế phát/nạp (\`isPlaybackLoading\`, Bit-Perfect chưa pause, hoặc deck đang phát) thay vì gửi cứng \`true\`, tránh bật nhầm biểu tượng Đang phát / WakeLock khi đang tạm dừng.
-- **\`updateMediaSession\` & \`updatePositionState\`**: Đồng bộ đúng \`playbackState\` và vị trí/thời lượng ảo từ engine Bit-Perfect cho \`navigator.mediaSession.setPositionState\`.
+#### 2. Đồng bộ tăng trưởng & dọn bài đã xóa trên Google Drive và OneDrive (\`index.html\`)
+- **\`loadGoogleFiles\`**: Tự động bổ sung \`parents\`, \`thumbnailUrl\`, \`size\`, \`name\` cho các bài đã lưu trong catalog từ phiên trước (để \`discoverGoogleDriveFolderArtwork\` nhận diện đầy đủ ảnh bìa thư mục) và dọn sạch các bài đã bị xóa khỏi Drive sau khi quét hoàn tất (bảo vệ bài đang phát \`state.currentId\`).
+- **\`loadMicrosoftFiles\`**: Chuyển \`persistCloudCatalog\` sang chuỗi lưu nền không chặn (\`persistChain\`), tra cứu O(1) qua \`existingByRemoteId\`, cập nhật \`downloadUrl\`/\`remotePath\` mới và tự động loại bỏ các bài đã xóa khỏi OneDrive.
 
-#### 3. Tua màn hình khóa khi tạm dừng, \`onHardwareSeek*\` CUE & Nút DSD đa bề mặt (\`MainActivity.java\` + \`index.html\`)
-- **\`BitPerfectAudioPlayer.seek(long positionMs)\`**: Cập nhật ngay \`mCurrentPositionMs\`, gọi \`updateMediaSessionMetadata(..., isPlaying())\` và gửi \`window.onNativeBitPerfectPosition\` về WebView kể cả khi đang tạm dừng.
-- **\`onHardwareSeekOffset\` / \`onHardwareSeekTo\`**: Hỗ trợ đầy đủ CUE \`cueStart\`, \`applySmartSeekTime\`, waveform & \`MediaSession\`.
-- **DSD đa bề mặt**: \`stopDsdWorker\`, \`playDsdFirstSlice\` và \`playDsdTrack\` gọi \`syncPlaybackButtonsUi\` để đồng bộ cả \`#play-button\`, \`#room-play\`, \`#mini-play\`, \`#fullscreen-play-btn\`.
+#### 3. Chuẩn hóa phát nhạc nội bộ & CUE sub-track trên Bit-Perfect Native (\`index.html\`)
+- **\`playTrack\` & \`window.onNativeBitPerfectPosition\`**: Tự động gọi \`seekBitPerfectPlayback(Math.round(track.cueStart * 1000))\` khi khởi chạy bài CUE, hiển thị thời gian và thanh tiến trình tương đối \`0..track.duration\`, tự động chuyển bài tại ranh giới \`cueStart + duration\`, và đồng bộ \`#room-play\` theo \`isNotifPlaying\` trong \`displayTrack(track)\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

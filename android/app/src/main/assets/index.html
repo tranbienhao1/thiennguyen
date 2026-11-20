@@ -2363,7 +2363,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.41</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.42</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4133,19 +4133,33 @@
               : 0);
           const durSec = nativeDurMs > 0 ? (nativeDurMs / 1000) : ((curTrack && curTrack.duration) || 0);
           if (curTrack && durSec > 0 && !curTrack.duration) curTrack.duration = durSec;
-          const curFmt = formatTime(curSec);
+          const isCueSubTrack = Boolean(curTrack && Number.isFinite(curTrack.cueStart) && Number.isFinite(curTrack.duration) && curTrack.duration > 0);
+          const cueOffset = isCueSubTrack ? Math.max(0, curTrack.cueStart) : 0;
+          if (isCueSubTrack && state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused && curSec >= (cueOffset + curTrack.duration - 0.15)) {
+            if (state._bpCueAdvancingId !== curTrack.id) {
+              state._bpCueAdvancingId = curTrack.id;
+              state.isNativeBitPerfectPlaying = false;
+              state.isNativeBitPerfectPaused = false;
+              playNext(1, true);
+            }
+            return;
+          }
+          state._bpCueAdvancingId = null;
+          const displayCurSec = isCueSubTrack ? Math.max(0, Math.min(curTrack.duration, curSec - cueOffset)) : curSec;
+          const displayDurSec = isCueSubTrack ? curTrack.duration : durSec;
+          const curFmt = formatTime(displayCurSec);
           if ($('current-time')) $('current-time').textContent = curFmt;
           if ($('current-time-mobile')) $('current-time-mobile').textContent = curFmt;
           if ($('room-current-time')) $('room-current-time').textContent = curFmt;
           if ($('fullscreen-time-cur')) $('fullscreen-time-cur').textContent = curFmt;
-          if (durSec > 0) {
-            const durFmt = formatTime(durSec);
+          if (displayDurSec > 0) {
+            const durFmt = formatTime(displayDurSec);
             if ($('duration')) $('duration').textContent = durFmt;
             if ($('duration-mobile')) $('duration-mobile').textContent = durFmt;
             if ($('room-duration')) $('room-duration').textContent = durFmt;
             if ($('fullscreen-time-dur')) $('fullscreen-time-dur').textContent = durFmt;
-            if ($('room-remaining')) $('room-remaining').textContent = formatRemainingTime(curSec, durSec);
-            const ratio = Math.max(0, Math.min(1000, Math.round((curSec / durSec) * 1000)));
+            if ($('room-remaining')) $('room-remaining').textContent = formatRemainingTime(displayCurSec, displayDurSec);
+            const ratio = Math.max(0, Math.min(1000, Math.round((displayCurSec / displayDurSec) * 1000)));
             syncSeek(ratio);
             const rSeek = $('room-seek');
             if (rSeek && !(typeof rSeek.matches === 'function' && rSeek.matches(':active'))) {
@@ -4154,11 +4168,11 @@
             }
           }
           if (state.lyrics && state.lyrics.length > 0 && typeof library !== 'undefined' && library && typeof library.lyricLineAt === 'function') {
-            const lIdx = library.lyricLineAt(state.lyrics, curSec);
+            const lIdx = library.lyricLineAt(state.lyrics, displayCurSec);
             const fsLyric = $('fullscreen-lyric-line');
             if (fsLyric && state.lyrics[lIdx]) fsLyric.textContent = state.lyrics[lIdx].text;
           }
-          if (typeof updateLyricsHighlight === 'function') updateLyricsHighlight(curSec);
+          if (typeof updateLyricsHighlight === 'function') updateLyricsHighlight(displayCurSec);
           if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
           if (typeof savePlaybackSession === 'function') savePlaybackSession();
         }
@@ -5672,6 +5686,23 @@
                 blob = await library.fetchAudioBlob(url, refreshedOpts, provider);
               } else {
                 throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
+              }
+            } else if (track && track.source === 'onedrive' && !isGraphContentUrl(url) && track.remoteId) {
+              track.downloadUrl = '';
+              track.downloadUrlAt = 0;
+              const freshDirectUrl = (typeof resolveMicrosoftDownloadUrl === 'function')
+                ? await resolveMicrosoftDownloadUrl(track).catch(() => '')
+                : '';
+              if (freshDirectUrl && freshDirectUrl !== url) {
+                const directOpts = upgradeController ? { signal: upgradeController.signal } : {};
+                blob = await library.fetchAudioBlob(freshDirectUrl, directOpts, provider);
+              } else {
+                const token = await getMicrosoftToken(false);
+                const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
+                const msOpts = upgradeController
+                  ? { headers: { Authorization: `Bearer ${token}` }, signal: upgradeController.signal }
+                  : { headers: { Authorization: `Bearer ${token}` } };
+                blob = await library.fetchAudioBlob(graphUrl, msOpts, provider);
               }
             } else {
               if (!isGraphContentUrl(url)) throw error;
@@ -11350,7 +11381,7 @@
         : savedOffset;
       if (typeof updateLyricsOffsetDisplay === 'function') updateLyricsOffsetDisplay();
       renderQueueCurrent(track); syncAutoplayButton(); updateSleepStatus();
-      $('room-play').textContent = !audio.src || audio.paused ? '▶' : 'Ⅱ';
+      $('room-play').textContent = isNotifPlaying ? 'Ⅱ' : '▶';
       renderLyrics(track.lyricsText || '');
       if (!track.lyricsText && typeof triggerLyricsFetch === 'function') triggerLyricsFetch(track);
       $('room-current-time').textContent = '0:00'; $('room-duration').textContent = formatTime(track.duration); $('room-remaining').textContent = formatRemainingTime(0, track.duration); $('room-seek').value = '0'; paintSeek($('room-seek'), 0);
@@ -13575,10 +13606,15 @@
           }
           const bpStarted = window.NocturneNative.startBitPerfectPlayback(track.url || track.src, track.sampleRate || 44100, track.bitDepth || 16);
           if (bpStarted !== false) {
+            const cueStartSec = (Number.isFinite(track.cueStart) && track.cueStart > 0) ? track.cueStart : 0;
+            state._bpCueAdvancingId = null;
             state.isNativeBitPerfectPlaying = true;
             state.isNativeBitPerfectPaused = false;
-            state.lastBitPerfectPositionSec = 0;
+            state.lastBitPerfectPositionSec = cueStartSec;
             state.lastBitPerfectPositionAtMs = 0;
+            if (cueStartSec > 0 && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+              window.NocturneNative.seekBitPerfectPlayback(Math.round(cueStartSec * 1000));
+            }
             audio.pause();
             standbyAudio.pause();
             displayTrack(track);
@@ -14767,15 +14803,46 @@
       return appliedCount;
     }
 
+    function removeDeletedCloudTracks(source, seenRemoteIds, isCompleteScan) {
+      if (!isCompleteScan || !seenRemoteIds || !seenRemoteIds.size) return Promise.resolve(0);
+      const removedIds = [];
+      for (let i = state.tracks.length - 1; i >= 0; i--) {
+        const tr = state.tracks[i];
+        if (!tr || tr.source !== source) continue;
+        const rid = tr.remoteId || tr.id;
+        if (!rid || seenRemoteIds.has(rid)) continue;
+        if (state.currentId != null && String(tr.id) === String(state.currentId)) continue;
+        removedIds.push(tr.id);
+        state.tracks.splice(i, 1);
+      }
+      if (!removedIds.length) return Promise.resolve(0);
+      return new Promise(resolve => {
+        try {
+          const store = catalogTransaction('readwrite');
+          for (let j = 0; j < removedIds.length; j++) store.delete(removedIds[j]);
+          store.transaction.oncomplete = () => resolve(removedIds.length);
+          store.transaction.onerror = () => resolve(removedIds.length);
+        } catch (_) {
+          resolve(removedIds.length);
+        }
+      });
+    }
+
     async function loadGoogleFiles() {
       await restoreCloudCatalog();
       let token = await ensureGoogleToken();
       let pageToken = '', added = 0, scanned = 0, useOrderBy = true;
       let skippedCount = 0;
       const skippedSample = [];
-      const knownIds = new Set(
-        state.tracks.filter(track => track.source === 'google').map(track => track.remoteId || track.id)
-      );
+      const existingByRemoteId = new Map();
+      for (let i = 0; i < state.tracks.length; i++) {
+        const t = state.tracks[i];
+        if (t && t.source === 'google') existingByRemoteId.set(t.remoteId || t.id, t);
+      }
+      const knownIds = new Set(existingByRemoteId.keys());
+      const seenRemoteIds = new Set();
+      const updatedExistingTracks = [];
+      let sawIncompleteSearch = false;
       const newlyAddedTracks = [];
       let persistChain = Promise.resolve();
 
@@ -14814,10 +14881,38 @@
           }
 
           const data = await response.json(), pageTracks = [];
-          if (data.incompleteSearch) console.warn('Google Drive reported an incomplete search; My Drive results were still returned.');
+          if (data.incompleteSearch) {
+            sawIncompleteSearch = true;
+            console.warn('Google Drive reported an incomplete search; My Drive results were still returned.');
+          }
           for (const file of data.files || []) {
             scanned++;
-            if (!file.id || knownIds.has(file.id)) continue;
+            if (file && file.id) seenRemoteIds.add(file.id);
+            if (!file.id || knownIds.has(file.id)) {
+              const existing = file && file.id ? existingByRemoteId.get(file.id) : null;
+              if (existing) {
+                let touched = false;
+                if ((!Array.isArray(existing.parents) || !existing.parents.length) && Array.isArray(file.parents) && file.parents.length) {
+                  existing.parents = file.parents.slice(0, 3);
+                  touched = true;
+                }
+                if (!existing.thumbnailUrl && file.thumbnailLink) {
+                  existing.thumbnailUrl = file.thumbnailLink;
+                  touched = true;
+                }
+                const fSize = Number(file.size) || 0;
+                if (fSize > 0 && existing.size !== fSize) {
+                  existing.size = fSize;
+                  touched = true;
+                }
+                if (file.name && existing.name !== file.name) {
+                  existing.name = file.name;
+                  touched = true;
+                }
+                if (touched) updatedExistingTracks.push(existing);
+              }
+              continue;
+            }
             if (!isCloudAudio(file)) {
               skippedCount++;
               if (skippedSample.length < 10) {
@@ -14830,6 +14925,7 @@
             pageTracks.push(track);
             newlyAddedTracks.push(track);
             knownIds.add(file.id);
+            existingByRemoteId.set(file.id, track);
             added++;
           }
 
@@ -14846,7 +14942,13 @@
           cloudStatus('google', `Đang quét Google Drive… ${scanned} mục · ${knownIds.size} bài`, 'text-sky-300');
         } while (pageToken);
 
+        if (updatedExistingTracks.length > 0) {
+          persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => {});
+        }
         await persistChain;
+        if (!sawIncompleteSearch && seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {
+          await removeDeletedCloudTracks('google', seenRemoteIds, true);
+        }
         if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
         renderTracks();
         cloudStatus('google', `Google Drive · ${knownIds.size} bài`, 'text-emerald-300');
@@ -15087,7 +15189,14 @@
       await restoreCloudCatalog();
       state.microsoftAccessToken = token;
       let added = 0, scannedFolders = 0;
-      const knownIds = new Set(state.tracks.filter(track => track.source === 'onedrive').map(track => track.remoteId));
+      const existingByRemoteId = new Map();
+      for (let i = 0; i < state.tracks.length; i++) {
+        const t = state.tracks[i];
+        if (t && t.source === 'onedrive' && t.remoteId) existingByRemoteId.set(t.remoteId, t);
+      }
+      const knownIds = new Set(existingByRemoteId.keys());
+      const seenRemoteIds = new Set();
+      let persistChain = Promise.resolve();
       const siblingCoversByDir = new Map();
       const scoreFolderCover = (typeof library !== 'undefined' && typeof library.scoreFolderCoverFilename === 'function')
         ? library.scoreFolderCoverFilename
@@ -15103,9 +15212,19 @@
             for (const item of data.value || []) {
               if (!item || !item.id) continue;
               const itemPath = path ? `${path}/${item.name}` : item.name;
-              if (!item.folder && knownIds.has(item.id) && item.audio) {
-                const existing = state.tracks.find(track => track.source === 'onedrive' && track.remoteId === item.id);
-                if (existing && (!existing.metadataLoaded || !existing.cover)) { mergeMicrosoftTrack(existing, item, itemPath); }
+              if (!item.folder) seenRemoteIds.add(item.id);
+              if (!item.folder && knownIds.has(item.id)) {
+                const existing = existingByRemoteId.get(item.id);
+                if (existing) {
+                  if (item['@microsoft.graph.downloadUrl']) {
+                    existing.downloadUrl = item['@microsoft.graph.downloadUrl'];
+                    existing.downloadUrlAt = Date.now();
+                  }
+                  if (itemPath && existing.remotePath !== itemPath) existing.remotePath = itemPath;
+                  if (item.audio && (!existing.metadataLoaded || !existing.cover)) {
+                    mergeMicrosoftTrack(existing, item, itemPath);
+                  }
+                }
               }
               if (item.folder) {
                 queue.push({url:`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,size,audio&$top=500`, path:itemPath});
@@ -15123,10 +15242,11 @@
               }
               if (knownIds.has(item.id)) continue;
               const track = microsoftTrack(item, itemPath);
-              state.tracks.push(track); pageTracks.push(track); knownIds.add(item.id); added++;
+              state.tracks.push(track); pageTracks.push(track); knownIds.add(item.id); existingByRemoteId.set(item.id, track); added++;
             }
             if (pageTracks.length) {
-              await persistCloudCatalog(pageTracks, true);
+              const batch = pageTracks;
+              persistChain = persistChain.then(() => persistCloudCatalog(batch, { skipPrune: true })).catch(() => {});
               if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
               if (typeof scheduleTrackRender === 'function') scheduleTrackRender();
               pageTracks = [];
@@ -15135,11 +15255,16 @@
             next = data['@odata.nextLink'] || '';
           }
         }
+        await persistChain;
+        if (seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {
+          await removeDeletedCloudTracks('onedrive', seenRemoteIds, true);
+        }
         await pruneCloudCatalog();
         renderTracks();
         cloudStatus('microsoft', `OneDrive · ${knownIds.size} bài`, 'text-emerald-300');
         toast(`Đã quét hết OneDrive: tìm thấy ${knownIds.size} bài âm thanh (${added} bài mới).`);
       } catch (error) {
+        await persistChain;
         renderTracks();
         if (added) toast(`Đã lưu ${added} bài mới trước khi đồng bộ bị gián đoạn.`);
         throw error;
