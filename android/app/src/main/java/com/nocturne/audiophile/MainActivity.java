@@ -5390,11 +5390,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.58";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.59";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.58\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.59\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -6736,23 +6736,33 @@ public class MainActivity extends AppCompatActivity {
         return !(i < data.length && data[i] == '<');
     }
 
+    private static final int MAX_OTA_ASSET_BYTES = 16 * 1024 * 1024;
+
     private byte[] downloadUrlBytes(String urlStr, int timeoutMs) {
         HttpURLConnection conn = null;
         try {
+            int safeTimeout = Math.max(3000, timeoutMs);
+            long deadlineMs = android.os.SystemClock.elapsedRealtime() + Math.max((long) safeTimeout * 2L, 30000L);
             URL url = new URL(urlStr);
             conn = (HttpURLConnection) url.openConnection();
-            conn.setConnectTimeout(timeoutMs);
-            conn.setReadTimeout(timeoutMs);
+            conn.setConnectTimeout(safeTimeout);
+            conn.setReadTimeout(safeTimeout);
             conn.setInstanceFollowRedirects(true);
             conn.setRequestProperty("Cache-Control", "no-cache");
             conn.setRequestProperty("User-Agent", "Nocturne-Android-OTA");
             int code = conn.getResponseCode();
             if (code != 200) return null;
+            long contentLength = conn.getContentLengthLong();
+            if (contentLength > MAX_OTA_ASSET_BYTES) return null;
             try (InputStream is = conn.getInputStream();
                  ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
                 byte[] buf = new byte[16384];
+                int total = 0;
                 int n;
                 while ((n = is.read(buf)) != -1) {
+                    total += n;
+                    if (total > MAX_OTA_ASSET_BYTES) return null;
+                    if (android.os.SystemClock.elapsedRealtime() > deadlineMs) return null;
                     baos.write(buf, 0, n);
                 }
                 return baos.toByteArray();

@@ -80,22 +80,24 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.58';
-  const name = process.argv[3] || `Nocturne ${tag} (Chống treo mạng đồng bộ Google Drive/OneDrive + khôi phục phiên nghe Cloud chính xác & hỗ trợ tên tệp #, %, ?, + trên Android)`;
+  const tag = process.argv[2] || 'v3.9.59';
+  const name = process.argv[3] || `Nocturne ${tag} (Chống treo tải luồng nhạc Cloud + tự khớp hàng đợi/yêu thích/CUE sau quét lại & bảo vệ OTA Android)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 112) — Chống treo mạng đồng bộ Google Drive/OneDrive + khôi phục phiên nghe Cloud chính xác & đường dẫn ký tự đặc biệt trên Android
+    : `### Nocturne ${tag} (versionCode 113) — Chống treo tải luồng nhạc Cloud + tự khớp hàng đợi/yêu thích/CUE sau quét lại & bảo vệ OTA Android
 
-#### 1. Chống treo đồng bộ Google Drive & OneDrive trên mạng 4G/Wi-Fi yếu (\`index.html\`)
-- **\`fetchWithTimeout\` chủ động (25s API / 15s ảnh bìa)**: Tránh tình trạng \`fetch\` treo vô hạn trên kết nối di động yếu làm khóa \`cloudSyncPromise\`.
-- **Thử lại tự động khi rớt mạng & tôn trọng \`Retry-After\`**: \`fetchGoogleDrivePageWithRetry\` và \`graphGet\` tự động thử lại tối đa 3 lần khi gặp lỗi mạng đột ngột hoặc quá hạn timeout, đồng thời tuân thủ header \`Retry-After\` khi gặp giới hạn HTTP 429/5xx.
+#### 1. Chống treo tải luồng nhạc Google Drive & OneDrive (\`library-utils.js\`)
+- **Timeout chủ động cho Range lát đầu (25s), tải toàn tệp FLAC/DSD (90s) và thăm dò \`moov\` đuôi MP4/ALAC (15s)**: \`createAudioFetchTimeoutGuard\` kết hợp \`AbortController\` + \`Promise.race\` hủy thân luồng \`response.body\` ngay khi socket bị treo trên mạng 4G/Wi-Fi yếu.
+- **Tự động thử lại lỗi timeout nhưng dừng tức thì khi người dùng hủy**: Phân tách rạch ròi \`TimeoutError\` (\`retryable: true\`) với \`AbortError\` từ tín hiệu ngoài để chuyển bài nhanh và tự phục hồi khi mạng chập chờn.
 
-#### 2. Khôi phục phiên nghe Cloud chính xác không bị cắt ở lát đầu (\`index.html\`)
-- **Tua thông minh khi tiếp tục bài nghe dài từ Google Drive/OneDrive**: \`seekCurrentPlaybackToSeconds\` tự chuyển qua \`applySmartSeekTime\` nếu bài đang ở \`firstSlicePlayback\`, bảo toàn đúng mốc tua dài (vd. \`03:45\`) thay vì bị kẹp về cuối lát đầu 15 giây; nút "Tiếp tục" chủ động làm mới token/\`downloadUrl\` trước khi gọi \`playTrack\`.
+#### 2. Tự khớp phiên nghe, hàng đợi, yêu thích & vị trí \`.cue\` xuyên phiên quét (\`library-utils.js\` + \`index.html\`)
+- **\`buildStableTrackRef\` & \`matchTrackByStableRef\`**: Lưu chữ ký ổn định (\`remoteId\`/\`remoteDriveId\` cho Google Drive & OneDrive; \`path\`/\`uri\`/\`relativePath\` + \`size\`/\`cueStart\` cho nội bộ Web & Android/FiiO) trong phiên nghe và hàng đợi để tự khớp lại đúng bài hát kể cả khi thư viện nội bộ được quét lại với ID mới hoặc tệp trên thẻ nhớ bị di chuyển.
+- **Sửa lỗi mất mốc tua \`.cue\` khi tiếp tục nghe**: \`restorePlaybackSession\` và \`formatResumePrompt\` tính đúng khoảng \`[cueStart, cueStart + duration]\` thay vì đặt lại về \`0:00\` cho bài thứ 2 trở đi trong album \`.cue\`.
+- **Yêu thích bền vững & đếm đúng OneDrive Cloud**: \`stableFavoriteKey\` / \`isTrackInFavorites\` giữ nguyên trạng thái Yêu thích sau khi mở lại thư mục nội bộ hoặc di chuyển tệp trên FiiO/Android (\`reconcileMovedFiioTracks\` tự chuyển cả hàng đợi, yêu thích và phiên nghe), đồng thời tính đúng nguồn \`onedrive\` vào nhóm Cloud.
 
-#### 3. An toàn tuyệt đối với tệp nội bộ chứa ký tự \`#\`, \`%\`, \`?\`, \`+\`, \`file://\` trên Android/FiiO (\`MainActivity.java\`)
-- **\`resolveReadableLocalFile\` & \`extractLocalMediaQueryParam\`**: Gỡ tiền tố \`file://\` không làm cắt cụt tại \`#\`/\`?\`, bảo vệ cả ký tự \`+\` lẫn dấu \`%\` đứng lẻ (như \`100% Love.flac\`) trước khi giải mã URL trong \`handleLocalMediaStreaming\`, và bổ sung fallback \`ParcelFileDescriptor\` cho \`fallbackMediaUri\` trong \`BitPerfectAudioPlayer\` trên Android 11–15 Scoped Storage.
+#### 3. Bảo vệ tải OTA Web Assets trên Android/FiiO (\`MainActivity.java\`)
+- **Giới hạn thời gian tổng & dung lượng 16 MB trong \`downloadUrlBytes\`**: Chống treo luồng kiểm tra OTA khi mạng di động rớt nhỏ giọt hoặc gặp trang captive-portal trả về dữ liệu quá lớn gây tràn RAM.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
