@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.54</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.55</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3671,7 +3671,10 @@
     const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, ...(track.targetRemoteId ? {targetRemoteId:String(track.targetRemoteId)} : {}), ...(track.remoteDriveId ? {remoteDriveId:String(track.remoteDriveId)} : {}), remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
-      const track = {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', thumbnailUrl:file.thumbnailLink || '', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
+      const pathOrder = (typeof library !== 'undefined' && typeof library.extractDiscAndTrackFromPath === 'function')
+        ? library.extractDiscAndTrackFromPath({ name: file.name || '' })
+        : { discNumber: null, trackNumber: null };
+      const track = {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, trackNumber:pathOrder.trackNumber != null ? pathOrder.trackNumber : null, discNumber:pathOrder.discNumber != null ? pathOrder.discNumber : null, format, size:Number(file.size) || 0, source:'google', url:'', thumbnailUrl:file.thumbnailLink || '', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
       const shortcutTargetId = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
       if (shortcutTargetId && shortcutTargetId !== file.id) track.targetRemoteId = shortcutTargetId;
       if (Array.isArray(file.parents) && file.parents.length) track.parents = file.parents.slice(0, 3);
@@ -3715,12 +3718,20 @@
       const thumbnail = thumbnailSet && (thumbnailSet.large || thumbnailSet.medium || thumbnailSet.small);
       const graphMetadataLoaded = !!item.audio && (!!item.audio.title || !!item.audio.artist || !!item.audio.album);
       const rawAlbumArtist = (item.audio && item.audio.albumArtist) ? String(item.audio.albumArtist).trim() : '';
+      const pathOrder = (typeof library !== 'undefined' && typeof library.extractDiscAndTrackFromPath === 'function')
+        ? library.extractDiscAndTrackFromPath({ remotePath: remotePath || '', name: item.name || '' })
+        : { discNumber: null, trackNumber: null };
       const graphMetadata = library.resolveTrackMetadata({
         title:item.audio && item.audio.title,
         artist:item.audio && item.audio.artist,
         album:item.audio && item.audio.album,
-        albumArtist:rawAlbumArtist
-      }, fallback);
+        albumArtist:rawAlbumArtist,
+        track:item.audio && item.audio.track,
+        disc:item.audio && item.audio.disc
+      }, Object.assign({}, fallback, {
+        trackNumber: (fallback && fallback.trackNumber != null) ? fallback.trackNumber : pathOrder.trackNumber,
+        discNumber: (fallback && fallback.discNumber != null) ? fallback.discNumber : pathOrder.discNumber
+      }));
       const msTrack = {id:`onedrive:${item.id}`, remoteId:item.id, remotePath, name:item.name || `Audio ${item.id}`, ...graphMetadata, format, size:Number(item.size) || 0, source:'onedrive', url:'', thumbnailUrl:thumbnail && thumbnail.url || '', downloadUrl:item['@microsoft.graph.downloadUrl'] || '', duration:Number(item.audio && item.audio.duration) / 1000 || 0, isDsd:isDsdFormat(format), metadataLoaded:graphMetadataLoaded, load:() => loadMicrosoftAudio(item.id)};
       if (norm.driveId) msTrack.remoteDriveId = norm.driveId;
       if (rawAlbumArtist) msTrack.albumArtist = rawAlbumArtist;
@@ -3733,7 +3744,9 @@
       const currentDuration = Number(track.duration) || 0;
       const wasMetadataLoaded = Boolean(track.metadataLoaded);
       const prevTitle = track.title, prevArtist = track.artist, prevAlbum = track.album, prevAlbumArtist = track.albumArtist;
-      const enriched = microsoftTrack(item, remotePath || track.remotePath, {title:track.title, artist:track.artist, album:track.album});
+      const prevTrackNumber = track.trackNumber != null ? track.trackNumber : null;
+      const prevDiscNumber = track.discNumber != null ? track.discNumber : null;
+      const enriched = microsoftTrack(item, remotePath || track.remotePath, {title:track.title, artist:track.artist, album:track.album, trackNumber:prevTrackNumber, discNumber:prevDiscNumber});
       Object.assign(track, enriched);
       if (!(Number(track.duration) > 0) && currentDuration > 0) track.duration = currentDuration;
       if (wasMetadataLoaded) {
@@ -3742,6 +3755,8 @@
         if (prevArtist && prevArtist !== 'Unknown Artist') track.artist = prevArtist;
         if (prevAlbum && prevAlbum !== 'Unknown Album') track.album = prevAlbum;
         if (prevAlbumArtist) track.albumArtist = prevAlbumArtist;
+        if (prevTrackNumber != null && track.trackNumber == null) track.trackNumber = prevTrackNumber;
+        if (prevDiscNumber != null && track.discNumber == null) track.discNumber = prevDiscNumber;
       }
       if (!enriched.contentRev && currentRev) track.contentRev = currentRev;
       if (!enriched.remoteDriveId && currentDriveId) track.remoteDriveId = currentDriveId;
@@ -6305,21 +6320,25 @@
     }
     function sliceCacheRequest(request) { return new Promise((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); }
     const RECENT_FOLDER_HANDLE_KEY = 'recent-local-folder';
+    const SAVED_LOCAL_FOLDERS_KEY = 'saved-local-folders';
+    const MAX_SAVED_LOCAL_FOLDERS = 8;
     let savedLocalFolderRecord = null;
+    let savedLocalFolderRecords = [];
     function updateSavedFolderButtons(record) {
       savedLocalFolderRecord = record && record.handle ? record : null;
       if (typeof document === 'undefined') return;
       const isDesktopWeb = !window.isNativeAndroid && !window.NocturneNative && typeof window.showDirectoryPicker === 'function';
       const show = Boolean(isDesktopWeb && savedLocalFolderRecord);
       const labelName = savedLocalFolderRecord && savedLocalFolderRecord.name ? String(savedLocalFolderRecord.name) : 'thư mục gần nhất';
+      const extraCount = savedLocalFolderRecords.length > 1 ? ` (+${savedLocalFolderRecords.length - 1})` : '';
       const sideBtn = $('reopen-folder');
       const sideLabel = $('reopen-folder-label');
       const emptyBtn = $('empty-reopen-folder');
       if (sideBtn) {
         if (show) {
           sideBtn.classList.remove('hidden');
-          if (sideLabel) sideLabel.textContent = `Mở lại: ${labelName}`;
-          sideBtn.title = `Mở lại thư mục "${labelName}"`;
+          if (sideLabel) sideLabel.textContent = `Mở lại: ${labelName}${extraCount}`;
+          sideBtn.title = `Mở lại thư mục "${labelName}"${extraCount}`;
         } else {
           sideBtn.classList.add('hidden');
         }
@@ -6327,15 +6346,59 @@
       if (emptyBtn) {
         if (show) {
           emptyBtn.classList.remove('hidden');
-          emptyBtn.textContent = `↺ Mở lại "${labelName}"`;
+          emptyBtn.textContent = `↺ Mở lại "${labelName}"${extraCount}`;
         } else {
           emptyBtn.classList.add('hidden');
         }
       }
     }
+    async function loadSavedLocalFolderHandles() {
+      if (window.isNativeAndroid || window.NocturneNative) return [];
+      try {
+        const db = await openDatabase();
+        if (!db || !db.objectStoreNames.contains(FOLDER_HANDLES_STORE)) return [];
+        const store = db.transaction(FOLDER_HANDLES_STORE, 'readonly').objectStore(FOLDER_HANDLES_STORE);
+        const rec = await sliceCacheRequest(store.get(RECENT_FOLDER_HANDLE_KEY));
+        if (rec && Array.isArray(rec.folders) && rec.folders.length) {
+          const valid = rec.folders.filter(item => item && item.handle).slice(0, MAX_SAVED_LOCAL_FOLDERS);
+          savedLocalFolderRecords = valid;
+          return valid;
+        }
+        if (rec && rec.handle) {
+          savedLocalFolderRecords = [rec];
+          return [rec];
+        }
+        savedLocalFolderRecords = [];
+        return [];
+      } catch (error) {
+        console.debug('Could not load persisted folder handles:', error && error.message ? error.message : error);
+        return [];
+      }
+    }
     async function saveRecentLocalFolderHandle(dirHandle) {
       if (!dirHandle || window.isNativeAndroid || window.NocturneNative) return false;
-      const record = { id: RECENT_FOLDER_HANDLE_KEY, name: dirHandle.name || 'Thư mục nhạc', handle: dirHandle, savedAt: Date.now() };
+      const folderName = dirHandle.name || 'Thư mục nhạc';
+      const now = Date.now();
+      const existingList = savedLocalFolderRecords.length ? savedLocalFolderRecords.slice() : await loadSavedLocalFolderHandles();
+      const deduped = [];
+      for (let i = 0; i < existingList.length; i++) {
+        const item = existingList[i];
+        if (!item || !item.handle) continue;
+        let same = false;
+        try {
+          if (typeof dirHandle.isSameEntry === 'function') {
+            same = await dirHandle.isSameEntry(item.handle);
+          } else {
+            same = (item.name === folderName);
+          }
+        } catch (_) {
+          same = (item.name === folderName);
+        }
+        if (!same) deduped.push(item);
+      }
+      deduped.unshift({ name: folderName, handle: dirHandle, savedAt: now });
+      savedLocalFolderRecords = deduped.slice(0, MAX_SAVED_LOCAL_FOLDERS);
+      const record = { id: RECENT_FOLDER_HANDLE_KEY, name: folderName, handle: dirHandle, savedAt: now, folders: savedLocalFolderRecords };
       updateSavedFolderButtons(record);
       try {
         const db = await openDatabase();
@@ -6350,6 +6413,8 @@
     }
     async function loadRecentLocalFolderHandle() {
       if (window.isNativeAndroid || window.NocturneNative) return null;
+      const all = await loadSavedLocalFolderHandles();
+      if (all.length && all[0] && all[0].handle) return all[0];
       try {
         const db = await openDatabase();
         if (!db || !db.objectStoreNames.contains(FOLDER_HANDLES_STORE)) return null;
@@ -6361,7 +6426,25 @@
         return null;
       }
     }
-    async function clearRecentLocalFolderHandle() {
+    async function clearRecentLocalFolderHandle(targetHandleOrName) {
+      if (targetHandleOrName) {
+        const targetName = typeof targetHandleOrName === 'string' ? targetHandleOrName : (targetHandleOrName.name || '');
+        savedLocalFolderRecords = savedLocalFolderRecords.filter(item => item && item.handle && item.handle !== targetHandleOrName && (!targetName || item.name !== targetName));
+        const nextPrimary = savedLocalFolderRecords[0] || null;
+        updateSavedFolderButtons(nextPrimary);
+        try {
+          const db = await openDatabase();
+          if (!db || !db.objectStoreNames.contains(FOLDER_HANDLES_STORE)) return;
+          const store = db.transaction(FOLDER_HANDLES_STORE, 'readwrite').objectStore(FOLDER_HANDLES_STORE);
+          if (nextPrimary) {
+            await sliceCacheRequest(store.put({ id: RECENT_FOLDER_HANDLE_KEY, name: nextPrimary.name, handle: nextPrimary.handle, savedAt: nextPrimary.savedAt || Date.now(), folders: savedLocalFolderRecords }));
+          } else {
+            await sliceCacheRequest(store.delete(RECENT_FOLDER_HANDLE_KEY));
+          }
+        } catch (_) {}
+        return;
+      }
+      savedLocalFolderRecords = [];
       updateSavedFolderButtons(null);
       try {
         const db = await openDatabase();
@@ -7212,6 +7295,10 @@
     }
     const localFileKey = file => `${file.relativePath || file.webkitRelativePath || file.name}-${file.size}`;
     async function addLocalFiles(files) {
+      const opts = (arguments[1] && typeof arguments[1] === 'object') ? arguments[1] : {};
+      const folderRootKey = opts.folderRootKey ? String(opts.folderRootKey) : '';
+      const pruneMissing = Boolean(opts.pruneMissing && folderRootKey);
+      const silentToast = Boolean(opts.silent);
       const candidates = [...files].filter(file => file && (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name)));
       const lrcByBase = new Map([...files].filter(file => file && /\.lrc$/i.test(file.name)).map(file => [(file.relativePath || file.webkitRelativePath || file.name).replace(/\.[^.]+$/, '').toLowerCase(), file]));
       const cueFiles = [...files].filter(file => file && /\.cue$/i.test(file.name));
@@ -7220,10 +7307,8 @@
         : [];
       const folderCoverByDir = new Map();
       for (const cand of folderArtCandidates) {
-        const fullPath = cand.relativePath || cand.webkitRelativePath || cand.name || '';
-        let dir = '';
-        if (fullPath.includes('/')) dir = fullPath.slice(0, fullPath.lastIndexOf('/'));
-        else if (fullPath.includes('\\')) dir = fullPath.slice(0, fullPath.lastIndexOf('\\'));
+        const fullPath = String(cand.relativePath || cand.webkitRelativePath || cand.name || '').replace(/\\/g, '/');
+        const dir = fullPath.includes('/') ? fullPath.slice(0, fullPath.lastIndexOf('/')) : '';
         if (!folderCoverByDir.has(dir)) {
           try {
             const url = URL.createObjectURL(cand.file || cand);
@@ -7237,18 +7322,14 @@
       if (!candidates.length && !cueFiles.length) {
         if (folderArtCandidates.length && state.tracks.length) {
           for (const cand of folderArtCandidates) {
-            const fullPath = cand.relativePath || cand.webkitRelativePath || cand.name || '';
-            let dir = '';
-            if (fullPath.includes('/')) dir = fullPath.slice(0, fullPath.lastIndexOf('/'));
-            else if (fullPath.includes('\\')) dir = fullPath.slice(0, fullPath.lastIndexOf('\\'));
-            const folderCover = folderCoverByDir.get(dir) || (folderCoverByDir.size === 1 ? folderCoverByDir.values().next().value : null);
+            const fullPath = String(cand.relativePath || cand.webkitRelativePath || cand.name || '').replace(/\\/g, '/');
+            const dir = fullPath.includes('/') ? fullPath.slice(0, fullPath.lastIndexOf('/')) : '';
+            const folderCover = lookupLocalFolderCover(folderCoverByDir, dir);
             if (folderCover) {
               for (const tr of state.tracks) {
-                const trPath = tr.relativePath || tr.name || '';
-                let trDir = '';
-                if (trPath.includes('/')) trDir = trPath.slice(0, trPath.lastIndexOf('/'));
-                else if (trPath.includes('\\')) trDir = trPath.slice(0, trPath.lastIndexOf('\\'));
-                if ((!trDir && !dir) || trDir === dir || folderCoverByDir.size === 1) {
+                const trPath = String(tr.relativePath || tr.name || '').replace(/\\/g, '/');
+                const trDir = trPath.includes('/') ? trPath.slice(0, trPath.lastIndexOf('/')) : '';
+                if ((!trDir && !dir) || trDir === dir || lookupLocalFolderCover(folderCoverByDir, trDir) === folderCover || folderCoverByDir.size === 1) {
                   if (!tr.cover || tr.cover === '♫') {
                     tr.cover = folderCover;
                     if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(folderCover, tr);
@@ -7257,18 +7338,16 @@
               }
             }
           }
-          if (typeof (library && library.propagateAlbumCovers) === 'function') {
-            library.propagateAlbumCovers(state.tracks, state.albumCovers);
-          }
+          if (typeof (library && library.propagateAlbumCovers) === 'function') library.propagateAlbumCovers(state.tracks, state.albumCovers);
           renderTracks();
-          toast('Đã áp dụng ảnh bìa cho các bài hát.');
-          return;
+          if (!silentToast) toast('Đã áp dụng ảnh bìa cho các bài hát.');
+          return { added: 0, removed: 0 };
         }
-        toast('Không tìm thấy file âm thanh hoặc file CUE được hỗ trợ.');
-        return;
+        if (!silentToast) toast('Không tìm thấy file âm thanh hoặc file CUE được hỗ trợ.');
+        return { added: 0, removed: 0 };
       }
       const existing = new Map(state.tracks.filter(track => track.source === 'local').map(track => [track.cueDedupKey || `${track.relativePath || track.name || track.title}-${track.size}`, track]));
-      const additions = [], pending = [];
+      const additions = [], pending = [], seenFolderTrackKeys = new Set();
 
       for (const cueFile of cueFiles) {
         try {
@@ -7340,9 +7419,11 @@
           for (const ct of parsedTracks) {
             const trackDur = ct.duration > 0 ? ct.duration : (siblingTrack && siblingTrack.duration ? Math.max(0, siblingTrack.duration - (ct.offset || 0)) : 0);
             const cueDedupKey = `${tPath}::cue::${ct.number || ct.track || ct.title || ''}-${Math.round((ct.offset || 0) * 100)}`;
+            seenFolderTrackKeys.add(cueDedupKey);
             if (existing.has(cueDedupKey)) {
               const existingCue = existing.get(cueDedupKey);
               if (existingCue) {
+                if (folderRootKey) existingCue.localFolderKey = folderRootKey;
                 if (matchedAudioFile) existingCue.file = matchedAudioFile;
                 if (matchedAudioFile && matchedAudioFile._fileHandle) existingCue.fileHandle = matchedAudioFile._fileHandle;
                 if (siblingTrack && siblingTrack.url) existingCue.url = siblingTrack.url;
@@ -7350,10 +7431,9 @@
               }
               continue;
             }
-            let tDir = '';
-            if (tPath.includes('/')) tDir = tPath.slice(0, tPath.lastIndexOf('/'));
-            else if (tPath.includes('\\')) tDir = tPath.slice(0, tPath.lastIndexOf('\\'));
-            const folderCover = folderCoverByDir.get(tDir) || (folderCoverByDir.size === 1 ? folderCoverByDir.values().next().value : null);
+            const normCuePath = String(tPath || '').replace(/\\/g, '/');
+            const tDir = normCuePath.includes('/') ? normCuePath.slice(0, normCuePath.lastIndexOf('/')) : '';
+            const folderCover = lookupLocalFolderCover(folderCoverByDir, tDir);
             const resolvedCueUrl = (siblingTrack ? siblingTrack.url : "") || (matchedAudioFile ? URL.createObjectURL(matchedAudioFile) : '');
             if (resolvedCueUrl && resolvedCueUrl.indexOf('blob:') === 0 && state.objectUrls) state.objectUrls.add(resolvedCueUrl);
             const vTrack = {
@@ -7386,6 +7466,7 @@
               cueDedupKey,
               parentFile: matchedAudioFile ? matchedAudioFile.name : (parsedTracks.file || '')
             };
+            if (folderRootKey) vTrack.localFolderKey = folderRootKey;
             getTrackRating(vTrack);
             if (vTrack.cover && typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(vTrack.cover, vTrack);
             additions.push(vTrack);
@@ -7403,9 +7484,11 @@
 
       for (const file of candidates) {
         const key = localFileKey(file);
+        seenFolderTrackKeys.add(key);
         if (existing.has(key)) {
           const current = existing.get(key);
           if (current) {
+            if (folderRootKey) current.localFolderKey = folderRootKey;
             current.file = file;
             if (file._fileHandle) current.fileHandle = file._fileHandle;
             restoreLocalTrackUrlSync(current);
@@ -7420,11 +7503,9 @@
         while (nextFile < pending.length) {
           const {file,key} = pending[nextFile++];
           const track = await makeLocalTrack(file);
-          const tPath = file.relativePath || file.webkitRelativePath || file.name || '';
-          let tDir = '';
-          if (tPath.includes('/')) tDir = tPath.slice(0, tPath.lastIndexOf('/'));
-          else if (tPath.includes('\\')) tDir = tPath.slice(0, tPath.lastIndexOf('\\'));
-          const folderCover = folderCoverByDir.get(tDir) || (folderCoverByDir.size === 1 ? folderCoverByDir.values().next().value : null);
+          const tPath = String(file.relativePath || file.webkitRelativePath || file.name || '').replace(/\\/g, '/');
+          const tDir = tPath.includes('/') ? tPath.slice(0, tPath.lastIndexOf('/')) : '';
+          const folderCover = lookupLocalFolderCover(folderCoverByDir, tDir);
           if (folderCover && (!track.cover || track.cover === '♫')) {
             track.cover = folderCover;
             if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(folderCover, track);
@@ -7432,11 +7513,13 @@
           const lrcFile = lrcByBase.get((file.relativePath || file.webkitRelativePath || file.name).replace(/\.[^.]+$/, '').toLowerCase());
           if (lrcFile) { try { track.lyricsText = await lrcFile.text(); } catch (error) { track.lyricsText = ''; } }
           track.name = file.name; track.relativePath = file.relativePath || file.webkitRelativePath || file.name;
+          if (folderRootKey) track.localFolderKey = folderRootKey;
           additions.push(track); existing.set(key, track);
         }
       });
       await Promise.all(workers);
       state.tracks.push(...additions);
+      const removedCount = pruneMissing ? pruneRemovedLocalFolderTracks(folderRootKey, seenFolderTrackKeys) : 0;
       if (typeof propagateAndBroadcastCovers === 'function') {
         propagateAndBroadcastCovers();
       } else if (typeof library !== 'undefined' && typeof library.instantPropagateCovers === 'function') {
@@ -7451,7 +7534,41 @@
         library.propagateAlbumCovers(state.tracks, state.albumCovers);
       }
       renderTracks();
-      toast(`Đã thêm ${additions.length} bài hát${additions.length ? '' : ' mới'}.`);
+      if (!silentToast) {
+        if (removedCount > 0) toast(`Đã đồng bộ thư mục: +${additions.length} mới, -${removedCount} đã xóa.`);
+        else toast(`Đã thêm ${additions.length} bài hát${additions.length ? '' : ' mới'}.`);
+      }
+      return { added: additions.length, removed: removedCount };
+    }
+    function lookupLocalFolderCover(folderCoverByDir, dir) {
+      if (typeof library !== 'undefined' && typeof library.resolveFolderCoverWithDiscFallback === 'function') {
+        const hit = library.resolveFolderCoverWithDiscFallback(folderCoverByDir, dir);
+        if (hit) return hit;
+      } else if (folderCoverByDir && folderCoverByDir.has(dir)) {
+        return folderCoverByDir.get(dir);
+      }
+      return (folderCoverByDir && folderCoverByDir.size === 1) ? folderCoverByDir.values().next().value : null;
+    }
+    function pruneRemovedLocalFolderTracks(folderRootKey, seenFolderTrackKeys) {
+      if (!folderRootKey || !seenFolderTrackKeys || !seenFolderTrackKeys.size) return 0;
+      let removedCount = 0;
+      for (let i = state.tracks.length - 1; i >= 0; i--) {
+        const tr = state.tracks[i];
+        if (!tr || tr.source !== 'local' || tr.localFolderKey !== folderRootKey) continue;
+        if (state.currentId != null && String(tr.id) === String(state.currentId)) continue;
+        const trKey = tr.cueDedupKey || `${tr.relativePath || tr.name || tr.title}-${tr.size}`;
+        if (seenFolderTrackKeys.has(trKey)) continue;
+        if (tr.url && typeof tr.url === 'string' && tr.url.indexOf('blob:') === 0 && state.objectUrls && state.objectUrls.has(tr.url)) {
+          const stillReferenced = state.tracks.some((other, oIdx) => oIdx !== i && other && other.url === tr.url);
+          if (!stillReferenced) {
+            try { URL.revokeObjectURL(tr.url); } catch (_) {}
+            state.objectUrls.delete(tr.url);
+          }
+        }
+        state.tracks.splice(i, 1);
+        removedCount++;
+      }
+      return removedCount;
     }
 
     function quality(track) {
@@ -14756,27 +14873,55 @@
     }
     async function collectAudioAndCoverFilesFromDirectoryHandle(dirHandle) {
       const files = [];
+      const shouldSkipDir = function (name) {
+        if (typeof library !== 'undefined' && typeof library.isSkippableLocalDirectoryName === 'function') {
+          return library.isSkippableLocalDirectoryName(name);
+        }
+        const clean = String(name || '').trim();
+        if (!clean || clean.charAt(0) === '.') return true;
+        const lower = clean.toLowerCase();
+        return lower === '$recycle.bin' || lower === 'system volume information' || lower === '@eadir' || lower === '__macosx' || lower === 'node_modules';
+      };
       async function walk(handle, prefix) {
-        for await (const entry of handle.values()) {
-          if (entry.kind === 'file') {
-            const file = await entry.getFile();
-            if (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name) || /\.cue$/i.test(file.name) || /\.lrc$/i.test(file.name) || /\.(jpe?g|png|webp|bmp|gif)$/i.test(file.name)) {
-              const relPath = prefix ? (prefix + '/' + file.name) : file.name;
+        let iterator;
+        try {
+          iterator = handle.values();
+        } catch (dirErr) {
+          if (!prefix && dirErr && (dirErr.name === 'NotFoundError' || dirErr.name === 'TypeMismatchError')) throw dirErr;
+          console.debug('Skipping unreadable directory handle:', prefix || (handle && handle.name) || '', dirErr && dirErr.message ? dirErr.message : dirErr);
+          return;
+        }
+        try {
+          for await (const entry of iterator) {
+            if (!entry) continue;
+            if (entry.kind === 'file') {
               try {
-                Object.defineProperty(file, 'relativePath', { value: relPath, configurable: true });
-              } catch (_) {
-                try { file.relativePath = relPath; } catch (_2) {}
+                const file = await entry.getFile();
+                if (file && (AUDIO_TYPES.test(file.name) || STREAM_AUDIO_TYPES.test(file.name) || /\.cue$/i.test(file.name) || /\.lrc$/i.test(file.name) || /\.(jpe?g|png|webp|bmp|gif)$/i.test(file.name))) {
+                  const relPath = prefix ? (prefix + '/' + file.name) : file.name;
+                  try {
+                    Object.defineProperty(file, 'relativePath', { value: relPath, configurable: true });
+                  } catch (_) {
+                    try { file.relativePath = relPath; } catch (_2) {}
+                  }
+                  try {
+                    Object.defineProperty(file, '_fileHandle', { value: entry, configurable: true });
+                  } catch (_) {
+                    try { file._fileHandle = entry; } catch (_2) {}
+                  }
+                  files.push(file);
+                }
+              } catch (fileErr) {
+                console.debug('Skipping unreadable local file:', entry.name || '', fileErr && fileErr.message ? fileErr.message : fileErr);
               }
-              try {
-                Object.defineProperty(file, '_fileHandle', { value: entry, configurable: true });
-              } catch (_) {
-                try { file._fileHandle = entry; } catch (_2) {}
-              }
-              files.push(file);
+            } else if (entry.kind === 'directory') {
+              if (shouldSkipDir(entry.name)) continue;
+              await walk(entry, prefix ? (prefix + '/' + entry.name) : entry.name);
             }
-          } else if (entry.kind === 'directory') {
-            await walk(entry, prefix ? (prefix + '/' + entry.name) : entry.name);
           }
+        } catch (walkErr) {
+          if (!prefix && walkErr && (walkErr.name === 'NotFoundError' || walkErr.name === 'TypeMismatchError')) throw walkErr;
+          console.debug('Directory iteration interrupted for:', prefix || (handle && handle.name) || '', walkErr && walkErr.message ? walkErr.message : walkErr);
         }
       }
       await walk(dirHandle, '');
@@ -14792,57 +14937,96 @@
           const dir = await window.showDirectoryPicker({ mode: 'read' });
           saveRecentLocalFolderHandle(dir).catch(() => {});
           const files = await collectAudioAndCoverFilesFromDirectoryHandle(dir);
-          await addLocalFiles(files);
+          const folderKey = 'dir:' + String(dir.name || 'local').toLowerCase();
+          await addLocalFiles(files, { folderRootKey: folderKey, pruneMissing: true });
           return;
         } catch (error) { if (error.name === 'AbortError') return; console.warn('Directory picker failed; using input fallback:', error); }
       }
       $('folder-input').click();
     }
-    async function reopenSavedFolder(options) {
-      const opts = options || {};
-      if (window.isNativeAndroid || window.NocturneNative || typeof window.showDirectoryPicker !== 'function') return false;
-      const record = savedLocalFolderRecord || await loadRecentLocalFolderHandle();
-      if (!record || !record.handle) {
-        if (!opts.silentIfGranted) toast('Chưa có thư mục gần nhất được lưu.');
-        return false;
-      }
-      updateSavedFolderButtons(record);
+    async function reopenSavedFolderRecord(record, opts) {
+      if (!record || !record.handle) return { loaded: false, added: 0, removed: 0 };
       const handle = record.handle;
       try {
         let perm = (typeof handle.queryPermission === 'function')
           ? await handle.queryPermission({ mode: 'read' })
           : 'granted';
         if (perm !== 'granted') {
-          if (opts.silentIfGranted || typeof handle.requestPermission !== 'function') return false;
+          if (opts.silentIfGranted || typeof handle.requestPermission !== 'function') return { loaded: false, added: 0, removed: 0 };
           perm = await handle.requestPermission({ mode: 'read' });
         }
         if (perm !== 'granted') {
           if (!opts.silentIfGranted) toast('Trình duyệt chưa được cấp quyền đọc thư mục.');
-          return false;
+          return { loaded: false, added: 0, removed: 0 };
         }
-        if (!opts.silentIfGranted) toast(`Đang nạp lại thư mục "${record.name || handle.name}"…`);
+        if (!opts.silentIfGranted && !opts.suppressProgressToast) toast(`Đang nạp lại thư mục "${record.name || handle.name}"…`);
         const files = await collectAudioAndCoverFilesFromDirectoryHandle(handle);
+        const folderKey = 'dir:' + String(record.name || handle.name || 'local').toLowerCase();
         if (files.length) {
-          await addLocalFiles(files);
-          return true;
+          const res = await addLocalFiles(files, { folderRootKey: folderKey, pruneMissing: true, silent: Boolean(opts.silentIfGranted || opts.suppressProgressToast) });
+          return { loaded: true, added: (res && res.added) || 0, removed: (res && res.removed) || 0 };
         }
-        if (!opts.silentIfGranted) toast(`Thư mục "${record.name || handle.name}" không chứa tệp âm thanh được hỗ trợ.`);
-        return false;
+        if (!opts.silentIfGranted && !opts.suppressProgressToast) toast(`Thư mục "${record.name || handle.name}" không chứa tệp âm thanh được hỗ trợ.`);
+        return { loaded: false, added: 0, removed: 0 };
       } catch (error) {
         if (error && (error.name === 'NotFoundError' || error.name === 'TypeMismatchError')) {
-          await clearRecentLocalFolderHandle();
-          if (!opts.silentIfGranted) toast('Thư mục đã lưu không còn tồn tại hoặc đã bị di chuyển.');
-          return false;
+          await clearRecentLocalFolderHandle(handle);
+          if (!opts.silentIfGranted && !opts.suppressProgressToast) toast('Thư mục đã lưu không còn tồn tại hoặc đã bị di chuyển.');
+          return { loaded: false, added: 0, removed: 0 };
         }
-        if (error && error.name === 'AbortError') return false;
+        if (error && error.name === 'AbortError') return { loaded: false, added: 0, removed: 0 };
         console.warn('Reopen saved local folder failed:', error);
-        if (!opts.silentIfGranted) toast('Không thể mở lại thư mục cũ. Hãy chọn lại thư mục.');
+        if (!opts.silentIfGranted && !opts.suppressProgressToast) toast('Không thể mở lại thư mục cũ. Hãy chọn lại thư mục.');
+        return { loaded: false, added: 0, removed: 0 };
+      }
+    }
+    async function reopenSavedFolder(options) {
+      const opts = options || {};
+      if (window.isNativeAndroid || window.NocturneNative || typeof window.showDirectoryPicker !== 'function') return false;
+      const savedList = (typeof loadSavedLocalFolderHandles === 'function') ? await loadSavedLocalFolderHandles() : [];
+      const primary = savedLocalFolderRecord || savedList[0] || await loadRecentLocalFolderHandle();
+      if (!primary || !primary.handle) {
+        if (!opts.silentIfGranted) toast('Chưa có thư mục gần nhất được lưu.');
         return false;
       }
+      updateSavedFolderButtons(primary);
+      const targets = [primary];
+      if (!opts.singleOnly && savedList.length > 1) {
+        for (let i = 0; i < savedList.length; i++) {
+          const rec = savedList[i];
+          if (rec && rec.handle && rec.handle !== primary.handle && rec.name !== primary.name) {
+            targets.push(rec);
+          }
+        }
+      }
+      let anyLoaded = false;
+      let totalAdded = 0;
+      let totalRemoved = 0;
+      for (let ti = 0; ti < targets.length; ti++) {
+        const isPrimary = ti === 0;
+        const res = await reopenSavedFolderRecord(targets[ti], {
+          silentIfGranted: isPrimary ? Boolean(opts.silentIfGranted) : true,
+          suppressProgressToast: !isPrimary || targets.length > 1
+        });
+        if (res && res.loaded) {
+          anyLoaded = true;
+          totalAdded += res.added || 0;
+          totalRemoved += res.removed || 0;
+        }
+      }
+      if (!opts.silentIfGranted && targets.length > 1 && anyLoaded) {
+        if (totalRemoved > 0) {
+          toast(`Đã đồng bộ ${targets.length} thư mục đã lưu: +${totalAdded} mới, -${totalRemoved} đã xóa.`);
+        } else {
+          toast(`Đã mở lại thư mục đã lưu: +${totalAdded} bài mới.`);
+        }
+      }
+      return anyLoaded;
     }
     async function restoreSavedLocalFolderOnStartup() {
       if (window.isNativeAndroid || window.NocturneNative || typeof window.showDirectoryPicker !== 'function') return;
-      const record = await loadRecentLocalFolderHandle();
+      const savedList = (typeof loadSavedLocalFolderHandles === 'function') ? await loadSavedLocalFolderHandles() : [];
+      const record = savedList[0] || await loadRecentLocalFolderHandle();
       if (!record || !record.handle) return;
       updateSavedFolderButtons(record);
       await reopenSavedFolder({ silentIfGranted: true });
@@ -15282,8 +15466,94 @@
           }
         }
       }
+      const unresolvedPids = parentIds.filter(pid => !bestByParent.has(pid)).slice(0, 24);
+      const discParentToGrandparent = new Map();
+      const tracksWithDiscMeta = [];
+      if (unresolvedPids.length) {
+        let metaCursor = 0;
+        const metaWorkers = Math.min(3, unresolvedPids.length);
+        const isDiscDirFn = (typeof library !== 'undefined' && typeof library.isDiscSubfolderName === 'function')
+          ? library.isDiscSubfolderName
+          : (n => /^(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*\d{1,2}(?:\b.*)?$/i.test(String(n || '').trim()));
+        await Promise.all(Array.from({ length: metaWorkers }, async () => {
+          while (metaCursor < unresolvedPids.length) {
+            const pid = unresolvedPids[metaCursor++];
+            try {
+              const fResp = await fetchGoogleDrivePageWithRetry(
+                `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(pid)}?fields=id,name,parents&supportsAllDrives=true`,
+                () => token,
+                async () => { token = await ensureGoogleToken(true); return token; }
+              );
+              if (!fResp || !fResp.ok) continue;
+              const fMeta = await fResp.json();
+              const folderName = fMeta && fMeta.name ? String(fMeta.name) : '';
+              if (!isDiscDirFn(folderName)) continue;
+              const discMatch = folderName.match(/\b(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*(\d{1,2})\b/i);
+              const parsedDisc = discMatch ? parseInt(discMatch[1], 10) : null;
+              const folderTracks = tracksByParent.get(pid) || [];
+              if (parsedDisc && parsedDisc > 0) {
+                for (let ti = 0; ti < folderTracks.length; ti++) {
+                  const tr = folderTracks[ti];
+                  if (tr && tr.discNumber == null) {
+                    tr.discNumber = parsedDisc;
+                    tracksWithDiscMeta.push(tr);
+                  }
+                }
+              }
+              if (Array.isArray(fMeta.parents) && fMeta.parents.length) {
+                const gpId = String(fMeta.parents[0] || '').trim();
+                if (gpId && gpId !== pid) {
+                  discParentToGrandparent.set(pid, gpId);
+                }
+              }
+            } catch (_) {}
+          }
+        }));
+        if (discParentToGrandparent.size) {
+          const gpIds = Array.from(new Set(Array.from(discParentToGrandparent.values())));
+          const bestByGrandparent = new Map();
+          for (let offset = 0; offset < gpIds.length; offset += CHUNK_SIZE) {
+            const chunk = gpIds.slice(offset, offset + CHUNK_SIZE);
+            const parentClause = chunk.map(pid => `'${String(pid).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' in parents`).join(' or ');
+            const q = `trashed = false and mimeType contains 'image/' and (${parentClause})`;
+            const params = new URLSearchParams({
+              q,
+              fields: 'files(id,name,parents,thumbnailLink,mimeType,size)',
+              pageSize: '100',
+              supportsAllDrives: 'true',
+              includeItemsFromAllDrives: 'true'
+            });
+            const resp = await fetchGoogleDrivePageWithRetry(
+              `https://www.googleapis.com/drive/v3/files?${params}`,
+              () => token,
+              async () => { token = await ensureGoogleToken(true); return token; }
+            );
+            if (!resp || !resp.ok) continue;
+            const data = await resp.json();
+            const files = (data && data.files) || [];
+            for (let fIdx = 0; fIdx < files.length; fIdx++) {
+              const img = files[fIdx];
+              if (!img || !img.id || !Array.isArray(img.parents)) continue;
+              const score = scoreFn(img.name || '');
+              if (score <= 0) continue;
+              for (let pIdx = 0; pIdx < img.parents.length; pIdx++) {
+                const gp = img.parents[pIdx];
+                if (gpIds.indexOf(gp) === -1) continue;
+                const prev = bestByGrandparent.get(gp);
+                if (!prev || score > prev.score) bestByGrandparent.set(gp, { file: img, score });
+              }
+            }
+          }
+          discParentToGrandparent.forEach((gpId, discPid) => {
+            const inherited = bestByGrandparent.get(gpId);
+            if (inherited && !bestByParent.has(discPid)) {
+              bestByParent.set(discPid, inherited);
+            }
+          });
+        }
+      }
       const entries = Array.from(bestByParent.entries());
-      const updatedTracks = [];
+      const updatedTracks = tracksWithDiscMeta.slice();
       let cursor = 0;
       const workerCount = Math.min(3, entries.length);
       await Promise.all(Array.from({ length: workerCount }, async () => {
@@ -15306,10 +15576,11 @@
         }
       }));
       if (updatedTracks.length) {
+        const dedupedUpdated = Array.from(new Set(updatedTracks));
         if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
         trackMetadataRevision++;
         scheduleTrackRender();
-        await persistCloudCatalog(updatedTracks, { skipPrune: true }).catch(() => {});
+        await persistCloudCatalog(dedupedUpdated, { skipPrune: true }).catch(() => {});
       }
       return appliedCount;
     }
@@ -16021,28 +16292,31 @@
     }
     async function applyMicrosoftSiblingFolderCovers(siblingCoversByDir) {
       if (!siblingCoversByDir || !siblingCoversByDir.size) return 0;
-      const dirTracksMap = new Map();
+      const candTracksMap = new Map();
       for (let i = 0; i < state.tracks.length; i++) {
         const tr = state.tracks[i];
         if (!tr || tr.source !== 'onedrive' || (tr.cover && tr.cover !== '♫')) continue;
-        const rp = String(tr.remotePath || tr.name || '');
+        const rp = String(tr.remotePath || tr.name || '').replace(/\\/g, '/');
         const slash = rp.lastIndexOf('/');
         const dir = slash > 0 ? rp.slice(0, slash) : '';
-        if (!siblingCoversByDir.has(dir)) continue;
-        if (!dirTracksMap.has(dir)) dirTracksMap.set(dir, []);
-        dirTracksMap.get(dir).push(tr);
+        const cand = (typeof library !== 'undefined' && typeof library.resolveFolderCoverWithDiscFallback === 'function')
+          ? library.resolveFolderCoverWithDiscFallback(siblingCoversByDir, dir)
+          : (siblingCoversByDir.has(dir) ? siblingCoversByDir.get(dir) : null);
+        if (!cand || !cand.id) continue;
+        const candKey = (cand.driveId ? (cand.driveId + ':') : '') + String(cand.id);
+        if (!candTracksMap.has(candKey)) candTracksMap.set(candKey, { cand, tracks: [] });
+        candTracksMap.get(candKey).tracks.push(tr);
       }
-      const entries = Array.from(dirTracksMap.entries());
+      const entries = Array.from(candTracksMap.values());
       if (!entries.length) return 0;
       let cursor = 0, appliedCount = 0;
       const updatedTracks = [];
       const workerCount = Math.min(3, entries.length);
       await Promise.all(Array.from({ length: workerCount }, async () => {
         while (cursor < entries.length) {
-          const pair = entries[cursor++];
-          const dir = pair[0];
-          const matched = pair[1];
-          const cand = siblingCoversByDir.get(dir);
+          const group = entries[cursor++];
+          const cand = group && group.cand;
+          const matched = (group && group.tracks) || [];
           if (!cand || !matched.some(tr => !tr.cover || tr.cover === '♫')) continue;
           let thumbUrl = cand.downloadUrl || '';
           if (!thumbUrl) {
@@ -16072,7 +16346,7 @@
         if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
         trackMetadataRevision++;
         scheduleTrackRender();
-        await persistCloudCatalog(updatedTracks, true).catch(() => {});
+        await persistCloudCatalog(updatedTracks, { skipPrune: true }).catch(() => {});
       }
       return appliedCount;
     }
@@ -18828,6 +19102,7 @@
       const isPlainOpts = Boolean(options && typeof options === 'object' && !options.target && !options.preventDefault);
       const silent = Boolean(isPlainOpts && options.silent);
       const silentIfEmpty = Boolean(isPlainOpts && options.silentIfEmpty);
+      const allowEmptyPrune = Boolean(isPlainOpts && options.allowEmptyPrune);
       const isNative = Boolean((typeof window !== 'undefined') && (window.isNativeAndroid || window.NocturneNative));
       const native = (typeof window !== 'undefined') ? window.NocturneNative : null;
       if (!native && !isNative) {
@@ -18896,12 +19171,13 @@
                 }
                 const count = Number(totalCount) || totalSeen;
                 let removedNow = 0;
-                if (!settledByWatchdog && (scannedPaths.size > 0 || scannedUris.size > 0)) {
+                if (!settledByWatchdog && (scannedPaths.size > 0 || scannedUris.size > 0 || allowEmptyPrune)) {
                   removedNow = pruneMissingFiioTracks(scannedPaths, scannedUris);
                 }
                 finalizeFiioScanUi(count, totalAdded, silent, silentIfEmpty, removedNow);
               }
               resolve();
+              if (typeof flushPendingFiioHotplugRescan === 'function') flushPendingFiioHotplugRescan();
             };
 
             fiioScanWatchdogTimer = setTimeout(function () {
@@ -19037,19 +19313,48 @@
 
         fiioScanInProgress = false;
         activeFiioScanMaps = null;
-        const removedLegacy = (seenPaths.size > 0 || seenUris.size > 0) ? pruneMissingFiioTracks(seenPaths, seenUris) : 0;
+        const removedLegacy = (seenPaths.size > 0 || seenUris.size > 0 || allowEmptyPrune) ? pruneMissingFiioTracks(seenPaths, seenUris) : 0;
         finalizeFiioScanUi(uniqueFiles.length, addedCount, silent, silentIfEmpty, removedLegacy);
+        if (typeof flushPendingFiioHotplugRescan === 'function') flushPendingFiioHotplugRescan();
       } catch (err) {
         fiioScanInProgress = false;
         activeFiioScanMaps = null;
         console.warn('FiiO storage scan failed:', err);
         if (!silent) toast('Lỗi quét bộ nhớ: ' + (err.message || err));
+        if (typeof flushPendingFiioHotplugRescan === 'function') flushPendingFiioHotplugRescan();
       }
     }
     window.scanFiioStorage = scanFiioStorage;
 
     const FIIO_STORAGE_LINKED_KEY = 'nocturne-fiio-storage-linked';
     let lastFiioStorageSyncAt = 0;
+    let fiioStorageHotplugTimer = null;
+    let pendingFiioHotplugReason = null;
+    function scheduleFiioHotplugScan(reason, delayMs) {
+      const waitMs = (typeof delayMs === 'number' && delayMs >= 0) ? delayMs : 1200;
+      if (fiioStorageHotplugTimer) {
+        clearTimeout(fiioStorageHotplugTimer);
+        fiioStorageHotplugTimer = null;
+      }
+      pendingFiioHotplugReason = reason || 'mounted';
+      fiioStorageHotplugTimer = setTimeout(function () {
+        fiioStorageHotplugTimer = null;
+        const activeReason = pendingFiioHotplugReason || 'mounted';
+        if (fiioScanInProgress) return;
+        pendingFiioHotplugReason = null;
+        lastFiioStorageSyncAt = Date.now();
+        scanFiioStorage({
+          silent: true,
+          silentIfEmpty: true,
+          allowEmptyPrune: activeReason === 'unmounted'
+        });
+      }, waitMs);
+    }
+    function flushPendingFiioHotplugRescan() {
+      if (!pendingFiioHotplugReason || fiioScanInProgress) return;
+      const queuedReason = pendingFiioHotplugReason;
+      scheduleFiioHotplugScan(queuedReason, 600);
+    }
     function getFiioTrackCount() {
       let c = 0;
       const list = (state && Array.isArray(state.tracks)) ? state.tracks : [];
@@ -19144,9 +19449,13 @@
       if (!info.hasPermission) return;
       const now = Date.now();
       const fiioCount = getFiioTrackCount();
-      if (reason === 'mounted') {
+      if (reason === 'mounted' || reason === 'unmounted') {
         lastFiioStorageSyncAt = now;
-        scanFiioStorage({ silent: true, silentIfEmpty: true });
+        if (fiioScanInProgress) {
+          pendingFiioHotplugReason = reason;
+          return;
+        }
+        scheduleFiioHotplugScan(reason, 1200);
       } else if (reason === 'resume' && info.linked && fiioCount === 0) {
         if (now - lastFiioStorageSyncAt < 5000) return;
         lastFiioStorageSyncAt = now;

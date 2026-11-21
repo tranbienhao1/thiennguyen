@@ -80,23 +80,25 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.54';
-  const name = process.argv[3] || `Nocturne ${tag} (Sửa lỗi không mở được thanh Sidebar trên Android đời mới + CUE nội bộ Android & nâng cấp bản full Cloud mượt)`;
+  const tag = process.argv[2] || 'v3.9.55';
+  const name = process.argv[3] || `Nocturne ${tag} (Đồng bộ đa thư mục nội bộ + ảnh bìa/đa đĩa Google Drive & OneDrive + nhận rút/cắm thẻ nhớ Android 13–15)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 108) — Sửa lỗi không mở được thanh Sidebar trên Android đời mới + CUE nội bộ Android & nâng cấp bản full Cloud mượt
+    : `### Nocturne ${tag} (versionCode 109) — Đồng bộ đa thư mục nội bộ + ảnh bìa/đa đĩa Google Drive & OneDrive + hot-plug thẻ nhớ Android 13–15
 
-#### 1. Khắc phục triệt để lỗi không mở được thanh Sidebar trên Android đời mới (\`index.html\`)
-- **Chặn ghost-click tự đóng \`#sidebar-backdrop\` ngay sau khi bấm \`☰\`**: Trên Android 12–15 (Chromium WebView đời mới), click tổng hợp sau \`touchend\` rơi vào \`#sidebar-backdrop\` vừa hiện ra tại đúng tọa độ bấm làm thanh bên vừa mở đã tự đóng ngay lập tức. Nay bảo vệ 3 lớp: gắn \`attachReliableTransportTap\` + \`e.preventDefault()\` trực tiếp cho \`#sidebar-toggle\`, bổ sung khóa \`sidebarOpenedAt\` (350ms) cho \`#sidebar-backdrop\`/\`#sidebar\`, và nâng cấp bộ chống lặp Fast-Tap kiểm tra tọa độ \`lastFastTapPos\` (chặn ghost-click trên mọi ngăn kéo/hộp thoại mới mở mà vẫn tuyệt đối không nuốt thao tác bấm nút Play/Pause).
+#### 1. Đồng bộ thư mục nội bộ bền bỉ & tự dọn bài đã xóa (\`index.html\`, \`library-utils.js\`)
+- **Lưu tối đa 8 thư mục \`FileSystemDirectoryHandle\`**: Tự động khôi phục mọi thư mục đã cấp quyền khi mở lại ứng dụng Web/Desktop thay vì chỉ giữ 1 thư mục duy nhất.
+- **Bỏ qua thư mục ẩn/hệ thống & chống lỗi từng tệp**: \`collectAudioAndCoverFilesFromDirectoryHandle\` bỏ qua \`.git\`, \`$RECYCLE.BIN\`, \`System Volume Information\`, \`@eaDir\`, \`__MACOSX\`, thư mục ẩn và cô lập lỗi đọc từng tệp/thư mục con để không làm gãy cả phiên quét.
+- **Tự động dọn bài đã xóa trên đĩa**: Khi quét lại thư mục đã lưu, các bài đã bị xóa khỏi ổ đĩa được dọn sạch khỏi thư viện (luôn bảo vệ bài đang phát \`state.currentId\` và thu hồi blob URL không còn dùng).
 
-#### 2. Quét & tách album \`.cue\` nội bộ trên Android / FiiO M11S (\`MainActivity.java\`, \`index.html\`)
-- **Đọc tệp \`.cue\` nội bộ an toàn (\`NocturneNative.readLocalTextFile\`)**: Bổ sung cầu đọc văn bản giới hạn 512 KB qua \`resolveReadableLocalFile\` (hỗ trợ đường dẫn Unicode \`NFC\`/\`NFD\`, ký tự \`+\`, UTF-8/UTF-16 BOM) cho \`.cue\`, \`.lrc\`, \`.m3u\`.
-- **Tự động tách bài con CUE từ thẻ nhớ MicroSD (\`expandFiioScannedCueSheets\`)**: Không còn tạo mục nhạc lỗi từ tệp \`.cue\`/\`.iso\`; tự động khớp tệp FLAC/WAV/APE/WV cùng thư mục, tách thành từng bài con mang đủ \`cueStart\`, \`duration\`, \`trackNumber\`, \`discNumber\`, tên bài/nghệ sĩ/album và lưu bền vững qua \`compactFiioTrackForStorage\` / \`hydrateFiioStoredTrack\`.
+#### 2. Đồng bộ đa đĩa (\`discNumber\`/\`trackNumber\`) & kế thừa ảnh bìa thư mục cha trên Google Drive, OneDrive và Nội bộ (\`library-utils.js\`, \`index.html\`)
+- **Sắp xếp chính xác album nhiều đĩa trên OneDrive & Google Drive**: \`extractDiscAndTrackFromPath\` nay đọc cả \`remotePath\` của OneDrive; \`microsoftTrack\`/\`mergeMicrosoftTrack\` nạp thêm \`item.audio.disc\` + \`item.audio.track\` từ Microsoft Graph kèm fallback từ đường dẫn thư mục; \`googleTrack\` trích số đĩa/bài từ tên tệp ngay khi quét.
+- **Kế thừa ảnh bìa từ thư mục cha cho \`Disc 1\` / \`CD 2\`**: Áp dụng thống nhất qua \`resolveFolderCoverWithDiscFallback\` cho Nội bộ, OneDrive (gồm cả thư mục Shared) và tra cứu 1 cấp thư mục cha trên Google Drive để gán cả \`discNumber\` lẫn \`cover.jpg\`/\`folder.jpg\`.
 
-#### 3. Chuyển tiếp mượt lát đầu -> bản full Cloud & giữ chính xác mốc tua sớm (\`index.html\`)
-- **Chống nhấp nháy nút Play/Pause & thông báo khóa màn hình**: Gắn cờ \`deck._upgradingFullAudio\` trong \`upgradeSliceToFullAudio\` và \`resumeFullAudioFromSlice\` để bộ lắng nghe \`pause\` bỏ qua sự kiện \`pause\` tạm thời do \`deck.load()\` phát sinh.
-- **Bảo toàn chính xác vị trí tua sớm (\`_pendingSeekAfterFullUpgrade\`)**: Không cộng bù độ trễ \`elapsedSec\` khi người dùng đã chọn mốc tua tường minh, hỗ trợ \`_pendingSeekAfterFullUpgrade\` trong cả \`resumeFullAudioFromSlice\` và cập nhật ngay thanh tiến độ + \`MediaSession\`.
+#### 3. Hot-plug thẻ nhớ MicroSD / USB-OTG ổn định trên Android 13–15 & FiiO M11S (\`MainActivity.java\`, \`index.html\`)
+- **Bắt đủ sự kiện cắm & rút thẻ nhớ trên Android 13–15**: \`registerStorageMountReceiver\` dùng \`Context.RECEIVER_EXPORTED\` trên Android 13+ (tránh \`SecurityException\` trên Android 14–15) và lắng nghe thêm \`ACTION_MEDIA_UNMOUNTED\`, \`ACTION_MEDIA_EJECT\`, \`ACTION_MEDIA_REMOVED\`, \`ACTION_MEDIA_BAD_REMOVAL\`.
+- **Chống dội sự kiện & hàng đợi quét lại**: \`window.onAndroidStorageStateChanged\` gom burst sự kiện (1200ms) và xếp hàng quét nối tiếp khi \`fiioScanInProgress\` đang bận để không bao giờ bỏ sót sự kiện cắm/rút MicroSD hay USB-OTG.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

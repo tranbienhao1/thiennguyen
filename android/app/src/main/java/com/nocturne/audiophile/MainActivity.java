@@ -1688,16 +1688,22 @@ public class MainActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             if (intent == null || mWebView == null) return;
             final String action = intent.getAction();
+            final String js;
             if (Intent.ACTION_MEDIA_MOUNTED.equals(action) || Intent.ACTION_MEDIA_SCANNER_FINISHED.equals(action)) {
-                mWebView.post(() -> {
-                    if (mWebView != null) {
-                        mWebView.evaluateJavascript(
-                                "if(typeof window.onAndroidStorageStateChanged==='function'){window.onAndroidStorageStateChanged('mounted');}",
-                                null
-                        );
-                    }
-                });
+                js = "if(typeof window.onAndroidStorageStateChanged==='function'){window.onAndroidStorageStateChanged('mounted');}";
+            } else if (Intent.ACTION_MEDIA_UNMOUNTED.equals(action)
+                    || Intent.ACTION_MEDIA_EJECT.equals(action)
+                    || Intent.ACTION_MEDIA_REMOVED.equals(action)
+                    || Intent.ACTION_MEDIA_BAD_REMOVAL.equals(action)) {
+                js = "if(typeof window.onAndroidStorageStateChanged==='function'){window.onAndroidStorageStateChanged('unmounted');}";
+            } else {
+                return;
             }
+            mWebView.post(() -> {
+                if (mWebView != null) {
+                    mWebView.evaluateJavascript(js, null);
+                }
+            });
         }
     };
 
@@ -1707,8 +1713,16 @@ public class MainActivity extends AppCompatActivity {
             IntentFilter filter = new IntentFilter();
             filter.addAction(Intent.ACTION_MEDIA_MOUNTED);
             filter.addAction(Intent.ACTION_MEDIA_SCANNER_FINISHED);
+            filter.addAction(Intent.ACTION_MEDIA_UNMOUNTED);
+            filter.addAction(Intent.ACTION_MEDIA_EJECT);
+            filter.addAction(Intent.ACTION_MEDIA_REMOVED);
+            filter.addAction(Intent.ACTION_MEDIA_BAD_REMOVAL);
             filter.addDataScheme("file");
-            registerReceiver(mStorageMountReceiver, filter);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(mStorageMountReceiver, filter, Context.RECEIVER_EXPORTED);
+            } else {
+                registerReceiver(mStorageMountReceiver, filter);
+            }
             mIsStorageReceiverRegistered = true;
         } catch (Throwable t) {
             Log.w(TAG, "registerStorageMountReceiver warning: " + t.getMessage());
@@ -5272,11 +5286,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.54";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.55";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.54\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.55\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
