@@ -80,20 +80,21 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.48';
-  const name = process.argv[3] || `Nocturne ${tag} (Gia cố HTTP Range /local-media trên Android APK, dọn cache lát đầu mồ côi & tự đồng bộ Cloud khi có mạng lại)`;
+  const tag = process.argv[2] || 'v3.9.49';
+  const name = process.argv[3] || `Nocturne ${tag} (Làm mới token metadata Cloud 401/403, gộp batch IndexedDB, khôi phục quyền FileHandle & dọn worker DSD khi Next nhanh)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 102) — Gia cố HTTP Range /local-media trên Android APK, dọn cache lát đầu mồ côi & tự đồng bộ Cloud khi có mạng lại
+    : `### Nocturne ${tag} (versionCode 103) — Làm mới token metadata Cloud 401/403, gộp batch IndexedDB, khôi phục quyền FileHandle & dọn worker DSD khi Next nhanh
 
-#### 1. Gia cố \`/local-media\` HTTP Range Seek & an toàn đóng luồng trên Android APK (\`MainActivity.java\`)
-- **\`parseByteRangeHeader\`**: Hợp nhất bộ phân tích HTTP \`Range\` dùng chung cho cả \`File\` nội bộ (\`handleLocalMediaStreaming\`) và \`content://\` Scoped Storage (\`streamContentUriResponse\`); hỗ trợ \`Bytes=\` không phân biệt hoa thường, xử lý an toàn multi-range đầu tiên, kiểm tra \`bytes=-N <= 0\` và bảo vệ file rỗng (\`fileLength <= 0\`).
-- **\`BoundedFileInputStream\` & \`BoundedContentUriInputStream\`**: Bổ sung \`skip(long n)\` giới hạn O(1) qua \`FileChannel\` / \`RandomAccessFile.seek\`, cờ đóng idempotent \`mClosed\`, và bọc đóng an toàn \`AssetFileDescriptor\`/\`FileInputStream\` nếu seek đầu luồng phát sinh lỗi \`IOException\`.
+#### 1. Gia cố đọc metadata Cloud & gộp ghi batch IndexedDB (\`cloud-metadata.js\` + \`index.html\`)
+- **\`cloud-metadata.js\`**: Gắn mã HTTP \`.status\` lên lỗi trả về từ \`makeRangeReader\`, \`loadReaderRangeAsync\` và \`readRemoteTags\` để tầng ứng dụng nhận diện chính xác \`401\`/\`403\`.
+- **\`cloudTagRequest\` & \`googleThumbnail\`**: Tự động ép làm mới token Google Drive (\`ensureGoogleToken(true)\`) hoặc link/token OneDrive (\`getMicrosoftToken\`, \`graphGet\`) và thử lại 1 lần khi nhận \`401\`/\`403\` trong lúc đọc tag hoặc tải ảnh bìa từ xa.
+- **\`queueCloudCatalogPersist\` / \`flushQueuedCloudCatalogPersist\`**: Gom ghi kết quả metadata từ \`enrichCloudTrack\` theo lô (tối đa \`12\` bài hoặc debounce \`1.5s\`), tự xả lô và \`pruneCloudCatalog\` khi hàng đợi hoàn tất hoặc trước lúc thoát (\`beforeunload\`) để giảm ghi flash trên FiiO M11S.
 
-#### 2. Dọn cache lát đầu Cloud mồ côi & tự đồng bộ Delta khi kết nối mạng trở lại (\`index.html\`)
-- **\`purgeSliceCacheKeys\` & \`pruneOrphanedSliceCacheEntries\`**: Tự động dọn các mục \`firstSliceCache\` của bài Google Drive / OneDrive đã bị xóa hoặc vượt giới hạn catalog (trong \`pruneCloudCatalog\`, \`removeDeletedCloudTracks\`, cuối \`loadGoogleFiles\` / \`loadMicrosoftFiles\`) mà vẫn bảo vệ bài đang phát và bài đang nạp trước.
-- **\`scheduleOnlineCloudDeltaSync\`**: Kích hoạt đồng bộ nhanh Delta cho phiên Google Drive / OneDrive đã đăng nhập khi sự kiện \`online\` quay lại với debounce 2.5s và cooldown 45s.
+#### 2. Khôi phục quyền \`FileSystemFileHandle\` & tối ưu preload DSD khi bấm Next nhanh (\`index.html\`)
+- **\`ensureLocalTrackPlayableUrl(track, options)\`**: Kiểm tra \`queryPermission({ mode: 'read' })\` và chủ động gọi \`requestPermission({ mode: 'read' })\` khi phát trực tiếp (\`playTrack\` truyền \`{ requestPermission: true }\`), giúp khôi phục phát bài từ thư mục cục bộ trên Desktop Web sau khi cấp lại quyền.
+- **\`clearStalePreload\` & \`preloadDsdNext\`**: Hủy worker giải mã DSD nền cũ (\`stopPrefetchDsdSlice()\`) khi chuyển bài hoặc đổi bài DSD kế tiếp, và giải phóng \`next.file = null\` nếu lượt tải DSD Cloud đã bị thay thế bởi thao tác bấm Next nhanh.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

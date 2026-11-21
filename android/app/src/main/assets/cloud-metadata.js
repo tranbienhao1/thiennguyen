@@ -54,7 +54,7 @@
       init(callbacks) { setTimeout(callbacks.onSuccess, 0); }
       getSize() { return this.size; }
       loadRange([start, end], callbacks = {}) {
-        const fail = info => callbacks.onError && callbacks.onError({type:'range', info});
+        const fail = (info, status) => callbacks.onError && callbacks.onError({type:'range', info, status: status || 0});
         if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || end >= this.size) return fail('Metadata range is outside the cloud file.');
         const length = end - start + 1;
         if (length > maxRange || this.loaded + length > maxTotal) return fail(`Metadata read exceeded its ${maxTotal}-byte safety limit.`);
@@ -64,7 +64,9 @@
         Promise.resolve().then(() => fetchImpl(this.source.url, request)).then(async response => {
           if (!response || response.status !== 206) {
             try { response && response.body && response.body.cancel(); } catch (error) {}
-            throw new Error(`Byte ranges unavailable (HTTP ${response && response.status || 'no response'}); full-download fallback is disabled.`);
+            const rangeErr = new Error(`Byte ranges unavailable (HTTP ${response && response.status || 'no response'}); full-download fallback is disabled.`);
+            rangeErr.status = response ? (Number(response.status) || 0) : 0;
+            throw rangeErr;
           }
           const header = response.headers && response.headers.get('content-range');
           if (header) {
@@ -78,7 +80,7 @@
           if (bytes.byteLength !== length) throw new Error('Cloud provider returned an incomplete byte range.');
           this.segments.push({start, end, bytes}); this.loaded += bytes.byteLength;
           callbacks.onSuccess && callbacks.onSuccess();
-        }).catch(error => fail(error && error.message || String(error)));
+        }).catch(error => fail(error && error.message || String(error), error && error.status || 0));
       }
       getByteAt(offset) {
         for (let i = this.segments.length - 1; i >= 0; i--) {
@@ -138,7 +140,11 @@
             reject(err);
           }
         },
-        onError: error => reject(new Error((error && (error.info || error.message)) || 'Could not load metadata byte range.'))
+        onError: error => {
+          const rangeErr = new Error((error && (error.info || error.message)) || 'Could not load metadata byte range.');
+          if (error && error.status) rangeErr.status = error.status;
+          reject(rangeErr);
+        }
       });
     });
   }
@@ -498,7 +504,15 @@
       let reader;
       try { reader = new jsmediatags.Reader(source).setFileReader(FileReader); }
       catch (error) { reject(error); return; }
-      reader.read({onSuccess: result => resolve(result && result.tags || {}), onError: error => reject(error instanceof Error ? error : new Error(error && (error.info || error.message) || 'Could not read cloud tags.'))});
+      reader.read({
+        onSuccess: result => resolve(result && result.tags || {}),
+        onError: error => {
+          if (error instanceof Error) { reject(error); return; }
+          const err = new Error(error && (error.info || error.message) || 'Could not read cloud tags.');
+          if (error && error.status) err.status = error.status;
+          reject(err);
+        }
+      });
     });
 
     if (!mp4Hint) return basePromise;
