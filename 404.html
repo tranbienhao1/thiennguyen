@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.57</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.58</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -5222,10 +5222,24 @@
       if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
         try { window.NocturneNative.seekBitPerfectPlayback(Math.round(sec * 1000)); return true; } catch (_) {}
       }
+      const curTrack = (state && Array.isArray(state.tracks) && trackIdToMatch != null)
+        ? state.tracks.find(item => item && String(item.id) === String(trackIdToMatch))
+        : null;
+      if (curTrack && curTrack.firstSlicePlayback && typeof applySmartSeekTime === 'function') {
+        applySmartSeekTime(sec);
+        return true;
+      }
       const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
       if (!curAudio) return false;
       const applySeek = () => {
         if (trackIdToMatch && state.currentId !== trackIdToMatch) return;
+        const liveTrack = (state && Array.isArray(state.tracks) && trackIdToMatch != null)
+          ? state.tracks.find(item => item && String(item.id) === String(trackIdToMatch))
+          : null;
+        if (liveTrack && liveTrack.firstSlicePlayback && typeof applySmartSeekTime === 'function') {
+          applySmartSeekTime(sec);
+          return;
+        }
         try {
           const maxDur = (Number.isFinite(curAudio.duration) && curAudio.duration > 0) ? Math.max(0, curAudio.duration - 0.5) : sec;
           curAudio.currentTime = Math.min(sec, maxDur);
@@ -5425,6 +5439,9 @@
         if (!session.isValid || !session.track) return;
         if (session.queueTrackIds && session.queueTrackIds.length > 0) {
           state.queueTrackIds = session.queueTrackIds;
+        }
+        if ((session.track.source === 'google' || session.track.source === 'onedrive') && typeof prepareCloudTrackForPreload === 'function') {
+          await prepareCloudTrackForPreload(session.track).catch(() => {});
         }
         await playTrack(session.track.id);
         seekCurrentPlaybackToSeconds(session.currentTime, session.track.id);
@@ -15786,14 +15803,71 @@
     window.GOOGLE_DRIVE_CANDIDATE_QUERY = GOOGLE_DRIVE_CANDIDATE_QUERY;
     window.GOOGLE_DRIVE_AUDIO_QUERY = GOOGLE_DRIVE_AUDIO_QUERY;
 
+    async function fetchWithTimeout(url, options, timeoutMs) {
+      const ms = (Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0) ? Number(timeoutMs) : 25000;
+      const baseOpts = options ? Object.assign({}, options) : {};
+      if (typeof AbortController !== 'function') {
+        return fetch(url, baseOpts);
+      }
+      const controller = new AbortController();
+      let timedOut = false;
+      const extSignal = baseOpts.signal;
+      const onExtAbort = function () {
+        try { controller.abort(); } catch (_) {}
+      };
+      if (extSignal) {
+        if (extSignal.aborted) {
+          const abErr = new Error('The operation was aborted.');
+          abErr.name = 'AbortError';
+          throw abErr;
+        }
+        if (typeof extSignal.addEventListener === 'function') {
+          extSignal.addEventListener('abort', onExtAbort, { once: true });
+        }
+      }
+      const timer = setTimeout(function () {
+        timedOut = true;
+        try { controller.abort(); } catch (_) {}
+      }, ms);
+      baseOpts.signal = controller.signal;
+      try {
+        return await fetch(url, baseOpts);
+      } catch (err) {
+        if (timedOut) {
+          const timeoutErr = new Error(`Request timed out after ${ms}ms`);
+          timeoutErr.name = 'TimeoutError';
+          timeoutErr.isTimeout = true;
+          timeoutErr.retryable = true;
+          throw timeoutErr;
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+        if (extSignal && typeof extSignal.removeEventListener === 'function') {
+          try { extSignal.removeEventListener('abort', onExtAbort); } catch (_) {}
+        }
+      }
+    }
+
     async function fetchGoogleDrivePageWithRetry(url, getToken, refreshToken) {
       let retryCount = 0;
       let refreshedTokenOnce = false;
       while (true) {
         const curToken = typeof getToken === 'function' ? getToken() : getToken;
-        const response = await fetch(url, {
-          headers: { Authorization: `Bearer ${curToken}` }
-        });
+        let response;
+        try {
+          response = (typeof fetchWithTimeout === 'function')
+            ? await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${curToken}` } }, 25000)
+            : await fetch(url, { headers: { Authorization: `Bearer ${curToken}` } });
+        } catch (netErr) {
+          if (retryCount < 3) {
+            retryCount++;
+            const backoffMs = Math.min(500 * Math.pow(2, retryCount), 4000);
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
+            continue;
+          }
+          throw netErr;
+        }
 
         if (response.status === 401 && !refreshedTokenOnce && typeof refreshToken === 'function') {
           refreshedTokenOnce = true;
@@ -15807,7 +15881,11 @@
 
         if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 3) {
           retryCount++;
-          const backoffMs = Math.min(1000 * Math.pow(2, retryCount), 8000);
+          const retryAfterHeader = response.headers && typeof response.headers.get === 'function' ? response.headers.get('retry-after') : '';
+          const retryAfterSec = retryAfterHeader ? Number(retryAfterHeader) : 0;
+          const backoffMs = (Number.isFinite(retryAfterSec) && retryAfterSec > 0)
+            ? Math.min(8000, Math.round(retryAfterSec * 1000))
+            : Math.min(1000 * Math.pow(2, retryCount), 8000);
           await new Promise(resolve => setTimeout(resolve, backoffMs));
           continue;
         }
@@ -15819,9 +15897,12 @@
     const checkedGoogleArtParents = new Set();
     async function fetchCloudImageCandidateDataUrl(imageUrl, fallbackAuthUrl, getAuthToken) {
       let resp = null;
+      const doFetch = (typeof fetchWithTimeout === 'function')
+        ? ((u, o) => fetchWithTimeout(u, o, 15000))
+        : ((u, o) => fetch(u, o));
       if (imageUrl) {
         try {
-          resp = await fetch(imageUrl, { credentials: 'omit', referrerPolicy: 'no-referrer' });
+          resp = await doFetch(imageUrl, { credentials: 'omit', referrerPolicy: 'no-referrer' });
           if (!resp.ok) resp = null;
         } catch (_) { resp = null; }
       }
@@ -15829,7 +15910,7 @@
         try {
           const authToken = await getAuthToken();
           if (authToken) {
-            resp = await fetch(fallbackAuthUrl, { headers: { Authorization: `Bearer ${authToken}` } });
+            resp = await doFetch(fallbackAuthUrl, { headers: { Authorization: `Bearer ${authToken}` } });
             if (!resp.ok) resp = null;
           }
         } catch (_) { resp = null; }
@@ -16623,7 +16704,9 @@
       while (true) {
         let response;
         try {
-          response = await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
+          response = (typeof fetchWithTimeout === 'function')
+            ? await fetchWithTimeout(url, {headers:{Authorization:`Bearer ${token}`}}, 25000)
+            : await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
         } catch (netErr) {
           if (retryCount < 3) {
             retryCount++;

@@ -2023,8 +2023,39 @@ public class MainActivity extends AppCompatActivity {
      * by Android 11-15 Scoped Storage.
      */
     @NonNull
+    public static String decodeQueryComponentSafe(@Nullable String raw) {
+        if (raw == null || raw.isEmpty()) return "";
+        try {
+            String safe = raw.replace("+", "%2B").replaceAll("%(?![0-9a-fA-F]{2})", "%25");
+            return URLDecoder.decode(safe, StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {
+            return raw;
+        }
+    }
+
+    @Nullable
+    public static String extractLocalMediaQueryParam(@Nullable Uri uri, @NonNull String key) {
+        if (uri == null) return null;
+        String encodedQuery = uri.getEncodedQuery();
+        if (encodedQuery != null && !encodedQuery.isEmpty()) {
+            String prefix = key + "=";
+            String[] parts = encodedQuery.split("&");
+            for (String part : parts) {
+                if (part != null && part.startsWith(prefix)) {
+                    String rawVal = part.substring(prefix.length());
+                    return decodeQueryComponentSafe(rawVal);
+                }
+            }
+        }
+        return uri.getQueryParameter(key);
+    }
+
+    @NonNull
     public static File resolveReadableLocalFile(@Nullable String rawPath) {
         if (rawPath == null || rawPath.isEmpty()) return new File("");
+        if (rawPath.startsWith("file://")) {
+            rawPath = rawPath.substring(7);
+        }
         File direct = new File(rawPath);
         if (direct.exists()) return direct;
 
@@ -2041,8 +2072,9 @@ public class MainActivity extends AppCompatActivity {
 
         String decoded = null;
         try {
-            // Preserve literal '+' characters when decoding percent-encoded local paths (#, %, ?, +)
+            // Preserve literal '+' and stray '%' characters when decoding percent-encoded local paths (#, %, ?, +)
             String safeEncoded = rawPath.replace("+", "%2B");
+            safeEncoded = safeEncoded.replaceAll("%(?![0-9a-fA-F]{2})", "%25");
             decoded = URLDecoder.decode(safeEncoded, StandardCharsets.UTF_8.name());
         } catch (Exception ignored) {}
 
@@ -2994,9 +3026,10 @@ public class MainActivity extends AppCompatActivity {
                         buildLocalMediaCorsHeaders(), new ByteArrayInputStream(new byte[0]));
             }
 
-            String uriParam = uri.getQueryParameter("uri");
-            String nameParam = uri.getQueryParameter("name");
-            String pathParam = uri.getQueryParameter("path");
+            String uriParam = extractLocalMediaQueryParam(uri, "uri");
+            String nameParam = extractLocalMediaQueryParam(uri, "name");
+            if (nameParam == null) nameParam = uri.getQueryParameter("name");
+            String pathParam = extractLocalMediaQueryParam(uri, "path");
             if ((pathParam == null || pathParam.isEmpty()) && (uriParam == null || uriParam.isEmpty())) {
                 String query = uri.getQuery();
                 if (query != null && query.startsWith("path=")) {
@@ -4429,10 +4462,16 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 if (resolvedPath.startsWith("file://")) {
-                    try {
-                        String parsedFile = Uri.parse(resolvedPath).getPath();
-                        if (parsedFile != null) resolvedPath = parsedFile;
-                    } catch (Exception ignored) {}
+                    String strippedFile = resolvedPath.substring(7);
+                    File strippedCheck = resolveReadableLocalFile(strippedFile);
+                    if (strippedCheck.exists()) {
+                        resolvedPath = strippedCheck.getAbsolutePath();
+                    } else {
+                        try {
+                            String parsedFile = Uri.parse(resolvedPath).getPath();
+                            if (parsedFile != null) resolvedPath = parsedFile;
+                        } catch (Exception ignored) {}
+                    }
                 }
 
                 mCurrentSourceKey = (resolvedUri != null && !resolvedUri.isEmpty())
@@ -4468,7 +4507,19 @@ public class MainActivity extends AppCompatActivity {
                         String normalizedPath = localFile.getAbsolutePath();
                         Uri fallbackMediaUri = resolveMediaStoreContentUriForPath(normalizedPath);
                         if (fallbackMediaUri != null) {
-                            extractor.setDataSource(MainActivity.this, fallbackMediaUri, null);
+                            try {
+                                extractor.setDataSource(MainActivity.this, fallbackMediaUri, null);
+                            } catch (Exception fallbackUriErr) {
+                                try (ParcelFileDescriptor fbPfd = getContentResolver().openFileDescriptor(fallbackMediaUri, "r")) {
+                                    if (fbPfd != null) {
+                                        long fbLen = fbPfd.getStatSize();
+                                        if (fbLen > 0L) knownSourceBytes = fbLen;
+                                        extractor.setDataSource(fbPfd.getFileDescriptor());
+                                    } else {
+                                        throw fallbackUriErr;
+                                    }
+                                }
+                            }
                         } else {
                             extractor.setDataSource(normalizedPath);
                         }
@@ -5339,11 +5390,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.57";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.58";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.57\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.58\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

@@ -80,22 +80,22 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.57';
-  const name = process.argv[3] || `Nocturne ${tag} (Đồng bộ .lrc cùng thư mục Google Drive/OneDrive + Shared Folders khi Delta Sync + tăng tốc quét lại thư mục nội bộ & Android NFC/NFD)`;
+  const tag = process.argv[2] || 'v3.9.58';
+  const name = process.argv[3] || `Nocturne ${tag} (Chống treo mạng đồng bộ Google Drive/OneDrive + khôi phục phiên nghe Cloud chính xác & hỗ trợ tên tệp #, %, ?, + trên Android)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 111) — Đồng bộ tệp \`.lrc\` trên Google Drive/OneDrive + Shared Folders khi Delta Sync + tăng tốc quét lại thư mục nội bộ & Android NFC/NFD
+    : `### Nocturne ${tag} (versionCode 112) — Chống treo mạng đồng bộ Google Drive/OneDrive + khôi phục phiên nghe Cloud chính xác & đường dẫn ký tự đặc biệt trên Android
 
-#### 1. Đồng bộ & nạp tự động tệp \`.lrc\` đi kèm trên Google Drive, OneDrive và Android/FiiO (\`index.html\`, \`MainActivity.java\`)
-- **OneDrive & Google Drive Cloud Sidecar \`.lrc\`**: Khi quét OneDrive (cả Full lẫn Delta và thư mục Shared), tự động ghép nối tệp \`.lrc\` cùng tên với bài hát (\`remoteLrc\`) và lưu vào danh mục offline. Khi phát bài trên OneDrive hoặc Google Drive, \`fetchCloudSidecarLyrics\` tự tải tệp \`.lrc\` cùng thư mục trước khi tìm qua LRCLIB và lưu vào Lyrics Vault để dùng offline.
-- **Android / FiiO MicroSD \`.lrc\` chuẩn Unicode NFC/NFD & ký tự \`+\`**: \`MainActivity.readLocalLyrics\` dùng \`resolveReadableLocalFile\` và chuẩn hóa \`Normalizer.Form.NFC\` khi so khớp tên tệp \`.lrc\`/\`.lyricsfile\` tiếng Việt hoặc tên tệp từ macOS trên thẻ nhớ exFAT.
+#### 1. Chống treo đồng bộ Google Drive & OneDrive trên mạng 4G/Wi-Fi yếu (\`index.html\`)
+- **\`fetchWithTimeout\` chủ động (25s API / 15s ảnh bìa)**: Tránh tình trạng \`fetch\` treo vô hạn trên kết nối di động yếu làm khóa \`cloudSyncPromise\`.
+- **Thử lại tự động khi rớt mạng & tôn trọng \`Retry-After\`**: \`fetchGoogleDrivePageWithRetry\` và \`graphGet\` tự động thử lại tối đa 3 lần khi gặp lỗi mạng đột ngột hoặc quá hạn timeout, đồng thời tuân thủ header \`Retry-After\` khi gặp giới hạn HTTP 429/5xx.
 
-#### 2. Đồng bộ thư mục chia sẻ OneDrive (\`sharedWithMe\`) ngay cả trong chế độ Delta Sync (\`index.html\`)
-- **Không còn bỏ sót bài mới trong OneDrive Shared Folders**: Sau khi \`tryLoadMicrosoftDeltaSync\` hoàn tất đồng bộ kho cá nhân, \`loadMicrosoftFiles\` tự chạy lượt quét nhanh \`enqueueMicrosoftSharedItems\` cho các thư mục chia sẻ và cập nhật cả bài mới, ảnh bìa lẫn \`.lrc\` đi kèm.
+#### 2. Khôi phục phiên nghe Cloud chính xác không bị cắt ở lát đầu (\`index.html\`)
+- **Tua thông minh khi tiếp tục bài nghe dài từ Google Drive/OneDrive**: \`seekCurrentPlaybackToSeconds\` tự chuyển qua \`applySmartSeekTime\` nếu bài đang ở \`firstSlicePlayback\`, bảo toàn đúng mốc tua dài (vd. \`03:45\`) thay vì bị kẹp về cuối lát đầu 15 giây; nút "Tiếp tục" chủ động làm mới token/\`downloadUrl\` trước khi gọi \`playTrack\`.
 
-#### 3. Tăng tốc quét lại thư mục nội bộ & phát hiện tệp sửa tag tại chỗ (\`index.html\`)
-- **Bộ đệm metadata nội bộ theo \`relativePath|size|lastModified\`**: Lưu tối đa 2.000 mục metadata gọn nhẹ (không phình dung lượng với ảnh base64); khi mở lại thư mục nội bộ đã lưu, bỏ qua đọc đĩa nhị phân cho tệp không đổi có sẵn ảnh thư mục hoặc không nhúng bìa, đồng thời tự đọc lại tag khi \`lastModified\` thay đổi dù giữ nguyên dung lượng tệp.
+#### 3. An toàn tuyệt đối với tệp nội bộ chứa ký tự \`#\`, \`%\`, \`?\`, \`+\`, \`file://\` trên Android/FiiO (\`MainActivity.java\`)
+- **\`resolveReadableLocalFile\` & \`extractLocalMediaQueryParam\`**: Gỡ tiền tố \`file://\` không làm cắt cụt tại \`#\`/\`?\`, bảo vệ cả ký tự \`+\` lẫn dấu \`%\` đứng lẻ (như \`100% Love.flac\`) trước khi giải mã URL trong \`handleLocalMediaStreaming\`, và bổ sung fallback \`ParcelFileDescriptor\` cho \`fallbackMediaUri\` trong \`BitPerfectAudioPlayer\` trên Android 11–15 Scoped Storage.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
