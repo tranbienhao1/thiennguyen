@@ -2363,7 +2363,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.49</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.50</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3608,8 +3608,16 @@
     const CLOUD_AUDIO_TYPES = CLOUD_AUDIO_EXT_RE;
     function isCloudAudio(file) {
       if (!file || file.trashed) return false;
-      const mime = String(file.mimeType || (file.file && file.file.mimeType) || '').toLowerCase();
-      if (mime === 'application/vnd.google-apps.folder') return false;
+      const rawMime = String(file.mimeType || (file.file && file.file.mimeType) || '').toLowerCase();
+      if (rawMime === 'application/vnd.google-apps.folder') return false;
+      let mime = rawMime;
+      if (rawMime === 'application/vnd.google-apps.shortcut') {
+        const sc = file.shortcutDetails;
+        if (!sc || !sc.targetId) return false;
+        const targetMime = String(sc.targetMimeType || '').toLowerCase();
+        if (targetMime === 'application/vnd.google-apps.folder' || targetMime.indexOf('application/vnd.google-apps.') === 0 || targetMime.indexOf('image/') === 0) return false;
+        mime = targetMime;
+      }
       const name = String(file.name || '').trim();
       const ext = String(file.fileExtension || '').trim().toLowerCase();
       if (CLOUD_AUDIO_EXT_RE.test(name)) return true;
@@ -3619,7 +3627,8 @@
       return false;
     }
     const audioFormat = file => {
-      const mimeType = file.mimeType || file.file && file.file.mimeType || '';
+      const rawMime = (file && (file.mimeType || (file.file && file.file.mimeType))) || '';
+      const mimeType = (rawMime === 'application/vnd.google-apps.shortcut' && file.shortcutDetails && file.shortcutDetails.targetMimeType) ? file.shortcutDetails.targetMimeType : rawMime;
       const extension = String(file.name || '').match(/\.([^.]+)$/);
       if (extension && CLOUD_AUDIO_TYPES.test(file.name || '')) return extension[1].toUpperCase();
       const mimeFormat = ({'audio/mpeg':'MP3','audio/flac':'FLAC','audio/x-flac':'FLAC','audio/wav':'WAV','audio/x-wav':'WAV','audio/mp4':'M4A','audio/aac':'AAC','audio/ogg':'OGG','audio/opus':'OPUS','audio/aiff':'AIFF','audio/x-aiff':'AIFF','audio/x-ms-wma':'WMA'})[mimeType];
@@ -3654,16 +3663,47 @@
       if (!cover.startsWith('data:image')) return cover;
       return cover.length > MAX_CATALOG_COVER_CHARS ? null : cover;
     }
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, ...(track.targetRemoteId ? {targetRemoteId:String(track.targetRemoteId)} : {}), ...(track.remoteDriveId ? {remoteDriveId:String(track.remoteDriveId)} : {}), remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
       const track = {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', thumbnailUrl:file.thumbnailLink || '', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
+      const shortcutTargetId = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
+      if (shortcutTargetId && shortcutTargetId !== file.id) track.targetRemoteId = shortcutTargetId;
       if (Array.isArray(file.parents) && file.parents.length) track.parents = file.parents.slice(0, 3);
       const gRev = file.md5Checksum || file.modifiedTime || '';
       if (gRev) track.contentRev = String(gRev);
       return track;
     };
-    const microsoftTrack = (item, remotePath = '', existing = null) => {
+    function normalizeMicrosoftDriveItem(rawItem, inheritedDriveId) {
+      if (!rawItem || typeof rawItem !== 'object') return { item: rawItem, driveId: String(inheritedDriveId || ''), isRemote: false };
+      const remote = (rawItem.remoteItem && typeof rawItem.remoteItem === 'object' && rawItem.remoteItem.id) ? rawItem.remoteItem : null;
+      const parentDriveId = (remote && remote.parentReference && remote.parentReference.driveId)
+        ? String(remote.parentReference.driveId)
+        : ((rawItem.parentReference && rawItem.parentReference.driveId) ? String(rawItem.parentReference.driveId) : '');
+      const resolvedDriveId = String((remote && parentDriveId) || inheritedDriveId || rawItem._remoteDriveId || '');
+      if (!remote) {
+        const cloned = resolvedDriveId ? Object.assign({}, rawItem, { _remoteDriveId: resolvedDriveId }) : rawItem;
+        return { item: cloned, driveId: resolvedDriveId, isRemote: Boolean(resolvedDriveId) };
+      }
+      const normalized = Object.assign({}, rawItem, {
+        id: String(remote.id),
+        name: String(remote.name || rawItem.name || ''),
+        size: remote.size != null ? remote.size : rawItem.size,
+        file: remote.file || rawItem.file,
+        folder: remote.folder || rawItem.folder,
+        audio: remote.audio || rawItem.audio,
+        cTag: remote.cTag || rawItem.cTag,
+        eTag: remote.eTag || rawItem.eTag,
+        thumbnails: remote.thumbnails || rawItem.thumbnails,
+        parentReference: remote.parentReference || rawItem.parentReference,
+        '@microsoft.graph.downloadUrl': remote['@microsoft.graph.downloadUrl'] || rawItem['@microsoft.graph.downloadUrl'] || '',
+        _remoteDriveId: resolvedDriveId
+      });
+      return { item: normalized, driveId: resolvedDriveId, isRemote: true };
+    }
+    const microsoftTrack = (rawItem, remotePath = '', existing = null) => {
+      const norm = normalizeMicrosoftDriveItem(rawItem, rawItem && rawItem._remoteDriveId);
+      const item = norm.item || rawItem;
       const format = audioFormat(item), fallback = existing || filenameMetadata(item.name || '');
       const thumbnailSets = item.thumbnails && (item.thumbnails.value || item.thumbnails);
       const thumbnailSet = Array.isArray(thumbnailSets) ? thumbnailSets[0] : null;
@@ -3677,16 +3717,18 @@
         albumArtist:rawAlbumArtist
       }, fallback);
       const msTrack = {id:`onedrive:${item.id}`, remoteId:item.id, remotePath, name:item.name || `Audio ${item.id}`, ...graphMetadata, format, size:Number(item.size) || 0, source:'onedrive', url:'', thumbnailUrl:thumbnail && thumbnail.url || '', downloadUrl:item['@microsoft.graph.downloadUrl'] || '', duration:Number(item.audio && item.audio.duration) / 1000 || 0, isDsd:isDsdFormat(format), metadataLoaded:graphMetadataLoaded, load:() => loadMicrosoftAudio(item.id)};
+      if (norm.driveId) msTrack.remoteDriveId = norm.driveId;
       if (rawAlbumArtist) msTrack.albumArtist = rawAlbumArtist;
       const msRev = item.cTag || item.eTag || '';
       if (msRev) msTrack.contentRev = String(msRev);
       return msTrack;
     };
     function mergeMicrosoftTrack(track, item, remotePath = '') {
-      const currentUrl = track.url, currentFile = track.file, currentRev = track.contentRev;
+      const currentUrl = track.url, currentFile = track.file, currentRev = track.contentRev, currentDriveId = track.remoteDriveId;
       const enriched = microsoftTrack(item, remotePath || track.remotePath, {title:track.title, artist:track.artist, album:track.album});
       Object.assign(track, enriched);
       if (!enriched.contentRev && currentRev) track.contentRev = currentRev;
+      if (!enriched.remoteDriveId && currentDriveId) track.remoteDriveId = currentDriveId;
       track.url = currentUrl || '';
       if (currentFile) track.file = currentFile;
       track.load = () => loadMicrosoftAudio(track.remoteId);
@@ -3908,7 +3950,9 @@
       const sourceMeta = url => ({url, remoteId:track.remoteId, size:track.size, name:track.name, mimeType:track.mimeType, format:track.format, metadataPointer:track.dsfMetadataPointer});
       if (track.source === 'google') {
         const token = await ensureGoogleToken();
-        const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.remoteId)}?alt=media&supportsAllDrives=true`;
+        const url = track.targetRemoteId
+          ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.targetRemoteId)}?alt=media&supportsAllDrives=true`
+          : `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.remoteId)}?alt=media&supportsAllDrives=true`;
         try {
           return await cloudMetadata.readRemoteTags(window.jsmediatags, sourceMeta(url), {headers:{Authorization:`Bearer ${token}`}});
         } catch (err) {
@@ -3917,8 +3961,11 @@
           return cloudMetadata.readRemoteTags(window.jsmediatags, sourceMeta(url), {headers:{Authorization:`Bearer ${refreshed}`}});
         }
       }
+      const msItemUrl = (track && track.remoteDriveId)
+        ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}`
+        : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}`;
       const token = state.microsoftAccessToken || await getMicrosoftToken(false);
-      const item = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}`, token);
+      const item = await graphGet(msItemUrl, token);
       const url = item['@microsoft.graph.downloadUrl'];
       if (!url) throw new Error('OneDrive did not provide its temporary download URL for range-based tag reading.');
       try {
@@ -3928,7 +3975,7 @@
         track.downloadUrl = '';
         track.downloadUrlAt = 0;
         const freshToken = await getMicrosoftToken(false);
-        const freshItem = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}`, freshToken);
+        const freshItem = await graphGet(msItemUrl, freshToken);
         const freshUrl = freshItem && freshItem['@microsoft.graph.downloadUrl'];
         if (!freshUrl) throw err;
         return cloudMetadata.readRemoteTags(window.jsmediatags, sourceMeta(freshUrl));
@@ -3939,7 +3986,9 @@
       let token = await ensureGoogleToken();
       if (thumbnailUrl && track.thumbnailRetryAt && Date.now() >= track.thumbnailRetryAt) thumbnailUrl = '';
       if (!thumbnailUrl) {
-        const metaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.remoteId)}?fields=thumbnailLink&supportsAllDrives=true`;
+        const metaUrl = track.targetRemoteId
+          ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.targetRemoteId)}?fields=thumbnailLink&supportsAllDrives=true`
+          : `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.remoteId)}?fields=thumbnailLink&supportsAllDrives=true`;
         let response = await fetch(metaUrl, {headers:{Authorization:`Bearer ${token}`}});
         if ((response.status === 401 || response.status === 403) && typeof ensureGoogleToken === 'function') {
           token = await ensureGoogleToken(true);
@@ -3966,7 +4015,10 @@
     async function microsoftThumbnail(track) {
       let thumbnailUrl = track.thumbnailUrl;
       if (!thumbnailUrl) {
-        const response = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/thumbnails?$select=small,medium,large`);
+        const msThumbBase = (track && track.remoteDriveId)
+          ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}`
+          : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}`;
+        const response = await graphGet(`${msThumbBase}/thumbnails?$select=small,medium,large`);
         const thumbnailSet = response.value && response.value[0];
         const thumbnail = thumbnailSet && (thumbnailSet.large || thumbnailSet.medium || thumbnailSet.small);
         thumbnailUrl = thumbnail && thumbnail.url;
@@ -5885,7 +5937,9 @@
                 blob = await library.fetchAudioBlob(freshDirectUrl, directOpts, provider);
               } else {
                 const token = await getMicrosoftToken(false);
-                const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
+                const graphUrl = (track && track.remoteDriveId)
+                  ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}/content`
+                  : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
                 const msOpts = upgradeController
                   ? { headers: { Authorization: `Bearer ${token}` }, signal: upgradeController.signal }
                   : { headers: { Authorization: `Bearer ${token}` } };
@@ -6117,7 +6171,9 @@
             track.downloadUrl = '';
             track.downloadUrlAt = 0;
             const token = await getMicrosoftToken(false);
-            const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
+            const graphUrl = track.remoteDriveId
+              ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}/content`
+              : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
             blob = await library.fetchAudioBlob(graphUrl, {headers:{Authorization:`Bearer ${token}`}}, provider);
           } else throw error;
         }
@@ -15184,6 +15240,66 @@
       return appliedCount;
     }
 
+    const GOOGLE_DRIVE_SHORTCUT_QUERY = "trashed = false and mimeType = 'application/vnd.google-apps.shortcut'";
+    async function scanGoogleDriveAudioShortcuts(getToken, refreshToken, existingByRemoteId, knownIds, seenRemoteIds, updatedExistingTracks, newlyAddedTracks) {
+      let scAdded = 0;
+      const scAddedTracks = [];
+      let scPageToken = '';
+      let scPageCount = 0;
+      try {
+        do {
+          scPageCount++;
+          const params = new URLSearchParams({
+            q: GOOGLE_DRIVE_SHORTCUT_QUERY,
+            fields: 'nextPageToken,files(id,name,fileExtension,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)',
+            pageSize: '1000',
+            corpora: 'user',
+            supportsAllDrives: 'true',
+            includeItemsFromAllDrives: 'true'
+          });
+          if (scPageToken) params.set('pageToken', scPageToken);
+          const response = await fetchGoogleDrivePageWithRetry(
+            `https://www.googleapis.com/drive/v3/files?${params}`,
+            getToken,
+            refreshToken
+          );
+          if (!response || !response.ok) break;
+          const data = await response.json();
+          const scFiles = (data && Array.isArray(data.files)) ? data.files : [];
+          for (let si = 0; si < scFiles.length; si++) {
+            const file = scFiles[si];
+            if (!file || !file.id) continue;
+            if (seenRemoteIds) seenRemoteIds.add(file.id);
+            const scTargetId = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
+            if (knownIds && knownIds.has(file.id)) {
+              const existing = existingByRemoteId ? existingByRemoteId.get(file.id) : null;
+              if (existing && scTargetId && scTargetId !== file.id && existing.targetRemoteId !== scTargetId) {
+                const hadTarget = Boolean(existing.targetRemoteId);
+                existing.targetRemoteId = scTargetId;
+                if (hadTarget && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
+                if (updatedExistingTracks) updatedExistingTracks.push(existing);
+              }
+              continue;
+            }
+            if (scTargetId && knownIds && knownIds.has(scTargetId)) continue;
+            if (typeof isCloudAudio === 'function' && !isCloudAudio(file)) continue;
+            if (typeof googleTrack !== 'function') continue;
+            const track = googleTrack(file);
+            state.tracks.push(track);
+            scAddedTracks.push(track);
+            if (newlyAddedTracks) newlyAddedTracks.push(track);
+            if (knownIds) knownIds.add(file.id);
+            if (existingByRemoteId) existingByRemoteId.set(file.id, track);
+            scAdded++;
+          }
+          scPageToken = (data && data.nextPageToken) ? String(data.nextPageToken) : '';
+        } while (scPageToken && scPageCount < 10);
+      } catch (scErr) {
+        console.debug('Google Drive shortcut scan skipped:', (scErr && scErr.message) || scErr);
+      }
+      return { added: scAdded, tracks: scAddedTracks };
+    }
+
     const GOOGLE_DELTA_TOKEN_KEY = 'nocturne-google-delta-token';
     const MICROSOFT_DELTA_LINK_KEY = 'nocturne-microsoft-delta-link';
     function readCloudDeltaCursor(key) {
@@ -15309,6 +15425,12 @@
                 existing.contentRev = incomingRev;
                 touched = true;
               }
+              const scTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
+              if (scTid && scTid !== fid && existing.targetRemoteId !== scTid) {
+                if (existing.targetRemoteId) contentChanged = true;
+                existing.targetRemoteId = scTid;
+                touched = true;
+              }
               if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
               if (file.name && existing.name !== file.name) {
                 existing.name = file.name;
@@ -15318,6 +15440,8 @@
             }
             continue;
           }
+          const newScTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
+          if (newScTid && knownIds.has(newScTid)) continue;
           if (!isCloudAudio(file)) continue;
           const track = googleTrack(file);
           state.tracks.push(track);
@@ -15465,6 +15589,12 @@
                   existing.contentRev = incomingRev;
                   touched = true;
                 }
+                const scTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
+                if (scTid && scTid !== file.id && existing.targetRemoteId !== scTid) {
+                  if (existing.targetRemoteId) contentChanged = true;
+                  existing.targetRemoteId = scTid;
+                  touched = true;
+                }
                 if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
                 if (file.name && existing.name !== file.name) {
                   existing.name = file.name;
@@ -15503,6 +15633,21 @@
           cloudStatus('google', `Đang quét Google Drive… ${scanned} mục · ${knownIds.size} bài`, 'text-sky-300');
         } while (pageToken);
 
+        if (typeof scanGoogleDriveAudioShortcuts === 'function') {
+          const scRes = await scanGoogleDriveAudioShortcuts(
+            () => token,
+            async () => { token = await ensureGoogleToken(true); return token; },
+            existingByRemoteId,
+            knownIds,
+            seenRemoteIds,
+            updatedExistingTracks,
+            newlyAddedTracks
+          );
+          if (scRes && scRes.added > 0 && Array.isArray(scRes.tracks) && scRes.tracks.length) {
+            added += scRes.added;
+            persistChain = persistChain.then(() => persistCloudCatalog(scRes.tracks, { skipPrune: true })).catch(() => {});
+          }
+        }
         if (updatedExistingTracks.length > 0) {
           persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => {});
         }
@@ -15571,7 +15716,9 @@
               blob = await library.fetchAudioBlob(freshDirect, {}, provider);
             } else {
               const token = await getMicrosoftToken(false);
-              const graphUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
+              const graphUrl = track.remoteDriveId
+                ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}/content`
+                : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
               blob = await library.fetchAudioBlob(graphUrl, {headers:{Authorization:`Bearer ${token}`}}, provider);
             }
           } else {
@@ -15601,6 +15748,7 @@
       const token = await ensureGoogleToken();
       const track = state.tracks.find(item => item.remoteId === fileId && item.source === 'google');
       if (!track) throw new Error('Không tìm thấy bài hát trong thư viện.');
+      if (track.targetRemoteId && track.targetRemoteId !== fileId) fileId = track.targetRemoteId;
       const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`;
       if (isDsdFormat(track.format)) { await fetchCloudFile(track, url, {headers:{Authorization:`Bearer ${token}`}}, 'Google Drive'); return track.file; }
       await fetchCloudTrack(track, url, {headers:{Authorization:`Bearer ${token}`}}, 'Google Drive');
@@ -15774,13 +15922,18 @@
           let thumbUrl = cand.downloadUrl || '';
           if (!thumbUrl) {
             try {
-              const tResp = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(cand.id)}/thumbnails?$select=small,medium,large`);
+              const candBase = (cand && cand.driveId)
+                ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(cand.driveId)}/items/${encodeURIComponent(cand.id)}`
+                : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(cand.id)}`;
+              const tResp = await graphGet(`${candBase}/thumbnails?$select=small,medium,large`);
               const tSet = tResp && tResp.value && tResp.value[0];
               const thumb = tSet && (tSet.large || tSet.medium || tSet.small);
               if (thumb && thumb.url) thumbUrl = thumb.url;
             } catch (_) {}
           }
-          const fallbackContentUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(cand.id)}/content`;
+          const fallbackContentUrl = (cand && cand.driveId)
+            ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(cand.driveId)}/items/${encodeURIComponent(cand.id)}/content`
+            : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(cand.id)}/content`;
           const cover = await fetchCloudImageCandidateDataUrl(thumbUrl, fallbackContentUrl, () => state.microsoftAccessToken || getMicrosoftToken(false));
           if (!cover) continue;
           const changed = applyDiscoveredCloudFolderCover(matched, cover);
@@ -15797,6 +15950,95 @@
         await persistCloudCatalog(updatedTracks, true).catch(() => {});
       }
       return appliedCount;
+    }
+    async function enqueueMicrosoftSharedItems(token, queue, visitedFolders, existingByRemoteId, knownIds, seenRemoteIds, updatedExistingTracks) {
+      const addedTracks = [];
+      let next = 'https://graph.microsoft.com/v1.0/me/drive/sharedWithMe?$top=200';
+      let pageCount = 0;
+      try {
+        while (next && pageCount < 5) {
+          pageCount++;
+          const data = await graphGet(next, token);
+          const entries = (data && Array.isArray(data.value)) ? data.value : [];
+          for (let ei = 0; ei < entries.length; ei++) {
+            const raw = entries[ei];
+            const norm = (typeof normalizeMicrosoftDriveItem === 'function')
+              ? normalizeMicrosoftDriveItem(raw, '')
+              : { item: raw, driveId: String((raw && raw.remoteItem && raw.remoteItem.parentReference && raw.remoteItem.parentReference.driveId) || ''), isRemote: false };
+            const item = norm && norm.item;
+            const driveId = (norm && norm.driveId) ? String(norm.driveId) : '';
+            if (!item || !item.id) continue;
+            const sharedPath = 'Shared/' + String(item.name || item.id);
+            if (item.folder && driveId) {
+              const fKey = driveId + ':' + item.id;
+              if (!visitedFolders || !visitedFolders.has(fKey)) {
+                if (visitedFolders) visitedFolders.add(fKey);
+                if (queue) {
+                  queue.push({
+                    url: `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,cTag,size,audio,remoteItem&$top=500`,
+                    path: sharedPath,
+                    driveId
+                  });
+                }
+              }
+              continue;
+            }
+            if (item.folder) continue;
+            if (typeof isCloudAudio === 'function' && !isCloudAudio(item)) continue;
+            if (seenRemoteIds) seenRemoteIds.add(item.id);
+            if (knownIds && knownIds.has(item.id)) {
+              const existing = existingByRemoteId ? existingByRemoteId.get(item.id) : null;
+              if (existing) {
+                let touched = false;
+                if (driveId && existing.remoteDriveId !== driveId) {
+                  existing.remoteDriveId = driveId;
+                  touched = true;
+                }
+                if (item['@microsoft.graph.downloadUrl']) {
+                  existing.downloadUrl = item['@microsoft.graph.downloadUrl'];
+                  existing.downloadUrlAt = Date.now();
+                  touched = true;
+                }
+                if (sharedPath && existing.remotePath !== sharedPath) {
+                  existing.remotePath = sharedPath;
+                  touched = true;
+                }
+                const msSize = Number(item.size) || 0;
+                let msContentChanged = false;
+                if (msSize > 0 && existing.size !== msSize) {
+                  if (existing.size > 0) msContentChanged = true;
+                  existing.size = msSize;
+                  touched = true;
+                }
+                const msRev = String(item.cTag || item.eTag || '');
+                if (msRev && existing.contentRev !== msRev) {
+                  if (existing.contentRev) msContentChanged = true;
+                  existing.contentRev = msRev;
+                  touched = true;
+                }
+                if (msContentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
+                if (item.audio && (!existing.metadataLoaded || !existing.cover || msContentChanged) && typeof mergeMicrosoftTrack === 'function') {
+                  mergeMicrosoftTrack(existing, item, sharedPath);
+                  touched = true;
+                }
+                if (touched && updatedExistingTracks) updatedExistingTracks.push(existing);
+              }
+              continue;
+            }
+            if (typeof microsoftTrack !== 'function') continue;
+            const track = microsoftTrack(item, sharedPath);
+            if (driveId && !track.remoteDriveId) track.remoteDriveId = driveId;
+            state.tracks.push(track);
+            addedTracks.push(track);
+            if (knownIds) knownIds.add(item.id);
+            if (existingByRemoteId) existingByRemoteId.set(item.id, track);
+          }
+          next = (data && data['@odata.nextLink']) ? String(data['@odata.nextLink']) : '';
+        }
+      } catch (sharedErr) {
+        console.debug('OneDrive sharedWithMe discovery skipped:', (sharedErr && sharedErr.message) || sharedErr);
+      }
+      return addedTracks;
     }
     async function saveMicrosoftLatestDeltaLink(token) {
       const data = await graphGet('https://graph.microsoft.com/v1.0/me/drive/root/delta?token=latest', token);
@@ -15821,20 +16063,30 @@
           const data = await graphGet(nextUrl, token);
           const items = (data && Array.isArray(data.value)) ? data.value : [];
           for (let ii = 0; ii < items.length; ii++) {
-            const item = items[ii];
+            const rawItem = items[ii];
+            if (!rawItem) continue;
+            const norm = (typeof normalizeMicrosoftDriveItem === 'function')
+              ? normalizeMicrosoftDriveItem(rawItem, '')
+              : { item: rawItem, driveId: String((rawItem.remoteItem && rawItem.remoteItem.parentReference && rawItem.remoteItem.parentReference.driveId) || ''), isRemote: Boolean(rawItem.remoteItem) };
+            const item = (norm && norm.item) || rawItem;
+            const itemDriveId = (norm && norm.driveId) ? String(norm.driveId) : '';
             if (!item || !item.id) continue;
             if (item.deleted) {
               if (knownIds.has(item.id)) deletedRemoteIds.add(item.id);
               continue;
             }
             const rawRefPath = (item.parentReference && item.parentReference.path) ? String(item.parentReference.path) : '';
-            let parentRaw = rawRefPath.replace(/^\/drive\/root:?\/?/, '');
+            let parentRaw = rawRefPath.replace(/^\/drive\/root:?\/?/, '').replace(/^\/drives\/[^/]+\/root:?\/?/, '');
             try { parentRaw = decodeURIComponent(parentRaw); } catch (_) {}
-            const itemPath = parentRaw ? `${parentRaw}/${item.name}` : (item.name || '');
+            const itemPath = parentRaw ? `${parentRaw}/${item.name}` : (norm && norm.isRemote ? `Shared/${item.name || item.id}` : (item.name || ''));
             if (!item.folder && knownIds.has(item.id)) {
               const existing = existingByRemoteId.get(item.id);
               if (existing) {
                 let touched = false;
+                if (itemDriveId && existing.remoteDriveId !== itemDriveId) {
+                  existing.remoteDriveId = itemDriveId;
+                  touched = true;
+                }
                 if (item['@microsoft.graph.downloadUrl']) {
                   existing.downloadUrl = item['@microsoft.graph.downloadUrl'];
                   existing.downloadUrlAt = Date.now();
@@ -15869,6 +16121,7 @@
             if (item.folder) continue;
             if (isCloudAudio(item)) {
               const msTrack = microsoftTrack(item, itemPath);
+              if (itemDriveId && !msTrack.remoteDriveId) msTrack.remoteDriveId = itemDriveId;
               state.tracks.push(msTrack);
               addedTracks.push(msTrack);
               knownIds.add(item.id);
@@ -15882,7 +16135,8 @@
                     id: item.id,
                     name: item.name,
                     score: coverScore,
-                    downloadUrl: item['@microsoft.graph.downloadUrl'] || ''
+                    downloadUrl: item['@microsoft.graph.downloadUrl'] || '',
+                    driveId: itemDriveId
                   });
                 }
               }
@@ -15933,7 +16187,8 @@
       const scoreFolderCover = (typeof library !== 'undefined' && typeof library.scoreFolderCoverFilename === 'function')
         ? library.scoreFolderCoverFilename
         : () => 0;
-      const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,cTag,size,audio&$top=500', path:''}];
+      const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,cTag,size,audio&$top=500', path:'', driveId:''}];
+      const visitedFolders = new Set();
       const updatedExistingTracks = [];
       try {
         if (typeof tryLoadMicrosoftDeltaSync === 'function' && knownIds.size > 0) {
@@ -15947,7 +16202,12 @@
           let next = url, pageTracks = [];
           while (next) {
             const data = await graphGet(next);
-            for (const item of data.value || []) {
+            for (const rawItem of data.value || []) {
+              const norm = (typeof normalizeMicrosoftDriveItem === 'function')
+                ? normalizeMicrosoftDriveItem(rawItem, folderNode.driveId)
+                : { item: rawItem, driveId: String(folderNode.driveId || ''), isRemote: Boolean(folderNode.driveId) };
+              const item = (norm && norm.item) || rawItem;
+              const itemDriveId = (norm && norm.driveId) ? String(norm.driveId) : '';
               if (!item || !item.id) continue;
               const itemPath = path ? `${path}/${item.name}` : item.name;
               if (!item.folder) seenRemoteIds.add(item.id);
@@ -15955,6 +16215,10 @@
                 const existing = existingByRemoteId.get(item.id);
                 if (existing) {
                   let touched = false;
+                  if (itemDriveId && existing.remoteDriveId !== itemDriveId) {
+                    existing.remoteDriveId = itemDriveId;
+                    touched = true;
+                  }
                   if (item['@microsoft.graph.downloadUrl']) {
                     existing.downloadUrl = item['@microsoft.graph.downloadUrl'];
                     existing.downloadUrlAt = Date.now();
@@ -15986,7 +16250,15 @@
                 }
               }
               if (item.folder) {
-                queue.push({url:`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,cTag,size,audio&$top=500`, path:itemPath});
+                const folderKey = (itemDriveId || 'me') + ':' + item.id;
+                if (!visitedFolders.has(folderKey)) {
+                  visitedFolders.add(folderKey);
+                  if (itemDriveId) {
+                    queue.push({url:`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(itemDriveId)}/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,cTag,size,audio,remoteItem&$top=500`, path:itemPath, driveId:itemDriveId});
+                  } else {
+                    queue.push({url:`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,cTag,size,audio&$top=500`, path:itemPath, driveId:''});
+                  }
+                }
                 continue;
               }
               if (!isCloudAudio(item)) {
@@ -15994,13 +16266,14 @@
                 if (coverScore > 0) {
                   const prevCand = siblingCoversByDir.get(path);
                   if (!prevCand || coverScore > prevCand.score) {
-                    siblingCoversByDir.set(path, { id: item.id, name: item.name, score: coverScore, downloadUrl: item['@microsoft.graph.downloadUrl'] || '' });
+                    siblingCoversByDir.set(path, { id: item.id, name: item.name, score: coverScore, downloadUrl: item['@microsoft.graph.downloadUrl'] || '', driveId: itemDriveId });
                   }
                 }
                 continue;
               }
               if (knownIds.has(item.id)) continue;
               const track = microsoftTrack(item, itemPath);
+              if (itemDriveId && !track.remoteDriveId) track.remoteDriveId = itemDriveId;
               state.tracks.push(track); pageTracks.push(track); knownIds.add(item.id); existingByRemoteId.set(item.id, track); added++;
             }
             if (pageTracks.length) {
@@ -16014,6 +16287,13 @@
             next = data['@odata.nextLink'] || '';
           }
         };
+        if (typeof enqueueMicrosoftSharedItems === 'function') {
+          const sharedAdded = await enqueueMicrosoftSharedItems(token, queue, visitedFolders, existingByRemoteId, knownIds, seenRemoteIds, updatedExistingTracks);
+          if (sharedAdded && sharedAdded.length) {
+            added += sharedAdded.length;
+            persistChain = persistChain.then(() => persistCloudCatalog(sharedAdded, { skipPrune: true })).catch(() => {});
+          }
+        }
         while (queue.length) {
           const folderBatch = queue.splice(0, FOLDER_BATCH_CONCURRENCY);
           await Promise.all(folderBatch.map(node => scanFolderNode(node)));
@@ -16060,7 +16340,10 @@
     async function resolveMicrosoftDownloadUrl(track) {
       if (track.downloadUrl && track.downloadUrlAt && Date.now() - track.downloadUrlAt < MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS) return track.downloadUrl;
       const token = state.microsoftAccessToken || await getMicrosoftToken(false);
-      const item = await graphGet(`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}`, token);
+      const itemUrl = (track && track.remoteDriveId)
+        ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}`
+        : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}`;
+      const item = await graphGet(itemUrl, token);
       const url = item && item['@microsoft.graph.downloadUrl'];
       if (!url) return '';
       track.downloadUrl = url;
@@ -16083,7 +16366,9 @@
         }
       }
       const token = await getMicrosoftToken(false);
-      const url = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}/content`;
+      const url = track.remoteDriveId
+        ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(itemId)}/content`
+        : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}/content`;
       if (isDsdFormat(track.format)) { await fetchCloudFile(track, url, {headers:{Authorization:`Bearer ${token}`}}, 'OneDrive'); return track.file; }
       await fetchCloudTrack(track, url, {headers:{Authorization:`Bearer ${token}`}}, 'OneDrive');
     }
@@ -22850,50 +23135,130 @@
     let watchdogLastTime = -1;
     let watchdogStallTicks = 0;
     let watchdogLastNudgeAt = 0;
+    let watchdogNudgeAttempts = 0;
+    let watchdogReconnecting = false;
+    async function recoverStalledAudioStream(curTrack, curSrc, resumeSec) {
+      if (watchdogReconnecting || !curTrack || !audio || state.isPlaybackLoading || state.isNativeBitPerfectPlaying || curTrack.isDsd || curTrack.id !== state.currentId) return false;
+      const nowMs = Date.now();
+      if (curTrack._stallReconnectAt && (nowMs - curTrack._stallReconnectAt) < 120000) return false;
+      watchdogReconnecting = true;
+      curTrack._stallReconnectAt = nowMs;
+      try {
+        const deck = audio;
+        const safeResume = Number.isFinite(resumeSec) && resumeSec > 0 ? resumeSec : 0;
+        let oldUrl = '';
+        let newUrl = '';
+        if (curTrack.source === 'google' || curTrack.source === 'onedrive') {
+          if (curTrack.source === 'onedrive') {
+            curTrack.downloadUrl = '';
+            curTrack.downloadUrlAt = 0;
+          }
+          if (curTrack._fullUpgradeAbort) {
+            try { curTrack._fullUpgradeAbort.abort(); } catch (_) {}
+            curTrack._fullUpgradeAbort = null;
+          }
+          curTrack.firstSlicePlayback = false;
+          curTrack.sliceEndedEarly = false;
+          curTrack.fullAudioError = null;
+          oldUrl = curTrack.url || '';
+          curTrack.url = '';
+          if (typeof curTrack.load === 'function') await curTrack.load();
+          if (deck !== audio || curTrack.id !== state.currentId || state.isPlaybackLoading || state.isNativeBitPerfectPlaying) return false;
+          newUrl = curTrack.url || '';
+          if (!newUrl) {
+            if (oldUrl && !curTrack.url) curTrack.url = oldUrl;
+            return false;
+          }
+        } else if (curTrack.source === 'local') {
+          newUrl = (typeof ensureLocalTrackPlayableUrl === 'function')
+            ? await ensureLocalTrackPlayableUrl(curTrack, { requestPermission: false })
+            : (curTrack.url || '');
+          if (deck !== audio || curTrack.id !== state.currentId || state.isPlaybackLoading || state.isNativeBitPerfectPlaying) return false;
+          if (!newUrl) return false;
+          if (newUrl.indexOf('/local-media') !== -1) {
+            const cleaned = newUrl.replace(/([&?])_sr=\d+(&?)/g, (m, p1, p2) => (p1 === '?' && p2) ? '?' : (p2 ? p1 : ''));
+            newUrl = cleaned + (cleaned.indexOf('?') === -1 ? '?' : '&') + '_sr=' + Date.now();
+          }
+        } else {
+          return false;
+        }
+        deck.addEventListener('loadedmetadata', () => {
+          if (deck !== audio || curTrack.id !== state.currentId) return;
+          if (safeResume > 0) {
+            try {
+              const targetSeek = (Number.isFinite(deck.duration) && deck.duration > 0.5)
+                ? Math.min(safeResume, deck.duration - 0.25)
+                : safeResume;
+              deck.currentTime = Math.max(0, targetSeek);
+            } catch (_) {}
+          }
+          if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
+            state.context.resume().catch(() => {});
+          }
+          const p = deck.play();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+        }, { once: true });
+        deck.src = newUrl;
+        if (typeof deck.load === 'function') deck.load();
+        if (oldUrl && oldUrl !== newUrl && oldUrl.indexOf('blob:') === 0 && typeof releaseTrackUrl === 'function') {
+          let oldAbs = oldUrl;
+          try { oldAbs = new URL(oldUrl, location.href).href; } catch (_) {}
+          if ((!audio || audio.src !== oldAbs) && (!standbyAudio || standbyAudio.src !== oldAbs)) {
+            releaseTrackUrl(oldUrl);
+          }
+        }
+        watchdogLastSrc = String(deck.src || newUrl);
+        watchdogLastTime = safeResume;
+        watchdogStallTicks = 0;
+        watchdogNudgeAttempts = 0;
+        if (typeof toast === 'function') toast('Đã tự động nối lại luồng phát âm thanh tại vị trí đang nghe.');
+        return true;
+      } catch (_) {
+        return false;
+      } finally {
+        watchdogReconnecting = false;
+      }
+    }
     function runPlaybackStallWatchdogTick() {
       try {
         if (state.isNativeBitPerfectPlaying || state.isPlaybackLoading || !audio || !audio.src || audio.paused || audio.ended) {
-          watchdogStallTicks = 0;
-          return;
+          watchdogStallTicks = 0; return;
         }
         if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
           state.context.resume().catch(() => {});
         }
         const curTrack = state.tracks.find(t => t && t.id === state.currentId);
         if (curTrack && curTrack.firstSlicePlayback && (curTrack.fullAudioPromise || curTrack.sliceEndedEarly)) {
-          watchdogStallTicks = 0;
-          return;
+          watchdogStallTicks = 0; return;
         }
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-          watchdogStallTicks = 0;
-          return;
+        if (!(curTrack && curTrack.source === 'local') && typeof navigator !== 'undefined' && navigator.onLine === false) {
+          watchdogStallTicks = 0; return;
         }
-        const curSrc = String(audio.src || '');
-        const curT = Number(audio.currentTime) || 0;
+        const curSrc = String(audio.src || ''), curT = Number(audio.currentTime) || 0;
         if (curSrc !== watchdogLastSrc) {
-          watchdogLastSrc = curSrc;
-          watchdogLastTime = curT;
-          watchdogStallTicks = 0;
-          return;
+          watchdogLastSrc = curSrc; watchdogLastTime = curT; watchdogStallTicks = 0; watchdogNudgeAttempts = 0; return;
         }
-        if (Math.abs(curT - watchdogLastTime) < 0.02 && audio.readyState <= 2) {
+        if (Math.abs(curT - watchdogLastTime) < 0.02 && (audio.readyState <= 2 || audio.error)) {
           watchdogStallTicks++;
           const nowMs = Date.now();
           if (watchdogStallTicks >= 2 && (nowMs - watchdogLastNudgeAt) >= 20000) {
-            watchdogLastNudgeAt = nowMs;
-            watchdogStallTicks = 0;
+            watchdogLastNudgeAt = nowMs; watchdogStallTicks = 0;
             if (!Number.isFinite(audio.duration) || audio.duration <= 0 || (audio.duration - curT) > 0.25) {
+              watchdogNudgeAttempts++;
+              if (watchdogNudgeAttempts >= 2 && curTrack && typeof recoverStalledAudioStream === 'function') {
+                watchdogNudgeAttempts = 0; recoverStalledAudioStream(curTrack, curSrc, curT).catch(() => {}); return;
+              }
               try {
                 const targetPos = Number.isFinite(audio.duration) && audio.duration > 1 ? Math.max(curT, Math.min(curT + 0.05, audio.duration - 0.15)) : (curT + 0.05);
                 audio.currentTime = Math.max(0, targetPos);
+                watchdogLastTime = Number(audio.currentTime) || Math.max(0, targetPos);
               } catch (_) {}
               const p = audio.play();
               if (p && typeof p.catch === 'function') p.catch(() => {});
             }
           }
         } else {
-          watchdogLastTime = curT;
-          watchdogStallTicks = 0;
+          watchdogLastTime = curT; watchdogStallTicks = 0; watchdogNudgeAttempts = 0;
         }
       } catch (_) {}
     }

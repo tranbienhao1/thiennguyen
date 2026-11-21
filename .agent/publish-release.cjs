@@ -80,21 +80,19 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.49';
-  const name = process.argv[3] || `Nocturne ${tag} (Làm mới token metadata Cloud 401/403, gộp batch IndexedDB, khôi phục quyền FileHandle & dọn worker DSD khi Next nhanh)`;
+  const tag = process.argv[2] || 'v3.9.50';
+  const name = process.argv[3] || `Nocturne ${tag} (Tự nối lại luồng phát khi đứng buffer Cloud/Local, lối tắt Google Drive & thư mục chia sẻ OneDrive)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 103) — Làm mới token metadata Cloud 401/403, gộp batch IndexedDB, khôi phục quyền FileHandle & dọn worker DSD khi Next nhanh
+    : `### Nocturne ${tag} (versionCode 104) — Tự nối lại luồng phát khi đứng buffer Cloud/Local, lối tắt Google Drive & thư mục chia sẻ OneDrive
 
-#### 1. Gia cố đọc metadata Cloud & gộp ghi batch IndexedDB (\`cloud-metadata.js\` + \`index.html\`)
-- **\`cloud-metadata.js\`**: Gắn mã HTTP \`.status\` lên lỗi trả về từ \`makeRangeReader\`, \`loadReaderRangeAsync\` và \`readRemoteTags\` để tầng ứng dụng nhận diện chính xác \`401\`/\`403\`.
-- **\`cloudTagRequest\` & \`googleThumbnail\`**: Tự động ép làm mới token Google Drive (\`ensureGoogleToken(true)\`) hoặc link/token OneDrive (\`getMicrosoftToken\`, \`graphGet\`) và thử lại 1 lần khi nhận \`401\`/\`403\` trong lúc đọc tag hoặc tải ảnh bìa từ xa.
-- **\`queueCloudCatalogPersist\` / \`flushQueuedCloudCatalogPersist\`**: Gom ghi kết quả metadata từ \`enrichCloudTrack\` theo lô (tối đa \`12\` bài hoặc debounce \`1.5s\`), tự xả lô và \`pruneCloudCatalog\` khi hàng đợi hoàn tất hoặc trước lúc thoát (\`beforeunload\`) để giảm ghi flash trên FiiO M11S.
+#### 1. Tự động nối lại luồng phát Cloud & Nội bộ khi đứng buffer (\`index.html\`)
+- **\`recoverStalledAudioStream\` & \`runPlaybackStallWatchdogTick\`**: Sau các lần nhích phát lặp lại mà luồng audio vẫn đứng (\`readyState <= 2\` hoặc \`audio.error\`), hệ thống tự động nạp lại URL/luồng mới cho bài Google Drive, OneDrive (làm mới \`downloadUrl\`) hoặc bài nội bộ (\`/local-media?_sr=\` / \`ensureLocalTrackPlayableUrl\`, hoạt động cả khi mất mạng) và khôi phục chính xác vị trí đang nghe (\`currentTime\`), giới hạn tối đa \`1\` lần nối lại mỗi bài trong \`120s\`.
 
-#### 2. Khôi phục quyền \`FileSystemFileHandle\` & tối ưu preload DSD khi bấm Next nhanh (\`index.html\`)
-- **\`ensureLocalTrackPlayableUrl(track, options)\`**: Kiểm tra \`queryPermission({ mode: 'read' })\` và chủ động gọi \`requestPermission({ mode: 'read' })\` khi phát trực tiếp (\`playTrack\` truyền \`{ requestPermission: true }\`), giúp khôi phục phát bài từ thư mục cục bộ trên Desktop Web sau khi cấp lại quyền.
-- **\`clearStalePreload\` & \`preloadDsdNext\`**: Hủy worker giải mã DSD nền cũ (\`stopPrefetchDsdSlice()\`) khi chuyển bài hoặc đổi bài DSD kế tiếp, và giải phóng \`next.file = null\` nếu lượt tải DSD Cloud đã bị thay thế bởi thao tác bấm Next nhanh.
+#### 2. Hỗ trợ lối tắt Google Drive & thư mục/mục chia sẻ OneDrive (\`index.html\`)
+- **Google Drive Shortcuts (\`shortcutDetails.targetId\`)**: \`scanGoogleDriveAudioShortcuts\`, \`tryLoadGoogleChangesDelta\`, \`isCloudAudio\`, \`googleTrack\`, \`loadGoogleAudio\`, \`cloudTagRequest\` và \`googleThumbnail\` nhận diện lối tắt trỏ tới tệp âm thanh, loại bỏ lối tắt thư mục/tài liệu, tránh trùng bài nếu tệp đích đã có trong My Drive, và phát/đọc tag trực tiếp từ \`targetRemoteId\`.
+- **OneDrive Shared Folders & Items (\`remoteItem\` / \`remoteDriveId\`)**: \`enqueueMicrosoftSharedItems\`, \`normalizeMicrosoftDriveItem\`, \`loadMicrosoftFiles\`, \`tryLoadMicrosoftDeltaSync\`, \`resolveMicrosoftDownloadUrl\`, \`loadMicrosoftAudio\`, \`fetchCloudFile\`, \`fetchCloudTrack\`, \`upgradeSliceToFullAudio\`, \`cloudTagRequest\` và \`microsoftThumbnail\` hỗ trợ đầy đủ tệp và thư mục chia sẻ qua \`/drives/{driveId}/items/{itemId}\` và lưu bền vững \`remoteDriveId\` trong IndexedDB.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
