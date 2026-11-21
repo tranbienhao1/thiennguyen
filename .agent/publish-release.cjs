@@ -80,23 +80,23 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.60';
-  const name = process.argv[3] || `Nocturne ${tag} (Khử trùng lặp ảnh bìa Cloud 10x cho thư viện lớn + LruCache RAM ảnh bìa nội bộ & quét cập nhật thẻ DATE_MODIFIED trên Android/FiiO)`;
+  const tag = process.argv[2] || 'v3.9.61';
+  const name = process.argv[3] || `Nocturne ${tag} (Đồng bộ tiếp điểm dừng Cloud khi rớt mạng + nhập M3U/M3U8 đường dẫn tương đối & nạp trước Cloud khi phát Bit-Perfect)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 114) — Khử trùng lặp ảnh bìa Cloud cho thư viện lớn + LruCache ảnh bìa nội bộ & đồng bộ thẻ \`DATE_MODIFIED\` trên Android/FiiO
+    : `### Nocturne ${tag} (versionCode 115) — Điểm dừng đồng bộ Cloud thông minh + Nhập playlist M3U/M3U8 chuẩn đường dẫn tương đối & Chuyển tiếp Bit-Perfect -> Cloud mượt mà
 
-#### 1. Khử trùng lặp ảnh bìa \`base64\` theo album cho thư viện Google Drive / OneDrive lớn (\`library-utils.js\` + \`index.html\`)
-- **\`deduplicateCatalogCovers\` & nén danh mục IndexedDB**: Khi 10–20 bài trong cùng một album/thư mục Cloud dùng chung một ảnh bìa \`data:image\`, Nocturne chỉ lưu 1 bản đại diện trong IndexedDB thay vì nhân bản theo từng bài (giảm tới ~10x dung lượng & RAM khi mở lại app, giữ được gấp 10 lần số album có ảnh bìa trong ngân sách 8 MiB, đồng thời vẫn bảo toàn nguyên vẹn ảnh riêng biệt cho album tổng hợp).
-- **Nén gọn danh mục FiiO/Android**: \`compactFiioTrackForStorage\` lược bỏ chuỗi mặc định dư thừa (\`Unknown Artist\` / \`FiiO Internal & SD Card\`) và lưu kèm \`lastModified\` giúp thư viện >5.000–10.000 bài trên MicroSD gọn hơn ~15–20%.
+#### 1. Điểm dừng đồng bộ (Checkpoint Resume) cho thư viện Google Drive & OneDrive lớn (\`index.html\`)
+- **Tiếp tục đúng trang/thư mục đang dở khi rớt mạng**: Lưu tạm \`pageToken\` (Google Drive) và hàng đợi thư mục còn lại (OneDrive, TTL 6 giờ) sau mỗi đợt quét hoặc ngay khi một cụm thư mục gặp lỗi mạng, giúp lượt đồng bộ kế tiếp tiếp tục ngay phần còn thiếu thay vì quét lại từ đầu.
+- **Bảo vệ tuyệt đối thư viện đã lưu**: Tự động bỏ qua bước xóa bài thừa trên lượt đồng bộ tiếp điểm dừng (tránh xóa nhầm bài từ các trang đã quét trước đó) và tự khôi phục về trang 1 nếu \`pageToken\` đã hết hạn (HTTP 400).
 
-#### 2. Tăng tốc ảnh bìa nội bộ & sửa đường dẫn chứa \`+\` / \`%\` trên Android/FiiO (\`MainActivity.java\`)
-- **\`mCoverMemCache\` (\`LruCache\` giới hạn 3 MB trên máy RAM thấp / 6 MB trên Android thường)**: Phục vụ ảnh bìa \`/local-cover\` trực tiếp từ RAM khi cuộn lưới album mà không đọc lại flash nhiều lần, tự động giải phóng khi hệ thống gọi \`onTrimMemory\` hoặc \`clearLocalCoverCache\`.
-- **Sửa lỗi 404 ảnh bìa với thư mục/tệp chứa \`+\` hoặc \`%\` lẻ**: \`handleLocalCoverArt\` sử dụng \`extractLocalMediaQueryParam\` an toàn và mở rộng hỗ trợ kế thừa ảnh bìa thư mục cha cho \`Vol\` / \`Volume\` / \`Part\`.
+#### 2. Nâng cấp đọc & khớp playlist \`.m3u\` / \`.m3u8\` cho Nội bộ & Cloud (\`library-utils.js\`)
+- **Hỗ trợ UTF-8 BOM, M3U thuần không có \`#EXTM3U\`, dấu \`\\\` Windows & \`file://\`**: Giải mã an toàn ký tự \`+\` / \`%\`, trích xuất tên bài/nghệ sĩ từ tên tệp khi thiếu \`#EXTINF\`.
+- **\`resolveM3uRelativePath\` & khớp hậu tố đường dẫn + Unicode NFC/NFD**: \`matchPlaylistWithLibrary\` khớp chính xác cả đường dẫn tương đối (\`../Album/01.flac\`), hậu tố thư mục-tệp và tên tệp duy nhất trên thẻ nhớ FiiO/Android, thư mục nội bộ Web, Google Drive và OneDrive.
 
-#### 3. Đồng bộ lại thay đổi thẻ metadata theo \`DATE_MODIFIED\` trên Android/FiiO (\`MainActivity.java\` + \`index.html\`)
-- **\`scanMediaStoreAudio\` xuất \`lastModified\` (\`DATE_MODIFIED * 1000\`)**: \`applyFiioRescanFields\` tự nhận diện tệp vừa được sửa thẻ tag tại chỗ (dù giữ nguyên đường dẫn) để làm mới ngay \`title\`, \`artist\`, \`album\`, \`albumArtist\`, \`trackNumber\`, \`discNumber\`, \`year\`, \`duration\`.
+#### 3. Nạp trước bài Cloud ngay trong lúc phát nội bộ Bit-Perfect (\`index.html\`)
+- **\`preloadCloudNextDuringBitPerfect\` không chạm \`AudioContext\`**: Khi bài nội bộ đang phát ở chế độ Native Bit-Perfect gần kết thúc mà bài kế tiếp nằm trên Google Drive / OneDrive, Nocturne chủ động làm mới token/\`downloadUrl\` và tải trước lát đầu mà không gây tranh chấp AudioFocus trên Android/FiiO M11S.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

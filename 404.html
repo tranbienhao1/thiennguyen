@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.60</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.61</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4326,6 +4326,15 @@
           if (typeof updateLyricsHighlight === 'function') updateLyricsHighlight(displayCurSec);
           if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
           if (typeof savePlaybackSession === 'function') savePlaybackSession();
+          if (
+            displayDurSec > 0 &&
+            typeof library !== 'undefined' && library &&
+            typeof library.shouldPreloadNext === 'function' &&
+            library.shouldPreloadNext(displayCurSec, displayDurSec) &&
+            typeof preloadCloudNextDuringBitPerfect === 'function'
+          ) {
+            preloadCloudNextDuringBitPerfect();
+          }
         }
       };
       window.onNativeBitPerfectError = (reason) => {
@@ -6765,6 +6774,14 @@
     }
     function clearCloudCatalog() {
       if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.cancelAll('queue_cleared');
+      if (typeof clearCloudSyncCheckpoint === 'function') {
+        clearCloudSyncCheckpoint('nocturne-google-sync-checkpoint');
+        clearCloudSyncCheckpoint('nocturne-microsoft-sync-checkpoint');
+      }
+      if (typeof writeCloudDeltaCursor === 'function') {
+        writeCloudDeltaCursor('nocturne-google-delta-token', '');
+        writeCloudDeltaCursor('nocturne-microsoft-delta-link', '');
+      }
       return new Promise((resolve, reject) => {
         try {
           const store = catalogTransaction('readwrite');
@@ -14069,6 +14086,41 @@
       try { worker.postMessage({file: next.file, format: String(next.format).toLowerCase(), targetRate: state.dsdOutputRate, bitDepth: state.dsdOutputDepth}); }
       catch (error) { console.warn('Could not prefetch the DSD first slice:', error.message || error); stopPrefetchDsdSlice(); }
     }
+    let bpCloudPreloadTrackId = null;
+    async function preloadCloudNextDuringBitPerfect() {
+      if (!state.isNativeBitPerfectPlaying) return;
+      const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
+      if (isOfflineMode) return;
+      const index = queueIndex(), next = index >= 0 ? state.tracks[index] : null;
+      if (!next || next.id === state.currentId || next.isDsd) return;
+      if (next.source !== 'google' && next.source !== 'onedrive') return;
+      if (next.url && state.objectUrls && state.objectUrls.has(next.url)) return;
+      if (bpCloudPreloadTrackId === next.id || state.preloadBusyId === next.id) return;
+      if (state._preloadFailedTrackId === next.id && state._preloadFailedAt && (Date.now() - state._preloadFailedAt) < 8000) return;
+      if (typeof next.load !== 'function') return;
+      bpCloudPreloadTrackId = next.id;
+      const generation = ++state.preloadGeneration;
+      state.preloadTrackId = next.id;
+      state.preloadBusyId = next.id;
+      try {
+        if (typeof prepareCloudTrackForPreload === 'function') await prepareCloudTrackForPreload(next);
+        await next.load();
+        if (generation === state.preloadGeneration && next.url) {
+          if (state._preloadFailedTrackId === next.id) { state._preloadFailedTrackId = null; state._preloadFailedAt = 0; }
+          state.preloadReadyUrl = next.url;
+        }
+      } catch (err) {
+        if (generation === state.preloadGeneration) {
+          state.preloadTrackId = null;
+          state.preloadReadyUrl = null;
+          state._preloadFailedTrackId = next.id;
+          state._preloadFailedAt = Date.now();
+        }
+      } finally {
+        if (bpCloudPreloadTrackId === next.id) bpCloudPreloadTrackId = null;
+        if (state.preloadBusyId === next.id) state.preloadBusyId = null;
+      }
+    }
     async function preloadNext(force = false) {
       if (!state.context || !state.deckA || !state.deckB) return;
       // Pha A — đang crossfade thì deck chờ vẫn phát bài cũ: đừng pause/xóa
@@ -14702,6 +14754,7 @@
         try { if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
         state.isNativeBitPerfectPlaying = false;
         state.isNativeBitPerfectPaused = false;
+        state.lastBitPerfectPositionSec = 0;
       }
 
       // 1. PC Desktop / WebAudio Bit-Perfect mode (also used on Android when track.url is blob:):
@@ -16217,6 +16270,41 @@
 
     const GOOGLE_DELTA_TOKEN_KEY = 'nocturne-google-delta-token';
     const MICROSOFT_DELTA_LINK_KEY = 'nocturne-microsoft-delta-link';
+    const GOOGLE_SYNC_CHECKPOINT_KEY = 'nocturne-google-sync-checkpoint';
+    const MICROSOFT_SYNC_CHECKPOINT_KEY = 'nocturne-microsoft-sync-checkpoint';
+    const CLOUD_SYNC_CHECKPOINT_TTL_MS = 6 * 60 * 60 * 1000;
+    function readCloudSyncCheckpoint(key) {
+      try {
+        if (typeof localStorage === 'undefined' || !localStorage) return null;
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+        const savedAt = Number(parsed.savedAt) || 0;
+        if (savedAt > 0 && (Date.now() - savedAt) > CLOUD_SYNC_CHECKPOINT_TTL_MS) {
+          localStorage.removeItem(key);
+          return null;
+        }
+        return parsed;
+      } catch (_) {
+        return null;
+      }
+    }
+    function writeCloudSyncCheckpoint(key, data) {
+      try {
+        if (typeof localStorage === 'undefined' || !localStorage) return;
+        if (!data || typeof data !== 'object') {
+          localStorage.removeItem(key);
+          return;
+        }
+        localStorage.setItem(key, JSON.stringify(Object.assign({}, data, { savedAt: Number(data.savedAt) || Date.now() })));
+      } catch (_) {}
+    }
+    function clearCloudSyncCheckpoint(key) {
+      try {
+        if (typeof localStorage !== 'undefined' && localStorage) localStorage.removeItem(key);
+      } catch (_) {}
+    }
     function readCloudDeltaCursor(key) {
       try {
         return (typeof localStorage !== 'undefined' && localStorage) ? String(localStorage.getItem(key) || '').trim() : '';
@@ -16434,9 +16522,16 @@
       const newlyAddedTracks = [];
       let persistChain = Promise.resolve();
       let skippedFullArtworkPass = false;
+      let resumedFromCheckpoint = false;
 
       try {
-        if (typeof tryLoadGoogleChangesDelta === 'function' && knownIds.size > 0) {
+        const gResumeCp = (typeof readCloudSyncCheckpoint === 'function') ? readCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY) : null;
+        if (gResumeCp && gResumeCp.pageToken) {
+          pageToken = String(gResumeCp.pageToken);
+          useOrderBy = gResumeCp.useOrderBy !== false;
+          resumedFromCheckpoint = true;
+        }
+        if (!resumedFromCheckpoint && typeof tryLoadGoogleChangesDelta === 'function' && knownIds.size > 0) {
           const deltaRes = await tryLoadGoogleChangesDelta(token, existingByRemoteId, knownIds);
           if (deltaRes && deltaRes.handled) {
             if (Array.isArray(deltaRes.newlyAddedTracks) && deltaRes.newlyAddedTracks.length) {
@@ -16466,6 +16561,12 @@
             async () => { token = await ensureGoogleToken(true); return token; }
           );
 
+          if (response.status === 400 && resumedFromCheckpoint && pageToken) {
+            if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY);
+            pageToken = '';
+            resumedFromCheckpoint = false;
+            continue;
+          }
           if (response.status === 400 && useOrderBy) {
             useOrderBy = false;
             continue;
@@ -16561,9 +16662,13 @@
           }
 
           pageToken = data.nextPageToken || '';
+          if (pageToken && typeof writeCloudSyncCheckpoint === 'function') {
+            writeCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY, { pageToken, useOrderBy });
+          }
           cloudStatus('google', `Đang quét Google Drive… ${scanned} mục · ${knownIds.size} bài`, 'text-sky-300');
         } while (pageToken);
 
+        if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY);
         if (typeof scanGoogleDriveAudioShortcuts === 'function') {
           const scRes = await scanGoogleDriveAudioShortcuts(
             () => token,
@@ -16583,7 +16688,7 @@
           persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => {});
         }
         await persistChain;
-        if (!sawIncompleteSearch && seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {
+        if (!sawIncompleteSearch && !resumedFromCheckpoint && seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {
           await removeDeletedCloudTracks('google', seenRemoteIds, true);
         }
         if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
@@ -17328,7 +17433,20 @@
             next = data['@odata.nextLink'] || '';
           }
         };
-        if (typeof tryLoadMicrosoftDeltaSync === 'function' && knownIds.size > 0) {
+        let msResumedFromCheckpoint = false;
+        let activeMsBatch = [];
+        const msResumeCp = (typeof readCloudSyncCheckpoint === 'function') ? readCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY) : null;
+        if (msResumeCp && Array.isArray(msResumeCp.queue) && msResumeCp.queue.length > 0) {
+          queue.length = 0;
+          for (let ci = 0; ci < msResumeCp.queue.length; ci++) {
+            const cNode = msResumeCp.queue[ci];
+            if (cNode && typeof cNode.url === 'string' && cNode.url) {
+              queue.push({ url: cNode.url, path: String(cNode.path || ''), driveId: String(cNode.driveId || '') });
+            }
+          }
+          if (queue.length > 0) msResumedFromCheckpoint = true;
+        }
+        if (!msResumedFromCheckpoint && typeof tryLoadMicrosoftDeltaSync === 'function' && knownIds.size > 0) {
           siblingCoversByDir._lrcMap = siblingLrcByBase;
           const msDelta = await tryLoadMicrosoftDeltaSync(token, existingByRemoteId, knownIds, siblingCoversByDir);
           if (msDelta && msDelta.handled) {
@@ -17355,22 +17473,35 @@
             return;
           }
         }
-        if (typeof enqueueMicrosoftSharedItems === 'function') {
+        if (!msResumedFromCheckpoint && typeof enqueueMicrosoftSharedItems === 'function') {
           const sharedAdded = await enqueueMicrosoftSharedItems(token, queue, visitedFolders, existingByRemoteId, knownIds, seenRemoteIds, updatedExistingTracks);
           if (sharedAdded && sharedAdded.length) {
             added += sharedAdded.length;
             persistChain = persistChain.then(() => persistCloudCatalog(sharedAdded, { skipPrune: true })).catch(() => {});
           }
         }
-        while (queue.length) {
-          const folderBatch = queue.splice(0, FOLDER_BATCH_CONCURRENCY);
-          await Promise.all(folderBatch.map(node => scanFolderNode(node)));
+        try {
+          while (queue.length) {
+            activeMsBatch = queue.splice(0, FOLDER_BATCH_CONCURRENCY);
+            await Promise.all(activeMsBatch.map(node => scanFolderNode(node)));
+            activeMsBatch = [];
+            if (queue.length > 0 && typeof writeCloudSyncCheckpoint === 'function') {
+              writeCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY, { queue: queue.slice(0, 500) });
+            }
+          }
+        } catch (batchErr) {
+          const remainingForCp = activeMsBatch.concat(queue);
+          if (remainingForCp.length > 0 && typeof writeCloudSyncCheckpoint === 'function') {
+            writeCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY, { queue: remainingForCp.slice(0, 500) });
+          }
+          throw batchErr;
         }
+        if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY);
         if (updatedExistingTracks.length > 0) {
           persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => {});
         }
         await persistChain;
-        if (seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {
+        if (!msResumedFromCheckpoint && seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {
           await removeDeletedCloudTracks('onedrive', seenRemoteIds, true);
         }
         await pruneCloudCatalog();
