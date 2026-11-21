@@ -1660,6 +1660,10 @@ public class MainActivity extends AppCompatActivity {
     public void onTrimMemory(int level) {
         super.onTrimMemory(level);
         if (level >= TRIM_MEMORY_RUNNING_LOW) {
+            try {
+                android.util.LruCache<String, byte[]> memCache = mCoverMemCache;
+                if (memCache != null) memCache.evictAll();
+            } catch (Throwable ignored) {}
             final int trimLevel = level;
             runOnUiThread(() -> {
                 if (mWebView != null) {
@@ -2149,6 +2153,32 @@ public class MainActivity extends AppCompatActivity {
     private final java.util.concurrent.atomic.AtomicInteger mCoverWrites = new java.util.concurrent.atomic.AtomicInteger(0);
     private static final long COVER_CACHE_MAX_BYTES = 48L * 1024L * 1024L;
     private static final int COVER_CACHE_MAX_FILES = 1500;
+    private static final int COVER_MEM_CACHE_MAX_ENTRY_BYTES = 512 * 1024;
+    private volatile android.util.LruCache<String, byte[]> mCoverMemCache;
+
+    private android.util.LruCache<String, byte[]> getCoverMemCache() {
+        android.util.LruCache<String, byte[]> cache = mCoverMemCache;
+        if (cache != null) return cache;
+        synchronized (this) {
+            cache = mCoverMemCache;
+            if (cache == null) {
+                boolean lowRam = false;
+                try {
+                    android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+                    if (am != null) lowRam = am.isLowRamDevice();
+                } catch (Throwable ignored) {}
+                int maxBytes = lowRam ? (3 * 1024 * 1024) : (6 * 1024 * 1024);
+                cache = new android.util.LruCache<String, byte[]>(maxBytes) {
+                    @Override
+                    protected int sizeOf(String key, byte[] value) {
+                        return value != null ? Math.max(1, value.length) : 1;
+                    }
+                };
+                mCoverMemCache = cache;
+            }
+            return cache;
+        }
+    }
 
     static int computeCoverSampleSize(int srcWidth, int srcHeight, int targetEdge) {
         int sample = 1;
@@ -2831,7 +2861,7 @@ public class MainActivity extends AppCompatActivity {
             byte[] directFolderArt = extractFolderCoverFromDir(parent, size);
             if (directFolderArt != null) return directFolderArt;
             String pName = parent.getName() != null ? parent.getName().trim().toLowerCase(Locale.US) : "";
-            if (pName.matches("^(?:cd|disc|disk|sacd|side)\\s*[-_#.]?\\s*(?:\\d+|[a-d]|[ivx]+).*")) {
+            if (pName.matches("^(?:cd|disc|disk|sacd|side|vol(?:ume)?|part)\\s*[-_.#]?\\s*(?:\\d+|[a-d]|[ivx]+).*")) {
                 File grandParent = parent.getParentFile();
                 byte[] albumParentArt = extractFolderCoverFromDir(grandParent, size);
                 if (albumParentArt != null) return albumParentArt;
@@ -2876,17 +2906,20 @@ public class MainActivity extends AppCompatActivity {
     private WebResourceResponse handleLocalCoverArt(WebResourceRequest request) {
         try {
             Uri uri = request.getUrl();
-            String uriParam = uri.getQueryParameter("uri");
-            String pathParam = uri.getQueryParameter("path");
-            String keyParam = uri.getQueryParameter("key");
+            String uriParam = extractLocalMediaQueryParam(uri, "uri");
+            if (uriParam == null) uriParam = uri.getQueryParameter("uri");
+            String pathParam = extractLocalMediaQueryParam(uri, "path");
+            if (pathParam == null) pathParam = uri.getQueryParameter("path");
+            String keyParam = extractLocalMediaQueryParam(uri, "key");
+            if (keyParam == null) keyParam = uri.getQueryParameter("key");
             int size = 320;
             try {
                 size = Math.max(96, Math.min(512, Integer.parseInt(uri.getQueryParameter("size"))));
             } catch (Exception ignored) {}
             if (uriParam != null && !uriParam.isEmpty() && !uriParam.startsWith("content://")) {
                 try {
-                    String decodedUri = URLDecoder.decode(uriParam.replace("+", "%2B"), StandardCharsets.UTF_8.name());
-                    if (decodedUri.startsWith("content://")) uriParam = decodedUri;
+                    String decodedUri = decodeQueryComponentSafe(uriParam);
+                    if (decodedUri != null && decodedUri.startsWith("content://")) uriParam = decodedUri;
                 } catch (Exception ignored) {}
             }
             String source = (uriParam != null && !uriParam.isEmpty()) ? uriParam : (pathParam != null ? pathParam : "");
@@ -2895,6 +2928,13 @@ public class MainActivity extends AppCompatActivity {
             String identity = (keyParam != null && !keyParam.isEmpty()) ? "v3k:" + keyParam : "v3s:" + source;
             String hash = coverSha1Hex(identity + "|" + size);
             String sourceHash = coverSha1Hex("v3src:" + source + "|" + size);
+
+            android.util.LruCache<String, byte[]> memCache = getCoverMemCache();
+            byte[] memHit = memCache.get(hash);
+            if (memHit != null && memHit.length > 0) {
+                return buildCoverResponse(200, "OK", memHit);
+            }
+
             File dir = new File(getCacheDir(), "covers");
             if (!dir.exists()) dir.mkdirs();
             File jpg = new File(dir, hash + ".jpg");
@@ -2903,6 +2943,7 @@ public class MainActivity extends AppCompatActivity {
             byte[] cached = coverReadSmallFile(jpg, 2L * 1024L * 1024L);
             if (cached != null) {
                 jpg.setLastModified(System.currentTimeMillis());
+                if (cached.length <= COVER_MEM_CACHE_MAX_ENTRY_BYTES) memCache.put(hash, cached);
                 return buildCoverResponse(200, "OK", cached);
             }
             if (none.exists()) {
@@ -2915,9 +2956,14 @@ public class MainActivity extends AppCompatActivity {
             if (mCoverHashLocks.size() > 256) mCoverHashLocks.clear();
             Object hashLock = mCoverHashLocks.computeIfAbsent(hash, k -> new Object());
             synchronized (hashLock) {
+                memHit = memCache.get(hash);
+                if (memHit != null && memHit.length > 0) {
+                    return buildCoverResponse(200, "OK", memHit);
+                }
                 cached = coverReadSmallFile(jpg, 2L * 1024L * 1024L);
                 if (cached != null) {
                     jpg.setLastModified(System.currentTimeMillis());
+                    if (cached.length <= COVER_MEM_CACHE_MAX_ENTRY_BYTES) memCache.put(hash, cached);
                     return buildCoverResponse(200, "OK", cached);
                 }
                 if (none.exists() && (System.currentTimeMillis() - none.lastModified()) < COVER_NONE_TTL_MS) {
@@ -2943,6 +2989,7 @@ public class MainActivity extends AppCompatActivity {
                         return buildCoverResponse(404, "Not Found", null);
                     }
                     try { if (none.exists()) none.delete(); } catch (Throwable ignored) {}
+                    if (jpeg.length <= COVER_MEM_CACHE_MAX_ENTRY_BYTES) memCache.put(hash, jpeg);
                     File tmp = new File(dir, hash + ".tmp");
                     try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tmp)) {
                         fos.write(jpeg);
@@ -5390,11 +5437,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.59";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.60";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.59\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.60\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -5716,6 +5763,8 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
                 mActivity.mCoverHashLocks.clear();
+                android.util.LruCache<String, byte[]> memCache = mActivity.mCoverMemCache;
+                if (memCache != null) memCache.evictAll();
             } catch (Throwable ignored) {}
             return deleted;
         }
@@ -5950,7 +5999,8 @@ public class MainActivity extends AppCompatActivity {
                     MediaStore.Audio.Media.MIME_TYPE,
                     MediaStore.Audio.Media.DATA,
                     MediaStore.Audio.Media.TRACK,
-                    MediaStore.Audio.Media.YEAR
+                    MediaStore.Audio.Media.YEAR,
+                    MediaStore.Audio.Media.DATE_MODIFIED
             };
             String[] extendedProjection = new String[]{
                     MediaStore.Audio.Media._ID,
@@ -5964,6 +6014,7 @@ public class MainActivity extends AppCompatActivity {
                     MediaStore.Audio.Media.DATA,
                     MediaStore.Audio.Media.TRACK,
                     MediaStore.Audio.Media.YEAR,
+                    MediaStore.Audio.Media.DATE_MODIFIED,
                     "album_artist"
             };
             String sortOrder = MediaStore.Audio.Media.DATE_ADDED + " DESC";
@@ -5999,6 +6050,7 @@ public class MainActivity extends AppCompatActivity {
                     int dataCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA);
                     int trackCol = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
                     int yearCol = cursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
+                    int modCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATE_MODIFIED);
 
                     int count = 0;
                     while (cursor.moveToNext() && count < limit) {
@@ -6024,6 +6076,7 @@ public class MainActivity extends AppCompatActivity {
                         long durationMs = durCol >= 0 ? cursor.getLong(durCol) : 0L;
                         int rawTrack = trackCol >= 0 ? cursor.getInt(trackCol) : 0;
                         int year = yearCol >= 0 ? cursor.getInt(yearCol) : 0;
+                        long dateModifiedSec = modCol >= 0 ? cursor.getLong(modCol) : 0L;
 
                         JSONObject obj = new JSONObject();
                         obj.put("uri", contentUri.toString());
@@ -6036,6 +6089,9 @@ public class MainActivity extends AppCompatActivity {
                         }
                         obj.put("duration", durationMs > 0 ? (durationMs / 1000.0) : 0);
                         obj.put("size", size);
+                        if (dateModifiedSec > 0) {
+                            obj.put("lastModified", dateModifiedSec * 1000L);
+                        }
                         obj.put("mimeType", mimeType != null ? mimeType : getAudioMimeType(displayName));
                         obj.put("path", dataPath != null ? dataPath : "");
                         if (rawTrack > 0) {

@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.59</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.60</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -6652,8 +6652,11 @@
       const options = arguments[1];
       const skipPrune = Boolean(options === true || (options && options.skipPrune));
       if (cloudCatalogResetting) return Promise.resolve();
-      const entries = tracks.filter(track => ['google','onedrive'].includes(track.source)).map(serializableCloudTrack);
-      if (!entries.length) return Promise.resolve();
+      const rawEntries = tracks.filter(track => ['google','onedrive'].includes(track.source)).map(serializableCloudTrack);
+      if (!rawEntries.length) return Promise.resolve();
+      const entries = (library && typeof library.deduplicateCatalogCovers === 'function')
+        ? library.deduplicateCatalogCovers(rawEntries)
+        : rawEntries;
       return new Promise((resolve, reject) => {
         try {
           const store = catalogTransaction('readwrite');
@@ -19092,8 +19095,8 @@
       if (t.url && !isReconstructibleLocalUrl) rec.url = t.url;
       if (t.isDsd) rec.isDsd = true;
       if (t.format) rec.format = t.format;
-      if (t.artist) rec.artist = t.artist;
-      if (t.album) rec.album = t.album;
+      if (t.artist && t.artist !== 'Unknown Artist') rec.artist = t.artist;
+      if (t.album && t.album !== 'FiiO Internal & SD Card' && t.album !== 'Unknown Album') rec.album = t.album;
       if (t.albumArtist && t.albumArtist !== t.artist) rec.albumArtist = t.albumArtist;
       const dur = Number(t.duration) || 0;
       if (dur > 0) rec.duration = Math.round(dur * 10) / 10;
@@ -19107,6 +19110,7 @@
       }
       if (!ultraLean) {
         if (t.size) rec.size = t.size;
+        if (Number(t.lastModified) > 0) rec.lastModified = Math.trunc(Number(t.lastModified));
         if (t.trackNumber) rec.trackNumber = t.trackNumber;
         if (t.discNumber) rec.discNumber = t.discNumber;
         if (t.year) rec.year = t.year;
@@ -19120,6 +19124,8 @@
       hydrated.source = hydrated.source || 'local';
       hydrated.title = hydrated.title || hydrated.name || '';
       hydrated.name = hydrated.name || hydrated.title || '';
+      if (!hydrated.artist) hydrated.artist = 'Unknown Artist';
+      if (!hydrated.album) hydrated.album = 'FiiO Internal & SD Card';
       hydrated.isDsd = Boolean(hydrated.isDsd || /^(dsf|dff)$/i.test(String(hydrated.format || '')));
       hydrated.duration = Number(hydrated.duration) || 0;
       if (hydrated.isCue) {
@@ -19340,14 +19346,32 @@
         prevTrack.name = newBaseName;
         if (!prevTrack.title || prevTrack.title === oldName) prevTrack.title = newBaseName;
       }
-      if (Number(file.duration) > 0 && !(Number(prevTrack.duration) > 0)) prevTrack.duration = Number(file.duration);
-      if (Number(file.size) > 0 && !(Number(prevTrack.size) > 0)) prevTrack.size = Number(file.size);
+      const incomingSize = Number(file.size) || 0;
+      const incomingLmRaw = Number(file.lastModified);
+      const incomingDmRaw = Number(file.dateModified);
+      const incomingLm = (Number.isFinite(incomingLmRaw) && incomingLmRaw > 0)
+        ? Math.trunc(incomingLmRaw)
+        : ((Number.isFinite(incomingDmRaw) && incomingDmRaw > 0) ? Math.trunc(incomingDmRaw * 1000) : 0);
+      const prevSize = Number(prevTrack.size) || 0;
+      const prevLm = Number(prevTrack.lastModified) || 0;
+      const fileModifiedOnDisk = Boolean(
+        (incomingLm > 0 && prevLm > 0 && incomingLm > prevLm) ||
+        (incomingSize > 0 && prevSize > 0 && incomingSize !== prevSize)
+      );
+      if (incomingLm > 0 && incomingLm !== prevLm) prevTrack.lastModified = incomingLm;
+      if (Number(file.duration) > 0 && (fileModifiedOnDisk || !(Number(prevTrack.duration) > 0))) prevTrack.duration = Number(file.duration);
+      if (incomingSize > 0 && (fileModifiedOnDisk || !(prevSize > 0))) prevTrack.size = incomingSize;
       const fTrackNo = Number(file.trackNumber || file.track) || 0;
-      if (fTrackNo > 0 && !(Number(prevTrack.trackNumber) > 0)) prevTrack.trackNumber = fTrackNo;
-      if (file.artist && file.artist !== '<unknown>' && (!prevTrack.artist || prevTrack.artist === 'Unknown Artist')) prevTrack.artist = String(file.artist).trim();
-      if (file.album && file.album !== '<unknown>' && (!prevTrack.album || prevTrack.album === 'FiiO Internal & SD Card')) prevTrack.album = String(file.album).trim();
-      if (file.albumArtist && file.albumArtist !== '<unknown>' && !prevTrack.albumArtist) prevTrack.albumArtist = String(file.albumArtist).trim();
-      if (file.title && file.title !== '<unknown>' && (!prevTrack.title || prevTrack.title === prevTrack.name || prevTrack.title === oldName)) prevTrack.title = String(file.title).trim();
+      if (fTrackNo > 0 && (fileModifiedOnDisk || !(Number(prevTrack.trackNumber) > 0))) prevTrack.trackNumber = fTrackNo;
+      const fDiscNo = Number(file.discNumber || file.disc) || 0;
+      if (fDiscNo > 0 && (fileModifiedOnDisk || !(Number(prevTrack.discNumber) > 0))) prevTrack.discNumber = fDiscNo;
+      const fYear = Number(file.year) || 0;
+      if (fYear > 0 && (fileModifiedOnDisk || !(Number(prevTrack.year) > 0))) prevTrack.year = Math.trunc(fYear);
+      if (file.artist && file.artist !== '<unknown>' && (fileModifiedOnDisk || !prevTrack.artist || prevTrack.artist === 'Unknown Artist')) prevTrack.artist = String(file.artist).trim();
+      if (file.album && file.album !== '<unknown>' && (fileModifiedOnDisk || !prevTrack.album || prevTrack.album === 'FiiO Internal & SD Card')) prevTrack.album = String(file.album).trim();
+      if (file.albumArtist && file.albumArtist !== '<unknown>' && (fileModifiedOnDisk || !prevTrack.albumArtist)) prevTrack.albumArtist = String(file.albumArtist).trim();
+      if (file.title && file.title !== '<unknown>' && (fileModifiedOnDisk || !prevTrack.title || prevTrack.title === prevTrack.name || prevTrack.title === oldName)) prevTrack.title = String(file.title).trim();
+      if (fileModifiedOnDisk && typeof fiioScanUpgradedCount === 'number') fiioScanUpgradedCount++;
       if (typeof restoreLocalTrackUrlSync === 'function') restoreLocalTrackUrlSync(prevTrack);
     }
 

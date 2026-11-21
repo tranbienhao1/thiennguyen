@@ -80,24 +80,23 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.59';
-  const name = process.argv[3] || `Nocturne ${tag} (Chống treo tải luồng nhạc Cloud + tự khớp hàng đợi/yêu thích/CUE sau quét lại & bảo vệ OTA Android)`;
+  const tag = process.argv[2] || 'v3.9.60';
+  const name = process.argv[3] || `Nocturne ${tag} (Khử trùng lặp ảnh bìa Cloud 10x cho thư viện lớn + LruCache RAM ảnh bìa nội bộ & quét cập nhật thẻ DATE_MODIFIED trên Android/FiiO)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 113) — Chống treo tải luồng nhạc Cloud + tự khớp hàng đợi/yêu thích/CUE sau quét lại & bảo vệ OTA Android
+    : `### Nocturne ${tag} (versionCode 114) — Khử trùng lặp ảnh bìa Cloud cho thư viện lớn + LruCache ảnh bìa nội bộ & đồng bộ thẻ \`DATE_MODIFIED\` trên Android/FiiO
 
-#### 1. Chống treo tải luồng nhạc Google Drive & OneDrive (\`library-utils.js\`)
-- **Timeout chủ động cho Range lát đầu (25s), tải toàn tệp FLAC/DSD (90s) và thăm dò \`moov\` đuôi MP4/ALAC (15s)**: \`createAudioFetchTimeoutGuard\` kết hợp \`AbortController\` + \`Promise.race\` hủy thân luồng \`response.body\` ngay khi socket bị treo trên mạng 4G/Wi-Fi yếu.
-- **Tự động thử lại lỗi timeout nhưng dừng tức thì khi người dùng hủy**: Phân tách rạch ròi \`TimeoutError\` (\`retryable: true\`) với \`AbortError\` từ tín hiệu ngoài để chuyển bài nhanh và tự phục hồi khi mạng chập chờn.
+#### 1. Khử trùng lặp ảnh bìa \`base64\` theo album cho thư viện Google Drive / OneDrive lớn (\`library-utils.js\` + \`index.html\`)
+- **\`deduplicateCatalogCovers\` & nén danh mục IndexedDB**: Khi 10–20 bài trong cùng một album/thư mục Cloud dùng chung một ảnh bìa \`data:image\`, Nocturne chỉ lưu 1 bản đại diện trong IndexedDB thay vì nhân bản theo từng bài (giảm tới ~10x dung lượng & RAM khi mở lại app, giữ được gấp 10 lần số album có ảnh bìa trong ngân sách 8 MiB, đồng thời vẫn bảo toàn nguyên vẹn ảnh riêng biệt cho album tổng hợp).
+- **Nén gọn danh mục FiiO/Android**: \`compactFiioTrackForStorage\` lược bỏ chuỗi mặc định dư thừa (\`Unknown Artist\` / \`FiiO Internal & SD Card\`) và lưu kèm \`lastModified\` giúp thư viện >5.000–10.000 bài trên MicroSD gọn hơn ~15–20%.
 
-#### 2. Tự khớp phiên nghe, hàng đợi, yêu thích & vị trí \`.cue\` xuyên phiên quét (\`library-utils.js\` + \`index.html\`)
-- **\`buildStableTrackRef\` & \`matchTrackByStableRef\`**: Lưu chữ ký ổn định (\`remoteId\`/\`remoteDriveId\` cho Google Drive & OneDrive; \`path\`/\`uri\`/\`relativePath\` + \`size\`/\`cueStart\` cho nội bộ Web & Android/FiiO) trong phiên nghe và hàng đợi để tự khớp lại đúng bài hát kể cả khi thư viện nội bộ được quét lại với ID mới hoặc tệp trên thẻ nhớ bị di chuyển.
-- **Sửa lỗi mất mốc tua \`.cue\` khi tiếp tục nghe**: \`restorePlaybackSession\` và \`formatResumePrompt\` tính đúng khoảng \`[cueStart, cueStart + duration]\` thay vì đặt lại về \`0:00\` cho bài thứ 2 trở đi trong album \`.cue\`.
-- **Yêu thích bền vững & đếm đúng OneDrive Cloud**: \`stableFavoriteKey\` / \`isTrackInFavorites\` giữ nguyên trạng thái Yêu thích sau khi mở lại thư mục nội bộ hoặc di chuyển tệp trên FiiO/Android (\`reconcileMovedFiioTracks\` tự chuyển cả hàng đợi, yêu thích và phiên nghe), đồng thời tính đúng nguồn \`onedrive\` vào nhóm Cloud.
+#### 2. Tăng tốc ảnh bìa nội bộ & sửa đường dẫn chứa \`+\` / \`%\` trên Android/FiiO (\`MainActivity.java\`)
+- **\`mCoverMemCache\` (\`LruCache\` giới hạn 3 MB trên máy RAM thấp / 6 MB trên Android thường)**: Phục vụ ảnh bìa \`/local-cover\` trực tiếp từ RAM khi cuộn lưới album mà không đọc lại flash nhiều lần, tự động giải phóng khi hệ thống gọi \`onTrimMemory\` hoặc \`clearLocalCoverCache\`.
+- **Sửa lỗi 404 ảnh bìa với thư mục/tệp chứa \`+\` hoặc \`%\` lẻ**: \`handleLocalCoverArt\` sử dụng \`extractLocalMediaQueryParam\` an toàn và mở rộng hỗ trợ kế thừa ảnh bìa thư mục cha cho \`Vol\` / \`Volume\` / \`Part\`.
 
-#### 3. Bảo vệ tải OTA Web Assets trên Android/FiiO (\`MainActivity.java\`)
-- **Giới hạn thời gian tổng & dung lượng 16 MB trong \`downloadUrlBytes\`**: Chống treo luồng kiểm tra OTA khi mạng di động rớt nhỏ giọt hoặc gặp trang captive-portal trả về dữ liệu quá lớn gây tràn RAM.
+#### 3. Đồng bộ lại thay đổi thẻ metadata theo \`DATE_MODIFIED\` trên Android/FiiO (\`MainActivity.java\` + \`index.html\`)
+- **\`scanMediaStoreAudio\` xuất \`lastModified\` (\`DATE_MODIFIED * 1000\`)**: \`applyFiioRescanFields\` tự nhận diện tệp vừa được sửa thẻ tag tại chỗ (dù giữ nguyên đường dẫn) để làm mới ngay \`title\`, \`artist\`, \`album\`, \`albumArtist\`, \`trackNumber\`, \`discNumber\`, \`year\`, \`duration\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
