@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.63</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.64</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -7633,6 +7633,45 @@
       }
       return trackObj;
     }
+    function buildLocalCueSubTrack(ct, ctx) {
+      const siblingTrack = ctx.siblingTrack, matchedAudioFile = ctx.matchedAudioFile, parsedTracks = ctx.parsedTracks;
+      const resolvedCueUrl = (siblingTrack ? siblingTrack.url : '') || (matchedAudioFile ? URL.createObjectURL(matchedAudioFile) : '');
+      if (resolvedCueUrl && resolvedCueUrl.indexOf('blob:') === 0 && state.objectUrls) state.objectUrls.add(resolvedCueUrl);
+      const vTrack = {
+        id: id(),
+        file: matchedAudioFile || null,
+        fileHandle: (matchedAudioFile && matchedAudioFile._fileHandle) || (siblingTrack && siblingTrack.fileHandle) || null,
+        url: resolvedCueUrl,
+        source: 'local',
+        name: ct.title || `Track ${ct.number}`,
+        title: ct.title || `Track ${ct.number}`,
+        artist: ct.artist || ct.performer || parsedTracks.artist || parsedTracks.performer || (siblingTrack ? siblingTrack.artist : '') || 'Unknown Artist',
+        album: ct.album || parsedTracks.album || parsedTracks.title || (siblingTrack ? siblingTrack.album : '') || 'Unknown Album',
+        albumArtist: parsedTracks.artist || parsedTracks.performer || (siblingTrack ? siblingTrack.albumArtist : '') || '',
+        track: ct.number || ct.track,
+        cueOffset: ct.offset || 0,
+        cueStart: ct.offset || 0,
+        cueEnd: ctx.cueEndVal || 0,
+        duration: ctx.trackDur || 0,
+        format: (siblingTrack ? siblingTrack.format : '') || (matchedAudioFile ? matchedAudioFile.name.split('.').pop().toUpperCase() : 'FLAC'),
+        isDsd: (siblingTrack ? siblingTrack.isDsd : false) || false,
+        sampleRate: (siblingTrack ? siblingTrack.sampleRate : 44100) || 44100,
+        bitDepth: (siblingTrack ? siblingTrack.bitDepth : 16) || 16,
+        channels: (siblingTrack ? siblingTrack.channels : 2) || 2,
+        cover: (siblingTrack ? siblingTrack.cover : '') || ctx.folderCover || '',
+        lyricsText: '',
+        isCue: true,
+        cueFile: ctx.cueFileName,
+        relativePath: ctx.tPath,
+        size: matchedAudioFile ? (matchedAudioFile.size || 0) : 0,
+        cueDedupKey: ctx.cueDedupKey,
+        parentFile: matchedAudioFile ? matchedAudioFile.name : (ctx.targetCueFile || '')
+      };
+      if (ctx.folderRootKey) vTrack.localFolderKey = ctx.folderRootKey;
+      getTrackRating(vTrack);
+      if (vTrack.cover && typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(vTrack.cover, vTrack);
+      return vTrack;
+    }
     const localFileKey = file => `${file.relativePath || file.webkitRelativePath || file.name}-${file.size}`;
     async function addLocalFiles(files) {
       const opts = (arguments[1] && typeof arguments[1] === 'object') ? arguments[1] : {};
@@ -7703,120 +7742,101 @@
           const cueFullPath = String(cueFile.relativePath || cueFile.webkitRelativePath || cueFile.name || '').replace(/\\/g, '/');
           const cueSlashIdx = cueFullPath.lastIndexOf('/');
           const cueDir = cueSlashIdx > 0 ? cueFullPath.slice(0, cueSlashIdx).toLowerCase() : '';
-          const rawCueTarget = String(parsedTracks.file || '').replace(/\\/g, '/');
-          const targetFilename = (rawCueTarget.indexOf('/') >= 0 ? rawCueTarget.slice(rawCueTarget.lastIndexOf('/') + 1) : rawCueTarget).toLowerCase();
-          const targetBase = targetFilename.replace(/\.[^.]+$/, '');
           const cueBase = cueFile.name.replace(/\.[^.]+$/, '').toLowerCase();
           const cueBaseClean = cueBase.replace(/\.(flac|wav|ape|wv|m4a|alac|aiff|aif|mp3|ogg|opus|dsf|dff)$/i, '');
+          const normCueFileKey = f => String(f || '').replace(/\\/g, '/').trim().toLowerCase();
+          const distinctCueFiles = new Set(parsedTracks.map(pt => normCueFileKey((pt && pt.file) || parsedTracks.file || '')).filter(Boolean));
+          const isMultiFileCue = Boolean(parsedTracks.isMultiFile || distinctCueFiles.size > 1);
           const getFileDirLower = f => {
             const fp = String((f && (f.relativePath || f.webkitRelativePath || f.name)) || '').replace(/\\/g, '/');
             const s = fp.lastIndexOf('/');
             return s > 0 ? fp.slice(0, s).toLowerCase() : '';
           };
-          const matchesCueName = f => {
-            const fname = String((f && f.name) || '').toLowerCase();
-            const fbase = fname.replace(/\.[^.]+$/, '');
-            return (targetFilename && fname === targetFilename) ||
-              (targetBase && fbase === targetBase) ||
-              fbase === cueBase ||
-              (cueBaseClean && fbase === cueBaseClean);
+          const tPath = cueFile.relativePath || cueFile.webkitRelativePath || cueFile.name || '';
+          const allCueSubTracksExist = parsedTracks.every(ct => existing.has(`${tPath}::cue::${ct.number || ct.track || ct.title || ''}-${Math.round((ct.offset || 0) * 100)}`));
+          const resolvedByFileKey = new Map();
+          const matchedCueAudioFiles = new Set();
+
+          const resolveCueTarget = async (rawTarget, skipParse) => {
+            const fileKey = normCueFileKey(rawTarget || parsedTracks.file || '');
+            if (resolvedByFileKey.has(fileKey)) return resolvedByFileKey.get(fileKey);
+            const rawNorm = String(rawTarget || parsedTracks.file || '').replace(/\\/g, '/');
+            const targetFilename = (rawNorm.indexOf('/') >= 0 ? rawNorm.slice(rawNorm.lastIndexOf('/') + 1) : rawNorm).toLowerCase();
+            const targetBase = targetFilename.replace(/\.[^.]+$/, '');
+            const matchesCueName = f => {
+              const fname = String((f && f.name) || '').toLowerCase();
+              const fbase = fname.replace(/\.[^.]+$/, '');
+              return (targetFilename && fname === targetFilename) || (targetBase && fbase === targetBase) || (!isMultiFileCue && (fbase === cueBase || (cueBaseClean && fbase === cueBaseClean)));
+            };
+            let matchedAudioFile = candidates.find(f => getFileDirLower(f) === cueDir && matchesCueName(f)) || candidates.find(matchesCueName);
+            if (!matchedAudioFile && !isMultiFileCue) {
+              const sameDirAudio = candidates.filter(f => getFileDirLower(f) === cueDir);
+              const sameDirCues = cueFiles.filter(cf => getFileDirLower(cf) === cueDir);
+              if (sameDirAudio.length === 1 && sameDirCues.length === 1) matchedAudioFile = sameDirAudio[0];
+              else if (candidates.length === 1 && cueFiles.length === 1) matchedAudioFile = candidates[0];
+            }
+            let siblingTrack = null;
+            if (matchedAudioFile && !skipParse) {
+              siblingTrack = await makeLocalTrack(matchedAudioFile);
+            } else if (!matchedAudioFile) {
+              siblingTrack = state.tracks.find(t => {
+                const tname = (t.name || t.title || '').toLowerCase();
+                return (targetFilename && tname.includes(targetFilename)) || (targetBase && tname.replace(/\.[^.]+$/, '') === targetBase) || (t.file && matchesCueName(t.file));
+              }) || null;
+              if (siblingTrack && siblingTrack.file) matchedAudioFile = siblingTrack.file;
+            }
+            const res = { matchedAudioFile: matchedAudioFile || null, siblingTrack: siblingTrack || null };
+            resolvedByFileKey.set(fileKey, res);
+            return res;
           };
 
-          let matchedAudioFile = candidates.find(f => getFileDirLower(f) === cueDir && matchesCueName(f)) ||
-            candidates.find(matchesCueName);
-          if (!matchedAudioFile) {
-            const sameDirAudio = candidates.filter(f => getFileDirLower(f) === cueDir);
-            const sameDirCues = cueFiles.filter(cf => getFileDirLower(cf) === cueDir);
-            if (sameDirAudio.length === 1 && sameDirCues.length === 1) {
-              matchedAudioFile = sameDirAudio[0];
-            } else if (candidates.length === 1 && cueFiles.length === 1) {
-              matchedAudioFile = candidates[0];
-            }
-          }
-
-          const tPath = cueFile.relativePath || cueFile.webkitRelativePath || cueFile.name || '';
-          const allCueSubTracksExist = parsedTracks.every(ct => {
-            const dk = `${tPath}::cue::${ct.number || ct.track || ct.title || ''}-${Math.round((ct.offset || 0) * 100)}`;
-            return existing.has(dk);
-          });
-
-          let siblingTrack = null;
-          if (matchedAudioFile && !allCueSubTracksExist) {
-            siblingTrack = await makeLocalTrack(matchedAudioFile);
-          } else if (!matchedAudioFile) {
-            siblingTrack = state.tracks.find(t => {
-              const tname = (t.name || t.title || '').toLowerCase();
-              const tbase = tname.replace(/\.[^.]+$/, '');
-              return (targetFilename && tname.includes(targetFilename)) ||
-                (targetBase && tbase === targetBase) ||
-                (t.file && matchesCueName(t.file));
-            });
-            if (siblingTrack && siblingTrack.file) {
-              matchedAudioFile = siblingTrack.file;
-            }
-          }
-
-          for (const ct of parsedTracks) {
-            const trackDur = ct.duration > 0 ? ct.duration : (siblingTrack && siblingTrack.duration ? Math.max(0, siblingTrack.duration - (ct.offset || 0)) : 0);
+          for (let ti = 0; ti < parsedTracks.length; ti++) {
+            const ct = parsedTracks[ti];
+            if (!ct) continue;
             const cueDedupKey = `${tPath}::cue::${ct.number || ct.track || ct.title || ''}-${Math.round((ct.offset || 0) * 100)}`;
+            const targetCueFile = ct.file || parsedTracks.file || '';
+            const alreadyExists = existing.has(cueDedupKey);
+            const resolved = await resolveCueTarget(targetCueFile, allCueSubTracksExist || alreadyExists);
+            const matchedAudioFile = resolved.matchedAudioFile;
+            const siblingTrack = resolved.siblingTrack;
+            if (isMultiFileCue && !matchedAudioFile && !siblingTrack) continue;
+            if (matchedAudioFile) matchedCueAudioFiles.add(matchedAudioFile);
+
+            const nextCt = parsedTracks[ti + 1];
+            const sameFileAsNext = (ct.hasNextInFile !== undefined) ? Boolean(ct.hasNextInFile) : Boolean(nextCt && normCueFileKey(targetCueFile) === normCueFileKey(nextCt.file || parsedTracks.file || ''));
+            let trackDur = ct.duration > 0 ? ct.duration : 0;
+            if (!(trackDur > 0) && sameFileAsNext && nextCt && Number(nextCt.offset) > (ct.offset || 0)) trackDur = Number(nextCt.offset) - (ct.offset || 0);
+            if (!(trackDur > 0) && siblingTrack && siblingTrack.duration > (ct.offset || 0)) trackDur = Math.max(0, siblingTrack.duration - (ct.offset || 0));
+            const cueEndVal = (sameFileAsNext && trackDur > 0) ? ((ct.offset || 0) + trackDur) : 0;
+
             seenFolderTrackKeys.add(cueDedupKey);
-            if (existing.has(cueDedupKey)) {
+            if (alreadyExists) {
               const existingCue = existing.get(cueDedupKey);
               if (existingCue) {
                 if (folderRootKey) existingCue.localFolderKey = folderRootKey;
                 if (matchedAudioFile) existingCue.file = matchedAudioFile;
                 if (matchedAudioFile && matchedAudioFile._fileHandle) existingCue.fileHandle = matchedAudioFile._fileHandle;
                 if (siblingTrack && siblingTrack.url) existingCue.url = siblingTrack.url;
+                if (cueEndVal > 0) existingCue.cueEnd = cueEndVal;
                 restoreLocalTrackUrlSync(existingCue);
               }
               continue;
             }
             const normCuePath = String(tPath || '').replace(/\\/g, '/');
             const tDir = normCuePath.includes('/') ? normCuePath.slice(0, normCuePath.lastIndexOf('/')) : '';
-            const folderCover = lookupLocalFolderCover(folderCoverByDir, tDir);
-            const resolvedCueUrl = (siblingTrack ? siblingTrack.url : "") || (matchedAudioFile ? URL.createObjectURL(matchedAudioFile) : '');
-            if (resolvedCueUrl && resolvedCueUrl.indexOf('blob:') === 0 && state.objectUrls) state.objectUrls.add(resolvedCueUrl);
-            const vTrack = {
-              id: id(),
-              file: matchedAudioFile || null,
-              fileHandle: (matchedAudioFile && matchedAudioFile._fileHandle) || (siblingTrack && siblingTrack.fileHandle) || null,
-              url: resolvedCueUrl,
-              source: 'local',
-              name: ct.title || `Track ${ct.number}`,
-              title: ct.title || `Track ${ct.number}`,
-              artist: ct.artist || ct.performer || parsedTracks.artist || parsedTracks.performer || (siblingTrack ? siblingTrack.artist : "") || 'Unknown Artist',
-              album: ct.album || parsedTracks.album || parsedTracks.title || (siblingTrack ? siblingTrack.album : "") || 'Unknown Album',
-              albumArtist: parsedTracks.artist || parsedTracks.performer || (siblingTrack ? siblingTrack.albumArtist : '') || '',
-              track: ct.number || ct.track,
-              cueOffset: ct.offset || 0,
-              cueStart: ct.offset || 0,
-              cueEnd: (ct.offset || 0) + trackDur,
-              duration: trackDur,
-              format: (siblingTrack ? siblingTrack.format : "") || (matchedAudioFile ? matchedAudioFile.name.split('.').pop().toUpperCase() : 'FLAC'),
-              isDsd: (siblingTrack ? siblingTrack.isDsd : false) || false,
-              sampleRate: (siblingTrack ? siblingTrack.sampleRate : 44100) || 44100,
-              bitDepth: (siblingTrack ? siblingTrack.bitDepth : 16) || 16,
-              channels: (siblingTrack ? siblingTrack.channels : 2) || 2,
-              cover: (siblingTrack ? siblingTrack.cover : "") || folderCover || '',
-              lyricsText: '',
-              isCue: true,
-              cueFile: cueFile.name,
-              relativePath: tPath,
-              size: matchedAudioFile ? (matchedAudioFile.size || 0) : 0,
-              cueDedupKey,
-              parentFile: matchedAudioFile ? matchedAudioFile.name : (parsedTracks.file || '')
-            };
-            if (folderRootKey) vTrack.localFolderKey = folderRootKey;
-            getTrackRating(vTrack);
-            if (vTrack.cover && typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(vTrack.cover, vTrack);
+            const vTrack = buildLocalCueSubTrack(ct, {
+              siblingTrack, matchedAudioFile, parsedTracks, cueEndVal, trackDur,
+              folderCover: lookupLocalFolderCover(folderCoverByDir, tDir),
+              cueFileName: cueFile.name, tPath, cueDedupKey, targetCueFile, folderRootKey
+            });
             additions.push(vTrack);
             existing.set(cueDedupKey, vTrack);
           }
 
-          if (matchedAudioFile) {
-            const mIdx = candidates.indexOf(matchedAudioFile);
+          matchedCueAudioFiles.forEach(maf => {
+            const mIdx = candidates.indexOf(maf);
             if (mIdx !== -1) candidates.splice(mIdx, 1);
-          }
+          });
         } catch (err) {
           console.warn('Could not process CUE file:', err);
         }
@@ -19325,6 +19345,7 @@
       if (t.isCue) {
         rec.isCue = true;
         rec.cueStart = Math.max(0, Math.round((Number(t.cueStart) || 0) * 100) / 100);
+        if (Number(t.cueEnd) > rec.cueStart) rec.cueEnd = Math.round(Number(t.cueEnd) * 100) / 100;
         if (t.cueFilePath) rec.cueFilePath = t.cueFilePath;
         if (t.cueDedupKey) rec.cueDedupKey = t.cueDedupKey;
         if (t.trackNumber) rec.trackNumber = t.trackNumber;
@@ -19353,6 +19374,7 @@
       if (hydrated.isCue) {
         hydrated.isCue = true;
         hydrated.cueStart = Math.max(0, Number(hydrated.cueStart) || 0);
+        if (Number(hydrated.cueEnd) > hydrated.cueStart) hydrated.cueEnd = Number(hydrated.cueEnd);
       }
       if (!hydrated.url) {
         if (hydrated.uri) {
@@ -19665,50 +19687,80 @@
         const cueFileName = normName(cuePath);
         const cueBase = stripExt(cueFileName);
         const cueBaseClean = cueBase.replace(/\.(flac|wav|ape|wv|m4a|alac|aiff|aif|mp3|ogg|opus|dsf|dff)$/i, '');
-        const rawCueTarget = String(parsedTracks.file || '').replace(/\\/g, '/');
-        const targetFilename = normName(rawCueTarget);
-        const targetBase = stripExt(targetFilename);
+        const normCueFileKey = f => String(f || '').replace(/\\/g, '/').trim().toLowerCase();
+        const distinctCueFiles = new Set();
+        for (let di = 0; di < parsedTracks.length; di++) {
+          const fk = normCueFileKey((parsedTracks[di] && parsedTracks[di].file) || parsedTracks.file || '');
+          if (fk) distinctCueFiles.add(fk);
+        }
+        const isMultiFileCue = Boolean(parsedTracks.isMultiFile || distinctCueFiles.size > 1);
+        const sameDirAudios = audioCandidates.filter(tr => normDir(tr.path) === cueDir);
+        const sameDirCueCount = cueFiles.filter(other => other && other.path && normDir(other.path) === cueDir).length;
+        const siblingByFileKey = new Map();
 
-        const matchesAudio = tr => {
-          const fname = normName(tr.path || tr.name || '');
-          const fbase = stripExt(fname);
-          return (targetFilename && fname === targetFilename) ||
-            (targetBase && fbase === targetBase) ||
-            fbase === cueBase ||
-            (cueBaseClean && fbase === cueBaseClean);
+        const resolveSiblingForCueTarget = rawTarget => {
+          const fileKey = normCueFileKey(rawTarget || parsedTracks.file || '');
+          if (siblingByFileKey.has(fileKey)) return siblingByFileKey.get(fileKey);
+          const rawNorm = String(rawTarget || parsedTracks.file || '').replace(/\\/g, '/');
+          const targetFilename = normName(rawNorm);
+          const targetBase = stripExt(targetFilename);
+          const matchesExact = tr => {
+            const fname = normName(tr.path || tr.name || '');
+            const fbase = stripExt(fname);
+            return (targetFilename && fname === targetFilename) || (targetBase && fbase === targetBase);
+          };
+          const matchesAudio = tr => {
+            if (matchesExact(tr)) return true;
+            if (isMultiFileCue) return false;
+            const fname = normName(tr.path || tr.name || '');
+            const fbase = stripExt(fname);
+            return fbase === cueBase || (cueBaseClean && fbase === cueBaseClean);
+          };
+          let found = sameDirAudios.find(matchesExact) ||
+            sameDirAudios.find(matchesAudio) ||
+            audioCandidates.find(matchesAudio) ||
+            null;
+          if (!found && !isMultiFileCue && sameDirAudios.length === 1 && sameDirCueCount === 1) {
+            found = sameDirAudios[0];
+          }
+          siblingByFileKey.set(fileKey, found);
+          return found;
         };
 
-        const sameDirAudios = audioCandidates.filter(tr => normDir(tr.path) === cueDir);
-        let siblingTrack = sameDirAudios.find(matchesAudio) || audioCandidates.find(matchesAudio) || null;
-        if (!siblingTrack && sameDirAudios.length === 1) {
-          const sameDirCueCount = cueFiles.filter(other => other && other.path && normDir(other.path) === cueDir).length;
-          if (sameDirCueCount === 1) siblingTrack = sameDirAudios[0];
-        }
-        if (!siblingTrack) continue;
-
-        const inferredDisc = inferDiscNumber(cuePath) || Number(siblingTrack.discNumber) || 0;
+        const inferredDiscFromCue = inferDiscNumber(cuePath);
+        const matchedParentsForCue = new Set();
         let createdOrMatchedCount = 0;
 
         for (let ti = 0; ti < parsedTracks.length; ti++) {
           const ct = parsedTracks[ti];
           if (!ct) continue;
+          const targetCueFile = ct.file || parsedTracks.file || '';
+          const siblingTrack = resolveSiblingForCueTarget(targetCueFile);
+          if (!siblingTrack) continue;
+          const inferredDisc = inferredDiscFromCue || Number(siblingTrack.discNumber) || 0;
           const cueStart = Math.max(0, Number(ct.offset) || 0);
           const nextCt = parsedTracks[ti + 1];
+          const sameFileAsNext = (ct.hasNextInFile !== undefined)
+            ? Boolean(ct.hasNextInFile)
+            : Boolean(nextCt && normCueFileKey(targetCueFile) === normCueFileKey(nextCt.file || parsedTracks.file || ''));
           let trackDur = Number(ct.duration) > 0 ? Number(ct.duration) : 0;
-          if (!(trackDur > 0) && nextCt && Number(nextCt.offset) > cueStart) {
+          if (!(trackDur > 0) && sameFileAsNext && nextCt && Number(nextCt.offset) > cueStart) {
             trackDur = Number(nextCt.offset) - cueStart;
           }
           if (!(trackDur > 0) && Number(siblingTrack.duration) > cueStart) {
             trackDur = Number(siblingTrack.duration) - cueStart;
           }
+          const cueEndVal = (sameFileAsNext && trackDur > 0) ? (cueStart + trackDur) : 0;
           const trackNo = Number(ct.number || ct.track) || (ti + 1);
           const cueDedupKey = cuePath + '::cue::' + trackNo + '-' + Math.round(cueStart * 100);
+          matchedParentsForCue.add(siblingTrack);
           const existingCue = existingCueByKey.get(cueDedupKey);
           if (existingCue) {
             existingCue.path = siblingTrack.path;
             if (siblingTrack.uri) existingCue.uri = siblingTrack.uri;
             if (siblingTrack.url) existingCue.url = siblingTrack.url;
             if (trackDur > 0 && !(Number(existingCue.duration) > 0)) existingCue.duration = trackDur;
+            if (cueEndVal > 0) existingCue.cueEnd = cueEndVal;
             if (siblingTrack.cover && (!existingCue.cover || existingCue.cover === '♫')) existingCue.cover = siblingTrack.cover;
             if (inferredDisc > 0 && !existingCue.discNumber) existingCue.discNumber = inferredDisc;
             if (typeof restoreLocalTrackUrlSync === 'function') restoreLocalTrackUrlSync(existingCue);
@@ -19722,6 +19774,7 @@
             cueFilePath: cuePath,
             cueDedupKey: cueDedupKey,
             cueStart: cueStart,
+            cueEnd: cueEndVal,
             duration: trackDur,
             trackNumber: trackNo,
             discNumber: inferredDisc || undefined,
@@ -19751,8 +19804,12 @@
           createdOrMatchedCount++;
         }
 
-        if (parsedTracks.length >= 2 && createdOrMatchedCount >= 2 && !siblingTrack.isCue && siblingTrack.id !== state.currentId) {
-          replacedParentIds.add(siblingTrack.id);
+        if (parsedTracks.length >= 2 && createdOrMatchedCount >= 2) {
+          matchedParentsForCue.forEach(parentTr => {
+            if (parentTr && !parentTr.isCue && parentTr.id !== state.currentId) {
+              replacedParentIds.add(parentTr.id);
+            }
+          });
         }
       }
 
@@ -22576,6 +22633,9 @@
           }
         }
         const curTrack = state.tracks.find(item => item.id === state.currentId);
+        if (curTrack && Number.isFinite(element.currentTime) && element.currentTime > 0 && !element.ended) {
+          curTrack._lastKnownPlayPosition = element.currentTime;
+        }
         if (curTrack && curTrack.cueStart !== undefined && curTrack.cueStart !== null) {
           const trackCurrentTime = Math.max(0, element.currentTime - curTrack.cueStart);
           if (curTrack.cueEnd && element.currentTime >= curTrack.cueEnd - 0.15 && !state.isSeeking) {
@@ -22764,9 +22824,21 @@
         if (element !== audio) return;
         if (state.isPlaybackLoading && element.dataset && element.dataset.trackId && state.currentId != null && String(element.dataset.trackId) !== String(state.currentId)) return;
         lastDisplayedPlaybackSecond = -1; lastPositionStateSecond = -1;
-        $('duration').textContent = formatTime(element.duration); $('duration-mobile').textContent = formatTime(element.duration); $('room-duration').textContent = formatTime(element.duration); $('room-remaining').textContent = formatRemainingTime(element.currentTime, element.duration);
         const track = state.tracks.find(item => item.id === state.currentId);
-        if (track) { track.duration = element.duration; updateMetadataFilters(); scheduleTrackRender(); }
+        if (track && track.isCue) {
+          if (!(Number(track.duration) > 0) && Number.isFinite(element.duration) && element.duration > 0) {
+            const cue0 = Number.isFinite(Number(track.cueStart)) ? Math.max(0, Number(track.cueStart)) : 0;
+            const derivedDur = Math.max(0, element.duration - cue0);
+            if (derivedDur > 0) track.duration = derivedDur;
+          }
+          const displayDur = (Number.isFinite(track.duration) && track.duration > 0) ? track.duration : element.duration;
+          const displayCur = Number.isFinite(Number(track.cueStart)) ? Math.max(0, (Number(element.currentTime) || 0) - Math.max(0, Number(track.cueStart))) : element.currentTime;
+          $('duration').textContent = formatTime(displayDur); $('duration-mobile').textContent = formatTime(displayDur); $('room-duration').textContent = formatTime(displayDur); $('room-remaining').textContent = formatRemainingTime(displayCur, displayDur);
+          updateMetadataFilters(); scheduleTrackRender();
+        } else {
+          $('duration').textContent = formatTime(element.duration); $('duration-mobile').textContent = formatTime(element.duration); $('room-duration').textContent = formatTime(element.duration); $('room-remaining').textContent = formatRemainingTime(element.currentTime, element.duration);
+          if (track) { track.duration = element.duration; updateMetadataFilters(); scheduleTrackRender(); }
+        }
         updatePositionState();
       });
       element.addEventListener('play', () => {
@@ -22899,10 +22971,48 @@
           }
           return;
         }
-        state.errorSkipCount = (state.errorSkipCount || 0) + 1;
-        if (state.errorSkipCount > state.tracks.length) { state.errorSkipCount = 0; toast('Không thể phát các bài hát trong danh sách, đã dừng phát.'); return; }
-        toast(`Không thể phát bài hát${track && (track.title || track.name) ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
-        playNext(1, false);
+        const skipFailedCurrentTrack = () => {
+          state.errorSkipCount = (state.errorSkipCount || 0) + 1;
+          if (state.errorSkipCount > state.tracks.length) { state.errorSkipCount = 0; toast('Không thể phát các bài hát trong danh sách, đã dừng phát.'); return; }
+          toast(`Không thể phát bài hát${track && (track.title || track.name) ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
+          playNext(1, false);
+        };
+        if (typeof watchdogReconnecting !== 'undefined' && watchdogReconnecting) return;
+        const mediaErrCode = (element.error && Number(element.error.code)) || 0;
+        const canRetryMediaError = Boolean(
+          typeof recoverStalledAudioStream === 'function' &&
+          track &&
+          (track.source === 'google' || track.source === 'onedrive' || track.source === 'local') &&
+          !track.isDsd &&
+          !state.isNativeBitPerfectPlaying &&
+          !state.isPlaybackLoading &&
+          (mediaErrCode === 2 || mediaErrCode === 3 || mediaErrCode === 4) &&
+          (track.source === 'local' || !(typeof navigator !== 'undefined' && navigator.onLine === false)) &&
+          track._mediaErrorRetryGen !== state.playGeneration
+        );
+        if (canRetryMediaError) {
+          const errGen = state.playGeneration;
+          track._mediaErrorRetryGen = errGen;
+          const resumePos = (Number.isFinite(element.currentTime) && element.currentTime > 0)
+            ? element.currentTime
+            : ((Number.isFinite(track._lastKnownPlayPosition) && track._lastKnownPlayPosition > 0)
+                ? track._lastKnownPlayPosition
+                : ((track.isCue && Number.isFinite(track.cueStart) && track.cueStart > 0) ? track.cueStart : 0));
+          Promise.resolve(recoverStalledAudioStream(track, String(element.src || ''), resumePos, {
+            reason: 'media_error',
+            errorCode: mediaErrCode,
+            forceReconnect: true
+          })).then(recovered => {
+            if (recovered) return;
+            if (errGen !== state.playGeneration || element !== audio || track.id !== state.currentId) return;
+            skipFailedCurrentTrack();
+          }).catch(() => {
+            if (errGen !== state.playGeneration || element !== audio || track.id !== state.currentId) return;
+            skipFailedCurrentTrack();
+          });
+          return;
+        }
+        skipFailedCurrentTrack();
       });
     }
     attachDeckEvents(audio); attachDeckEvents(standbyAudio);
@@ -24941,21 +25051,30 @@
     let watchdogLastNudgeAt = 0;
     let watchdogNudgeAttempts = 0;
     let watchdogReconnecting = false;
-    async function recoverStalledAudioStream(curTrack, curSrc, resumeSec) {
+    async function recoverStalledAudioStream(curTrack, curSrc, resumeSec, opts) {
       if (watchdogReconnecting || !curTrack || !audio || state.isPlaybackLoading || state.isNativeBitPerfectPlaying || curTrack.isDsd || curTrack.id !== state.currentId) return false;
+      const recOpts = (opts && typeof opts === 'object') ? opts : {};
       const nowMs = Date.now();
-      if (curTrack._stallReconnectAt && (nowMs - curTrack._stallReconnectAt) < 120000) return false;
+      const cooldownMs = recOpts.forceReconnect ? 15000 : 120000;
+      if (curTrack._stallReconnectAt && (nowMs - curTrack._stallReconnectAt) < cooldownMs) return false;
       watchdogReconnecting = true;
       curTrack._stallReconnectAt = nowMs;
+      let clearReconnectFlag = null;
+      let reconnectFlagTimer = null;
       try {
         const deck = audio;
-        const safeResume = Number.isFinite(resumeSec) && resumeSec > 0 ? resumeSec : 0;
+        let safeResume = Number.isFinite(resumeSec) && resumeSec > 0 ? resumeSec : 0;
+        if (curTrack.isCue && Number.isFinite(Number(curTrack.cueStart)) && Number(curTrack.cueStart) > 0 && safeResume < Number(curTrack.cueStart)) {
+          safeResume = Number(curTrack.cueStart);
+        }
         let oldUrl = '';
         let newUrl = '';
         if (curTrack.source === 'google' || curTrack.source === 'onedrive') {
           if (curTrack.source === 'onedrive') {
             curTrack.downloadUrl = '';
             curTrack.downloadUrlAt = 0;
+          } else if (curTrack.source === 'google' && recOpts.reason === 'media_error' && typeof ensureGoogleToken === 'function') {
+            try { await ensureGoogleToken(true); } catch (_) {}
           }
           if (curTrack._fullUpgradeAbort) {
             try { curTrack._fullUpgradeAbort.abort(); } catch (_) {}
@@ -24986,8 +25105,22 @@
         } else {
           return false;
         }
+        deck._upgradingFullAudio = true;
+        clearReconnectFlag = () => {
+          if (reconnectFlagTimer != null && typeof clearTimeout === 'function') {
+            clearTimeout(reconnectFlagTimer);
+            reconnectFlagTimer = null;
+          }
+          deck._upgradingFullAudio = false;
+        };
+        if (typeof setTimeout === 'function') {
+          reconnectFlagTimer = setTimeout(clearReconnectFlag, 4000);
+        }
         deck.addEventListener('loadedmetadata', () => {
-          if (deck !== audio || curTrack.id !== state.currentId) return;
+          if (deck !== audio || curTrack.id !== state.currentId) {
+            if (clearReconnectFlag) clearReconnectFlag();
+            return;
+          }
           if (safeResume > 0) {
             try {
               const targetSeek = (Number.isFinite(deck.duration) && deck.duration > 0.5)
@@ -25000,7 +25133,11 @@
             state.context.resume().catch(() => {});
           }
           const p = deck.play();
-          if (p && typeof p.catch === 'function') p.catch(() => {});
+          if (p && typeof p.then === 'function') {
+            p.then(() => { if (clearReconnectFlag) clearReconnectFlag(); }, () => { if (clearReconnectFlag) clearReconnectFlag(); });
+          } else {
+            if (clearReconnectFlag) clearReconnectFlag();
+          }
         }, { once: true });
         deck.src = newUrl;
         if (typeof deck.load === 'function') deck.load();
@@ -25018,6 +25155,7 @@
         if (typeof toast === 'function') toast('Đã tự động nối lại luồng phát âm thanh tại vị trí đang nghe.');
         return true;
       } catch (_) {
+        if (clearReconnectFlag) clearReconnectFlag();
         return false;
       } finally {
         watchdogReconnecting = false;

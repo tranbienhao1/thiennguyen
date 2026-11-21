@@ -80,21 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.63';
-  const name = process.argv[3] || `Nocturne ${tag} (Lùi nhịp chống giới hạn 429/503 khi nạp metadata Cloud + xả buffer tua Bit-Perfect tức thì & bỏ qua khung hỏng trên Android/FiiO)`;
+  const tag = process.argv[2] || 'v3.9.64';
+  const name = process.argv[3] || `Nocturne ${tag} (Tự động nối lại luồng phát khi rớt mạng/lỗi giải mã giữa bài + Hỗ trợ đầy đủ CUE đa tệp cho Web & Android/FiiO MicroSD)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 117) — Chống nghẽn 429/503 & bảo vệ offline cho hàng đợi metadata Cloud + Xả buffer tua Bit-Perfect tức thì trên Android/FiiO
+    : `### Nocturne ${tag} (versionCode 118) — Tự động nối lại luồng phát khi gặp lỗi mạng/giải mã giữa bài & Hỗ trợ đầy đủ tệp CUE đa tệp (Web + Android/FiiO MicroSD)
 
-#### 1. Lùi nhịp tự động & bảo vệ offline cho nạp metadata Google Drive / OneDrive (\`index.html\`)
-- **Không xả rỗng hàng đợi khi mất mạng**: \`runCloudMetadataQueue\` dừng sạch khi \`navigator.onLine === false\` thay vì đẩy hàng trăm bài vào án phạt chờ 1 giờ, và tự động chạy tiếp ngay khi \`window 'online'\` trở lại.
-- **Lùi nhịp cấp số nhân khi gặp HTTP \`429\` / \`502\`–\`504\`**: \`enrichCloudTrack\` phát hiện giới hạn tốc độ từ Google Drive/OneDrive (tôn trọng \`Retry-After\`), tạm dừng hàng đợi \`4s -> 8s -> 16s -> 30s\` và xếp lại bài bị giới hạn tối đa 2 lần.
-- **Timeout 15s cho \`googleThumbnail\` & \`microsoftThumbnail\`**: Dùng \`fetchWithTimeout\` để ảnh bìa treo mạng không khóa cứng luồng nạp metadata đơn tuyến trên FiiO M11S.
+#### 1. Tự động nối lại luồng phát giữa bài khi gặp \`MEDIA_ERR_NETWORK\` / \`MEDIA_ERR_DECODE\` / \`MEDIA_ERR_SRC_NOT_SUPPORTED\` (\`index.html\`)
+- **Nối lại đúng giây đang nghe trước khi bỏ bài**: Khi deck đang phát gặp lỗi mạng/giải mã/nguồn giữa bài trên Google Drive, OneDrive hoặc \`/local-media\`, \`attachDeckEvents\` tự động thử nối lại 1 lần qua \`recoverStalledAudioStream\` tại đúng mốc \`_lastKnownPlayPosition\` (cưỡng chế làm mới Google OAuth token hoặc OneDrive \`downloadUrl\` mới, hoặc thêm \`_sr\` cho Local) thay vì bỏ bài ngay lập tức.
+- **Chống nhấp nháy UI & bảo vệ thời lượng CUE**: Đặt cờ \`_upgradingFullAudio\` có timeout an toàn trong lúc nối lại luồng để không nháy nút Play/Pause, đồng thời bảo vệ \`loadedmetadata\` không ghi đè thời lượng album gốc lên sub-track CUE.
 
-#### 2. Xả buffer tức thì khi tua & chống kẹt gói hỏng trên \`BitPerfectAudioPlayer\` (\`MainActivity.java\`)
-- **Sửa lỗi \`AudioTrack.flush()\` bị bỏ qua khi đang phát**: Tạm dừng \`track.pause()\` trước \`track.flush()\` rồi mới gọi \`track.play()\` trong nhánh seek, loại bỏ ~100–250ms âm thanh vị trí cũ bị vang lại sau mỗi cú kéo thanh tua.
-- **Bỏ qua khung âm thanh lỗi (\`extractor.advance()\`)**: Khi gặp một gói FLAC/ALAC/MP3 hỏng nhẹ, bộ giải mã chủ động tiến qua gói lỗi thay vì đọc lặp lại cùng một vị trí byte rồi dừng bài sớm.
+#### 2. Hỗ trợ trọn vẹn tệp \`.cue\` đa tệp (\`library-utils.js\` + \`index.html\`)
+- **Phân tích chính xác CUE đa tệp & EAC pre-gap (\`parseCueSheet\`)**: Bỏ UTF-8 BOM \`\\uFEFF\`, gắn đúng \`FILE\` cho \`INDEX 01\` theo chuẩn EAC noncompliant, không trừ nhầm offset chéo giữa 2 tệp khác nhau, và xuất \`files\` / \`isMultiFile\` / \`hasNextInFile\`.
+- **Khớp từng tệp âm thanh trên Web Local Folder & Android/FiiO MicroSD**: \`addLocalFiles\` và \`expandFiioScannedCueSheets\` ánh xạ từng mục \`FILE "01.flac"\`, \`FILE "02.flac"\` tới đúng tệp audio tương ứng, ghi và lưu bền vững \`cueEnd\` (sửa lỗi CUE trên FiiO HTML5 Audio không tự chuyển bài khi hết track), và loại sạch toàn bộ tệp gốc trùng lặp.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

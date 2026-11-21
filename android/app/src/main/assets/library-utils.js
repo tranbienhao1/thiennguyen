@@ -3438,14 +3438,17 @@
 
   function parseCueSheet(cueText, totalDuration = null) {
     const tracks = [];
+    const cueFilesList = [];
+    const cueFilesSeen = new Set();
     let globalTitle = '';
     let globalPerformer = '';
     let globalSongwriter = '';
     let globalFile = '';
     let globalGenre = '';
     let globalDate = '';
+    const normCueFileKey = f => String(f || '').replace(/\\/g, '/').trim().toLowerCase();
 
-    if (typeof cueText !== 'string' || !cueText.trim()) {
+    if (typeof cueText !== 'string' || !cueText.replace(/^\uFEFF/, '').trim()) {
       return Object.assign(tracks, {
         title: '',
         album: '',
@@ -3453,13 +3456,15 @@
         artist: '',
         songwriter: '',
         file: '',
+        files: cueFilesList,
+        isMultiFile: false,
         genre: '',
         date: '',
         tracks
       });
     }
 
-    const lines = cueText.split(/\r?\n/);
+    const lines = cueText.replace(/^\uFEFF/, '').split(/\r?\n/);
     let currentTrack = null;
     let currentFile = '';
 
@@ -3487,6 +3492,13 @@
       if (fileMatch) {
         const fileName = (fileMatch[1] || fileMatch[2] || fileMatch[3] || '').trim();
         currentFile = fileName;
+        if (fileName) {
+          const fk = normCueFileKey(fileName);
+          if (!cueFilesSeen.has(fk)) {
+            cueFilesSeen.add(fk);
+            cueFilesList.push(fileName);
+          }
+        }
         if (!currentTrack && !globalFile) {
           globalFile = fileName;
         }
@@ -3509,6 +3521,7 @@
           startTime: 0,
           start: 0,
           duration: 0,
+          hasNextInFile: false,
           indexes: {}
         };
         tracks.push(currentTrack);
@@ -3564,6 +3577,11 @@
           currentTrack.indexes[idxNum] = offsetSeconds;
 
           if (idxNum === '01' || idxNum === '1') {
+            // EAC noncompliant multi-file CUE: TRACK + INDEX 00 may appear in previous FILE,
+            // followed by FILE "nn.flac" WAVE and then INDEX 01 00:00:00 in the new FILE.
+            if (currentFile) {
+              currentTrack.file = currentFile;
+            }
             currentTrack.offset = offsetSeconds;
             currentTrack.startTime = offsetSeconds;
             currentTrack.start = offsetSeconds;
@@ -3574,6 +3592,11 @@
           continue;
         }
       }
+    }
+
+    const isMultiFile = cueFilesList.length > 1;
+    if (!globalFile && cueFilesList.length > 0) {
+      globalFile = cueFilesList[0];
     }
 
     // Post-process tracks
@@ -3597,12 +3620,14 @@
         track.year = globalDate;
       }
 
-      // Calculate track duration from offset difference between consecutive tracks
-      if (i < tracks.length - 1) {
-        const next = tracks[i + 1];
+      // Calculate track duration only when consecutive tracks share the same backing FILE
+      const next = (i < tracks.length - 1) ? tracks[i + 1] : null;
+      const sameFileAsNext = Boolean(next && normCueFileKey(track.file) === normCueFileKey(next.file || globalFile));
+      track.hasNextInFile = sameFileAsNext;
+      if (sameFileAsNext) {
         const diff = next.offset - track.offset;
         track.duration = diff > 0 ? diff : 0;
-      } else if (totalDuration != null && Number.isFinite(Number(totalDuration))) {
+      } else if (!isMultiFile && totalDuration != null && Number.isFinite(Number(totalDuration))) {
         track.duration = Math.max(0, Number(totalDuration) - track.offset);
       } else {
         track.duration = 0;
@@ -3615,6 +3640,8 @@
     tracks.artist = globalPerformer || globalSongwriter;
     tracks.songwriter = globalSongwriter;
     tracks.file = globalFile;
+    tracks.files = cueFilesList;
+    tracks.isMultiFile = isMultiFile;
     tracks.genre = globalGenre;
     tracks.date = globalDate;
     tracks.tracks = tracks;
