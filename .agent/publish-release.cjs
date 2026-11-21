@@ -80,25 +80,23 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.55';
-  const name = process.argv[3] || `Nocturne ${tag} (Đồng bộ đa thư mục nội bộ + ảnh bìa/đa đĩa Google Drive & OneDrive + nhận rút/cắm thẻ nhớ Android 13–15)`;
+  const tag = process.argv[2] || 'v3.9.56';
+  const name = process.argv[3] || `Nocturne ${tag} (Tự phục hồi nâng cấp bản full Cloud khi có mạng lại + chống rò rỉ blob URL + Bit-Perfect tự hồi khi đổi USB DAC & CUE liền mạch)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 109) — Đồng bộ đa thư mục nội bộ + ảnh bìa/đa đĩa Google Drive & OneDrive + hot-plug thẻ nhớ Android 13–15
+    : `### Nocturne ${tag} (versionCode 110) — Phục hồi nâng cấp bản full Cloud khi có mạng lại + chống rò rỉ bộ nhớ blob URL + Bit-Perfect tự hồi khi đổi USB DAC & chuyển bài CUE liền mạch
 
-#### 1. Đồng bộ thư mục nội bộ bền bỉ & tự dọn bài đã xóa (\`index.html\`, \`library-utils.js\`)
-- **Lưu tối đa 8 thư mục \`FileSystemDirectoryHandle\`**: Tự động khôi phục mọi thư mục đã cấp quyền khi mở lại ứng dụng Web/Desktop thay vì chỉ giữ 1 thư mục duy nhất.
-- **Bỏ qua thư mục ẩn/hệ thống & chống lỗi từng tệp**: \`collectAudioAndCoverFilesFromDirectoryHandle\` bỏ qua \`.git\`, \`$RECYCLE.BIN\`, \`System Volume Information\`, \`@eaDir\`, \`__MACOSX\`, thư mục ẩn và cô lập lỗi đọc từng tệp/thư mục con để không làm gãy cả phiên quét.
-- **Tự động dọn bài đã xóa trên đĩa**: Khi quét lại thư mục đã lưu, các bài đã bị xóa khỏi ổ đĩa được dọn sạch khỏi thư viện (luôn bảo vệ bài đang phát \`state.currentId\` và thu hồi blob URL không còn dùng).
+#### 1. Tự phục hồi nâng cấp bản full Google Drive / OneDrive khi mạng chập chờn (\`index.html\`)
+- **Không còn đứt bài ở cuối lát đầu khi chuyển Wi-Fi ↔ 4G**: Khi \`upgradeSliceToFullAudio\` bị rớt mạng trong lúc bài hát đang phát từ lát đầu (\`firstSlicePlayback\`), ứng dụng lưu lại \`_pendingSliceUpgrade\`. Ngay khi có mạng trở lại (\`online\`), \`retryPendingCurrentSliceUpgrade\` tự làm mới token Google Drive hoặc \`downloadUrl\` OneDrive và tải tiếp bản full ở nền trước khi lát đầu kết thúc.
 
-#### 2. Đồng bộ đa đĩa (\`discNumber\`/\`trackNumber\`) & kế thừa ảnh bìa thư mục cha trên Google Drive, OneDrive và Nội bộ (\`library-utils.js\`, \`index.html\`)
-- **Sắp xếp chính xác album nhiều đĩa trên OneDrive & Google Drive**: \`extractDiscAndTrackFromPath\` nay đọc cả \`remotePath\` của OneDrive; \`microsoftTrack\`/\`mergeMicrosoftTrack\` nạp thêm \`item.audio.disc\` + \`item.audio.track\` từ Microsoft Graph kèm fallback từ đường dẫn thư mục; \`googleTrack\` trích số đĩa/bài từ tên tệp ngay khi quét.
-- **Kế thừa ảnh bìa từ thư mục cha cho \`Disc 1\` / \`CD 2\`**: Áp dụng thống nhất qua \`resolveFolderCoverWithDiscFallback\` cho Nội bộ, OneDrive (gồm cả thư mục Shared) và tra cứu 1 cấp thư mục cha trên Google Drive để gán cả \`discNumber\` lẫn \`cover.jpg\`/\`folder.jpg\`.
+#### 2. Kiểm soát trần bộ nhớ \`state.objectUrls\` khi chuyển nguồn liên tục (\`index.html\`)
+- **Thu hồi blob URL dư thừa an toàn (\`pruneExcessObjectUrls\`)**: Giới hạn trần 12 URL trên FiiO/Android cũ (32 URL trên Web/Desktop), tự thu hồi blob audio cũ không còn dùng khi chuyển qua lại giữa Google Drive, OneDrive và Nội bộ mà tuyệt đối không đụng vào deck đang phát, bài chờ preload, DSD hay ảnh bìa đang hiển thị.
 
-#### 3. Hot-plug thẻ nhớ MicroSD / USB-OTG ổn định trên Android 13–15 & FiiO M11S (\`MainActivity.java\`, \`index.html\`)
-- **Bắt đủ sự kiện cắm & rút thẻ nhớ trên Android 13–15**: \`registerStorageMountReceiver\` dùng \`Context.RECEIVER_EXPORTED\` trên Android 13+ (tránh \`SecurityException\` trên Android 14–15) và lắng nghe thêm \`ACTION_MEDIA_UNMOUNTED\`, \`ACTION_MEDIA_EJECT\`, \`ACTION_MEDIA_REMOVED\`, \`ACTION_MEDIA_BAD_REMOVAL\`.
-- **Chống dội sự kiện & hàng đợi quét lại**: \`window.onAndroidStorageStateChanged\` gom burst sự kiện (1200ms) và xếp hàng quét nối tiếp khi \`fiioScanInProgress\` đang bận để không bao giờ bỏ sót sự kiện cắm/rút MicroSD hay USB-OTG.
+#### 3. Chuyển bài \`.cue\` cùng tệp gốc liền mạch 0ms & tự phục hồi Android Bit-Perfect khi đổi ngõ ra (\`MainActivity.java\`, \`index.html\`)
+- **\`BitPerfectAudioPlayer\` tự dựng lại \`AudioTrack\` khi gặp \`ERROR_DEAD_OBJECT\`**: Khi cắm/rút USB DAC, chuyển Bluetooth hoặc Line-Out giữa bài, \`BitPerfectAudioPlayer\` tự phát hiện \`AudioTrack.ERROR_DEAD_OBJECT\` (-6), chọn lại thiết bị ưu tiên (\`findPreferredBitPerfectDevice\`) và dựng lại \`AudioTrack\` (tối đa 2 lần) mà không rớt khỏi Bit-Perfect hay khởi động lại bài từ 0:00.
+- **Nhận diện mở rộng ngõ ra âm thanh Android/FiiO**: Nhận diện thêm \`TYPE_LINE_ANALOG\`, \`TYPE_LINE_DIGITAL\`, \`TYPE_AUX_LINE\` (Line-Out/Balanced/Coax trên DAP) và \`TYPE_BLE_HEADSET\`/\`TYPE_BLE_SPEAKER\` (Bluetooth LE Audio trên Android 12–15).
+- **Chuyển bài \`.cue\` liền mạch cùng tệp FLAC/WAV (Web + Android Bit-Perfect)**: Khi chuyển tuần tự giữa các bài con \`.cue\` chung tệp gốc, không còn hủy/tạo lại \`AudioTrack\` hay gọi \`standbyAudio.load()\`, giúp album live/concert liền mạch không vấp tiếng.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

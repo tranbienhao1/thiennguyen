@@ -3512,7 +3512,16 @@ public class MainActivity extends AppCompatActivity {
         for (AudioDeviceInfo dev : devices) {
             if (dev == null || !dev.isSink()) continue;
             int t = dev.getType();
-            boolean isExternalDac = (t == AudioDeviceInfo.TYPE_USB_DEVICE || t == AudioDeviceInfo.TYPE_USB_HEADSET || t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || t == AudioDeviceInfo.TYPE_WIRED_HEADSET || t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP);
+            boolean isExternalDac = (t == AudioDeviceInfo.TYPE_USB_DEVICE
+                    || t == AudioDeviceInfo.TYPE_USB_HEADSET
+                    || t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+                    || t == AudioDeviceInfo.TYPE_WIRED_HEADSET
+                    || t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                    || t == AudioDeviceInfo.TYPE_LINE_ANALOG
+                    || t == AudioDeviceInfo.TYPE_LINE_DIGITAL
+                    || t == AudioDeviceInfo.TYPE_AUX_LINE
+                    || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                        && (t == AudioDeviceInfo.TYPE_BLE_HEADSET || t == AudioDeviceInfo.TYPE_BLE_SPEAKER)));
             if (!isExternalDac) continue;
             String rawName = dev.getProductName() != null ? dev.getProductName().toString() : "Audio Output";
             String safeName = rawName.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ");
@@ -4694,6 +4703,7 @@ public class MainActivity extends AppCompatActivity {
                 int stuckPtsCount = 0;
                 int idleDrainIterations = 0;
                 int consecutiveCodecErrors = 0;
+                int deadObjectRecoveries = 0;
                 int bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
 
                 while (!mIsStopped && !sawOutputEOS && mPlaybackEpoch.get() == epoch) {
@@ -4899,6 +4909,49 @@ public class MainActivity extends AppCompatActivity {
                                 }
                                 int rem = outBuf.remaining();
                                 written = track.write(outBuf, rem, AudioTrack.WRITE_NON_BLOCKING);
+                                if (written == AudioTrack.ERROR_DEAD_OBJECT && !mIsStopped && mPlaybackEpoch.get() == epoch && deadObjectRecoveries < 2) {
+                                    deadObjectRecoveries++;
+                                    Log.w(TAG, "BitPerfect: AudioTrack ERROR_DEAD_OBJECT on audio route switch, rebuilding (" + deadObjectRecoveries + "/2)");
+                                    try { track.stop(); } catch (Exception ignored) {}
+                                    try { track.release(); } catch (Exception ignored) {}
+                                    preferredDevice = findPreferredBitPerfectDevice();
+                                    if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
+                                            (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                                             preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                                        mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
+                                                mAudioManager, audioAttributes, preferredDevice, audioFormat);
+                                    }
+                                    try {
+                                        track = new AudioTrack.Builder()
+                                                .setAudioAttributes(audioAttributes)
+                                                .setAudioFormat(audioFormat)
+                                                .setBufferSizeInBytes(bufferSize)
+                                                .setTransferMode(AudioTrack.MODE_STREAM)
+                                                .build();
+                                    } catch (Throwable rebuildErr) {
+                                        AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
+                                                .setUsage(AudioAttributes.USAGE_MEDIA)
+                                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                                .build();
+                                        track = new AudioTrack.Builder()
+                                                .setAudioAttributes(fallbackAttrs)
+                                                .setAudioFormat(audioFormat)
+                                                .setBufferSizeInBytes(bufferSize)
+                                                .setTransferMode(AudioTrack.MODE_STREAM)
+                                                .build();
+                                    }
+                                    mAudioTrack = track;
+                                    if (preferredDevice != null) {
+                                        try { track.setPreferredDevice(preferredDevice); } catch (Throwable ignored) {}
+                                    }
+                                    try { track.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                                    notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, preferredDevice);
+                                    if (!mIsPaused && !mIsStopped) {
+                                        try { track.play(); } catch (Throwable ignored) {}
+                                    }
+                                    written = 0;
+                                    continue;
+                                }
                                 if (written < 0) {
                                     break;
                                 }
@@ -5286,11 +5339,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.55";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.56";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.55\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.56\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
