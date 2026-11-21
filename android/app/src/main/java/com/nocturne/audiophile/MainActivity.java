@@ -5272,11 +5272,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.53";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.54";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.53\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.54\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -5418,6 +5418,38 @@ public class MainActivity extends AppCompatActivity {
                     total += read;
                 }
                 return decodeLyricsBytes(bos.toByteArray());
+            } catch (Throwable ignored) {
+                return "";
+            }
+        }
+
+        private static final long MAX_LOCAL_TEXT_FILE_BYTES = 512L * 1024L;
+
+        @JavascriptInterface
+        public String readLocalTextFile(@Nullable String filePath) {
+            if (filePath == null || filePath.trim().isEmpty()) return "";
+            try {
+                File f = resolveReadableLocalFile(filePath.trim());
+                if (!f.exists() || !f.isFile() || !f.canRead()) return "";
+                String lower = f.getName().toLowerCase(Locale.US);
+                boolean allowed = lower.endsWith(".cue") || lower.endsWith(".lrc")
+                        || lower.endsWith(".lyricsfile") || lower.endsWith(".txt")
+                        || lower.endsWith(".m3u") || lower.endsWith(".m3u8");
+                if (!allowed) return "";
+                long len = f.length();
+                if (len <= 0L || len > MAX_LOCAL_TEXT_FILE_BYTES) return "";
+                try (FileInputStream fis = new FileInputStream(f);
+                     ByteArrayOutputStream bos = new ByteArrayOutputStream((int) len)) {
+                    byte[] buf = new byte[8192];
+                    int read;
+                    int total = 0;
+                    while ((read = fis.read(buf)) != -1) {
+                        if (total + read > MAX_LOCAL_TEXT_FILE_BYTES) return "";
+                        bos.write(buf, 0, read);
+                        total += read;
+                    }
+                    return decodeLyricsBytes(bos.toByteArray());
+                }
             } catch (Throwable ignored) {
                 return "";
             }

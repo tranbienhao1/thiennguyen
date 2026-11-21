@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.53</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.54</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -6009,8 +6009,14 @@
           const deck = audio;
           const deckRouter = (state.activeDeck && state.activeDeck.element === deck && state.activeDeck.router && state.activeDeck.router.gain) ? state.activeDeck.router.gain : null;
           let routerRestoreTimer = null;
+          let upgradeFlagTimer = null;
+          const clearUpgradeFlag = () => {
+            if (upgradeFlagTimer && typeof clearTimeout === 'function') { clearTimeout(upgradeFlagTimer); upgradeFlagTimer = null; }
+            deck._upgradingFullAudio = false;
+          };
           const restoreDeckGain = () => {
-            if (routerRestoreTimer) { clearTimeout(routerRestoreTimer); routerRestoreTimer = null; }
+            clearUpgradeFlag();
+            if (routerRestoreTimer && typeof clearTimeout === 'function') { clearTimeout(routerRestoreTimer); routerRestoreTimer = null; }
             if (deckRouter && state.context) {
               try { deckRouter.setTargetAtTime(1, state.context.currentTime, 0.007); } catch (_) { deckRouter.value = 1; }
             }
@@ -6019,34 +6025,56 @@
             try { deckRouter.setTargetAtTime(0.0001, state.context.currentTime, 0.005); } catch (_) {}
             routerRestoreTimer = setTimeout(restoreDeckGain, 1500);
           }
+          // Suppress transient 'pause' UI/notification flicker emitted by deck.load() while upgrading slice -> full
+          deck._upgradingFullAudio = !wasPaused || endedEarly;
+          if (deck._upgradingFullAudio) {
+            upgradeFlagTimer = setTimeout(clearUpgradeFlag, 4000);
+          }
           // Pha A — giữ đúng deck đang phát lát đầu: handler
           // 'loadedmetadata' chạy bất đồng bộ; nếu deck đã đổi (bấm Next
           // / bài tự chuyển trong lúc chờ metadata) thì đừng seek/play
           // nhầm sang deck mới đang phát bài khác.
           deck.addEventListener('loadedmetadata', () => {
             if (deck !== audio || track.id !== state.currentId) { restoreDeckGain(); return; }
+            let appliedPos = Math.max(0, position);
             try {
-              // Bù trễ nạp metadata khi đang phát liên tục để không bị giật lùi 0.2-0.4s
-              const rawElapsed = (!wasPaused && !endedEarly) ? ((((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - swapStartedAt) / 1000) : 0;
+              // Bù trễ nạp metadata khi đang phát liên tục (không bù khi người dùng đã tua đích tường minh)
+              const rawElapsed = (pendingSeekPos === null && !wasPaused && !endedEarly) ? ((((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - swapStartedAt) / 1000) : 0;
               const elapsedSec = rawElapsed >= 0.03 ? Math.min(1.2, rawElapsed) : 0;
               const targetPos = position + elapsedSec;
               // Kẹp vị trí seek nhỏ hơn duration một chút để 'ended' không
               // bắn ngay sau khi đổi sang file đầy đủ.
               const safePosition = Number.isFinite(deck.duration) && deck.duration > 0.5 ? Math.min(targetPos, deck.duration - 0.25) : targetPos;
-              deck.currentTime = Math.max(0, safePosition);
+              appliedPos = Math.max(0, safePosition);
+              deck.currentTime = appliedPos;
             } catch (_) {}
+            if (pendingSeekPos !== null && typeof formatTime === 'function' && typeof $ === 'function') {
+              const fmtPos = formatTime(appliedPos);
+              if ($('current-time')) $('current-time').textContent = fmtPos;
+              if ($('current-time-mobile')) $('current-time-mobile').textContent = fmtPos;
+              if ($('room-current-time')) $('room-current-time').textContent = fmtPos;
+              if (Number.isFinite(deck.duration) && deck.duration > 0 && typeof syncSeek === 'function') {
+                syncSeek(Math.max(0, Math.min(1000, Math.round((appliedPos / deck.duration) * 1000))));
+              }
+              if (typeof updatePositionState === 'function') updatePositionState(true);
+            }
             if (!wasPaused || endedEarly) {
               if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') { try { state.context.resume().catch(() => {}); } catch (_) {} }
               deck.play().then(() => {
+                clearUpgradeFlag();
                 restoreDeckGain();
                 if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
               }).catch(error => {
+                clearUpgradeFlag();
                 restoreDeckGain();
                 console.warn('Could not resume after upgrading to the full audio file:', error.message || error);
                 if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
               });
-            } else if (deckRouter && state.context) {
-              try { deckRouter.setTargetAtTime(1, state.context.currentTime, 0.007); } catch (_) { deckRouter.value = 1; }
+            } else {
+              clearUpgradeFlag();
+              if (deckRouter && state.context) {
+                try { deckRouter.setTargetAtTime(1, state.context.currentTime, 0.007); } catch (_) { deckRouter.value = 1; }
+              }
             }
           }, {once:true});
           deck.src = new URL(fullUrl, location.href).href;
@@ -16570,8 +16598,10 @@
     });
     $('settings-modal').addEventListener('pointercancel', event => { delete event.currentTarget.dataset.backdropPointer; });
 
+    let sidebarOpenedAt = 0;
     const sidebarIsOpen = () => !document.body.classList.contains('sidebar-collapsed');
     function setSidebarOpen(open) {
+      if (open) sidebarOpenedAt = Date.now();
       document.body.classList.toggle('sidebar-collapsed', !open);
       const toggle = $('sidebar-toggle');
       if (toggle) {
@@ -16590,7 +16620,7 @@
     }
     /* $('sidebar-toggle')?.addEventListener('click' */ safeOn($('sidebar-toggle'), 'click', () => setSidebarOpen(!sidebarIsOpen()));
     $('sidebar-close').addEventListener('click', () => setSidebarOpen(false));
-    $('sidebar-backdrop').addEventListener('click', () => setSidebarOpen(false));
+    $('sidebar-backdrop').addEventListener('click', () => { if (Date.now() - sidebarOpenedAt < 350) return; setSidebarOpen(false); });
     window.addEventListener('resize', () => {
       const isHidden = !sidebarIsOpen() || !isMobileViewport();
       const backdrop = $('sidebar-backdrop');
@@ -16602,6 +16632,7 @@
 
     // Auto-dismiss sidebar on mobile/DAP on ANY navigation selection
     /* $('sidebar')?.addEventListener('click' */ safeOn($('sidebar'), 'click', (event) => {
+      if (Date.now() - sidebarOpenedAt < 350) return;
       const target = event.target;
       if (!target) return;
       const navItem = target.closest(
@@ -16624,6 +16655,7 @@
     let touchStartTarget = null;
     let lastFastTapClickTs = 0;
     let lastFastTapEl = null;
+    let lastFastTapPos = null;
     let lastFastTapPending = false;
 
     document.addEventListener('touchstart', (e) => {
@@ -16659,8 +16691,8 @@
       if (dx < 14 && dy < 14 && dt < 600) {
         const target = initialTarget || e.target;
         /* target?.closest?.('input, select, textarea, .seek-range, button, a, summary, label') */
-        // Preserve native activation for file inputs, playback transport buttons & waveform scrubbars
-        const isNativeControl = target && typeof target.closest === 'function' ? target.closest('input, select, textarea, .seek-range, #add-files, #empty-add, #folders-button, #choose-folder, #playlist-import-m3u-btn, #play-button, #room-play, #fullscreen-play-btn, #mini-play, #previous-button, #next-button, #room-previous, #room-next, #fullscreen-prev-btn, #fullscreen-next-btn, #mini-next, #waveform-canvas, #fullscreen-waveform, #mini-waveform') : null;
+        // Preserve native/direct activation for file inputs, sidebar toggle, playback transport buttons & waveform scrubbars
+        const isNativeControl = target && typeof target.closest === 'function' ? target.closest('input, select, textarea, .seek-range, #add-files, #empty-add, #folders-button, #choose-folder, #playlist-import-m3u-btn, #sidebar-toggle, #play-button, #room-play, #fullscreen-play-btn, #mini-play, #previous-button, #next-button, #room-previous, #room-next, #fullscreen-prev-btn, #fullscreen-next-btn, #mini-next, #waveform-canvas, #fullscreen-waveform, #mini-waveform') : null;
         if (isNativeControl) return;
 
         const interactiveEl = target && typeof target.closest === 'function' ? target.closest(
@@ -16670,17 +16702,21 @@
         if (interactiveEl && !interactiveEl.disabled) {
           lastFastTapClickTs = Date.now();
           lastFastTapEl = interactiveEl;
+          lastFastTapPos = { x: touch.clientX, y: touch.clientY };
           lastFastTapPending = true;
           interactiveEl.click();
         }
       }
     }, { passive: true });
 
-    // Deduplicate native click following fast-tap ONLY for the exact fast-tapped element (never swallow #play-button / transport clicks)
+    // Deduplicate native ghost click following fast-tap (same element OR same tap coordinates where a newly opened drawer/backdrop appeared)
+    // while NEVER swallowing real taps on transport buttons or other distinct controls.
     document.addEventListener('click', (e) => {
       if (e.isTrusted && lastFastTapEl) {
         const isTargetSame = Boolean(e.target === lastFastTapEl || (typeof lastFastTapEl.contains === 'function' && lastFastTapEl.contains(e.target)));
-        if (!isTargetSame) return;
+        const isTransportTarget = Boolean(e.target && typeof e.target.closest === 'function' && e.target.closest('#play-button, #room-play, #fullscreen-play-btn, #mini-play, #previous-button, #next-button, #room-previous, #room-next, #fullscreen-prev-btn, #fullscreen-next-btn, #mini-next, .seek-range, #waveform-canvas, #fullscreen-waveform, #mini-waveform'));
+        const nearLastFastTap = Boolean(lastFastTapPos && typeof e.clientX === 'number' && typeof e.clientY === 'number' && Math.abs(e.clientX - lastFastTapPos.x) < 28 && Math.abs(e.clientY - lastFastTapPos.y) < 28);
+        if (!isTargetSame && (isTransportTarget || !nearLastFastTap)) return;
       }
       if (Date.now() - lastFastTapClickTs < 450 && e.isTrusted) {
         e.preventDefault();
@@ -16690,8 +16726,9 @@
       if (lastFastTapPending && e.isTrusted) {
         const elapsedFastTap = Date.now() - lastFastTapClickTs;
         const isSameFastTapTarget = Boolean(lastFastTapEl && (e.target === lastFastTapEl || (typeof lastFastTapEl.contains === 'function' && lastFastTapEl.contains(e.target))));
+        const nearDelayedFastTap = Boolean(lastFastTapPos && typeof e.clientX === 'number' && typeof e.clientY === 'number' && Math.abs(e.clientX - lastFastTapPos.x) < 28 && Math.abs(e.clientY - lastFastTapPos.y) < 28);
         lastFastTapPending = false;
-        if (elapsedFastTap >= 450 && elapsedFastTap < 1200 && isSameFastTapTarget) {
+        if (elapsedFastTap >= 450 && elapsedFastTap < 1200 && (isSameFastTapTarget || nearDelayedFastTap)) {
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
@@ -18141,6 +18178,14 @@
       if (t.albumArtist && t.albumArtist !== t.artist) rec.albumArtist = t.albumArtist;
       const dur = Number(t.duration) || 0;
       if (dur > 0) rec.duration = Math.round(dur * 10) / 10;
+      if (t.isCue) {
+        rec.isCue = true;
+        rec.cueStart = Math.max(0, Math.round((Number(t.cueStart) || 0) * 100) / 100);
+        if (t.cueFilePath) rec.cueFilePath = t.cueFilePath;
+        if (t.cueDedupKey) rec.cueDedupKey = t.cueDedupKey;
+        if (t.trackNumber) rec.trackNumber = t.trackNumber;
+        if (t.discNumber) rec.discNumber = t.discNumber;
+      }
       if (!ultraLean) {
         if (t.size) rec.size = t.size;
         if (t.trackNumber) rec.trackNumber = t.trackNumber;
@@ -18158,6 +18203,10 @@
       hydrated.name = hydrated.name || hydrated.title || '';
       hydrated.isDsd = Boolean(hydrated.isDsd || /^(dsf|dff)$/i.test(String(hydrated.format || '')));
       hydrated.duration = Number(hydrated.duration) || 0;
+      if (hydrated.isCue) {
+        hydrated.isCue = true;
+        hydrated.cueStart = Math.max(0, Number(hydrated.cueStart) || 0);
+      }
       if (!hydrated.url) {
         if (hydrated.uri) {
           hydrated.url = 'https://appassets.androidplatform.net/local-media?uri=' + encodeURIComponent(hydrated.uri) + '&name=' + encodeURIComponent(hydrated.name || '');
@@ -18383,7 +18432,173 @@
       if (typeof restoreLocalTrackUrlSync === 'function') restoreLocalTrackUrlSync(prevTrack);
     }
 
-    function ingestFiioScannedFilesChunk(chunkFiles, existingPaths, existingUris) {
+    function fiioCueHash(str) {
+      let h = 2166136261;
+      const s = String(str || '');
+      for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
+      }
+      return h.toString(36);
+    }
+
+    function expandFiioScannedCueSheets(cueFiles) {
+      if (!Array.isArray(cueFiles) || !cueFiles.length) return 0;
+      if (typeof library === 'undefined' || !library || typeof library.parseCueSheet !== 'function') return 0;
+      const native = (typeof window !== 'undefined') ? window.NocturneNative : null;
+      if (!native || typeof native.readLocalTextFile !== 'function') return 0;
+
+      const existingCueByKey = new Map();
+      const audioCandidates = [];
+      for (let i = 0; i < state.tracks.length; i++) {
+        const tr = state.tracks[i];
+        if (!tr) continue;
+        if (tr.isCue && tr.cueDedupKey) existingCueByKey.set(tr.cueDedupKey, tr);
+        else if (tr.id && String(tr.id).indexOf('fiio_') === 0 && tr.path && !/\.cue$/i.test(String(tr.path))) {
+          audioCandidates.push(tr);
+        }
+      }
+
+      const normDir = p => {
+        const s = String(p || '').replace(/\\/g, '/');
+        const idx = s.lastIndexOf('/');
+        return idx > 0 ? s.slice(0, idx).toLowerCase() : '';
+      };
+      const normName = p => {
+        const s = String(p || '').replace(/\\/g, '/');
+        const idx = s.lastIndexOf('/');
+        return (idx >= 0 ? s.slice(idx + 1) : s).toLowerCase();
+      };
+      const stripExt = n => String(n || '').replace(/\.[^.]+$/, '');
+      const inferDiscNumber = rawPath => {
+        if (typeof library !== 'undefined' && library && typeof library.extractDiscAndTrackFromPath === 'function') {
+          try {
+            const info = library.extractDiscAndTrackFromPath(rawPath);
+            if (info && info.discNumber > 0) return info.discNumber;
+          } catch (_) {}
+        }
+        const m = String(rawPath || '').match(/(?:^|[\s/\\._\-(\[])(?:disc|disk|cd)[\s._\-]*0?([1-9]\d?)(?=$|[\s/\\._\-)\]])/i);
+        return m ? Number(m[1]) : 0;
+      };
+
+      const replacedParentIds = new Set();
+      let addedCueTracks = 0;
+
+      for (let ci = 0; ci < cueFiles.length; ci++) {
+        const cf = cueFiles[ci];
+        if (!cf || !cf.path) continue;
+        const cuePath = String(cf.path).trim();
+        let cueText = '';
+        try { cueText = native.readLocalTextFile(cuePath) || ''; } catch (_) { cueText = ''; }
+        if (!cueText) continue;
+
+        let parsedTracks = null;
+        try { parsedTracks = library.parseCueSheet(cueText); } catch (_) { parsedTracks = null; }
+        if (!Array.isArray(parsedTracks) || !parsedTracks.length) continue;
+
+        const cueDir = normDir(cuePath);
+        const cueFileName = normName(cuePath);
+        const cueBase = stripExt(cueFileName);
+        const cueBaseClean = cueBase.replace(/\.(flac|wav|ape|wv|m4a|alac|aiff|aif|mp3|ogg|opus|dsf|dff)$/i, '');
+        const rawCueTarget = String(parsedTracks.file || '').replace(/\\/g, '/');
+        const targetFilename = normName(rawCueTarget);
+        const targetBase = stripExt(targetFilename);
+
+        const matchesAudio = tr => {
+          const fname = normName(tr.path || tr.name || '');
+          const fbase = stripExt(fname);
+          return (targetFilename && fname === targetFilename) ||
+            (targetBase && fbase === targetBase) ||
+            fbase === cueBase ||
+            (cueBaseClean && fbase === cueBaseClean);
+        };
+
+        const sameDirAudios = audioCandidates.filter(tr => normDir(tr.path) === cueDir);
+        let siblingTrack = sameDirAudios.find(matchesAudio) || audioCandidates.find(matchesAudio) || null;
+        if (!siblingTrack && sameDirAudios.length === 1) {
+          const sameDirCueCount = cueFiles.filter(other => other && other.path && normDir(other.path) === cueDir).length;
+          if (sameDirCueCount === 1) siblingTrack = sameDirAudios[0];
+        }
+        if (!siblingTrack) continue;
+
+        const inferredDisc = inferDiscNumber(cuePath) || Number(siblingTrack.discNumber) || 0;
+        let createdOrMatchedCount = 0;
+
+        for (let ti = 0; ti < parsedTracks.length; ti++) {
+          const ct = parsedTracks[ti];
+          if (!ct) continue;
+          const cueStart = Math.max(0, Number(ct.offset) || 0);
+          const nextCt = parsedTracks[ti + 1];
+          let trackDur = Number(ct.duration) > 0 ? Number(ct.duration) : 0;
+          if (!(trackDur > 0) && nextCt && Number(nextCt.offset) > cueStart) {
+            trackDur = Number(nextCt.offset) - cueStart;
+          }
+          if (!(trackDur > 0) && Number(siblingTrack.duration) > cueStart) {
+            trackDur = Number(siblingTrack.duration) - cueStart;
+          }
+          const trackNo = Number(ct.number || ct.track) || (ti + 1);
+          const cueDedupKey = cuePath + '::cue::' + trackNo + '-' + Math.round(cueStart * 100);
+          const existingCue = existingCueByKey.get(cueDedupKey);
+          if (existingCue) {
+            existingCue.path = siblingTrack.path;
+            if (siblingTrack.uri) existingCue.uri = siblingTrack.uri;
+            if (siblingTrack.url) existingCue.url = siblingTrack.url;
+            if (trackDur > 0 && !(Number(existingCue.duration) > 0)) existingCue.duration = trackDur;
+            if (siblingTrack.cover && (!existingCue.cover || existingCue.cover === '♫')) existingCue.cover = siblingTrack.cover;
+            if (inferredDisc > 0 && !existingCue.discNumber) existingCue.discNumber = inferredDisc;
+            if (typeof restoreLocalTrackUrlSync === 'function') restoreLocalTrackUrlSync(existingCue);
+            createdOrMatchedCount++;
+            continue;
+          }
+          const subTrack = {
+            id: 'fiio_cue_' + fiioCueHash(cueDedupKey),
+            source: 'local',
+            isCue: true,
+            cueFilePath: cuePath,
+            cueDedupKey: cueDedupKey,
+            cueStart: cueStart,
+            duration: trackDur,
+            trackNumber: trackNo,
+            discNumber: inferredDisc || undefined,
+            name: ct.title || ('Track ' + trackNo),
+            title: ct.title || ('Track ' + trackNo),
+            artist: ct.artist || ct.performer || parsedTracks.artist || parsedTracks.performer || siblingTrack.artist || 'Unknown Artist',
+            album: ct.album || parsedTracks.album || parsedTracks.title || siblingTrack.album || 'FiiO Internal & SD Card',
+            albumArtist: parsedTracks.artist || parsedTracks.performer || siblingTrack.albumArtist || '',
+            path: siblingTrack.path,
+            uri: siblingTrack.uri || '',
+            url: siblingTrack.url || '',
+            cover: siblingTrack.cover || '',
+            format: siblingTrack.format || 'FLAC',
+            isDsd: Boolean(siblingTrack.isDsd),
+            size: siblingTrack.size || 0,
+            sampleRate: siblingTrack.sampleRate || 0,
+            bitDepth: siblingTrack.bitDepth || 0,
+            channels: siblingTrack.channels || 0
+          };
+          if (typeof restoreLocalTrackUrlSync === 'function') restoreLocalTrackUrlSync(subTrack);
+          if (typeof library !== 'undefined' && typeof library.enrichFiioTrackMetadata === 'function') {
+            library.enrichFiioTrackMetadata(subTrack);
+          }
+          state.tracks.push(subTrack);
+          existingCueByKey.set(cueDedupKey, subTrack);
+          addedCueTracks++;
+          createdOrMatchedCount++;
+        }
+
+        if (parsedTracks.length >= 2 && createdOrMatchedCount >= 2 && !siblingTrack.isCue && siblingTrack.id !== state.currentId) {
+          replacedParentIds.add(siblingTrack.id);
+        }
+      }
+
+      if (replacedParentIds.size > 0) {
+        state.tracks = state.tracks.filter(t => !t || !replacedParentIds.has(t.id));
+      }
+      return addedCueTracks;
+    }
+    window.expandFiioScannedCueSheets = expandFiioScannedCueSheets;
+
+    function ingestFiioScannedFilesChunk(chunkFiles, existingPaths, existingUris, collectedCueFiles) {
       if (!Array.isArray(chunkFiles) || chunkFiles.length === 0) return 0;
       let added = 0;
       const hasFactory = typeof library !== 'undefined' && typeof library.createFiioTrack === 'function';
@@ -18392,6 +18607,12 @@
       for (let i = 0; i < chunkFiles.length; i++) {
         const file = chunkFiles[i];
         if (!file || (!file.path && !file.uri)) continue;
+        const lowerCheckName = String(file.name || file.path || '').toLowerCase();
+        if (lowerCheckName.endsWith('.cue')) {
+          if (Array.isArray(collectedCueFiles)) collectedCueFiles.push(file);
+          continue;
+        }
+        if (lowerCheckName.endsWith('.iso')) continue;
         const normPath = file.path ? String(file.path).trim() : '', normUri = file.uri ? String(file.uri).trim() : '';
         if ((normPath && existingPaths.has(normPath)) || (normUri && existingUris.has(normUri))) {
           const prevTrack = (normPath && existingByPath.get(normPath)) || (normUri && existingByUri.get(normUri)) || null;
@@ -18545,13 +18766,24 @@
         }
         const tPath = t.path ? String(t.path).trim() : '';
         const tUri = t.uri ? String(t.uri).trim() : '';
+        if (!t.isCue && tPath && /\.cue$/i.test(tPath)) {
+          removedTracks.push(t);
+          continue;
+        }
         let keep = true;
-        if (tPath) {
+        if (t.isCue && t.cueFilePath) {
+          const cuePathStr = String(t.cueFilePath).trim();
+          const cuePrefix = extractStorageRootPrefix(cuePathStr);
+          if (cuePrefix && mountedPrefixes.has(cuePrefix) && hasPaths && !scannedPaths.has(cuePathStr)) {
+            keep = false;
+          }
+        }
+        if (keep && tPath) {
           const prefix = extractStorageRootPrefix(tPath);
           if (prefix && mountedPrefixes.has(prefix)) {
             keep = (hasPaths && scannedPaths.has(tPath)) || Boolean(tUri && hasUris && scannedUris.has(tUri));
           }
-        } else if (tUri) {
+        } else if (keep && tUri) {
           if (hasUris && !scannedUris.has(tUri)) keep = false;
         }
         if (keep) kept.push(t);
@@ -18638,6 +18870,7 @@
           let settledByWatchdog = false;
           const scannedPaths = new Set();
           const scannedUris = new Set();
+          const scannedCueFiles = [];
           if (!silent) toast('Đang quét thư viện nhạc trên máy & thẻ MicroSD...');
 
           const clearWatchdog = function () {
@@ -18658,6 +18891,9 @@
               if (errMsg && !silent) {
                 toast('Lỗi quét bộ nhớ: ' + errMsg);
               } else if (!errMsg) {
+                if (scannedCueFiles.length > 0 && typeof expandFiioScannedCueSheets === 'function') {
+                  totalAdded += expandFiioScannedCueSheets(scannedCueFiles);
+                }
                 const count = Number(totalCount) || totalSeen;
                 let removedNow = 0;
                 if (!settledByWatchdog && (scannedPaths.size > 0 || scannedUris.size > 0)) {
@@ -18683,7 +18919,7 @@
                     if (cFile.path) scannedPaths.add(String(cFile.path).trim());
                     if (cFile.uri) scannedUris.add(String(cFile.uri).trim());
                   }
-                  const addedNow = ingestFiioScannedFilesChunk(chunk, existingPaths, existingUris);
+                  const addedNow = ingestFiioScannedFilesChunk(chunk, existingPaths, existingUris, scannedCueFiles);
                   totalAdded += addedNow;
                   totalSeen = Math.max(totalSeen + chunk.length, Number(totalSoFar) || 0);
                   if (addedNow > 0 && typeof scheduleTrackRender === 'function') {
@@ -18786,13 +19022,17 @@
         }
 
         let addedCount = 0;
+        const legacyCueFiles = [];
         const CHUNK_SIZE = 250;
         for (let offset = 0; offset < uniqueFiles.length; offset += CHUNK_SIZE) {
           const slice = uniqueFiles.slice(offset, offset + CHUNK_SIZE);
-          addedCount += ingestFiioScannedFilesChunk(slice, existingPaths, existingUris);
+          addedCount += ingestFiioScannedFilesChunk(slice, existingPaths, existingUris, legacyCueFiles);
           if (offset + CHUNK_SIZE < uniqueFiles.length) {
             await yieldFrame();
           }
+        }
+        if (legacyCueFiles.length > 0 && typeof expandFiioScannedCueSheets === 'function') {
+          addedCount += expandFiioScannedCueSheets(legacyCueFiles);
         }
 
         fiioScanInProgress = false;
@@ -19217,7 +19457,7 @@
         }
       }, true);
     }
-    ['play-button', 'room-play', 'mini-play', 'fullscreen-play-btn', 'previous-button', 'next-button', 'room-previous', 'room-next', 'fullscreen-prev-btn', 'fullscreen-next-btn'].forEach(id => {
+    ['play-button', 'room-play', 'mini-play', 'fullscreen-play-btn', 'previous-button', 'next-button', 'room-previous', 'room-next', 'fullscreen-prev-btn', 'fullscreen-next-btn', 'sidebar-toggle'].forEach(id => {
       attachReliableTransportTap($(id));
     });
     window.onHardwarePlayPause = () => { const btn = $('play-button'); if (btn) btn.click(); };
@@ -20950,10 +21190,11 @@
       function resumeFullAudioFromSlice(track, position) {
         const fullUrl = track.fullAudioUrl;
         track.fullAudioUrl = null; track.sliceEndedEarly = false; track.firstSlicePlayback = false;
-        // Pha C — như upgradeSliceToFullAudio: khi lát hết, position truyền
-        // vào (element.currentTime lúc 'ended'/'error') đã là duration;
-        // dùng vị trí thật đã ghi trong timeupdate, kẹp dưới duration.
-        const resumePosition = Number.isFinite(track.lastSlicePosition) ? track.lastSlicePosition : position;
+        // Pha C — như upgradeSliceToFullAudio: ưu tiên mốc tua đích sớm (nếu người dùng đã tua vượt lát đầu),
+        // sau đó dùng vị trí thật đã ghi trong timeupdate, kẹp dưới duration.
+        const pendingSeekPos = Number.isFinite(track._pendingSeekAfterFullUpgrade) ? track._pendingSeekAfterFullUpgrade : null;
+        if (pendingSeekPos !== null) track._pendingSeekAfterFullUpgrade = null;
+        const resumePosition = pendingSeekPos !== null ? pendingSeekPos : (Number.isFinite(track.lastSlicePosition) ? track.lastSlicePosition : position);
         track.lastSlicePosition = null;
         // Pha C — handler 'loadedmetadata' chạy bất đồng bộ: nếu bấm Next
         // (đổi bài, tăng playGeneration) trong lúc chờ metadata thì đừng
@@ -20961,14 +21202,30 @@
         // (~13 giây của lát đầu); như hai đường anh em
         // upgradeSliceToFullAudio và handler 'done' DSD.
         const deck = element, generation = state.playGeneration;
+        deck._upgradingFullAudio = true;
+        const clearResumeUpgradeFlag = () => { deck._upgradingFullAudio = false; };
+        const resumeFlagTimer = setTimeout(clearResumeUpgradeFlag, 4000);
         element.addEventListener('loadedmetadata', () => {
-          if (generation !== state.playGeneration || deck !== audio || track.id !== state.currentId) return;
+          if (generation !== state.playGeneration || deck !== audio || track.id !== state.currentId) {
+            if (typeof clearTimeout === 'function') clearTimeout(resumeFlagTimer);
+            clearResumeUpgradeFlag();
+            return;
+          }
           try {
             const safePosition = Number.isFinite(element.duration) && element.duration > 0.5 ? Math.min(resumePosition, element.duration - 0.25) : resumePosition;
             element.currentTime = Math.max(0, safePosition);
           } catch (_) {}
           if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') { try { state.context.resume().catch(() => {}); } catch (_) {} }
-          element.play().then(() => { if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); }).catch(error => { console.warn('Could not resume after upgrading to the full audio file:', error.message || error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); });
+          element.play().then(() => {
+            if (typeof clearTimeout === 'function') clearTimeout(resumeFlagTimer);
+            clearResumeUpgradeFlag();
+            if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+          }).catch(error => {
+            if (typeof clearTimeout === 'function') clearTimeout(resumeFlagTimer);
+            clearResumeUpgradeFlag();
+            console.warn('Could not resume after upgrading to the full audio file:', error.message || error);
+            if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+          });
         }, {once:true});
         element.src = fullUrl;
       }
@@ -21264,6 +21521,7 @@
       });
       element.addEventListener('pause', () => {
         if (element._unlockingGesture) return;
+        if (element._upgradingFullAudio) return;
         const standbyActivelyPlaying = Boolean(standbyAudio && !standbyAudio.paused && !standbyAudio._unlockingGesture && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(standbyAudio)) && standbyAudio.src);
         if (element === audio && standbyActivelyPlaying) return;
         if (element !== audio) return;

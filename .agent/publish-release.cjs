@@ -80,21 +80,23 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.53';
-  const name = process.argv[3] || `Nocturne ${tag} (Sửa triệt để lỗi thanh phát Play/Pause trên FiiO M11S & Android Bit-Perfect)`;
+  const tag = process.argv[2] || 'v3.9.54';
+  const name = process.argv[3] || `Nocturne ${tag} (Sửa lỗi không mở được thanh Sidebar trên Android đời mới + CUE nội bộ Android & nâng cấp bản full Cloud mượt)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 107) — Sửa triệt để lỗi thanh phát Play/Pause trên FiiO M11S & Android Bit-Perfect
+    : `### Nocturne ${tag} (versionCode 108) — Sửa lỗi không mở được thanh Sidebar trên Android đời mới + CUE nội bộ Android & nâng cấp bản full Cloud mượt
 
-#### 1. Triệt tiêu lỗi tự Pause khi bấm Play / chuyển bài trên Android 10 FiiO M11S (\`MainActivity.java\`, \`index.html\`)
-- **Tái sử dụng duy nhất một \`AudioFocusRequest\` (\`requestAudioFocus\`)**: Khắc phục lỗi Android 10 (\`AudioService\`) tự gửi \`AUDIOFOCUS_LOSS\` về listener cũ và tự dừng \`BitPerfectAudioPlayer\` ngay khi người dùng bấm Play (resume) hoặc chuyển bài.
-- **Chặn WebView cướp AudioFocus khi Bit-Perfect đang phát**: \`unlockAudioContextOnGesture\`, \`handleTrackRowActivation\` và \`onAndroidAppLifecycle('foreground')\` không gọi \`state.context.resume()\` khi \`BitPerfectAudioPlayer\` đang hoạt động, loại bỏ hoàn toàn hiện tượng chạm vào nút Play/Pause hay màn hình làm nhạc tự dừng.
-- **Non-blocking PCM write & mở khóa Pause/Seek/Resume tức thì**: Chuyển vòng ghi \`AudioTrack.write\` trong \`BitPerfectAudioPlayer\` sang \`WRITE_NON_BLOCKING\` theo từng chunk để phản hồi Pause/Seek/Resume/Next trong <5ms (không kẹt buffer cũ), hỗ trợ resume từ trạng thái \`PLAYSTATE_STOPPED\` lẫn \`PLAYSTATE_PAUSED\`, chặn gửi vị trí cũ khi đang tạm dừng và đồng bộ lại cả trạng thái Play/Pause khi mở khóa màn hình (\`onResume\`).
+#### 1. Khắc phục triệt để lỗi không mở được thanh Sidebar trên Android đời mới (\`index.html\`)
+- **Chặn ghost-click tự đóng \`#sidebar-backdrop\` ngay sau khi bấm \`☰\`**: Trên Android 12–15 (Chromium WebView đời mới), click tổng hợp sau \`touchend\` rơi vào \`#sidebar-backdrop\` vừa hiện ra tại đúng tọa độ bấm làm thanh bên vừa mở đã tự đóng ngay lập tức. Nay bảo vệ 3 lớp: gắn \`attachReliableTransportTap\` + \`e.preventDefault()\` trực tiếp cho \`#sidebar-toggle\`, bổ sung khóa \`sidebarOpenedAt\` (350ms) cho \`#sidebar-backdrop\`/\`#sidebar\`, và nâng cấp bộ chống lặp Fast-Tap kiểm tra tọa độ \`lastFastTapPos\` (chặn ghost-click trên mọi ngăn kéo/hộp thoại mới mở mà vẫn tuyệt đối không nuốt thao tác bấm nút Play/Pause).
 
-#### 2. Phản hồi cảm ứng 1 chạm cho thanh phát Play/Pause trên FiiO M11S (\`index.html\`)
-- **Không còn nuốt thao tác bấm nút Play/Pause sau khi chọn bài**: Bộ chống lặp click của Fast-Tap chỉ chặn click trùng trên chính phần tử vừa chạm thay vì chặn mọi click trong 450ms.
-- **Bấm 1 chạm tin cậy & đồng bộ trạng thái thật từ Native**: Bổ sung \`attachReliableTransportTap\` cho các nút \`#play-button\`, \`#room-play\`, \`#mini-play\`, \`#fullscreen-play-btn\`, \`#previous-button\`, \`#next-button\` (chịu lệch tay đến 18px trên màn hình 5 inch, không double-toggle), nâng \`z-index\` cụm điều khiển trên thanh phát, đồng bộ \`handleNativeBitPerfectPlayPauseClick\` theo trạng thái thật \`isBitPerfectPlaying()\` và cộng bù \`cueStart\` khi tua CUE trên Bit-Perfect.
+#### 2. Quét & tách album \`.cue\` nội bộ trên Android / FiiO M11S (\`MainActivity.java\`, \`index.html\`)
+- **Đọc tệp \`.cue\` nội bộ an toàn (\`NocturneNative.readLocalTextFile\`)**: Bổ sung cầu đọc văn bản giới hạn 512 KB qua \`resolveReadableLocalFile\` (hỗ trợ đường dẫn Unicode \`NFC\`/\`NFD\`, ký tự \`+\`, UTF-8/UTF-16 BOM) cho \`.cue\`, \`.lrc\`, \`.m3u\`.
+- **Tự động tách bài con CUE từ thẻ nhớ MicroSD (\`expandFiioScannedCueSheets\`)**: Không còn tạo mục nhạc lỗi từ tệp \`.cue\`/\`.iso\`; tự động khớp tệp FLAC/WAV/APE/WV cùng thư mục, tách thành từng bài con mang đủ \`cueStart\`, \`duration\`, \`trackNumber\`, \`discNumber\`, tên bài/nghệ sĩ/album và lưu bền vững qua \`compactFiioTrackForStorage\` / \`hydrateFiioStoredTrack\`.
+
+#### 3. Chuyển tiếp mượt lát đầu -> bản full Cloud & giữ chính xác mốc tua sớm (\`index.html\`)
+- **Chống nhấp nháy nút Play/Pause & thông báo khóa màn hình**: Gắn cờ \`deck._upgradingFullAudio\` trong \`upgradeSliceToFullAudio\` và \`resumeFullAudioFromSlice\` để bộ lắng nghe \`pause\` bỏ qua sự kiện \`pause\` tạm thời do \`deck.load()\` phát sinh.
+- **Bảo toàn chính xác vị trí tua sớm (\`_pendingSeekAfterFullUpgrade\`)**: Không cộng bù độ trễ \`elapsedSec\` khi người dùng đã chọn mốc tua tường minh, hỗ trợ \`_pendingSeekAfterFullUpgrade\` trong cả \`resumeFullAudioFromSlice\` và cập nhật ngay thanh tiến độ + \`MediaSession\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
