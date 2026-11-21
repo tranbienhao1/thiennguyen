@@ -2363,7 +2363,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.47</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.48</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -6279,15 +6279,79 @@
           // cho các mục cũ nhất vượt ngân sách; mục vừa xóa vì quá hạn thì
           // không ghi lại (kẻo put sau delete hồi sinh mục đã xóa).
           const staleSet = new Set(staleIds);
+          const staleSliceKeys = [];
+          for (let si = 0; si < all.length; si++) {
+            const entry = all[si];
+            if (!entry || !staleSet.has(entry.id)) continue;
+            const sk = library.historyTrackKey(entry);
+            if (sk) staleSliceKeys.push(sk);
+          }
           const capped = library.capCatalogCovers(all, library.MAX_CATALOG_COVER_TOTAL_CHARS);
           const changed = capped.filter((entry, index) => entry && !staleSet.has(entry.id) && entry.cover !== all[index].cover);
           if (!staleIds.length && !changed.length) return resolve();
           for (const id of staleIds) store.delete(id);
           for (const entry of changed) store.put(entry);
-          store.transaction.oncomplete = () => resolve();
+          store.transaction.oncomplete = () => {
+            if (staleSliceKeys.length && typeof purgeSliceCacheKeys === 'function') purgeSliceCacheKeys(staleSliceKeys);
+            resolve();
+          };
           store.transaction.onerror = () => resolve();
         };
         request.onerror = () => resolve();
+      });
+    }
+    function purgeSliceCacheKeys(keys) {
+      const list = Array.isArray(keys) ? keys : (keys ? Array.from(keys) : []);
+      if (!list.length) return Promise.resolve(0);
+      return new Promise(resolve => {
+        let store;
+        try { store = sliceCacheTransaction('readwrite'); } catch (_) { return resolve(0); }
+        let deleted = 0;
+        for (let i = 0; i < list.length; i++) {
+          const k = list[i];
+          if (!k) continue;
+          try { store.delete(k); deleted++; } catch (_) {}
+        }
+        store.transaction.oncomplete = () => resolve(deleted);
+        store.transaction.onerror = () => resolve(deleted);
+      });
+    }
+    function pruneOrphanedSliceCacheEntries(sourceFilter) {
+      if (!state || !Array.isArray(state.tracks) || !state.tracks.length) return Promise.resolve(0);
+      const allowedSources = sourceFilter ? [sourceFilter] : ['google', 'onedrive'];
+      const hasSourceTracks = state.tracks.some(t => t && allowedSources.includes(t.source));
+      if (!hasSourceTracks) return Promise.resolve(0);
+      const validKeys = new Set();
+      for (let i = 0; i < state.tracks.length; i++) {
+        const t = state.tracks[i];
+        if (!t || !['google', 'onedrive'].includes(t.source)) continue;
+        const k = library.historyTrackKey(t);
+        if (k) validKeys.add(k);
+      }
+      const curTrack = state.tracks.find(t => t && String(t.id) === String(state.currentId));
+      if (curTrack) { const ck = library.historyTrackKey(curTrack); if (ck) validKeys.add(ck); }
+      const preTrack = state.tracks.find(t => t && String(t.id) === String(state.preloadTrackId));
+      if (preTrack) { const pk = library.historyTrackKey(preTrack); if (pk) validKeys.add(pk); }
+      return new Promise(resolve => {
+        let store;
+        try { store = sliceCacheTransaction('readwrite'); } catch (_) { return resolve(0); }
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const entries = req.result || [];
+          let removed = 0;
+          for (let j = 0; j < entries.length; j++) {
+            const entry = entries[j];
+            const key = entry && entry.key ? String(entry.key) : '';
+            if (!key || validKeys.has(key)) continue;
+            const isMatchingSource = allowedSources.some(src => key.indexOf('["' + src + '",') === 0 || key.startsWith(src + ':'));
+            if (!isMatchingSource) continue;
+            try { store.delete(key); removed++; } catch (_) {}
+          }
+          if (!removed) return resolve(0);
+          store.transaction.oncomplete = () => resolve(removed);
+          store.transaction.onerror = () => resolve(removed);
+        };
+        req.onerror = () => resolve(0);
       });
     }
     function clearCloudCatalog() {
@@ -15198,6 +15262,7 @@
         const rid = tr.remoteId || tr.id;
         if (!rid || seenRemoteIds.has(rid)) continue;
         if (state.currentId != null && String(tr.id) === String(state.currentId)) continue;
+        if (typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(tr);
         removedIds.push(tr.id);
         state.tracks.splice(i, 1);
       }
@@ -15363,6 +15428,9 @@
         if (!sawIncompleteSearch && typeof fetchGoogleStartPageToken === 'function' && typeof writeCloudDeltaCursor === 'function') {
           const startTok = await fetchGoogleStartPageToken(token).catch(() => '');
           if (startTok) writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, startTok);
+        }
+        if (!sawIncompleteSearch && typeof pruneOrphanedSliceCacheEntries === 'function') {
+          pruneOrphanedSliceCacheEntries('google').catch(() => {});
         }
       } catch (error) {
         await persistChain;
@@ -15870,6 +15938,9 @@
         await pruneCloudCatalog();
         if (typeof saveMicrosoftLatestDeltaLink === 'function') {
           await saveMicrosoftLatestDeltaLink(token).catch(() => {});
+        }
+        if (typeof pruneOrphanedSliceCacheEntries === 'function') {
+          pruneOrphanedSliceCacheEntries('onedrive').catch(() => {});
         }
         renderTracks();
         cloudStatus('microsoft', `OneDrive · ${knownIds.size} bài`, 'text-emerald-300');
@@ -22964,12 +23035,44 @@
     setInterval(() => { if (!document.hidden) checkForAppUpdate(); }, UPDATE_CHECK_INTERVAL);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForAppUpdate(); });
     window.addEventListener('focus', checkForAppUpdate);
+    const ONLINE_CLOUD_RESYNC_COOLDOWN_MS = 45000;
+    let onlineCloudResyncTimer = null;
+    let lastOnlineCloudResyncAt = 0;
+    function scheduleOnlineCloudDeltaSync(delayMs = 2500) {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+      const now = Date.now();
+      if (lastOnlineCloudResyncAt && (now - lastOnlineCloudResyncAt) < ONLINE_CLOUD_RESYNC_COOLDOWN_MS) return false;
+      if (onlineCloudResyncTimer) clearTimeout(onlineCloudResyncTimer);
+      onlineCloudResyncTimer = setTimeout(() => {
+        onlineCloudResyncTimer = null;
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+        if (cloudSyncPromise) return;
+        const hasGoogleSession = Boolean(state.googleToken && (!state.googleExpiresAt || state.googleExpiresAt > Date.now() + 15000));
+        const hasMicrosoftSession = Boolean(state.microsoftAccessToken || state.msAccount);
+        if (!hasGoogleSession && !hasMicrosoftSession) return;
+        lastOnlineCloudResyncAt = Date.now();
+        cloudSyncPromise = (async () => {
+          if (hasGoogleSession && typeof loadGoogleFiles === 'function') {
+            await loadGoogleFiles().catch(err => console.warn('Online Google Drive delta resync failed:', err && err.message ? err.message : err));
+          }
+          if (hasMicrosoftSession) {
+            if (state.microsoftAccessToken && typeof loadMicrosoftFiles === 'function') {
+              await loadMicrosoftFiles(state.microsoftAccessToken).catch(err => console.warn('Online OneDrive delta resync failed:', err && err.message ? err.message : err));
+            } else if (typeof restoreMicrosoftSession === 'function') {
+              await restoreMicrosoftSession().catch(err => console.warn('Online OneDrive session resync failed:', err && err.message ? err.message : err));
+            }
+          }
+        })().finally(() => { cloudSyncPromise = null; });
+      }, Math.max(0, Number(delayMs) || 0));
+      return true;
+    }
     window.addEventListener('online', () => {
       if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.onOnline();
       updateNetworkStatus(true);
       toast('Đã kết nối Internet trở lại.');
       checkForAppUpdate();
       if (state.currentId) preloadNext(true);
+      if (typeof scheduleOnlineCloudDeltaSync === 'function') scheduleOnlineCloudDeltaSync();
     });
     window.addEventListener('offline', () => {
       if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.onOffline('offline');

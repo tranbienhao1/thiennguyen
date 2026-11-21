@@ -1738,6 +1738,7 @@ public class MainActivity extends AppCompatActivity {
     public static class BoundedFileInputStream extends InputStream {
         private final RandomAccessFile mRaf;
         private long mRemaining;
+        private volatile boolean mClosed = false;
 
         public BoundedFileInputStream(File file, long start, long length) throws IOException {
             this.mRaf = new RandomAccessFile(file, "r");
@@ -1754,7 +1755,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public int read() throws IOException {
-            if (mRemaining <= 0) return -1;
+            if (mClosed || mRemaining <= 0) return -1;
             int b = mRaf.read();
             if (b != -1) mRemaining--;
             return b;
@@ -1762,7 +1763,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public int read(@NonNull byte[] b, int off, int len) throws IOException {
-            if (mRemaining <= 0) return -1;
+            if (mClosed || mRemaining <= 0) return -1;
             int toRead = (int) Math.min(len, mRemaining);
             int bytesRead = mRaf.read(b, off, toRead);
             if (bytesRead > 0) {
@@ -1772,12 +1773,27 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
+        public long skip(long n) throws IOException {
+            if (mClosed || n <= 0 || mRemaining <= 0) return 0;
+            long curPos = mRaf.getFilePointer();
+            long fileAvail = Math.max(0L, mRaf.length() - curPos);
+            long toSkip = Math.min(n, Math.min(mRemaining, fileAvail));
+            if (toSkip <= 0) return 0;
+            mRaf.seek(curPos + toSkip);
+            mRemaining -= toSkip;
+            return toSkip;
+        }
+
+        @Override
         public int available() throws IOException {
+            if (mClosed) return 0;
             return (int) Math.min(mRemaining, Integer.MAX_VALUE);
         }
 
         @Override
         public void close() throws IOException {
+            if (mClosed) return;
+            mClosed = true;
             mRaf.close();
         }
     }
@@ -1789,40 +1805,47 @@ public class MainActivity extends AppCompatActivity {
      */
     public static class BoundedContentUriInputStream extends InputStream {
         private final AssetFileDescriptor mAfd;
-        private final FileInputStream mFis;
+        private FileInputStream mFis;
         private long mRemaining;
+        private volatile boolean mClosed = false;
 
         public BoundedContentUriInputStream(@NonNull AssetFileDescriptor afd, long start, long length) throws IOException {
             this.mAfd = afd;
-            this.mFis = afd.createInputStream();
-            if (start > 0) {
-                long targetPos = Math.max(0L, afd.getStartOffset()) + start;
-                boolean positioned = false;
-                try {
-                    FileChannel channel = this.mFis.getChannel();
-                    if (channel != null) {
-                        channel.position(targetPos);
-                        positioned = true;
+            try {
+                this.mFis = afd.createInputStream();
+                if (start > 0) {
+                    long targetPos = Math.max(0L, afd.getStartOffset()) + start;
+                    boolean positioned = false;
+                    try {
+                        FileChannel channel = this.mFis.getChannel();
+                        if (channel != null) {
+                            channel.position(targetPos);
+                            positioned = true;
+                        }
+                    } catch (IOException ignored) {
+                        // Pipe-backed ContentProvider does not support FileChannel.position(); fall back to stream skip
                     }
-                } catch (IOException ignored) {
-                    // Pipe-backed ContentProvider does not support FileChannel.position(); fall back to stream skip
-                }
-                if (!positioned) {
-                    long toSkip = start;
-                    byte[] skipBuf = new byte[8192];
-                    while (toSkip > 0) {
-                        long skipped = this.mFis.skip(toSkip);
-                        if (skipped > 0) {
-                            toSkip -= skipped;
-                        } else {
-                            int r = this.mFis.read(skipBuf, 0, (int) Math.min(skipBuf.length, toSkip));
-                            if (r < 0) break;
-                            toSkip -= r;
+                    if (!positioned) {
+                        long toSkip = start;
+                        byte[] skipBuf = new byte[8192];
+                        while (toSkip > 0) {
+                            long skipped = this.mFis.skip(toSkip);
+                            if (skipped > 0) {
+                                toSkip -= skipped;
+                            } else {
+                                int r = this.mFis.read(skipBuf, 0, (int) Math.min(skipBuf.length, toSkip));
+                                if (r < 0) break;
+                                toSkip -= r;
+                            }
                         }
                     }
                 }
+                this.mRemaining = length;
+            } catch (IOException initErr) {
+                try { if (this.mFis != null) this.mFis.close(); } catch (IOException ignored) {}
+                try { this.mAfd.close(); } catch (IOException ignored) {}
+                throw initErr;
             }
-            this.mRemaining = length;
         }
 
         public BoundedContentUriInputStream(@NonNull ContentResolver resolver, @NonNull Uri contentUri, long start, long length) throws IOException {
@@ -1839,7 +1862,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public int read() throws IOException {
-            if (mRemaining <= 0) return -1;
+            if (mClosed || mRemaining <= 0) return -1;
             int b = mFis.read();
             if (b != -1) mRemaining--;
             return b;
@@ -1847,7 +1870,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public int read(@NonNull byte[] b, int off, int len) throws IOException {
-            if (mRemaining <= 0) return -1;
+            if (mClosed || mRemaining <= 0) return -1;
             int toRead = (int) Math.min(len, mRemaining);
             int bytesRead = mFis.read(b, off, toRead);
             if (bytesRead > 0) {
@@ -1857,14 +1880,51 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
+        public long skip(long n) throws IOException {
+            if (mClosed || n <= 0 || mRemaining <= 0) return 0;
+            long toSkip = Math.min(n, mRemaining);
+            try {
+                FileChannel channel = mFis.getChannel();
+                if (channel != null) {
+                    long curPos = channel.position();
+                    long fileAvail = Math.max(0L, channel.size() - curPos);
+                    long step = Math.min(toSkip, fileAvail);
+                    if (step > 0) {
+                        channel.position(curPos + step);
+                        mRemaining -= step;
+                        return step;
+                    }
+                    return 0;
+                }
+            } catch (IOException ignored) {}
+            long skipped = 0;
+            byte[] buf = new byte[(int) Math.min(8192L, toSkip)];
+            while (skipped < toSkip) {
+                long s = mFis.skip(toSkip - skipped);
+                if (s > 0) {
+                    skipped += s;
+                } else {
+                    int r = mFis.read(buf, 0, (int) Math.min(buf.length, toSkip - skipped));
+                    if (r < 0) break;
+                    skipped += r;
+                }
+            }
+            mRemaining -= skipped;
+            return skipped;
+        }
+
+        @Override
         public int available() throws IOException {
+            if (mClosed) return 0;
             return (int) Math.min(mRemaining, Integer.MAX_VALUE);
         }
 
         @Override
         public void close() throws IOException {
+            if (mClosed) return;
+            mClosed = true;
             try {
-                mFis.close();
+                if (mFis != null) mFis.close();
             } finally {
                 try {
                     mAfd.close();
@@ -2761,6 +2821,53 @@ public class MainActivity extends AppCompatActivity {
      * Implements HTTP 206 Partial Content (Range header: bytes=start-end) support,
      * Content-Range, Content-Length, CORS headers, and proper audio MIME types.
      */
+    /**
+     * Parses HTTP Range header ("bytes=start-end", "bytes=start-", "bytes=-suffix", case-insensitive, first range only).
+     * Returns:
+     * - null if no valid Range header (serve full 200 OK)
+     * - long[]{-1L, -1L, 0L} if Range is unsatisfiable (serve 416)
+     * - long[]{start, end, 1L} if satisfiable (serve 206 Partial Content)
+     */
+    public static long[] parseByteRangeHeader(@Nullable String rangeHeader, long totalLength) {
+        if (rangeHeader == null || totalLength <= 0) return null;
+        String trimmed = rangeHeader.trim();
+        if (trimmed.length() < 7 || !trimmed.regionMatches(true, 0, "bytes=", 0, 6)) {
+            return null;
+        }
+        String spec = trimmed.substring(6).trim();
+        int commaIdx = spec.indexOf(',');
+        if (commaIdx >= 0) {
+            spec = spec.substring(0, commaIdx).trim();
+        }
+        int dashIdx = spec.indexOf('-');
+        if (dashIdx < 0) return null;
+        long start;
+        long end = totalLength - 1;
+        try {
+            if (dashIdx == 0) {
+                long suffix = Long.parseLong(spec.substring(1).trim());
+                if (suffix <= 0) return new long[]{-1L, -1L, 0L};
+                start = Math.max(0L, totalLength - suffix);
+            } else {
+                String sStart = spec.substring(0, dashIdx).trim();
+                String sEnd = spec.substring(dashIdx + 1).trim();
+                start = Long.parseLong(sStart);
+                if (!sEnd.isEmpty()) {
+                    end = Long.parseLong(sEnd);
+                }
+            }
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        if (start < 0 || start >= totalLength || end < start) {
+            return new long[]{-1L, -1L, 0L};
+        }
+        if (end >= totalLength) {
+            end = totalLength - 1;
+        }
+        return new long[]{start, end, 1L};
+    }
+
     private WebResourceResponse handleLocalMediaStreaming(WebResourceRequest request) {
         try {
             Uri uri = request.getUrl();
@@ -2848,43 +2955,30 @@ public class MainActivity extends AppCompatActivity {
             long fileLength = file.length();
             String mimeType = getAudioMimeType(file.getName());
 
+            if (fileLength <= 0) {
+                Map<String, String> respHeaders = buildLocalMediaCorsHeaders();
+                respHeaders.put("Content-Type", mimeType);
+                respHeaders.put("Content-Length", "0");
+                respHeaders.put("Accept-Ranges", "bytes");
+                respHeaders.put("Cache-Control", "no-cache");
+                return new WebResourceResponse(mimeType, null, 200, "OK", respHeaders, new ByteArrayInputStream(new byte[0]));
+            }
+
             long start = 0;
             long end = fileLength - 1;
             boolean isRange = false;
 
-            if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
-                String rangeValue = rangeHeader.substring(6).trim();
-                int dashIndex = rangeValue.indexOf('-');
-                try {
-                    if (dashIndex == 0) {
-                        // bytes=-500 -> last 500 bytes
-                        long suffix = Long.parseLong(rangeValue.substring(1).trim());
-                        start = Math.max(0, fileLength - suffix);
-                        isRange = true;
-                    } else if (dashIndex > 0) {
-                        String sStart = rangeValue.substring(0, dashIndex).trim();
-                        String sEnd = rangeValue.substring(dashIndex + 1).trim();
-                        start = Long.parseLong(sStart);
-                        if (!sEnd.isEmpty()) {
-                            end = Long.parseLong(sEnd);
-                        }
-                        isRange = true;
-                    }
-                } catch (NumberFormatException e) {
-                    Log.w(TAG, "Invalid range header: " + rangeHeader, e);
-                }
-            }
-
-            if (isRange) {
-                if (start < 0 || start > end || start >= fileLength) {
+            long[] parsedRange = parseByteRangeHeader(rangeHeader, fileLength);
+            if (parsedRange != null) {
+                if (parsedRange[2] == 0L) {
                     Map<String, String> respHeaders = buildLocalMediaCorsHeaders();
                     respHeaders.put("Content-Range", "bytes */" + fileLength);
                     return new WebResourceResponse("text/plain", "UTF-8", 416, "Range Not Satisfiable", respHeaders,
                             new ByteArrayInputStream(new byte[0]));
                 }
-                if (end >= fileLength) {
-                    end = fileLength - 1;
-                }
+                start = parsedRange[0];
+                end = parsedRange[1];
+                isRange = true;
             }
 
             long contentLength = end - start + 1;
@@ -2980,39 +3074,18 @@ public class MainActivity extends AppCompatActivity {
         long end = totalLength - 1;
         boolean isRange = false;
 
-        if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
-            String rangeValue = rangeHeader.substring(6).trim();
-            int dashIndex = rangeValue.indexOf('-');
-            try {
-                if (dashIndex == 0) {
-                    long suffix = Long.parseLong(rangeValue.substring(1).trim());
-                    start = Math.max(0, totalLength - suffix);
-                    isRange = true;
-                } else if (dashIndex > 0) {
-                    String sStart = rangeValue.substring(0, dashIndex).trim();
-                    String sEnd = rangeValue.substring(dashIndex + 1).trim();
-                    start = Long.parseLong(sStart);
-                    if (!sEnd.isEmpty()) {
-                        end = Long.parseLong(sEnd);
-                    }
-                    isRange = true;
-                }
-            } catch (NumberFormatException e) {
-                Log.w(TAG, "Invalid range header for content URI: " + rangeHeader, e);
-            }
-        }
-
-        if (isRange) {
-            if (start < 0 || start > end || start >= totalLength) {
+        long[] parsedRange = parseByteRangeHeader(rangeHeader, totalLength);
+        if (parsedRange != null) {
+            if (parsedRange[2] == 0L) {
                 try { afd.close(); } catch (IOException ignored) {}
                 Map<String, String> respHeaders = buildLocalMediaCorsHeaders();
                 respHeaders.put("Content-Range", "bytes */" + totalLength);
                 return new WebResourceResponse("text/plain", "UTF-8", 416, "Range Not Satisfiable", respHeaders,
                         new ByteArrayInputStream(new byte[0]));
             }
-            if (end >= totalLength) {
-                end = totalLength - 1;
-            }
+            start = parsedRange[0];
+            end = parsedRange[1];
+            isRange = true;
         }
 
         long contentLength = end - start + 1;
@@ -4977,11 +5050,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.47";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.48";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.47\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.48\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

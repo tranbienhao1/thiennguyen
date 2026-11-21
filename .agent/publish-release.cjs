@@ -80,21 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.47';
-  const name = process.argv[3] || `Nocturne ${tag} (Đồng bộ nhanh Delta Cursor Google Drive/OneDrive & dự phòng Bit-Perfect -> Web Audio giữ vị trí)`;
+  const tag = process.argv[2] || 'v3.9.48';
+  const name = process.argv[3] || `Nocturne ${tag} (Gia cố HTTP Range /local-media trên Android APK, dọn cache lát đầu mồ côi & tự đồng bộ Cloud khi có mạng lại)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 101) — Đồng bộ nhanh Delta Cursor Google Drive/OneDrive & dự phòng Bit-Perfect -> Web Audio giữ vị trí
+    : `### Nocturne ${tag} (versionCode 102) — Gia cố HTTP Range /local-media trên Android APK, dọn cache lát đầu mồ côi & tự đồng bộ Cloud khi có mạng lại
 
-#### 1. Đồng bộ tăng trưởng Delta Cursor cho Google Drive & OneDrive (\`index.html\`)
-- **Google Drive Changes Delta (\`tryLoadGoogleChangesDelta\`, \`fetchGoogleStartPageToken\`)**: Lưu \`startPageToken\` vào \`localStorage\` (\`nocturne-google-delta-token\`); các lần đồng bộ kế tiếp chỉ đọc phần thay đổi (thêm mới, đổi kích thước/\`contentRev\` kích hoạt \`invalidateCloudTrackContent\`, hoặc xóa/thùng rác qua \`removeCloudTracksByRemoteIds\`), tự rơi về quét đầy đủ an toàn khi token hết hạn (\`400\`/\`404\`/\`410 Gone\`).
-- **OneDrive Graph Delta (\`tryLoadMicrosoftDeltaSync\`, \`saveMicrosoftLatestDeltaLink\`)**: Lưu \`@odata.deltaLink\` (\`nocturne-microsoft-delta-link\`) bằng \`/me/drive/root/delta?token=latest\` sau khi quét đầy đủ, đồng bộ tăng trưởng các mục thêm/sửa/xóa (\`deleted\`) và gom ảnh bìa thư mục lân cận, tự đặt lại cursor về full scan khi gặp \`410 Gone\`/\`resyncRequired\`.
+#### 1. Gia cố \`/local-media\` HTTP Range Seek & an toàn đóng luồng trên Android APK (\`MainActivity.java\`)
+- **\`parseByteRangeHeader\`**: Hợp nhất bộ phân tích HTTP \`Range\` dùng chung cho cả \`File\` nội bộ (\`handleLocalMediaStreaming\`) và \`content://\` Scoped Storage (\`streamContentUriResponse\`); hỗ trợ \`Bytes=\` không phân biệt hoa thường, xử lý an toàn multi-range đầu tiên, kiểm tra \`bytes=-N <= 0\` và bảo vệ file rỗng (\`fileLength <= 0\`).
+- **\`BoundedFileInputStream\` & \`BoundedContentUriInputStream\`**: Bổ sung \`skip(long n)\` giới hạn O(1) qua \`FileChannel\` / \`RandomAccessFile.seek\`, cờ đóng idempotent \`mClosed\`, và bọc đóng an toàn \`AssetFileDescriptor\`/\`FileInputStream\` nếu seek đầu luồng phát sinh lỗi \`IOException\`.
 
-#### 2. Dự phòng mượt Native Bit-Perfect -> HTML5/Web Audio & Gia cố luồng OneDrive \`directUrl\` (\`MainActivity.java\` + \`index.html\`)
-- **Dọn AudioTrack/AudioFocus trước fallback (\`MainActivity.java\`)**: \`BitPerfectAudioPlayer.runPlaybackLoop\` ghi nhận \`pendingErrorReason\` trong \`catch\` và chỉ gọi \`notifyBitPerfectErrorToWeb\` sau khi khối \`finally\` đã giải phóng \`mAudioTrack\`, \`decoder\`, \`extractor\` và \`abandonAudioFocus()\`.
-- **Giữ vị trí phát & chống lặp lỗi (\`index.html\`)**: \`window.onNativeBitPerfectError\` lưu \`_resumeAfterBpFallbackSec\`, mở lại \`state.context.resume()\`, đánh dấu \`_nativeBpFallbackUntil\` 5 phút, giới hạn vòng lặp lỗi (2 lần/30s -> chuyển bài kế), và \`playTrack\` tự seek tới \`initialTargetSeekSec\` kể cả khi metadata nạp trễ.
-- **\`upgradeSliceToFullAudio\` (\`index.html\`)**: Link tải trước SharePoint OneDrive hết hạn/lỗi (\`404\`/\`410\`/rớt mạng) tự động chuyển sang link mới hoặc \`/content\` kèm Bearer token.
+#### 2. Dọn cache lát đầu Cloud mồ côi & tự đồng bộ Delta khi kết nối mạng trở lại (\`index.html\`)
+- **\`purgeSliceCacheKeys\` & \`pruneOrphanedSliceCacheEntries\`**: Tự động dọn các mục \`firstSliceCache\` của bài Google Drive / OneDrive đã bị xóa hoặc vượt giới hạn catalog (trong \`pruneCloudCatalog\`, \`removeDeletedCloudTracks\`, cuối \`loadGoogleFiles\` / \`loadMicrosoftFiles\`) mà vẫn bảo vệ bài đang phát và bài đang nạp trước.
+- **\`scheduleOnlineCloudDeltaSync\`**: Kích hoạt đồng bộ nhanh Delta cho phiên Google Drive / OneDrive đã đăng nhập khi sự kiện \`online\` quay lại với debounce 2.5s và cooldown 45s.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
