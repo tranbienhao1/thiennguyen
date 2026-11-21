@@ -5339,11 +5339,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.56";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.57";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.56\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.57\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -5600,8 +5600,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 File audioFile = null;
                 if (filePath != null && !filePath.trim().isEmpty()) {
-                    File f = new File(filePath.trim());
-                    if (f.exists() && f.isFile()) audioFile = f;
+                    audioFile = resolveReadableLocalFile(filePath.trim());
                 }
                 if (audioFile == null && contentUri != null && !contentUri.trim().isEmpty()) {
                     try {
@@ -5613,8 +5612,9 @@ public class MainActivity extends AppCompatActivity {
                 String rawName = audioFile.getName();
                 int dot = rawName.lastIndexOf('.');
                 String baseName = dot > 0 ? rawName.substring(0, dot) : rawName;
+                String normBaseName = java.text.Normalizer.normalize(baseName, java.text.Normalizer.Form.NFC);
                 File parent = audioFile.getParentFile();
-                if (parent != null && parent.isDirectory() && !baseName.isEmpty()) {
+                if (parent != null && parent.isDirectory() && !normBaseName.isEmpty()) {
                     File[] siblings = parent.listFiles();
                     if (siblings != null) {
                         File bestFile = null;
@@ -5624,7 +5624,8 @@ public class MainActivity extends AppCompatActivity {
                             String kn = kid.getName();
                             int kd = kn.lastIndexOf('.');
                             if (kd <= 0) continue;
-                            if (!kn.substring(0, kd).equalsIgnoreCase(baseName)) continue;
+                            String normKidBase = java.text.Normalizer.normalize(kn.substring(0, kd), java.text.Normalizer.Form.NFC);
+                            if (!normKidBase.equalsIgnoreCase(normBaseName)) continue;
                             String ext = kn.substring(kd).toLowerCase(Locale.US);
                             int rank = ".lrc".equals(ext) ? 1 : (".lyricsfile".equals(ext) ? 2 : (".txt".equals(ext) ? 3 : 99));
                             if (rank < bestRank) {
