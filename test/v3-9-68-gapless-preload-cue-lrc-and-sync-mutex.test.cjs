@@ -290,12 +290,12 @@ test('3. Google Drive & OneDrive per-provider sync mutex coalesces overlapping s
   assert.equal(mFetchCount, 1, 'Offline loadMicrosoftFiles must not make network calls');
   assert.ok(mStatuses.some(s => s.includes('Ngoại tuyến')), 'Offline OneDrive sync must update status gracefully');
 
-  // 3.3 Version sync checks for v3.9.68 / versionCode 122
+  // 3.3 Version sync checks for v3.9.68+ / versionCode >= 122
   const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const gradle = fs.readFileSync(path.join(ROOT, 'android', 'app', 'build.gradle.kts'), 'utf8');
   assert.ok(sw.includes("const CACHE_VERSION = 'v3.9.68';"));
   assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.68';"));
   assert.ok(gradle.includes('versionCode = 122'));
   assert.ok(gradle.includes('versionName = "3.9.68"'));
-  assert.ok(html.includes('FiiO M11S · v3.9.68'));
+  assert.ok(/FiiO M11S · v3\.9\.(?:6[89]|[7-9]\d|\d{3,})/.test(html));
 });

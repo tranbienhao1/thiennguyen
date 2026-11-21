@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.68</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.69</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -5765,6 +5765,7 @@
     }
     async function ensureLocalTrackPlayableUrl(track, options) {
       if (!track || track.source !== 'local') return track ? (track.url || '') : '';
+      track._localAccessError = '';
       restoreLocalTrackUrlSync(track);
       if ((!track.file || (!track.url && !track.isDsd)) && track.fileHandle && typeof track.fileHandle.getFile === 'function') {
         const allowPrompt = Boolean(options && options.requestPermission);
@@ -5775,25 +5776,62 @@
         if (permState !== 'granted' && allowPrompt && typeof track.fileHandle.requestPermission === 'function') {
           permState = await track.fileHandle.requestPermission({ mode: 'read' }).catch(() => permState);
         }
-        if (permState === 'granted') {
+        if (permState !== 'granted') {
+          track._localAccessError = 'permission_denied';
+        } else {
           let reacquiredFile = null;
+          let readErr = null;
           try {
             reacquiredFile = await track.fileHandle.getFile();
-          } catch (_) {
-            if (allowPrompt && typeof track.fileHandle.requestPermission === 'function') {
+          } catch (err) {
+            readErr = err;
+            if (allowPrompt && !(err && (err.name === 'NotFoundError' || err.name === 'TypeMismatchError')) && typeof track.fileHandle.requestPermission === 'function') {
               try {
                 const retriedPerm = await track.fileHandle.requestPermission({ mode: 'read' });
-                if (retriedPerm === 'granted') reacquiredFile = await track.fileHandle.getFile();
-              } catch (__) {}
+                if (retriedPerm === 'granted') {
+                  reacquiredFile = await track.fileHandle.getFile();
+                  readErr = null;
+                } else {
+                  track._localAccessError = 'permission_denied';
+                }
+              } catch (retryErr) { readErr = retryErr; }
             }
           }
           if (reacquiredFile) {
+            track._localAccessError = '';
             track.file = reacquiredFile;
             if (track.isCue && state.tracks) {
               for (let i = 0; i < state.tracks.length; i++) {
                 const sib = state.tracks[i];
-                if (sib && sib.source === 'local' && sib.fileHandle === track.fileHandle) sib.file = reacquiredFile;
+                if (sib && sib.source === 'local' && sib.fileHandle === track.fileHandle) {
+                  sib.file = reacquiredFile;
+                  sib._localAccessError = '';
+                }
               }
+            }
+          } else if (readErr) {
+            if (readErr.name === 'NotFoundError' || readErr.name === 'TypeMismatchError') {
+              const staleHandle = track.fileHandle;
+              track.fileHandle = null;
+              track.file = null;
+              track._localAccessError = 'not_found';
+              if (track.url && track.url.indexOf('blob:') === 0 && state.objectUrls && state.objectUrls.has(track.url)) {
+                try { URL.revokeObjectURL(track.url); } catch (_) {}
+                state.objectUrls.delete(track.url);
+                track.url = '';
+              }
+              if (track.isCue && staleHandle && state.tracks) {
+                for (let i = 0; i < state.tracks.length; i++) {
+                  const sib = state.tracks[i];
+                  if (sib && sib.source === 'local' && sib.fileHandle === staleHandle) {
+                    sib.fileHandle = null;
+                    sib.file = null;
+                    sib._localAccessError = 'not_found';
+                  }
+                }
+              }
+            } else if (readErr.name === 'NotAllowedError' || readErr.name === 'SecurityError') {
+              track._localAccessError = 'permission_denied';
             }
           }
         }
@@ -6123,10 +6161,21 @@
               const freshDirectUrl = (typeof resolveMicrosoftDownloadUrl === 'function')
                 ? await resolveMicrosoftDownloadUrl(track).catch(() => '')
                 : '';
+              let fetchedViaFreshDirect = false;
               if (freshDirectUrl && freshDirectUrl !== url) {
-                const directOpts = upgradeController ? { signal: upgradeController.signal } : {};
-                blob = await library.fetchAudioBlob(freshDirectUrl, directOpts, provider);
-              } else {
+                try {
+                  const directOpts = upgradeController ? { signal: upgradeController.signal } : {};
+                  blob = await library.fetchAudioBlob(freshDirectUrl, directOpts, provider);
+                  fetchedViaFreshDirect = true;
+                } catch (directErr) {
+                  if ((directErr && (directErr.name === 'AbortError' || directErr.aborted === true)) || (upgradeController && upgradeController.signal.aborted)) {
+                    throw directErr;
+                  }
+                  track.downloadUrl = '';
+                  track.downloadUrlAt = 0;
+                }
+              }
+              if (!fetchedViaFreshDirect) {
                 const token = await getMicrosoftToken(false);
                 const graphUrl = (track && track.remoteDriveId)
                   ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}/content`
@@ -11877,10 +11926,24 @@
         if (!cleaned || cleaned.length > MAX_LRC_CHARS) return '';
         return cleaned;
       };
+      const decodeResponseTextAuto = async function (resp) {
+        if (!resp) return '';
+        if (typeof decodeTextBytesAuto === 'function' && typeof resp.arrayBuffer === 'function') {
+          try {
+            const buf = await resp.arrayBuffer();
+            return sanitizeLrcText(decodeTextBytesAuto(buf));
+          } catch (_) {}
+        }
+        if (typeof resp.text === 'function') {
+          return sanitizeLrcText(await resp.text());
+        }
+        return '';
+      };
       if (track.source === 'onedrive' && track.remoteLrc && track.remoteLrc.id) {
         const lrcDesc = track.remoteLrc;
-        const graphContentUrl = lrcDesc.driveId
-          ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(lrcDesc.driveId)}/items/${encodeURIComponent(lrcDesc.id)}/content`
+        const lrcDriveId = lrcDesc.driveId || track.remoteDriveId || '';
+        const graphContentUrl = lrcDriveId
+          ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(lrcDriveId)}/items/${encodeURIComponent(lrcDesc.id)}/content`
           : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(lrcDesc.id)}/content`;
         try {
           let resp = null;
@@ -11898,40 +11961,61 @@
             }
           }
           if (resp && resp.ok) {
-            const text = sanitizeLrcText(await resp.text());
+            const text = await decodeResponseTextAuto(resp);
             if (text) return { text, name: lrcDesc.name || 'lyrics.lrc', source: 'cloud-sidecar' };
           }
         } catch (_) {}
         return null;
       }
-      if (track.source === 'google' && Array.isArray(track.parents) && track.parents.length && track.name && !track._checkedDriveLrc) {
+      if (track.source === 'google' && ((Array.isArray(track.parents) && track.parents.length) || track.targetRemoteId) && track.name && !track._checkedDriveLrc) {
         track._checkedDriveLrc = true;
-        const pid = String(track.parents[0] || '').trim();
         const baseName = String(track.name || '').replace(/\.[^.]+$/, '').trim();
-        if (!pid || !baseName) return null;
+        if (!baseName) return null;
         try {
           let tok = (typeof ensureGoogleToken === 'function') ? await ensureGoogleToken(false).catch(() => '') : (state.googleToken || '');
           if (!tok) return null;
-          const escPid = pid.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-          const escName = (baseName + '.lrc').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-          const params = new URLSearchParams({
-            q: `'${escPid}' in parents and trashed = false and name = '${escName}'`,
-            fields: 'files(id,name,size)',
-            pageSize: '2',
-            supportsAllDrives: 'true',
-            includeItemsFromAllDrives: 'true'
-          });
-          const listResp = (typeof fetchGoogleDrivePageWithRetry === 'function')
-            ? await fetchGoogleDrivePageWithRetry(
-                `https://www.googleapis.com/drive/v3/files?${params}`,
-                () => tok,
-                async () => { tok = await ensureGoogleToken(true); return tok; }
-              )
-            : await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, { headers: { Authorization: `Bearer ${tok}` } });
-          if (!listResp || !listResp.ok) return null;
-          const listData = await listResp.json();
-          const found = listData && Array.isArray(listData.files) && listData.files[0];
-          if (!found || !found.id || (Number(found.size) > MAX_LRC_CHARS)) return null;
+          const queryDriveLrc = async function (parentId, candidateBase) {
+            if (!parentId || !candidateBase) return null;
+            const escPid = String(parentId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const escName = (candidateBase + '.lrc').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const params = new URLSearchParams({
+              q: `'${escPid}' in parents and trashed = false and name = '${escName}'`,
+              fields: 'files(id,name,size)',
+              pageSize: '2',
+              supportsAllDrives: 'true',
+              includeItemsFromAllDrives: 'true'
+            });
+            const listResp = (typeof fetchGoogleDrivePageWithRetry === 'function')
+              ? await fetchGoogleDrivePageWithRetry(
+                  `https://www.googleapis.com/drive/v3/files?${params}`,
+                  () => tok,
+                  async () => { tok = await ensureGoogleToken(true); return tok; }
+                )
+              : await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, { headers: { Authorization: `Bearer ${tok}` } });
+            if (!listResp || !listResp.ok) return null;
+            const listData = await listResp.json();
+            const found = listData && Array.isArray(listData.files) && listData.files[0];
+            if (!found || !found.id || (Number(found.size) > MAX_LRC_CHARS)) return null;
+            return found;
+          };
+          const primaryPid = (Array.isArray(track.parents) && track.parents.length) ? String(track.parents[0] || '').trim() : '';
+          let found = primaryPid ? await queryDriveLrc(primaryPid, baseName) : null;
+          if (!found && track.targetRemoteId) {
+            const targetMetaResp = await fetch(
+              `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.targetRemoteId)}?fields=parents,name&supportsAllDrives=true`,
+              { headers: { Authorization: `Bearer ${tok}` } }
+            ).catch(() => null);
+            if (targetMetaResp && targetMetaResp.ok) {
+              const targetMeta = await targetMetaResp.json().catch(() => null);
+              const targetPid = (targetMeta && Array.isArray(targetMeta.parents) && targetMeta.parents[0]) ? String(targetMeta.parents[0]).trim() : '';
+              const targetBase = (targetMeta && targetMeta.name) ? String(targetMeta.name).replace(/\.[^.]+$/, '').trim() : baseName;
+              if (targetPid && targetPid !== primaryPid) {
+                found = await queryDriveLrc(targetPid, targetBase);
+                if (!found && targetBase !== baseName) found = await queryDriveLrc(targetPid, baseName);
+              }
+            }
+          }
+          if (!found || !found.id) return null;
           const mediaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(found.id)}?alt=media&supportsAllDrives=true`;
           let dlResp = await fetch(mediaUrl, { headers: { Authorization: `Bearer ${tok}` } }).catch(() => null);
           if (dlResp && (dlResp.status === 401 || dlResp.status === 403) && typeof ensureGoogleToken === 'function') {
@@ -11939,7 +12023,7 @@
             if (tok) dlResp = await fetch(mediaUrl, { headers: { Authorization: `Bearer ${tok}` } }).catch(() => null);
           }
           if (dlResp && dlResp.ok) {
-            const text = sanitizeLrcText(await dlResp.text());
+            const text = await decodeResponseTextAuto(dlResp);
             if (text) return { text, name: found.name || (baseName + '.lrc'), source: 'cloud-sidecar' };
           }
         } catch (_) {}
@@ -15078,7 +15162,13 @@
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         const playBtn = $('play-button');
         if (playBtn && playBtn.textContent === '…') playBtn.textContent = '▶';
-        toast('Không có URL phát cho bài hát này.');
+        if (track._localAccessError === 'not_found') {
+          toast('Tệp cục bộ đã bị xóa hoặc di chuyển — hãy mở lại thư mục nhạc để đồng bộ.');
+        } else if (track._localAccessError === 'permission_denied') {
+          toast('Trình duyệt cần cấp lại quyền đọc thư mục cục bộ để phát bài này.');
+        } else {
+          toast('Không có URL phát cho bài hát này.');
+        }
         return;
       }
       if (track.moovAtTail && track.firstSlicePlayback && (track.fullAudioPromise || track.fullAudioUrl)) {
@@ -15097,7 +15187,13 @@
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         const playBtn = $('play-button');
         if (playBtn && playBtn.textContent === '…') playBtn.textContent = '▶';
-        toast('Không có URL phát cho bài hát này.');
+        if (track._localAccessError === 'not_found') {
+          toast('Tệp cục bộ đã bị xóa hoặc di chuyển — hãy mở lại thư mục nhạc để đồng bộ.');
+        } else if (track._localAccessError === 'permission_denied') {
+          toast('Trình duyệt cần cấp lại quyền đọc thư mục cục bộ để phát bài này.');
+        } else {
+          toast('Không có URL phát cho bài hát này.');
+        }
         return;
       }
       const bpFallbackSeekSec = (Number.isFinite(track._resumeAfterBpFallbackSec) && track._resumeAfterBpFallbackSec > 0) ? track._resumeAfterBpFallbackSec : 0;
@@ -15878,8 +15974,15 @@
           const res = await addLocalFiles(files, { folderRootKey: folderKey, pruneMissing: true, silent: Boolean(opts.silentIfGranted || opts.suppressProgressToast) });
           return { loaded: true, added: (res && res.added) || 0, removed: (res && res.removed) || 0 };
         }
-        if (!opts.silentIfGranted && !opts.suppressProgressToast) toast(`Thư mục "${record.name || handle.name}" không chứa tệp âm thanh được hỗ trợ.`);
-        return { loaded: false, added: 0, removed: 0 };
+        const emptyRemoved = (typeof pruneRemovedLocalFolderTracks === 'function')
+          ? pruneRemovedLocalFolderTracks(folderKey, new Set())
+          : 0;
+        if (emptyRemoved > 0 && typeof renderTracks === 'function') renderTracks();
+        if (!opts.silentIfGranted && !opts.suppressProgressToast) {
+          if (emptyRemoved > 0) toast(`Đã đồng bộ thư mục "${record.name || handle.name}": -${emptyRemoved} bài đã xóa.`);
+          else toast(`Thư mục "${record.name || handle.name}" không chứa tệp âm thanh được hỗ trợ.`);
+        }
+        return { loaded: emptyRemoved > 0, added: 0, removed: emptyRemoved };
       } catch (error) {
         if (error && (error.name === 'NotFoundError' || error.name === 'TypeMismatchError')) {
           await clearRecentLocalFolderHandle(handle);
@@ -20083,6 +20186,7 @@
       };
 
       const replacedParentIds = new Set();
+      const activeCueKeysByPath = new Map();
       let addedCueTracks = 0;
 
       for (let ci = 0; ci < cueFiles.length; ci++) {
@@ -20143,6 +20247,7 @@
 
         const inferredDiscFromCue = inferDiscNumber(cuePath);
         const matchedParentsForCue = new Set();
+        const activeKeysForCue = new Set();
         let createdOrMatchedCount = 0;
 
         for (let ti = 0; ti < parsedTracks.length; ti++) {
@@ -20167,6 +20272,7 @@
           const cueEndVal = (sameFileAsNext && trackDur > 0) ? (cueStart + trackDur) : 0;
           const trackNo = Number(ct.number || ct.track) || (ti + 1);
           const cueDedupKey = cuePath + '::cue::' + trackNo + '-' + Math.round(cueStart * 100);
+          activeKeysForCue.add(cueDedupKey);
           matchedParentsForCue.add(siblingTrack);
           const existingCue = existingCueByKey.get(cueDedupKey);
           if (existingCue) {
@@ -20218,6 +20324,9 @@
           createdOrMatchedCount++;
         }
 
+        if (createdOrMatchedCount > 0) {
+          activeCueKeysByPath.set(cuePath, activeKeysForCue);
+        }
         if (parsedTracks.length >= 2 && createdOrMatchedCount >= 2) {
           matchedParentsForCue.forEach(parentTr => {
             if (parentTr && !parentTr.isCue && parentTr.id !== state.currentId) {
@@ -20227,8 +20336,16 @@
         }
       }
 
-      if (replacedParentIds.size > 0) {
-        state.tracks = state.tracks.filter(t => !t || !replacedParentIds.has(t.id));
+      if (replacedParentIds.size > 0 || activeCueKeysByPath.size > 0) {
+        state.tracks = state.tracks.filter(t => {
+          if (!t) return false;
+          if (replacedParentIds.has(t.id)) return false;
+          if (t.isCue && t.cueFilePath && t.cueDedupKey && t.id !== state.currentId && activeCueKeysByPath.has(t.cueFilePath)) {
+            const validKeys = activeCueKeysByPath.get(t.cueFilePath);
+            if (!validKeys.has(t.cueDedupKey)) return false;
+          }
+          return true;
+        });
       }
       return addedCueTracks;
     }
@@ -20433,10 +20550,13 @@
       return migrated;
     }
 
-    function pruneMissingFiioTracks(scannedPaths, scannedUris) {
+    function pruneMissingFiioTracks(scannedPaths, scannedUris, options) {
+      const opts = (options && typeof options === 'object') ? options : {};
+      const allowEmptyPrune = Boolean(opts.allowEmptyPrune);
+      const cueParentFilesByPath = (opts.cueParentFilesByPath instanceof Map) ? opts.cueParentFilesByPath : null;
       const hasPaths = Boolean(scannedPaths && scannedPaths.size > 0);
       const hasUris = Boolean(scannedUris && scannedUris.size > 0);
-      if (!hasPaths && !hasUris) return 0;
+      if (!hasPaths && !hasUris && !allowEmptyPrune) return 0;
       const mountedPrefixes = new Set();
       if (hasPaths) {
         scannedPaths.forEach(function (sp) {
@@ -20446,6 +20566,7 @@
       }
       const kept = [];
       const removedTracks = [];
+      const prunedCueParentPaths = new Set();
       const list = Array.isArray(state.tracks) ? state.tracks : [];
       for (let i = 0; i < list.length; i++) {
         const t = list[i];
@@ -20453,6 +20574,10 @@
         const isFiio = Boolean(t.id && String(t.id).indexOf('fiio_') === 0);
         if (!isFiio || (state.currentId && t.id === state.currentId)) {
           kept.push(t);
+          continue;
+        }
+        if (allowEmptyPrune && !hasPaths && !hasUris) {
+          removedTracks.push(t);
           continue;
         }
         const tPath = t.path ? String(t.path).trim() : '';
@@ -20467,6 +20592,7 @@
           const cuePrefix = extractStorageRootPrefix(cuePathStr);
           if (cuePrefix && mountedPrefixes.has(cuePrefix) && hasPaths && !scannedPaths.has(cuePathStr)) {
             keep = false;
+            if (tPath && scannedPaths.has(tPath)) prunedCueParentPaths.add(tPath);
           }
         }
         if (keep && tPath) {
@@ -20483,6 +20609,26 @@
       if (removedTracks.length > 0) {
         reconcileMovedFiioTracks(removedTracks, kept);
         state.tracks = kept;
+      }
+      if (prunedCueParentPaths.size > 0 && cueParentFilesByPath && cueParentFilesByPath.size > 0) {
+        const keptPaths = new Set();
+        for (let ki = 0; ki < state.tracks.length; ki++) {
+          if (state.tracks[ki] && state.tracks[ki].path) keptPaths.add(String(state.tracks[ki].path).trim());
+        }
+        const hasFactory = typeof library !== 'undefined' && typeof library.createFiioTrack === 'function';
+        prunedCueParentPaths.forEach(function (parentPath) {
+          if (keptPaths.has(parentPath)) return;
+          const fileDesc = cueParentFilesByPath.get(parentPath);
+          if (!fileDesc) return;
+          const restored = hasFactory ? library.createFiioTrack(fileDesc) : (typeof createFiioFallbackTrack === 'function' ? createFiioFallbackTrack(fileDesc) : null);
+          if (restored) {
+            if (typeof library !== 'undefined' && typeof library.enrichFiioTrackMetadata === 'function') {
+              library.enrichFiioTrackMetadata(restored);
+            }
+            state.tracks.push(restored);
+            keptPaths.add(parentPath);
+          }
+        });
       }
       return removedTracks.length;
     }
@@ -20563,6 +20709,12 @@
           const scannedPaths = new Set();
           const scannedUris = new Set();
           const scannedCueFiles = [];
+          const existingCueParentPaths = new Set();
+          const cueParentFilesByPath = new Map();
+          for (let ei = 0; ei < state.tracks.length; ei++) {
+            const et = state.tracks[ei];
+            if (et && et.isCue && et.path) existingCueParentPaths.add(String(et.path).trim());
+          }
           if (!silent) toast('Đang quét thư viện nhạc trên máy & thẻ MicroSD...');
 
           const clearWatchdog = function () {
@@ -20589,7 +20741,7 @@
                 const count = Number(totalCount) || totalSeen;
                 let removedNow = 0;
                 if (!settledByWatchdog && (scannedPaths.size > 0 || scannedUris.size > 0 || allowEmptyPrune)) {
-                  removedNow = pruneMissingFiioTracks(scannedPaths, scannedUris);
+                  removedNow = pruneMissingFiioTracks(scannedPaths, scannedUris, { allowEmptyPrune: allowEmptyPrune, cueParentFilesByPath: cueParentFilesByPath });
                 }
                 finalizeFiioScanUi(count, totalAdded, silent, silentIfEmpty, removedNow);
               }
@@ -20609,7 +20761,11 @@
                   for (let ci = 0; ci < chunk.length; ci++) {
                     const cFile = chunk[ci];
                     if (!cFile) continue;
-                    if (cFile.path) scannedPaths.add(String(cFile.path).trim());
+                    const cPath = cFile.path ? String(cFile.path).trim() : '';
+                    if (cPath) {
+                      scannedPaths.add(cPath);
+                      if (existingCueParentPaths.has(cPath) && !/\.cue$/i.test(cPath)) cueParentFilesByPath.set(cPath, cFile);
+                    }
                     if (cFile.uri) scannedUris.add(String(cFile.uri).trim());
                   }
                   const addedNow = ingestFiioScannedFilesChunk(chunk, existingPaths, existingUris, scannedCueFiles);

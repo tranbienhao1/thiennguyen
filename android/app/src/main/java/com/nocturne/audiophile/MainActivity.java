@@ -4513,6 +4513,17 @@ public class MainActivity extends AppCompatActivity {
             return Math.max(1, channels) * bytesPerSample;
         }
 
+        private static int resolveBitPerfectChannelMask(int channels) {
+            switch (channels) {
+                case 1: return AudioFormat.CHANNEL_OUT_MONO;
+                case 2: return AudioFormat.CHANNEL_OUT_STEREO;
+                case 4: return AudioFormat.CHANNEL_OUT_QUAD;
+                case 6: return AudioFormat.CHANNEL_OUT_5POINT1;
+                case 8: return AudioFormat.CHANNEL_OUT_7POINT1_SURROUND;
+                default: return 0;
+            }
+        }
+
         private static long estimateBitrateDurationMs(long fileBytes, int bitrateBps) {
             if (fileBytes <= 0L || bitrateBps <= 0) return 0L;
             return (fileBytes * 8000L) / (long) bitrateBps;
@@ -4779,7 +4790,11 @@ public class MainActivity extends AppCompatActivity {
                 audioAttributes = attrBuilder.build();
 
                 // 5. Build AudioTrack (preserve full 24-bit/32-bit Hi-Res precision via ENCODING_PCM_FLOAT on FiiO M11S Android 10 API 29)
-                int channelMask = (channels == 1) ? AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+                int channelMask = resolveBitPerfectChannelMask(channels);
+                if (channelMask == 0) {
+                    pendingErrorReason = "Unsupported Bit-Perfect channel count (" + channels + "ch)";
+                    return;
+                }
                 int pcmEncoding = AudioFormat.ENCODING_PCM_16BIT;
                 if (requestedBitDepth == 24 && Build.VERSION.SDK_INT >= 31) {
                     pcmEncoding = AudioFormat.ENCODING_PCM_24BIT_PACKED;
@@ -5002,16 +5017,22 @@ public class MainActivity extends AppCompatActivity {
                         }
 
                         if (newRate != sampleRate || newCh != channels || newEncoding != pcmEncoding) {
+                            int nextChannelMask = resolveBitPerfectChannelMask(newCh);
+                            if (nextChannelMask == 0) {
+                                pendingErrorReason = "Unsupported Bit-Perfect output channel count (" + newCh + "ch)";
+                                break;
+                            }
                             sampleRate = newRate;
                             channels = newCh;
                             pcmEncoding = newEncoding;
-                            channelMask = (channels == 1) ? AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+                            channelMask = nextChannelMask;
                             bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
 
                             try {
                                 track.stop();
                                 track.release();
                             } catch (Exception ignored) {}
+                            track = null;
 
                             audioFormat = new AudioFormat.Builder()
                                     .setEncoding(pcmEncoding)
@@ -5019,6 +5040,16 @@ public class MainActivity extends AppCompatActivity {
                                     .setChannelMask(channelMask)
                                     .build();
                             minBufSize = AudioTrack.getMinBufferSize(sampleRate, channelMask, pcmEncoding);
+                            if (minBufSize <= 0 && pcmEncoding != AudioFormat.ENCODING_PCM_16BIT) {
+                                pcmEncoding = AudioFormat.ENCODING_PCM_16BIT;
+                                bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
+                                audioFormat = new AudioFormat.Builder()
+                                        .setEncoding(pcmEncoding)
+                                        .setSampleRate(sampleRate)
+                                        .setChannelMask(channelMask)
+                                        .build();
+                                minBufSize = AudioTrack.getMinBufferSize(sampleRate, channelMask, pcmEncoding);
+                            }
                             if (minBufSize <= 0) minBufSize = sampleRate * channels * 4;
                             boolean fiioHiResRebuild = isFiioDevice() && sampleRate >= 88200;
                             bufferSize = fiioHiResRebuild ? Math.max(minBufSize * 6, 196608) : Math.max(minBufSize * 4, 131072);
@@ -5037,16 +5068,21 @@ public class MainActivity extends AppCompatActivity {
                                         .setTransferMode(AudioTrack.MODE_STREAM)
                                         .build();
                             } catch (Throwable t) {
-                                AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
-                                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                                        .build();
-                                track = new AudioTrack.Builder()
-                                        .setAudioAttributes(fallbackAttrs)
-                                        .setAudioFormat(audioFormat)
-                                        .setBufferSizeInBytes(bufferSize)
-                                        .setTransferMode(AudioTrack.MODE_STREAM)
-                                        .build();
+                                try {
+                                    AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
+                                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                            .build();
+                                    track = new AudioTrack.Builder()
+                                            .setAudioAttributes(fallbackAttrs)
+                                            .setAudioFormat(audioFormat)
+                                            .setBufferSizeInBytes(bufferSize)
+                                            .setTransferMode(AudioTrack.MODE_STREAM)
+                                            .build();
+                                } catch (Throwable fallbackErr) {
+                                    pendingErrorReason = "Bit-Perfect AudioTrack format rebuild failed (" + sampleRate + "Hz/" + channels + "ch)";
+                                    break;
+                                }
                             }
                             mAudioTrack = track;
                             if (preferredDevice != null) track.setPreferredDevice(preferredDevice);
@@ -5540,11 +5576,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.68";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.69";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.68\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.69\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

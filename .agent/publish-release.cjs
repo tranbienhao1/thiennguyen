@@ -80,23 +80,23 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.68';
-  const name = process.argv[3] || `Nocturne ${tag} (Preload Gapless Cloud chuẩn hóa Token/URL & CUE cùng tệp + Lời .lrc đa bảng mã & bài con CUE + Khóa đồng bộ đơn luồng Drive/OneDrive)`;
+  const tag = process.argv[2] || 'v3.9.69';
+  const name = process.argv[3] || `Nocturne ${tag} (Phục hồi 2 lớp OneDrive Shared & Drive Shortcut LRC đa bảng mã + Dọn CUE mồ côi MicroSD & Bit-Perfect đa kênh + Khôi phục FileHandle nội bộ)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 122) — Gapless Preload Cloud & CUE cùng tệp + Lời \`.lrc\` đa bảng mã/CUE (Web & Android) + Khóa đồng bộ đơn luồng Google Drive/OneDrive
+    : `### Nocturne ${tag} (versionCode 123) — Cloud Shortcut/Shared Recovery + Dọn CUE mồ côi MicroSD & Bit-Perfect đa kênh + Khôi phục FileHandle nội bộ
 
-#### 1. Preload Gapless Cloud làm mới Token/URL & không tải trùng tệp cha \`.cue\` (\`index.html\`)
-- **Làm mới chủ động trước khi chuyển bài dài (>25 phút)**: Nâng cấp \`prepareCloudTrackForPreload\` với cửa sổ làm mới 5 phút cho Google Drive (\`ensureGoogleToken(true)\`) và OneDrive (\`getMicrosoftToken(false)\` + \`resolveMicrosoftDownloadUrl\`), đồng thời vẫn làm mới trước khi chuyển sang bài đã có lát đệm (\`firstSlicePlayback\`) để \`upgradeSliceToFullAudio\` không bị 401.
-- **Bỏ qua preload trùng \`standbyAudio\` cho 2 bài con \`.cue\` cùng tệp âm thanh**: Thêm \`isSameCueParentTrack(curTrack, nextTrack)\` giúp tiết kiệm RAM & băng thông đọc thẻ nhớ MicroSD/FiiO M11S.
+#### 1. Cloud Shortcut & OneDrive Shared Folder Recovery (\`index.html\`)
+- **Nâng cấp \`upgradeSliceToFullAudio\` với dự phòng 2 lớp cho OneDrive chia sẻ**: Nếu \`freshDirectUrl\` SharePoint vừa làm mới vẫn lỗi CORS/403/5xx, tự động chuyển mượt sang Graph \`/drives/{remoteDriveId}/items/{remoteId}/content\` kèm Bearer token thay vì đứt phát giữa bài.
+- **Lời \`.lrc\` Cloud đa bảng mã & Google Drive Shortcut**: Nâng cấp \`fetchCloudSidecarLyrics\` giải mã tự động UTF-8/UTF-16/Shift-JIS/Windows-1252, kế thừa \`track.remoteDriveId\` cho OneDrive Shared Folder, và tự kiểm tra thư mục gốc của tệp đích \`targetRemoteId\` cho shortcut Google Drive.
 
-#### 2. Nạp lời \`.lrc\` đa bảng mã (Shift-JIS/UTF-16/Win-1252) & lời bài con \`.cue\` (\`index.html\` + \`MainActivity.java\`)
-- **Web nội bộ**: Chuyển \`addLocalFiles\` sang \`readLocalTextFileAuto\` (tránh lỗi vỡ chữ Nhật/châu Âu từ \`.text()\` UTF-8 cứng), chuẩn hóa NFC đường dẫn, và tự động khớp \`.lrc\` theo tên/số thứ tự bài con \`.cue\` qua \`findLocalCueLrcFile\`.
-- **Android / FiiO MicroSD**: Bổ sung \`NocturneNative.readLocalCueLyrics(filePath, contentUri, trackTitle, trackNumber)\` tìm tệp \`.lrc\`/\`.lyricsfile\`/\`.txt\` trùng tên bài con trong cùng thư mục album thay vì nạp nhầm lời tệp album lớn.
+#### 2. Dọn \`.cue\` mồ côi trên MicroSD & Bit-Perfect đa kênh (\`index.html\` + \`MainActivity.java\`)
+- **Đồng bộ \`.cue\` chính xác trên Android/FiiO MicroSD**: \`expandFiioScannedCueSheets\` tự dọn các bài con \`fiio_cue_*\` dư khi tệp \`.cue\` được chỉnh sửa; \`pruneMissingFiioTracks\` hỗ trợ \`allowEmptyPrune\` khi tháo thẻ nhớ sạch và tự nạp lại tệp \`.flac\` cha ngay trong cùng lượt quét khi tệp \`.cue\` bị xóa.
+- **Bit-Perfect hỗ trợ chuẩn kênh 4.0 / 5.1 / 7.1 & tự rơi về WebView an toàn**: Bổ sung \`resolveBitPerfectChannelMask\` trong \`MainActivity.java\` khắc phục lỗi phát chậm 1/3 tốc độ trên FLAC đa kênh và tự hạ về \`ENCODING_PCM_16BIT\` / chuyển sang WebView khi cấu hình kênh không tương thích.
 
-#### 3. Khóa đồng bộ đơn luồng theo từng nguồn Cloud & Ngoại tuyến an toàn (\`index.html\`)
-- **Chống chạy chồng 2 luồng quét cùng lúc**: Bổ sung mutex \`state._googleSyncPromise\` và \`state._microsoftSyncPromise\` trong \`loadGoogleFiles\` / \`loadMicrosoftFiles\` và đồng bộ với \`scheduleOnlineCloudDeltaSync\` để đồng bộ thủ công và đồng bộ nền khi có mạng trở lại tự động gộp vào cùng 1 tiến trình, tránh ghi trùng IndexedDB và đua token; giữ nguyên bộ đệm cục bộ an toàn khi \`navigator.onLine === false\`.
+#### 3. Khôi phục quyền đọc & dọn \`FileSystemFileHandle\` lỗi trên Web nội bộ (\`index.html\`)
+- **Xử lý rõ ràng tệp nội bộ bị xóa hoặc thu hồi quyền**: \`ensureLocalTrackPlayableUrl\` tự dọn \`fileHandle\` hỏng khi gặp \`NotFoundError\`, gắn mã lỗi cụ thể (\`not_found\` / \`permission_denied\`) cho \`playTrack\`, và \`reopenSavedFolderRecord\` dọn sạch bài cũ ngay cả khi thư mục đã lưu trở nên trống.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
