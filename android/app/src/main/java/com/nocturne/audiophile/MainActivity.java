@@ -4190,6 +4190,7 @@ public class MainActivity extends AppCompatActivity {
             AudioTrack track = null;
             AudioDeviceInfo preferredDevice = null;
             AudioAttributes audioAttributes = null;
+            String pendingErrorReason = null;
 
             try {
                 // 1. Resolve source (supports /local-media?uri=content://..., /local-media?path=..., content://, file://, and http(s)://)
@@ -4664,8 +4665,8 @@ public class MainActivity extends AppCompatActivity {
 
             } catch (Exception e) {
                 Log.e(TAG, "BitPerfect: Playback engine error: " + e.getMessage(), e);
-                if (mPlaybackEpoch.get() == epoch) {
-                    notifyBitPerfectErrorToWeb(e.getMessage() != null ? e.getMessage() : "Bit-Perfect playback engine error");
+                if (mPlaybackEpoch.get() == epoch && !mIsStopped) {
+                    pendingErrorReason = e.getMessage() != null ? e.getMessage() : "Bit-Perfect playback engine error";
                 }
             } finally {
                 final boolean sessionCurrent = (mPlaybackEpoch.get() == epoch);
@@ -4704,6 +4705,9 @@ public class MainActivity extends AppCompatActivity {
                     abandonAudioFocus();
                 }
                 if (sessionCurrent) mCurrentSourceKey = "";
+                if (pendingErrorReason != null && sessionCurrent && !mIsStopped) {
+                    notifyBitPerfectErrorToWeb(pendingErrorReason);
+                }
             }
         }
     }
@@ -4973,11 +4977,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.46";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.47";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.46\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.47\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

@@ -80,19 +80,21 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.46';
-  const name = process.argv[3] || `Nocturne ${tag} (Làm mới cache lát đầu khi đổi file Google Drive/OneDrive & tự phục hồi deck nạp trước standbyAudio)`;
+  const tag = process.argv[2] || 'v3.9.47';
+  const name = process.argv[3] || `Nocturne ${tag} (Đồng bộ nhanh Delta Cursor Google Drive/OneDrive & dự phòng Bit-Perfect -> Web Audio giữ vị trí)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 100) — Làm mới cache lát đầu khi đổi file Google Drive/OneDrive & tự phục hồi deck nạp trước standbyAudio
+    : `### Nocturne ${tag} (versionCode 101) — Đồng bộ nhanh Delta Cursor Google Drive/OneDrive & dự phòng Bit-Perfect -> Web Audio giữ vị trí
 
-#### 1. Phát hiện thay đổi file nhạc & vô hiệu hóa cache lát đầu trên Google Drive / OneDrive (\`index.html\`)
-- **\`contentRev\` & \`invalidateCloudTrackContent\`**: Lưu \`contentRev\` (\`md5Checksum\` / \`modifiedTime\` với Google Drive; \`cTag\` / \`eTag\` với OneDrive) vào bộ nhớ catalog IndexedDB (\`serializableCloudTrack\`) và bổ sung trường \`cTag\` trong truy vấn Microsoft Graph \`loadMicrosoftFiles\`.
-- Khi quét lại thư viện (\`loadGoogleFiles\`, \`loadMicrosoftFiles\`) phát hiện kích thước (\`size\`) hoặc \`contentRev\` thay đổi (bài remaster / ghi đè mới), tự động xóa bản ghi \`firstSliceCache\` cũ trong IndexedDB, đặt lại \`firstSliceCached\` / \`metadataLoaded\` / \`moovAtTail\` / \`fullAudioError\`, hủy tác vụ nâng cấp nền đang chạy dở (trừ bài đang phát) và thu hồi URL Cloud cũ để phát đúng bản mới trên cả Web và Android APK.
+#### 1. Đồng bộ tăng trưởng Delta Cursor cho Google Drive & OneDrive (\`index.html\`)
+- **Google Drive Changes Delta (\`tryLoadGoogleChangesDelta\`, \`fetchGoogleStartPageToken\`)**: Lưu \`startPageToken\` vào \`localStorage\` (\`nocturne-google-delta-token\`); các lần đồng bộ kế tiếp chỉ đọc phần thay đổi (thêm mới, đổi kích thước/\`contentRev\` kích hoạt \`invalidateCloudTrackContent\`, hoặc xóa/thùng rác qua \`removeCloudTracksByRemoteIds\`), tự rơi về quét đầy đủ an toàn khi token hết hạn (\`400\`/\`404\`/\`410 Gone\`).
+- **OneDrive Graph Delta (\`tryLoadMicrosoftDeltaSync\`, \`saveMicrosoftLatestDeltaLink\`)**: Lưu \`@odata.deltaLink\` (\`nocturne-microsoft-delta-link\`) bằng \`/me/drive/root/delta?token=latest\` sau khi quét đầy đủ, đồng bộ tăng trưởng các mục thêm/sửa/xóa (\`deleted\`) và gom ảnh bìa thư mục lân cận, tự đặt lại cursor về full scan khi gặp \`410 Gone\`/\`resyncRequired\`.
 
-#### 2. Tự phục hồi deck nạp trước \`standbyAudio\` khi gặp lỗi giải mã hoặc hết hạn URL (\`index.html\`)
-- **\`recoverFailedStandbyPreload\`**: Gắn vào trình xử lý sự kiện \`error\` của \`standbyAudio\` trong \`attachDeckEvents\`; tự động dọn sạch \`standbyAudio\`, thu hồi URL \`blob:\` nội bộ hỏng (\`releaseUnusedLocalUrl\`), xóa cache lát đầu & đặt lại \`downloadUrl\` OneDrive bị hết hạn/lỗi với bài Cloud, và tự kích hoạt nạp lại tối đa 1 lần sau 1200ms trong cửa sổ 60 giây (tránh vòng lặp lỗi vô hạn).
+#### 2. Dự phòng mượt Native Bit-Perfect -> HTML5/Web Audio & Gia cố luồng OneDrive \`directUrl\` (\`MainActivity.java\` + \`index.html\`)
+- **Dọn AudioTrack/AudioFocus trước fallback (\`MainActivity.java\`)**: \`BitPerfectAudioPlayer.runPlaybackLoop\` ghi nhận \`pendingErrorReason\` trong \`catch\` và chỉ gọi \`notifyBitPerfectErrorToWeb\` sau khi khối \`finally\` đã giải phóng \`mAudioTrack\`, \`decoder\`, \`extractor\` và \`abandonAudioFocus()\`.
+- **Giữ vị trí phát & chống lặp lỗi (\`index.html\`)**: \`window.onNativeBitPerfectError\` lưu \`_resumeAfterBpFallbackSec\`, mở lại \`state.context.resume()\`, đánh dấu \`_nativeBpFallbackUntil\` 5 phút, giới hạn vòng lặp lỗi (2 lần/30s -> chuyển bài kế), và \`playTrack\` tự seek tới \`initialTargetSeekSec\` kể cả khi metadata nạp trễ.
+- **\`upgradeSliceToFullAudio\` (\`index.html\`)**: Link tải trước SharePoint OneDrive hết hạn/lỗi (\`404\`/\`410\`/rớt mạng) tự động chuyển sang link mới hoặc \`/content\` kèm Bearer token.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

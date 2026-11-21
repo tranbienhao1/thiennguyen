@@ -2363,7 +2363,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.46</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.47</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4184,13 +4184,30 @@
       };
       window.onNativeBitPerfectError = (reason) => {
         console.warn('Native Bit-Perfect error, falling back to Web Audio:', reason);
+        const wasNativeBp = Boolean(state.isNativeBitPerfectPlaying || state.isPlaybackLoading);
+        const resumePosSec = (Number.isFinite(state.lastBitPerfectPositionSec) && state.lastBitPerfectPositionSec > 0.5) ? state.lastBitPerfectPositionSec : 0;
         state.isNativeBitPerfectPlaying = false;
         state.isNativeBitPerfectPaused = false;
+        if (!wasNativeBp && typeof audio !== 'undefined' && audio && !audio.paused) return;
         const curTrack = state.tracks.find(t => t && String(t.id) === String(state.currentId));
-        if (curTrack) {
-          curTrack._skipNativeBpOnce = true;
-          playTrack(curTrack.id);
+        if (!curTrack) return;
+        const now = Date.now();
+        const prevAt = Number(curTrack._nativeBpErrorAt || 0);
+        const errCount = (now - prevAt < 30000) ? Number(curTrack._nativeBpErrorCount || 0) : 0;
+        curTrack._nativeBpErrorAt = now;
+        curTrack._nativeBpErrorCount = errCount + 1;
+        if (errCount >= 2) {
+          if (typeof toast === 'function') toast('Không thể giải mã Bit-Perfect cho bài này, chuyển sang bài tiếp theo.');
+          if (typeof playNext === 'function') playNext(1, false);
+          return;
         }
+        curTrack._skipNativeBpOnce = true;
+        curTrack._nativeBpFallbackUntil = now + 5 * 60 * 1000;
+        if (resumePosSec > 0) curTrack._resumeAfterBpFallbackSec = resumePosSec;
+        if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
+          try { state.context.resume().catch(() => {}); } catch (_) {}
+        }
+        playTrack(curTrack.id);
       };
       window.onBitPerfectPlaybackComplete = () => {
         state.isNativeBitPerfectPlaying = false;
@@ -5760,7 +5777,11 @@
               track.fullAudioError = null;
               return null;
             }
-            if (error.status !== 401 && error.status !== 403) throw error;
+            const isOneDriveDirectFallbackable = Boolean(
+              track && track.source === 'onedrive' && !isGraphContentUrl(url) && track.remoteId &&
+              (error.status === 401 || error.status === 403 || error.status === 404 || error.status === 410 || error.retryable === true || !error.status)
+            );
+            if (!isOneDriveDirectFallbackable && error.status !== 401 && error.status !== 403) throw error;
             if (track.source === 'google') {
               if (typeof ensureGoogleToken === 'function') {
                 const refreshed = await ensureGoogleToken(true);
@@ -13770,7 +13791,7 @@
 
       // 2. Android Integration (FiiO M11S & Android Phones) — guarded against empty / blob: / data: URLs:
       const bpCandidateUrl = track.url || track.src || '';
-      const skipNativeBpOnce = Boolean(track._skipNativeBpOnce);
+      const skipNativeBpOnce = Boolean(track._skipNativeBpOnce || (track._nativeBpFallbackUntil && Date.now() < track._nativeBpFallbackUntil));
       if (skipNativeBpOnce) track._skipNativeBpOnce = false;
       const isNativeBpPlayable = Boolean(
         !track.isDsd &&
@@ -13870,8 +13891,11 @@
       target._unlockingGesture = false;
       if (target.dataset) target.dataset.trackId = String(track.id);
       if (isSilentUnlockSrc(target) || target.src !== playUrl || target.error) { target.src = playUrl; target.load(); }
-      if (track.cueStart !== undefined && track.cueStart > 0) {
-        try { target.currentTime = track.cueStart; } catch (_) {}
+      const bpFallbackSeekSec = (Number.isFinite(track._resumeAfterBpFallbackSec) && track._resumeAfterBpFallbackSec > 0) ? track._resumeAfterBpFallbackSec : 0;
+      if (bpFallbackSeekSec > 0) track._resumeAfterBpFallbackSec = 0;
+      const initialTargetSeekSec = Math.max((track.cueStart !== undefined && track.cueStart > 0) ? track.cueStart : 0, bpFallbackSeekSec);
+      if (initialTargetSeekSec > 0) {
+        try { target.currentTime = initialTargetSeekSec; } catch (_) {}
       }
       target.defaultMuted = false; if (typeof target.removeAttribute === 'function') target.removeAttribute('muted');
       target.volume = audio.volume; target.muted = false;
@@ -13926,8 +13950,18 @@
           playedOk = await retryPlayOnAbort(playErr, target, generation);
         }
         if (!playedOk || generation !== state.playGeneration) { setPlaybackLoading(false); return; }
-        if (track.cueStart !== undefined && track.cueStart > 0 && target.currentTime < track.cueStart) {
-          try { target.currentTime = track.cueStart; } catch (_) {}
+        if (initialTargetSeekSec > 0 && target.currentTime + 0.5 < initialTargetSeekSec) {
+          const applyInitialSeek = () => {
+            if (generation !== state.playGeneration) return;
+            try {
+              const safePos = (Number.isFinite(target.duration) && target.duration > 0.5)
+                ? Math.min(initialTargetSeekSec, target.duration - 0.25)
+                : initialTargetSeekSec;
+              target.currentTime = Math.max(0, safePos);
+            } catch (_) {}
+          };
+          if (target.readyState >= 1) applyInitialSeek();
+          else target.addEventListener('loadedmetadata', applyInitialSeek, { once: true });
         }
         setPlaybackLoading(false);
         finishPlaybackStart(track, generation, target, previousTrack);
@@ -14996,6 +15030,165 @@
       return appliedCount;
     }
 
+    const GOOGLE_DELTA_TOKEN_KEY = 'nocturne-google-delta-token';
+    const MICROSOFT_DELTA_LINK_KEY = 'nocturne-microsoft-delta-link';
+    function readCloudDeltaCursor(key) {
+      try {
+        return (typeof localStorage !== 'undefined' && localStorage) ? String(localStorage.getItem(key) || '').trim() : '';
+      } catch (_) {
+        return '';
+      }
+    }
+    function writeCloudDeltaCursor(key, value) {
+      try {
+        if (typeof localStorage === 'undefined' || !localStorage) return;
+        const val = value ? String(value).trim() : '';
+        if (val) localStorage.setItem(key, val);
+        else localStorage.removeItem(key);
+      } catch (_) {}
+    }
+    function removeCloudTracksByRemoteIds(source, remoteIds) {
+      if (!remoteIds || !remoteIds.size) return Promise.resolve(0);
+      const removedIds = [];
+      for (let i = state.tracks.length - 1; i >= 0; i--) {
+        const tr = state.tracks[i];
+        if (!tr || tr.source !== source) continue;
+        const rid = tr.remoteId || tr.id;
+        if (!rid || !remoteIds.has(rid)) continue;
+        if (state.currentId != null && String(tr.id) === String(state.currentId)) continue;
+        if (typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(tr);
+        removedIds.push(tr.id);
+        state.tracks.splice(i, 1);
+      }
+      if (!removedIds.length) return Promise.resolve(0);
+      return new Promise(resolve => {
+        try {
+          const store = catalogTransaction('readwrite');
+          for (let j = 0; j < removedIds.length; j++) store.delete(removedIds[j]);
+          store.transaction.oncomplete = () => resolve(removedIds.length);
+          store.transaction.onerror = () => resolve(removedIds.length);
+        } catch (_) {
+          resolve(removedIds.length);
+        }
+      });
+    }
+    async function fetchGoogleStartPageToken(token) {
+      let curToken = token;
+      const response = await fetchGoogleDrivePageWithRetry(
+        'https://www.googleapis.com/drive/v3/changes/startPageToken?supportsAllDrives=true',
+        () => curToken,
+        async () => { curToken = await ensureGoogleToken(true); return curToken; }
+      );
+      if (!response || !response.ok) return '';
+      const data = await response.json();
+      return (data && data.startPageToken) ? String(data.startPageToken) : '';
+    }
+    async function tryLoadGoogleChangesDelta(token, existingByRemoteId, knownIds) {
+      let cursor = readCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY);
+      if (!cursor || !knownIds || knownIds.size === 0) return { handled: false };
+      let curToken = token;
+      let nextStartToken = '';
+      const addedTracks = [];
+      const updatedTracks = [];
+      const deletedRemoteIds = new Set();
+      while (cursor) {
+        const params = new URLSearchParams({
+          pageToken: cursor,
+          supportsAllDrives: 'true',
+          includeItemsFromAllDrives: 'true',
+          pageSize: '1000',
+          fields: 'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,fileExtension,mimeType,size,parents,modifiedTime,md5Checksum,trashed,shortcutDetails,thumbnailLink))'
+        });
+        const response = await fetchGoogleDrivePageWithRetry(
+          `https://www.googleapis.com/drive/v3/changes?${params}`,
+          () => curToken,
+          async () => { curToken = await ensureGoogleToken(true); return curToken; }
+        );
+        if (response.status === 400 || response.status === 404 || response.status === 410) {
+          writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, '');
+          return { handled: false, resetCursor: true };
+        }
+        if (response.status === 401) {
+          const body = await response.text();
+          throw new Error(`Google Drive từ chối phiên đăng nhập (401). ${googleConfigurationHint(401, body)} Nếu phiên hết hạn, hãy nhấn “Tiếp tục với Google” rồi thử lại.`);
+        }
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(`Google Drive API ${response.status}: ${googleConfigurationHint(response.status, body)}`);
+        }
+        const data = await response.json();
+        const changes = (data && Array.isArray(data.changes)) ? data.changes : [];
+        for (let ci = 0; ci < changes.length; ci++) {
+          const change = changes[ci];
+          const fid = change && (change.fileId || (change.file && change.file.id));
+          if (!fid) continue;
+          if (change.removed || !change.file || change.file.trashed) {
+            if (knownIds.has(fid)) deletedRemoteIds.add(fid);
+            continue;
+          }
+          const file = change.file;
+          if (knownIds.has(fid)) {
+            const existing = existingByRemoteId.get(fid);
+            if (existing) {
+              let touched = false;
+              if (Array.isArray(file.parents) && file.parents.length) {
+                const nextParents = file.parents.slice(0, 3);
+                if (!Array.isArray(existing.parents) || existing.parents.join(',') !== nextParents.join(',')) {
+                  existing.parents = nextParents;
+                  touched = true;
+                }
+              }
+              if (file.thumbnailLink && existing.thumbnailUrl !== file.thumbnailLink) {
+                existing.thumbnailUrl = file.thumbnailLink;
+                touched = true;
+              }
+              const fSize = Number(file.size) || 0;
+              let contentChanged = false;
+              if (fSize > 0 && existing.size !== fSize) {
+                if (existing.size > 0) contentChanged = true;
+                existing.size = fSize;
+                touched = true;
+              }
+              const incomingRev = String(file.md5Checksum || file.modifiedTime || '');
+              if (incomingRev && existing.contentRev !== incomingRev) {
+                if (existing.contentRev) contentChanged = true;
+                existing.contentRev = incomingRev;
+                touched = true;
+              }
+              if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
+              if (file.name && existing.name !== file.name) {
+                existing.name = file.name;
+                touched = true;
+              }
+              if (touched) updatedTracks.push(existing);
+            }
+            continue;
+          }
+          if (!isCloudAudio(file)) continue;
+          const track = googleTrack(file);
+          state.tracks.push(track);
+          addedTracks.push(track);
+          knownIds.add(file.id);
+          existingByRemoteId.set(file.id, track);
+        }
+        if (data && data.newStartPageToken) nextStartToken = String(data.newStartPageToken);
+        cursor = (data && data.nextPageToken) ? String(data.nextPageToken) : '';
+      }
+      if (nextStartToken) writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, nextStartToken);
+      const toPersist = addedTracks.concat(updatedTracks);
+      if (toPersist.length > 0) {
+        await persistCloudCatalog(toPersist, { skipPrune: true }).catch(() => {});
+      }
+      const removed = await removeCloudTracksByRemoteIds('google', deletedRemoteIds);
+      if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
+      if (addedTracks.length || updatedTracks.length || removed) {
+        if (typeof renderTracks === 'function') renderTracks();
+      }
+      if (typeof cloudStatus === 'function') cloudStatus('google', `Google Drive · ${knownIds.size - removed} bài`, 'text-emerald-300');
+      if (typeof toast === 'function') toast(`Đồng bộ nhanh Google Drive (Delta): +${addedTracks.length} mới, ~${updatedTracks.length} cập nhật, -${removed} đã xóa.`);
+      return { handled: true, added: addedTracks.length, updated: updatedTracks.length, removed, newlyAddedTracks: addedTracks };
+    }
+
     function removeDeletedCloudTracks(source, seenRemoteIds, isCompleteScan) {
       if (!isCompleteScan || !seenRemoteIds || !seenRemoteIds.size) return Promise.resolve(0);
       const removedIds = [];
@@ -15038,8 +15231,19 @@
       let sawIncompleteSearch = false;
       const newlyAddedTracks = [];
       let persistChain = Promise.resolve();
+      let skippedFullArtworkPass = false;
 
       try {
+        if (typeof tryLoadGoogleChangesDelta === 'function' && knownIds.size > 0) {
+          const deltaRes = await tryLoadGoogleChangesDelta(token, existingByRemoteId, knownIds);
+          if (deltaRes && deltaRes.handled) {
+            if (Array.isArray(deltaRes.newlyAddedTracks) && deltaRes.newlyAddedTracks.length) {
+              for (let di = 0; di < deltaRes.newlyAddedTracks.length; di++) newlyAddedTracks.push(deltaRes.newlyAddedTracks[di]);
+            }
+            if (!deltaRes.added && !deltaRes.updated) skippedFullArtworkPass = true;
+            return;
+          }
+        }
         do {
           const params = new URLSearchParams({
             q: GOOGLE_DRIVE_CANDIDATE_QUERY,
@@ -15156,6 +15360,10 @@
         cloudStatus('google', `Google Drive · ${knownIds.size} bài`, 'text-emerald-300');
         toast(`Đã quét hết Drive: ${knownIds.size} bài âm thanh (${added} bài mới).`);
         console.info('[DriveSync]', { scanned, added, totalGoogleTracks: knownIds.size, skippedCount, skippedSample });
+        if (!sawIncompleteSearch && typeof fetchGoogleStartPageToken === 'function' && typeof writeCloudDeltaCursor === 'function') {
+          const startTok = await fetchGoogleStartPageToken(token).catch(() => '');
+          if (startTok) writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, startTok);
+        }
       } catch (error) {
         await persistChain;
         renderTracks();
@@ -15168,7 +15376,7 @@
           track => track.source === 'google' && (!track.metadataLoaded || !track.cover)
         );
         if (pendingMeta.length > 0) queueCloudMetadata(pendingMeta);
-        if (typeof discoverGoogleDriveFolderArtwork === 'function') {
+        if (!skippedFullArtworkPass && typeof discoverGoogleDriveFolderArtwork === 'function') {
           discoverGoogleDriveFolderArtwork(newlyAddedTracks.length ? newlyAddedTracks : state.tracks).catch(() => {});
         }
       }
@@ -15331,7 +15539,11 @@
           await new Promise(resolve => setTimeout(resolve, waitMs));
           continue;
         }
-        if (!response.ok) throw new Error(`Microsoft Graph ${response.status}: ${await response.text()}`);
+        if (!response.ok) {
+          const graphErr = new Error(`Microsoft Graph ${response.status}: ${await response.text()}`);
+          graphErr.status = response.status;
+          throw graphErr;
+        }
         return response.json();
       }
     }
@@ -15428,6 +15640,125 @@
       }
       return appliedCount;
     }
+    async function saveMicrosoftLatestDeltaLink(token) {
+      const data = await graphGet('https://graph.microsoft.com/v1.0/me/drive/root/delta?token=latest', token);
+      const deltaLink = data && data['@odata.deltaLink'] ? String(data['@odata.deltaLink']) : '';
+      if (deltaLink && typeof writeCloudDeltaCursor === 'function') {
+        writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, deltaLink);
+      }
+      return deltaLink;
+    }
+    async function tryLoadMicrosoftDeltaSync(token, existingByRemoteId, knownIds, siblingCoversByDir) {
+      let nextUrl = (typeof readCloudDeltaCursor === 'function') ? readCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY) : '';
+      if (!nextUrl || !knownIds || knownIds.size === 0) return { handled: false };
+      const scoreFolderCover = (typeof library !== 'undefined' && typeof library.scoreFolderCoverFilename === 'function')
+        ? library.scoreFolderCoverFilename
+        : () => 0;
+      const addedTracks = [];
+      const updatedTracks = [];
+      const deletedRemoteIds = new Set();
+      let latestDeltaLink = '';
+      try {
+        while (nextUrl) {
+          const data = await graphGet(nextUrl, token);
+          const items = (data && Array.isArray(data.value)) ? data.value : [];
+          for (let ii = 0; ii < items.length; ii++) {
+            const item = items[ii];
+            if (!item || !item.id) continue;
+            if (item.deleted) {
+              if (knownIds.has(item.id)) deletedRemoteIds.add(item.id);
+              continue;
+            }
+            const rawRefPath = (item.parentReference && item.parentReference.path) ? String(item.parentReference.path) : '';
+            let parentRaw = rawRefPath.replace(/^\/drive\/root:?\/?/, '');
+            try { parentRaw = decodeURIComponent(parentRaw); } catch (_) {}
+            const itemPath = parentRaw ? `${parentRaw}/${item.name}` : (item.name || '');
+            if (!item.folder && knownIds.has(item.id)) {
+              const existing = existingByRemoteId.get(item.id);
+              if (existing) {
+                let touched = false;
+                if (item['@microsoft.graph.downloadUrl']) {
+                  existing.downloadUrl = item['@microsoft.graph.downloadUrl'];
+                  existing.downloadUrlAt = Date.now();
+                  touched = true;
+                }
+                if (itemPath && existing.remotePath !== itemPath) {
+                  existing.remotePath = itemPath;
+                  touched = true;
+                }
+                let msContentChanged = false;
+                const iSize = Number(item.size) || 0;
+                if (iSize > 0 && existing.size !== iSize) {
+                  if (existing.size > 0) msContentChanged = true;
+                  existing.size = iSize;
+                  touched = true;
+                }
+                const msIncomingRev = String(item.cTag || item.eTag || '');
+                if (msIncomingRev && existing.contentRev !== msIncomingRev) {
+                  if (existing.contentRev) msContentChanged = true;
+                  existing.contentRev = msIncomingRev;
+                  touched = true;
+                }
+                if (msContentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
+                if (item.audio && (!existing.metadataLoaded || !existing.cover || msContentChanged)) {
+                  mergeMicrosoftTrack(existing, item, itemPath);
+                  touched = true;
+                }
+                if (touched) updatedTracks.push(existing);
+              }
+              continue;
+            }
+            if (item.folder) continue;
+            if (isCloudAudio(item)) {
+              const msTrack = microsoftTrack(item, itemPath);
+              state.tracks.push(msTrack);
+              addedTracks.push(msTrack);
+              knownIds.add(item.id);
+              existingByRemoteId.set(item.id, msTrack);
+            } else if (siblingCoversByDir) {
+              const coverScore = scoreFolderCover(item.name || '');
+              if (coverScore > 0) {
+                const prevCand = siblingCoversByDir.get(parentRaw);
+                if (!prevCand || coverScore > prevCand.score) {
+                  siblingCoversByDir.set(parentRaw, {
+                    id: item.id,
+                    name: item.name,
+                    score: coverScore,
+                    downloadUrl: item['@microsoft.graph.downloadUrl'] || ''
+                  });
+                }
+              }
+            }
+          }
+          if (data && data['@odata.deltaLink']) latestDeltaLink = String(data['@odata.deltaLink']);
+          nextUrl = (data && data['@odata.nextLink']) ? String(data['@odata.nextLink']) : '';
+        }
+      } catch (deltaErr) {
+        const msg = String(deltaErr && deltaErr.message ? deltaErr.message : deltaErr || '');
+        if (deltaErr && (deltaErr.status === 410 || deltaErr.status === 400 || deltaErr.status === 404 || /resyncRequired|invalidDeltaToken/i.test(msg))) {
+          if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, '');
+          return { handled: false, resetCursor: true };
+        }
+        throw deltaErr;
+      }
+      if (latestDeltaLink && typeof writeCloudDeltaCursor === 'function') {
+        writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, latestDeltaLink);
+      }
+      const toPersist = addedTracks.concat(updatedTracks);
+      if (toPersist.length > 0) {
+        await persistCloudCatalog(toPersist, { skipPrune: true }).catch(() => {});
+      }
+      const removed = (typeof removeCloudTracksByRemoteIds === 'function')
+        ? await removeCloudTracksByRemoteIds('onedrive', deletedRemoteIds)
+        : 0;
+      if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
+      if (addedTracks.length || updatedTracks.length || removed) {
+        if (typeof renderTracks === 'function') renderTracks();
+      }
+      if (typeof cloudStatus === 'function') cloudStatus('microsoft', `OneDrive · ${knownIds.size - removed} bài`, 'text-emerald-300');
+      if (typeof toast === 'function') toast(`Đồng bộ nhanh OneDrive (Delta): +${addedTracks.length} mới, ~${updatedTracks.length} cập nhật, -${removed} đã xóa.`);
+      return { handled: true, added: addedTracks.length, updated: updatedTracks.length, removed };
+    }
     async function loadMicrosoftFiles(token) {
       await restoreCloudCatalog();
       state.microsoftAccessToken = token;
@@ -15447,6 +15778,10 @@
       const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,cTag,size,audio&$top=500', path:''}];
       const updatedExistingTracks = [];
       try {
+        if (typeof tryLoadMicrosoftDeltaSync === 'function' && knownIds.size > 0) {
+          const msDelta = await tryLoadMicrosoftDeltaSync(token, existingByRemoteId, knownIds, siblingCoversByDir);
+          if (msDelta && msDelta.handled) return;
+        }
         const FOLDER_BATCH_CONCURRENCY = 3;
         const scanFolderNode = async (folderNode) => {
           const url = folderNode.url, path = folderNode.path;
@@ -15533,6 +15868,9 @@
           await removeDeletedCloudTracks('onedrive', seenRemoteIds, true);
         }
         await pruneCloudCatalog();
+        if (typeof saveMicrosoftLatestDeltaLink === 'function') {
+          await saveMicrosoftLatestDeltaLink(token).catch(() => {});
+        }
         renderTracks();
         cloudStatus('microsoft', `OneDrive · ${knownIds.size} bài`, 'text-emerald-300');
         toast(`Đã quét hết OneDrive: tìm thấy ${knownIds.size} bài âm thanh (${added} bài mới).`);
