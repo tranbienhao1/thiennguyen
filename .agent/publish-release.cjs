@@ -80,20 +80,21 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.66';
-  const name = process.argv[3] || `Nocturne ${tag} (Tự dọn QuotaExceededError cho bộ đệm lát đầu Cloud + Đồng bộ thanh tua khóa màn hình Android/FiiO chuẩn CUE & Google Drive/OneDrive)`;
+  const tag = process.argv[2] || 'v3.9.67';
+  const name = process.argv[3] || `Nocturne ${tag} (Tự xóa lát đệm lỗi khi giải mã hỏng + Dọn bài chia sẻ đã xóa trên OneDrive Delta + Giải mã tự động UTF-8/Shift-JIS/Win-1252 cho .cue/.lrc)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 120) — Tự dọn bộ đệm lát đầu khi cạn quota IndexedDB + Đồng bộ thanh tua khóa màn hình Android/FiiO chuẩn xác cho Cloud, Bit-Perfect & CUE
+    : `### Nocturne ${tag} (versionCode 121) — Tự phục hồi lát đệm lỗi + Dọn bài OneDrive chia sẻ đã xóa khi Delta Sync + Giải mã tự động UTF-8/UTF-16/Shift-JIS/Windows-1252 cho \`.cue\`/\`.lrc\`
 
-#### 1. Chống tràn dung lượng \`firstSliceCache\` trên FiiO M11S & di động (\`index.html\`)
-- **Tự phục hồi khi gặp \`QuotaExceededError\`**: \`cacheFirstSlice\` phát hiện lỗi đầy bộ nhớ IndexedDB, chủ động dọn 50% lát cũ nhất (\`evictOldestFirstSlicesForQuota\`, bảo vệ bài đang phát) rồi ghi lại tự động mà không làm gián đoạn luồng phát.
-- **Giới hạn gọn nhẹ cho FiiO/Android cũ & đồng bộ cờ \`firstSliceCached\`**: Siết hạn mức \`firstSliceCache\` về tối đa \`16\` mục / \`18 MiB\` trên thiết bị FiiO/Android cũ, ghi kèm \`lastAccessedAt\` chuẩn LRU, và xóa cờ \`firstSliceCached\` khi mục bị loại.
+#### 1. Tự xóa lát đệm hỏng & phát lại sạch từ Cloud (\`index.html\`)
+- **Tự loại bỏ lát đầu bị hỏng/cụt (<64B hoặc lỗi giải mã)**: Bổ sung \`deleteCachedFirstSlice(track)\`, bỏ qua lát lỗi qua cờ \`_bypassSliceCacheOnce\` trong \`fetchCloudTrack\`, và tự dọn lát cache hỏng trong cả \`playTrack\` lẫn \`playDsdTrack\` khi gặp \`NotSupportedError\` trước khi tải trực tiếp từ Google Drive/OneDrive.
 
-#### 2. Thanh tua & nút điều khiển khóa màn hình Android/FiiO chuẩn xác cho mọi nguồn (\`MainActivity.java\` + \`index.html\`)
-- **Hiện thanh tiến độ & thời lượng cho cả Google Drive, OneDrive, DSD & CUE (kể cả FiiO M11S Chromium 74)**: Bổ sung \`NocturneNative.updateMediaSessionPosition(posMs, durMs, isPlaying)\` nối trực tiếp từ \`updatePositionState\`, đồng thời sửa lỗi \`showMediaNotification\` trước đây ghi đè mất \`ACTION_SEEK_TO\` và đặt sai tốc độ \`1.0f\` lúc đang tạm dừng.
-- **Tua từ màn hình khóa / Bluetooth giữ đúng \`cueStart\`**: \`dispatchSeekToWeb\` và \`dispatchSeekOffsetToWeb\` định tuyến qua \`window.onHardwareSeekTo\` / \`window.onHardwareSeekOffset\` (có dự phòng trực tiếp xuống \`BitPerfectAudioPlayer\` khi WebView chưa sẵn sàng), giúp tua sub-track \`.cue\` không còn nhảy ngược về Track 1.
+#### 2. Dọn sạch bài chia sẻ OneDrive đã xóa/hủy chia sẻ ngay trong chế độ Delta Sync (\`index.html\`)
+- **Đồng bộ hoàn chỉnh thư mục chia sẻ (\`sharedWithMe\`)**: Đánh dấu \`_sharedScanComplete\` khi quét trọn vẹn \`enqueueMicrosoftSharedItems\` & \`scanFolderNode\` không lỗi mạng, tự dọn các bài \`remoteDriveId\` đã bị xóa/thu hồi quyền cùng cache lát đầu mồ côi.
+
+#### 3. Giải mã thông minh UTF-8 / UTF-16 / Shift-JIS / Windows-1252 cho \`.cue\` & \`.lrc\` (\`MainActivity.java\` + \`index.html\`)
+- **Hiển thị đúng tên bài & khớp đúng tên tệp âm thanh trên album CD Nhật Bản / châu Âu**: Nâng cấp \`decodeLyricsBytes\` trên Android/FiiO và thêm \`decodeTextBytesAuto\` / \`readLocalTextFileAuto\` trên Web để tự phát hiện UTF-8 nghiêm ngặt, rơi về Shift-JIS khi chứa Kana/Kanji hợp lệ hoặc Windows-1252.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

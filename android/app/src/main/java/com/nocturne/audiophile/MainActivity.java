@@ -5540,11 +5540,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.66";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.67";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.66\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.67\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -5655,9 +5655,22 @@ public class MainActivity extends AppCompatActivity {
                     | (((long) (buf[off + 3] & 0xFF)) << 24);
         }
 
+        private static boolean containsJapaneseKanaOrCjk(String s) {
+            if (s == null || s.isEmpty()) return false;
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if ((c >= '\u3040' && c <= '\u30FF')
+                        || (c >= '\u4E00' && c <= '\u9FFF')
+                        || (c >= '\uFF61' && c <= '\uFF9F')) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         private static String decodeLyricsBytes(byte[] raw) {
             if (raw == null || raw.length == 0) return "";
-            String text;
+            String text = null;
             if (raw.length >= 3 && (raw[0] & 0xFF) == 0xEF && (raw[1] & 0xFF) == 0xBB && (raw[2] & 0xFF) == 0xBF) {
                 text = new String(raw, 3, raw.length - 3, StandardCharsets.UTF_8);
             } else if (raw.length >= 2 && (raw[0] & 0xFF) == 0xFF && (raw[1] & 0xFF) == 0xFE) {
@@ -5665,7 +5678,29 @@ public class MainActivity extends AppCompatActivity {
             } else if (raw.length >= 2 && (raw[0] & 0xFF) == 0xFE && (raw[1] & 0xFF) == 0xFF) {
                 text = new String(raw, 2, raw.length - 2, StandardCharsets.UTF_16BE);
             } else {
-                text = new String(raw, StandardCharsets.UTF_8);
+                try {
+                    java.nio.charset.CharsetDecoder utf8Dec = StandardCharsets.UTF_8.newDecoder()
+                            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT);
+                    text = utf8Dec.decode(java.nio.ByteBuffer.wrap(raw)).toString();
+                } catch (Exception nonUtf8) {
+                    try {
+                        java.nio.charset.CharsetDecoder sjisDec = java.nio.charset.Charset.forName("Shift_JIS").newDecoder()
+                                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT);
+                        String sjisText = sjisDec.decode(java.nio.ByteBuffer.wrap(raw)).toString();
+                        if (containsJapaneseKanaOrCjk(sjisText)) {
+                            text = sjisText;
+                        }
+                    } catch (Exception ignored) {}
+                    if (text == null) {
+                        try {
+                            text = new String(raw, java.nio.charset.Charset.forName("windows-1252"));
+                        } catch (Exception ignored) {
+                            text = new String(raw, StandardCharsets.ISO_8859_1);
+                        }
+                    }
+                }
             }
             if (text.startsWith("\uFEFF")) text = text.substring(1);
             return text.trim();
