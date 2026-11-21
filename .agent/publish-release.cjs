@@ -80,20 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.65';
-  const name = process.argv[3] || `Nocturne ${tag} (Đồng bộ đổi tên/di chuyển thư mục & ảnh bìa Delta cho Google Drive/OneDrive + Tự tạm dừng khi rút tai nghe/USB DAC trên Android/FiiO)`;
+  const tag = process.argv[2] || 'v3.9.66';
+  const name = process.argv[3] || `Nocturne ${tag} (Tự dọn QuotaExceededError cho bộ đệm lát đầu Cloud + Đồng bộ thanh tua khóa màn hình Android/FiiO chuẩn CUE & Google Drive/OneDrive)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 119) — Đồng bộ đổi tên/di chuyển thư mục & ảnh bìa Delta cho Google Drive / OneDrive + Tự tạm dừng chuẩn xác khi ngắt tai nghe / USB DAC trên Android/FiiO
+    : `### Nocturne ${tag} (versionCode 120) — Tự dọn bộ đệm lát đầu khi cạn quota IndexedDB + Đồng bộ thanh tua khóa màn hình Android/FiiO chuẩn xác cho Cloud, Bit-Perfect & CUE
 
-#### 1. Đồng bộ Delta đổi tên/di chuyển thư mục & làm mới ảnh bìa Google Drive / OneDrive (\`index.html\`)
-- **Google Drive Delta Sync (\`tryLoadGoogleChangesDelta\` & \`discoverGoogleDriveFolderArtwork\`)**: Nhận diện đổi tên thư mục (cập nhật \`discNumber\` khi đổi tên \`Disc N\`/\`CD N\`), di chuyển bài sang thư mục mới và thêm/thay thế ảnh bìa \`cover.jpg\`/\`folder.jpg\` để tự làm mới ảnh bìa thư mục mà không ghi đè ảnh nhúng trong tag FLAC/MP3.
-- **OneDrive Delta Sync (\`tryLoadMicrosoftDeltaSync\` & \`remoteParentId\`)**: Lưu bền vững \`remoteParentId\` trên track OneDrive; khi đổi tên hoặc di chuyển thư mục cha trong chế độ Delta Sync, tự lan truyền \`remotePath\` và \`discNumber\` mới xuống các bài bên trong mà không cần xóa thư viện quét lại.
+#### 1. Chống tràn dung lượng \`firstSliceCache\` trên FiiO M11S & di động (\`index.html\`)
+- **Tự phục hồi khi gặp \`QuotaExceededError\`**: \`cacheFirstSlice\` phát hiện lỗi đầy bộ nhớ IndexedDB, chủ động dọn 50% lát cũ nhất (\`evictOldestFirstSlicesForQuota\`, bảo vệ bài đang phát) rồi ghi lại tự động mà không làm gián đoạn luồng phát.
+- **Giới hạn gọn nhẹ cho FiiO/Android cũ & đồng bộ cờ \`firstSliceCached\`**: Siết hạn mức \`firstSliceCache\` về tối đa \`16\` mục / \`18 MiB\` trên thiết bị FiiO/Android cũ, ghi kèm \`lastAccessedAt\` chuẩn LRU, và xóa cờ \`firstSliceCached\` khi mục bị loại.
 
-#### 2. Tự động tạm dừng thông minh khi ngắt tai nghe / USB-C DAC trên Android & FiiO (\`MainActivity.java\` + \`index.html\`)
-- **Bổ sung dự phòng từ \`AudioDeviceCallback\` khi rút USB DAC / tai nghe**: Khi ngắt thiết bị âm thanh ngoài và không còn ngõ ra ngoài nào khác (\`!hasActiveExternalAudioSink()\`), \`MainActivity\` tự động kích hoạt \`triggerAudioBecomingNoisy\` (chống trùng trong 800ms) để tạm dừng ngay cả Native Bit-Perfect lẫn WebView Audio.
-- **Đồng bộ thanh thông báo & chống toast thừa**: \`window.onAndroidAudioBecomingNoisy\` đồng bộ trạng thái \`paused\` lên \`MediaSession\` và thông báo khóa màn hình Android/FiiO, đồng thời chỉ hiển thị thông báo khi nhạc thực sự đang phát.
+#### 2. Thanh tua & nút điều khiển khóa màn hình Android/FiiO chuẩn xác cho mọi nguồn (\`MainActivity.java\` + \`index.html\`)
+- **Hiện thanh tiến độ & thời lượng cho cả Google Drive, OneDrive, DSD & CUE (kể cả FiiO M11S Chromium 74)**: Bổ sung \`NocturneNative.updateMediaSessionPosition(posMs, durMs, isPlaying)\` nối trực tiếp từ \`updatePositionState\`, đồng thời sửa lỗi \`showMediaNotification\` trước đây ghi đè mất \`ACTION_SEEK_TO\` và đặt sai tốc độ \`1.0f\` lúc đang tạm dừng.
+- **Tua từ màn hình khóa / Bluetooth giữ đúng \`cueStart\`**: \`dispatchSeekToWeb\` và \`dispatchSeekOffsetToWeb\` định tuyến qua \`window.onHardwareSeekTo\` / \`window.onHardwareSeekOffset\` (có dự phòng trực tiếp xuống \`BitPerfectAudioPlayer\` khi WebView chưa sẵn sàng), giúp tua sub-track \`.cue\` không còn nhảy ngược về Track 1.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

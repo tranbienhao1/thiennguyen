@@ -3388,6 +3388,11 @@ public class MainActivity extends AppCompatActivity {
                     mBitPerfectPlayer.resume();
                     nowPlaying = true;
                 }
+                updateMediaSessionPosition(
+                    mLastMediaPositionMs >= 0L ? mLastMediaPositionMs : mBitPerfectPlayer.getPositionMs(),
+                    mLastMediaDurationMs > 0L ? mLastMediaDurationMs : mBitPerfectPlayer.getDurationMs(),
+                    nowPlaying
+                );
                 if (mWebView != null) {
                     mWebView.evaluateJavascript(
                             "if (typeof window.onNativeBitPerfectStateChange === 'function') { window.onNativeBitPerfectStateChange(" + (nowPlaying ? "true" : "false") + "); }",
@@ -3412,6 +3417,11 @@ public class MainActivity extends AppCompatActivity {
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
                 if (mBitPerfectPlayer.isPaused()) {
                     mBitPerfectPlayer.resume();
+                    updateMediaSessionPosition(
+                        mLastMediaPositionMs >= 0L ? mLastMediaPositionMs : mBitPerfectPlayer.getPositionMs(),
+                        mLastMediaDurationMs > 0L ? mLastMediaDurationMs : mBitPerfectPlayer.getDurationMs(),
+                        true
+                    );
                     if (mWebView != null) {
                         mWebView.evaluateJavascript(
                                 "if (typeof window.onNativeBitPerfectStateChange === 'function') { window.onNativeBitPerfectStateChange(true); }",
@@ -3436,6 +3446,11 @@ public class MainActivity extends AppCompatActivity {
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
                 if (mBitPerfectPlayer.isPlaying()) {
                     mBitPerfectPlayer.pause();
+                    updateMediaSessionPosition(
+                        mLastMediaPositionMs >= 0L ? mLastMediaPositionMs : mBitPerfectPlayer.getPositionMs(),
+                        mLastMediaDurationMs > 0L ? mLastMediaDurationMs : mBitPerfectPlayer.getDurationMs(),
+                        false
+                    );
                     if (mWebView != null) {
                         mWebView.evaluateJavascript(
                                 "if (typeof window.onNativeBitPerfectStateChange === 'function') { window.onNativeBitPerfectStateChange(false); }",
@@ -3478,33 +3493,45 @@ public class MainActivity extends AppCompatActivity {
 
     public void dispatchSeekOffsetToWeb(final int deltaSeconds) {
         runOnUiThread(() -> {
+            if (mWebView != null) {
+                mWebView.evaluateJavascript(
+                        "(function(){ if (typeof window.onHardwareSeekOffset === 'function') { window.onHardwareSeekOffset(" + deltaSeconds + "); return 'ok'; } return ''; })()",
+                        value -> {
+                            if (!"\"ok\"".equals(value) && mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
+                                long targetMs = Math.max(0L, mBitPerfectPlayer.getPositionMs() + (deltaSeconds * 1000L));
+                                long durMs = mBitPerfectPlayer.getDurationMs();
+                                if (durMs > 0L) targetMs = Math.min(targetMs, durMs);
+                                mBitPerfectPlayer.seek(targetMs);
+                            }
+                        }
+                );
+                return;
+            }
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
                 long targetMs = Math.max(0L, mBitPerfectPlayer.getPositionMs() + (deltaSeconds * 1000L));
                 long durMs = mBitPerfectPlayer.getDurationMs();
                 if (durMs > 0L) targetMs = Math.min(targetMs, durMs);
                 mBitPerfectPlayer.seek(targetMs);
-                return;
-            }
-            if (mWebView != null) {
-                mWebView.evaluateJavascript(
-                        "if (typeof window.onHardwareSeekOffset === 'function') { window.onHardwareSeekOffset(" + deltaSeconds + "); }",
-                        null
-                );
             }
         });
     }
 
     public void dispatchSeekToWeb(final long positionMs) {
+        final long safePosMs = Math.max(0L, positionMs);
         runOnUiThread(() -> {
-            if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
-                mBitPerfectPlayer.seek(Math.max(0L, positionMs));
-                return;
-            }
             if (mWebView != null) {
                 mWebView.evaluateJavascript(
-                        "if (typeof window.onHardwareSeekTo === 'function') { window.onHardwareSeekTo(" + Math.max(0L, positionMs) + "); }",
-                        null
+                        "(function(){ if (typeof window.onHardwareSeekTo === 'function') { window.onHardwareSeekTo(" + safePosMs + "); return 'ok'; } return ''; })()",
+                        value -> {
+                            if (!"\"ok\"".equals(value) && mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
+                                mBitPerfectPlayer.seek(safePosMs);
+                            }
+                        }
                 );
+                return;
+            }
+            if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
+                mBitPerfectPlayer.seek(safePosMs);
             }
         });
     }
@@ -3860,32 +3887,77 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private volatile long mLastMediaPositionMs = PlaybackState.PLAYBACK_POSITION_UNKNOWN;
+    private volatile long mLastMediaDurationMs = 0L;
+    private volatile String mLastMediaTitle = "";
+    private volatile String mLastMediaArtist = "";
+    private volatile String mLastMediaAlbum = "";
+    private static final long MEDIA_SESSION_ACTIONS =
+            PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE |
+            PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT |
+            PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP |
+            PlaybackState.ACTION_SEEK_TO | PlaybackState.ACTION_FAST_FORWARD |
+            PlaybackState.ACTION_REWIND;
+
+    public void updateMediaSessionPosition(long positionMs, long durationMs, boolean isPlaying) {
+        if (mMediaSession == null) return;
+        try {
+            long prevDurMs = mLastMediaDurationMs;
+            long clampedPos = positionMs >= 0L ? positionMs : PlaybackState.PLAYBACK_POSITION_UNKNOWN;
+            mLastMediaPositionMs = clampedPos;
+            if (durationMs > 0L) {
+                mLastMediaDurationMs = durationMs;
+            }
+            mIsMediaPlaying = isPlaying;
+            PlaybackState.Builder psb = new PlaybackState.Builder()
+                .setActions(MEDIA_SESSION_ACTIONS)
+                .setState(isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
+                    clampedPos,
+                    isPlaying ? 1.0f : 0.0f);
+            mMediaSession.setPlaybackState(psb.build());
+            if (durationMs > 0L && Math.abs(durationMs - prevDurMs) >= 500L) {
+                updateMediaSessionMetadata(mLastMediaTitle, mLastMediaArtist, mLastMediaAlbum, isPlaying);
+            }
+        } catch (Exception ignored) {}
+    }
+
     private void updateMediaSessionMetadata(String title, String artist, String album, boolean isPlaying) {
         if (mMediaSession == null) return;
         try {
             String displayTitle = (title != null && !title.trim().isEmpty()) ? title.trim() : "Nocturne Audiophile";
             String displayArtist = (artist != null && !artist.trim().isEmpty()) ? artist.trim() : "Nocturne Hi-Res Audio";
+            String displayAlbum = (album != null && !album.trim().isEmpty()) ? album.trim() : "";
+            boolean trackChanged = !displayTitle.equals(mLastMediaTitle) || !displayArtist.equals(mLastMediaArtist);
+            if (trackChanged) {
+                mLastMediaPositionMs = PlaybackState.PLAYBACK_POSITION_UNKNOWN;
+                mLastMediaDurationMs = 0L;
+            }
+            mLastMediaTitle = displayTitle;
+            mLastMediaArtist = displayArtist;
+            mLastMediaAlbum = displayAlbum;
+            boolean bpActive = mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused());
+            long effectivePosMs = (mLastMediaPositionMs >= 0L)
+                ? mLastMediaPositionMs
+                : (bpActive ? mBitPerfectPlayer.getPositionMs() : PlaybackState.PLAYBACK_POSITION_UNKNOWN);
+            long effectiveDurMs = (mLastMediaDurationMs > 0L)
+                ? mLastMediaDurationMs
+                : (bpActive && mBitPerfectPlayer.getDurationMs() > 0L ? mBitPerfectPlayer.getDurationMs() : 0L);
             PlaybackState.Builder psb = new PlaybackState.Builder()
-                .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE |
-                    PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT |
-                    PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP |
-                    PlaybackState.ACTION_SEEK_TO | PlaybackState.ACTION_FAST_FORWARD |
-                    PlaybackState.ACTION_REWIND)
+                .setActions(MEDIA_SESSION_ACTIONS)
                 .setState(isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
-                    mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())
-                        ? mBitPerfectPlayer.getPositionMs() : PlaybackState.PLAYBACK_POSITION_UNKNOWN,
+                    effectivePosMs,
                     isPlaying ? 1.0f : 0.0f);
             mMediaSession.setPlaybackState(psb.build());
             MediaMetadata.Builder mb = new MediaMetadata.Builder();
             mb.putString(MediaMetadata.METADATA_KEY_TITLE, displayTitle);
             mb.putString(MediaMetadata.METADATA_KEY_ARTIST, displayArtist);
-            if (album != null && !album.trim().isEmpty()) {
-                mb.putString(MediaMetadata.METADATA_KEY_ALBUM, album.trim());
+            if (!displayAlbum.isEmpty()) {
+                mb.putString(MediaMetadata.METADATA_KEY_ALBUM, displayAlbum);
             }
-            if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused()) && mBitPerfectPlayer.getDurationMs() > 0) {
-                mb.putLong(MediaMetadata.METADATA_KEY_DURATION, mBitPerfectPlayer.getDurationMs());
+            if (effectiveDurMs > 0L) {
+                mb.putLong(MediaMetadata.METADATA_KEY_DURATION, effectiveDurMs);
             }
-            android.graphics.Bitmap coverBmp = loadCachedCoverBitmap(album, displayArtist);
+            android.graphics.Bitmap coverBmp = loadCachedCoverBitmap(displayAlbum, displayArtist);
             NocturnePlaybackService.sCurrentAlbumArt = coverBmp;
             if (coverBmp != null) {
                 mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, coverBmp);
@@ -3941,28 +4013,7 @@ public class MainActivity extends AppCompatActivity {
                 nm.notify(NOTIFICATION_ID, builder.build());
             }
 
-            if (mMediaSession != null) {
-                try {
-                    PlaybackState.Builder psb = new PlaybackState.Builder()
-                            .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE |
-                                    PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT |
-                                    PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP)
-                            .setState(isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
-                                    PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1.0f);
-                    mMediaSession.setPlaybackState(psb.build());
-
-                    MediaMetadata.Builder mb = new MediaMetadata.Builder();
-                    mb.putString(MediaMetadata.METADATA_KEY_TITLE, displayTitle);
-                    mb.putString(MediaMetadata.METADATA_KEY_ARTIST, displayArtist);
-                    if (displayAlbum != null) {
-                        mb.putString(MediaMetadata.METADATA_KEY_ALBUM, displayAlbum);
-                    }
-                    if (coverBmp != null) {
-                        mb.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, coverBmp);
-                    }
-                    mMediaSession.setMetadata(mb.build());
-                } catch (Exception ignored) {}
-            }
+            updateMediaSessionMetadata(displayTitle, displayArtist, displayAlbum, isPlaying);
         } catch (Exception e) {
             Log.e(TAG, "Error displaying media notification: " + e.getMessage(), e);
         }
@@ -5287,6 +5338,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public void updateMediaSessionPosition(long positionMs, long durationMs, boolean isPlaying) {
+            mActivity.runOnUiThread(() -> mActivity.updateMediaSessionPosition(positionMs, durationMs, isPlaying));
+        }
+
+        @JavascriptInterface
         public boolean requestAudioFocus() {
             return mActivity.requestAudioFocus();
         }
@@ -5484,11 +5540,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.65";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.66";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.65\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.66\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
