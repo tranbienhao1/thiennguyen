@@ -80,20 +80,21 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.52';
-  const name = process.argv[3] || `Nocturne ${tag} (Khóa single-flight OAuth Drive/OneDrive & chuẩn hóa đường dẫn DSD/Unicode/ký tự + nội bộ)`;
+  const tag = process.argv[2] || 'v3.9.53';
+  const name = process.argv[3] || `Nocturne ${tag} (Sửa triệt để lỗi thanh phát Play/Pause trên FiiO M11S & Android Bit-Perfect)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 106) — Khóa single-flight OAuth Drive/OneDrive & chuẩn hóa đường dẫn DSD/Unicode/ký tự \`+\` nội bộ
+    : `### Nocturne ${tag} (versionCode 107) — Sửa triệt để lỗi thanh phát Play/Pause trên FiiO M11S & Android Bit-Perfect
 
-#### 1. Khóa single-flight OAuth cho Google Drive & OneDrive (\`index.html\`)
-- **Google Drive (\`ensureGoogleToken\`, \`requestGoogleToken\`)**: Bổ sung khóa đơn luồng \`googleTokenRefreshPromise\` cùng dấu thời gian \`state.googleLastRefreshAt\` và cửa sổ chống dội 8 giây khi nhiều yêu cầu \`forceRefresh\` (lỗi 401 đồng thời từ phát nhạc, tải ảnh bìa, đồng bộ) xảy ra cùng lúc.
-- **OneDrive MSAL (\`getMicrosoftToken\`, \`ensureMicrosoftMsalClient\`)**: Tách khóa khởi tạo \`microsoftMsalInitPromise\`, khóa làm mới ngầm \`microsoftTokenSilentPromise\` và khóa đăng nhập tương tác \`microsoftTokenInteractivePromise\` để triệt tiêu xung đột \`interaction_in_progress\` khi nhiều luồng OneDrive chạy song song.
+#### 1. Triệt tiêu lỗi tự Pause khi bấm Play / chuyển bài trên Android 10 FiiO M11S (\`MainActivity.java\`, \`index.html\`)
+- **Tái sử dụng duy nhất một \`AudioFocusRequest\` (\`requestAudioFocus\`)**: Khắc phục lỗi Android 10 (\`AudioService\`) tự gửi \`AUDIOFOCUS_LOSS\` về listener cũ và tự dừng \`BitPerfectAudioPlayer\` ngay khi người dùng bấm Play (resume) hoặc chuyển bài.
+- **Chặn WebView cướp AudioFocus khi Bit-Perfect đang phát**: \`unlockAudioContextOnGesture\`, \`handleTrackRowActivation\` và \`onAndroidAppLifecycle('foreground')\` không gọi \`state.context.resume()\` khi \`BitPerfectAudioPlayer\` đang hoạt động, loại bỏ hoàn toàn hiện tượng chạm vào nút Play/Pause hay màn hình làm nhạc tự dừng.
+- **Non-blocking PCM write & mở khóa Pause/Seek/Resume tức thì**: Chuyển vòng ghi \`AudioTrack.write\` trong \`BitPerfectAudioPlayer\` sang \`WRITE_NON_BLOCKING\` theo từng chunk để phản hồi Pause/Seek/Resume/Next trong <5ms (không kẹt buffer cũ), hỗ trợ resume từ trạng thái \`PLAYSTATE_STOPPED\` lẫn \`PLAYSTATE_PAUSED\`, chặn gửi vị trí cũ khi đang tạm dừng và đồng bộ lại cả trạng thái Play/Pause khi mở khóa màn hình (\`onResume\`).
 
-#### 2. Khôi phục DSD nội bộ & chuẩn hóa đường dẫn Unicode / \`+\` trên Android (\`index.html\`, \`MainActivity.java\`)
-- **Web & Desktop DSD (\`preloadDsdNext\`, \`playTrack\`)**: Nhánh DSD hỗ trợ khôi phục tệp từ \`FileSystemFileHandle\` thông qua \`ensureLocalTrackPlayableUrl(track, { requestPermission: true })\` (và nạp ngầm \`fileHandle\` ở \`preloadDsdNext\` cho máy tính không ở chế độ FiiO), kiểm tra lỗi HTTP trước khi đọc blob \`/local-media\` và chuẩn hóa tên tệp/MIME qua \`library.normalizeAudioBlob\`.
-- **Android Local & MediaStore (\`resolveReadableLocalFile\`, \`resolveMediaStoreContentUriForPath\`)**: Tách hàm \`resolveReadableLocalFile\` dùng chung cho \`extractCoverJpeg\`, \`handleLocalMediaStreaming\` và \`BitPerfectAudioPlayer.runPlaybackLoop\`, bảo toàn ký tự \`+\` (\`.replace("+", "%2B")\`) khi giải mã URL (\`#\`, \`%\`, \`?\`, \`+\`) và thử lần lượt dạng chuẩn hóa Unicode \`NFC\`/\`NFD\` trên thẻ nhớ FAT32/exFAT lẫn truy vấn \`MediaStore.DATA\`.
+#### 2. Phản hồi cảm ứng 1 chạm cho thanh phát Play/Pause trên FiiO M11S (\`index.html\`)
+- **Không còn nuốt thao tác bấm nút Play/Pause sau khi chọn bài**: Bộ chống lặp click của Fast-Tap chỉ chặn click trùng trên chính phần tử vừa chạm thay vì chặn mọi click trong 450ms.
+- **Bấm 1 chạm tin cậy & đồng bộ trạng thái thật từ Native**: Bổ sung \`attachReliableTransportTap\` cho các nút \`#play-button\`, \`#room-play\`, \`#mini-play\`, \`#fullscreen-play-btn\`, \`#previous-button\`, \`#next-button\` (chịu lệch tay đến 18px trên màn hình 5 inch, không double-toggle), nâng \`z-index\` cụm điều khiển trên thanh phát, đồng bộ \`handleNativeBitPerfectPlayPauseClick\` theo trạng thái thật \`isBitPerfectPlaying()\` và cộng bù \`cueStart\` khi tua CUE trên Bit-Perfect.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

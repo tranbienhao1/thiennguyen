@@ -302,18 +302,19 @@ test('3. MainActivity.java local path resolution preserves literal + and Unicode
   assert.ok(bpResolve.includes('File localFile = resolveReadableLocalFile(resolvedPath);'));
 });
 
-test('4. Version consistency (v3.9.52 / versionCode 106) and Chromium 74 syntax safety in new code', () => {
+test('4. Version consistency (v3.9.52+ / versionCode >= 106) and Chromium 74 syntax safety in new code', () => {
   const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
   const gradle = fs.readFileSync(path.join(ROOT, 'android/app/build.gradle.kts'), 'utf8');
   const java = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const release = fs.readFileSync(path.join(ROOT, '.agent/publish-release.cjs'), 'utf8');
 
-  assert.ok(sw.includes("const CACHE_VERSION = 'v3.9.52';"));
-  assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.52';"));
-  assert.ok(gradle.includes('versionCode = 106'));
-  assert.ok(gradle.includes('versionName = "3.9.52"'));
-  assert.ok(java.includes('"3.9.52"'));
-  assert.ok(html.includes('FiiO M11S · v3.9.52'));
-  assert.ok(release.includes("'v3.9.52'"));
+  assert.match(sw, /const CACHE_VERSION = 'v3\.9\.(5[2-9]|[6-9]\d)';/);
+  assert.match(sw, /const CACHE_NAME = 'nocturne-v3\.9\.(5[2-9]|[6-9]\d)';/);
+  const vcMatch = gradle.match(/versionCode\s*=\s*(\d+)\b/);
+  assert.ok(vcMatch && Number(vcMatch[1]) >= 106, 'versionCode must be >= 106');
+  assert.match(gradle, /versionName\s*=\s*"3\.9\.(5[2-9]|[6-9]\d)"/);
+  assert.match(java, /"3\.9\.(5[2-9]|[6-9]\d)"/);
+  assert.match(html, /FiiO M11S · v3\.9\.(5[2-9]|[6-9]\d)/);
+  assert.match(release, /'v3\.9\.(5[2-9]|[6-9]\d)'/);
 });

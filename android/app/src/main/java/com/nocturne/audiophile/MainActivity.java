@@ -168,7 +168,8 @@ public class MainActivity extends AppCompatActivity {
     private WifiManager.WifiLock mWifiLock;
     private AudioManager mAudioManager;
     private AudioFocusRequest mAudioFocusRequest;
-    private boolean mHasAudioFocus = false;
+    private AudioManager.OnAudioFocusChangeListener mLegacyAudioFocusListener;
+    private volatile boolean mHasAudioFocus = false;
     private volatile boolean mPausedByTransientFocusLoss = false;
     private int mRendererRecoveryCount = 0;
     private long mRendererRecoveryWindowStartMs = 0L;
@@ -1432,6 +1433,7 @@ public class MainActivity extends AppCompatActivity {
      * Request Audio Focus for bit-perfect/exclusive media playback
      */
     public boolean requestAudioFocus() {
+        synchronized (this) {
         if (mAudioManager == null) return false;
 
         AudioAttributes playbackAttributes = new AudioAttributes.Builder()
@@ -1440,100 +1442,128 @@ public class MainActivity extends AppCompatActivity {
                 .build();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            mAudioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                    .setAudioAttributes(playbackAttributes)
-                    .setAcceptsDelayedFocusGain(true)
-                    .setOnAudioFocusChangeListener(focusChange -> {
-                        switch (focusChange) {
-                            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
-                                // Smoothly duck volume during GPS/notification chime without pausing
-                                if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
-                                    mBitPerfectPlayer.setDucking(true);
-                                }
-                                if (mWebView != null) {
-                                    mWebView.post(() -> mWebView.evaluateJavascript(
-                                            "if (typeof window.onAndroidAudioDuck === 'function') window.onAndroidAudioDuck(true);",
-                                            null));
-                                }
-                                break;
-                            case AudioManager.AUDIOFOCUS_LOSS:
-                                mHasAudioFocus = false;
-                                mPausedByTransientFocusLoss = false;
-                                // Only pause native BitPerfectAudioPlayer if actively playing.
-                                // NEVER blindly click #play-button on WebView because Chromium WebView
-                                // natively requests AUDIOFOCUS_GAIN for HTML5/WebAudio playback, which
-                                // triggers AUDIOFOCUS_LOSS here and would self-pause WebView playback!
-                                if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
-                                    mBitPerfectPlayer.pause();
+            // Reuse a single AudioFocusRequest so resume() / next-track start() never creates a second
+            // focus client ID that causes Android AudioService to dispatch AUDIOFOCUS_LOSS to our own
+            // previous listener and immediately self-pause BitPerfectAudioPlayer on FiiO M11S.
+            if (mAudioFocusRequest == null) {
+                mAudioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                        .setAudioAttributes(playbackAttributes)
+                        .setAcceptsDelayedFocusGain(true)
+                        .setOnAudioFocusChangeListener(focusChange -> {
+                            switch (focusChange) {
+                                case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                                    // Smoothly duck volume during GPS/notification chime without pausing
+                                    if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                                        mBitPerfectPlayer.setDucking(true);
+                                    }
                                     if (mWebView != null) {
                                         mWebView.post(() -> mWebView.evaluateJavascript(
-                                                "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
+                                                "if (typeof window.onAndroidAudioDuck === 'function') window.onAndroidAudioDuck(true);",
                                                 null));
                                     }
-                                }
-                                break;
-                            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-                                mHasAudioFocus = false;
-                                if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
-                                    mPausedByTransientFocusLoss = true;
-                                    mBitPerfectPlayer.pause();
-                                    if (mWebView != null) {
-                                        mWebView.post(() -> mWebView.evaluateJavascript(
-                                                "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
-                                                null));
-                                    }
-                                }
-                                break;
-                            case AudioManager.AUDIOFOCUS_GAIN:
-                                mHasAudioFocus = true;
-                                if (mBitPerfectPlayer != null) {
-                                    mBitPerfectPlayer.setDucking(false);
-                                    if (mPausedByTransientFocusLoss && mBitPerfectPlayer.isPaused()) {
-                                        mPausedByTransientFocusLoss = false;
-                                        mBitPerfectPlayer.resume();
+                                    break;
+                                case AudioManager.AUDIOFOCUS_LOSS:
+                                    mHasAudioFocus = false;
+                                    mPausedByTransientFocusLoss = false;
+                                    // Only pause native BitPerfectAudioPlayer if actively playing.
+                                    // NEVER blindly click #play-button on WebView because Chromium WebView
+                                    // natively requests AUDIOFOCUS_GAIN for HTML5/WebAudio playback, which
+                                    // triggers AUDIOFOCUS_LOSS here and would self-pause WebView playback!
+                                    if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                                        mBitPerfectPlayer.pause();
                                         if (mWebView != null) {
                                             mWebView.post(() -> mWebView.evaluateJavascript(
-                                                    "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(true);",
+                                                    "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
                                                     null));
                                         }
                                     }
-                                }
-                                if (mWebView != null) {
-                                    mWebView.post(() -> mWebView.evaluateJavascript(
-                                            "if (typeof window.onAndroidAudioDuck === 'function') window.onAndroidAudioDuck(false);",
-                                            null));
-                                }
-                                break;
-                        }
-                    })
-                    .build();
-
+                                    break;
+                                case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+                                    mHasAudioFocus = false;
+                                    if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                                        mPausedByTransientFocusLoss = true;
+                                        mBitPerfectPlayer.pause();
+                                        if (mWebView != null) {
+                                            mWebView.post(() -> mWebView.evaluateJavascript(
+                                                    "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
+                                                    null));
+                                        }
+                                    }
+                                    break;
+                                case AudioManager.AUDIOFOCUS_GAIN:
+                                    mHasAudioFocus = true;
+                                    if (mBitPerfectPlayer != null) {
+                                        mBitPerfectPlayer.setDucking(false);
+                                        if (mPausedByTransientFocusLoss && mBitPerfectPlayer.isPaused()) {
+                                            mPausedByTransientFocusLoss = false;
+                                            mBitPerfectPlayer.resume();
+                                            if (mWebView != null) {
+                                                mWebView.post(() -> mWebView.evaluateJavascript(
+                                                        "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(true);",
+                                                        null));
+                                            }
+                                        }
+                                    }
+                                    if (mWebView != null) {
+                                        mWebView.post(() -> mWebView.evaluateJavascript(
+                                                "if (typeof window.onAndroidAudioDuck === 'function') window.onAndroidAudioDuck(false);",
+                                                null));
+                                    }
+                                    break;
+                            }
+                        })
+                        .build();
+            }
+            if (mHasAudioFocus) {
+                return true;
+            }
             int result = mAudioManager.requestAudioFocus(mAudioFocusRequest);
             mHasAudioFocus = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED);
         } else {
-            @SuppressWarnings("deprecation")
-            int result = mAudioManager.requestAudioFocus(
-                    focusChange -> {
-                        if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
-                            mHasAudioFocus = false;
-                            mPausedByTransientFocusLoss = false;
-                            if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
-                                mBitPerfectPlayer.pause();
-                            }
-                        } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
-                            mHasAudioFocus = false;
-                            if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
-                                mPausedByTransientFocusLoss = true;
-                                mBitPerfectPlayer.pause();
-                            }
-                        } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
-                            mHasAudioFocus = true;
-                            if (mPausedByTransientFocusLoss && mBitPerfectPlayer != null && mBitPerfectPlayer.isPaused()) {
-                                mPausedByTransientFocusLoss = false;
-                                mBitPerfectPlayer.resume();
+            if (mLegacyAudioFocusListener == null) {
+                mLegacyAudioFocusListener = focusChange -> {
+                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                        mHasAudioFocus = false;
+                        mPausedByTransientFocusLoss = false;
+                        if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                            mBitPerfectPlayer.pause();
+                            if (mWebView != null) {
+                                mWebView.post(() -> mWebView.evaluateJavascript(
+                                        "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
+                                        null));
                             }
                         }
-                    },
+                    } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                        mHasAudioFocus = false;
+                        if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                            mPausedByTransientFocusLoss = true;
+                            mBitPerfectPlayer.pause();
+                            if (mWebView != null) {
+                                mWebView.post(() -> mWebView.evaluateJavascript(
+                                        "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
+                                        null));
+                            }
+                        }
+                    } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+                        mHasAudioFocus = true;
+                        if (mPausedByTransientFocusLoss && mBitPerfectPlayer != null && mBitPerfectPlayer.isPaused()) {
+                            mPausedByTransientFocusLoss = false;
+                            mBitPerfectPlayer.resume();
+                            if (mWebView != null) {
+                                mWebView.post(() -> mWebView.evaluateJavascript(
+                                        "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(true);",
+                                        null));
+                            }
+                        }
+                    }
+                };
+            }
+            if (mHasAudioFocus) {
+                return true;
+            }
+            @SuppressWarnings("deprecation")
+            int result = mAudioManager.requestAudioFocus(
+                    mLegacyAudioFocusListener,
                     AudioManager.STREAM_MUSIC,
                     AudioManager.AUDIOFOCUS_GAIN
             );
@@ -1541,14 +1571,20 @@ public class MainActivity extends AppCompatActivity {
         }
 
         return mHasAudioFocus;
+        }
     }
 
     public void abandonAudioFocus() {
-        if (mAudioManager != null && mHasAudioFocus) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mAudioFocusRequest != null) {
-                mAudioManager.abandonAudioFocusRequest(mAudioFocusRequest);
+        synchronized (this) {
+            if (mAudioManager != null && mHasAudioFocus) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && mAudioFocusRequest != null) {
+                    mAudioManager.abandonAudioFocusRequest(mAudioFocusRequest);
+                } else if (mLegacyAudioFocusListener != null) {
+                    @SuppressWarnings("deprecation")
+                    int ignored = mAudioManager.abandonAudioFocus(mLegacyAudioFocusListener);
+                }
+                mHasAudioFocus = false;
             }
-            mHasAudioFocus = false;
         }
     }
 
@@ -1566,6 +1602,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception ignored) {}
             final boolean isPowerSave = psm;
             final boolean syncBpPos = mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused());
+            final boolean bpPlayingNow = syncBpPos && mBitPerfectPlayer.isPlaying();
             final long bpPosMs = syncBpPos ? mBitPerfectPlayer.getPositionMs() : 0L;
             final long bpDurMs = syncBpPos ? mBitPerfectPlayer.getDurationMs() : 0L;
             mWebView.post(() -> {
@@ -1576,6 +1613,8 @@ public class MainActivity extends AppCompatActivity {
                 js.append("if(typeof window.onAndroidPowerSaveChanged==='function'){window.onAndroidPowerSaveChanged(")
                   .append(isPowerSave ? "true" : "false").append(");}");
                 if (syncBpPos) {
+                    js.append("if(typeof window.onNativeBitPerfectStateChange==='function'){window.onNativeBitPerfectStateChange(")
+                      .append(bpPlayingNow ? "true" : "false").append(");}");
                     js.append("if(typeof window.onNativeBitPerfectPosition==='function'){window.onNativeBitPerfectPosition(")
                       .append(bpPosMs).append(",").append(bpDurMs).append(");}");
                 }
@@ -4163,7 +4202,7 @@ public class MainActivity extends AppCompatActivity {
             AudioTrack track = mAudioTrack;
             if (track != null) {
                 try {
-                    if (track.getPlayState() == AudioTrack.PLAYSTATE_PAUSED) {
+                    if (track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
                         track.play();
                     }
                 } catch (Exception ignored) {}
@@ -4657,8 +4696,8 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }
                     }
-                    if (mIsStopped) break;
-                    if (track.getPlayState() == AudioTrack.PLAYSTATE_PAUSED) {
+                    if (mIsStopped || mPlaybackEpoch.get() != epoch) break;
+                    if (!mIsPaused && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
                         track.play();
                     }
 
@@ -4793,7 +4832,9 @@ public class MainActivity extends AppCompatActivity {
                             if (preferredDevice != null) track.setPreferredDevice(preferredDevice);
                             try { track.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
                             notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, preferredDevice);
-                            track.play();
+                            if (!mIsPaused && !mIsStopped) {
+                                track.play();
+                            }
                         }
                     } else if (outIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
                         if (sawInputEOS) {
@@ -4812,7 +4853,47 @@ public class MainActivity extends AppCompatActivity {
                         if (outBuf != null && info.size > 0 && track != null) {
                             outBuf.position(info.offset);
                             outBuf.limit(info.offset + info.size);
-                            int written = track.write(outBuf, info.size, AudioTrack.WRITE_BLOCKING);
+                            int totalWritten = 0;
+                            int written = 0;
+                            boolean abortedForSeek = false;
+                            while (outBuf.hasRemaining() && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                                if (mSeekTargetUs.get() >= 0L) {
+                                    abortedForSeek = true;
+                                    break;
+                                }
+                                if (mIsPaused) {
+                                    synchronized (mPauseLock) {
+                                        while (mIsPaused && !mIsStopped && mPlaybackEpoch.get() == epoch && mSeekTargetUs.get() < 0L) {
+                                            if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                                                try { track.pause(); } catch (Exception ignored) {}
+                                            }
+                                            try {
+                                                mPauseLock.wait();
+                                            } catch (InterruptedException ie) {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (mIsStopped || mPlaybackEpoch.get() != epoch) break;
+                                    if (mSeekTargetUs.get() >= 0L) {
+                                        abortedForSeek = true;
+                                        break;
+                                    }
+                                    if (!mIsPaused && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                                        try { track.play(); } catch (Exception ignored) {}
+                                    }
+                                }
+                                int rem = outBuf.remaining();
+                                written = track.write(outBuf, rem, AudioTrack.WRITE_NON_BLOCKING);
+                                if (written < 0) {
+                                    break;
+                                }
+                                if (written > 0) {
+                                    totalWritten += written;
+                                } else {
+                                    try { Thread.sleep(5); } catch (InterruptedException ie) { break; }
+                                }
+                            }
                             if (written < 0) {
                                 decoder.releaseOutputBuffer(outIndex, false);
                                 if (!mIsStopped && mPlaybackEpoch.get() == epoch) {
@@ -4820,39 +4901,41 @@ public class MainActivity extends AppCompatActivity {
                                 }
                                 break;
                             }
-                            if (written > 0) {
-                                writtenFramesSinceBase += (written / Math.max(1, bytesPerFrame));
+                            if (totalWritten > 0) {
+                                writtenFramesSinceBase += (totalWritten / Math.max(1, bytesPerFrame));
                             }
-                            long pcmPosMs = basePositionMs + ((writtenFramesSinceBase * 1000L) / Math.max(1, sampleRate));
-                            long ptsPosMs = info.presentationTimeUs > 0 ? (info.presentationTimeUs / 1000L) : -1L;
-                            if (ptsPosMs > 0 && ptsPosMs == lastPtsPosMs) {
-                                stuckPtsCount++;
-                            } else if (ptsPosMs > 0) {
-                                stuckPtsCount = 0;
-                                lastPtsPosMs = ptsPosMs;
-                            }
-                            long posMs = (ptsPosMs > 0 && stuckPtsCount < 3)
-                                    ? Math.max(ptsPosMs, Math.max(0L, pcmPosMs - 1500L))
-                                    : pcmPosMs;
-                            long knownDurMs = mDurationMs.get();
-                            if (knownDurMs > 0 && posMs > knownDurMs) {
-                                posMs = knownDurMs;
-                            }
-                            mCurrentPositionMs.set(posMs);
-                            long nowElapsed = SystemClock.uptimeMillis();
-                            final long uiUpdateIntervalMs = mIsInBackground ? 2000L : 250L;
-                            if ((lastUiUpdateElapsedMs == 0L || (nowElapsed - lastUiUpdateElapsedMs >= uiUpdateIntervalMs)) && !mIsStopped && mWebView != null) {
-                                lastUiUpdateElapsedMs = nowElapsed;
-                                final long reportPosMs = posMs;
-                                final long reportDurMs = mDurationMs.get();
-                                mWebView.post(() -> {
-                                    if (!mIsStopped && mWebView != null) {
-                                        mWebView.evaluateJavascript(
-                                                "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + reportPosMs + ", " + reportDurMs + ");",
-                                                null
-                                        );
-                                    }
-                                });
+                            if (!abortedForSeek && !mIsStopped && !mIsPaused && mPlaybackEpoch.get() == epoch) {
+                                long pcmPosMs = basePositionMs + ((writtenFramesSinceBase * 1000L) / Math.max(1, sampleRate));
+                                long ptsPosMs = info.presentationTimeUs > 0 ? (info.presentationTimeUs / 1000L) : -1L;
+                                if (ptsPosMs > 0 && ptsPosMs == lastPtsPosMs) {
+                                    stuckPtsCount++;
+                                } else if (ptsPosMs > 0) {
+                                    stuckPtsCount = 0;
+                                    lastPtsPosMs = ptsPosMs;
+                                }
+                                long posMs = (ptsPosMs > 0 && stuckPtsCount < 3)
+                                        ? Math.max(ptsPosMs, Math.max(0L, pcmPosMs - 1500L))
+                                        : pcmPosMs;
+                                long knownDurMs = mDurationMs.get();
+                                if (knownDurMs > 0 && posMs > knownDurMs) {
+                                    posMs = knownDurMs;
+                                }
+                                mCurrentPositionMs.set(posMs);
+                                long nowElapsed = SystemClock.uptimeMillis();
+                                final long uiUpdateIntervalMs = mIsInBackground ? 2000L : 250L;
+                                if ((lastUiUpdateElapsedMs == 0L || (nowElapsed - lastUiUpdateElapsedMs >= uiUpdateIntervalMs)) && !mIsStopped && !mIsPaused && mWebView != null) {
+                                    lastUiUpdateElapsedMs = nowElapsed;
+                                    final long reportPosMs = posMs;
+                                    final long reportDurMs = mDurationMs.get();
+                                    mWebView.post(() -> {
+                                        if (!mIsStopped && !mIsPaused && mWebView != null) {
+                                            mWebView.evaluateJavascript(
+                                                    "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + reportPosMs + ", " + reportDurMs + ");",
+                                                    null
+                                            );
+                                        }
+                                    });
+                                }
                             }
                         }
                         decoder.releaseOutputBuffer(outIndex, false);
@@ -5189,11 +5272,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.52";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.53";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.52\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.53\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
