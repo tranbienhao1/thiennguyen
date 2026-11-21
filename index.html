@@ -2363,7 +2363,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.45</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.46</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3654,11 +3654,13 @@
       if (!cover.startsWith('data:image')) return cover;
       return cover.length > MAX_CATALOG_COVER_CHARS ? null : cover;
     }
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, savedAt:Date.now()});
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
       const track = {id:`google:${file.id}`, remoteId:file.id, name:file.name || `Audio ${file.id}`, title:metadata.title, artist:metadata.artist, album:metadata.album, format, size:Number(file.size) || 0, source:'google', url:'', thumbnailUrl:file.thumbnailLink || '', isDsd:isDsdFormat(format), load:() => loadGoogleAudio(file.id)};
       if (Array.isArray(file.parents) && file.parents.length) track.parents = file.parents.slice(0, 3);
+      const gRev = file.md5Checksum || file.modifiedTime || '';
+      if (gRev) track.contentRev = String(gRev);
       return track;
     };
     const microsoftTrack = (item, remotePath = '', existing = null) => {
@@ -3676,12 +3678,15 @@
       }, fallback);
       const msTrack = {id:`onedrive:${item.id}`, remoteId:item.id, remotePath, name:item.name || `Audio ${item.id}`, ...graphMetadata, format, size:Number(item.size) || 0, source:'onedrive', url:'', thumbnailUrl:thumbnail && thumbnail.url || '', downloadUrl:item['@microsoft.graph.downloadUrl'] || '', duration:Number(item.audio && item.audio.duration) / 1000 || 0, isDsd:isDsdFormat(format), metadataLoaded:graphMetadataLoaded, load:() => loadMicrosoftAudio(item.id)};
       if (rawAlbumArtist) msTrack.albumArtist = rawAlbumArtist;
+      const msRev = item.cTag || item.eTag || '';
+      if (msRev) msTrack.contentRev = String(msRev);
       return msTrack;
     };
     function mergeMicrosoftTrack(track, item, remotePath = '') {
-      const currentUrl = track.url, currentFile = track.file;
+      const currentUrl = track.url, currentFile = track.file, currentRev = track.contentRev;
       const enriched = microsoftTrack(item, remotePath || track.remotePath, {title:track.title, artist:track.artist, album:track.album});
       Object.assign(track, enriched);
+      if (!enriched.contentRev && currentRev) track.contentRev = currentRev;
       track.url = currentUrl || '';
       if (currentFile) track.file = currentFile;
       track.load = () => loadMicrosoftAudio(track.remoteId);
@@ -5340,6 +5345,28 @@
         try { t._fullUpgradeAbort.abort(); } catch (_) {}
         t._fullUpgradeAbort = null;
       }
+    }
+    // v3.9.46: nội dung file trên Drive/OneDrive bị thay (remaster, re-encode) thì lát đầu đã cache
+    // và URL tải nền cũ sẽ phát bản cũ; xóa cache lát đầu + URL phụ và đánh dấu đọc lại metadata.
+    function invalidateCloudTrackContent(track) {
+      if (!track || !['google','onedrive'].includes(track.source)) return false;
+      try {
+        const cacheKey = library.historyTrackKey(track);
+        if (cacheKey) sliceCacheTransaction('readwrite').delete(cacheKey);
+      } catch (_) {}
+      track.firstSliceCached = false;
+      track.metadataLoaded = false;
+      track.moovAtTail = false;
+      track.fullAudioError = null;
+      if (track._fullUpgradeAbort && track.id !== state.currentId) {
+        try { track._fullUpgradeAbort.abort(); } catch (_) {}
+        track._fullUpgradeAbort = null;
+      }
+      if (track.id !== state.currentId && track.id !== state.preloadTrackId) {
+        releaseUnusedCloudUrl(track);
+        track.file = null;
+      }
+      return true;
     }
     function releaseUnusedCloudUrl(track) {
       if (!track || !['google','onedrive'].includes(track.source)) return;
@@ -15067,10 +15094,19 @@
                   touched = true;
                 }
                 const fSize = Number(file.size) || 0;
+                let contentChanged = false;
                 if (fSize > 0 && existing.size !== fSize) {
+                  if (existing.size > 0) contentChanged = true;
                   existing.size = fSize;
                   touched = true;
                 }
+                const incomingRev = String(file.md5Checksum || file.modifiedTime || '');
+                if (incomingRev && existing.contentRev !== incomingRev) {
+                  if (existing.contentRev) contentChanged = true;
+                  existing.contentRev = incomingRev;
+                  touched = true;
+                }
+                if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
                 if (file.name && existing.name !== file.name) {
                   existing.name = file.name;
                   touched = true;
@@ -15408,7 +15444,7 @@
       const scoreFolderCover = (typeof library !== 'undefined' && typeof library.scoreFolderCoverFilename === 'function')
         ? library.scoreFolderCoverFilename
         : () => 0;
-      const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,size,audio&$top=500', path:''}];
+      const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,cTag,size,audio&$top=500', path:''}];
       const updatedExistingTracks = [];
       try {
         const FOLDER_BATCH_CONCURRENCY = 3;
@@ -15435,11 +15471,20 @@
                     existing.remotePath = itemPath;
                     touched = true;
                   }
+                  let msContentChanged = false;
                   const iSize = Number(item.size) || 0;
                   if (iSize > 0 && existing.size !== iSize) {
+                    if (existing.size > 0) msContentChanged = true;
                     existing.size = iSize;
                     touched = true;
                   }
+                  const msIncomingRev = String(item.cTag || item.eTag || '');
+                  if (msIncomingRev && existing.contentRev !== msIncomingRev) {
+                    if (existing.contentRev) msContentChanged = true;
+                    existing.contentRev = msIncomingRev;
+                    touched = true;
+                  }
+                  if (msContentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
                   if (item.audio && (!existing.metadataLoaded || !existing.cover)) {
                     mergeMicrosoftTrack(existing, item, itemPath);
                     touched = true;
@@ -15448,7 +15493,7 @@
                 }
               }
               if (item.folder) {
-                queue.push({url:`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,size,audio&$top=500`, path:itemPath});
+                queue.push({url:`https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,cTag,size,audio&$top=500`, path:itemPath});
                 continue;
               }
               if (!isCloudAudio(item)) {
@@ -19786,6 +19831,56 @@
     });
     [$('volume'), $('volume-mobile')].forEach(input => input.addEventListener('input', () => setGain(input.value)));
     let lastDisplayedPlaybackSecond = -1;
+    // v3.9.46: khi deck chờ (standbyAudio) gặp lỗi giải mã hoặc hết hạn URL/lát cache đầu trước khi chuyển bài,
+    // dọn sạch deck chờ, thu hồi URL hỏng / xóa lát đầu lỗi và tự nạp lại tối đa 1 lần trong cửa sổ 60 giây.
+    function recoverFailedStandbyPreload(failedTrackId, failedElement) {
+      const deckEl = failedElement || standbyAudio;
+      try {
+        if (deckEl && typeof deckEl.pause === 'function') deckEl.pause();
+        if (deckEl && typeof deckEl.removeAttribute === 'function') deckEl.removeAttribute('src');
+        if (deckEl && typeof deckEl.load === 'function') deckEl.load();
+      } catch (_) {}
+      state.preloadBusyId = null;
+      if (!failedTrackId || !Array.isArray(state.tracks)) return false;
+      const failedTrack = state.tracks.find(item => item && item.id === failedTrackId);
+      if (!failedTrack || failedTrack.id === state.currentId) return false;
+      if (failedTrack.source === 'local') {
+        if (typeof releaseUnusedLocalUrl === 'function') {
+          releaseUnusedLocalUrl(failedTrack);
+        } else if (failedTrack.url && failedTrack.url.startsWith('blob:')) {
+          failedTrack.url = '';
+        }
+      } else if (failedTrack.source === 'google' || failedTrack.source === 'onedrive') {
+        if ((failedTrack.firstSlicePlayback || failedTrack.firstSliceCached) && typeof invalidateCloudTrackContent === 'function') {
+          invalidateCloudTrackContent(failedTrack);
+        } else if (typeof releaseUnusedCloudUrl === 'function') {
+          releaseUnusedCloudUrl(failedTrack);
+        }
+        failedTrack.firstSlicePlayback = false;
+        failedTrack.fullAudioUrl = null;
+        if (failedTrack.source === 'onedrive') {
+          failedTrack.downloadUrl = '';
+          failedTrack.downloadUrlAt = 0;
+        }
+      }
+      const now = Date.now();
+      const prevAt = Number(failedTrack._standbyRecoveryAt || 0);
+      const prevCount = (now - prevAt < 60000) ? Number(failedTrack._standbyRecoveryCount || 0) : 0;
+      if (prevCount >= 1) {
+        state._preloadFailedTrackId = failedTrack.id;
+        state._preloadFailedAt = now;
+        return false;
+      }
+      failedTrack._standbyRecoveryAt = now;
+      failedTrack._standbyRecoveryCount = prevCount + 1;
+      const retryGeneration = state.playGeneration;
+      setTimeout(() => {
+        if (retryGeneration !== state.playGeneration) return;
+        if (!state.currentId || state.preloadReadyUrl || state.preloadBusyId) return;
+        if (typeof preloadNext === 'function') preloadNext(true);
+      }, 1200);
+      return true;
+    }
     function attachDeckEvents(element) {
       // Pha C — đổi deck đang phát lát đầu sang file đầy đủ ở đúng vị trí
       // rồi phát tiếp, dùng chung cho 'ended' và 'error' khi tải nền đã
@@ -20184,7 +20279,14 @@
       });
       element.addEventListener('error', () => {
         if (element._unlockingGesture) return;
-        if (element === standbyAudio) { state.preloadTrackId = null; state.preloadReadyUrl = null; console.warn('Next track preload failed.'); return; }
+        if (element === standbyAudio) {
+          const failedId = state.preloadTrackId;
+          state.preloadTrackId = null;
+          state.preloadReadyUrl = null;
+          if (typeof recoverFailedStandbyPreload === 'function') recoverFailedStandbyPreload(failedId, element);
+          console.warn('Next track preload failed.');
+          return;
+        }
         if (element !== audio) return;
         const track = state.tracks.find(item => item.id === state.currentId);
         // Pha C — file đầy đủ đã tải xong nhưng swap bị bỏ lỡ (như guard

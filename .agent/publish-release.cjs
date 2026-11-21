@@ -80,20 +80,19 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.45';
-  const name = process.argv[3] || `Nocturne ${tag} (Tiền làm mới token/downloadUrl Cloud trong preloadNext, khớp CUE đa thư mục & đồng bộ tăng trưởng bộ nhớ nội bộ/MicroSD)`;
+  const tag = process.argv[2] || 'v3.9.46';
+  const name = process.argv[3] || `Nocturne ${tag} (Làm mới cache lát đầu khi đổi file Google Drive/OneDrive & tự phục hồi deck nạp trước standbyAudio)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 99) — Tiền làm mới token/downloadUrl Cloud trong preloadNext, khớp CUE đa thư mục & đồng bộ tăng trưởng bộ nhớ nội bộ/MicroSD
+    : `### Nocturne ${tag} (versionCode 100) — Làm mới cache lát đầu khi đổi file Google Drive/OneDrive & tự phục hồi deck nạp trước standbyAudio
 
-#### 1. Tiền làm mới \`downloadUrl\` OneDrive & OAuth Token Google Drive / OneDrive trong \`preloadNext\` & \`preloadDsdNext\` (\`index.html\`)
-- **\`prepareCloudTrackForPreload(track)\`**: Tự động phát hiện \`track.downloadUrl\` OneDrive sắp chạm ngưỡng hết hạn (còn dưới 5 phút của chu kỳ 30 phút hoặc thiếu \`downloadUrlAt\`) để xóa và xin lại link mới qua \`resolveMicrosoftDownloadUrl\`, đồng thời chủ động làm mới token Google Drive (\`ensureGoogleToken\`) và OneDrive (\`getMicrosoftToken\`) khi còn dưới 3 phút hiệu lực ngay trong bước nạp trước (\`preloadNext\` / \`preloadDsdNext\`).
-- Giảm thời gian chờ thử lại preload từ 30 giây xuống 8 giây và xóa cờ lỗi preload ngay khi nạp trước thành công.
+#### 1. Phát hiện thay đổi file nhạc & vô hiệu hóa cache lát đầu trên Google Drive / OneDrive (\`index.html\`)
+- **\`contentRev\` & \`invalidateCloudTrackContent\`**: Lưu \`contentRev\` (\`md5Checksum\` / \`modifiedTime\` với Google Drive; \`cTag\` / \`eTag\` với OneDrive) vào bộ nhớ catalog IndexedDB (\`serializableCloudTrack\`) và bổ sung trường \`cTag\` trong truy vấn Microsoft Graph \`loadMicrosoftFiles\`.
+- Khi quét lại thư viện (\`loadGoogleFiles\`, \`loadMicrosoftFiles\`) phát hiện kích thước (\`size\`) hoặc \`contentRev\` thay đổi (bài remaster / ghi đè mới), tự động xóa bản ghi \`firstSliceCache\` cũ trong IndexedDB, đặt lại \`firstSliceCached\` / \`metadataLoaded\` / \`moovAtTail\` / \`fullAudioError\`, hủy tác vụ nâng cấp nền đang chạy dở (trừ bài đang phát) và thu hồi URL Cloud cũ để phát đúng bản mới trên cả Web và Android APK.
 
-#### 2. Khớp file âm thanh gốc cho CUE đa thư mục / đổi đuôi & Đồng bộ tăng trưởng bộ nhớ nội bộ / MicroSD (\`index.html\`)
-- **\`addLocalFiles\` Smart CUE Matching**: Ưu tiên khớp file âm thanh nằm cùng thư mục (\`cueDir\`), tự động bỏ tiền tố đường dẫn trong \`FILE "..."\`, hỗ trợ khớp theo tên gốc khi file nhạc đã chuyển từ \`.wav\` sang \`.flac\`/\`.ape\`/\`.wv\` hoặc file \`.cue\` có đuôi kép (\`album.flac.cue\`), và bỏ qua \`makeLocalTrack\` dư thừa khi toàn bộ CUE sub-track đã tồn tại khi quét lại thư mục.
-- **\`ingestFiioScannedFilesChunk\` Incremental Upgrade**: Đồng bộ hai chiều \`existingUris\`/\`existingPaths\` khi bài hát nội bộ nhận thêm \`content://\` URI hoặc đường dẫn, bổ sung \`size\` và \`trackNumber\` còn thiếu, và tự động gọi \`restoreLocalTrackUrlSync\` để đảm bảo URL \`/local-media\` luôn hợp lệ.
+#### 2. Tự phục hồi deck nạp trước \`standbyAudio\` khi gặp lỗi giải mã hoặc hết hạn URL (\`index.html\`)
+- **\`recoverFailedStandbyPreload\`**: Gắn vào trình xử lý sự kiện \`error\` của \`standbyAudio\` trong \`attachDeckEvents\`; tự động dọn sạch \`standbyAudio\`, thu hồi URL \`blob:\` nội bộ hỏng (\`releaseUnusedLocalUrl\`), xóa cache lát đầu & đặt lại \`downloadUrl\` OneDrive bị hết hạn/lỗi với bài Cloud, và tự kích hoạt nạp lại tối đa 1 lần sau 1200ms trong cửa sổ 60 giây (tránh vòng lặp lỗi vô hạn).
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
