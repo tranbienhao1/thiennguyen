@@ -5540,11 +5540,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.67";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.68";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.67\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.68\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -5878,6 +5878,75 @@ public class MainActivity extends AppCompatActivity {
                 if (rawName.toLowerCase(Locale.US).endsWith(".flac")) {
                     String embedded = extractFlacVorbisLyricsFromFile(audioFile);
                     if (!embedded.isEmpty()) return embedded;
+                }
+            } catch (Throwable ignored) {}
+            return "";
+        }
+
+        private static String normalizeCueLyricsTitle(@Nullable String raw) {
+            if (raw == null) return "";
+            String nfc = java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFC);
+            String cleaned = nfc.toLowerCase(Locale.ROOT)
+                .replaceAll("[\\\\/:*?\"<>|]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+            return cleaned;
+        }
+
+        private static int scoreCueLyricsCandidate(String kidBaseRaw, String normTitle, int trackNumber) {
+            if (kidBaseRaw == null || normTitle == null || normTitle.isEmpty()) return -1;
+            String normKid = normalizeCueLyricsTitle(kidBaseRaw);
+            if (normKid.isEmpty()) return -1;
+            if (normKid.equals(normTitle)) return 0;
+            if (trackNumber > 0) {
+                String strippedNum = normKid.replaceFirst("^0*" + trackNumber + "[\\s._-]+", "").trim();
+                if (!strippedNum.equals(normKid) && strippedNum.equals(normTitle)) return 0;
+            }
+            String strippedAny = normKid.replaceFirst("^\\d{1,3}[\\s._-]+", "").trim();
+            if (!strippedAny.equals(normKid) && strippedAny.equals(normTitle)) return 1;
+            return -1;
+        }
+
+        @JavascriptInterface
+        public String readLocalCueLyrics(@Nullable String filePath, @Nullable String contentUri, @Nullable String trackTitle, int trackNumber) {
+            try {
+                String normTitle = normalizeCueLyricsTitle(trackTitle);
+                if (normTitle.isEmpty()) return "";
+                File audioFile = null;
+                if (filePath != null && !filePath.trim().isEmpty()) {
+                    audioFile = resolveReadableLocalFile(filePath.trim());
+                }
+                if (audioFile == null && contentUri != null && !contentUri.trim().isEmpty()) {
+                    try {
+                        audioFile = mActivity.resolveFileFromContentUri(Uri.parse(contentUri.trim()));
+                    } catch (Throwable ignored) {}
+                }
+                if (audioFile == null || !audioFile.exists() || !audioFile.isFile()) return "";
+                File parent = audioFile.getParentFile();
+                if (parent == null || !parent.isDirectory()) return "";
+                File[] siblings = parent.listFiles();
+                if (siblings == null) return "";
+                File bestFile = null;
+                int bestScore = Integer.MAX_VALUE;
+                for (File kid : siblings) {
+                    if (kid == null || !kid.isFile()) continue;
+                    String kn = kid.getName();
+                    int kd = kn.lastIndexOf('.');
+                    if (kd <= 0) continue;
+                    String ext = kn.substring(kd).toLowerCase(Locale.US);
+                    int extRank = ".lrc".equals(ext) ? 1 : (".lyricsfile".equals(ext) ? 2 : (".txt".equals(ext) ? 3 : 99));
+                    if (extRank >= 99) continue;
+                    int matchScore = scoreCueLyricsCandidate(kn.substring(0, kd), normTitle, trackNumber);
+                    if (matchScore < 0) continue;
+                    int totalScore = matchScore * 10 + extRank;
+                    if (totalScore < bestScore) {
+                        bestScore = totalScore;
+                        bestFile = kid;
+                    }
+                }
+                if (bestFile != null) {
+                    String sidecar = readLocalLyricsTextFile(bestFile);
+                    if (!sidecar.isEmpty()) return sidecar;
                 }
             } catch (Throwable ignored) {}
             return "";

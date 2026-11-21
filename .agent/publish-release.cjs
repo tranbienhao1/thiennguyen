@@ -80,21 +80,23 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.67';
-  const name = process.argv[3] || `Nocturne ${tag} (Tự xóa lát đệm lỗi khi giải mã hỏng + Dọn bài chia sẻ đã xóa trên OneDrive Delta + Giải mã tự động UTF-8/Shift-JIS/Win-1252 cho .cue/.lrc)`;
+  const tag = process.argv[2] || 'v3.9.68';
+  const name = process.argv[3] || `Nocturne ${tag} (Preload Gapless Cloud chuẩn hóa Token/URL & CUE cùng tệp + Lời .lrc đa bảng mã & bài con CUE + Khóa đồng bộ đơn luồng Drive/OneDrive)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 121) — Tự phục hồi lát đệm lỗi + Dọn bài OneDrive chia sẻ đã xóa khi Delta Sync + Giải mã tự động UTF-8/UTF-16/Shift-JIS/Windows-1252 cho \`.cue\`/\`.lrc\`
+    : `### Nocturne ${tag} (versionCode 122) — Gapless Preload Cloud & CUE cùng tệp + Lời \`.lrc\` đa bảng mã/CUE (Web & Android) + Khóa đồng bộ đơn luồng Google Drive/OneDrive
 
-#### 1. Tự xóa lát đệm hỏng & phát lại sạch từ Cloud (\`index.html\`)
-- **Tự loại bỏ lát đầu bị hỏng/cụt (<64B hoặc lỗi giải mã)**: Bổ sung \`deleteCachedFirstSlice(track)\`, bỏ qua lát lỗi qua cờ \`_bypassSliceCacheOnce\` trong \`fetchCloudTrack\`, và tự dọn lát cache hỏng trong cả \`playTrack\` lẫn \`playDsdTrack\` khi gặp \`NotSupportedError\` trước khi tải trực tiếp từ Google Drive/OneDrive.
+#### 1. Preload Gapless Cloud làm mới Token/URL & không tải trùng tệp cha \`.cue\` (\`index.html\`)
+- **Làm mới chủ động trước khi chuyển bài dài (>25 phút)**: Nâng cấp \`prepareCloudTrackForPreload\` với cửa sổ làm mới 5 phút cho Google Drive (\`ensureGoogleToken(true)\`) và OneDrive (\`getMicrosoftToken(false)\` + \`resolveMicrosoftDownloadUrl\`), đồng thời vẫn làm mới trước khi chuyển sang bài đã có lát đệm (\`firstSlicePlayback\`) để \`upgradeSliceToFullAudio\` không bị 401.
+- **Bỏ qua preload trùng \`standbyAudio\` cho 2 bài con \`.cue\` cùng tệp âm thanh**: Thêm \`isSameCueParentTrack(curTrack, nextTrack)\` giúp tiết kiệm RAM & băng thông đọc thẻ nhớ MicroSD/FiiO M11S.
 
-#### 2. Dọn sạch bài chia sẻ OneDrive đã xóa/hủy chia sẻ ngay trong chế độ Delta Sync (\`index.html\`)
-- **Đồng bộ hoàn chỉnh thư mục chia sẻ (\`sharedWithMe\`)**: Đánh dấu \`_sharedScanComplete\` khi quét trọn vẹn \`enqueueMicrosoftSharedItems\` & \`scanFolderNode\` không lỗi mạng, tự dọn các bài \`remoteDriveId\` đã bị xóa/thu hồi quyền cùng cache lát đầu mồ côi.
+#### 2. Nạp lời \`.lrc\` đa bảng mã (Shift-JIS/UTF-16/Win-1252) & lời bài con \`.cue\` (\`index.html\` + \`MainActivity.java\`)
+- **Web nội bộ**: Chuyển \`addLocalFiles\` sang \`readLocalTextFileAuto\` (tránh lỗi vỡ chữ Nhật/châu Âu từ \`.text()\` UTF-8 cứng), chuẩn hóa NFC đường dẫn, và tự động khớp \`.lrc\` theo tên/số thứ tự bài con \`.cue\` qua \`findLocalCueLrcFile\`.
+- **Android / FiiO MicroSD**: Bổ sung \`NocturneNative.readLocalCueLyrics(filePath, contentUri, trackTitle, trackNumber)\` tìm tệp \`.lrc\`/\`.lyricsfile\`/\`.txt\` trùng tên bài con trong cùng thư mục album thay vì nạp nhầm lời tệp album lớn.
 
-#### 3. Giải mã thông minh UTF-8 / UTF-16 / Shift-JIS / Windows-1252 cho \`.cue\` & \`.lrc\` (\`MainActivity.java\` + \`index.html\`)
-- **Hiển thị đúng tên bài & khớp đúng tên tệp âm thanh trên album CD Nhật Bản / châu Âu**: Nâng cấp \`decodeLyricsBytes\` trên Android/FiiO và thêm \`decodeTextBytesAuto\` / \`readLocalTextFileAuto\` trên Web để tự phát hiện UTF-8 nghiêm ngặt, rơi về Shift-JIS khi chứa Kana/Kanji hợp lệ hoặc Windows-1252.
+#### 3. Khóa đồng bộ đơn luồng theo từng nguồn Cloud & Ngoại tuyến an toàn (\`index.html\`)
+- **Chống chạy chồng 2 luồng quét cùng lúc**: Bổ sung mutex \`state._googleSyncPromise\` và \`state._microsoftSyncPromise\` trong \`loadGoogleFiles\` / \`loadMicrosoftFiles\` và đồng bộ với \`scheduleOnlineCloudDeltaSync\` để đồng bộ thủ công và đồng bộ nền khi có mạng trở lại tự động gộp vào cùng 1 tiến trình, tránh ghi trùng IndexedDB và đua token; giữ nguyên bộ đệm cục bộ an toàn khi \`navigator.onLine === false\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
