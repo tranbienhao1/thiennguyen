@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.69</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.70</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -6971,6 +6971,58 @@
         req.onerror = () => resolve(0);
       });
     }
+    function purgeCloudSliceCacheAndOrphanedCovers() {
+      try {
+        if (typeof checkedGoogleArtParents !== 'undefined' && checkedGoogleArtParents && typeof checkedGoogleArtParents.clear === 'function') {
+          checkedGoogleArtParents.clear();
+        }
+      } catch (_) {}
+      try {
+        if (state && state.albumCovers && typeof state.albumCovers.forEach === 'function' && typeof library !== 'undefined' && library && typeof library.buildAlbumKey === 'function') {
+          const localAlbumKeys = new Set();
+          const list = Array.isArray(state.tracks) ? state.tracks : [];
+          for (let i = 0; i < list.length; i++) {
+            const tr = list[i];
+            if (tr && tr.source !== 'google' && tr.source !== 'onedrive') {
+              const ak = library.buildAlbumKey(tr);
+              if (ak) localAlbumKeys.add(ak);
+            }
+          }
+          let prunedCovers = false;
+          Array.from(state.albumCovers.keys()).forEach(k => {
+            if (!localAlbumKeys.has(k)) {
+              state.albumCovers.delete(k);
+              prunedCovers = true;
+            }
+          });
+          if (prunedCovers && typeof saveAlbumCoversCache === 'function') saveAlbumCoversCache();
+        }
+      } catch (_) {}
+      return new Promise(resolve => {
+        try {
+          if (typeof sliceCacheTransaction !== 'function') return resolve(0);
+          const store = sliceCacheTransaction('readwrite');
+          if (!store || typeof store.getAllKeys !== 'function') return resolve(0);
+          const req = store.getAllKeys();
+          req.onsuccess = () => {
+            const keys = req.result || [];
+            let removed = 0;
+            for (let i = 0; i < keys.length; i++) {
+              const k = String(keys[i] || '');
+              if (k.indexOf('google:') === 0 || k.indexOf('onedrive:') === 0) {
+                try { store.delete(keys[i]); removed++; } catch (_) {}
+              }
+            }
+            if (!removed) return resolve(0);
+            store.transaction.oncomplete = () => resolve(removed);
+            store.transaction.onerror = () => resolve(removed);
+          };
+          req.onerror = () => resolve(0);
+        } catch (_) {
+          resolve(0);
+        }
+      });
+    }
     function clearCloudCatalog() {
       if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.cancelAll('queue_cleared');
       if (typeof clearCloudSyncCheckpoint === 'function') {
@@ -6981,7 +7033,10 @@
         writeCloudDeltaCursor('nocturne-google-delta-token', '');
         writeCloudDeltaCursor('nocturne-microsoft-delta-link', '');
       }
-      return new Promise((resolve, reject) => {
+      const purgePromise = (typeof purgeCloudSliceCacheAndOrphanedCovers === 'function')
+        ? purgeCloudSliceCacheAndOrphanedCovers().catch(() => 0)
+        : Promise.resolve(0);
+      return purgePromise.then(() => new Promise((resolve, reject) => {
         try {
           const store = catalogTransaction('readwrite');
           const transaction = store.transaction;
@@ -6990,7 +7045,7 @@
           transaction.onabort = () => reject(transaction.error || new Error('Không thể xóa danh mục Cloud.'));
           store.clear();
         } catch (error) { reject(error); }
-      });
+      }));
     }
     function restoreCloudCatalog() {
       if (cloudRestorePromise) return cloudRestorePromise;
@@ -7425,24 +7480,92 @@
               return done({sampleRate, channels, duration: 0, compression});
             }
             if (view.byteLength >= 12 && (text(0, 4) === 'RIFF' || text(0, 4) === 'RF64') && text(8, 4) === 'WAVE') {
-              let offset = 12, fmt = null;
+              let offset = 12, fmt = null, dataBytes = 0, ds64DataBytes = 0, byteRate = 0, blockAlign = 0;
+              const infoTags = {};
               while (offset + 8 <= view.byteLength) {
                 const chunk = text(offset, 4), size = view.getUint32(offset + 4, true), dataOffset = offset + 8;
-                if (chunk === 'fmt ' && size >= 16 && dataOffset + 16 <= view.byteLength) {
+                if (chunk === 'ds64' && size >= 24 && dataOffset + 24 <= view.byteLength) {
+                  try { ds64DataBytes = Number(view.getBigUint64(dataOffset + 8, true)) || 0; } catch (_) {}
+                } else if (chunk === 'fmt ' && size >= 16 && dataOffset + 16 <= view.byteLength) {
                   const format = view.getUint16(dataOffset, true);
                   const channels = view.getUint16(dataOffset + 2, true);
                   const sampleRate = view.getUint32(dataOffset + 4, true);
-                  const blockAlign = view.getUint16(dataOffset + 12, true);
+                  byteRate = view.getUint32(dataOffset + 8, true);
+                  blockAlign = view.getUint16(dataOffset + 12, true);
                   let bitDepth = view.getUint16(dataOffset + 14, true);
                   if (format === 0xfffe && size >= 40 && dataOffset + 40 <= view.byteLength) bitDepth = view.getUint16(dataOffset + 18, true) || bitDepth;
                   if (bitDepth === 0 && channels && blockAlign) bitDepth = blockAlign * 8 / channels;
                   fmt = {sampleRate, bitDepth, channels, encoding: format};
-                  if (sampleRate && bitDepth && channels) return done(fmt);
+                } else if (chunk === 'data') {
+                  dataBytes = (size === 0xffffffff && ds64DataBytes > 0) ? ds64DataBytes : size;
+                  if (fmt && fmt.sampleRate && dataBytes > 0) {
+                    const effectiveByteRate = byteRate || (fmt.sampleRate * (blockAlign || ((fmt.channels || 2) * ((fmt.bitDepth || 16) / 8))));
+                    if (effectiveByteRate > 0) fmt.duration = dataBytes / effectiveByteRate;
+                  }
+                } else if (chunk === 'LIST' && size >= 4 && dataOffset + 4 <= view.byteLength && text(dataOffset, 4) === 'INFO') {
+                  const listEnd = Math.min(view.byteLength, dataOffset + size);
+                  let subOff = dataOffset + 4;
+                  while (subOff + 8 <= listEnd) {
+                    const subId = text(subOff, 4), subSize = view.getUint32(subOff + 4, true), subData = subOff + 8;
+                    if (subData + subSize > listEnd) break;
+                    if (subSize > 0 && subSize <= 1024 && (subId === 'INAM' || subId === 'IART' || subId === 'IPRD' || subId === 'ITRK')) {
+                      let rawStr = '';
+                      try {
+                        const rawBytes = new Uint8Array(buffer, subData, subSize);
+                        rawStr = (typeof decodeTextBytesAuto === 'function')
+                          ? decodeTextBytesAuto(rawBytes)
+                          : new TextDecoder('utf-8').decode(rawBytes);
+                      } catch (_) { rawStr = text(subData, subSize); }
+                      const cleanVal = rawStr.replace(/\0+$/g, '').trim();
+                      if (cleanVal) {
+                        if (subId === 'INAM') infoTags.title = cleanVal;
+                        else if (subId === 'IART') infoTags.artist = cleanVal;
+                        else if (subId === 'IPRD') infoTags.album = cleanVal;
+                        else if (subId === 'ITRK') infoTags.track = cleanVal;
+                      }
+                    }
+                    subOff = subData + subSize + (subSize & 1);
+                  }
                 }
                 if (size === 0xffffffff || dataOffset + size > view.byteLength) break;
                 offset = dataOffset + size + (size & 1);
               }
-              return done(fmt || {});
+              if (fmt) {
+                if (!(fmt.duration > 0) && ds64DataBytes > 0 && fmt.sampleRate) {
+                  const effectiveByteRate = byteRate || (fmt.sampleRate * (blockAlign || ((fmt.channels || 2) * ((fmt.bitDepth || 16) / 8))));
+                  if (effectiveByteRate > 0) fmt.duration = ds64DataBytes / effectiveByteRate;
+                }
+                if (infoTags.title) fmt.title = infoTags.title;
+                if (infoTags.artist) fmt.artist = infoTags.artist;
+                if (infoTags.album) fmt.album = infoTags.album;
+                if (infoTags.track) fmt.track = infoTags.track;
+                return done(fmt);
+              }
+              return done({});
+            }
+            if (view.byteLength >= 12 && text(0, 4) === 'FORM' && (text(8, 4) === 'AIFF' || text(8, 4) === 'AIFC')) {
+              let offset = 12;
+              while (offset + 8 <= view.byteLength) {
+                const chunk = text(offset, 4), size = view.getUint32(offset + 4, false), dataOffset = offset + 8;
+                if (chunk === 'COMM' && size >= 18 && dataOffset + 18 <= view.byteLength) {
+                  const channels = view.getUint16(dataOffset, false);
+                  const numSampleFrames = view.getUint32(dataOffset + 2, false);
+                  const bitDepth = view.getUint16(dataOffset + 6, false);
+                  const expRaw = view.getUint16(dataOffset + 8, false) & 0x7fff;
+                  const hiMant = view.getUint32(dataOffset + 10, false);
+                  const loMant = view.getUint32(dataOffset + 14, false);
+                  let sampleRate = 0;
+                  if (expRaw > 0 && expRaw < 0x7fff) {
+                    const exp = expRaw - 16383;
+                    sampleRate = Math.round((hiMant * Math.pow(2, exp - 31)) + (loMant * Math.pow(2, exp - 63)));
+                  }
+                  const duration = (sampleRate > 0 && numSampleFrames > 0) ? (numSampleFrames / sampleRate) : 0;
+                  return done({ sampleRate, bitDepth, channels, duration });
+                }
+                if (dataOffset + size > view.byteLength) break;
+                offset = dataOffset + size + (size & 1);
+              }
+              return done({});
             }
             let flacOffset = 0;
             if (view.byteLength >= 10 && text(0, 3) === 'ID3') {
@@ -21965,17 +22088,30 @@
     });
     function applySmartSeekTime(curAudio, curTrack, targetSec) {
       if (!curAudio || !Number.isFinite(targetSec)) return false;
-      const safeSec = Math.max(0, Number.isFinite(curAudio.duration) && curAudio.duration > 0 ? Math.min(targetSec, curAudio.duration) : targetSec);
-      if (curTrack && curTrack.firstSlicePlayback && curTrack.fullAudioPromise) {
+      const audioDur = (Number.isFinite(curAudio.duration) && curAudio.duration > 0) ? curAudio.duration : 0;
+      const trackDur = (curTrack && Number.isFinite(curTrack.duration) && curTrack.duration > 0) ? curTrack.duration : 0;
+      const maxDur = (curTrack && curTrack.firstSlicePlayback && trackDur > audioDur) ? trackDur : (audioDur || trackDur);
+      const safeSec = Math.max(0, maxDur > 0 ? Math.min(targetSec, maxDur) : targetSec);
+      if (curTrack && curTrack.firstSlicePlayback) {
         let bufferedEnd = 0;
         try {
           if (curAudio.buffered && curAudio.buffered.length > 0) bufferedEnd = curAudio.buffered.end(curAudio.buffered.length - 1);
         } catch (_) {}
-        if (bufferedEnd > 0 && safeSec > bufferedEnd + 0.5) {
-          curTrack._pendingSeekAfterFullUpgrade = safeSec;
-          curTrack.lastSlicePosition = safeSec;
-          toast(`⏳ Đang tải bản FLAC đầy đủ — sẽ nhảy tới ${formatTime(safeSec)} ngay khi xong...`);
-          return false;
+        const pastBuffered = (bufferedEnd > 0 && safeSec > bufferedEnd + 0.5) || (bufferedEnd === 0 && audioDur > 0 && safeSec > audioDur - 0.5);
+        if (pastBuffered) {
+          if (curTrack.fullAudioPromise) {
+            curTrack._pendingSeekAfterFullUpgrade = safeSec;
+            curTrack.lastSlicePosition = safeSec;
+            toast(`⏳ Đang tải bản FLAC đầy đủ — sẽ nhảy tới ${formatTime(safeSec)} ngay khi xong...`);
+            return false;
+          }
+          if (curTrack._pendingSliceUpgrade && typeof retryPendingCurrentSliceUpgrade === 'function') {
+            curTrack._pendingSeekAfterFullUpgrade = safeSec;
+            curTrack.lastSlicePosition = safeSec;
+            retryPendingCurrentSliceUpgrade().catch(() => {});
+            toast(`⏳ Đang tải lại bản đầy đủ từ Cloud — sẽ nhảy tới ${formatTime(safeSec)} ngay khi xong...`);
+            return false;
+          }
         }
         curTrack._pendingSeekAfterFullUpgrade = null;
       }
@@ -21995,8 +22131,8 @@
         if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
       } else if (curTrack && curTrack.cueStart !== undefined) {
         audio.currentTime = curTrack.cueStart + (ratio * curTrack.duration);
-      } else if (Number.isFinite(audio.duration)) {
-        applySmartSeekTime(audio, curTrack, ratio * audio.duration);
+      } else if (dur > 0 || Number.isFinite(audio.duration)) {
+        applySmartSeekTime(audio, curTrack, ratio * (dur > 0 ? dur : audio.duration));
       }
       state.isSeeking = false;
       updatePositionState();
@@ -23116,6 +23252,7 @@
             if (typeof clearTimeout === 'function') clearTimeout(resumeFlagTimer);
             clearResumeUpgradeFlag();
             if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+            if (typeof updatePositionState === 'function') updatePositionState(true);
           }).catch(error => {
             if (typeof clearTimeout === 'function') clearTimeout(resumeFlagTimer);
             clearResumeUpgradeFlag();

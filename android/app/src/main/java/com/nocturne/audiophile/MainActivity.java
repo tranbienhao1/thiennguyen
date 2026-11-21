@@ -2357,7 +2357,7 @@ public class MainActivity extends AppCompatActivity {
                 int blockLen = ((hdr[1] & 0xFF) << 16) | ((hdr[2] & 0xFF) << 8) | (hdr[3] & 0xFF);
                 if (blockLen < 0) break;
 
-                if (blockType == 6 && blockLen >= 32 && blockLen <= 8 * 1024 * 1024) {
+                if (blockType == 6 && blockLen >= 32 && blockLen <= 12 * 1024 * 1024) {
                     byte[] block = new byte[blockLen];
                     if (!readFullyLenient(rawIn, block, 0, blockLen)) break;
                     totalRead += blockLen;
@@ -5576,11 +5576,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.69";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.70";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.69\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.70\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -5848,12 +5848,11 @@ public class MainActivity extends AppCompatActivity {
                                 int eq = entry.indexOf('=');
                                 if (eq > 0) {
                                     String key = entry.substring(0, eq).trim().toUpperCase(Locale.US);
-                                    if ("LYRICS".equals(key)) {
-                                        String val = entry.substring(eq + 1).trim();
-                                        if (!val.isEmpty()) return val;
-                                    } else if ("UNSYNCEDLYRICS".equals(key) && unsynced.isEmpty()) {
-                                        String val = entry.substring(eq + 1).trim();
-                                        if (!val.isEmpty()) unsynced = val;
+                                    String val = entry.substring(eq + 1).replace("\uFEFF", "").trim();
+                                    if (("LYRICS".equals(key) || "SYNCEDLYRICS".equals(key)) && !val.isEmpty()) {
+                                        return val;
+                                    } else if ("UNSYNCEDLYRICS".equals(key) && unsynced.isEmpty() && !val.isEmpty()) {
+                                        unsynced = val;
                                     }
                                 }
                             }

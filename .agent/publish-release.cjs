@@ -80,23 +80,23 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.69';
-  const name = process.argv[3] || `Nocturne ${tag} (Phục hồi 2 lớp OneDrive Shared & Drive Shortcut LRC đa bảng mã + Dọn CUE mồ côi MicroSD & Bit-Perfect đa kênh + Khôi phục FileHandle nội bộ)`;
+  const tag = process.argv[2] || 'v3.9.70';
+  const name = process.argv[3] || `Nocturne ${tag} (Tua thông minh trên lát đầu Cloud & tự tải lại bản đầy đủ + Đọc đầy đủ WAV/AIFF/FLAC 12MB & SYNCEDLYRICS + Dọn sạch bộ đệm Cloud khi reset)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 123) — Cloud Shortcut/Shared Recovery + Dọn CUE mồ côi MicroSD & Bit-Perfect đa kênh + Khôi phục FileHandle nội bộ
+    : `### Nocturne ${tag} (versionCode 124) — Tua thông minh trên lát đầu Cloud + Đọc chuẩn WAV/AIFF/FLAC + Dọn triệt để bộ đệm Cloud
 
-#### 1. Cloud Shortcut & OneDrive Shared Folder Recovery (\`index.html\`)
-- **Nâng cấp \`upgradeSliceToFullAudio\` với dự phòng 2 lớp cho OneDrive chia sẻ**: Nếu \`freshDirectUrl\` SharePoint vừa làm mới vẫn lỗi CORS/403/5xx, tự động chuyển mượt sang Graph \`/drives/{remoteDriveId}/items/{remoteId}/content\` kèm Bearer token thay vì đứt phát giữa bài.
-- **Lời \`.lrc\` Cloud đa bảng mã & Google Drive Shortcut**: Nâng cấp \`fetchCloudSidecarLyrics\` giải mã tự động UTF-8/UTF-16/Shift-JIS/Windows-1252, kế thừa \`track.remoteDriveId\` cho OneDrive Shared Folder, và tự kiểm tra thư mục gốc của tệp đích \`targetRemoteId\` cho shortcut Google Drive.
+#### 1. Tua thông minh trên lát đầu Cloud & Tự kích hoạt tải lại bản đầy đủ (\`index.html\`)
+- **Không còn bị kẹp mốc tua bởi độ dài 15s của lát đầu**: \`applySmartSeekTime\` và thanh tua \`#room-seek\` sử dụng thời lượng thực của bài (\`curTrack.duration\`) khi đang ở \`firstSlicePlayback\`, đồng thời tự động gọi \`retryPendingCurrentSliceUpgrade()\` nếu lượt tải nền trước đó gặp rớt mạng tạm thời.
+- **Đồng bộ thanh tua khóa màn hình sau khi nâng cấp**: \`resumeFullAudioFromSlice\` cập nhật \`updatePositionState(true)\` ngay sau khi chuyển sang tệp đầy đủ.
 
-#### 2. Dọn \`.cue\` mồ côi trên MicroSD & Bit-Perfect đa kênh (\`index.html\` + \`MainActivity.java\`)
-- **Đồng bộ \`.cue\` chính xác trên Android/FiiO MicroSD**: \`expandFiioScannedCueSheets\` tự dọn các bài con \`fiio_cue_*\` dư khi tệp \`.cue\` được chỉnh sửa; \`pruneMissingFiioTracks\` hỗ trợ \`allowEmptyPrune\` khi tháo thẻ nhớ sạch và tự nạp lại tệp \`.flac\` cha ngay trong cùng lượt quét khi tệp \`.cue\` bị xóa.
-- **Bit-Perfect hỗ trợ chuẩn kênh 4.0 / 5.1 / 7.1 & tự rơi về WebView an toàn**: Bổ sung \`resolveBitPerfectChannelMask\` trong \`MainActivity.java\` khắc phục lỗi phát chậm 1/3 tốc độ trên FLAC đa kênh và tự hạ về \`ENCODING_PCM_16BIT\` / chuyển sang WebView khi cấu hình kênh không tương thích.
+#### 2. Đọc chuẩn metadata WAV/RF64/AIFF/AIFC & Ảnh bìa FLAC Hi-Res tới 12MB (\`index.html\` + \`MainActivity.java\`)
+- **Web nội bộ (\`readAudioMetadata\`)**: Tính chính xác thời lượng (\`duration\`) và đọc tag \`LIST/INFO\` (title/artist/album/track) cho tệp WAV/RF64, đồng thời bổ sung bộ phân tích chuẩn AIFF/AIFC (\`COMM\` 80-bit IEEE-754 sampleRate, bitDepth, channels, duration).
+- **Android / FiiO MicroSD (\`MainActivity.java\`)**: Nâng trần ảnh bìa nhúng FLAC lên 12 MB trong \`extractFlacPictureFromStream\` (downscale an toàn chống tràn RAM), hỗ trợ thêm thẻ \`SYNCEDLYRICS\` và tự lọc BOM UTF-8 trong \`extractFlacVorbisLyricsFromFile\`.
 
-#### 3. Khôi phục quyền đọc & dọn \`FileSystemFileHandle\` lỗi trên Web nội bộ (\`index.html\`)
-- **Xử lý rõ ràng tệp nội bộ bị xóa hoặc thu hồi quyền**: \`ensureLocalTrackPlayableUrl\` tự dọn \`fileHandle\` hỏng khi gặp \`NotFoundError\`, gắn mã lỗi cụ thể (\`not_found\` / \`permission_denied\`) cho \`playTrack\`, và \`reopenSavedFolderRecord\` dọn sạch bài cũ ngay cả khi thư mục đã lưu trở nên trống.
+#### 3. Dọn sạch bộ đệm lát Cloud & ảnh bìa mồ côi khi xóa danh mục Cloud (\`index.html\`)
+- **\`clearCloudCatalog\`**: Bổ sung \`purgeCloudSliceCacheAndOrphanedCovers()\` xóa toàn bộ lát \`google:*\`/\`onedrive:*\` trong \`firstSliceCache\`, đặt lại \`checkedGoogleArtParents\` và dọn các khóa \`albumCovers\` mồ côi không còn thuộc thư viện nội bộ.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
