@@ -80,23 +80,23 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.61';
-  const name = process.argv[3] || `Nocturne ${tag} (Đồng bộ tiếp điểm dừng Cloud khi rớt mạng + nhập M3U/M3U8 đường dẫn tương đối & nạp trước Cloud khi phát Bit-Perfect)`;
+  const tag = process.argv[2] || 'v3.9.62';
+  const name = process.argv[3] || `Nocturne ${tag} (Khôi phục token Google Drive/OneDrive sau ngủ đông Doze + nâng cấp chuyển lát DSD mượt không nhấp nháy & hợp nhất nhập M3U/M3U8)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 115) — Điểm dừng đồng bộ Cloud thông minh + Nhập playlist M3U/M3U8 chuẩn đường dẫn tương đối & Chuyển tiếp Bit-Perfect -> Cloud mượt mà
+    : `### Nocturne ${tag} (versionCode 116) — Khôi phục token Cloud sau ngủ đông Android Doze + Nâng cấp chuyển lát DSD mượt & Hợp nhất nhập playlist M3U/M3U8
 
-#### 1. Điểm dừng đồng bộ (Checkpoint Resume) cho thư viện Google Drive & OneDrive lớn (\`index.html\`)
-- **Tiếp tục đúng trang/thư mục đang dở khi rớt mạng**: Lưu tạm \`pageToken\` (Google Drive) và hàng đợi thư mục còn lại (OneDrive, TTL 6 giờ) sau mỗi đợt quét hoặc ngay khi một cụm thư mục gặp lỗi mạng, giúp lượt đồng bộ kế tiếp tiếp tục ngay phần còn thiếu thay vì quét lại từ đầu.
-- **Bảo vệ tuyệt đối thư viện đã lưu**: Tự động bỏ qua bước xóa bài thừa trên lượt đồng bộ tiếp điểm dừng (tránh xóa nhầm bài từ các trang đã quét trước đó) và tự khôi phục về trang 1 nếu \`pageToken\` đã hết hạn (HTTP 400).
+#### 1. Tự phục hồi token Google Drive & OneDrive sau Android Doze / đóng băng tab (\`index.html\`)
+- **\`runCloudWakeTokenRefresh\` & sửa lỗi \`remainingMs <= 0\` trong \`runGoogleTokenKeepAliveTick\`**: Khi mở lại ứng dụng hoặc mở khóa màn hình sau nhiều giờ ngủ đông (\`onAndroidAppLifecycle('foreground')\` / \`visibilitychange\`), Nocturne tự làm mới ngầm cả Google Drive lẫn OneDrive (ngay cả khi token đã quá hạn trong lúc ngủ) và dọn sạch \`downloadUrl\` SharePoint quá tuổi để lần bấm phát đầu tiên không gặp lỗi 401/403.
+- **Bảo vệ AudioFocus Native Bit-Perfect khi mở sáng màn hình**: Thêm điều kiện \`!state.isNativeBitPerfectPlaying\` trong \`visibilitychange\` để không đánh thức nhầm WebView \`AudioContext\`.
 
-#### 2. Nâng cấp đọc & khớp playlist \`.m3u\` / \`.m3u8\` cho Nội bộ & Cloud (\`library-utils.js\`)
-- **Hỗ trợ UTF-8 BOM, M3U thuần không có \`#EXTM3U\`, dấu \`\\\` Windows & \`file://\`**: Giải mã an toàn ký tự \`+\` / \`%\`, trích xuất tên bài/nghệ sĩ từ tên tệp khi thiếu \`#EXTINF\`.
-- **\`resolveM3uRelativePath\` & khớp hậu tố đường dẫn + Unicode NFC/NFD**: \`matchPlaylistWithLibrary\` khớp chính xác cả đường dẫn tương đối (\`../Album/01.flac\`), hậu tố thư mục-tệp và tên tệp duy nhất trên thẻ nhớ FiiO/Android, thư mục nội bộ Web, Google Drive và OneDrive.
+#### 2. Chuyển lát đầu -> bản đầy đủ DSD mượt mà & an toàn lỗi worker (\`index.html\`)
+- **Tôn trọng mốc tua sớm \`_pendingSeekAfterFullUpgrade\` & cờ \`deck._upgradingFullAudio\`**: Khi người dùng kéo thanh tua trong lúc DSD đang giải mã xong lát đầu 2 giây, bản PCM đầy đủ nhảy thẳng tới đúng mốc tua mà không làm nhấp nháy nút Play/Pause hay thông báo Android.
+- **Giải phóng triệt để khi \`dsd-worker\` báo lỗi**: Giải quyết ngay \`dsdFullResolve()\` và đặt lại \`firstSlicePlayback\` / \`fullAudioPromise\` trong cả nhánh \`message.type === 'error'\`, \`worker.onerror\` lẫn \`catch\`.
 
-#### 3. Nạp trước bài Cloud ngay trong lúc phát nội bộ Bit-Perfect (\`index.html\`)
-- **\`preloadCloudNextDuringBitPerfect\` không chạm \`AudioContext\`**: Khi bài nội bộ đang phát ở chế độ Native Bit-Perfect gần kết thúc mà bài kế tiếp nằm trên Google Drive / OneDrive, Nocturne chủ động làm mới token/\`downloadUrl\` và tải trước lát đầu mà không gây tranh chấp AudioFocus trên Android/FiiO M11S.
+#### 3. Hợp nhất bộ nhập M3U/M3U8 & vệ sinh quét tệp nội bộ Android/FiiO (\`index.html\`)
+- **\`#playlist-m3u-file-input\` & \`#playlist-import-file\`**: Dùng chung bộ phân tích \`library.parseM3u8Playlist\` (hỗ trợ UTF-8 BOM, M3U thuần, đuôi chữ hoa \`.M3U8\`) và truyền \`playlistDir\` vào \`matchPlaylistWithLibrary\`; \`ingestFiioScannedFilesChunk\` bỏ qua tệp \`.m3u\`/\`.m3u8\` để không tạo hàng bài hát hỏng trong thư viện nội bộ.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

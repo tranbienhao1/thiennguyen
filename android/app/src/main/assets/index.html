@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.61</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.62</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -15082,7 +15082,17 @@
           const message = event.data || {};
           if (generation !== state.playGeneration || state.dsdWorker !== worker) return;
           if (message.type === 'progress') { $('play-button').textContent = `${Math.round(message.progress * 100)}%`; return; }
-          if (message.type === 'error') { stopDsdWorker(false); $('play-button').textContent = '▶'; if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false); skipFailedTrack(generation, `Không thể giải mã DSD: ${message.message}. Chuyển sang bài tiếp theo.`); return; }
+          if (message.type === 'error') {
+            track.firstSlicePlayback = false;
+            track.fullAudioPromise = null;
+            track._pendingSeekAfterFullUpgrade = null;
+            if (dsdFullResolve) dsdFullResolve();
+            stopDsdWorker(false);
+            $('play-button').textContent = '▶';
+            if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+            skipFailedTrack(generation, `Không thể giải mã DSD: ${message.message}. Chuyển sang bài tiếp theo.`);
+            return;
+          }
           if (message.type === 'first-slice') {
             // Pha C — cache lát PCM đầu DSD vào IndexedDB để lần phát lại
             // sau khi tải lại trang phát ngay từ cache; ghi trước khi
@@ -15126,22 +15136,32 @@
             if (dsdSliceUrl && ![audio, standbyAudio].some(element => element.src === sliceAbsoluteUrl)) releaseTrackUrl(dsdSliceUrl);
             return;
           }
+          const pendingDsdSeek = (Number.isFinite(track._pendingSeekAfterFullUpgrade) && track._pendingSeekAfterFullUpgrade > 0)
+            ? track._pendingSeekAfterFullUpgrade
+            : null;
+          track._pendingSeekAfterFullUpgrade = null;
+          const targetDsdPos = pendingDsdSeek !== null ? pendingDsdSeek : slicePosition;
           if (wasSlicePlaying) {
             // Pha A — như upgradeSliceToFullAudio bên đường lát đầu FLAC:
             // giữ đúng deck đang phát lát DSD, đừng seek/play nhầm sang
             // deck mới nếu deck đã đổi trong lúc chờ metadata.
             const deck = audio;
+            deck._upgradingFullAudio = true;
+            const dsdUpgradeClearTimer = (typeof setTimeout === 'function') ? setTimeout(() => { deck._upgradingFullAudio = false; }, 4000) : null;
             deck.addEventListener('loadedmetadata', () => {
+              if (dsdUpgradeClearTimer != null && typeof clearTimeout === 'function') clearTimeout(dsdUpgradeClearTimer);
+              deck._upgradingFullAudio = false;
               if (generation !== state.playGeneration || deck !== audio || track.id !== state.currentId) return;
               try {
                 // Kẹp vị trí seek nhỏ hơn duration một chút để 'ended'
                 // không bắn ngay sau khi đổi sang file đầy đủ (như
                 // upgradeSliceToFullAudio bên đường lát đầu FLAC).
-                const safePosition = Number.isFinite(deck.duration) && deck.duration > 0.5 ? Math.min(slicePosition, deck.duration - 0.25) : slicePosition;
+                const safePosition = Number.isFinite(deck.duration) && deck.duration > 0.5 ? Math.min(targetDsdPos, deck.duration - 0.25) : targetDsdPos;
                 deck.currentTime = Math.max(0, safePosition);
               } catch (_) {}
-              if (!sliceWasPaused || sliceEndedEarly) deck.play().then(() => { if (generation === state.playGeneration) { $('play-button').textContent = 'Ⅱ'; if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(true); } }).catch(error => console.warn('Could not resume after upgrading DSD to the full decoded audio:', error.message || error));
+              if (!sliceWasPaused || sliceEndedEarly || pendingDsdSeek !== null) deck.play().then(() => { if (generation === state.playGeneration) { $('play-button').textContent = 'Ⅱ'; if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(true); } }).catch(error => console.warn('Could not resume after upgrading DSD to the full decoded audio:', error.message || error));
               else { $('play-button').textContent = '▶'; if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false); }
+              if (typeof updatePositionState === 'function') updatePositionState(true);
               scheduleTrackRender();
             }, {once:true});
           }
@@ -15184,12 +15204,22 @@
         };
         worker.onerror = event => {
           if (generation !== state.playGeneration) return;
+          track.firstSlicePlayback = false;
+          track.fullAudioPromise = null;
+          track._pendingSeekAfterFullUpgrade = null;
+          if (dsdFullResolve) dsdFullResolve();
           stopDsdWorker(false); $('play-button').textContent = '▶';
           if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
           skipFailedTrack(generation, `Lỗi bộ giải mã DSD: ${event.message || 'worker không chạy được'}. Chuyển sang bài tiếp theo.`);
         };
         worker.postMessage({file:track.file, format:track.format.toLowerCase(), targetRate:state.dsdOutputRate, bitDepth:state.dsdOutputDepth});
-      } catch (error) { stopDsdWorker(false); $('play-button').textContent = '▶'; if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false); skipFailedTrack(generation, `Không thể khởi chạy bộ giải mã DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`); }
+      } catch (error) {
+        track.firstSlicePlayback = false;
+        track.fullAudioPromise = null;
+        track._pendingSeekAfterFullUpgrade = null;
+        if (dsdFullResolve) dsdFullResolve();
+        stopDsdWorker(false); $('play-button').textContent = '▶'; if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false); skipFailedTrack(generation, `Không thể khởi chạy bộ giải mã DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`);
+      }
     }
     function playNext(direction = 1, auto = false) {
       if (!state.tracks.length) return;
@@ -18302,14 +18332,19 @@
       if (!file) return;
       try {
         const text = await file.text();
-        const tools = window.LibraryTools || (typeof LibraryTools !== 'undefined' ? LibraryTools : null);
-        if (!tools || typeof tools.parseM3UPlaylist !== 'function') throw new Error('M3U Parser chưa sẵn sàng.');
-        const parsed = tools.parseM3UPlaylist(text);
-        if (!parsed.isValid) throw new Error(parsed.error);
         const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : library;
+        const tools = window.LibraryTools || (typeof LibraryTools !== 'undefined' ? LibraryTools : null);
+        const parsed = (lib && typeof lib.parseM3u8Playlist === 'function')
+          ? lib.parseM3u8Playlist(text)
+          : ((tools && typeof tools.parseM3UPlaylist === 'function') ? tools.parseM3UPlaylist(text) : null);
+        if (!parsed) throw new Error('M3U Parser chưa sẵn sàng.');
+        if (!parsed.isValid) throw new Error(parsed.error);
+        const rawFilePath = String(file.webkitRelativePath || file.path || '').replace(/\\/g, '/');
+        const slashIdx = rawFilePath.lastIndexOf('/');
+        const playlistDir = slashIdx > 0 ? rawFilePath.slice(0, slashIdx) : '';
         let added = 0;
         if (lib && typeof lib.matchPlaylistWithLibrary === 'function') {
-          const match = lib.matchPlaylistWithLibrary(parsed.tracks, state.tracks);
+          const match = lib.matchPlaylistWithLibrary(parsed.tracks, state.tracks, { playlistDir });
           for (const item of match.matchedTracks) {
             if (!state.queueTrackIds.includes(item.local.id) && item.local.id !== state.currentId) {
               state.queueTrackIds.push(item.local.id);
@@ -19686,7 +19721,7 @@
           if (Array.isArray(collectedCueFiles)) collectedCueFiles.push(file);
           continue;
         }
-        if (lowerCheckName.endsWith('.iso')) continue;
+        if (lowerCheckName.endsWith('.iso') || lowerCheckName.endsWith('.m3u') || lowerCheckName.endsWith('.m3u8')) continue;
         const normPath = file.path ? String(file.path).trim() : '', normUri = file.uri ? String(file.uri).trim() : '';
         if ((normPath && existingPaths.has(normPath)) || (normUri && existingUris.has(normUri))) {
           const prevTrack = (normPath && existingByPath.get(normPath)) || (normUri && existingByUri.get(normUri)) || null;
@@ -21082,7 +21117,8 @@
         if (!lib) return;
         let importedTracks = [];
         let pName = file.name;
-        if (file.name.endsWith('.m3u8') || file.name.endsWith('.m3u')) {
+        const lowerImportName = String(file.name || '').toLowerCase();
+        if (lowerImportName.endsWith('.m3u8') || lowerImportName.endsWith('.m3u')) {
           const m3uResult = lib.parseM3u8Playlist(text);
           if (!m3uResult.isValid) throw new Error(m3uResult.error);
           importedTracks = m3uResult.tracks;
@@ -21094,7 +21130,10 @@
           pName = jsonResult.playlist.name || pName;
         }
 
-        const match = lib.matchPlaylistWithLibrary(importedTracks, state.tracks);
+        const rawImportPath = String(file.webkitRelativePath || file.path || '').replace(/\\/g, '/');
+        const importSlash = rawImportPath.lastIndexOf('/');
+        const importPlaylistDir = importSlash > 0 ? rawImportPath.slice(0, importSlash) : '';
+        const match = lib.matchPlaylistWithLibrary(importedTracks, state.tracks, { playlistDir: importPlaylistDir });
         let addedCount = 0;
         for (const item of match.matchedTracks) {
           if (!state.queueTrackIds.includes(item.local.id) && item.local.id !== state.currentId) {
@@ -24466,6 +24505,7 @@
             }
             if (typeof setVisualizerRunning === 'function') setVisualizerRunning(true);
           }
+          if (typeof runCloudWakeTokenRefresh === 'function') runCloudWakeTokenRefresh();
         }
       } catch (_) {}
     };
@@ -24991,28 +25031,90 @@
       } catch (_) {}
     });
 
-    // === v3.7.0: Long-Session Playback Continuity — Screen-Wake AudioContext Rescue, Drive Token Keep-Alive, Long-Track Resume & Android Doze Guard ===
+    // === v3.7.0: Long-Session Playback Continuity — Screen-Wake AudioContext Rescue, Drive/OneDrive Doze Token Recovery, Long-Track Resume & Android Doze Guard ===
     document.addEventListener('visibilitychange', () => {
       try {
-        if (!document.hidden && audio && audio.src && !audio.paused && !audio.ended) {
-          if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
-            state.context.resume().catch(() => {});
+        if (!document.hidden) {
+          if (!state.isNativeBitPerfectPlaying && audio && audio.src && !audio.paused && !audio.ended) {
+            if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
+              state.context.resume().catch(() => {});
+            }
           }
+          if (typeof runCloudWakeTokenRefresh === 'function') runCloudWakeTokenRefresh();
         }
       } catch (_) {}
     });
 
     let lastTokenKeepAliveAt = 0;
+    let lastMicrosoftWakeRefreshAt = 0;
+    function clearStaleMicrosoftDownloadUrls() {
+      try {
+        if (!state || !Array.isArray(state.tracks)) return 0;
+        const maxAge = (typeof MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS === 'number' && MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS > 0)
+          ? MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS
+          : (30 * 60 * 1000);
+        const now = Date.now();
+        let cleared = 0;
+        for (let i = 0; i < state.tracks.length; i++) {
+          const tr = state.tracks[i];
+          if (!tr || tr.source !== 'onedrive' || !tr.downloadUrl) continue;
+          if (!tr.downloadUrlAt || (now - tr.downloadUrlAt) >= (maxAge - 5 * 60 * 1000)) {
+            tr.downloadUrl = '';
+            tr.downloadUrlAt = 0;
+            cleared++;
+          }
+        }
+        return cleared;
+      } catch (_) {
+        return 0;
+      }
+    }
+    function runCloudWakeTokenRefresh() {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+        const nowMs = Date.now();
+        if (state.googleToken && state.googleExpiresAt) {
+          const gRem = state.googleExpiresAt - nowMs;
+          if (gRem < 5 * 60 * 1000 && (nowMs - lastTokenKeepAliveAt) >= 60000) {
+            lastTokenKeepAliveAt = nowMs;
+            if (typeof ensureGoogleToken === 'function') {
+              ensureGoogleToken(gRem <= 0).catch(() => {});
+            }
+          }
+        }
+        if ((state.msAccount || state.microsoftAccessToken) && (nowMs - lastMicrosoftWakeRefreshAt) >= 60000) {
+          const msRem = state.microsoftExpiresAt ? (state.microsoftExpiresAt - nowMs) : -1;
+          if (msRem < 5 * 60 * 1000) {
+            lastMicrosoftWakeRefreshAt = nowMs;
+            clearStaleMicrosoftDownloadUrls();
+            if (state.msAccount && typeof getMicrosoftToken === 'function') {
+              getMicrosoftToken(false).catch(() => {});
+            }
+          }
+        }
+      } catch (_) {}
+    }
     function runGoogleTokenKeepAliveTick() {
       try {
-        if (!state.googleToken || !state.googleExpiresAt) return;
         if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
-        const remainingMs = state.googleExpiresAt - Date.now();
         const nowMs = Date.now();
-        if (remainingMs > 0 && remainingMs < 5 * 60 * 1000 && (nowMs - lastTokenKeepAliveAt) >= 120000) {
-          lastTokenKeepAliveAt = nowMs;
-          if (typeof ensureGoogleToken === 'function') {
-            ensureGoogleToken(false).catch(() => {});
+        if (state.googleToken && state.googleExpiresAt) {
+          const remainingMs = state.googleExpiresAt - nowMs;
+          if (remainingMs < 5 * 60 * 1000 && (nowMs - lastTokenKeepAliveAt) >= 120000) {
+            lastTokenKeepAliveAt = nowMs;
+            if (typeof ensureGoogleToken === 'function') {
+              ensureGoogleToken(remainingMs <= 0).catch(() => {});
+            }
+          }
+        }
+        if (state.msAccount && state.microsoftExpiresAt) {
+          const msRemainingMs = state.microsoftExpiresAt - nowMs;
+          if (msRemainingMs < 5 * 60 * 1000 && (nowMs - lastMicrosoftWakeRefreshAt) >= 120000) {
+            lastMicrosoftWakeRefreshAt = nowMs;
+            clearStaleMicrosoftDownloadUrls();
+            if (typeof getMicrosoftToken === 'function') {
+              getMicrosoftToken(false).catch(() => {});
+            }
           }
         }
       } catch (_) {}
