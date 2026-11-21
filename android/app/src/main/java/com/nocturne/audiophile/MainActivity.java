@@ -4829,7 +4829,13 @@ public class MainActivity extends AppCompatActivity {
                         try {
                             extractor.seekTo(seekUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
                             decoder.flush();
+                            if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                                track.pause();
+                            }
                             track.flush();
+                            if (!mIsPaused && !mIsStopped) {
+                                track.play();
+                            }
                             sawInputEOS = false;
                             basePositionMs = seekUs / 1000L;
                             writtenFramesSinceBase = 0L;
@@ -4876,12 +4882,17 @@ public class MainActivity extends AppCompatActivity {
                                     consecutiveCodecErrors = 0;
                                 } catch (Exception inputErr) {
                                     consecutiveCodecErrors++;
+                                    boolean advancedPastCorrupt = false;
+                                    try { advancedPastCorrupt = extractor.advance(); } catch (Exception ignored) {}
+                                    if (!advancedPastCorrupt && consecutiveCodecErrors < 5) consecutiveCodecErrors = 5;
                                     if (writtenFramesSinceBase > 0L && consecutiveCodecErrors >= 5) {
                                         Log.w(TAG, "BitPerfect: Truncated/corrupt audio tail after " + writtenFramesSinceBase + " frames, finishing cleanly");
                                         try { decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM); } catch (Exception ignored) {}
                                         sawInputEOS = true;
                                     } else if (consecutiveCodecErrors >= 5) {
                                         throw inputErr;
+                                    } else {
+                                        try { decoder.queueInputBuffer(inIndex, 0, 0, 0, 0); } catch (Exception ignored) {}
                                     }
                                 }
                             }
@@ -5437,11 +5448,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.62";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.63";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.62\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.63\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

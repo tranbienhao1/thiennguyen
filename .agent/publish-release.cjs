@@ -80,23 +80,21 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.62';
-  const name = process.argv[3] || `Nocturne ${tag} (Khôi phục token Google Drive/OneDrive sau ngủ đông Doze + nâng cấp chuyển lát DSD mượt không nhấp nháy & hợp nhất nhập M3U/M3U8)`;
+  const tag = process.argv[2] || 'v3.9.63';
+  const name = process.argv[3] || `Nocturne ${tag} (Lùi nhịp chống giới hạn 429/503 khi nạp metadata Cloud + xả buffer tua Bit-Perfect tức thì & bỏ qua khung hỏng trên Android/FiiO)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 116) — Khôi phục token Cloud sau ngủ đông Android Doze + Nâng cấp chuyển lát DSD mượt & Hợp nhất nhập playlist M3U/M3U8
+    : `### Nocturne ${tag} (versionCode 117) — Chống nghẽn 429/503 & bảo vệ offline cho hàng đợi metadata Cloud + Xả buffer tua Bit-Perfect tức thì trên Android/FiiO
 
-#### 1. Tự phục hồi token Google Drive & OneDrive sau Android Doze / đóng băng tab (\`index.html\`)
-- **\`runCloudWakeTokenRefresh\` & sửa lỗi \`remainingMs <= 0\` trong \`runGoogleTokenKeepAliveTick\`**: Khi mở lại ứng dụng hoặc mở khóa màn hình sau nhiều giờ ngủ đông (\`onAndroidAppLifecycle('foreground')\` / \`visibilitychange\`), Nocturne tự làm mới ngầm cả Google Drive lẫn OneDrive (ngay cả khi token đã quá hạn trong lúc ngủ) và dọn sạch \`downloadUrl\` SharePoint quá tuổi để lần bấm phát đầu tiên không gặp lỗi 401/403.
-- **Bảo vệ AudioFocus Native Bit-Perfect khi mở sáng màn hình**: Thêm điều kiện \`!state.isNativeBitPerfectPlaying\` trong \`visibilitychange\` để không đánh thức nhầm WebView \`AudioContext\`.
+#### 1. Lùi nhịp tự động & bảo vệ offline cho nạp metadata Google Drive / OneDrive (\`index.html\`)
+- **Không xả rỗng hàng đợi khi mất mạng**: \`runCloudMetadataQueue\` dừng sạch khi \`navigator.onLine === false\` thay vì đẩy hàng trăm bài vào án phạt chờ 1 giờ, và tự động chạy tiếp ngay khi \`window 'online'\` trở lại.
+- **Lùi nhịp cấp số nhân khi gặp HTTP \`429\` / \`502\`–\`504\`**: \`enrichCloudTrack\` phát hiện giới hạn tốc độ từ Google Drive/OneDrive (tôn trọng \`Retry-After\`), tạm dừng hàng đợi \`4s -> 8s -> 16s -> 30s\` và xếp lại bài bị giới hạn tối đa 2 lần.
+- **Timeout 15s cho \`googleThumbnail\` & \`microsoftThumbnail\`**: Dùng \`fetchWithTimeout\` để ảnh bìa treo mạng không khóa cứng luồng nạp metadata đơn tuyến trên FiiO M11S.
 
-#### 2. Chuyển lát đầu -> bản đầy đủ DSD mượt mà & an toàn lỗi worker (\`index.html\`)
-- **Tôn trọng mốc tua sớm \`_pendingSeekAfterFullUpgrade\` & cờ \`deck._upgradingFullAudio\`**: Khi người dùng kéo thanh tua trong lúc DSD đang giải mã xong lát đầu 2 giây, bản PCM đầy đủ nhảy thẳng tới đúng mốc tua mà không làm nhấp nháy nút Play/Pause hay thông báo Android.
-- **Giải phóng triệt để khi \`dsd-worker\` báo lỗi**: Giải quyết ngay \`dsdFullResolve()\` và đặt lại \`firstSlicePlayback\` / \`fullAudioPromise\` trong cả nhánh \`message.type === 'error'\`, \`worker.onerror\` lẫn \`catch\`.
-
-#### 3. Hợp nhất bộ nhập M3U/M3U8 & vệ sinh quét tệp nội bộ Android/FiiO (\`index.html\`)
-- **\`#playlist-m3u-file-input\` & \`#playlist-import-file\`**: Dùng chung bộ phân tích \`library.parseM3u8Playlist\` (hỗ trợ UTF-8 BOM, M3U thuần, đuôi chữ hoa \`.M3U8\`) và truyền \`playlistDir\` vào \`matchPlaylistWithLibrary\`; \`ingestFiioScannedFilesChunk\` bỏ qua tệp \`.m3u\`/\`.m3u8\` để không tạo hàng bài hát hỏng trong thư viện nội bộ.
+#### 2. Xả buffer tức thì khi tua & chống kẹt gói hỏng trên \`BitPerfectAudioPlayer\` (\`MainActivity.java\`)
+- **Sửa lỗi \`AudioTrack.flush()\` bị bỏ qua khi đang phát**: Tạm dừng \`track.pause()\` trước \`track.flush()\` rồi mới gọi \`track.play()\` trong nhánh seek, loại bỏ ~100–250ms âm thanh vị trí cũ bị vang lại sau mỗi cú kéo thanh tua.
+- **Bỏ qua khung âm thanh lỗi (\`extractor.advance()\`)**: Khi gặp một gói FLAC/ALAC/MP3 hỏng nhẹ, bộ giải mã chủ động tiến qua gói lỗi thay vì đọc lặp lại cùng một vị trí byte rồi dừng bài sớm.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

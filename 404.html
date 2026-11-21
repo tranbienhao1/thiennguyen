@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.62</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.63</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3949,12 +3949,23 @@
         }, CLOUD_CATALOG_PERSIST_DEBOUNCE_MS);
       }
     }
+    let cloudMetadataBackoffMs = 0;
+    function isCloudMetadataRateLimitError(err) {
+      if (!err) return false;
+      const st = Number(err.status) || 0;
+      if (st === 429 || st === 503 || st === 502 || st === 504) return true;
+      const msg = String(err.message || err || '');
+      return /\bHTTP\s+(?:429|50[234])\b/.test(msg);
+    }
     function runCloudMetadataQueue() {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
       if (cloudMetadataPausedUntil && Date.now() < cloudMetadataPausedUntil) return;
       if (state.isPlaybackLoading) return;
       const maxMetaConcurrency = (IS_LEGACY_ANDROID || (typeof state !== 'undefined' && state && state.fiioDapMode)) ? 1 : CLOUD_METADATA_CONCURRENCY;
       while (cloudMetadataActive < maxMetaConcurrency && cloudMetadataQueue.length) {
         if (state.isPlaybackLoading) break;
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) break;
+        if (cloudMetadataPausedUntil && Date.now() < cloudMetadataPausedUntil) break;
         const track = cloudMetadataQueue.shift();
         if (!track) continue;
         if ((track.metadataLoaded && track.cover) || (track.metadataRetryAt && Date.now() < track.metadataRetryAt)) { cloudMetadataQueued.delete(track); continue; }
@@ -3964,6 +3975,13 @@
           track.metadataRequest = null;
           cloudMetadataQueued.delete(track);
           cloudMetadataActive--;
+          if (track._requeueMetaOnBackoff) {
+            delete track._requeueMetaOnBackoff;
+            if (!cloudMetadataQueued.has(track)) {
+              cloudMetadataQueued.add(track);
+              cloudMetadataQueue.unshift(track);
+            }
+          }
           if (cloudMetadataActive === 0 && !cloudMetadataQueue.length && pendingCloudCatalogPersistMap.size > 0) {
             flushQueuedCloudCatalogPersist(true);
           }
@@ -4013,6 +4031,7 @@
       }
     }
     async function googleThumbnail(track) {
+      const fetchThumb = (url, opts) => (typeof fetchWithTimeout === 'function' ? fetchWithTimeout(url, opts, 15000) : fetch(url, opts));
       let thumbnailUrl = track.thumbnailUrl;
       let token = await ensureGoogleToken();
       if (thumbnailUrl && track.thumbnailRetryAt && Date.now() >= track.thumbnailRetryAt) thumbnailUrl = '';
@@ -4020,18 +4039,28 @@
         const metaUrl = track.targetRemoteId
           ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.targetRemoteId)}?fields=thumbnailLink&supportsAllDrives=true`
           : `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(track.remoteId)}?fields=thumbnailLink&supportsAllDrives=true`;
-        let response = await fetch(metaUrl, {headers:{Authorization:`Bearer ${token}`}});
+        let response = await fetchThumb(metaUrl, {headers:{Authorization:`Bearer ${token}`}});
         if ((response.status === 401 || response.status === 403) && typeof ensureGoogleToken === 'function') {
           token = await ensureGoogleToken(true);
-          response = await fetch(metaUrl, {headers:{Authorization:`Bearer ${token}`}});
+          response = await fetchThumb(metaUrl, {headers:{Authorization:`Bearer ${token}`}});
         }
-        if (!response.ok) throw new Error(`Google Drive thumbnail metadata HTTP ${response.status}`);
+        if (!response.ok) {
+          const err = new Error(`Google Drive thumbnail metadata HTTP ${response.status}`);
+          err.status = response.status;
+          const ra = response.headers && typeof response.headers.get === 'function' ? Number(response.headers.get('retry-after')) : 0;
+          if (Number.isFinite(ra) && ra > 0) err.retryAfterMs = Math.min(30000, Math.round(ra * 1000));
+          throw err;
+        }
         thumbnailUrl = (await response.json()).thumbnailLink || '';
         track.thumbnailUrl = thumbnailUrl;
       }
       if (!thumbnailUrl) return null;
-      const response = await fetch(thumbnailUrl, {credentials:'omit', referrerPolicy:'no-referrer'});
-      if (!response.ok) throw new Error(`Google Drive thumbnail HTTP ${response.status}`);
+      const response = await fetchThumb(thumbnailUrl, {credentials:'omit', referrerPolicy:'no-referrer'});
+      if (!response.ok) {
+        const err = new Error(`Google Drive thumbnail HTTP ${response.status}`);
+        err.status = response.status;
+        throw err;
+      }
       return cloudImageDataUrl(await response.blob());
     }
     async function cloudImageDataUrl(blob) {
@@ -4044,6 +4073,7 @@
       });
     }
     async function microsoftThumbnail(track) {
+      const fetchThumb = (url, opts) => (typeof fetchWithTimeout === 'function' ? fetchWithTimeout(url, opts, 15000) : fetch(url, opts));
       let thumbnailUrl = track.thumbnailUrl;
       if (!thumbnailUrl) {
         const msThumbBase = (track && track.remoteDriveId)
@@ -4055,8 +4085,12 @@
         thumbnailUrl = thumbnail && thumbnail.url;
       }
       if (!thumbnailUrl || (track.thumbnailRetryAt && Date.now() < track.thumbnailRetryAt)) return null;
-      const response = await fetch(thumbnailUrl, {credentials:'omit', referrerPolicy:'no-referrer'});
-      if (!response.ok) throw new Error(`OneDrive thumbnail HTTP ${response.status}`);
+      const response = await fetchThumb(thumbnailUrl, {credentials:'omit', referrerPolicy:'no-referrer'});
+      if (!response.ok) {
+        const err = new Error(`OneDrive thumbnail HTTP ${response.status}`);
+        err.status = response.status;
+        throw err;
+      }
       return cloudImageDataUrl(await response.blob());
     }
     function allSettledCompat(promises) {
@@ -4133,6 +4167,7 @@
         changed = true;
       }
       if (changed) {
+        cloudMetadataBackoffMs = 0;
         trackMetadataRevision++;
         filterOptionsSignature = '';
         updateMetadataFilters();
@@ -4140,10 +4175,31 @@
         if (typeof queueCloudCatalogPersist === 'function') queueCloudCatalogPersist(track);
         else await persistCloudCatalog([track]);
       }
-      if (track.source === 'google' && !track.cover) track.thumbnailRetryAt = Date.now() + 60 * 60 * 1000;
-      if (track.source === 'onedrive' && !track.cover) track.thumbnailRetryAt = Date.now() + 60 * 60 * 1000;
-      if (tagResult.status === 'fulfilled') delete track.metadataRetryAt;
-      else if (track.source === 'onedrive' && track.metadataLoaded) track.metadataRetryAt = Date.now() + 60 * 60 * 1000;
+      const tagErr = tagResult.status === 'rejected' ? tagResult.reason : null;
+      const imgErr = imageResult.status === 'rejected' ? imageResult.reason : null;
+      const rateLimitErr = (typeof isCloudMetadataRateLimitError === 'function' && isCloudMetadataRateLimitError(tagErr))
+        ? tagErr
+        : ((typeof isCloudMetadataRateLimitError === 'function' && isCloudMetadataRateLimitError(imgErr)) ? imgErr : null);
+      if (rateLimitErr) {
+        cloudMetadataBackoffMs = cloudMetadataBackoffMs > 0
+          ? Math.min(30000, cloudMetadataBackoffMs * 2)
+          : 4000;
+        const waitMs = (Number.isFinite(Number(rateLimitErr.retryAfterMs)) && Number(rateLimitErr.retryAfterMs) > 0)
+          ? Math.min(30000, Math.max(cloudMetadataBackoffMs, Number(rateLimitErr.retryAfterMs)))
+          : cloudMetadataBackoffMs;
+        const retryCount = Number(track._metaRateLimitRetries) || 0;
+        if (retryCount < 2 && (!track.metadataLoaded || !track.cover)) {
+          track._metaRateLimitRetries = retryCount + 1;
+          delete track.metadataRetryAt;
+          track._requeueMetaOnBackoff = true;
+        }
+        if (typeof pauseCloudMetadataQueue === 'function') pauseCloudMetadataQueue(waitMs);
+      } else {
+        if (track.source === 'google' && !track.cover) track.thumbnailRetryAt = Date.now() + 60 * 60 * 1000;
+        if (track.source === 'onedrive' && !track.cover) track.thumbnailRetryAt = Date.now() + 60 * 60 * 1000;
+        if (tagResult.status === 'fulfilled') delete track.metadataRetryAt;
+        else if (track.source === 'onedrive' && track.metadataLoaded) track.metadataRetryAt = Date.now() + 60 * 60 * 1000;
+      }
       if (track.source === 'onedrive' && track.downloadUrl) { track.downloadUrl = ''; }
       if (tagResult.status === 'rejected') console.debug('Could not read cloud tags by byte range:', tagResult.reason && (tagResult.reason.message || tagResult.reason));
       if (imageResult.status === 'rejected') console.debug('Could not fetch cloud thumbnail:', imageResult.reason && (imageResult.reason.message || imageResult.reason));
@@ -25338,6 +25394,7 @@
       checkForAppUpdate();
       if (typeof retryPendingCurrentSliceUpgrade === 'function') retryPendingCurrentSliceUpgrade().catch(() => {});
       if (state.currentId) preloadNext(true);
+      if (typeof runCloudMetadataQueue === 'function') runCloudMetadataQueue();
       if (typeof scheduleOnlineCloudDeltaSync === 'function') scheduleOnlineCloudDeltaSync();
     });
     window.addEventListener('offline', () => {
