@@ -80,21 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.51';
-  const name = process.argv[3] || `Nocturne ${tag} (Gia cố BitPerfectAudioPlayer chống treo/lỗi stream & đối soát file đổi tên/di chuyển Cloud + Nội bộ)`;
+  const tag = process.argv[2] || 'v3.9.52';
+  const name = process.argv[3] || `Nocturne ${tag} (Khóa single-flight OAuth Drive/OneDrive & chuẩn hóa đường dẫn DSD/Unicode/ký tự + nội bộ)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 105) — Gia cố BitPerfectAudioPlayer chống treo/lỗi stream & đối soát file đổi tên/di chuyển Cloud + Nội bộ
+    : `### Nocturne ${tag} (versionCode 106) — Khóa single-flight OAuth Drive/OneDrive & chuẩn hóa đường dẫn DSD/Unicode/ký tự \`+\` nội bộ
 
-#### 1. Gia cố Android \`BitPerfectAudioPlayer\` (\`MainActivity.java\`)
-- **Mở khóa chuyển bài nhanh (\`stopInternal\`)**: Chủ động gọi \`pause()\` / \`flush()\` / \`stop()\` trên \`AudioTrack\` trước khi chờ \`mPlaybackThread.join(800)\` nhằm giải phóng tức thì \`AudioTrack.write(..., WRITE_BLOCKING)\` khi chuyển bài liên tục trên FiiO M11S.
-- **Fallback \`content://\` bằng \`ParcelFileDescriptor\` & ước tính thời lượng**: Hỗ trợ \`openFileDescriptor(uri, "r")\` cho cả \`MediaExtractor\` lẫn \`MediaMetadataRetriever\`, kèm \`estimateBitrateDurationMs(fileBytes, bitrateBps)\` khi container thiếu trường thời lượng.
-- **Chống treo luồng giải mã & rò rỉ AudioFocus**: Đẩy lỗi \`audioTrackIdx < 0\` về nhánh \`finally\` (giải phóng Focus trước khi báo Web), giới hạn vòng đợi xả EOS (\`idleDrainIterations >= 200\`), xử lý lỗi frame cắt ngắn cuối file (\`consecutiveCodecErrors >= 5\`), thoát sạch khi \`AudioTrack.write < 0\` (DAC ngắt kết nối) và bảo vệ \`mWebView != null\` khi hoàn tất bài.
+#### 1. Khóa single-flight OAuth cho Google Drive & OneDrive (\`index.html\`)
+- **Google Drive (\`ensureGoogleToken\`, \`requestGoogleToken\`)**: Bổ sung khóa đơn luồng \`googleTokenRefreshPromise\` cùng dấu thời gian \`state.googleLastRefreshAt\` và cửa sổ chống dội 8 giây khi nhiều yêu cầu \`forceRefresh\` (lỗi 401 đồng thời từ phát nhạc, tải ảnh bìa, đồng bộ) xảy ra cùng lúc.
+- **OneDrive MSAL (\`getMicrosoftToken\`, \`ensureMicrosoftMsalClient\`)**: Tách khóa khởi tạo \`microsoftMsalInitPromise\`, khóa làm mới ngầm \`microsoftTokenSilentPromise\` và khóa đăng nhập tương tác \`microsoftTokenInteractivePromise\` để triệt tiêu xung đột \`interaction_in_progress\` khi nhiều luồng OneDrive chạy song song.
 
-#### 2. Bảo toàn & đối soát tệp nhạc đổi tên / di chuyển thư mục (\`index.html\`)
-- **Google Drive & OneDrive**: \`mergeMicrosoftTrack\` không ghi đè mất \`metadataLoaded\` / \`duration\` / tag ID3-FLAC đã đọc khi chưa đổi nội dung; đồng bộ \`tryLoadGoogleChangesDelta\`, \`loadGoogleFiles\`, \`tryLoadMicrosoftDeltaSync\` và \`loadMicrosoftFiles\` cập nhật tên mới và fallback theo tên tệp mà vẫn giữ nguyên ảnh bìa, đánh giá và lịch sử phát.
-- **FiiO Internal & MicroSD**: \`applyFiioRescanFields\` cập nhật lại \`path\`, \`name\`, URL \`/local-media\` và xóa khóa cũ khi tệp di chuyển giữ nguyên \`uri\`; \`reconcileMovedFiioTracks\` + \`pruneMissingFiioTracks\` tự động chuyển giao ảnh bìa, đánh giá, lời bài hát, thông số Hi-Res và khóa \`recentHistory\` khi tệp chuyển vị trí nhận \`uri\` mới duy nhất.
+#### 2. Khôi phục DSD nội bộ & chuẩn hóa đường dẫn Unicode / \`+\` trên Android (\`index.html\`, \`MainActivity.java\`)
+- **Web & Desktop DSD (\`preloadDsdNext\`, \`playTrack\`)**: Nhánh DSD hỗ trợ khôi phục tệp từ \`FileSystemFileHandle\` thông qua \`ensureLocalTrackPlayableUrl(track, { requestPermission: true })\` (và nạp ngầm \`fileHandle\` ở \`preloadDsdNext\` cho máy tính không ở chế độ FiiO), kiểm tra lỗi HTTP trước khi đọc blob \`/local-media\` và chuẩn hóa tên tệp/MIME qua \`library.normalizeAudioBlob\`.
+- **Android Local & MediaStore (\`resolveReadableLocalFile\`, \`resolveMediaStoreContentUriForPath\`)**: Tách hàm \`resolveReadableLocalFile\` dùng chung cho \`extractCoverJpeg\`, \`handleLocalMediaStreaming\` và \`BitPerfectAudioPlayer.runPlaybackLoop\`, bảo toàn ký tự \`+\` (\`.replace("+", "%2B")\`) khi giải mã URL (\`#\`, \`%\`, \`?\`, \`+\`) và thử lần lượt dạng chuẩn hóa Unicode \`NFC\`/\`NFD\` trên thẻ nhớ FAT32/exFAT lẫn truy vấn \`MediaStore.DATA\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

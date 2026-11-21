@@ -1969,19 +1969,87 @@ public class MainActivity extends AppCompatActivity {
      * Resolves a MediaStore content:// URI for a filesystem path when direct File access is blocked
      * by Android 11-15 Scoped Storage.
      */
+    @NonNull
+    public static File resolveReadableLocalFile(@Nullable String rawPath) {
+        if (rawPath == null || rawPath.isEmpty()) return new File("");
+        File direct = new File(rawPath);
+        if (direct.exists()) return direct;
+
+        String nfcDirect = java.text.Normalizer.normalize(rawPath, java.text.Normalizer.Form.NFC);
+        if (!nfcDirect.equals(rawPath)) {
+            File nfcFile = new File(nfcDirect);
+            if (nfcFile.exists()) return nfcFile;
+        }
+        String nfdDirect = java.text.Normalizer.normalize(rawPath, java.text.Normalizer.Form.NFD);
+        if (!nfdDirect.equals(rawPath)) {
+            File nfdFile = new File(nfdDirect);
+            if (nfdFile.exists()) return nfdFile;
+        }
+
+        String decoded = null;
+        try {
+            // Preserve literal '+' characters when decoding percent-encoded local paths (#, %, ?, +)
+            String safeEncoded = rawPath.replace("+", "%2B");
+            decoded = URLDecoder.decode(safeEncoded, StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {}
+
+        if (decoded != null && !decoded.isEmpty() && !decoded.equals(rawPath)) {
+            File decodedFile = new File(decoded);
+            if (decodedFile.exists()) return decodedFile;
+            String nfcDecoded = java.text.Normalizer.normalize(decoded, java.text.Normalizer.Form.NFC);
+            if (!nfcDecoded.equals(decoded)) {
+                File nfcFile = new File(nfcDecoded);
+                if (nfcFile.exists()) return nfcFile;
+            }
+            String nfdDecoded = java.text.Normalizer.normalize(decoded, java.text.Normalizer.Form.NFD);
+            if (!nfdDecoded.equals(decoded)) {
+                File nfdFile = new File(nfdDecoded);
+                if (nfdFile.exists()) return nfdFile;
+            }
+            return decodedFile;
+        }
+        return direct;
+    }
+
     @Nullable
-    public Uri resolveMediaStoreContentUriForPath(@Nullable String filePath) {
-        if (filePath == null || filePath.isEmpty()) return null;
+    private Uri queryMediaStoreAudioByDataPath(@Nullable String candidatePath) {
+        if (candidatePath == null || candidatePath.isEmpty()) return null;
         try (Cursor cursor = getContentResolver().query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 new String[]{MediaStore.Audio.Media._ID},
                 MediaStore.Audio.Media.DATA + " = ?",
-                new String[]{filePath},
+                new String[]{candidatePath},
                 null
         )) {
             if (cursor != null && cursor.moveToFirst()) {
                 long id = cursor.getLong(0);
                 return ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id);
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    @Nullable
+    public Uri resolveMediaStoreContentUriForPath(@Nullable String filePath) {
+        if (filePath == null || filePath.isEmpty()) return null;
+        Uri found = queryMediaStoreAudioByDataPath(filePath);
+        if (found != null) return found;
+
+        String nfcPath = java.text.Normalizer.normalize(filePath, java.text.Normalizer.Form.NFC);
+        if (!nfcPath.equals(filePath)) {
+            found = queryMediaStoreAudioByDataPath(nfcPath);
+            if (found != null) return found;
+        }
+        String nfdPath = java.text.Normalizer.normalize(filePath, java.text.Normalizer.Form.NFD);
+        if (!nfdPath.equals(filePath)) {
+            found = queryMediaStoreAudioByDataPath(nfdPath);
+            if (found != null) return found;
+        }
+        try {
+            String decoded = URLDecoder.decode(filePath.replace("+", "%2B"), StandardCharsets.UTF_8.name());
+            if (decoded != null && !decoded.equals(filePath)) {
+                found = queryMediaStoreAudioByDataPath(decoded);
+                if (found != null) return found;
             }
         } catch (Exception ignored) {}
         return null;
@@ -2621,14 +2689,7 @@ public class MainActivity extends AppCompatActivity {
             contentUri = Uri.parse(uriParam);
         }
         if (pathParam != null && !pathParam.isEmpty()) {
-            file = new File(pathParam);
-            if (!file.exists()) {
-                try {
-                    String safeEncoded = pathParam.replace("+", "%2B");
-                    File decoded = new File(URLDecoder.decode(safeEncoded, StandardCharsets.UTF_8.name()));
-                    if (decoded.exists()) file = decoded;
-                } catch (Exception ignored) {}
-            }
+            file = resolveReadableLocalFile(pathParam);
             if (contentUri == null && (!file.exists() || !file.canRead())) {
                 contentUri = resolveMediaStoreContentUriForPath(file.getAbsolutePath());
             }
@@ -2927,16 +2988,7 @@ public class MainActivity extends AppCompatActivity {
                         new ByteArrayInputStream("Missing path or uri parameter".getBytes(StandardCharsets.UTF_8)));
             }
 
-            File file = new File(pathParam);
-            if (!file.exists()) {
-                try {
-                    String decoded = URLDecoder.decode(pathParam, StandardCharsets.UTF_8.name());
-                    File f2 = new File(decoded);
-                    if (f2.exists()) {
-                        file = f2;
-                    }
-                } catch (Exception ignored) {}
-            }
+            File file = resolveReadableLocalFile(pathParam);
 
             // Automatic Scoped Storage fallback: if direct File read is blocked on Android 11+, resolve via MediaStore
             if (!file.exists() || !file.isFile() || !file.canRead()) {
@@ -4301,7 +4353,7 @@ public class MainActivity extends AppCompatActivity {
                     int amp = resolvedPath.indexOf('&');
                     if (amp >= 0) resolvedPath = resolvedPath.substring(0, amp);
                     try {
-                        resolvedPath = URLDecoder.decode(resolvedPath, StandardCharsets.UTF_8.name());
+                        resolvedPath = URLDecoder.decode(resolvedPath.replace("+", "%2B"), StandardCharsets.UTF_8.name());
                     } catch (Exception ignored) {}
                 } else if (resolvedPath.startsWith("content://")) {
                     resolvedUri = resolvedPath;
@@ -4309,7 +4361,7 @@ public class MainActivity extends AppCompatActivity {
 
                 if (resolvedUri != null && !resolvedUri.startsWith("content://")) {
                     try {
-                        String dec = URLDecoder.decode(resolvedUri, StandardCharsets.UTF_8.name());
+                        String dec = URLDecoder.decode(resolvedUri.replace("+", "%2B"), StandardCharsets.UTF_8.name());
                         if (dec.startsWith("content://")) resolvedUri = dec;
                     } catch (Exception ignored) {}
                 }
@@ -4341,8 +4393,9 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                 } else {
-                    File localFile = new File(resolvedPath);
+                    File localFile = resolveReadableLocalFile(resolvedPath);
                     if (localFile.exists() && localFile.canRead()) {
+                        resolvedPath = localFile.getAbsolutePath();
                         knownSourceBytes = localFile.length();
                         try (FileInputStream fis = new FileInputStream(localFile)) {
                             extractor.setDataSource(fis.getFD());
@@ -4350,11 +4403,12 @@ public class MainActivity extends AppCompatActivity {
                             extractor.setDataSource(resolvedPath);
                         }
                     } else {
-                        Uri fallbackMediaUri = resolveMediaStoreContentUriForPath(resolvedPath);
+                        String normalizedPath = localFile.getAbsolutePath();
+                        Uri fallbackMediaUri = resolveMediaStoreContentUriForPath(normalizedPath);
                         if (fallbackMediaUri != null) {
                             extractor.setDataSource(MainActivity.this, fallbackMediaUri, null);
                         } else {
-                            extractor.setDataSource(resolvedPath);
+                            extractor.setDataSource(normalizedPath);
                         }
                     }
                 }
@@ -5135,11 +5189,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.51";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.52";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.51\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.52\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
