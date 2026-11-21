@@ -80,20 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.64';
-  const name = process.argv[3] || `Nocturne ${tag} (Tự động nối lại luồng phát khi rớt mạng/lỗi giải mã giữa bài + Hỗ trợ đầy đủ CUE đa tệp cho Web & Android/FiiO MicroSD)`;
+  const tag = process.argv[2] || 'v3.9.65';
+  const name = process.argv[3] || `Nocturne ${tag} (Đồng bộ đổi tên/di chuyển thư mục & ảnh bìa Delta cho Google Drive/OneDrive + Tự tạm dừng khi rút tai nghe/USB DAC trên Android/FiiO)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 118) — Tự động nối lại luồng phát khi gặp lỗi mạng/giải mã giữa bài & Hỗ trợ đầy đủ tệp CUE đa tệp (Web + Android/FiiO MicroSD)
+    : `### Nocturne ${tag} (versionCode 119) — Đồng bộ đổi tên/di chuyển thư mục & ảnh bìa Delta cho Google Drive / OneDrive + Tự tạm dừng chuẩn xác khi ngắt tai nghe / USB DAC trên Android/FiiO
 
-#### 1. Tự động nối lại luồng phát giữa bài khi gặp \`MEDIA_ERR_NETWORK\` / \`MEDIA_ERR_DECODE\` / \`MEDIA_ERR_SRC_NOT_SUPPORTED\` (\`index.html\`)
-- **Nối lại đúng giây đang nghe trước khi bỏ bài**: Khi deck đang phát gặp lỗi mạng/giải mã/nguồn giữa bài trên Google Drive, OneDrive hoặc \`/local-media\`, \`attachDeckEvents\` tự động thử nối lại 1 lần qua \`recoverStalledAudioStream\` tại đúng mốc \`_lastKnownPlayPosition\` (cưỡng chế làm mới Google OAuth token hoặc OneDrive \`downloadUrl\` mới, hoặc thêm \`_sr\` cho Local) thay vì bỏ bài ngay lập tức.
-- **Chống nhấp nháy UI & bảo vệ thời lượng CUE**: Đặt cờ \`_upgradingFullAudio\` có timeout an toàn trong lúc nối lại luồng để không nháy nút Play/Pause, đồng thời bảo vệ \`loadedmetadata\` không ghi đè thời lượng album gốc lên sub-track CUE.
+#### 1. Đồng bộ Delta đổi tên/di chuyển thư mục & làm mới ảnh bìa Google Drive / OneDrive (\`index.html\`)
+- **Google Drive Delta Sync (\`tryLoadGoogleChangesDelta\` & \`discoverGoogleDriveFolderArtwork\`)**: Nhận diện đổi tên thư mục (cập nhật \`discNumber\` khi đổi tên \`Disc N\`/\`CD N\`), di chuyển bài sang thư mục mới và thêm/thay thế ảnh bìa \`cover.jpg\`/\`folder.jpg\` để tự làm mới ảnh bìa thư mục mà không ghi đè ảnh nhúng trong tag FLAC/MP3.
+- **OneDrive Delta Sync (\`tryLoadMicrosoftDeltaSync\` & \`remoteParentId\`)**: Lưu bền vững \`remoteParentId\` trên track OneDrive; khi đổi tên hoặc di chuyển thư mục cha trong chế độ Delta Sync, tự lan truyền \`remotePath\` và \`discNumber\` mới xuống các bài bên trong mà không cần xóa thư viện quét lại.
 
-#### 2. Hỗ trợ trọn vẹn tệp \`.cue\` đa tệp (\`library-utils.js\` + \`index.html\`)
-- **Phân tích chính xác CUE đa tệp & EAC pre-gap (\`parseCueSheet\`)**: Bỏ UTF-8 BOM \`\\uFEFF\`, gắn đúng \`FILE\` cho \`INDEX 01\` theo chuẩn EAC noncompliant, không trừ nhầm offset chéo giữa 2 tệp khác nhau, và xuất \`files\` / \`isMultiFile\` / \`hasNextInFile\`.
-- **Khớp từng tệp âm thanh trên Web Local Folder & Android/FiiO MicroSD**: \`addLocalFiles\` và \`expandFiioScannedCueSheets\` ánh xạ từng mục \`FILE "01.flac"\`, \`FILE "02.flac"\` tới đúng tệp audio tương ứng, ghi và lưu bền vững \`cueEnd\` (sửa lỗi CUE trên FiiO HTML5 Audio không tự chuyển bài khi hết track), và loại sạch toàn bộ tệp gốc trùng lặp.
+#### 2. Tự động tạm dừng thông minh khi ngắt tai nghe / USB-C DAC trên Android & FiiO (\`MainActivity.java\` + \`index.html\`)
+- **Bổ sung dự phòng từ \`AudioDeviceCallback\` khi rút USB DAC / tai nghe**: Khi ngắt thiết bị âm thanh ngoài và không còn ngõ ra ngoài nào khác (\`!hasActiveExternalAudioSink()\`), \`MainActivity\` tự động kích hoạt \`triggerAudioBecomingNoisy\` (chống trùng trong 800ms) để tạm dừng ngay cả Native Bit-Perfect lẫn WebView Audio.
+- **Đồng bộ thanh thông báo & chống toast thừa**: \`window.onAndroidAudioBecomingNoisy\` đồng bộ trạng thái \`paused\` lên \`MediaSession\` và thông báo khóa màn hình Android/FiiO, đồng thời chỉ hiển thị thông báo khi nhạc thực sự đang phát.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

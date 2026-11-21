@@ -3526,20 +3526,64 @@ public class MainActivity extends AppCompatActivity {
     };
 
     private boolean mIsBecomingNoisyRegistered = false;
+    private volatile long mLastBecomingNoisyAtMs = 0L;
+
+    private static boolean isExternalAudioSinkType(int t) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false;
+        return t == AudioDeviceInfo.TYPE_USB_DEVICE
+                || t == AudioDeviceInfo.TYPE_USB_HEADSET
+                || t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+                || t == AudioDeviceInfo.TYPE_WIRED_HEADSET
+                || t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                || t == AudioDeviceInfo.TYPE_LINE_ANALOG
+                || t == AudioDeviceInfo.TYPE_LINE_DIGITAL
+                || t == AudioDeviceInfo.TYPE_AUX_LINE
+                || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                    && (t == AudioDeviceInfo.TYPE_BLE_HEADSET || t == AudioDeviceInfo.TYPE_BLE_SPEAKER));
+    }
+
+    private boolean hasActiveExternalAudioSink() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || mAudioManager == null) return false;
+        try {
+            AudioDeviceInfo[] outputs = mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+            if (outputs == null) return false;
+            for (AudioDeviceInfo dev : outputs) {
+                if (dev != null && dev.isSink() && isExternalAudioSinkType(dev.getType())) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    private void triggerAudioBecomingNoisy(String reason) {
+        long nowMs = android.os.SystemClock.elapsedRealtime();
+        if (nowMs - mLastBecomingNoisyAtMs < 800L) return;
+        mLastBecomingNoisyAtMs = nowMs;
+        boolean nativeWasPlaying = false;
+        try {
+                    if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                        pauseBitPerfectPlayback();
+                        nativeWasPlaying = true;
+                    }
+        } catch (Exception ignored) {}
+        final boolean wasNative = nativeWasPlaying;
+        runOnUiThread(() -> {
+            if (mWebView != null) {
+                mWebView.evaluateJavascript(
+                    "window.__androidNoisyNativeWasPlaying=" + (wasNative ? "true" : "false")
+                    + ";if(typeof window.onAndroidAudioBecomingNoisy==='function'){window.onAndroidAudioBecomingNoisy();}",
+                    null
+                );
+            }
+        });
+    }
+
     private final BroadcastReceiver mBecomingNoisyReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (intent != null && AudioManager.ACTION_AUDIO_BECOMING_NOISY.equals(intent.getAction())) {
-                try {
-                    if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
-                        pauseBitPerfectPlayback();
-                    }
-                } catch (Exception ignored) {}
-                runOnUiThread(() -> {
-                    if (mWebView != null) {
-                        mWebView.evaluateJavascript("if(typeof window.onAndroidAudioBecomingNoisy==='function'){window.onAndroidAudioBecomingNoisy();}", null);
-                    }
-                });
+                triggerAudioBecomingNoisy("ACTION_AUDIO_BECOMING_NOISY");
             }
         }
     };
@@ -3591,18 +3635,10 @@ public class MainActivity extends AppCompatActivity {
         if (devices == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
         for (AudioDeviceInfo dev : devices) {
             if (dev == null || !dev.isSink()) continue;
-            int t = dev.getType();
-            boolean isExternalDac = (t == AudioDeviceInfo.TYPE_USB_DEVICE
-                    || t == AudioDeviceInfo.TYPE_USB_HEADSET
-                    || t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
-                    || t == AudioDeviceInfo.TYPE_WIRED_HEADSET
-                    || t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
-                    || t == AudioDeviceInfo.TYPE_LINE_ANALOG
-                    || t == AudioDeviceInfo.TYPE_LINE_DIGITAL
-                    || t == AudioDeviceInfo.TYPE_AUX_LINE
-                    || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                        && (t == AudioDeviceInfo.TYPE_BLE_HEADSET || t == AudioDeviceInfo.TYPE_BLE_SPEAKER)));
-            if (!isExternalDac) continue;
+            if (!isExternalAudioSinkType(dev.getType())) continue;
+            if (!connected && !hasActiveExternalAudioSink()) {
+                triggerAudioBecomingNoisy("DEVICE_REMOVED");
+            }
             String rawName = dev.getProductName() != null ? dev.getProductName().toString() : "Audio Output";
             String safeName = rawName.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ");
             final String js = "if(typeof window.onAndroidAudioDeviceChanged==='function'){window.onAndroidAudioDeviceChanged('" + safeName + "'," + (connected ? "true" : "false") + ");}";
@@ -5448,11 +5484,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.64";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.65";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.64\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.65\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
