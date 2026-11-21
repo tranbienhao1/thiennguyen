@@ -80,19 +80,21 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.50';
-  const name = process.argv[3] || `Nocturne ${tag} (Tự nối lại luồng phát khi đứng buffer Cloud/Local, lối tắt Google Drive & thư mục chia sẻ OneDrive)`;
+  const tag = process.argv[2] || 'v3.9.51';
+  const name = process.argv[3] || `Nocturne ${tag} (Gia cố BitPerfectAudioPlayer chống treo/lỗi stream & đối soát file đổi tên/di chuyển Cloud + Nội bộ)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 104) — Tự nối lại luồng phát khi đứng buffer Cloud/Local, lối tắt Google Drive & thư mục chia sẻ OneDrive
+    : `### Nocturne ${tag} (versionCode 105) — Gia cố BitPerfectAudioPlayer chống treo/lỗi stream & đối soát file đổi tên/di chuyển Cloud + Nội bộ
 
-#### 1. Tự động nối lại luồng phát Cloud & Nội bộ khi đứng buffer (\`index.html\`)
-- **\`recoverStalledAudioStream\` & \`runPlaybackStallWatchdogTick\`**: Sau các lần nhích phát lặp lại mà luồng audio vẫn đứng (\`readyState <= 2\` hoặc \`audio.error\`), hệ thống tự động nạp lại URL/luồng mới cho bài Google Drive, OneDrive (làm mới \`downloadUrl\`) hoặc bài nội bộ (\`/local-media?_sr=\` / \`ensureLocalTrackPlayableUrl\`, hoạt động cả khi mất mạng) và khôi phục chính xác vị trí đang nghe (\`currentTime\`), giới hạn tối đa \`1\` lần nối lại mỗi bài trong \`120s\`.
+#### 1. Gia cố Android \`BitPerfectAudioPlayer\` (\`MainActivity.java\`)
+- **Mở khóa chuyển bài nhanh (\`stopInternal\`)**: Chủ động gọi \`pause()\` / \`flush()\` / \`stop()\` trên \`AudioTrack\` trước khi chờ \`mPlaybackThread.join(800)\` nhằm giải phóng tức thì \`AudioTrack.write(..., WRITE_BLOCKING)\` khi chuyển bài liên tục trên FiiO M11S.
+- **Fallback \`content://\` bằng \`ParcelFileDescriptor\` & ước tính thời lượng**: Hỗ trợ \`openFileDescriptor(uri, "r")\` cho cả \`MediaExtractor\` lẫn \`MediaMetadataRetriever\`, kèm \`estimateBitrateDurationMs(fileBytes, bitrateBps)\` khi container thiếu trường thời lượng.
+- **Chống treo luồng giải mã & rò rỉ AudioFocus**: Đẩy lỗi \`audioTrackIdx < 0\` về nhánh \`finally\` (giải phóng Focus trước khi báo Web), giới hạn vòng đợi xả EOS (\`idleDrainIterations >= 200\`), xử lý lỗi frame cắt ngắn cuối file (\`consecutiveCodecErrors >= 5\`), thoát sạch khi \`AudioTrack.write < 0\` (DAC ngắt kết nối) và bảo vệ \`mWebView != null\` khi hoàn tất bài.
 
-#### 2. Hỗ trợ lối tắt Google Drive & thư mục/mục chia sẻ OneDrive (\`index.html\`)
-- **Google Drive Shortcuts (\`shortcutDetails.targetId\`)**: \`scanGoogleDriveAudioShortcuts\`, \`tryLoadGoogleChangesDelta\`, \`isCloudAudio\`, \`googleTrack\`, \`loadGoogleAudio\`, \`cloudTagRequest\` và \`googleThumbnail\` nhận diện lối tắt trỏ tới tệp âm thanh, loại bỏ lối tắt thư mục/tài liệu, tránh trùng bài nếu tệp đích đã có trong My Drive, và phát/đọc tag trực tiếp từ \`targetRemoteId\`.
-- **OneDrive Shared Folders & Items (\`remoteItem\` / \`remoteDriveId\`)**: \`enqueueMicrosoftSharedItems\`, \`normalizeMicrosoftDriveItem\`, \`loadMicrosoftFiles\`, \`tryLoadMicrosoftDeltaSync\`, \`resolveMicrosoftDownloadUrl\`, \`loadMicrosoftAudio\`, \`fetchCloudFile\`, \`fetchCloudTrack\`, \`upgradeSliceToFullAudio\`, \`cloudTagRequest\` và \`microsoftThumbnail\` hỗ trợ đầy đủ tệp và thư mục chia sẻ qua \`/drives/{driveId}/items/{itemId}\` và lưu bền vững \`remoteDriveId\` trong IndexedDB.
+#### 2. Bảo toàn & đối soát tệp nhạc đổi tên / di chuyển thư mục (\`index.html\`)
+- **Google Drive & OneDrive**: \`mergeMicrosoftTrack\` không ghi đè mất \`metadataLoaded\` / \`duration\` / tag ID3-FLAC đã đọc khi chưa đổi nội dung; đồng bộ \`tryLoadGoogleChangesDelta\`, \`loadGoogleFiles\`, \`tryLoadMicrosoftDeltaSync\` và \`loadMicrosoftFiles\` cập nhật tên mới và fallback theo tên tệp mà vẫn giữ nguyên ảnh bìa, đánh giá và lịch sử phát.
+- **FiiO Internal & MicroSD**: \`applyFiioRescanFields\` cập nhật lại \`path\`, \`name\`, URL \`/local-media\` và xóa khóa cũ khi tệp di chuyển giữ nguyên \`uri\`; \`reconcileMovedFiioTracks\` + \`pruneMissingFiioTracks\` tự động chuyển giao ảnh bìa, đánh giá, lời bài hát, thông số Hi-Res và khóa \`recentHistory\` khi tệp chuyển vị trí nhận \`uri\` mới duy nhất.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

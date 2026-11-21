@@ -2363,7 +2363,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.50</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.51</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3725,8 +3725,19 @@
     };
     function mergeMicrosoftTrack(track, item, remotePath = '') {
       const currentUrl = track.url, currentFile = track.file, currentRev = track.contentRev, currentDriveId = track.remoteDriveId;
+      const currentDuration = Number(track.duration) || 0;
+      const wasMetadataLoaded = Boolean(track.metadataLoaded);
+      const prevTitle = track.title, prevArtist = track.artist, prevAlbum = track.album, prevAlbumArtist = track.albumArtist;
       const enriched = microsoftTrack(item, remotePath || track.remotePath, {title:track.title, artist:track.artist, album:track.album});
       Object.assign(track, enriched);
+      if (!(Number(track.duration) > 0) && currentDuration > 0) track.duration = currentDuration;
+      if (wasMetadataLoaded) {
+        track.metadataLoaded = true;
+        if (prevTitle) track.title = prevTitle;
+        if (prevArtist && prevArtist !== 'Unknown Artist') track.artist = prevArtist;
+        if (prevAlbum && prevAlbum !== 'Unknown Album') track.album = prevAlbum;
+        if (prevAlbumArtist) track.albumArtist = prevAlbumArtist;
+      }
       if (!enriched.contentRev && currentRev) track.contentRev = currentRev;
       if (!enriched.remoteDriveId && currentDriveId) track.remoteDriveId = currentDriveId;
       track.url = currentUrl || '';
@@ -15434,6 +15445,14 @@
               if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
               if (file.name && existing.name !== file.name) {
                 existing.name = file.name;
+                if (!existing.metadataLoaded && typeof filenameMetadata === 'function') {
+                  const rnMeta = filenameMetadata(file.name);
+                  if (rnMeta) {
+                    if (rnMeta.title) existing.title = rnMeta.title;
+                    if (rnMeta.artist && rnMeta.artist !== 'Unknown Artist') existing.artist = rnMeta.artist;
+                    if (rnMeta.album && rnMeta.album !== 'Unknown Album') existing.album = rnMeta.album;
+                  }
+                }
                 touched = true;
               }
               if (touched) updatedTracks.push(existing);
@@ -15598,6 +15617,14 @@
                 if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
                 if (file.name && existing.name !== file.name) {
                   existing.name = file.name;
+                  if (!existing.metadataLoaded && typeof filenameMetadata === 'function') {
+                    const rnMeta = filenameMetadata(file.name);
+                    if (rnMeta) {
+                      if (rnMeta.title) existing.title = rnMeta.title;
+                      if (rnMeta.artist && rnMeta.artist !== 'Unknown Artist') existing.artist = rnMeta.artist;
+                      if (rnMeta.album && rnMeta.album !== 'Unknown Album') existing.album = rnMeta.album;
+                    }
+                  }
                   touched = true;
                 }
                 if (touched) updatedExistingTracks.push(existing);
@@ -16110,7 +16137,19 @@
                   touched = true;
                 }
                 if (msContentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
-                if (item.audio && (!existing.metadataLoaded || !existing.cover || msContentChanged)) {
+                if (item.name && existing.name !== item.name) {
+                  existing.name = item.name;
+                  if (!existing.metadataLoaded && !item.audio && typeof filenameMetadata === 'function') {
+                    const rnMsMeta = filenameMetadata(item.name);
+                    if (rnMsMeta) {
+                      if (rnMsMeta.title) existing.title = rnMsMeta.title;
+                      if (rnMsMeta.artist && rnMsMeta.artist !== 'Unknown Artist') existing.artist = rnMsMeta.artist;
+                      if (rnMsMeta.album && rnMsMeta.album !== 'Unknown Album') existing.album = rnMsMeta.album;
+                    }
+                  }
+                  touched = true;
+                }
+                if (item.audio && (!existing.metadataLoaded || msContentChanged)) {
                   mergeMicrosoftTrack(existing, item, itemPath);
                   touched = true;
                 }
@@ -16242,7 +16281,19 @@
                     touched = true;
                   }
                   if (msContentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
-                  if (item.audio && (!existing.metadataLoaded || !existing.cover)) {
+                  if (item.name && existing.name !== item.name) {
+                    existing.name = item.name;
+                    if (!existing.metadataLoaded && !item.audio && typeof filenameMetadata === 'function') {
+                      const rnMsMeta = filenameMetadata(item.name);
+                      if (rnMsMeta) {
+                        if (rnMsMeta.title) existing.title = rnMsMeta.title;
+                        if (rnMsMeta.artist && rnMsMeta.artist !== 'Unknown Artist') existing.artist = rnMsMeta.artist;
+                        if (rnMsMeta.album && rnMsMeta.album !== 'Unknown Album') existing.album = rnMsMeta.album;
+                      }
+                    }
+                    touched = true;
+                  }
+                  if (item.audio && (!existing.metadataLoaded || msContentChanged)) {
                     mergeMicrosoftTrack(existing, item, itemPath);
                     touched = true;
                   }
@@ -18212,8 +18263,35 @@
     }
 
     function applyFiioRescanFields(prevTrack, file, normPath, normUri, existingPaths, existingUris, existingByPath, existingByUri) {
-      if (normUri) { if (!prevTrack.uri) prevTrack.uri = normUri; existingUris.add(normUri); existingByUri.set(normUri, prevTrack); }
-      if (normPath) { if (!prevTrack.path) prevTrack.path = normPath; existingPaths.add(normPath); existingByPath.set(normPath, prevTrack); }
+      const oldUri = prevTrack.uri ? String(prevTrack.uri).trim() : '';
+      const oldPath = prevTrack.path ? String(prevTrack.path).trim() : '';
+      const oldName = prevTrack.name ? String(prevTrack.name).trim() : '';
+      if (normUri) {
+        if (oldUri && oldUri !== normUri) {
+          existingUris.delete(oldUri);
+          existingByUri.delete(oldUri);
+          if (prevTrack.url && prevTrack.url.indexOf('/local-media?uri=') !== -1) prevTrack.url = '';
+        }
+        prevTrack.uri = normUri;
+        existingUris.add(normUri);
+        existingByUri.set(normUri, prevTrack);
+      }
+      if (normPath) {
+        if (oldPath && oldPath !== normPath) {
+          existingPaths.delete(oldPath);
+          existingByPath.delete(oldPath);
+          if (prevTrack.url && prevTrack.url.indexOf('/local-media?path=') !== -1) prevTrack.url = '';
+        }
+        prevTrack.path = normPath;
+        existingPaths.add(normPath);
+        existingByPath.set(normPath, prevTrack);
+      }
+      const rawFileName = file.name ? String(file.name).trim() : (normPath ? normPath.slice(Math.max(normPath.lastIndexOf('/'), normPath.lastIndexOf('\\')) + 1) : '');
+      const newBaseName = rawFileName ? rawFileName.replace(/\.[^/.]+$/, '') : '';
+      if (newBaseName && oldName !== newBaseName) {
+        prevTrack.name = newBaseName;
+        if (!prevTrack.title || prevTrack.title === oldName) prevTrack.title = newBaseName;
+      }
       if (Number(file.duration) > 0 && !(Number(prevTrack.duration) > 0)) prevTrack.duration = Number(file.duration);
       if (Number(file.size) > 0 && !(Number(prevTrack.size) > 0)) prevTrack.size = Number(file.size);
       const fTrackNo = Number(file.trackNumber || file.track) || 0;
@@ -18221,7 +18299,7 @@
       if (file.artist && file.artist !== '<unknown>' && (!prevTrack.artist || prevTrack.artist === 'Unknown Artist')) prevTrack.artist = String(file.artist).trim();
       if (file.album && file.album !== '<unknown>' && (!prevTrack.album || prevTrack.album === 'FiiO Internal & SD Card')) prevTrack.album = String(file.album).trim();
       if (file.albumArtist && file.albumArtist !== '<unknown>' && !prevTrack.albumArtist) prevTrack.albumArtist = String(file.albumArtist).trim();
-      if (file.title && file.title !== '<unknown>' && (!prevTrack.title || prevTrack.title === prevTrack.name)) prevTrack.title = String(file.title).trim();
+      if (file.title && file.title !== '<unknown>' && (!prevTrack.title || prevTrack.title === prevTrack.name || prevTrack.title === oldName)) prevTrack.title = String(file.title).trim();
       if (typeof restoreLocalTrackUrlSync === 'function') restoreLocalTrackUrlSync(prevTrack);
     }
 
@@ -18238,10 +18316,10 @@
         if ((normPath && existingPaths.has(normPath)) || (normUri && existingUris.has(normUri))) {
           const prevTrack = (normPath && existingByPath.get(normPath)) || (normUri && existingByUri.get(normUri)) || null;
           if (prevTrack) {
-            const bCov = prevTrack.cover || '', bMeta = (prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '') + '|' + (prevTrack.size || 0);
+            const bCov = prevTrack.cover || '', bMeta = (prevTrack.path || '') + '|' + (prevTrack.name || '') + '|' + (prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '') + '|' + (prevTrack.size || 0);
             applyFiioRescanFields(prevTrack, file, normPath, normUri, existingPaths, existingUris, existingByPath, existingByUri);
             if (typeof library !== 'undefined' && library && library.enrichFiioTrackMetadata) library.enrichFiioTrackMetadata(prevTrack);
-            if ((prevTrack.cover || '') !== bCov || ((prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '') + '|' + (prevTrack.size || 0)) !== bMeta) fiioScanUpgradedCount++;
+            if ((prevTrack.cover || '') !== bCov || ((prevTrack.path || '') + '|' + (prevTrack.name || '') + '|' + (prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '') + '|' + (prevTrack.size || 0)) !== bMeta) fiioScanUpgradedCount++;
           }
           continue;
         }
@@ -18297,6 +18375,72 @@
       return '';
     }
 
+    function reconcileMovedFiioTracks(removedTracks, keptTracks) {
+      if (!Array.isArray(removedTracks) || !removedTracks.length || !Array.isArray(keptTracks) || !keptTracks.length) return 0;
+      const getBaseName = tr => {
+        const raw = String((tr && (tr.name || tr.path)) || '').trim();
+        if (!raw) return '';
+        const seg = raw.slice(Math.max(raw.lastIndexOf('/'), raw.lastIndexOf('\\')) + 1);
+        return seg.replace(/\.[^/.]+$/, '').trim().toLowerCase();
+      };
+      let migrated = 0;
+      for (let i = 0; i < removedTracks.length; i++) {
+        const oldTr = removedTracks[i];
+        const oldSize = Number(oldTr && oldTr.size) || 0;
+        if (!(oldSize > 0)) continue;
+        const oldBase = getBaseName(oldTr);
+        const oldTitle = (oldTr.title && oldTr.title !== oldTr.name) ? String(oldTr.title).trim().toLowerCase() : '';
+        const oldArtist = (oldTr.artist && oldTr.artist !== 'Unknown Artist') ? String(oldTr.artist).trim().toLowerCase() : '';
+        const matches = [];
+        for (let j = 0; j < keptTracks.length; j++) {
+          const cand = keptTracks[j];
+          if (!cand || cand._reconciledMove || !cand.id || String(cand.id).indexOf('fiio_') !== 0) continue;
+          if (Number(cand.size) !== oldSize) continue;
+          const sameBase = Boolean(oldBase && getBaseName(cand) === oldBase);
+          const sameTags = Boolean(oldTitle && oldArtist &&
+            String(cand.title || '').trim().toLowerCase() === oldTitle &&
+            String(cand.artist || '').trim().toLowerCase() === oldArtist);
+          if (sameBase || sameTags) matches.push(cand);
+        }
+        if (matches.length !== 1) continue;
+        const target = matches[0];
+        target._reconciledMove = true;
+        const oldCov = oldTr.cover || '';
+        const oldHasCustomCover = Boolean(oldCov && oldCov !== '♫' && oldCov.indexOf('/local-cover?') === -1);
+        const targetCov = target.cover || '';
+        const targetHasCustomCover = Boolean(targetCov && targetCov !== '♫' && targetCov.indexOf('/local-cover?') === -1);
+        if (oldHasCustomCover && !targetHasCustomCover) target.cover = oldCov;
+        if (Number(oldTr.rating) > 0 && !(Number(target.rating) > 0)) target.rating = oldTr.rating;
+        if (oldTr.lyricsText && !target.lyricsText) target.lyricsText = oldTr.lyricsText;
+        if (oldTr.albumArtist && !target.albumArtist) target.albumArtist = oldTr.albumArtist;
+        if (Number(oldTr.sampleRate) > 0 && !(Number(target.sampleRate) > 0)) target.sampleRate = oldTr.sampleRate;
+        if (Number(oldTr.bitDepth) > 0 && !(Number(target.bitDepth) > 0)) target.bitDepth = oldTr.bitDepth;
+        if (Number(oldTr.channels) > 0 && !(Number(target.channels) > 0)) target.channels = oldTr.channels;
+        if (Number(oldTr.duration) > 0 && !(Number(target.duration) > 0)) target.duration = oldTr.duration;
+        if (oldTr.metadataLoaded) target.metadataLoaded = true;
+        if (typeof library !== 'undefined' && library && typeof library.historyTrackKey === 'function' && state && Array.isArray(state.recentHistory)) {
+          const oldKey = library.historyTrackKey(oldTr);
+          const newKey = library.historyTrackKey(target);
+          if (oldKey && newKey && oldKey !== newKey) {
+            for (let hi = 0; hi < state.recentHistory.length; hi++) {
+              const entry = state.recentHistory[hi];
+              if (entry && entry.trackKey === oldKey) {
+                entry.trackKey = newKey;
+                if (target.title) entry.title = target.title;
+                if (target.artist) entry.artist = target.artist;
+              }
+            }
+          }
+        }
+        migrated++;
+      }
+      for (let j = 0; j < keptTracks.length; j++) {
+        if (keptTracks[j] && keptTracks[j]._reconciledMove) delete keptTracks[j]._reconciledMove;
+      }
+      if (migrated > 0) fiioScanUpgradedCount += migrated;
+      return migrated;
+    }
+
     function pruneMissingFiioTracks(scannedPaths, scannedUris) {
       const hasPaths = Boolean(scannedPaths && scannedPaths.size > 0);
       const hasUris = Boolean(scannedUris && scannedUris.size > 0);
@@ -18309,7 +18453,7 @@
         });
       }
       const kept = [];
-      let removed = 0;
+      const removedTracks = [];
       const list = Array.isArray(state.tracks) ? state.tracks : [];
       for (let i = 0; i < list.length; i++) {
         const t = list[i];
@@ -18331,10 +18475,13 @@
           if (hasUris && !scannedUris.has(tUri)) keep = false;
         }
         if (keep) kept.push(t);
-        else removed++;
+        else removedTracks.push(t);
       }
-      if (removed > 0) state.tracks = kept;
-      return removed;
+      if (removedTracks.length > 0) {
+        reconcileMovedFiioTracks(removedTracks, kept);
+        state.tracks = kept;
+      }
+      return removedTracks.length;
     }
     window.extractStorageRootPrefix = extractStorageRootPrefix;
     window.pruneMissingFiioTracks = pruneMissingFiioTracks;

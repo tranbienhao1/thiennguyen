@@ -4168,6 +4168,12 @@ public class MainActivity extends AppCompatActivity {
                 mIsPaused = false;
                 mPauseLock.notifyAll();
             }
+            AudioTrack unblockTrack = mAudioTrack;
+            if (unblockTrack != null) {
+                try { unblockTrack.pause(); } catch (Exception ignored) {}
+                try { unblockTrack.flush(); } catch (Exception ignored) {}
+                try { unblockTrack.stop(); } catch (Exception ignored) {}
+            }
             if (mPlaybackThread != null) {
                 try {
                     mPlaybackThread.interrupt();
@@ -4224,6 +4230,11 @@ public class MainActivity extends AppCompatActivity {
             int bytesPerSample = (pcmEncoding == AudioFormat.ENCODING_PCM_16BIT) ? 2
                     : (pcmEncoding == AudioFormat.ENCODING_PCM_24BIT_PACKED ? 3 : 4);
             return Math.max(1, channels) * bytesPerSample;
+        }
+
+        private static long estimateBitrateDurationMs(long fileBytes, int bitrateBps) {
+            if (fileBytes <= 0L || bitrateBps <= 0) return 0L;
+            return (fileBytes * 8000L) / (long) bitrateBps;
         }
 
         private void notifyBitPerfectFormatToWeb(int actualRate, int actualEncoding, boolean mixerBitPerfect, AudioDeviceInfo dev) {
@@ -4314,11 +4325,25 @@ public class MainActivity extends AppCompatActivity {
                         ? resolvedUri
                         : (resolvedPath != null ? resolvedPath : "");
 
+                long knownSourceBytes = 0L;
                 if (resolvedUri != null && resolvedUri.startsWith("content://")) {
-                    extractor.setDataSource(MainActivity.this, Uri.parse(resolvedUri), null);
+                    try {
+                        extractor.setDataSource(MainActivity.this, Uri.parse(resolvedUri), null);
+                    } catch (Exception contentDsErr) {
+                        try (ParcelFileDescriptor dsPfd = getContentResolver().openFileDescriptor(Uri.parse(resolvedUri), "r")) {
+                            if (dsPfd != null) {
+                                long pfdLen = dsPfd.getStatSize();
+                                if (pfdLen > 0L) knownSourceBytes = pfdLen;
+                                extractor.setDataSource(dsPfd.getFileDescriptor());
+                            } else {
+                                throw contentDsErr;
+                            }
+                        }
+                    }
                 } else {
                     File localFile = new File(resolvedPath);
                     if (localFile.exists() && localFile.canRead()) {
+                        knownSourceBytes = localFile.length();
                         try (FileInputStream fis = new FileInputStream(localFile)) {
                             extractor.setDataSource(fis.getFD());
                         } catch (Exception fallback) {
@@ -4349,7 +4374,7 @@ public class MainActivity extends AppCompatActivity {
 
                 if (audioTrackIdx < 0 || format == null) {
                     Log.e(TAG, "BitPerfect: No audio stream found in source: " + urlOrPath);
-                    notifyBitPerfectErrorToWeb("No audio stream found in source");
+                    pendingErrorReason = "No audio stream found in source";
                     return;
                 }
 
@@ -4367,8 +4392,19 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         boolean mmrBound = false;
                         if (resolvedUri != null && resolvedUri.startsWith("content://")) {
-                            durMmr.setDataSource(MainActivity.this, Uri.parse(resolvedUri));
-                            mmrBound = true;
+                            try {
+                                durMmr.setDataSource(MainActivity.this, Uri.parse(resolvedUri));
+                                mmrBound = true;
+                            } catch (Throwable mmrContentErr) {
+                                try (ParcelFileDescriptor mmrPfd = getContentResolver().openFileDescriptor(Uri.parse(resolvedUri), "r")) {
+                                    if (mmrPfd != null) {
+                                        long pfdLen = mmrPfd.getStatSize();
+                                        if (pfdLen > 0L) knownSourceBytes = pfdLen;
+                                        durMmr.setDataSource(mmrPfd.getFileDescriptor());
+                                        mmrBound = true;
+                                    }
+                                } catch (Throwable ignored) {}
+                            }
                         } else if (resolvedPath != null && !resolvedPath.isEmpty()) {
                             File localDurFile = new File(resolvedPath);
                             if (localDurFile.exists() && localDurFile.canRead()) {
@@ -4397,6 +4433,18 @@ public class MainActivity extends AppCompatActivity {
                     } catch (Throwable ignored) {
                     } finally {
                         try { durMmr.release(); } catch (Throwable ignored) {}
+                    }
+                    if (mDurationMs.get() <= 0 && format.containsKey(MediaFormat.KEY_BIT_RATE)) {
+                        if (knownSourceBytes <= 0L && resolvedUri != null && resolvedUri.startsWith("content://")) {
+                            try (ParcelFileDescriptor szPfd = getContentResolver().openFileDescriptor(Uri.parse(resolvedUri), "r")) {
+                                if (szPfd != null) knownSourceBytes = szPfd.getStatSize();
+                            } catch (Throwable ignored) {}
+                        }
+                        try {
+                            int bps = format.getInteger(MediaFormat.KEY_BIT_RATE);
+                            long estMs = estimateBitrateDurationMs(knownSourceBytes, bps);
+                            if (estMs > 0L) mDurationMs.set(estMs);
+                        } catch (Throwable ignored) {}
                     }
                 }
 
@@ -4537,6 +4585,8 @@ public class MainActivity extends AppCompatActivity {
                 long writtenFramesSinceBase = 0L;
                 long lastPtsPosMs = -1L;
                 int stuckPtsCount = 0;
+                int idleDrainIterations = 0;
+                int consecutiveCodecErrors = 0;
                 int bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
 
                 while (!mIsStopped && !sawOutputEOS && mPlaybackEpoch.get() == epoch) {
@@ -4570,6 +4620,8 @@ public class MainActivity extends AppCompatActivity {
                             writtenFramesSinceBase = 0L;
                             lastPtsPosMs = -1L;
                             stuckPtsCount = 0;
+                            idleDrainIterations = 0;
+                            consecutiveCodecErrors = 0;
                             mCurrentPositionMs.set(basePositionMs);
                             lastUiUpdateElapsedMs = SystemClock.uptimeMillis();
                             if (mWebView != null && !mIsStopped) {
@@ -4596,14 +4648,26 @@ public class MainActivity extends AppCompatActivity {
                             ByteBuffer inBuf = decoder.getInputBuffer(inIndex);
                             if (inBuf != null) {
                                 inBuf.clear();
-                                int sampleSize = extractor.readSampleData(inBuf, 0);
-                                if (sampleSize < 0) {
-                                    decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                                    sawInputEOS = true;
-                                } else {
-                                    long ptsUs = extractor.getSampleTime();
-                                    decoder.queueInputBuffer(inIndex, 0, sampleSize, ptsUs, 0);
-                                    extractor.advance();
+                                try {
+                                    int sampleSize = extractor.readSampleData(inBuf, 0);
+                                    if (sampleSize < 0) {
+                                        decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                                        sawInputEOS = true;
+                                    } else {
+                                        long ptsUs = extractor.getSampleTime();
+                                        decoder.queueInputBuffer(inIndex, 0, sampleSize, ptsUs, 0);
+                                        extractor.advance();
+                                    }
+                                    consecutiveCodecErrors = 0;
+                                } catch (Exception inputErr) {
+                                    consecutiveCodecErrors++;
+                                    if (writtenFramesSinceBase > 0L && consecutiveCodecErrors >= 5) {
+                                        Log.w(TAG, "BitPerfect: Truncated/corrupt audio tail after " + writtenFramesSinceBase + " frames, finishing cleanly");
+                                        try { decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM); } catch (Exception ignored) {}
+                                        sawInputEOS = true;
+                                    } else if (consecutiveCodecErrors >= 5) {
+                                        throw inputErr;
+                                    }
                                 }
                             }
                         }
@@ -4612,6 +4676,7 @@ public class MainActivity extends AppCompatActivity {
                     // Dequeue output buffer
                     int outIndex = decoder.dequeueOutputBuffer(info, TIMEOUT_US);
                     if (outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        idleDrainIterations = 0;
                         MediaFormat newFormat = decoder.getOutputFormat();
                         Log.i(TAG, "BitPerfect: Decoder output format changed: " + newFormat);
                         int newRate = newFormat.containsKey(MediaFormat.KEY_SAMPLE_RATE) ?
@@ -4676,7 +4741,16 @@ public class MainActivity extends AppCompatActivity {
                             notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, preferredDevice);
                             track.play();
                         }
+                    } else if (outIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                        if (sawInputEOS) {
+                            idleDrainIterations++;
+                            if (idleDrainIterations >= 200) {
+                                Log.w(TAG, "BitPerfect: Codec drain stalled after input EOS, terminating cleanly");
+                                sawOutputEOS = true;
+                            }
+                        }
                     } else if (outIndex >= 0) {
+                        idleDrainIterations = 0;
                         if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
                             sawOutputEOS = true;
                         }
@@ -4685,6 +4759,13 @@ public class MainActivity extends AppCompatActivity {
                             outBuf.position(info.offset);
                             outBuf.limit(info.offset + info.size);
                             int written = track.write(outBuf, info.size, AudioTrack.WRITE_BLOCKING);
+                            if (written < 0) {
+                                decoder.releaseOutputBuffer(outIndex, false);
+                                if (!mIsStopped && mPlaybackEpoch.get() == epoch) {
+                                    pendingErrorReason = "AudioTrack write error (" + written + ")";
+                                }
+                                break;
+                            }
                             if (written > 0) {
                                 writtenFramesSinceBase += (written / Math.max(1, bytesPerFrame));
                             }
@@ -4726,14 +4807,18 @@ public class MainActivity extends AppCompatActivity {
 
                 // If completed naturally (sawOutputEOS)
                 if (sawOutputEOS && !mIsStopped && mPlaybackEpoch.get() == epoch) {
-                    mWebView.post(() -> {
-                        mWebView.evaluateJavascript(
-                                "if (typeof window.onBitPerfectPlaybackComplete === 'function') window.onBitPerfectPlaybackComplete(); " +
-                                "else if (typeof window.nextTrack === 'function') window.nextTrack(); " +
-                                "else { var nb = document.getElementById('next-button'); if (nb) nb.click(); }",
-                                null
-                        );
-                    });
+                    if (mWebView != null) {
+                        mWebView.post(() -> {
+                            if (mWebView != null) {
+                                mWebView.evaluateJavascript(
+                                        "if (typeof window.onBitPerfectPlaybackComplete === 'function') window.onBitPerfectPlaybackComplete(); " +
+                                        "else if (typeof window.nextTrack === 'function') window.nextTrack(); " +
+                                        "else { var nb = document.getElementById('next-button'); if (nb) nb.click(); }",
+                                        null
+                                );
+                            }
+                        });
+                    }
                 }
 
             } catch (Exception e) {
@@ -5050,11 +5135,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.50";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.51";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.50\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.51\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
