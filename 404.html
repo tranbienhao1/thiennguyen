@@ -2367,7 +2367,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.83</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.84</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -6438,7 +6438,7 @@
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
       if (!state || state.currentId == null || !Array.isArray(state.tracks)) return false;
       const curTrack = state.tracks.find(item => item && String(item.id) === String(state.currentId));
-      if (!curTrack || !curTrack.firstSlicePlayback || curTrack.fullAudioUrl || curTrack.fullAudioPromise) return false;
+      if (!curTrack || !curTrack.firstSlicePlayback || curTrack.fullAudioUrl || curTrack.fullAudioPromise || curTrack._retryingSliceUpgrade) return false;
       const pending = curTrack._pendingSliceUpgrade;
       if (!pending || !pending.sliceUrl || !pending.url) return false;
       const sliceAbs = new URL(pending.sliceUrl, location.href).href;
@@ -6447,6 +6447,7 @@
         return false;
       }
       curTrack._pendingSliceUpgrade = null;
+      curTrack._retryingSliceUpgrade = true;
       let retryUrl = pending.url;
       let retryOptions = pending.options ? Object.assign({}, pending.options) : {};
       try {
@@ -6473,11 +6474,18 @@
             retryOptions = Object.assign({}, retryOptions, { headers: Object.assign({}, retryOptions.headers || {}, { Authorization: `Bearer ${msTok}` }) });
           }
         }
+        if (String(curTrack.id) !== String(state.currentId) || !audio || audio.src !== sliceAbs) {
+          return false;
+        }
         upgradeSliceToFullAudio(curTrack, pending.sliceUrl, retryUrl, retryOptions, pending.provider || 'Cloud').catch(() => {});
         return true;
       } catch (_) {
-        curTrack._pendingSliceUpgrade = pending;
+        if (String(curTrack.id) === String(state.currentId) && audio && audio.src === sliceAbs) {
+          curTrack._pendingSliceUpgrade = pending;
+        }
         return false;
+      } finally {
+        curTrack._retryingSliceUpgrade = false;
       }
     }
     async function fetchCloudTrack(track, url, options, provider) {
@@ -23167,7 +23175,7 @@
         } catch (_) {}
         const pastBuffered = (bufferedEnd > 0 && safeSec > bufferedEnd + 0.5) || (bufferedEnd === 0 && audioDur > 0 && safeSec > audioDur - 0.5);
         if (pastBuffered) {
-          if (curTrack.fullAudioPromise) {
+          if (curTrack.fullAudioPromise || curTrack._retryingSliceUpgrade) {
             curTrack._pendingSeekAfterFullUpgrade = safeSec;
             curTrack.lastSlicePosition = safeSec;
             toast(`⏳ Đang tải bản FLAC đầy đủ — sẽ nhảy tới ${formatTime(safeSec)} ngay khi xong...`);
@@ -26249,13 +26257,28 @@
       try {
         const nativeWasPlaying = Boolean(typeof window !== 'undefined' && window.__androidNoisyNativeWasPlaying);
         if (typeof window !== 'undefined') window.__androidNoisyNativeWasPlaying = false;
+        const wasUpgradingFull = Boolean((audio && audio._upgradingFullAudio) || (typeof standbyAudio !== 'undefined' && standbyAudio && standbyAudio._upgradingFullAudio));
         const wasActivelyPlaying = Boolean(
           nativeWasPlaying ||
+          wasUpgradingFull ||
+          state.isPlaybackLoading ||
           (state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) ||
           (audio && !audio.paused) ||
           (typeof standbyAudio !== 'undefined' && standbyAudio && !standbyAudio.paused) ||
           (state.corsBypassAudio && state.corsBypassAudio !== audio && !state.corsBypassAudio.paused)
         );
+        if (audio && audio._upgradingFullAudio) {
+          audio._userPausedDuringUpgrade = true;
+          audio._upgradingFullAudio = false;
+        }
+        if (typeof standbyAudio !== 'undefined' && standbyAudio && standbyAudio._upgradingFullAudio) {
+          standbyAudio._userPausedDuringUpgrade = true;
+          standbyAudio._upgradingFullAudio = false;
+        }
+        if (state.isPlaybackLoading) {
+          ++state.playGeneration;
+          if (typeof setPlaybackLoading === 'function') setPlaybackLoading(false);
+        }
         if (state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) {
           if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.pauseBitPerfectPlayback === 'function') window.NocturneNative.pauseBitPerfectPlayback();
           state.isNativeBitPerfectPaused = true;
@@ -26268,9 +26291,10 @@
         if (audio && !audio.paused) audio.pause();
         if (typeof standbyAudio !== 'undefined' && standbyAudio && !standbyAudio.paused) standbyAudio.pause();
         if (state.corsBypassAudio && state.corsBypassAudio !== audio && !state.corsBypassAudio.paused) state.corsBypassAudio.pause();
-        if (state.dsdWorker && typeof stopDsdWorker === 'function') stopDsdWorker(false);
+        if (state.dsdWorker && !(state.dsdUrl && audio && audio.src) && typeof stopDsdWorker === 'function') stopDsdWorker(false);
         if (wasActivelyPlaying) {
           if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+          if (typeof updatePositionState === 'function') updatePositionState(true);
           if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
             try { navigator.mediaSession.playbackState = 'paused'; } catch (_) {}
           }

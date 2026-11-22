@@ -3772,6 +3772,9 @@ public class MainActivity extends AppCompatActivity {
                     }
         } catch (Exception ignored) {}
         final boolean wasNative = nativeWasPlaying;
+        if (wasNative) {
+            syncAudioFocusNativeUiAndMediaSession(false);
+        }
         runOnUiThread(() -> {
             if (mWebView != null) {
                 mWebView.evaluateJavascript(

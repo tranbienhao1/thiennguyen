@@ -80,20 +80,19 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.83';
-  const name = process.argv[3] || `Nocturne ${tag} (Online/Offline & Screen-Wake Cloud Preload/Token Recovery + Paused Bit-Perfect Fallback Guard + MicroSD Remount URI & Cover Self-Heal)`;
+  const tag = process.argv[2] || 'v3.9.84';
+  const name = process.argv[3] || `Nocturne ${tag} (Cloud First-Slice Retry Concurrency & Skip Guard + Headset/DAC Unplug Pause Safety During Slice Upgrade, DSD Decode & Native MediaSession Sync)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 137) — Hồi phục nạp trước & token Cloud khi có mạng / bật màn hình + Bảo vệ Pause khi Bit-Perfect fallback + Tự làm mới URI/ảnh bìa khi gắn lại MicroSD
+    : `### Nocturne ${tag} (versionCode 138) — Chống chạy song song khi thử lại First-Slice Cloud + Bảo vệ tạm dừng hoàn hảo khi rút tai nghe / USB DAC (Web Audio, DSD & Native Bit-Perfect)
 
-#### 1. Hồi phục mượt Cloud khi mất/có mạng & khi bật lại màn hình sau Doze (\`index.html\`)
-- **Sự kiện \`online\` & \`offline\`**: Khi mạng hồi phục, tự động xóa mốc chặn lỗi preload cũ (\`_preloadFailedTrackId\`), chạy \`runCloudWakeTokenRefresh()\` trước khi nối lại bản nâng cấp Full-Audio và kích hoạt \`resyncNextPreload(false)\` cho cả **Web Audio lẫn Native Bit-Perfect**; khi rớt mạng (\`offline\`), tự động dọn bộ đệm preload bài Cloud chưa cache để chuyển sang bài ngoại tuyến kế tiếp.
-- **\`runCloudWakeTokenRefresh()\`**: Khi bật lại màn hình sau Doze, nếu bài Cloud đang phát còn chờ nâng cấp từ First-Slice sẽ tự gọi \`retryPendingCurrentSliceUpgrade()\`, đồng thời làm mới preload nếu vừa xóa URL OneDrive hết hạn.
+#### 1. Chống đua lệnh & tải thừa khi tua bài sâu trên mạng yếu (\`index.html\`)
+- **\`retryPendingCurrentSliceUpgrade()\` & \`applySmartSeekTime()\`**: Bổ sung khóa \`_retryingSliceUpgrade\` chống gọi trùng song song trong lúc làm mới token Google Drive / URL tải OneDrive; sau khi chờ mạng xong sẽ kiểm tra lại đúng \`state.currentId\` và \`audio.src\` trước khi khởi chạy \`upgradeSliceToFullAudio\`, ngăn tải thừa tệp FLAC 60MB cho bài đã bỏ qua; đồng thời giữ đúng mốc tua đích \`_pendingSeekAfterFullUpgrade\` ngay khi đang thử lại.
 
-#### 2. Bảo vệ trạng thái Pause khi Bit-Perfect fallback & Tự hồi phục MicroSD gắn lại (\`index.html\`)
-- **\`window.onNativeBitPerfectError\`**: Lưu \`wasNativeBpPaused\` trước khi đặt lại trạng thái; nếu người dùng đang tạm dừng khi USB DAC ngắt kết nối hoặc thiết bị báo lỗi Bit-Perfect, giữ nguyên trạng thái tạm dừng kèm vị trí phát \`_resumeAfterBpFallbackSec\` thay vì tự động phát nhạc ra loa ngoài.
-- **\`applyFiioRescanFields\` & \`window.onAndroidStorageStateChanged('mounted')\`**: Khi gắn lại thẻ nhớ MicroSD và Android cấp lại MediaStore \`content://\` URI mới, tự xóa cache ảnh lỗi \`failedNativeCovers\`, gỡ cờ \`_localAccessError\` / \`_pathFallbackRetriedGen\` và làm mới cả \`url\` lẫn \`cover\` để nhạc và ảnh bìa phục hồi tức thì không cần khởi động lại app.
+#### 2. An toàn tuyệt đối khi rút tai nghe 3.5mm / USB DAC / Bluetooth (\`index.html\` + \`MainActivity.java\`)
+- **\`window.onAndroidAudioBecomingNoisy()\`**: Nhận diện cả lúc đang nâng cấp \`First-Slice -> Full Audio\` (\`_upgradingFullAudio\`) và lúc đang nạp bài (\`state.isPlaybackLoading\`), gắn cờ \`_userPausedDuringUpgrade = true\` để ngăn nhạc bật ra loa ngoài sau khi rút tai nghe; bảo toàn \`state.dsdWorker\` khi lát DSD đã phát (không hủy phiên DSD khi tạm dừng); gọi \`updatePositionState(true)\` khóa đúng vị trí trên màn hình khóa/AVRCP.
+- **\`MainActivity.triggerAudioBecomingNoisy()\`**: Chủ động gọi \`syncAudioFocusNativeUiAndMediaSession(false)\` khi tạm dừng Native Bit-Perfect, đảm bảo thông báo và \`MediaSession\` chuyển ngay sang \`STATE_PAUSED\` ngay cả khi tắt màn hình / WebView ở nền.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
