@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.74</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.75</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -5878,9 +5878,28 @@
           if (track.url && track.url.indexOf('/local-media?') !== -1 && typeof probeLocalMediaAccessError === 'function') {
             const probeErr = await probeLocalMediaAccessError(track.url);
             if (probeErr === 'permission_denied' || probeErr === 'not_found') {
+              if (track.path && track.url.indexOf('&path=') === -1) {
+                const pathFallbackUrl = 'https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(track.path);
+                const pathErr = await probeLocalMediaAccessError(pathFallbackUrl);
+                if (!pathErr) {
+                  track.url = pathFallbackUrl;
+                  track._localAccessError = '';
+                  return pathFallbackUrl;
+                }
+              }
               track._localAccessError = probeErr;
               return '';
             }
+          } else if (track.path && typeof probeLocalMediaAccessError === 'function') {
+            const pathFallbackUrl = 'https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(track.path);
+            const pathErr = await probeLocalMediaAccessError(pathFallbackUrl);
+            if (!pathErr) {
+              track.url = pathFallbackUrl;
+              track._localAccessError = '';
+              return pathFallbackUrl;
+            }
+            track._localAccessError = pathErr;
+            return '';
           } else if (!track.path) {
             track._localAccessError = 'permission_denied';
             return '';
@@ -15578,12 +15597,23 @@
         }
         if ((error.name === 'NotSupportedError' || target.error) && track && track.source === 'local' && playUrl && playUrl.indexOf('/local-media?') !== -1 && typeof probeLocalMediaAccessError === 'function') {
           const localAccessErr = await probeLocalMediaAccessError(playUrl).catch(() => '');
-          if (localAccessErr === 'permission_denied') {
-            track._localAccessError = 'permission_denied';
-            toast('Quyền truy cập thư mục Android/SAF cho bài hát này đã bị thu hồi — hãy chọn lại tệp hoặc nhấn Quét thẻ nhớ FiiO.');
-            return;
-          }
-          if (localAccessErr === 'not_found') {
+          if (localAccessErr === 'permission_denied' || localAccessErr === 'not_found') {
+            if (track.path && playUrl.indexOf('/local-media?uri=') !== -1 && track._pathFallbackRetriedGen !== generation && generation === state.playGeneration) {
+              const pathFallbackUrl = 'https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(track.path);
+              const pathFallbackErr = await probeLocalMediaAccessError(pathFallbackUrl).catch(() => localAccessErr);
+              if (!pathFallbackErr) {
+                track._pathFallbackRetriedGen = generation;
+                track.url = pathFallbackUrl;
+                track._localAccessError = '';
+                playTrack(track.id);
+                return;
+              }
+            }
+            if (localAccessErr === 'permission_denied') {
+              track._localAccessError = 'permission_denied';
+              toast('Quyền truy cập thư mục Android/SAF cho bài hát này đã bị thu hồi — hãy chọn lại tệp hoặc nhấn Quét thẻ nhớ FiiO.');
+              return;
+            }
             track._localAccessError = 'not_found';
             skipFailedTrack(generation, 'Tệp cục bộ đã bị xóa hoặc di chuyển — hãy quét lại thư mục để đồng bộ.');
             return;
@@ -17080,15 +17110,29 @@
       if (!cursor || !knownIds || knownIds.size === 0) return { handled: false };
       let curToken = token;
       let nextStartToken = '';
+      const GOOGLE_DELTA_MAX_PAGES = 40;
+      let deltaPageCount = 0;
       const addedTracks = [];
       const updatedTracks = [];
       const updatedTrackIds = new Set();
       const changedArtParents = new Set();
+      const removedFolderIds = new Set();
       const deletedRemoteIds = new Set();
       const existingByTargetId = new Map();
+      const existingByParentId = new Map();
       if (existingByRemoteId && typeof existingByRemoteId.forEach === 'function') {
         existingByRemoteId.forEach(tr => {
-          if (tr && tr.targetRemoteId) existingByTargetId.set(String(tr.targetRemoteId), tr);
+          if (!tr) return;
+          if (tr.targetRemoteId) existingByTargetId.set(String(tr.targetRemoteId), tr);
+          if (Array.isArray(tr.parents)) {
+            for (let pi = 0; pi < tr.parents.length; pi++) {
+              const pid = String(tr.parents[pi] || '').trim();
+              if (!pid) continue;
+              let list = existingByParentId.get(pid);
+              if (!list) { list = []; existingByParentId.set(pid, list); }
+              list.push(tr);
+            }
+          }
         });
       }
       const scoreFolderCover = (typeof library !== 'undefined' && typeof library.scoreFolderCoverFilename === 'function')
@@ -17158,6 +17202,11 @@
         if (touched) markUpdatedTrack(existing);
       };
       while (cursor) {
+        deltaPageCount++;
+        if (deltaPageCount > GOOGLE_DELTA_MAX_PAGES) {
+          writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, '');
+          return { handled: false, resetCursor: true };
+        }
         const params = new URLSearchParams({
           pageToken: cursor,
           supportsAllDrives: 'true',
@@ -17191,25 +17240,32 @@
           if (change.removed || !change.file || change.file.trashed) {
             if (knownIds.has(fid)) {
               deletedRemoteIds.add(fid);
-            } else if (change.file && change.file.trashed === true && existingByTargetId.has(fid)) {
+            } else if (existingByTargetId.has(fid)) {
               const scAlias = existingByTargetId.get(fid);
               if (scAlias && scAlias.remoteId) deletedRemoteIds.add(scAlias.remoteId);
+            }
+            if (existingByParentId.has(String(fid))) {
+              removedFolderIds.add(String(fid));
             }
             continue;
           }
           const file = change.file;
+          deletedRemoteIds.delete(fid);
           if (knownIds.has(fid)) {
             syncExistingGoogleChange(existingByRemoteId.get(fid), file, fid);
             continue;
           }
           if (existingByTargetId.has(fid)) {
-            syncExistingGoogleChange(existingByTargetId.get(fid), file, fid);
+            const scMatch = existingByTargetId.get(fid);
+            if (scMatch && scMatch.remoteId) deletedRemoteIds.delete(scMatch.remoteId);
+            syncExistingGoogleChange(scMatch, file, fid);
             continue;
           }
           const newScTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
           if (newScTid && (knownIds.has(newScTid) || existingByTargetId.has(newScTid))) continue;
           if (!isCloudAudio(file)) {
             if (file.mimeType === 'application/vnd.google-apps.folder') {
+              removedFolderIds.delete(String(fid));
               changedArtParents.add(String(fid));
               const folderName = String(file.name || '').trim();
               if (folderName && isDiscDirFn(folderName)) {
@@ -17242,6 +17298,19 @@
         }
         if (data && data.newStartPageToken) nextStartToken = String(data.newStartPageToken);
         cursor = (data && data.nextPageToken) ? String(data.nextPageToken) : '';
+      }
+      if (removedFolderIds.size > 0) {
+        removedFolderIds.forEach(rfid => {
+          const children = existingByParentId.get(rfid) || [];
+          for (let ci = 0; ci < children.length; ci++) {
+            const child = children[ci];
+            if (!child || !child.remoteId) continue;
+            const curParents = Array.isArray(child.parents) ? child.parents : [];
+            if (curParents.length === 0 || curParents.every(p => removedFolderIds.has(String(p)))) {
+              deletedRemoteIds.add(child.remoteId);
+            }
+          }
+        });
       }
       if (nextStartToken) writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, nextStartToken);
       if (changedArtParents.size > 0 && typeof checkedGoogleArtParents !== 'undefined' && checkedGoogleArtParents) {
@@ -18059,15 +18128,28 @@
       const scoreFolderCover = (typeof library !== 'undefined' && typeof library.scoreFolderCoverFilename === 'function')
         ? library.scoreFolderCoverFilename
         : () => 0;
+      const MICROSOFT_DELTA_MAX_PAGES = 40;
+      let msDeltaPageCount = 0;
       const addedTracks = [];
       const updatedTracks = [];
       const updatedTrackIds = new Set();
       const renamedFoldersById = new Map();
+      const deletedFolderIds = new Set();
       const deletedRemoteIds = new Set();
       const byShortcutId = new Map();
+      const existingByParentId = new Map();
       if (existingByRemoteId && typeof existingByRemoteId.forEach === 'function') {
         existingByRemoteId.forEach(tr => {
-          if (tr && tr.remoteShortcutId) byShortcutId.set(String(tr.remoteShortcutId), tr);
+          if (!tr) return;
+          if (tr.remoteShortcutId) byShortcutId.set(String(tr.remoteShortcutId), tr);
+          if (tr.remoteParentId) {
+            const pid = String(tr.remoteParentId).trim();
+            if (pid) {
+              let list = existingByParentId.get(pid);
+              if (!list) { list = []; existingByParentId.set(pid, list); }
+              list.push(tr);
+            }
+          }
         });
       }
       let latestDeltaLink = '';
@@ -18078,6 +18160,11 @@
       };
       try {
         while (nextUrl) {
+          msDeltaPageCount++;
+          if (msDeltaPageCount > MICROSOFT_DELTA_MAX_PAGES) {
+            if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, '');
+            return { handled: false, resetCursor: true };
+          }
           const data = await graphGet(nextUrl, token);
           const items = (data && Array.isArray(data.value)) ? data.value : [];
           for (let ii = 0; ii < items.length; ii++) {
@@ -18099,6 +18186,8 @@
                 const delAlias = byShortcutId.get(item.id) || (rawItem.id ? byShortcutId.get(String(rawItem.id)) : null);
                 if (delAlias && delAlias.remoteId) deletedRemoteIds.add(delAlias.remoteId);
               }
+              if (existingByParentId.has(String(item.id))) deletedFolderIds.add(String(item.id));
+              if (rawWrapperId && existingByParentId.has(rawWrapperId)) deletedFolderIds.add(rawWrapperId);
               continue;
             }
             const rawRefPath = (item.parentReference && item.parentReference.path) ? String(item.parentReference.path) : '';
@@ -18111,10 +18200,15 @@
               : null;
             if (!item.folder && (knownIds.has(item.id) || aliasExisting)) {
               const existing = aliasExisting;
+              deletedRemoteIds.delete(item.id);
               if (existing) {
+                if (existing.remoteId) deletedRemoteIds.delete(existing.remoteId);
                 let touched = false;
                 if (itemDriveId && existing.remoteDriveId !== itemDriveId) {
                   existing.remoteDriveId = itemDriveId;
+                  touched = true;
+                } else if (!itemDriveId && norm && !norm.isRemote && existing.remoteDriveId) {
+                  existing.remoteDriveId = '';
                   touched = true;
                 }
                 if (rawWrapperId && existing.remoteShortcutId !== rawWrapperId && String(existing.remoteId || '') !== rawWrapperId) {
@@ -18183,9 +18277,11 @@
               continue;
             }
             if (item.folder) {
+              deletedFolderIds.delete(String(item.id));
               if (item.id && itemPath && !item.root) renamedFoldersById.set(String(item.id), itemPath);
               continue;
             }
+            deletedRemoteIds.delete(item.id);
             if (isCloudAudio(item)) {
               const msTrack = microsoftTrack(item, itemPath);
               if (itemDriveId && !msTrack.remoteDriveId) msTrack.remoteDriveId = itemDriveId;
@@ -18235,6 +18331,18 @@
           return { handled: false, resetCursor: true };
         }
         throw deltaErr;
+      }
+      if (deletedFolderIds.size > 0) {
+        deletedFolderIds.forEach(dfid => {
+          const children = existingByParentId.get(dfid) || [];
+          for (let ci = 0; ci < children.length; ci++) {
+            const child = children[ci];
+            if (!child || !child.remoteId) continue;
+            if (!child.remoteParentId || deletedFolderIds.has(String(child.remoteParentId))) {
+              deletedRemoteIds.add(child.remoteId);
+            }
+          }
+        });
       }
       if (renamedFoldersById.size > 0 && Array.isArray(state.tracks)) {
         for (let ti = 0; ti < state.tracks.length; ti++) {

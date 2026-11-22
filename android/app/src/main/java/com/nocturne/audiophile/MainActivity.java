@@ -5848,11 +5848,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.74";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.75";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.74\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.75\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -6536,6 +6536,24 @@ public class MainActivity extends AppCompatActivity {
             return false;
         }
 
+        private static int parseMediaStoreLeadingInt(@Nullable String raw) {
+            if (raw == null) return 0;
+            String trimmed = raw.trim();
+            if (trimmed.isEmpty()) return 0;
+            int val = 0;
+            boolean sawDigit = false;
+            for (int i = 0; i < trimmed.length(); i++) {
+                char c = trimmed.charAt(i);
+                if (c >= '0' && c <= '9') {
+                    sawDigit = true;
+                    val = Math.min(999, val * 10 + (c - '0'));
+                } else if (sawDigit) {
+                    break;
+                }
+            }
+            return sawDigit && val > 0 ? val : 0;
+        }
+
         /**
          * Queries MediaStore.Audio.Media.EXTERNAL_CONTENT_URI via ContentResolver so Android 11-15
          * Scoped Storage devices (targetSdk 35) discover all audio files with content:// URIs
@@ -6574,25 +6592,54 @@ public class MainActivity extends AppCompatActivity {
                     MediaStore.Audio.Media.DATE_MODIFIED,
                     "album_artist"
             };
+            String[] extendedProjectionApi30 = new String[]{
+                    MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.DISPLAY_NAME,
+                    MediaStore.Audio.Media.TITLE,
+                    MediaStore.Audio.Media.ARTIST,
+                    MediaStore.Audio.Media.ALBUM,
+                    MediaStore.Audio.Media.DURATION,
+                    MediaStore.Audio.Media.SIZE,
+                    MediaStore.Audio.Media.MIME_TYPE,
+                    MediaStore.Audio.Media.DATA,
+                    MediaStore.Audio.Media.TRACK,
+                    MediaStore.Audio.Media.YEAR,
+                    MediaStore.Audio.Media.DATE_MODIFIED,
+                    "album_artist",
+                    "disc_number"
+            };
             String sortOrder = MediaStore.Audio.Media.DATE_ADDED + " DESC";
             Cursor cursor = null;
             try {
-                try {
-                    cursor = mActivity.getContentResolver().query(
-                            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                            extendedProjection,
-                            null,
-                            null,
-                            sortOrder
-                    );
-                } catch (IllegalArgumentException | android.database.sqlite.SQLiteException colErr) {
-                    cursor = mActivity.getContentResolver().query(
-                            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-                            baseProjection,
-                            null,
-                            null,
-                            sortOrder
-                    );
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    try {
+                        cursor = mActivity.getContentResolver().query(
+                                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                                extendedProjectionApi30,
+                                null,
+                                null,
+                                sortOrder
+                        );
+                    } catch (IllegalArgumentException | android.database.sqlite.SQLiteException ignored) {}
+                }
+                if (cursor == null) {
+                    try {
+                        cursor = mActivity.getContentResolver().query(
+                                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                                extendedProjection,
+                                null,
+                                null,
+                                sortOrder
+                        );
+                    } catch (IllegalArgumentException | android.database.sqlite.SQLiteException colErr) {
+                        cursor = mActivity.getContentResolver().query(
+                                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                                baseProjection,
+                                null,
+                                null,
+                                sortOrder
+                        );
+                    }
                 }
                 if (cursor != null) {
                     int idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
@@ -6601,6 +6648,7 @@ public class MainActivity extends AppCompatActivity {
                     int artistCol = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST);
                     int albumCol = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM);
                     int albumArtistCol = cursor.getColumnIndex("album_artist");
+                    int discCol = cursor.getColumnIndex("disc_number");
                     int durCol = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION);
                     int sizeCol = cursor.getColumnIndex(MediaStore.Audio.Media.SIZE);
                     int mimeCol = cursor.getColumnIndex(MediaStore.Audio.Media.MIME_TYPE);
@@ -6641,7 +6689,7 @@ public class MainActivity extends AppCompatActivity {
                         obj.put("title", title != null ? title : "");
                         obj.put("artist", artist != null ? artist : "");
                         obj.put("album", album != null ? album : "");
-                        if (albumArtist != null && !albumArtist.trim().isEmpty()) {
+                        if (albumArtist != null && !albumArtist.trim().isEmpty() && !"<unknown>".equalsIgnoreCase(albumArtist.trim())) {
                             obj.put("albumArtist", albumArtist.trim());
                         }
                         obj.put("duration", durationMs > 0 ? (durationMs / 1000.0) : 0);
@@ -6651,12 +6699,15 @@ public class MainActivity extends AppCompatActivity {
                         }
                         obj.put("mimeType", mimeType != null ? mimeType : getAudioMimeType(displayName));
                         obj.put("path", dataPath != null ? dataPath : "");
+                        int discNo = rawTrack >= 1000 ? (rawTrack / 1000) : 0;
                         if (rawTrack > 0) {
-                            int discNo = rawTrack >= 1000 ? (rawTrack / 1000) : 0;
                             int trackNo = rawTrack >= 1000 ? (rawTrack % 1000) : rawTrack;
                             if (trackNo > 0) obj.put("trackNumber", trackNo);
-                            if (discNo > 0) obj.put("discNumber", discNo);
                         }
+                        if (discNo <= 0 && discCol >= 0) {
+                            discNo = parseMediaStoreLeadingInt(cursor.getString(discCol));
+                        }
+                        if (discNo > 0) obj.put("discNumber", discNo);
                         if (year > 0) obj.put("year", year);
                         results.put(obj);
                         count++;

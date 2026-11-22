@@ -80,20 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.74';
-  const name = process.argv[3] || `Nocturne ${tag} (Android Bit-Perfect USB DAC Hotswap Rebuild + Web Bit-Perfect DAC sinkId Preservation + Android SAF Revoked-URI 403 Detection)`;
+  const tag = process.argv[2] || 'v3.9.75';
+  const name = process.argv[3] || `Nocturne ${tag} (Google Drive & OneDrive Delta Folder/Pagination Hygiene + Stale content:// Path Auto-Recovery + Android MediaStore DISC_NUMBER & albumArtist)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 128) — Chuyển USB DAC nóng ở chế độ Bit-Perfect + Giữ \`sinkId\` DAC Web khi đổi Sample Rate + Phát hiện thu hồi quyền SAF Android 11–15
+    : `### Nocturne ${tag} (versionCode 129) — Vệ sinh đồng bộ Delta thư mục Cloud + Tự phục hồi \`content://\` -> \`path\` & Android MediaStore \`DISC_NUMBER\`
 
-#### 1. Bit-Perfect USB DAC Hot-Swap (khi đang phát & tạm dừng) + Đồng bộ DAC \`sinkId\` Web (\`MainActivity.java\`, \`index.html\`)
-- **Chuyển mạch nóng USB DAC kể cả khi đang Tạm dừng (\`BitPerfectAudioPlayer.onAudioOutputRouteChanged\`, \`notifyUsbDacChange\`)**: Khi cắm hoặc rút USB-C DAC trong lúc nhạc Bit-Perfect đang phát hoặc tạm dừng, \`runPlaybackLoop\` nhận biết thay đổi \`AudioDeviceInfo\`, giải phóng sạch mixer cũ, tái tạo \`AudioTrack\` với thiết bị đích mới, gọi \`applyApi34BitPerfectMode(track)\` (đồng bộ cả trên nhánh dựng ban đầu, đổi định dạng, \`ERROR_DEAD_OBJECT\` và đổi route), cập nhật UI via \`notifyBitPerfectFormatToWeb\` mà vẫn tôn trọng trạng thái pause/play hiện tại.
-- **Giữ nguyên ngõ ra DAC (\`sinkId\`) & \`playbackRate\` khi \`AudioContext\` đổi Sample Rate (\`attachAudioElement\`)**: Khi Web Audio tạo bản sao phần tử \`<audio>\` để khớp \`sampleRate\` 44.1kHz <-> 96kHz/192kHz của từng bài Hi-Res, áp dụng lại \`sinkId\` đang chọn và tốc độ phát thay vì rớt về loa mặc định; \`window.onAndroidAudioDeviceChanged\` tự làm mới danh sách ngõ ra và khôi phục \`AudioContext\` tạm treo khi kết nối DAC mới.
+#### 1. Đồng bộ tăng dần Google Drive & OneDrive sạch hơn khi xóa/chuyển thư mục (\`index.html\`)
+- **Google Drive (\`tryLoadGoogleChangesDelta\`)**: Xây dựng \`existingByParentId\` để dọn các bài mồ côi khi thư mục cha bị xóa/đưa vào Thùng rác (giữ nguyên bài đã được chuyển sang thư mục sống khác trong cùng batch), sửa xóa shortcut khi file đích bị xóa vĩnh viễn (\`change.removed\`), hủy cờ xóa nếu item được khôi phục trong cùng batch, và giới hạn tối đa 40 trang (\`GOOGLE_DELTA_MAX_PAGES\`) để reset cursor sạch tránh lặp kẹt.
+- **OneDrive (\`tryLoadMicrosoftDeltaSync\`)**: Theo dõi \`deletedFolderIds\` để dọn bài con còn kẹt trong thư mục đã xóa (giữ nguyên bài chuyển đi trong batch), tự xóa \`remoteDriveId\` cũ khi bài từ Shared Drive chuyển về Personal Drive, hủy cờ xóa khi item xuất hiện lại, và thêm giới hạn 40 trang (\`MICROSOFT_DELTA_MAX_PAGES\`).
 
-#### 2. Phát hiện sớm quyền SAF Android 11–15 bị thu hồi & phản hồi rõ ràng (\`index.html\`)
-- **\`probeLocalMediaAccessError\` + \`ensureLocalTrackPlayableUrl\`**: Với các URI SAF \`content://...documents...\`, kiểm tra \`window.NocturneNative.hasValidPersistedUriPermission\` trước khi phát và thăm dò \`HEAD\` trên \`/local-media\` (bắt HTTP \`403\` + header \`X-Nocturne-Storage-Error: SAF_PERMISSION_REVOKED\` hoặc \`404\`), vẫn cho phép phát mượt nếu fallback đường dẫn vật lý/MediaStore của native trả về 200 OK.
-- **Xử lý lỗi \`playTrack\` chính xác theo quyền SAF**: Khi \`<audio>\` báo lỗi trên URL \`/local-media?\`, phân biệt thu hồi quyền SAF (\`403\`) để hiện thông báo hướng dẫn cấp lại quyền thay vì bỏ qua âm thầm sang hàng loạt bài lỗi kế tiếp.
+#### 2. Tự phục hồi \`content://\` -> \`path\` & Đồng bộ thẻ MediaStore (\`index.html\`, \`MainActivity.java\`)
+- **Tự phục hồi đường dẫn vật lý (\`ensureLocalTrackPlayableUrl\`, \`playTrack\`)**: Khi URI SAF \`content://...documents...\` hết hạn/bị từ chối (403/404) nhưng \`track.path\` vẫn đọc được qua \`/local-media?path=\` (200 OK), tự chuyển URL phát sang đường dẫn vật lý và thử phát lại ngay không cần quét lại thủ công.
+- **\`scanMediaStoreAudio\` (\`MainActivity.java\`)**: Hỗ trợ cột \`disc_number\` trên Android 11+ (fallback 3 tầng vẫn giữ \`album_artist\` trên FiiO M11S Android 10) qua helper \`parseMediaStoreLeadingInt\`, đồng thời lọc chuỗi rỗng/\`<unknown>\` ở \`albumArtist\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
