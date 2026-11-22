@@ -98,7 +98,7 @@ async function main() {
 - **OneDrive (\`normalizeMicrosoftDriveItem\`, \`enqueueMicrosoftSharedItems\`, \`tryLoadMicrosoftDeltaSync\`, \`loadMicrosoftFiles\`)**: Bảo toàn \`remoteShortcutId\`, chống trùng lặp mục \`sharedWithMe\` với shortcut trong My files và xóa sạch bài qua ID shortcut trong Delta Sync.
 - **\`restoreCloudCatalog\`**: Lọc trùng lặp O(1) ngay khi nạp danh mục từ IndexedDB.
 
-#### 3. Bảo toàn vị trí khi Bit-Perfect fallback & tối ưu `/local-media`, `/local-cover` (\`MainActivity.java\`, \`index.html\`)
+#### 3. Bảo toàn vị trí khi Bit-Perfect fallback & tối ưu \`/local-media\`, \`/local-cover\` (\`MainActivity.java\`, \`index.html\`)
 - **Truyền mốc vị trí ms chính xác từ native (\`notifyBitPerfectErrorToWeb\`) + \`AudioTrack.STATE_INITIALIZED\`**: Giữ chính xác vị trí bài hát (kể cả trong CUE sheet) khi chuyển dự phòng sang Web Audio và bám sớm \`loadedmetadata\`.
 - **An toàn tua nhanh \`BoundedFileInputStream\` / \`BoundedContentUriInputStream\` & giải mã ảnh bìa lớn (\`coverFileToJpeg\`)**: Xử lý êm đóng luồng đồng thời khi tua nhanh HTTP 206 và giải mã trực tiếp file ảnh bìa tới 24 MB kèm giới hạn kích thước khung hình chống OOM.
 
