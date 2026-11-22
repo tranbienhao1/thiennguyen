@@ -2367,7 +2367,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.88</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.89</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -5147,6 +5147,80 @@
       }
       if (maxCount > 0) track.playCount = maxCount;
     }
+    function migrateTrackUserStatKeys(oldTrackOrKeys, newTrack) {
+      if (!newTrack || typeof newTrack !== 'object') return false;
+      const oldKeysRaw = Array.isArray(oldTrackOrKeys)
+        ? oldTrackOrKeys
+        : getTrackUserStatKeys(oldTrackOrKeys);
+      const oldKeys = [];
+      for (let i = 0; i < oldKeysRaw.length; i++) {
+        const k = oldKeysRaw[i] != null ? String(oldKeysRaw[i]) : '';
+        if (k && oldKeys.indexOf(k) === -1) oldKeys.push(k);
+      }
+      const newKeys = getTrackUserStatKeys(newTrack);
+      const allKeys = oldKeys.slice();
+      for (let i = 0; i < newKeys.length; i++) {
+        if (allKeys.indexOf(newKeys[i]) === -1) allKeys.push(newKeys[i]);
+      }
+      let migrated = false;
+      if (state && state.favorites && typeof state.favorites.has === 'function' && typeof state.favorites.add === 'function') {
+        let wasFav = Boolean(newTrack.isFavorite);
+        for (let i = 0; i < allKeys.length && !wasFav; i++) {
+          if (state.favorites.has(allKeys[i])) wasFav = true;
+        }
+        if (wasFav) {
+          const newFavKey = (typeof getFavoriteKey === 'function' ? getFavoriteKey(newTrack) : '') || newKeys[1] || newKeys[0];
+          if (newFavKey && !state.favorites.has(newFavKey)) {
+            state.favorites.add(newFavKey);
+            if (typeof saveFavorites === 'function') saveFavorites();
+            migrated = true;
+          }
+          newTrack.isFavorite = true;
+        }
+      }
+      if (state && state.trackRatings && typeof state.trackRatings === 'object') {
+        let bestRating = Number(newTrack.rating) || 0;
+        for (let i = 0; i < allKeys.length; i++) {
+          const rv = Number(state.trackRatings[allKeys[i]]);
+          if (Number.isFinite(rv) && rv > bestRating) bestRating = rv;
+        }
+        if (bestRating > 0) {
+          const clamped = library.clampRating(bestRating);
+          let ratingChanged = Number(newTrack.rating) !== clamped;
+          newTrack.rating = clamped;
+          for (let i = 0; i < newKeys.length; i++) {
+            if (state.trackRatings[newKeys[i]] !== clamped) {
+              state.trackRatings[newKeys[i]] = clamped;
+              ratingChanged = true;
+            }
+          }
+          if (ratingChanged) {
+            migrated = true;
+            try {
+              if (typeof localStorage !== 'undefined') localStorage.setItem('nocturne-track-ratings', JSON.stringify(state.trackRatings));
+            } catch (_) {}
+          }
+        }
+      }
+      const pcMap = loadPlayCountsMap();
+      let bestCount = Number(newTrack.playCount) || 0;
+      for (let i = 0; i < allKeys.length; i++) {
+        const pv = Number(pcMap[allKeys[i]]);
+        if (Number.isFinite(pv) && pv > bestCount) bestCount = pv;
+      }
+      if (bestCount > 0) {
+        const primaryKey = (newKeys.length > 1 ? newKeys[1] : newKeys[0]) || '';
+        newTrack.playCount = bestCount;
+        if (primaryKey && pcMap[primaryKey] !== bestCount) {
+          pcMap[primaryKey] = bestCount;
+          migrated = true;
+          try {
+            if (typeof localStorage !== 'undefined') localStorage.setItem(PLAY_COUNTS_KEY, JSON.stringify(pcMap));
+          } catch (_) {}
+        }
+      }
+      return migrated;
+    }
     function updateRoomRating(track) {
       const rating = track ? getTrackRating(track) : 0;
       for (const ratingId of ['room-rating', 'fs-room-rating']) {
@@ -7233,27 +7307,7 @@
           checkedGoogleArtParents.clear();
         }
       } catch (_) {}
-      try {
-        if (state && state.albumCovers && typeof state.albumCovers.forEach === 'function' && typeof library !== 'undefined' && library && typeof library.buildAlbumKey === 'function') {
-          const localAlbumKeys = new Set();
-          const list = Array.isArray(state.tracks) ? state.tracks : [];
-          for (let i = 0; i < list.length; i++) {
-            const tr = list[i];
-            if (tr && tr.source !== 'google' && tr.source !== 'onedrive') {
-              const ak = library.buildAlbumKey(tr);
-              if (ak) localAlbumKeys.add(ak);
-            }
-          }
-          let prunedCovers = false;
-          Array.from(state.albumCovers.keys()).forEach(k => {
-            if (!localAlbumKeys.has(k)) {
-              state.albumCovers.delete(k);
-              prunedCovers = true;
-            }
-          });
-          if (prunedCovers && typeof saveAlbumCoversCache === 'function') saveAlbumCoversCache();
-        }
-      } catch (_) {}
+      pruneOrphanedAlbumCovers(['google', 'onedrive']);
       return new Promise(resolve => {
         try {
           if (typeof sliceCacheTransaction !== 'function') return resolve(0);
@@ -7278,6 +7332,36 @@
           resolve(0);
         }
       });
+    }
+    function pruneOrphanedAlbumCovers(excludeSources) {
+      let removed = 0;
+      try {
+        if (!state || !state.albumCovers || typeof state.albumCovers.keys !== 'function' || typeof library === 'undefined' || !library || typeof library.buildAlbumKey !== 'function') {
+          return 0;
+        }
+        const activeKeys = new Set();
+        const list = Array.isArray(state.tracks) ? state.tracks : [];
+        const skipSet = Array.isArray(excludeSources) ? new Set(excludeSources) : null;
+        for (let i = 0; i < list.length; i++) {
+          const tr = list[i];
+          if (!tr) continue;
+          if (skipSet && skipSet.has(tr.source)) continue;
+          const ak = library.buildAlbumKey(tr);
+          if (ak) activeKeys.add(ak);
+        }
+        Array.from(state.albumCovers.keys()).forEach(k => {
+          if (!activeKeys.has(k)) {
+            const val = state.albumCovers.get(k);
+            state.albumCovers.delete(k);
+            removed++;
+            if (typeof val === 'string' && val.indexOf('blob:') === 0 && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+              try { URL.revokeObjectURL(val); } catch (_) {}
+            }
+          }
+        });
+        if (removed > 0 && typeof saveAlbumCoversCache === 'function') saveAlbumCoversCache();
+      } catch (_) {}
+      return removed;
     }
     function clearCloudCatalog() {
       if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.cancelAll('queue_cleared');
@@ -13146,8 +13230,14 @@
         if ($('fs-zone-current-desc')) $('fs-zone-current-desc').textContent = curZoneDesc;
       }
       if (state.bitPerfectEnabled) {
-        const rateStr = track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : ((state.context && state.context.sampleRate) ? `${(state.context.sampleRate / 1000).toFixed(state.context.sampleRate % 1000 ? 1 : 0)} kHz` : '44.1 kHz');
-        const depthStr = track.bitDepth ? `${track.bitDepth}-bit` : '16-bit';
+        const effRate = (track.isDsd && !state.isNativeBitPerfectPlaying)
+          ? (track.pcmRate || state.dsdOutputRate || 176400)
+          : (track.sampleRate || ((state.context && state.context.sampleRate) ? state.context.sampleRate : 0));
+        const effDepth = (track.isDsd && !state.isNativeBitPerfectPlaying)
+          ? (track.pcmBitDepth || state.dsdOutputDepth || 24)
+          : (track.bitDepth || 16);
+        const rateStr = effRate ? `${(effRate / 1000).toFixed(effRate % 1000 ? 1 : 0)} kHz` : '44.1 kHz';
+        const depthStr = effDepth ? `${effDepth}-bit` : '16-bit';
         const bitPerfectText = `⚡ BIT-PERFECT DIRECT · ${rateStr} / ${depthStr}`;
         $('quality-badge').textContent = bitPerfectText;
         $('quality-badge').className = 'rounded-md border border-amber-400/50 bg-amber-500/20 px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-amber-300';
@@ -17509,6 +17599,7 @@
         state.tracks.splice(i, 1);
       }
       if (!removedIds.length) return Promise.resolve(0);
+      if (typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
       return new Promise(resolve => {
         try {
           const store = catalogTransaction('readwrite');
@@ -17793,6 +17884,7 @@
         state.tracks.splice(i, 1);
       }
       if (!removedIds.length) return Promise.resolve(0);
+      if (typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
       return new Promise(resolve => {
         try {
           const store = catalogTransaction('readwrite');
@@ -17865,9 +17957,11 @@
         }
         const scTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
         if (scTid && scTid !== file.id && existing.targetRemoteId !== scTid) {
+          const prevGoogleStatKeys = (typeof getTrackUserStatKeys === 'function') ? getTrackUserStatKeys(existing) : [];
           if (existing.targetRemoteId) contentChanged = true;
           existing.targetRemoteId = scTid;
           existingByTargetId.set(scTid, existing);
+          if (typeof migrateTrackUserStatKeys === 'function') migrateTrackUserStatKeys(prevGoogleStatKeys, existing);
           touched = true;
         }
         if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
@@ -18968,8 +19062,10 @@
                     touched = true;
                   }
                   if (rawWrapperId && existing.remoteShortcutId !== rawWrapperId && String(existing.remoteId || '') !== rawWrapperId) {
+                    const prevMsStatKeys = (typeof getTrackUserStatKeys === 'function') ? getTrackUserStatKeys(existing) : [];
                     existing.remoteShortcutId = rawWrapperId;
                     byShortcutId.set(rawWrapperId, existing);
+                    if (typeof migrateTrackUserStatKeys === 'function') migrateTrackUserStatKeys(prevMsStatKeys, existing);
                     touched = true;
                   }
                   if (item['@microsoft.graph.downloadUrl']) {
@@ -20017,8 +20113,11 @@
         const rawFilePath = String(file.webkitRelativePath || file.path || '').replace(/\\/g, '/');
         const slashIdx = rawFilePath.lastIndexOf('/');
         const playlistDir = slashIdx > 0 ? rawFilePath.slice(0, slashIdx) : '';
+        const playlistNameHint = parsed.name || String(file.name || '').replace(/\.[^/.]+$/, '');
+        const folderHint = (typeof savedLocalFolderRecord !== 'undefined' && savedLocalFolderRecord && savedLocalFolderRecord.name) ? savedLocalFolderRecord.name : '';
         let added = 0;
         if (lib && typeof lib.matchPlaylistWithLibrary === 'function') {
+          if (typeof lib.setM3uMatchHints === 'function') lib.setM3uMatchHints({ playlistName: playlistNameHint, folderHint });
           const match = lib.matchPlaylistWithLibrary(parsed.tracks, state.tracks, { playlistDir });
           for (const item of match.matchedTracks) {
             if (!state.queueTrackIds.includes(item.local.id) && item.local.id !== state.currentId) {
@@ -21716,6 +21815,7 @@
               if (typeof saveFavorites === 'function') saveFavorites();
             }
           }
+          if (typeof migrateTrackUserStatKeys === 'function') migrateTrackUserStatKeys(oldTr, target);
           try {
             if (typeof localStorage !== 'undefined' && localStorage) {
               const rawSess = localStorage.getItem('nocturne-playback-session');
@@ -21858,6 +21958,7 @@
           }
         });
       }
+      if (removedTracks.length > 0 && typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
       return removedTracks.length;
     }
     window.extractStorageRootPrefix = extractStorageRootPrefix;
@@ -22916,7 +23017,8 @@
       if (curTrack) {
         const metadata = (library && library.trackMetadata) ? library.trackMetadata(curTrack) : { title: curTrack.title, artist: curTrack.artist };
         if (titleEl) titleEl.textContent = metadata.title || curTrack.title || 'Chưa phát nhạc';
-        if (artistEl) artistEl.textContent = metadata.artist || curTrack.artist || '—';
+        const baseMiniArtist = metadata.artist || curTrack.artist || '—';
+        if (artistEl) artistEl.textContent = state.bitPerfectEnabled ? `${baseMiniArtist} · ⚡ BP` : baseMiniArtist;
         if (coverEl) {
           coverEl.innerHTML = curTrack.cover ? `<img src="${escapeHtml(curTrack.cover)}" class="h-full w-full object-cover" alt="">` : '♫';
         }
@@ -23259,6 +23361,8 @@
         const rawImportPath = String(file.webkitRelativePath || file.path || '').replace(/\\/g, '/');
         const importSlash = rawImportPath.lastIndexOf('/');
         const importPlaylistDir = importSlash > 0 ? rawImportPath.slice(0, importSlash) : '';
+        const importFolderHint = (typeof savedLocalFolderRecord !== 'undefined' && savedLocalFolderRecord && savedLocalFolderRecord.name) ? savedLocalFolderRecord.name : '';
+        if (typeof lib.setM3uMatchHints === 'function') lib.setM3uMatchHints({ playlistName: pName || String(file.name || '').replace(/\.[^/.]+$/, ''), folderHint: importFolderHint });
         const match = lib.matchPlaylistWithLibrary(importedTracks, state.tracks, { playlistDir: importPlaylistDir });
         let addedCount = 0;
         for (const item of match.matchedTracks) {

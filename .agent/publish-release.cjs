@@ -80,25 +80,25 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.88';
-  const name = process.argv[3] || `Nocturne ${tag} (Cloud Favorites/Rating/PlayCount Sync Preservation + Album Hero Multi-Source Dedup + Cross-Device M3U8 Mount Matching + Auto-Advance/Bit-Perfect/Reload Chrome E2E)`;
+  const tag = process.argv[2] || 'v3.9.89';
+  const name = process.argv[3] || `Nocturne ${tag} (Live Cloud Alias Stats Migration + M3U8 Album/Folder Disambiguation + Orphaned Cover Hygiene + Web DSD Bit-Perfect HUD + Repeat One E2E)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 142) — Bảo toàn Yêu thích/Rating/Số lần phát khi đồng bộ Cloud + Lọc trùng hàng đợi Album đa nguồn + Khớp M3U/M3U8 xuyên thiết bị
+    : `### Nocturne ${tag} (versionCode 143) — Di trú khóa Yêu thích/Rating/PlayCount khi đổi Alias Cloud + Phân giải trùng tên M3U8 + Dọn ảnh bìa thừa & HUD Bit-Perfect DSD
 
-#### 1. Bảo toàn Yêu thích, Đánh giá sao & Số lần phát qua đồng bộ Cloud & đổi Alias (\`library-utils.js\` & \`index.html\`)
-- Mở rộng \`isTrackInFavorites\` nhận diện đầy đủ alias phím tắt Cloud (\`targetRemoteId\` Google Drive & \`remoteShortcutId\` OneDrive) mà không làm đổi chuẩn \`stableFavoriteKey\`.
-- Bảo toàn \`rating\` và \`playCount\` trong \`serializableCloudTrack\`, ánh xạ thống nhất \`getTrackRating\`/\`setTrackRating\` theo cả \`track.id\` và khóa ổn định \`getFavoriteKey(track)\`, đồng thời lưu bền vững \`playCount\` vào \`nocturne-play-counts\` khi bài đạt ngưỡng scrobble và tự nạp lại trong \`restoreCloudCatalog\`.
+#### 1. Di trú khóa Yêu thích, Rating & Số lần phát khi đổi Alias Cloud / Di chuyển Local (\`migrateTrackUserStatKeys\`)
+- Tự động di trú và hợp nhất \`state.favorites\`, \`state.trackRatings\`, và \`nocturne-play-counts\` khi \`applyGoogleScanUpdate\` đổi \`targetRemoteId\`, \`loadMicrosoftFiles\` gán \`remoteShortcutId\`, hoặc \`reconcileMovedFiioTracks\` ghép bài Local/FiiO chuyển thư mục.
 
-#### 2. Lọc trùng thông minh khi phát từ Album/Nghệ sĩ đa nguồn (\`renderAlbumHero\`)
-- Thêm \`dedupeHeroTracks\` loại bỏ bản ghi trùng lặp giữa Local/Google Drive/OneDrive khi bấm **Phát album**, **Ngẫu nhiên**, hoặc **+ Hàng đợi**, vẫn giữ nguyên hoàn toàn khởi tạo \`setupAudio()\` chuẩn PWA.
+#### 2. Khử nhập nhằng khi trùng tên tệp M3U/M3U8 (\`matchPlaylistWithLibrary\`)
+- Dùng thêm tên album (\`#EXTALBUM\`), \`playlistName\`, và \`folderHint\` (thư mục đã mở gần đây) để chọn chính xác bài khi nhiều album có cùng tên file (ví dụ \`01 - Intro.flac\`).
 
-#### 3. Khớp đường dẫn tương đối M3U/M3U8 xuyên thiết bị (\`matchPlaylistWithLibrary\`)
-- Tự động chuẩn hóa tiền tố phân vùng Android (\`/storage/emulated/0/\`, \`/sdcard/\`, \`/mnt/media_rw/<vol>/\`, \`/storage/<vol>/\`) và ổ đĩa Windows (\`C:/\`, \`D:/\`) khi so khớp danh sách M3U/M3U8 với thư viện Local/FiiO/Cloud.
+#### 3. Dọn ảnh bìa thừa & Chuẩn hóa HUD Bit-Perfect cho Web DSD (\`pruneOrphanedAlbumCovers\`, \`displayTrack\`, \`updateMiniPlayerHud\`)
+- Thêm \`pruneOrphanedAlbumCovers\` giải phóng ngay ảnh bìa không còn bài tham chiếu trong \`removeDeletedCloudTracks\` và \`pruneMissingFiioTracks\`.
+- Hiển thị chính xác \`pcmRate\`/\`pcmBitDepth\` trên huy hiệu Bit-Perfect khi phát DSD-to-PCM trên Web và bổ sung nhãn \`⚡ BP\` trên Mini Player HUD.
 
 #### 4. Mở rộng Chrome thật (CDP E2E)
-- Kiểm chứng thêm tự chuyển bài khi track kết thúc tự nhiên (\`ended\`), bật/tắt công tắc \`#bitperfect-mode-toggle\` trên UI, và lưu phiên \`savePlaybackSession\` + tải lại trang \`Page.reload\` với \`0\` lỗi JS.
+- Kiểm chứng chế độ **Repeat One** (\`↻¹\`) lặp lại chính Track 2 khi sự kiện \`ended\` kích hoạt tự nhiên, cùng khôi phục phiên và \`0\` ngoại lệ JS.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
