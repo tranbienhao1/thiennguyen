@@ -80,21 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.73';
-  const name = process.argv[3] || `Nocturne ${tag} (OneDrive 401/403 Force-Refresh & SharePoint 404/410 Recovery + First-Slice Retry Backoff + MicroSD Delta Fast-Skip + Android SAF 403/Fallback)`;
+  const tag = process.argv[2] || 'v3.9.74';
+  const name = process.argv[3] || `Nocturne ${tag} (Android Bit-Perfect USB DAC Hotswap Rebuild + Web Bit-Perfect DAC sinkId Preservation + Android SAF Revoked-URI 403 Detection)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 127) — Ổn định Token/URL Cloud giữa chừng + Backoff lát đầu + Quét nhanh MicroSD & Phục hồi SAF Android 11–15
+    : `### Nocturne ${tag} (versionCode 128) — Chuyển USB DAC nóng ở chế độ Bit-Perfect + Giữ \`sinkId\` DAC Web khi đổi Sample Rate + Phát hiện thu hồi quyền SAF Android 11–15
 
-#### 1. Phát nhạc Cloud ổn định khi mạng chập chờn & token/SharePoint hết hạn giữa bài (\`index.html\`, \`library-utils.js\`)
-- **Làm mới cưỡng bức token OneDrive (\`getMicrosoftToken(false, true)\`)**: Khi gặp HTTP 401/403 trong lúc đang phát hoặc đồng bộ (\`graphGet\`, \`fetchCloudTrack\`, \`upgradeSliceToFullAudio\`, \`retryPendingCurrentSliceUpgrade\`, \`fetchCloudFile\`, \`loadMicrosoftAudio\`, \`fetchOneDriveMetadataBytes\`, \`fetchCloudSidecarLyrics\`), gọi \`acquireTokenSilent({ forceRefresh: true })\` qua hàng đợi riêng \`microsoftTokenForceRefreshPromise\` thay vì trả nhầm token hết hạn trong cache MSAL.
-- **Khôi phục link SharePoint \`directUrl\` hết hạn 404/410**: \`fetchCloudTrack\` và \`fetchCloudFile\` bắt thêm mã 404/410 của CDN SharePoint để lấy \`resolveMicrosoftDownloadUrl\` mới hoặc chuyển thẳng về Graph \`/content\`; \`loadMicrosoftAudio\` thử cấp lại \`directUrl\` một lần nếu trước đó dùng link lưu cache rồi mới fallback sang Graph với token làm mới.
-- **Tăng sức bền tải lát đầu (\`fetchAudioFirstSlice\`)**: Hỗ trợ \`FETCH_AUDIO_SLICE_MAX_ATTEMPTS = 3\` kèm backoff cấp số nhân (\`fetchAudioRetryDelayMs\`) và kiểm tra \`AbortSignal\` ở mỗi lần thử lại khi chuyển Wi-Fi -> 4G.
+#### 1. Bit-Perfect USB DAC Hot-Swap (khi đang phát & tạm dừng) + Đồng bộ DAC \`sinkId\` Web (\`MainActivity.java\`, \`index.html\`)
+- **Chuyển mạch nóng USB DAC kể cả khi đang Tạm dừng (\`BitPerfectAudioPlayer.onAudioOutputRouteChanged\`, \`notifyUsbDacChange\`)**: Khi cắm hoặc rút USB-C DAC trong lúc nhạc Bit-Perfect đang phát hoặc tạm dừng, \`runPlaybackLoop\` nhận biết thay đổi \`AudioDeviceInfo\`, giải phóng sạch mixer cũ, tái tạo \`AudioTrack\` với thiết bị đích mới, gọi \`applyApi34BitPerfectMode(track)\` (đồng bộ cả trên nhánh dựng ban đầu, đổi định dạng, \`ERROR_DEAD_OBJECT\` và đổi route), cập nhật UI via \`notifyBitPerfectFormatToWeb\` mà vẫn tôn trọng trạng thái pause/play hiện tại.
+- **Giữ nguyên ngõ ra DAC (\`sinkId\`) & \`playbackRate\` khi \`AudioContext\` đổi Sample Rate (\`attachAudioElement\`)**: Khi Web Audio tạo bản sao phần tử \`<audio>\` để khớp \`sampleRate\` 44.1kHz <-> 96kHz/192kHz của từng bài Hi-Res, áp dụng lại \`sinkId\` đang chọn và tốc độ phát thay vì rớt về loa mặc định; \`window.onAndroidAudioDeviceChanged\` tự làm mới danh sách ngõ ra và khôi phục \`AudioContext\` tạm treo khi kết nối DAC mới.
 
-#### 2. Tăng tốc quét lại thẻ MicroSD lớn & Xử lý quyền SAF trên Android 11–15 (\`index.html\`, \`MainActivity.java\`)
-- **Bỏ qua nhanh bài chưa đổi khi quét lại MicroSD (\`isFiioTrackRescanUnchanged\`, \`ingestFiioScannedFilesChunk\`)**: Với hàng nghìn file không đổi \`path\`/\`uri\`/\`name\`/\`size\`/\`lastModified\` và đã đủ metadata + ảnh bìa, bỏ qua bước phân tích thẻ thừa (giữ nguyên làm mới tức thì cho bài đổi kích thước, sửa tag, đổi tên hoặc thiếu bìa).
-- **Bảo vệ luồng \`content://\` & kiểm tra quyền SAF bền vững (\`MainActivity.java\`)**: \`handleLocalMediaRequest\` bắt \`SecurityException\` / \`FileNotFoundException\`, tự động fallback về đường dẫn vật lý/MediaStore nếu có, hoặc trả HTTP \`403 Forbidden\` kèm header \`X-Nocturne-Storage-Error: SAF_PERMISSION_REVOKED\`; bổ sung \`getPersistedSafUrisJson()\` và \`hasValidPersistedUriPermission(uri)\` trên \`NocturneJsBridge\`.
+#### 2. Phát hiện sớm quyền SAF Android 11–15 bị thu hồi & phản hồi rõ ràng (\`index.html\`)
+- **\`probeLocalMediaAccessError\` + \`ensureLocalTrackPlayableUrl\`**: Với các URI SAF \`content://...documents...\`, kiểm tra \`window.NocturneNative.hasValidPersistedUriPermission\` trước khi phát và thăm dò \`HEAD\` trên \`/local-media\` (bắt HTTP \`403\` + header \`X-Nocturne-Storage-Error: SAF_PERMISSION_REVOKED\` hoặc \`404\`), vẫn cho phép phát mượt nếu fallback đường dẫn vật lý/MediaStore của native trả về 200 OK.
+- **Xử lý lỗi \`playTrack\` chính xác theo quyền SAF**: Khi \`<audio>\` báo lỗi trên URL \`/local-media?\`, phân biệt thu hồi quyền SAF (\`403\`) để hiện thông báo hướng dẫn cấp lại quyền thay vì bỏ qua âm thầm sang hàng loạt bài lỗi kế tiếp.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

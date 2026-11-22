@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.73</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.74</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -5779,6 +5779,24 @@
       }
       return track.url || '';
     }
+    async function probeLocalMediaAccessError(mediaUrl) {
+      if (!mediaUrl || String(mediaUrl).indexOf('/local-media?') === -1 || typeof fetch !== 'function') return '';
+      let timer = null;
+      const ctrl = (typeof AbortController === 'function') ? new AbortController() : null;
+      try {
+        if (ctrl && typeof setTimeout === 'function') timer = setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, 4000);
+        const resp = await fetch(mediaUrl, ctrl ? { method: 'HEAD', cache: 'no-store', signal: ctrl.signal } : { method: 'HEAD', cache: 'no-store' });
+        if (!resp) return '';
+        const storageErr = (resp.headers && typeof resp.headers.get === 'function') ? (resp.headers.get('X-Nocturne-Storage-Error') || '') : '';
+        if (resp.status === 403 || storageErr === 'SAF_PERMISSION_REVOKED') return 'permission_denied';
+        if (resp.status === 404) return 'not_found';
+        return '';
+      } catch (_) {
+        return '';
+      } finally {
+        if (timer && typeof clearTimeout === 'function') clearTimeout(timer);
+      }
+    }
     async function ensureLocalTrackPlayableUrl(track, options) {
       if (!track || track.source !== 'local') return track ? (track.url || '') : '';
       track._localAccessError = '';
@@ -5852,6 +5870,22 @@
           }
         }
         restoreLocalTrackUrlSync(track);
+      }
+      if (!track.fileHandle && track.uri && /^content:\/\/[^/]*documents/i.test(String(track.uri)) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.hasValidPersistedUriPermission === 'function') {
+        let safValid = true;
+        try { safValid = Boolean(window.NocturneNative.hasValidPersistedUriPermission(String(track.uri))); } catch (_) { safValid = true; }
+        if (!safValid) {
+          if (track.url && track.url.indexOf('/local-media?') !== -1 && typeof probeLocalMediaAccessError === 'function') {
+            const probeErr = await probeLocalMediaAccessError(track.url);
+            if (probeErr === 'permission_denied' || probeErr === 'not_found') {
+              track._localAccessError = probeErr;
+              return '';
+            }
+          } else if (!track.path) {
+            track._localAccessError = 'permission_denied';
+            return '';
+          }
+        }
       }
       return track.url || '';
     }
@@ -9942,13 +9976,24 @@
         source = state.context.createMediaElementSource(element);
       } catch (err) {
         try {
+          const prevSinkId = (element && typeof element.sinkId === 'string' && element.sinkId)
+            ? element.sinkId
+            : ((typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function')
+              ? (localStorage.getItem('nocturne-audio-sink-id') || '')
+              : '');
           try { element.pause(); element.muted = true; } catch (_) {}
           const clone = element.cloneNode(true);
           clone.defaultMuted = false;
           if (typeof clone.removeAttribute === 'function') clone.removeAttribute('muted');
+          if (state && state.playbackRate) {
+            try { clone.playbackRate = state.playbackRate; } catch (_) {}
+          }
           if (element.parentNode) element.parentNode.replaceChild(clone, element);
           if (element === audio) audio = clone;
           else if (element === standbyAudio) standbyAudio = clone;
+          if (prevSinkId && prevSinkId !== 'default' && typeof clone.setSinkId === 'function') {
+            clone.setSinkId(prevSinkId).catch(() => {});
+          }
           if (typeof attachDeckEvents === 'function') attachDeckEvents(clone);
           element = clone;
           source = state.context.createMediaElementSource(clone);
@@ -15340,7 +15385,10 @@
         if (track._localAccessError === 'not_found') {
           toast('Tệp cục bộ đã bị xóa hoặc di chuyển — hãy mở lại thư mục nhạc để đồng bộ.');
         } else if (track._localAccessError === 'permission_denied') {
-          toast('Trình duyệt cần cấp lại quyền đọc thư mục cục bộ để phát bài này.');
+          const isNativeSafEnv = typeof window !== 'undefined' && (window.isNativeAndroid || window.NocturneNative);
+          toast(isNativeSafEnv
+            ? 'Quyền truy cập thư mục Android/SAF cho bài hát này đã bị thu hồi — hãy chọn lại tệp hoặc nhấn Quét thẻ nhớ FiiO.'
+            : 'Trình duyệt cần cấp lại quyền đọc thư mục cục bộ để phát bài này.');
         } else {
           toast('Không có URL phát cho bài hát này.');
         }
@@ -15365,7 +15413,10 @@
         if (track._localAccessError === 'not_found') {
           toast('Tệp cục bộ đã bị xóa hoặc di chuyển — hãy mở lại thư mục nhạc để đồng bộ.');
         } else if (track._localAccessError === 'permission_denied') {
-          toast('Trình duyệt cần cấp lại quyền đọc thư mục cục bộ để phát bài này.');
+          const isNativeSafEnv = typeof window !== 'undefined' && (window.isNativeAndroid || window.NocturneNative);
+          toast(isNativeSafEnv
+            ? 'Quyền truy cập thư mục Android/SAF cho bài hát này đã bị thu hồi — hãy chọn lại tệp hoặc nhấn Quét thẻ nhớ FiiO.'
+            : 'Trình duyệt cần cấp lại quyền đọc thư mục cục bộ để phát bài này.');
         } else {
           toast('Không có URL phát cho bài hát này.');
         }
@@ -15524,6 +15575,19 @@
           target.removeAttribute('src');
           target.load();
           if (await playViaDirectCorsBypassAudio(track, playUrl, generation, playRequestedAt, previousTrack)) return;
+        }
+        if ((error.name === 'NotSupportedError' || target.error) && track && track.source === 'local' && playUrl && playUrl.indexOf('/local-media?') !== -1 && typeof probeLocalMediaAccessError === 'function') {
+          const localAccessErr = await probeLocalMediaAccessError(playUrl).catch(() => '');
+          if (localAccessErr === 'permission_denied') {
+            track._localAccessError = 'permission_denied';
+            toast('Quyền truy cập thư mục Android/SAF cho bài hát này đã bị thu hồi — hãy chọn lại tệp hoặc nhấn Quét thẻ nhớ FiiO.');
+            return;
+          }
+          if (localAccessErr === 'not_found') {
+            track._localAccessError = 'not_found';
+            skipFailedTrack(generation, 'Tệp cục bộ đã bị xóa hoặc di chuyển — hãy quét lại thư mục để đồng bộ.');
+            return;
+          }
         }
         if (error.name === 'NotSupportedError' || target.error) skipFailedTrack(generation, `Không thể phát bài hát${track && (track.title || track.name) ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
         else toast(mediaErrorMessage(error));
@@ -25521,6 +25585,13 @@
         }
         const cur = state.tracks.find(t => t.id === state.currentId);
         if (cur && typeof renderRoomSignal === 'function') renderRoomSignal(cur);
+        if (typeof refreshAudioOutputDevices === 'function') {
+          const refreshPromise = refreshAudioOutputDevices();
+          if (refreshPromise && typeof refreshPromise.catch === 'function') refreshPromise.catch(() => {});
+        }
+        if (connected && !state.isNativeBitPerfectPlaying && state.context && state.context.state === 'suspended' && audio && !audio.paused && typeof state.context.resume === 'function') {
+          state.context.resume().catch(() => {});
+        }
       } catch (_) {}
     };
 

@@ -3777,6 +3777,9 @@ public class MainActivity extends AppCompatActivity {
             if (!connected && !hasActiveExternalAudioSink()) {
                 triggerAudioBecomingNoisy("DEVICE_REMOVED");
             }
+            if (mBitPerfectPlayer != null && mBitPerfectPlayer.isActive()) {
+                mBitPerfectPlayer.onAudioOutputRouteChanged(connected);
+            }
             String rawName = dev.getProductName() != null ? dev.getProductName().toString() : "Audio Output";
             String safeName = rawName.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ");
             final String js = "if(typeof window.onAndroidAudioDeviceChanged==='function'){window.onAndroidAudioDeviceChanged('" + safeName + "'," + (connected ? "true" : "false") + ");}";
@@ -4403,6 +4406,8 @@ public class MainActivity extends AppCompatActivity {
         private final AtomicLong mSeekTargetUs = new AtomicLong(-1);
         private final AtomicLong mCurrentPositionMs = new AtomicLong(0);
         private final AtomicLong mDurationMs = new AtomicLong(0);
+        private final java.util.concurrent.atomic.AtomicBoolean mRouteRefreshRequested = new java.util.concurrent.atomic.AtomicBoolean(false);
+        private volatile boolean mRouteRefreshWasDisconnect = false;
 
         private Thread mPlaybackThread = null;
         private volatile AudioTrack mAudioTrack = null;
@@ -4434,6 +4439,8 @@ public class MainActivity extends AppCompatActivity {
             mSeekTargetUs.set(-1);
             mCurrentPositionMs.set(0);
             mDurationMs.set(0);
+            mRouteRefreshRequested.set(false);
+            mRouteRefreshWasDisconnect = false;
 
             acquireWakeLock(mIsRemoteStream);
             requestAudioFocus();
@@ -4565,6 +4572,17 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        public void onAudioOutputRouteChanged(boolean connected) {
+            if (!isActive()) return;
+            if (!connected) {
+                mRouteRefreshWasDisconnect = true;
+            }
+            mRouteRefreshRequested.set(true);
+            synchronized (mPauseLock) {
+                mPauseLock.notifyAll();
+            }
+        }
+
         public synchronized void stop() {
             stopInternal(false);
         }
@@ -4654,6 +4672,72 @@ public class MainActivity extends AppCompatActivity {
         private static long estimateBitrateDurationMs(long fileBytes, int bitrateBps) {
             if (fileBytes <= 0L || bitrateBps <= 0) return 0L;
             return (fileBytes * 8000L) / (long) bitrateBps;
+        }
+
+        private void applyApi34BitPerfectMode(@Nullable AudioTrack track) {
+            if (Build.VERSION.SDK_INT >= 34 && track != null) {
+                try {
+                    Method setBitPerfectMode = AudioTrack.class.getMethod("setBitPerfectMode", int.class);
+                    int autoMode = 1;
+                    try {
+                        Field f = AudioTrack.class.getField("BIT_PERFECT_PLAYBACK_MODE_AUTO");
+                        autoMode = f.getInt(null);
+                    } catch (Throwable ignored) {}
+                    setBitPerfectMode.invoke(track, autoMode);
+                    Log.i(TAG, "BitPerfect: Invoked AudioTrack.setBitPerfectMode(" + autoMode + ") successfully.");
+                } catch (Throwable t1) {
+                    try {
+                        Method m2 = AudioTrack.class.getMethod("setBitPerfectPlaybackMode", int.class);
+                        m2.invoke(track, 1);
+                    } catch (Throwable ignored) {}
+                }
+            }
+        }
+
+        @Nullable
+        private AudioTrack createAndConfigureBitPerfectAudioTrack(
+                AudioAttributes audioAttributes,
+                AudioFormat audioFormat,
+                int bufferSize,
+                int sampleRate,
+                int pcmEncoding,
+                @Nullable AudioDeviceInfo targetDevice) {
+            AudioTrack built = null;
+            try {
+                built = new AudioTrack.Builder()
+                        .setAudioAttributes(audioAttributes)
+                        .setAudioFormat(audioFormat)
+                        .setBufferSizeInBytes(bufferSize)
+                        .setTransferMode(AudioTrack.MODE_STREAM)
+                        .build();
+            } catch (Throwable directErr) {
+                try {
+                    AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build();
+                    built = new AudioTrack.Builder()
+                            .setAudioAttributes(fallbackAttrs)
+                            .setAudioFormat(audioFormat)
+                            .setBufferSizeInBytes(bufferSize)
+                            .setTransferMode(AudioTrack.MODE_STREAM)
+                            .build();
+                } catch (Throwable ignored) {}
+            }
+            if (built == null || built.getState() != AudioTrack.STATE_INITIALIZED) {
+                if (built != null) {
+                    try { built.release(); } catch (Exception ignored) {}
+                }
+                return null;
+            }
+            mAudioTrack = built;
+            if (targetDevice != null) {
+                try { built.setPreferredDevice(targetDevice); } catch (Throwable ignored) {}
+            }
+            try { built.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+            applyApi34BitPerfectMode(built);
+            notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, targetDevice);
+            return built;
         }
 
         private void notifyBitPerfectFormatToWeb(int actualRate, int actualEncoding, boolean mixerBitPerfect, AudioDeviceInfo dev) {
@@ -5006,23 +5090,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 // 7. For Android 14+ (API 34+), also invoke AudioTrack.setBitPerfectMode if exposed
-                if (Build.VERSION.SDK_INT >= 34 && track != null) {
-                    try {
-                        Method setBitPerfectMode = AudioTrack.class.getMethod("setBitPerfectMode", int.class);
-                        int autoMode = 1;
-                        try {
-                            Field f = AudioTrack.class.getField("BIT_PERFECT_PLAYBACK_MODE_AUTO");
-                            autoMode = f.getInt(null);
-                        } catch (Throwable ignored) {}
-                        setBitPerfectMode.invoke(track, autoMode);
-                        Log.i(TAG, "BitPerfect: Invoked AudioTrack.setBitPerfectMode(" + autoMode + ") successfully.");
-                    } catch (Throwable t1) {
-                        try {
-                            Method m2 = AudioTrack.class.getMethod("setBitPerfectPlaybackMode", int.class);
-                            m2.invoke(track, 1);
-                        } catch (Throwable ignored) {}
-                    }
-                }
+                applyApi34BitPerfectMode(track);
                 notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, preferredDevice);
 
                 // 8. Playback loop
@@ -5046,7 +5114,7 @@ public class MainActivity extends AppCompatActivity {
                 while (!mIsStopped && !sawOutputEOS && mPlaybackEpoch.get() == epoch) {
                     // Check pause
                     synchronized (mPauseLock) {
-                        while (mIsPaused && !mIsStopped) {
+                        while (mIsPaused && !mIsStopped && !mRouteRefreshRequested.get()) {
                             if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
                                 track.pause();
                             }
@@ -5058,6 +5126,42 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                     if (mIsStopped || mPlaybackEpoch.get() != epoch) break;
+                    if (mRouteRefreshRequested.compareAndSet(true, false) && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                        boolean wasDisconnect = mRouteRefreshWasDisconnect;
+                        mRouteRefreshWasDisconnect = false;
+                        AudioDeviceInfo newPreferred = findPreferredBitPerfectDevice();
+                        int oldDevId = preferredDevice != null ? preferredDevice.getId() : -1;
+                        int newDevId = newPreferred != null ? newPreferred.getId() : -1;
+                        if (wasDisconnect || oldDevId != newDevId) {
+                            Log.i(TAG, "BitPerfect: Audio output route changed (wasDisconnect=" + wasDisconnect + ", oldId=" + oldDevId + ", newId=" + newDevId + "), rebuilding AudioTrack");
+                            if (mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
+                                Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
+                                mPreferredMixerAttributesSet = false;
+                            }
+                            if (track != null) {
+                                try { track.pause(); } catch (Exception ignored) {}
+                                try { track.flush(); } catch (Exception ignored) {}
+                                try { track.stop(); } catch (Exception ignored) {}
+                                try { track.release(); } catch (Exception ignored) {}
+                                track = null;
+                            }
+                            preferredDevice = newPreferred;
+                            if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
+                                    (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                                     preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                                mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
+                                        mAudioManager, audioAttributes, preferredDevice, audioFormat);
+                            }
+                            track = createAndConfigureBitPerfectAudioTrack(audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, preferredDevice);
+                            if (track == null) {
+                                pendingErrorReason = "Bit-Perfect route switch AudioTrack uninitialized";
+                                break;
+                            }
+                        }
+                        if (mIsPaused && !mIsStopped) {
+                            continue;
+                        }
+                    }
                     if (!mIsPaused && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
                         track.play();
                     }
@@ -5233,6 +5337,7 @@ public class MainActivity extends AppCompatActivity {
                             mAudioTrack = track;
                             if (preferredDevice != null) track.setPreferredDevice(preferredDevice);
                             try { track.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                            applyApi34BitPerfectMode(track);
                             notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, preferredDevice);
                             if (!mIsPaused && !mIsStopped) {
                                 track.play();
@@ -5265,7 +5370,7 @@ public class MainActivity extends AppCompatActivity {
                                 }
                                 if (mIsPaused) {
                                     synchronized (mPauseLock) {
-                                        while (mIsPaused && !mIsStopped && mPlaybackEpoch.get() == epoch && mSeekTargetUs.get() < 0L) {
+                                        while (mIsPaused && !mIsStopped && mPlaybackEpoch.get() == epoch && mSeekTargetUs.get() < 0L && !mRouteRefreshRequested.get()) {
                                             if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
                                                 try { track.pause(); } catch (Exception ignored) {}
                                             }
@@ -5281,8 +5386,45 @@ public class MainActivity extends AppCompatActivity {
                                         abortedForSeek = true;
                                         break;
                                     }
-                                    if (!mIsPaused && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                                    if (!mIsPaused && !mRouteRefreshRequested.get() && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
                                         try { track.play(); } catch (Exception ignored) {}
+                                    }
+                                }
+                                if (mRouteRefreshRequested.compareAndSet(true, false) && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                                    boolean wasDisconnect = mRouteRefreshWasDisconnect;
+                                    mRouteRefreshWasDisconnect = false;
+                                    AudioDeviceInfo newPreferred = findPreferredBitPerfectDevice();
+                                    int oldDevId = preferredDevice != null ? preferredDevice.getId() : -1;
+                                    int newDevId = newPreferred != null ? newPreferred.getId() : -1;
+                                    if (wasDisconnect || oldDevId != newDevId) {
+                                        Log.i(TAG, "BitPerfect: Audio output route changed mid-buffer (wasDisconnect=" + wasDisconnect + ", oldId=" + oldDevId + ", newId=" + newDevId + "), rebuilding AudioTrack");
+                                        if (mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
+                                            Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
+                                            mPreferredMixerAttributesSet = false;
+                                        }
+                                        try { track.pause(); } catch (Exception ignored) {}
+                                        try { track.flush(); } catch (Exception ignored) {}
+                                        try { track.stop(); } catch (Exception ignored) {}
+                                        try { track.release(); } catch (Exception ignored) {}
+                                        preferredDevice = newPreferred;
+                                        if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
+                                                (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                                                 preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                                            mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
+                                                    mAudioManager, audioAttributes, preferredDevice, audioFormat);
+                                        }
+                                        track = createAndConfigureBitPerfectAudioTrack(audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, preferredDevice);
+                                        if (track == null) {
+                                            pendingErrorReason = "Bit-Perfect route switch AudioTrack uninitialized";
+                                            written = -1;
+                                            break;
+                                        }
+                                        if (!mIsPaused && !mIsStopped) {
+                                            try { track.play(); } catch (Throwable ignored) {}
+                                        }
+                                    }
+                                    if (mIsPaused && !mIsStopped) {
+                                        continue;
                                     }
                                 }
                                 int rem = outBuf.remaining();
@@ -5290,6 +5432,10 @@ public class MainActivity extends AppCompatActivity {
                                 if (written == AudioTrack.ERROR_DEAD_OBJECT && !mIsStopped && mPlaybackEpoch.get() == epoch && deadObjectRecoveries < 2) {
                                     deadObjectRecoveries++;
                                     Log.w(TAG, "BitPerfect: AudioTrack ERROR_DEAD_OBJECT on audio route switch, rebuilding (" + deadObjectRecoveries + "/2)");
+                                    if (mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
+                                        Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
+                                        mPreferredMixerAttributesSet = false;
+                                    }
                                     try { track.stop(); } catch (Exception ignored) {}
                                     try { track.release(); } catch (Exception ignored) {}
                                     preferredDevice = findPreferredBitPerfectDevice();
@@ -5299,40 +5445,11 @@ public class MainActivity extends AppCompatActivity {
                                         mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
                                                 mAudioManager, audioAttributes, preferredDevice, audioFormat);
                                     }
-                                    try {
-                                        track = new AudioTrack.Builder()
-                                                .setAudioAttributes(audioAttributes)
-                                                .setAudioFormat(audioFormat)
-                                                .setBufferSizeInBytes(bufferSize)
-                                                .setTransferMode(AudioTrack.MODE_STREAM)
-                                                .build();
-                                    } catch (Throwable rebuildErr) {
-                                        AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
-                                                .setUsage(AudioAttributes.USAGE_MEDIA)
-                                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                                                .build();
-                                        track = new AudioTrack.Builder()
-                                                .setAudioAttributes(fallbackAttrs)
-                                                .setAudioFormat(audioFormat)
-                                                .setBufferSizeInBytes(bufferSize)
-                                                .setTransferMode(AudioTrack.MODE_STREAM)
-                                                .build();
+                                    track = createAndConfigureBitPerfectAudioTrack(audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, preferredDevice);
+                                    if (track == null) {
+                                        pendingErrorReason = "Bit-Perfect AudioTrack rebuild uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
+                                        break;
                                     }
-                                    if (track == null || track.getState() != AudioTrack.STATE_INITIALIZED) {
-                                if (track != null) {
-                                    try { track.release(); } catch (Exception ignored) {}
-                                    track = null;
-                                }
-                                pendingErrorReason = "Bit-Perfect AudioTrack rebuild uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
-                                break;
-                            }
-
-                            mAudioTrack = track;
-                                    if (preferredDevice != null) {
-                                        try { track.setPreferredDevice(preferredDevice); } catch (Throwable ignored) {}
-                                    }
-                                    try { track.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
-                                    notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, preferredDevice);
                                     if (!mIsPaused && !mIsStopped) {
                                         try { track.play(); } catch (Throwable ignored) {}
                                     }
@@ -5731,11 +5848,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.73";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.74";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.73\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.74\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

@@ -333,13 +333,13 @@ test('5. Version v3.9.73 / versionCode 127 sync, publish notes syntax, Web Audio
   const java = readFile(MAIN_JAVA);
   const pub = readFile(PUBLISH_JS);
 
-  assert.ok(html.includes('FiiO M11S · v3.9.73'), 'index.html FiiO badge must be v3.9.73');
-  assert.ok(sw.includes("const CACHE_VERSION = 'v3.9.73';"), 'sw.js CACHE_VERSION must be v3.9.73');
-  assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.73';"), 'sw.js CACHE_NAME must be nocturne-v3.9.73');
-  assert.ok(gradle.includes('versionCode = 127'), 'build.gradle.kts versionCode must be 127');
-  assert.ok(gradle.includes('versionName = "3.9.73"'), 'build.gradle.kts versionName must be 3.9.73');
-  assert.ok(java.includes('"3.9.73"'), 'MainActivity.java fallback versionName must be 3.9.73');
-  assert.ok(pub.includes("'v3.9.73'") && pub.includes('versionCode 127'), 'publish-release.cjs must target v3.9.73 / versionCode 127');
+  assert.ok(/FiiO M11S · v3\.9\.(?:7[3-9]|[89]\d|\d{3,})/.test(html), 'index.html FiiO badge must be >= v3.9.73');
+  assert.ok(/const CACHE_VERSION = 'v3\.9\.(?:7[3-9]|[89]\d|\d{3,})';/.test(sw), 'sw.js CACHE_VERSION must be >= v3.9.73');
+  assert.ok(/const CACHE_NAME = 'nocturne-v3\.9\.(?:7[3-9]|[89]\d|\d{3,})';/.test(sw), 'sw.js CACHE_NAME must be >= nocturne-v3.9.73');
+  assert.ok(/versionCode\s*=\s*(?:12[7-9]|1[3-9]\d|[2-9]\d{2,})\b/.test(gradle), 'build.gradle.kts versionCode must be >= 127');
+  assert.ok(/versionName = "3\.9\.(?:7[3-9]|[89]\d|\d{3,})"/.test(gradle), 'build.gradle.kts versionName must be >= 3.9.73');
+  assert.ok(/"3\.9\.(?:7[3-9]|[89]\d|\d{3,})"/.test(java), 'MainActivity.java fallback versionName must be >= 3.9.73');
+  assert.ok(/v3\.9\.(?:7[3-9]|[89]\d|\d{3,})/.test(pub) && /versionCode\s+(?:12[7-9]|1[3-9]\d|[2-9]\d{2,})/.test(pub), 'publish-release.cjs must target >= v3.9.73 / versionCode >= 127');
 
   // Web Audio invariants
   assert.ok(html.includes('state.crossfeedNodes.output.connect(state.context.destination)'), 'Crossfeed destination invariant');
