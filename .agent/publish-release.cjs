@@ -80,19 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.77';
-  const name = process.argv[3] || `Nocturne ${tag} (DSD Worker & Fetch Cancellation on Fast Source Switch + Android /local-media SAF Pipe/416 Range Resilience + FiiO /sdcard Normalization)`;
+  const tag = process.argv[2] || 'v3.9.78';
+  const name = process.argv[3] || `Nocturne ${tag} (Bulletproof Play/Pause State Machine, Touch/Fast-Tap Capture Isolation, Android Bit-Perfect AudioFocus Guard & Shuffle/Queue Preload Re-Sync)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 131) — Dọn dẹp giải mã DSD khi chuyển nguồn nhanh + Phục hồi seek Range SAF & Chuẩn hóa đường dẫn FiiO/Android
+    : `### Nocturne ${tag} (versionCode 132) — Sửa triệt để nút Play/Pause trên Web & Android/FiiO M11S + Chống tự dừng Bit-Perfect do WebView AudioFocus + Đồng bộ Preload Shuffle/Queue
 
-#### 1. Hủy đồng bộ tải & Worker DSD khi chuyển bài/nguồn nhanh (\`index.html\`)
-- **\`playTrack\`, \`stopDsdWorker\` & \`playDsdTrack\`**: Hủy \`_dsdFetchAbort\` ngay khi chuyển rời bài DSD Cloud đang tải, dọn sạch \`_pendingSeekAfterFullUpgrade\`, \`sliceEndedEarly\`, \`fullAudioPromise\` (\`_dsdFullResolve\`) và dừng ngay Worker lệch \`playGeneration\` kể cả khi lát đầu \`state.dsdUrl\` chưa kịp tạo, không làm tắt nhầm trạng thái đang tải của bài kế tiếp.
+#### 1. Sửa triệt để các luồng lỗi nút Play/Pause trên Web, Android WebView & FiiO M11S (\`index.html\`, \`MainActivity.java\`)
+- **Ưu tiên tạm dừng khi đang phát & chống khởi động lại bài (\`#play-button\`)**: Khi bất kỳ deck nào (\`audio\`, \`standbyAudio\`, \`activeDeck.element\`, \`corsBypassAudio\`) đang phát thực tế hoặc sau khi giải mã DSD đầy đủ (\`playDsdTrack\` gắn \`audio.dataset.trackId = String(track.id)\`), bấm \`#play-button\` / \`#room-play\` / \`#mini-play\` / \`#fullscreen-play-btn\` sẽ tạm dừng ngay lập tức thay vì rơi vào nhánh \`hasMismatchedTrack\` gọi lại \`playTrack\` từ đầu; đồng thời cho phép bấm Play/Pause sau 250ms khi đang nạp bài (\`state.isPlaybackLoading\`) để hủy nạp và về trạng thái tạm dừng (\`▶\`).
+- **Cách ly cảm ứng & chống nuốt click trên màn hình cảm ứng (\`resolveEventElement\`, \`attachReliableTransportTap\`)**: Giải quyết đích sự kiện kể cả khi chạm vào Text node (\`▶\`/\`Ⅱ\`) bên trong nút, tách hoàn toàn các nút điều khiển phát nhạc khỏi bộ chặn ghost-click toàn cục \`document.addEventListener('click', ..., true)\`, và chốt lại mốc \`_touchTapHandledAt\` sau khi \`el.click()\` thực thi xong để chặn ghost click trễ mà không nuốt lần chạm kế tiếp.
+- **Chống WebView tự cướp \`AudioFocus\` làm tự dừng \`BitPerfectAudioPlayer\` (\`MainActivity.java\`, \`index.html\`)**: Không tự gọi \`setupAudio()\` / \`state.context.resume()\` trước khi phân nhánh \`playTrack\` hoặc khi đang định tuyến sang Native Bit-Perfect, đồng thời bảo vệ \`BitPerfectAudioPlayer\` trước xung đột \`AUDIOFOCUS_LOSS\` nội bộ từ Chromium WebView trong cửa sổ 1.5 giây sau khi bấm Play/Resume ở tiền cảnh.
 
-#### 2. Phục hồi seek Range SAF/MediaStore & Chuẩn hóa đường dẫn quét nội bộ FiiO (\`MainActivity.java\`, \`index.html\`)
-- **\`BoundedContentUriInputStream\` & HTTP \`416\` (\`MainActivity.java\`)**: Chuyển \`catch\` khi truy cập \`FileChannel\` / \`mFis.skip()\` trên \`AssetFileDescriptor\` SAF sang fallback đọc tuần tự an toàn trước \`UnsupportedOperationException\` / \`ESPIPE\`, đồng thời bổ sung \`Content-Length: 0\` và \`Accept-Ranges: bytes\` cho phản hồi \`416 Range Not Satisfiable\`.
-- **\`normalizeFiioPathKey\` & \`scanFiioStorage\` (\`index.html\`)**: Chuẩn hóa ánh xạ \`/sdcard\` ↔ \`/storage/emulated/0\` và chữ hoa/thường dưới \`/storage/\`, \`/mnt/media_rw/\` xuyên suốt \`buildExistingFiioTrackSets\`, \`buildExistingFiioTrackMaps\`, \`ingestFiioScannedFilesChunk\`, \`pruneMissingFiioTracks\` và nhánh quét dự phòng cũ (kèm khôi phục tệp mẹ khi xóa \`.cue\`).
+#### 2. Đồng bộ lại \`preloadNext\` khi bật/tắt Trộn bài (Shuffle) & thao tác Hàng đợi (\`index.html\`)
+- **\`#shuffle-button\` & \`triggerRoonAction\`**: Xóa \`state.preloadTrackId\` / \`state.preloadReadyUrl\` cũ trước khi gọi \`preloadNext(true)\` khi đổi chế độ Shuffle, đồng thời kích hoạt \`preloadNext(true)\` ngay khi chèn bài qua \`play_next\` / \`add_queue\` / \`start_radio\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

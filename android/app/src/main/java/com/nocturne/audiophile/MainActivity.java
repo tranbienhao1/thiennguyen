@@ -173,6 +173,7 @@ public class MainActivity extends AppCompatActivity {
     private AudioManager.OnAudioFocusChangeListener mLegacyAudioFocusListener;
     private volatile boolean mHasAudioFocus = false;
     private volatile boolean mPausedByTransientFocusLoss = false;
+    private volatile long mLastBitPerfectStartOrResumeElapsedMs = 0L;
     private int mRendererRecoveryCount = 0;
     private long mRendererRecoveryWindowStartMs = 0L;
     private MediaSession mMediaSession;
@@ -1502,6 +1503,15 @@ public class MainActivity extends AppCompatActivity {
                                     // natively requests AUDIOFOCUS_GAIN for HTML5/WebAudio playback, which
                                     // triggers AUDIOFOCUS_LOSS here and would self-pause WebView playback!
                                     if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                                        if (!mIsInBackground && (android.os.SystemClock.elapsedRealtime() - mLastBitPerfectStartOrResumeElapsedMs) < 1500L) {
+                                            requestAudioFocus();
+                                            if (mWebView != null) {
+                                                mWebView.post(() -> mWebView.evaluateJavascript(
+                                                        "if (typeof suspendWebAudioForBitPerfect === 'function') suspendWebAudioForBitPerfect();",
+                                                        null));
+                                            }
+                                            break;
+                                        }
                                         mBitPerfectPlayer.pause();
                                         syncAudioFocusNativeUiAndMediaSession(false);
                                     }
@@ -1509,6 +1519,15 @@ public class MainActivity extends AppCompatActivity {
                                 case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
                                     mHasAudioFocus = false;
                                     if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                                        if (!mIsInBackground && (android.os.SystemClock.elapsedRealtime() - mLastBitPerfectStartOrResumeElapsedMs) < 1500L) {
+                                            requestAudioFocus();
+                                            if (mWebView != null) {
+                                                mWebView.post(() -> mWebView.evaluateJavascript(
+                                                        "if (typeof suspendWebAudioForBitPerfect === 'function') suspendWebAudioForBitPerfect();",
+                                                        null));
+                                            }
+                                            break;
+                                        }
                                         mPausedByTransientFocusLoss = true;
                                         mBitPerfectPlayer.pause();
                                         syncAudioFocusNativeUiAndMediaSession(false);
@@ -4449,6 +4468,7 @@ public class MainActivity extends AppCompatActivity {
             mIsStopped = false;
             mIsPaused = false;
             mIsPlaying = true;
+            mLastBitPerfectStartOrResumeElapsedMs = android.os.SystemClock.elapsedRealtime();
             mIsRemoteStream = !(trimmedUrl.startsWith("/") || trimmedUrl.startsWith("file://") || trimmedUrl.startsWith("content://") || trimmedUrl.contains("/local-media?"));
             mSeekTargetUs.set(-1);
             mCurrentPositionMs.set(0);
@@ -4525,6 +4545,7 @@ public class MainActivity extends AppCompatActivity {
                 abandonAudioFocus();
                 return;
             }
+            mLastBitPerfectStartOrResumeElapsedMs = android.os.SystemClock.elapsedRealtime();
             synchronized (mPauseLock) {
                 mIsPaused = false;
                 mPauseLock.notifyAll();

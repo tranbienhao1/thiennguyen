@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.77</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.78</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4285,6 +4285,10 @@
             window.NocturneNative.stopBitPerfectPlayback();
           }
           state.isNativeBitPerfectPlaying = false;
+          state.isNativeBitPerfectPaused = false;
+          if (typeof syncPlaybackButtonsUi === 'function') {
+            syncPlaybackButtonsUi(Boolean(audio && !audio.paused && audio.src && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(audio))));
+          }
         }
       }
 
@@ -14156,27 +14160,29 @@
       if (!track) return;
       switch (action) {
         case 'play_now':
-          playTrack(track);
+          playTrack(track.id != null ? track.id : track);
           toast(`▶ Đang phát ngay: ${track.title}`);
           break;
         case 'play_next':
-          if (state.queueTrackIds.length > 0) {
-            state.queueTrackIds.unshift(track.id);
-          } else {
-            state.queueTrackIds = [track.id];
-          }
+          state.queueTrackIds = (state.queueTrackIds || []).filter(id => id !== track.id && String(id) !== String(track.id));
+          state.queueTrackIds.unshift(track.id);
           toast(`⏭ Sẽ phát tiếp theo: ${track.title}`);
+          if (typeof renderQueue === 'function') renderQueue();
           renderQueueList();
+          if (state.currentId && (audio.src || state.isNativeBitPerfectPlaying)) preloadNext(true);
           break;
         case 'add_queue':
-          state.queueTrackIds.push(track.id);
+          if (!state.queueTrackIds.includes(track.id)) state.queueTrackIds.push(track.id);
           toast(`➕ Đã thêm vào hàng đợi: ${track.title}`);
+          if (typeof renderQueue === 'function') renderQueue();
           renderQueueList();
+          if (state.currentId && (audio.src || state.isNativeBitPerfectPlaying)) preloadNext(true);
           break;
         case 'start_radio':
           state.roonRadio = true;
           try { localStorage.setItem('nocturne-roon-radio', 'true'); } catch (_) {}
           toast(`📻 Bắt đầu Roon Radio từ phong cách bài: ${track.title}`);
+          if (state.currentId && (audio.src || state.isNativeBitPerfectPlaying)) preloadNext(true);
           break;
       }
     }
@@ -15180,8 +15186,9 @@
     function suspendWebAudioForBitPerfect() {
       try { if (audio && !audio.paused) audio.pause(); } catch (_) {}
       try { if (standbyAudio && !standbyAudio.paused) standbyAudio.pause(); } catch (_) {}
-      if (state.context && state.context.state === 'running' && typeof state.context.suspend === 'function') {
-        state.context.suspend().catch(() => {});
+      try { if (state.corsBypassAudio && !state.corsBypassAudio.paused) state.corsBypassAudio.pause(); } catch (_) {}
+      if (state.context && state.context.state !== 'closed' && typeof state.context.suspend === 'function') {
+        try { state.context.suspend().catch(() => {}); } catch (_) {}
       }
     }
     function resolvePlayTrackEntry(trackId) {
@@ -15374,7 +15381,7 @@
         if (isNativeBpPlayable && (typeof window.NocturneNative.isBitPerfectSupported !== 'function' || window.NocturneNative.isBitPerfectSupported())) {
           try { if (audio && !audio.paused) audio.pause(); } catch (_) {}
           try { if (standbyAudio && !standbyAudio.paused) standbyAudio.pause(); } catch (_) {}
-          if (state.context && state.context.state === 'running' && typeof state.context.suspend === 'function') {
+          if (state.context && state.context.state !== 'closed' && typeof state.context.suspend === 'function') {
             try { await state.context.suspend(); } catch (_) {}
           }
           const isSameCueNativeParent = Boolean(
@@ -15972,6 +15979,7 @@
               scheduleTrackRender();
             }, {once:true});
           }
+          if (audio.dataset && track && track.id != null) audio.dataset.trackId = String(track.id);
           audio.src = url;
           audio.muted = false;
           const volEl = $('volume');
@@ -18969,12 +18977,17 @@
     let lastFastTapEl = null;
     let lastFastTapPos = null;
     let lastFastTapPending = false;
+    function resolveEventElement(node) {
+      if (!node) return null;
+      if (typeof node.closest === 'function' || node.nodeType === 1) return node;
+      return node.parentElement || node;
+    }
 
     document.addEventListener('touchstart', (e) => {
       if (e.touches && e.touches.length === 1) {
         touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
         touchStartTime = Date.now();
-        touchStartTarget = e.target;
+        touchStartTarget = resolveEventElement(e.target);
       } else {
         touchStartPos = null;
         touchStartTarget = null;
@@ -19001,7 +19014,7 @@
 
       // Handle taps with 14px tolerance and 600ms duration for DAP / small screens
       if (dx < 14 && dy < 14 && dt < 600) {
-        const target = initialTarget || e.target;
+        const target = resolveEventElement(initialTarget || e.target);
         /* target?.closest?.('input, select, textarea, .seek-range, button, a, summary, label') */
         // Preserve native/direct activation for file inputs, sidebar toggle, playback transport buttons & waveform scrubbars
         const isNativeControl = target && typeof target.closest === 'function' ? target.closest('input, select, textarea, .seek-range, #add-files, #empty-add, #folders-button, #choose-folder, #playlist-import-m3u-btn, #sidebar-toggle, #play-button, #room-play, #fullscreen-play-btn, #mini-play, #previous-button, #next-button, #room-previous, #room-next, #fullscreen-prev-btn, #fullscreen-next-btn, #mini-next, #waveform-canvas, #fullscreen-waveform, #mini-waveform') : null;
@@ -19024,11 +19037,17 @@
     // Deduplicate native ghost click following fast-tap (same element OR same tap coordinates where a newly opened drawer/backdrop appeared)
     // while NEVER swallowing real taps on transport buttons or other distinct controls.
     document.addEventListener('click', (e) => {
+      const clickTargetEl = resolveEventElement(e && e.target);
+      const isTransportTarget = Boolean(
+        clickTargetEl &&
+        typeof clickTargetEl.closest === 'function' &&
+        clickTargetEl.closest('#play-button, #room-play, #fullscreen-play-btn, #mini-play, #previous-button, #next-button, #room-previous, #room-next, #fullscreen-prev-btn, #fullscreen-next-btn, #mini-next, #sidebar-toggle, .seek-range, #waveform-canvas, #fullscreen-waveform, #mini-waveform')
+      );
+      if (isTransportTarget) return;
       if (e.isTrusted && lastFastTapEl) {
-        const isTargetSame = Boolean(e.target === lastFastTapEl || (typeof lastFastTapEl.contains === 'function' && lastFastTapEl.contains(e.target)));
-        const isTransportTarget = Boolean(e.target && typeof e.target.closest === 'function' && e.target.closest('#play-button, #room-play, #fullscreen-play-btn, #mini-play, #previous-button, #next-button, #room-previous, #room-next, #fullscreen-prev-btn, #fullscreen-next-btn, #mini-next, .seek-range, #waveform-canvas, #fullscreen-waveform, #mini-waveform'));
+        const isTargetSame = Boolean(clickTargetEl === lastFastTapEl || e.target === lastFastTapEl || (typeof lastFastTapEl.contains === 'function' && lastFastTapEl.contains(clickTargetEl || e.target)));
         const nearLastFastTap = Boolean(lastFastTapPos && typeof e.clientX === 'number' && typeof e.clientY === 'number' && Math.abs(e.clientX - lastFastTapPos.x) < 28 && Math.abs(e.clientY - lastFastTapPos.y) < 28);
-        if (!isTargetSame && (isTransportTarget || !nearLastFastTap)) return;
+        if (!isTargetSame && !nearLastFastTap) return;
       }
       if (Date.now() - lastFastTapClickTs < 450 && e.isTrusted) {
         e.preventDefault();
@@ -19037,7 +19056,7 @@
       }
       if (lastFastTapPending && e.isTrusted) {
         const elapsedFastTap = Date.now() - lastFastTapClickTs;
-        const isSameFastTapTarget = Boolean(lastFastTapEl && (e.target === lastFastTapEl || (typeof lastFastTapEl.contains === 'function' && lastFastTapEl.contains(e.target))));
+        const isSameFastTapTarget = Boolean(lastFastTapEl && (clickTargetEl === lastFastTapEl || e.target === lastFastTapEl || (typeof lastFastTapEl.contains === 'function' && lastFastTapEl.contains(clickTargetEl || e.target))));
         const nearDelayedFastTap = Boolean(lastFastTapPos && typeof e.clientX === 'number' && typeof e.clientY === 'number' && Math.abs(e.clientX - lastFastTapPos.x) < 28 && Math.abs(e.clientY - lastFastTapPos.y) < 28);
         lastFastTapPending = false;
         if (elapsedFastTap >= 450 && elapsedFastTap < 1200 && (isSameFastTapTarget || nearDelayedFastTap)) {
@@ -19049,13 +19068,17 @@
     }, true);
 
     // Passive trusted user-gesture AudioContext unlocker for Android WebView & iOS/Desktop browsers
-    // Never resume WebView AudioContext while Native Bit-Perfect is active (would steal Android AudioFocus and self-pause playback!)
+    // Never resume WebView AudioContext while Native Bit-Perfect is active or routed (would steal Android AudioFocus and self-pause playback!)
     const unlockAudioContextOnGesture = () => {
       const nativeBpBusy = Boolean(
         state.isNativeBitPerfectPlaying ||
         (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.isBitPerfectActive === 'function' && window.NocturneNative.isBitPerfectActive())
       );
       if (nativeBpBusy) return;
+      if (state.bitPerfectEnabled && typeof window !== 'undefined' && window.NocturneNative && window.NocturneNative.isBitPerfectSupported) {
+        const candidateBpTrack = (state.tracks || []).find(t => t && t.id === state.currentId) || (state.tracks && state.tracks[0]) || null;
+        if (!candidateBpTrack || (typeof isTrackRoutedToNativeBitPerfect === 'function' && isTrackRoutedToNativeBitPerfect(candidateBpTrack))) return;
+      }
       if (state.context && state.context.state === 'suspended') {
         state.context.resume().catch(() => {});
       }
@@ -22012,35 +22035,97 @@
         (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.isBitPerfectActive === 'function' && window.NocturneNative.isBitPerfectActive())
       );
       const nowPlayClick = Date.now();
-      const isActivelyPlayingAudio = Boolean(!nativeBpActiveNow && audio && !audio.paused && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(audio)));
-      if (state._playBtnBusy && state._playBtnBusyUntil && nowPlayClick < state._playBtnBusyUntil && !nativeBpActiveNow && !isActivelyPlayingAudio) return;
+      const activeDeckEl = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : null;
+      if (activeDeckEl && activeDeckEl !== audio && !activeDeckEl.paused && activeDeckEl.src && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(activeDeckEl)) && (!audio || audio.paused)) {
+        audio = activeDeckEl;
+      }
+      const isAudioElPlaying = Boolean(!nativeBpActiveNow && audio && !audio.paused && audio.src && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(audio)));
+      const isCorsElPlaying = Boolean(!nativeBpActiveNow && state.corsBypassAudio && !state.corsBypassAudio.paused && state.corsBypassAudio.src);
+      const isActivelyPlayingAudio = Boolean(isAudioElPlaying || isCorsElPlaying);
+      if (state._playBtnBusy && state._playBtnBusyUntil && nowPlayClick < state._playBtnBusyUntil && !nativeBpActiveNow && !isActivelyPlayingAudio && !state.isPlaybackLoading) return;
       state._playBtnBusy = true;
       state._playBtnBusyUntil = nowPlayClick + 1200;
       try {
         if (nativeBpActiveNow && handleNativeBitPerfectPlayPauseClick()) return;
         const wasContextSuspended = Boolean(state.context && state.context.state === 'suspended');
-        if (typeof setupAudio === 'function') setupAudio();
-        if (state.context && state.context.state === 'suspended') {
-          try { state.context.resume().catch(e => console.debug('AudioContext resume in play-button:', e)); } catch (_) {}
+        if (state.dsdWorker) {
+          const activeWorker = state.dsdWorker;
+          state.dsdWorker = null;
+          try { activeWorker.postMessage({type:'cancel'}); } catch (_) {}
+          try { activeWorker.terminate(); } catch (_) {}
+          state.playGeneration++;
+          stopDsdWorker(false);
+          setPlaybackLoading(false);
+          if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+          if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+          else $('play-button').textContent = '▶';
+          toast('Đã dừng giải mã DSD.');
+          return;
         }
-        if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; state.playGeneration++; stopDsdWorker(false); if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false); else $('play-button').textContent = '▶'; toast('Đã dừng giải mã DSD.'); return; }
-        if (state.isPlaybackLoading && state._lastPlayTrackId === state.currentId && (!audio.src || audio.paused) && !audio.error && state._lastPlayTrackAt && (Date.now() - state._lastPlayTrackAt) < 900) {
+        if (isActivelyPlayingAudio) {
+          if (!audio.paused && wasContextSuspended) {
+            if (typeof setupAudio === 'function') setupAudio();
+            await boundPlayButtonCtxResume();
+            if (state.context && state.context.state === 'running') {
+              audio.defaultMuted = false;
+              if (typeof audio.removeAttribute === 'function') audio.removeAttribute('muted');
+              audio.muted = false;
+              if (state.activeDeck && state.activeDeck.router && state.activeDeck.router.gain) {
+                state.activeDeck.router.gain.value = 1;
+              }
+              if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(true);
+              return;
+            }
+          }
+          if (state.isPlaybackLoading) {
+            state.playGeneration++;
+            setPlaybackLoading(false);
+            if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+          }
+          if (audio && audio.dataset && state.currentId != null) {
+            audio.dataset.trackId = String(state.currentId);
+          }
+          if (standbyAudio && standbyAudio !== audio && !standbyAudio.paused) {
+            try { standbyAudio.pause(); } catch (_) {}
+          }
+          if (state.corsBypassAudio && state.corsBypassAudio !== audio && !state.corsBypassAudio.paused) {
+            try { state.corsBypassAudio.pause(); } catch (_) {}
+          }
+          if (activeDeckEl && activeDeckEl !== audio && !activeDeckEl.paused) {
+            try { activeDeckEl.pause(); } catch (_) {}
+          }
+          if (audio && !audio.paused) {
+            audio.pause();
+          }
+          if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+          else $('play-button').textContent = '▶';
+          return;
+        }
+        if (state.isPlaybackLoading && state._lastPlayTrackId === state.currentId && (!audio.src || audio.paused) && !audio.error) {
+          const loadingElapsedMs = state._lastPlayTrackAt ? (Date.now() - state._lastPlayTrackAt) : 9999;
+          if (loadingElapsedMs < 250) {
+            return;
+          }
+          state.playGeneration++;
+          setPlaybackLoading(false);
+          const loadingTrack = state.tracks.find(track => track && track.id === state.currentId);
+          if (loadingTrack && loadingTrack._dsdFetchAbort) {
+            try { loadingTrack._dsdFetchAbort.abort(); } catch (_) {}
+            loadingTrack._dsdFetchAbort = null;
+          }
+          try { if (audio && !audio.paused) audio.pause(); } catch (_) {}
+          try { if (standbyAudio && !standbyAudio.paused) standbyAudio.pause(); } catch (_) {}
+          try { if (state.corsBypassAudio && !state.corsBypassAudio.paused) state.corsBypassAudio.pause(); } catch (_) {}
+          if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+          if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+          else $('play-button').textContent = '▶';
           return;
         }
         const hasMismatchedTrack = Boolean(state.currentId != null && audio && audio.dataset && audio.dataset.trackId && String(audio.dataset.trackId) !== String(state.currentId));
         if (!audio.src || audio.error || (typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(audio)) || (typeof location !== 'undefined' && audio.src === location.href) || hasMismatchedTrack) { const current = state.tracks.find(track => track.id === state.currentId); const next = current || state.tracks[0]; if (next) playTrack(next.id); return; }
-        if (!audio.paused && wasContextSuspended) {
-          await boundPlayButtonCtxResume();
-          if (state.context && state.context.state === 'running') {
-            audio.defaultMuted = false;
-            if (typeof audio.removeAttribute === 'function') audio.removeAttribute('muted');
-            audio.muted = false;
-            if (state.activeDeck && state.activeDeck.router && state.activeDeck.router.gain) {
-              state.activeDeck.router.gain.value = 1;
-            }
-            if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(true);
-            return;
-          }
+        if (typeof setupAudio === 'function') setupAudio();
+        if (state.context && state.context.state === 'suspended') {
+          try { state.context.resume().catch(e => console.debug('AudioContext resume in play-button:', e)); } catch (_) {}
         }
         if (audio.paused) {
           const curSliceTrack = state.tracks.find(track => track.id === state.currentId);
@@ -22155,11 +22240,17 @@
         const dx = Math.abs(t.clientX - startX);
         const dy = Math.abs(t.clientY - startY);
         const dt = Date.now() - startAt;
-        if (dx < 22 && dy < 22 && dt < 650 && !el.disabled) {
+        if (dx < 24 && dy < 24 && dt < 700 && !el.disabled) {
           if (e.cancelable && typeof e.preventDefault === 'function') e.preventDefault();
+          const nowTap = Date.now();
+          if (el._lastTransportTapExecAt && (nowTap - el._lastTransportTapExecAt) < 120) return;
+          el._lastTransportTapExecAt = nowTap;
           el._touchTapGhostPending = true;
-          el._touchTapHandledAt = Date.now();
+          el._touchTapHandledAt = nowTap;
           el.click();
+          const afterTap = Date.now();
+          el._touchTapHandledAt = afterTap;
+          el._lastTransportTapExecAt = afterTap;
         }
       }, { passive: false });
       el.addEventListener('click', e => {
@@ -22171,7 +22262,7 @@
         }
       }, true);
     }
-    ['play-button', 'room-play', 'mini-play', 'fullscreen-play-btn', 'previous-button', 'next-button', 'room-previous', 'room-next', 'fullscreen-prev-btn', 'fullscreen-next-btn', 'sidebar-toggle'].forEach(id => {
+    ['play-button', 'room-play', 'mini-play', 'fullscreen-play-btn', 'previous-button', 'next-button', 'room-previous', 'room-next', 'fullscreen-prev-btn', 'fullscreen-next-btn', 'sidebar-toggle', 'mini-next'].forEach(id => {
       attachReliableTransportTap($(id));
     });
     window.onHardwarePlayPause = () => { const btn = $('play-button'); if (btn) btn.click(); };
@@ -23555,7 +23646,7 @@
         }
       }
     }, { passive: true });
-    $('shuffle-button').addEventListener('click', event => { state.shuffle = !state.shuffle; event.currentTarget.classList.toggle('text-violet-300', state.shuffle); if (typeof syncTransportModesUI === 'function') syncTransportModesUI(); toast(state.shuffle ? 'Đã bật trộn bài.' : 'Đã tắt trộn bài.'); if (state.currentId) preloadNext(true); });
+    $('shuffle-button').addEventListener('click', event => { state.shuffle = !state.shuffle; state.preloadTrackId = null; state.preloadReadyUrl = null; event.currentTarget.classList.toggle('text-violet-300', state.shuffle); if (typeof syncTransportModesUI === 'function') syncTransportModesUI(); toast(state.shuffle ? 'Đã bật trộn bài.' : 'Đã tắt trộn bài.'); if (state.currentId) preloadNext(true); });
     $('repeat-button').addEventListener('click', event => { state.repeat = (state.repeat + 1) % 3; event.currentTarget.textContent = state.repeat === 2 ? '↻¹' : '↻'; event.currentTarget.classList.toggle('text-violet-300', state.repeat > 0); if (typeof syncTransportModesUI === 'function') syncTransportModesUI(); toast(['Không lặp','Lặp danh sách','Lặp bài hiện tại'][state.repeat]); if (state.currentId) preloadNext(true); });
     $('favorite-button').addEventListener('click', () => {
       const track = state.tracks.find(item => item.id === state.currentId);
@@ -24279,8 +24370,11 @@
       });
       element.addEventListener('pause', () => {
         if (element._unlockingGesture) return;
+        if (!element.paused) return;
         if (state.isNativeBitPerfectPlaying) return;
         if (element._upgradingFullAudio) return;
+        const corsActivelyPlaying = Boolean(state.corsBypassAudio && state.corsBypassAudio !== element && !state.corsBypassAudio.paused && state.corsBypassAudio.src);
+        if (corsActivelyPlaying) return;
         const standbyActivelyPlaying = Boolean(standbyAudio && !standbyAudio.paused && !standbyAudio._unlockingGesture && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(standbyAudio)) && standbyAudio.src);
         if (element === audio && standbyActivelyPlaying) return;
         if (element !== audio) return;
