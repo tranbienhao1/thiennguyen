@@ -19,6 +19,7 @@ import android.provider.Settings;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.UriPermission;
 import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
@@ -112,6 +113,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -3194,7 +3196,25 @@ public class MainActivity extends AppCompatActivity {
             // 1. Scoped Storage content:// URI streaming (Android 10-15 MediaStore & SAF)
             if (uriParam != null && uriParam.startsWith("content://")) {
                 Uri contentUri = Uri.parse(uriParam);
-                return streamContentUriResponse(contentUri, nameParam, method, rangeHeader);
+                try {
+                    return streamContentUriResponse(contentUri, nameParam, method, rangeHeader);
+                } catch (SecurityException secErr) {
+                    Log.w(TAG, "SAF/MediaStore permission revoked for URI: " + uriParam + " (" + secErr.getMessage() + ")");
+                    if (pathParam == null || pathParam.isEmpty() || pathParam.startsWith("content://")) {
+                        Map<String, String> errHeaders = buildLocalMediaCorsHeaders();
+                        errHeaders.put("X-Nocturne-Storage-Error", "SAF_PERMISSION_REVOKED");
+                        return new WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden", errHeaders,
+                                new ByteArrayInputStream(("Storage permission revoked for URI: " + uriParam).getBytes(StandardCharsets.UTF_8)));
+                    }
+                    // Fall through to direct File / MediaStore path fallback below
+                } catch (FileNotFoundException fnfErr) {
+                    Log.w(TAG, "Content URI file not found: " + uriParam);
+                    if (pathParam == null || pathParam.isEmpty() || pathParam.startsWith("content://")) {
+                        return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", buildLocalMediaCorsHeaders(),
+                                new ByteArrayInputStream(("Content URI not found: " + uriParam).getBytes(StandardCharsets.UTF_8)));
+                    }
+                    // Fall through to direct File / MediaStore path fallback below
+                }
             }
 
             if (pathParam == null || pathParam.isEmpty()) {
@@ -3211,7 +3231,17 @@ public class MainActivity extends AppCompatActivity {
                     fallbackContentUri = resolveMediaStoreContentUriForPath(pathParam);
                 }
                 if (fallbackContentUri != null) {
-                    return streamContentUriResponse(fallbackContentUri, file.getName(), method, rangeHeader);
+                    try {
+                        return streamContentUriResponse(fallbackContentUri, file.getName(), method, rangeHeader);
+                    } catch (SecurityException secErr) {
+                        Log.w(TAG, "Fallback MediaStore URI permission denied: " + fallbackContentUri + " (" + secErr.getMessage() + ")");
+                        Map<String, String> errHeaders = buildLocalMediaCorsHeaders();
+                        errHeaders.put("X-Nocturne-Storage-Error", "SAF_PERMISSION_REVOKED");
+                        return new WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden", errHeaders,
+                                new ByteArrayInputStream(("Storage permission revoked for URI: " + fallbackContentUri).getBytes(StandardCharsets.UTF_8)));
+                    } catch (FileNotFoundException fnfErr) {
+                        Log.w(TAG, "Fallback MediaStore URI not found: " + fallbackContentUri);
+                    }
                 }
                 Log.w(TAG, "Local media file not found or unreadable: " + file.getAbsolutePath());
                 return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", buildLocalMediaCorsHeaders(),
@@ -5701,11 +5731,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.72";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.73";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.72\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.73\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -6344,6 +6374,49 @@ public class MainActivity extends AppCompatActivity {
                 array.put(p);
             }
             return array.toString();
+        }
+
+        /**
+         * Returns JSON array of active persisted readable SAF URI permissions granted to the app.
+         */
+        @JavascriptInterface
+        public String getPersistedSafUrisJson() {
+            JSONArray array = new JSONArray();
+            try {
+                List<UriPermission> perms = mActivity.getContentResolver().getPersistedUriPermissions();
+                if (perms != null) {
+                    for (UriPermission perm : perms) {
+                        if (perm == null || !perm.isReadPermission() || perm.getUri() == null) continue;
+                        JSONObject item = new JSONObject();
+                        item.put("uri", perm.getUri().toString());
+                        item.put("read", perm.isReadPermission());
+                        item.put("write", perm.isWritePermission());
+                        item.put("persistedTime", perm.getPersistedTime());
+                        array.put(item);
+                    }
+                }
+            } catch (Exception ignored) {}
+            return array.toString();
+        }
+
+        /**
+         * Checks whether a persisted readable SAF URI permission still covers the supplied content:// URI.
+         */
+        @JavascriptInterface
+        public boolean hasValidPersistedUriPermission(String uriStr) {
+            if (uriStr == null || uriStr.isEmpty()) return false;
+            try {
+                List<UriPermission> perms = mActivity.getContentResolver().getPersistedUriPermissions();
+                if (perms == null || perms.isEmpty()) return false;
+                for (UriPermission perm : perms) {
+                    if (perm == null || !perm.isReadPermission() || perm.getUri() == null) continue;
+                    String permUri = perm.getUri().toString();
+                    if (permUri.equals(uriStr) || uriStr.startsWith(permUri + "/")) {
+                        return true;
+                    }
+                }
+            } catch (Exception ignored) {}
+            return false;
         }
 
         /**

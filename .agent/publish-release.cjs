@@ -80,27 +80,21 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.72';
-  const name = process.argv[3] || `Nocturne ${tag} (Sửa triệt để nút Play/Pause Web & FiiO M11S + Chống trùng lặp Google Drive/OneDrive Shared & Shortcut + Bảo toàn vị trí khi fallback Bit-Perfect & Bảo vệ giải mã ảnh bìa lớn)`;
+  const tag = process.argv[2] || 'v3.9.73';
+  const name = process.argv[3] || `Nocturne ${tag} (OneDrive 401/403 Force-Refresh & SharePoint 404/410 Recovery + First-Slice Retry Backoff + MicroSD Delta Fast-Skip + Android SAF 403/Fallback)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 126) — Sửa triệt để Play/Pause (Web + FiiO M11S) + Chống trùng lặp Cloud Shared/Shortcut + Fallback Bit-Perfect & An toàn ảnh bìa lớn
+    : `### Nocturne ${tag} (versionCode 127) — Ổn định Token/URL Cloud giữa chừng + Backoff lát đầu + Quét nhanh MicroSD & Phục hồi SAF Android 11–15
 
-#### 1. Khắc phục triệt để nút Play/Pause trên Web & Android/FiiO M11S (\`index.html\`, \`MainActivity.java\`)
-- **Chống treo \`AudioContext.resume()\` & khóa \`_playBtnBusy\` vĩnh viễn**: Bọc giới hạn timeout 350ms cho \`resume()\` và cơ chế tự nhả khóa theo mốc thời gian (\`_playBtnBusyUntil\`) cùng bộ giải phóng 800ms khi buffering chậm để nút Play/Pause không bao giờ bị đơ.
-- **Chặn sự kiện \`pause\`/\`play\` trễ từ HTML5 \`<audio>\` khi đang phát Bit-Perfect**: Khi chuyển sang phát \`BitPerfectAudioPlayer\` thuần native, các sự kiện \`pause\` bất đồng bộ từ deck HTML5 cũ không còn lật ngược biểu tượng nút về \`▶\` hay ghi đè trạng thái \`MediaSession\`.
-- **Sửa chạm liên tiếp (\`attachReliableTransportTap\`) & lớp phủ footer desktop (\`z-index\`)**: Dùng cờ ghost-click một lần (\`_touchTapGhostPending\`) tránh nuốt nhầm lần bấm Play/Pause thứ 2 và nâng \`.footer-center-controls\` / \`#play-button\` lên trên tránh vùng bấm lân cận che khuất.
-- **Đồng bộ notification & MediaSession Bit-Perfect trên UI thread (\`MainActivity.java\`)**: \`BitPerfectAudioPlayer.pause()/resume()\` giữ nguyên metadata thực đang phát (\`mLastMediaTitle\`) và cập nhật \`mLastMediaPositionMs\` trên UI thread.
+#### 1. Phát nhạc Cloud ổn định khi mạng chập chờn & token/SharePoint hết hạn giữa bài (\`index.html\`, \`library-utils.js\`)
+- **Làm mới cưỡng bức token OneDrive (\`getMicrosoftToken(false, true)\`)**: Khi gặp HTTP 401/403 trong lúc đang phát hoặc đồng bộ (\`graphGet\`, \`fetchCloudTrack\`, \`upgradeSliceToFullAudio\`, \`retryPendingCurrentSliceUpgrade\`, \`fetchCloudFile\`, \`loadMicrosoftAudio\`, \`fetchOneDriveMetadataBytes\`, \`fetchCloudSidecarLyrics\`), gọi \`acquireTokenSilent({ forceRefresh: true })\` qua hàng đợi riêng \`microsoftTokenForceRefreshPromise\` thay vì trả nhầm token hết hạn trong cache MSAL.
+- **Khôi phục link SharePoint \`directUrl\` hết hạn 404/410**: \`fetchCloudTrack\` và \`fetchCloudFile\` bắt thêm mã 404/410 của CDN SharePoint để lấy \`resolveMicrosoftDownloadUrl\` mới hoặc chuyển thẳng về Graph \`/content\`; \`loadMicrosoftAudio\` thử cấp lại \`directUrl\` một lần nếu trước đó dùng link lưu cache rồi mới fallback sang Graph với token làm mới.
+- **Tăng sức bền tải lát đầu (\`fetchAudioFirstSlice\`)**: Hỗ trợ \`FETCH_AUDIO_SLICE_MAX_ATTEMPTS = 3\` kèm backoff cấp số nhân (\`fetchAudioRetryDelayMs\`) và kiểm tra \`AbortSignal\` ở mỗi lần thử lại khi chuyển Wi-Fi -> 4G.
 
-#### 2. Đồng bộ Google Drive & OneDrive: Chống trùng lặp Shared/Shortcut & Xóa đồng bộ (\`index.html\`)
-- **Google Drive (\`scanGoogleDriveAudioShortcuts\`, \`tryLoadGoogleChangesDelta\`, \`loadGoogleFiles\`)**: Ánh xạ hai chiều \`remoteId <-> targetRemoteId\`, chống nhân đôi nhiều shortcut cùng trỏ 1 bài hoặc giữa shortcut và file gốc, đồng thời xử lý đúng sự kiện xóa khi target bị cho vào Thùng rác.
-- **OneDrive (\`normalizeMicrosoftDriveItem\`, \`enqueueMicrosoftSharedItems\`, \`tryLoadMicrosoftDeltaSync\`, \`loadMicrosoftFiles\`)**: Bảo toàn \`remoteShortcutId\`, chống trùng lặp mục \`sharedWithMe\` với shortcut trong My files và xóa sạch bài qua ID shortcut trong Delta Sync.
-- **\`restoreCloudCatalog\`**: Lọc trùng lặp O(1) ngay khi nạp danh mục từ IndexedDB.
-
-#### 3. Bảo toàn vị trí khi Bit-Perfect fallback & tối ưu \`/local-media\`, \`/local-cover\` (\`MainActivity.java\`, \`index.html\`)
-- **Truyền mốc vị trí ms chính xác từ native (\`notifyBitPerfectErrorToWeb\`) + \`AudioTrack.STATE_INITIALIZED\`**: Giữ chính xác vị trí bài hát (kể cả trong CUE sheet) khi chuyển dự phòng sang Web Audio và bám sớm \`loadedmetadata\`.
-- **An toàn tua nhanh \`BoundedFileInputStream\` / \`BoundedContentUriInputStream\` & giải mã ảnh bìa lớn (\`coverFileToJpeg\`)**: Xử lý êm đóng luồng đồng thời khi tua nhanh HTTP 206 và giải mã trực tiếp file ảnh bìa tới 24 MB kèm giới hạn kích thước khung hình chống OOM.
+#### 2. Tăng tốc quét lại thẻ MicroSD lớn & Xử lý quyền SAF trên Android 11–15 (\`index.html\`, \`MainActivity.java\`)
+- **Bỏ qua nhanh bài chưa đổi khi quét lại MicroSD (\`isFiioTrackRescanUnchanged\`, \`ingestFiioScannedFilesChunk\`)**: Với hàng nghìn file không đổi \`path\`/\`uri\`/\`name\`/\`size\`/\`lastModified\` và đã đủ metadata + ảnh bìa, bỏ qua bước phân tích thẻ thừa (giữ nguyên làm mới tức thì cho bài đổi kích thước, sửa tag, đổi tên hoặc thiếu bìa).
+- **Bảo vệ luồng \`content://\` & kiểm tra quyền SAF bền vững (\`MainActivity.java\`)**: \`handleLocalMediaRequest\` bắt \`SecurityException\` / \`FileNotFoundException\`, tự động fallback về đường dẫn vật lý/MediaStore nếu có, hoặc trả HTTP \`403 Forbidden\` kèm header \`X-Nocturne-Storage-Error: SAF_PERMISSION_REVOKED\`; bổ sung \`getPersistedSafUrisJson()\` và \`hasValidPersistedUriPermission(uri)\` trên \`NocturneJsBridge\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

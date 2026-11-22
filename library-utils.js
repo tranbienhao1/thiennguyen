@@ -311,6 +311,7 @@
   // 401/403 (hết hạn token, tầng trên tự làm mới), 404, sai content-type
   // hay blob rỗng là lỗi xác định nên rớt ngay không thử lại.
   const FETCH_AUDIO_MAX_ATTEMPTS = 3;
+  const FETCH_AUDIO_SLICE_MAX_ATTEMPTS = 3;
   const FETCH_AUDIO_RETRY_BASE_MS = 400;
   const FETCH_AUDIO_SLICE_TIMEOUT_MS = 25000;
   const FETCH_AUDIO_FULL_TIMEOUT_MS = 90000;
@@ -574,20 +575,35 @@
       }
     };
     let end = (Number(options && options.initialSliceBytes) > FIRST_SLICE_BYTES) ? Math.min(Number(options.initialSliceBytes), FIRST_SLICE_MAX_BYTES) : FIRST_SLICE_BYTES;
+    const sliceMaxAttempts = (Number.isFinite(Number(options && options.maxAttempts)) && Number(options.maxAttempts) >= 1)
+      ? Math.min(5, Math.trunc(Number(options.maxAttempts)))
+      : FETCH_AUDIO_SLICE_MAX_ATTEMPTS;
     let response, blob;
-    try {
-      const firstResult = await fetchSliceOnce(end);
-      response = firstResult.response;
-      blob = firstResult.blob;
-    } catch (firstErr) {
-      if (!isFetchAudioRetryable(firstErr)) throw firstErr;
-      const retryDelay = Number.isFinite(Number(options && options.retryDelayMs))
-        ? Math.max(0, Number(options.retryDelayMs))
-        : (Number.isFinite(firstErr.retryAfterMs) && firstErr.retryAfterMs > 0 ? firstErr.retryAfterMs : 300);
-      if (retryDelay > 0) await new Promise(resolve => setTimeout(resolve, retryDelay));
-      const retryResult = await fetchSliceOnce(end);
-      response = retryResult.response;
-      blob = retryResult.blob;
+    for (let sliceAttempt = 0; sliceAttempt < sliceMaxAttempts; sliceAttempt++) {
+      if (options && options.signal && options.signal.aborted) {
+        const abortErr = new Error('Đã hủy tải lát âm thanh.');
+        abortErr.name = 'AbortError';
+        abortErr.aborted = true;
+        throw abortErr;
+      }
+      try {
+        const sliceResult = await fetchSliceOnce(end);
+        response = sliceResult.response;
+        blob = sliceResult.blob;
+        break;
+      } catch (firstErr) {
+        if (!isFetchAudioRetryable(firstErr) || sliceAttempt === sliceMaxAttempts - 1) throw firstErr;
+        const retryDelay = Number.isFinite(Number(options && options.retryDelayMs))
+          ? Math.max(0, Number(options.retryDelayMs))
+          : (Number.isFinite(firstErr.retryAfterMs) && firstErr.retryAfterMs > 0 ? firstErr.retryAfterMs : fetchAudioRetryDelayMs(sliceAttempt));
+        if (retryDelay > 0) await new Promise(resolve => setTimeout(resolve, retryDelay));
+        if (options && options.signal && options.signal.aborted) {
+          const abortErrAfterWait = new Error('Đã hủy tải lát âm thanh.');
+          abortErrAfterWait.name = 'AbortError';
+          abortErrAfterWait.aborted = true;
+          throw abortErrAfterWait;
+        }
+      }
     }
     const contentRange = (response.headers && response.headers.get('content-range')) || '';
     const totalMatch = String(contentRange).match(/\/(\d+)\s*$/);

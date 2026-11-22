@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.72</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.73</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4030,7 +4030,7 @@
         if (!isCloudAuthHttpError(err) || typeof getMicrosoftToken !== 'function') throw err;
         track.downloadUrl = '';
         track.downloadUrlAt = 0;
-        const freshToken = await getMicrosoftToken(false);
+        const freshToken = await getMicrosoftToken(false, true);
         const freshItem = await graphGet(msItemUrl, freshToken);
         const freshUrl = freshItem && freshItem['@microsoft.graph.downloadUrl'];
         if (!freshUrl) throw err;
@@ -6192,7 +6192,7 @@
                 }
               }
               if (!fetchedViaFreshDirect) {
-                const token = await getMicrosoftToken(false);
+                const token = await getMicrosoftToken(false, true);
                 const graphUrl = (track && track.remoteDriveId)
                   ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}/content`
                   : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
@@ -6203,7 +6203,7 @@
               }
             } else {
               if (!isGraphContentUrl(url)) throw error;
-              const token = await getMicrosoftToken(false);
+              const token = await getMicrosoftToken(false, true);
               const msOpts = upgradeController
                 ? { headers: { Authorization: `Bearer ${token}` }, signal: upgradeController.signal }
                 : { headers: { Authorization: `Bearer ${token}` } };
@@ -6374,14 +6374,14 @@
               retryUrl = freshDirect;
               retryOptions = {};
             } else if (typeof getMicrosoftToken === 'function') {
-              const msTok = await getMicrosoftToken(false);
+              const msTok = await getMicrosoftToken(false, true);
               retryUrl = curTrack.remoteDriveId
                 ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(curTrack.remoteDriveId)}/items/${encodeURIComponent(curTrack.remoteId)}/content`
                 : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(curTrack.remoteId)}/content`;
               retryOptions = { headers: { Authorization: `Bearer ${msTok}` } };
             }
           } else if (typeof getMicrosoftToken === 'function') {
-            const msTok = await getMicrosoftToken(false);
+            const msTok = await getMicrosoftToken(false, true);
             retryOptions = Object.assign({}, retryOptions, { headers: Object.assign({}, retryOptions.headers || {}, { Authorization: `Bearer ${msTok}` }) });
           }
         }
@@ -6449,7 +6449,7 @@
               });
               firstSlice = await library.fetchAudioFirstSlice(url, {...options, expectedTotalBytes: Number(track.size) || 0}, provider);
             } else if ((sliceAuthErr && (sliceAuthErr.status === 401 || sliceAuthErr.status === 403)) && track.source === 'onedrive' && isGraphContentUrl(url) && (!options || !options._refreshedMicrosoftOnce) && typeof getMicrosoftToken === 'function') {
-              const refreshedMsToken = await getMicrosoftToken(false);
+              const refreshedMsToken = await getMicrosoftToken(false, true);
               options = Object.assign({}, options || {}, {
                 headers: Object.assign({}, (options && options.headers) || {}, { Authorization: `Bearer ${refreshedMsToken}` }),
                 _refreshedMicrosoftOnce: true
@@ -6486,7 +6486,7 @@
             return sliceUrl;
           }
         } catch (error) {
-          if (error && (error.status === 401 || error.status === 403) && track && track.source === 'onedrive' && !isGraphContentUrl(url)) {
+          if (error && (error.status === 401 || error.status === 403 || error.status === 404 || error.status === 410) && track && track.source === 'onedrive' && !isGraphContentUrl(url)) {
             throw error;
           }
           console.debug('First-slice playback unavailable, downloading the full file instead:', error.message || error);
@@ -6494,7 +6494,11 @@
         let blob;
         try { blob = await library.fetchAudioBlob(url, options, provider); }
         catch (error) {
-          if (error.status !== 401 && error.status !== 403) throw error;
+          const isOneDriveDirectExpired = Boolean(
+            track && track.source === 'onedrive' && !isGraphContentUrl(url) && track.remoteId &&
+            (error && (error.status === 401 || error.status === 403 || error.status === 404 || error.status === 410))
+          );
+          if (!isOneDriveDirectExpired && error.status !== 401 && error.status !== 403) throw error;
           if (track.source === 'google') {
             if (!options || !options._refreshedGoogleOnce) {
               const newToken = await ensureGoogleToken(true);
@@ -6507,12 +6511,12 @@
               throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
             }
           } else if (track.source === 'onedrive' && isGraphContentUrl(url)) {
-            const token = await getMicrosoftToken(false);
+            const token = await getMicrosoftToken(false, true);
             blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
           } else if (track && track.source === 'onedrive' && !isGraphContentUrl(url) && track.remoteId && typeof getMicrosoftToken === 'function') {
             track.downloadUrl = '';
             track.downloadUrlAt = 0;
-            const token = await getMicrosoftToken(false);
+            const token = await getMicrosoftToken(false, true);
             const graphUrl = track.remoteDriveId
               ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}/content`
               : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
@@ -12126,7 +12130,7 @@
             if (tok) {
               resp = await fetch(graphContentUrl, { headers: { Authorization: `Bearer ${tok}` } }).catch(() => null);
               if (resp && (resp.status === 401 || resp.status === 403) && typeof getMicrosoftToken === 'function') {
-                tok = await getMicrosoftToken(false).catch(() => '');
+                tok = await getMicrosoftToken(false, true).catch(() => '');
                 if (tok) resp = await fetch(graphContentUrl, { headers: { Authorization: `Bearer ${tok}` } }).catch(() => null);
               }
             }
@@ -17487,7 +17491,11 @@
         try { blob = await library.fetchAudioBlob(url, fetchOpts, provider); }
         catch (error) {
           if ((error && (error.name === 'AbortError' || error.aborted === true)) || (dsdController && dsdController.signal.aborted)) throw error;
-          if (error.status !== 401 && error.status !== 403) throw error;
+          const isOneDriveDirectExpired = Boolean(
+            track && track.source === 'onedrive' && !isGraphContentUrl(url) && track.remoteId &&
+            (error && (error.status === 401 || error.status === 403 || error.status === 404 || error.status === 410))
+          );
+          if (!isOneDriveDirectExpired && error.status !== 401 && error.status !== 403) throw error;
           if (track.source === 'google') {
           if (!options || !options._refreshedGoogleOnce) {
             const newToken = await ensureGoogleToken(true);
@@ -17519,7 +17527,7 @@
                 }
               }
               if (!fetchedDirect) {
-                const token = await getMicrosoftToken(false);
+                const token = await getMicrosoftToken(false, true);
                 const graphUrl = track.remoteDriveId
                   ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}/content`
                   : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
@@ -17532,7 +17540,7 @@
               throw error;
             }
           } else {
-            const token = await getMicrosoftToken(false);
+            const token = await getMicrosoftToken(false, true);
             const msOpts = dsdController
               ? { headers: { Authorization: `Bearer ${token}` }, signal: dsdController.signal }
               : { headers: { Authorization: `Bearer ${token}` } };
@@ -17654,7 +17662,7 @@
         }
         if (response.status === 401 && !refreshedOnce) {
           refreshedOnce = true;
-          token = await getMicrosoftToken(false);
+          token = await getMicrosoftToken(false, true);
           state.microsoftAccessToken = token;
           continue;
         }
@@ -17688,6 +17696,7 @@
       : null;
     let microsoftMsalInitPromise = null;
     let microsoftTokenSilentPromise = null;
+    let microsoftTokenForceRefreshPromise = null;
     let microsoftTokenInteractivePromise = null;
     async function ensureMicrosoftMsalClient() {
       if (state.msal) return state.msal;
@@ -17705,7 +17714,7 @@
       });
       return microsoftMsalInitPromise;
     }
-    async function getMicrosoftToken(interactive = false) {
+    async function getMicrosoftToken(interactive = false, forceRefresh = false) {
       await ensureMicrosoftMsalClient();
       if (microsoftTokenInteractivePromise) {
         return microsoftTokenInteractivePromise;
@@ -17722,6 +17731,18 @@
       if (!interactive) {
         if (!state.msAccount) {
           throw new Error('Phiên OneDrive đã hết hạn. Hãy kết nối lại trong Cấu hình Cloud API.');
+        }
+        if (forceRefresh) {
+          if (microsoftTokenForceRefreshPromise) {
+            return microsoftTokenForceRefreshPromise;
+          }
+          microsoftTokenForceRefreshPromise = (async () => {
+            const result = await state.msal.acquireTokenSilent({scopes:['Files.Read'], account:state.msAccount, forceRefresh:true});
+            return applyResult(result);
+          })().finally(() => {
+            microsoftTokenForceRefreshPromise = null;
+          });
+          return microsoftTokenForceRefreshPromise;
         }
         if (microsoftTokenSilentPromise) {
           return microsoftTokenSilentPromise;
@@ -18492,19 +18513,39 @@
     async function loadMicrosoftAudio(itemId) {
       const track = state.tracks.find(item => item.remoteId === itemId && item.source === 'onedrive');
       if (!track) throw new Error('Không tìm thấy bài hát trong thư viện.');
+      const hadCachedDirectUrl = Boolean(track.downloadUrl && track.downloadUrlAt);
       const directUrl = await resolveMicrosoftDownloadUrl(track).catch(() => '');
+      let directUrlFailed = false;
       if (directUrl) {
         try {
           if (isDsdFormat(track.format)) { await fetchCloudFile(track, directUrl, {}, 'OneDrive'); return track.file; }
           await fetchCloudTrack(track, directUrl, {}, 'OneDrive');
           return;
         } catch (error) {
+          directUrlFailed = true;
           console.warn('OneDrive direct download failed, retrying through Graph:', error.message || error);
           track.downloadUrl = '';
           track.downloadUrlAt = 0;
+          if (hadCachedDirectUrl && typeof resolveMicrosoftDownloadUrl === 'function') {
+            const freshDirectUrl = await resolveMicrosoftDownloadUrl(track).catch(() => '');
+            if (freshDirectUrl && freshDirectUrl !== directUrl) {
+              try {
+                if (isDsdFormat(track.format)) { await fetchCloudFile(track, freshDirectUrl, {}, 'OneDrive'); return track.file; }
+                await fetchCloudTrack(track, freshDirectUrl, {}, 'OneDrive');
+                return;
+              } catch (freshErr) {
+                console.warn('OneDrive refreshed directUrl failed, falling back to Graph /content:', freshErr.message || freshErr);
+                track.downloadUrl = '';
+                track.downloadUrlAt = 0;
+              }
+            } else {
+              track.downloadUrl = '';
+              track.downloadUrlAt = 0;
+            }
+          }
         }
       }
-      const token = await getMicrosoftToken(false);
+      const token = await getMicrosoftToken(false, Boolean(directUrlFailed));
       const url = track.remoteDriveId
         ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(itemId)}/content`
         : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}/content`;
@@ -20344,6 +20385,7 @@
     let fiioScanInProgress = false;
     let fiioScanWatchdogTimer = null;
     let fiioScanUpgradedCount = 0;
+    let fiioScanSkippedUnchangedCount = 0;
     let activeFiioScanMaps = null;
 
     function buildExistingFiioTrackSets() {
@@ -20671,6 +20713,45 @@
     }
     window.expandFiioScannedCueSheets = expandFiioScannedCueSheets;
 
+    function isFiioTrackRescanUnchanged(prevTrack, file, normPath, normUri) {
+      if (!prevTrack || !file) return false;
+      const oldPath = prevTrack.path ? String(prevTrack.path).trim() : '';
+      const oldUri = prevTrack.uri ? String(prevTrack.uri).trim() : '';
+      if (normPath && oldPath !== normPath) return false;
+      if (normUri && oldUri !== normUri) return false;
+      if (!normPath && !normUri) return false;
+      const rawFileName = file.name ? String(file.name).trim() : (normPath ? normPath.slice(Math.max(normPath.lastIndexOf('/'), normPath.lastIndexOf('\\')) + 1) : '');
+      const newBaseName = rawFileName ? rawFileName.replace(/\.[^/.]+$/, '') : '';
+      if (newBaseName && String(prevTrack.name || '').trim() !== newBaseName) return false;
+      const incomingSize = Number(file.size) || 0;
+      const prevSize = Number(prevTrack.size) || 0;
+      if (incomingSize > 0 && incomingSize !== prevSize) return false;
+      const incomingLmRaw = Number(file.lastModified);
+      const incomingDmRaw = Number(file.dateModified);
+      const incomingLm = (Number.isFinite(incomingLmRaw) && incomingLmRaw > 0)
+        ? Math.trunc(incomingLmRaw)
+        : ((Number.isFinite(incomingDmRaw) && incomingDmRaw > 0) ? Math.trunc(incomingDmRaw * 1000) : 0);
+      const prevLm = Number(prevTrack.lastModified) || 0;
+      if (incomingLm > 0 && incomingLm !== prevLm) return false;
+      const hasPositiveFingerprint = Boolean(
+        (incomingSize > 0 && prevSize === incomingSize) ||
+        (incomingLm > 0 && prevLm === incomingLm)
+      );
+      if (!hasPositiveFingerprint) return false;
+      if (!prevTrack.url) return false;
+      if (Number(file.duration) > 0 && !(Number(prevTrack.duration) > 0)) return false;
+      if (Number(file.trackNumber || file.track) > 0 && !(Number(prevTrack.trackNumber) > 0)) return false;
+      if (Number(file.discNumber || file.disc) > 0 && !(Number(prevTrack.discNumber) > 0)) return false;
+      if (Number(file.year) > 0 && !(Number(prevTrack.year) > 0)) return false;
+      if (file.artist && file.artist !== '<unknown>' && (!prevTrack.artist || prevTrack.artist === 'Unknown Artist')) return false;
+      if (file.album && file.album !== '<unknown>' && (!prevTrack.album || prevTrack.album === 'FiiO Internal & SD Card')) return false;
+      if (file.albumArtist && file.albumArtist !== '<unknown>' && !prevTrack.albumArtist) return false;
+      if (file.title && file.title !== '<unknown>' && (!prevTrack.title || prevTrack.title === prevTrack.name)) return false;
+      if (!prevTrack.artist || prevTrack.artist === 'Unknown Artist' || !prevTrack.album || prevTrack.album === 'FiiO Internal & SD Card' || !prevTrack.cover) return false;
+      return true;
+    }
+    window.isFiioTrackRescanUnchanged = isFiioTrackRescanUnchanged;
+
     function ingestFiioScannedFilesChunk(chunkFiles, existingPaths, existingUris, collectedCueFiles) {
       if (!Array.isArray(chunkFiles) || chunkFiles.length === 0) return 0;
       let added = 0;
@@ -20690,6 +20771,10 @@
         if ((normPath && existingPaths.has(normPath)) || (normUri && existingUris.has(normUri))) {
           const prevTrack = (normPath && existingByPath.get(normPath)) || (normUri && existingByUri.get(normUri)) || null;
           if (prevTrack) {
+            if (isFiioTrackRescanUnchanged(prevTrack, file, normPath, normUri)) {
+              fiioScanSkippedUnchangedCount++;
+              continue;
+            }
             const bCov = prevTrack.cover || '', bMeta = (prevTrack.path || '') + '|' + (prevTrack.name || '') + '|' + (prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '') + '|' + (prevTrack.size || 0);
             applyFiioRescanFields(prevTrack, file, normPath, normUri, existingPaths, existingUris, existingByPath, existingByUri);
             if (typeof library !== 'undefined' && library && library.enrichFiioTrackMetadata) library.enrichFiioTrackMetadata(prevTrack);
@@ -21013,6 +21098,7 @@
         pendingAndroidStorageScan = false;
         fiioScanInProgress = true;
         fiioScanUpgradedCount = 0;
+        fiioScanSkippedUnchangedCount = 0;
         activeFiioScanMaps = null;
         activeFiioScanMaps = buildExistingFiioTrackMaps();
 
@@ -26247,7 +26333,7 @@
             lastMicrosoftWakeRefreshAt = nowMs;
             clearStaleMicrosoftDownloadUrls();
             if (state.msAccount && typeof getMicrosoftToken === 'function') {
-              getMicrosoftToken(false).catch(() => {});
+              getMicrosoftToken(false, msRem <= 0).catch(() => {});
             }
           }
         }
@@ -26272,7 +26358,7 @@
             lastMicrosoftWakeRefreshAt = nowMs;
             clearStaleMicrosoftDownloadUrls();
             if (typeof getMicrosoftToken === 'function') {
-              getMicrosoftToken(false).catch(() => {});
+              getMicrosoftToken(false, msRemainingMs <= 0).catch(() => {});
             }
           }
         }
