@@ -2367,7 +2367,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.87</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.88</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3667,7 +3667,7 @@
       if (!cover.startsWith('data:image')) return cover;
       return cover.length > MAX_CATALOG_COVER_CHARS ? null : cover;
     }
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, ...(track.targetRemoteId ? {targetRemoteId:String(track.targetRemoteId)} : {}), ...(track.remoteShortcutId ? {remoteShortcutId:String(track.remoteShortcutId)} : {}), ...(track.remoteDriveId ? {remoteDriveId:String(track.remoteDriveId)} : {}), ...(track.remoteParentId ? {remoteParentId:String(track.remoteParentId)} : {}), ...(track.remoteLrc && track.remoteLrc.id ? {remoteLrc:{id:String(track.remoteLrc.id), driveId:String(track.remoteLrc.driveId || ''), name:String(track.remoteLrc.name || '')}} : {}), remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, ...(track.targetRemoteId ? {targetRemoteId:String(track.targetRemoteId)} : {}), ...(track.remoteShortcutId ? {remoteShortcutId:String(track.remoteShortcutId)} : {}), ...(track.remoteDriveId ? {remoteDriveId:String(track.remoteDriveId)} : {}), ...(track.remoteParentId ? {remoteParentId:String(track.remoteParentId)} : {}), ...(track.remoteLrc && track.remoteLrc.id ? {remoteLrc:{id:String(track.remoteLrc.id), driveId:String(track.remoteLrc.driveId || ''), name:String(track.remoteLrc.name || '')}} : {}), remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, ...(Number(track.rating) > 0 ? {rating:Number(track.rating)} : {}), ...(Number(track.playCount) > 0 ? {playCount:Number(track.playCount)} : {}), ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
       const pathOrder = (typeof library !== 'undefined' && typeof library.extractDiscAndTrackFromPath === 'function')
@@ -5019,20 +5019,93 @@
       pumpOnlineArtQueue();
     }
 
-    function getTrackRating(track) {
-      if (!track) return 0;
-      if (track.rating !== undefined && track.rating !== null) return library.clampRating(track.rating);
-      if (state.trackRatings && state.trackRatings[track.id] !== undefined) {
-        track.rating = library.clampRating(state.trackRatings[track.id]);
-        return track.rating;
+    function getTrackUserStatKeys(track) {
+      const keys = [];
+      if (!track || typeof track !== 'object') return keys;
+      if (track.id != null && track.id !== '') keys.push(String(track.id));
+      const favKey = (typeof getFavoriteKey === 'function')
+        ? getFavoriteKey(track)
+        : (track.remoteId ? `${track.source || 'cloud'}:${String(track.remoteId)}` : '');
+      if (favKey && keys.indexOf(favKey) === -1) keys.push(favKey);
+      if (track.source && track.targetRemoteId) {
+        const tKey = `${track.source}:${String(track.targetRemoteId)}`;
+        if (keys.indexOf(tKey) === -1) keys.push(tKey);
       }
+      if (track.source && track.remoteShortcutId) {
+        const sKey = `${track.source}:${String(track.remoteShortcutId)}`;
+        if (keys.indexOf(sKey) === -1) keys.push(sKey);
+      }
+      return keys;
+    }
+    const PLAY_COUNTS_KEY = 'nocturne-play-counts';
+    function loadPlayCountsMap() {
+      if (state.playCounts && typeof state.playCounts === 'object') return state.playCounts;
+      let loaded = {};
       try {
-        const saved = localStorage.getItem(`nocturne-rating-${track.id}`);
-        if (saved !== null) {
-          track.rating = library.clampRating(Number(saved));
-          return track.rating;
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem(PLAY_COUNTS_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) loaded = parsed;
+          }
         }
       } catch (_) {}
+      state.playCounts = loaded;
+      return state.playCounts;
+    }
+    function recordTrackPlayCount(track) {
+      if (!track || typeof track !== 'object') return 0;
+      const map = loadPlayCountsMap();
+      const keys = getTrackUserStatKeys(track);
+      let cur = Number(track.playCount) || 0;
+      for (let i = 0; i < keys.length; i++) {
+        const savedVal = Number(map[keys[i]]);
+        if (Number.isFinite(savedVal) && savedVal > cur) cur = savedVal;
+      }
+      const nextCount = cur + 1;
+      track.playCount = nextCount;
+      const primaryKey = keys.length > 1 ? keys[1] : keys[0];
+      if (primaryKey) {
+        map[primaryKey] = nextCount;
+        const mapKeys = Object.keys(map);
+        if (mapKeys.length > 5000) {
+          for (let di = 0; di < mapKeys.length - 5000; di++) delete map[mapKeys[di]];
+        }
+        try {
+          if (typeof localStorage !== 'undefined') localStorage.setItem(PLAY_COUNTS_KEY, JSON.stringify(map));
+        } catch (_) {}
+      }
+      if (state && track.id != null && String(track.id) === String(state.currentId) && typeof updateRoomRating === 'function') {
+        updateRoomRating(track);
+      }
+      if ((track.source === 'google' || track.source === 'onedrive') && typeof persistCloudCatalog === 'function') {
+        persistCloudCatalog([track], { skipPrune: true }).catch(() => {});
+      }
+      return nextCount;
+    }
+    function getTrackRating(track) {
+      if (!track) return 0;
+      if (track.rating !== undefined && track.rating !== null && Number(track.rating) > 0) return library.clampRating(track.rating);
+      const keys = getTrackUserStatKeys(track);
+      if (state.trackRatings && typeof state.trackRatings === 'object') {
+        for (let i = 0; i < keys.length; i++) {
+          const val = state.trackRatings[keys[i]];
+          if (val !== undefined && val !== null) {
+            track.rating = library.clampRating(val);
+            return track.rating;
+          }
+        }
+      }
+      try {
+        if (typeof localStorage !== 'undefined') {
+          const saved = localStorage.getItem(`nocturne-rating-${track.id}`);
+          if (saved !== null) {
+            track.rating = library.clampRating(Number(saved));
+            return track.rating;
+          }
+        }
+      } catch (_) {}
+      if (track.rating === 0) return 0;
       track.rating = 0;
       return 0;
     }
@@ -5042,12 +5115,37 @@
       track.rating = clamped;
       if (!state.trackRatings || typeof state.trackRatings !== 'object') state.trackRatings = {};
       state.trackRatings[track.id] = clamped;
+      const keys = getTrackUserStatKeys(track);
+      for (let i = 1; i < keys.length; i++) {
+        state.trackRatings[keys[i]] = clamped;
+      }
       try {
-        localStorage.setItem(`nocturne-rating-${track.id}`, String(clamped));
-        localStorage.setItem('nocturne-track-ratings', JSON.stringify(state.trackRatings));
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(`nocturne-rating-${track.id}`, String(clamped));
+          localStorage.setItem('nocturne-track-ratings', JSON.stringify(state.trackRatings));
+        }
       } catch (_) {}
+      if ((track.source === 'google' || track.source === 'onedrive') && typeof persistCloudCatalog === 'function') {
+        persistCloudCatalog([track], { skipPrune: true }).catch(() => {});
+      }
       updateRoomRating(track);
       scheduleTrackRender();
+    }
+    function hydrateTrackUserStats(track) {
+      if (!track || typeof track !== 'object') return;
+      if (typeof isFavorite === 'function') {
+        track.isFavorite = Boolean(isFavorite(track));
+      }
+      const r = getTrackRating(track);
+      if (r > 0) track.rating = r;
+      const map = loadPlayCountsMap();
+      const keys = getTrackUserStatKeys(track);
+      let maxCount = Number(track.playCount) || 0;
+      for (let i = 0; i < keys.length; i++) {
+        const c = Number(map[keys[i]]);
+        if (Number.isFinite(c) && c > maxCount) maxCount = c;
+      }
+      if (maxCount > 0) track.playCount = maxCount;
     }
     function updateRoomRating(track) {
       const rating = track ? getTrackRating(track) : 0;
@@ -7243,6 +7341,9 @@
             const existing = existingById.get(entry.id);
             if (existing) {
               if (existing.source === 'onedrive' && !existing.metadataLoaded && !entry.metadataLoaded) { existing.title = entry.title; existing.artist = entry.artist; existing.album = entry.album; existing.duration = entry.duration; }
+              if (Number(entry.rating) > 0 && !(Number(existing.rating) > 0)) existing.rating = library.clampRating(entry.rating);
+              if (Number(entry.playCount) > (Number(existing.playCount) || 0)) existing.playCount = Number(entry.playCount);
+              if (typeof hydrateTrackUserStats === 'function') hydrateTrackUserStats(existing);
               continue;
             }
             if (entry.source === 'google') {
@@ -7261,6 +7362,7 @@
               if (msSid) msShortcuts.add(msSid);
             }
             const track = {...entry, url:'', isDsd:isDsdFormat(entry.format), load:() => entry.source === 'google' ? loadGoogleAudio(entry.remoteId) : loadMicrosoftAudio(entry.remoteId)};
+            if (typeof hydrateTrackUserStats === 'function') hydrateTrackUserStats(track);
             state.tracks.push(track); existingById.set(track.id, track); restoredTracks.push(track); restored++;
           }
           if (restored) { if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers(); renderTracks(); queueCloudMetadata(restoredTracks); }
@@ -8890,13 +8992,35 @@
       const shareBtn = $('album-hero-share');
       const backBtn = $('album-hero-back');
 
+      const dedupeHeroTracks = (list) => {
+        const out = [];
+        const seen = new Set();
+        const lib = (typeof library !== 'undefined' && library) ? library : null;
+        for (let i = 0; i < (list || []).length; i++) {
+          const tr = list[i];
+          if (!tr || !tr.id) continue;
+          const sid = String(tr.id);
+          const remoteK = tr.remoteId ? `${tr.source || 'cloud'}:${String(tr.remoteId)}` : '';
+          const histK = (!remoteK && lib && typeof lib.historyTrackKey === 'function') ? lib.historyTrackKey(tr) : '';
+          if (seen.has(sid) || (remoteK && seen.has(remoteK)) || (histK && seen.has(histK))) continue;
+          seen.add(sid);
+          if (remoteK) seen.add(remoteK);
+          if (histK) seen.add(histK);
+          out.push(tr);
+        }
+        return out;
+      };
+
       if (playBtn) {
         const playBtnLabel = playBtn.querySelector('span:last-child');
         if (playBtnLabel) playBtnLabel.textContent = isAlbum ? 'Phát album' : 'Phát tất cả';
         playBtn.onclick = () => {
-          if (entry.tracks && entry.tracks.length > 0) {
-            if (typeof library !== 'undefined' && library && typeof library.sortAlbumTracks === 'function' && entry.tracks.length > 1) {
-              entry.tracks = library.sortAlbumTracks(entry.tracks, { groupByAlbum: !isAlbum });
+          const heroTracks = dedupeHeroTracks(entry.tracks);
+          if (heroTracks.length > 0) {
+            if (typeof library !== 'undefined' && library && typeof library.sortAlbumTracks === 'function' && heroTracks.length > 1) {
+              entry.tracks = library.sortAlbumTracks(heroTracks, { groupByAlbum: !isAlbum });
+            } else {
+              entry.tracks = heroTracks;
             }
             const firstAlbumTrack = entry.tracks[0];
             const routeToNativeBp = Boolean(typeof isTrackRoutedToNativeBitPerfect === 'function' && isTrackRoutedToNativeBitPerfect(firstAlbumTrack));
@@ -8922,7 +9046,7 @@
       }
       if (shuffleBtn) {
         shuffleBtn.onclick = () => {
-          const pool = [...(entry.tracks || [])];
+          const pool = dedupeHeroTracks(entry.tracks);
           if (!pool.length) return;
           for (let i = pool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -8940,7 +9064,8 @@
       if (queueBtn) {
         queueBtn.onclick = () => {
           let count = 0;
-          for (const t of (entry.tracks || [])) {
+          const uniqueHero = dedupeHeroTracks(entry.tracks);
+          for (const t of uniqueHero) {
             if (!state.queueTrackIds.includes(t.id) && t.id !== state.currentId) {
               state.queueTrackIds.push(t.id);
               count++;
@@ -20251,6 +20376,7 @@
       const total = Number(duration);
       if (library.isScrobbleEligible(played, total)) {
         track._scrobbled = true;
+        if (typeof recordTrackPlayCount === 'function') recordTrackPlayCount(track);
         sendListenBrainzScrobble(track, 'single_listen');
       }
     }

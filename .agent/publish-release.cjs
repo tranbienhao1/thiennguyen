@@ -80,25 +80,25 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.87';
-  const name = process.argv[3] || `Nocturne ${tag} (Web->Bit-Perfect Position Handoff + Android SAF Permission Recovery + OneDrive Full-Rescan Move/Rename Parity + Prev/Queue Chrome E2E)`;
+  const tag = process.argv[2] || 'v3.9.88';
+  const name = process.argv[3] || `Nocturne ${tag} (Cloud Favorites/Rating/PlayCount Sync Preservation + Album Hero Multi-Source Dedup + Cross-Device M3U8 Mount Matching + Auto-Advance/Bit-Perfect/Reload Chrome E2E)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 141) — Chuyển mượt Web Audio sang Bit-Perfect giữ đúng vị trí + Tự phục hồi quyền SAF Android + Đồng bộ di chuyển/đổi tên OneDrive khi Full Rescan
+    : `### Nocturne ${tag} (versionCode 142) — Bảo toàn Yêu thích/Rating/Số lần phát khi đồng bộ Cloud + Lọc trùng hàng đợi Album đa nguồn + Khớp M3U/M3U8 xuyên thiết bị
 
-#### 1. Chuyển mượt Web Audio -> Native Bit-Perfect giữ đúng vị trí phát (\`applyBitPerfectMode\` & \`playTrack\`)
-- Khi bật chế độ Bit-Perfect trong lúc Web Audio đang phát bài hợp lệ trên FiiO/Android (\`isTrackRoutedToNativeBitPerfect\`), tự động ghi lại giây phát hiện tại (\`_resumeAfterBpFallbackSec\`), tạm dừng HTML5 Audio và kích hoạt Native Bit-Perfect tại đúng vị trí phát.
-- Khởi tạo \`playTrack\` Native Bit-Perfect ưu tiên seek chính xác tới \`_resumeAfterBpFallbackSec\` khi chuyển từ Web Audio sang (vẫn bảo toàn hoàn toàn logic \`cueStartSec\` cho đĩa CUE).
+#### 1. Bảo toàn Yêu thích, Đánh giá sao & Số lần phát qua đồng bộ Cloud & đổi Alias (\`library-utils.js\` & \`index.html\`)
+- Mở rộng \`isTrackInFavorites\` nhận diện đầy đủ alias phím tắt Cloud (\`targetRemoteId\` Google Drive & \`remoteShortcutId\` OneDrive) mà không làm đổi chuẩn \`stableFavoriteKey\`.
+- Bảo toàn \`rating\` và \`playCount\` trong \`serializableCloudTrack\`, ánh xạ thống nhất \`getTrackRating\`/\`setTrackRating\` theo cả \`track.id\` và khóa ổn định \`getFavoriteKey(track)\`, đồng thời lưu bền vững \`playCount\` vào \`nocturne-play-counts\` khi bài đạt ngưỡng scrobble và tự nạp lại trong \`restoreCloudCatalog\`.
 
-#### 2. Tự phục hồi ảnh bìa & cờ lỗi truy cập khi cấp lại quyền SAF Android (\`onAndroidStoragePermissionGranted\`)
-- Xóa bộ đệm ảnh bìa lỗi (\`failedNativeCovers.clear()\`) và gỡ bỏ cờ \`_localAccessError\` / \`_pathFallbackRetriedGen\` trên các bài \`fiio\` / \`local\` ngay khi người dùng cấp lại quyền lưu trữ Android.
+#### 2. Lọc trùng thông minh khi phát từ Album/Nghệ sĩ đa nguồn (\`renderAlbumHero\`)
+- Thêm \`dedupeHeroTracks\` loại bỏ bản ghi trùng lặp giữa Local/Google Drive/OneDrive khi bấm **Phát album**, **Ngẫu nhiên**, hoặc **+ Hàng đợi**, vẫn giữ nguyên hoàn toàn khởi tạo \`setupAudio()\` chuẩn PWA.
 
-#### 3. Đồng bộ di chuyển/đổi tên OneDrive khi Full Rescan (\`loadMicrosoftFiles\`)
-- Cập nhật \`remoteParentId\`, xóa \`remoteDriveId\` cũ khi tệp chuyển từ thư mục chia sẻ về OneDrive cá nhân, đánh dấu \`_needsFolderCoverRefresh\` khi đổi đường dẫn và trích xuất lại \`discNumber\` / \`trackNumber\` khi di chuyển hoặc đổi tên tệp (không làm thay đổi truy vấn \`$select\`).
+#### 3. Khớp đường dẫn tương đối M3U/M3U8 xuyên thiết bị (\`matchPlaylistWithLibrary\`)
+- Tự động chuẩn hóa tiền tố phân vùng Android (\`/storage/emulated/0/\`, \`/sdcard/\`, \`/mnt/media_rw/<vol>/\`, \`/storage/<vol>/\`) và ổ đĩa Windows (\`C:/\`, \`D:/\`) khi so khớp danh sách M3U/M3U8 với thư viện Local/FiiO/Cloud.
 
-#### 4. Mở rộng kiểm thử Chrome thực (CDP E2E)
-- Kiểm chứng thêm nút Previous (\`#previous-button\`) quay lại Track 1 và đóng/mở bảng Hàng đợi phát (\`#queue-button\`) không phát sinh lỗi JS.
+#### 4. Mở rộng Chrome thật (CDP E2E)
+- Kiểm chứng thêm tự chuyển bài khi track kết thúc tự nhiên (\`ended\`), bật/tắt công tắc \`#bitperfect-mode-toggle\` trên UI, và lưu phiên \`savePlaybackSession\` + tải lại trang \`Page.reload\` với \`0\` lỗi JS.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

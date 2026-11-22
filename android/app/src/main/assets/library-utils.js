@@ -4827,6 +4827,8 @@
       const legacyKey = `${track.source}:${track.remoteId || track.id}`;
       if (favorites.has(legacyKey)) return true;
     }
+    if (track.source && track.targetRemoteId && favorites.has(`${track.source}:${String(track.targetRemoteId)}`)) return true;
+    if (track.source && track.remoteShortcutId && favorites.has(`${track.source}:${String(track.remoteShortcutId)}`)) return true;
     const stableKey = stableFavoriteKey(track);
     if (stableKey && favorites.has(stableKey)) return true;
     if (!track.isCue) {
@@ -8883,6 +8885,17 @@
     return resolved.normalize('NFKC').toLowerCase().replace(/^\/+/, '');
   }
 
+  function stripM3uStorageMountPrefix(normPath) {
+    let p = String(normPath || '').replace(/^\/+/, '');
+    if (!p) return '';
+    p = p.replace(/^storage\/emulated\/\d+\//, '');
+    p = p.replace(/^sdcard\//, '');
+    p = p.replace(/^mnt\/media_rw\/[^/]+\//, '');
+    p = p.replace(/^storage\/[a-z0-9][a-z0-9._-]*\//, '');
+    p = p.replace(/^[a-z]:\//, '');
+    return p.replace(/^\/+/, '');
+  }
+
   function matchPlaylistWithLibrary(importedTracks, libraryTracks, options = {}) {
     const imported = Array.isArray(importedTracks) ? importedTracks : [];
     const library = Array.isArray(libraryTracks) ? libraryTracks : [];
@@ -8894,10 +8907,15 @@
     const norm = str => (typeof metadataKey === 'function' ? metadataKey(str) : String(str || '').toLowerCase().trim());
     const libPathEntries = library.map(t => {
       if (!t) return { track: null, paths: [], fileName: '', baseName: '' };
-      const rawPaths = [t.path, t.relativePath, t.webkitRelativePath, t.remotePath, t.name]
-        .filter(Boolean)
-        .map(p => normalizePathKeyForM3u(p))
-        .filter(Boolean);
+      const rawPaths = [];
+      const candidates = [t.path, t.relativePath, t.webkitRelativePath, t.remotePath, t.name];
+      for (let ci = 0; ci < candidates.length; ci++) {
+        if (!candidates[ci]) continue;
+        const np = normalizePathKeyForM3u(candidates[ci]);
+        if (np && rawPaths.indexOf(np) === -1) rawPaths.push(np);
+        const sp = stripM3uStorageMountPrefix(np);
+        if (sp && rawPaths.indexOf(sp) === -1) rawPaths.push(sp);
+      }
       const primary = rawPaths[0] || '';
       const slash = primary.lastIndexOf('/');
       const fileName = slash >= 0 ? primary.slice(slash + 1) : primary;
@@ -8915,12 +8933,17 @@
 
       if (!match && item.file) {
         const resolvedItemPath = resolveM3uRelativePath(item.file, playlistDir).normalize('NFKC').toLowerCase().replace(/^\/+/, '');
-        const itemSegments = resolvedItemPath.split('/').filter(Boolean);
+        const strippedItemPath = stripM3uStorageMountPrefix(resolvedItemPath);
+        const itemPathCandidates = [];
+        if (resolvedItemPath) itemPathCandidates.push(resolvedItemPath);
+        if (strippedItemPath && strippedItemPath !== resolvedItemPath) itemPathCandidates.push(strippedItemPath);
+        const primaryItemPath = strippedItemPath || resolvedItemPath;
+        const itemSegments = primaryItemPath.split('/').filter(Boolean);
         const itemFileName = itemSegments.length ? itemSegments[itemSegments.length - 1] : '';
         const itemBaseName = itemFileName.replace(/\.[^/.]+$/, '');
 
-        if (resolvedItemPath) {
-          const exactHit = libPathEntries.find(e => e.track && e.paths.some(p => p === resolvedItemPath));
+        if (itemPathCandidates.length > 0) {
+          const exactHit = libPathEntries.find(e => e.track && e.paths.some(p => itemPathCandidates.indexOf(p) !== -1));
           if (exactHit) match = exactHit.track;
         }
         if (!match && itemSegments.length >= 2) {
