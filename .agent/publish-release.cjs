@@ -80,25 +80,24 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.89';
-  const name = process.argv[3] || `Nocturne ${tag} (Live Cloud Alias Stats Migration + M3U8 Album/Folder Disambiguation + Orphaned Cover Hygiene + Web DSD Bit-Perfect HUD + Repeat One E2E)`;
+  const tag = process.argv[2] || 'v3.9.90';
+  const name = process.argv[3] || `Nocturne ${tag} (Per-Source Cloud Catalog Cleanup + Native Bit-Perfect Locked HUD Sync + Drag-and-Drop Multi-Folder Hygiene + Mini Player HUD E2E)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 143) — Di trú khóa Yêu thích/Rating/PlayCount khi đổi Alias Cloud + Phân giải trùng tên M3U8 + Dọn ảnh bìa thừa & HUD Bit-Perfect DSD
+    : `### Nocturne ${tag} (versionCode 144) — Dọn sạch từng nguồn Cloud độc lập + Đồng bộ HUD Native Bit-Perfect USB DAC + Lọc thư mục kéo-thả & Mini Player HUD E2E
 
-#### 1. Di trú khóa Yêu thích, Rating & Số lần phát khi đổi Alias Cloud / Di chuyển Local (\`migrateTrackUserStatKeys\`)
-- Tự động di trú và hợp nhất \`state.favorites\`, \`state.trackRatings\`, và \`nocturne-play-counts\` khi \`applyGoogleScanUpdate\` đổi \`targetRemoteId\`, \`loadMicrosoftFiles\` gán \`remoteShortcutId\`, hoặc \`reconcileMovedFiioTracks\` ghép bài Local/FiiO chuyển thư mục.
+#### 1. Dọn sạch từng nguồn Cloud độc lập (\`clearCloudSourceCatalog\`)
+- Thêm \`clearCloudSourceCatalog('google' | 'onedrive')\` xóa toàn bộ bài, \`catalog\` IndexedDB, lát đệm \`firstSliceCache\`, con trỏ Delta/Checkpoint và \`checkedGoogleArtParents\` của riêng nguồn bị ngắt mà vẫn bảo toàn tuyệt đối các nguồn khác & Local/FiiO, đồng thời thu hồi ảnh bìa mồ côi qua \`pruneOrphanedAlbumCovers()\`.
 
-#### 2. Khử nhập nhằng khi trùng tên tệp M3U/M3U8 (\`matchPlaylistWithLibrary\`)
-- Dùng thêm tên album (\`#EXTALBUM\`), \`playlistName\`, và \`folderHint\` (thư mục đã mở gần đây) để chọn chính xác bài khi nhiều album có cùng tên file (ví dụ \`01 - Intro.flac\`).
+#### 2. Đồng bộ trực tiếp thông số khóa phần cứng Android USB DAC (\`onBitPerfectFormatLocked\`)
+- Khi Android Native khóa \`sampleRate\`/\`bitDepth\` qua \`BitPerfectAudioPlayer\`, cập nhật tức thì `#quality-badge\`, `#mobile-quality\`, `#room-quality\`, \`#fs-room-quality-badge\`, bổ sung thông số thiếu cho track hiện tại và làm mới Mini Player HUD.
 
-#### 3. Dọn ảnh bìa thừa & Chuẩn hóa HUD Bit-Perfect cho Web DSD (\`pruneOrphanedAlbumCovers\`, \`displayTrack\`, \`updateMiniPlayerHud\`)
-- Thêm \`pruneOrphanedAlbumCovers\` giải phóng ngay ảnh bìa không còn bài tham chiếu trong \`removeDeletedCloudTracks\` và \`pruneMissingFiioTracks\`.
-- Hiển thị chính xác \`pcmRate\`/\`pcmBitDepth\` trên huy hiệu Bit-Perfect khi phát DSD-to-PCM trên Web và bổ sung nhãn \`⚡ BP\` trên Mini Player HUD.
+#### 3. Vệ sinh thư mục hệ thống & tệp ma macOS khi kéo-thả đa thư mục trên Web (\`drop\`)
+- Tự động bỏ qua \`__MACOSX\`, \`.git\`, \`@eaDir\`, \`$RECYCLE.BIN\`, \`node_modules\` và tệp AppleDouble \`._*\` trong luồng kéo-thả nhiều thư mục chứa \`.cue\`/\`.lrc\`.
 
 #### 4. Mở rộng Chrome thật (CDP E2E)
-- Kiểm chứng chế độ **Repeat One** (\`↻¹\`) lặp lại chính Track 2 khi sự kiện \`ended\` kích hoạt tự nhiên, cùng khôi phục phiên và \`0\` ngoại lệ JS.
+- Kiểm chứng trực tiếp \`#mini-player-toggle\` mở \`#mini-player-hud\`, phát/tạm dừng qua \`#mini-play\`, chuyển bài qua \`#mini-next\` và đóng HUD với \`0\` lỗi JS.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

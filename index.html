@@ -2367,7 +2367,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.89</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.90</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -7458,6 +7458,88 @@
       })).catch(error => { console.warn('Could not restore cloud catalog:', error); return 0; });
       return cloudRestorePromise;
     }
+    async function clearCloudSourceCatalog(source) {
+      if (source !== 'google' && source !== 'onedrive') return 0;
+      if (state.lyricsPreloadLifecycle && typeof state.lyricsPreloadLifecycle.cancelAll === 'function') {
+        state.lyricsPreloadLifecycle.cancelAll('source_cleared');
+      }
+      if (source === 'google') {
+        if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint('nocturne-google-sync-checkpoint');
+        if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor('nocturne-google-delta-token', '');
+        try {
+          if (typeof checkedGoogleArtParents !== 'undefined' && checkedGoogleArtParents && typeof checkedGoogleArtParents.clear === 'function') {
+            checkedGoogleArtParents.clear();
+          }
+        } catch (_) {}
+      } else {
+        if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint('nocturne-microsoft-sync-checkpoint');
+        if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor('nocturne-microsoft-delta-link', '');
+      }
+      const removedIds = [];
+      const removedIdSet = new Set();
+      for (let i = state.tracks.length - 1; i >= 0; i--) {
+        const tr = state.tracks[i];
+        if (!tr || tr.source !== source) continue;
+        if (state.currentId != null && String(tr.id) === String(state.currentId)) {
+          if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') {
+            try { window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
+            state.isNativeBitPerfectPlaying = false;
+            state.isNativeBitPerfectPaused = false;
+          } else if (typeof audio !== 'undefined' && audio && typeof audio.pause === 'function') {
+            try { audio.pause(); } catch (_) {}
+          }
+          state.currentId = null;
+        }
+        if (typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(tr);
+        removedIds.push(tr.id);
+        removedIdSet.add(String(tr.id));
+        state.tracks.splice(i, 1);
+      }
+      if (Array.isArray(state.queueTrackIds) && removedIdSet.size > 0) {
+        state.queueTrackIds = state.queueTrackIds.filter(qid => !removedIdSet.has(String(qid)));
+      }
+      if (state.preloadTrackId != null && removedIdSet.has(String(state.preloadTrackId)) && typeof clearStalePreload === 'function') {
+        clearStalePreload();
+      }
+      if (typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
+      if (typeof renderTracks === 'function') renderTracks();
+      if (typeof renderQueue === 'function') renderQueue();
+      if (removedIds.length > 0 && typeof catalogTransaction === 'function') {
+        await new Promise(resolve => {
+          try {
+            const store = catalogTransaction('readwrite');
+            for (let j = 0; j < removedIds.length; j++) store.delete(removedIds[j]);
+            store.transaction.oncomplete = () => resolve();
+            store.transaction.onerror = () => resolve();
+          } catch (_) { resolve(); }
+        });
+      }
+      if (typeof sliceCacheTransaction === 'function') {
+        await new Promise(resolve => {
+          try {
+            const store = sliceCacheTransaction('readwrite');
+            if (!store || typeof store.getAllKeys !== 'function') return resolve();
+            const req = store.getAllKeys();
+            req.onsuccess = () => {
+              const keys = req.result || [];
+              const prefix = source + ':';
+              let deletedCount = 0;
+              for (let k = 0; k < keys.length; k++) {
+                if (String(keys[k] || '').indexOf(prefix) === 0) {
+                  try { store.delete(keys[k]); deletedCount++; } catch (_) {}
+                }
+              }
+              if (!deletedCount) return resolve();
+              store.transaction.oncomplete = () => resolve();
+              store.transaction.onerror = () => resolve();
+            };
+            req.onerror = () => resolve();
+          } catch (_) { resolve(); }
+        });
+      }
+      return removedIds.length;
+    }
+    if (typeof window !== 'undefined') window.clearCloudSourceCatalog = clearCloudSourceCatalog;
     const RECENT_TRACKS_KEY = 'nocturne-recent-tracks';
     const MAX_RECENT_TRACKS = 30;
     const MAX_RECENT_CARDS = 6;
@@ -24000,19 +24082,38 @@
     // v2.5.0 Bit-Perfect Telemetry & Native Format Lock Bridge
     state.bitPerfectLockedFormat = null;
     window.onBitPerfectFormatLocked = function(sampleRate, bitDepth, mixerBitPerfect, deviceName) {
+      const rateNum = Number(sampleRate) || 0;
+      const depthNum = Number(bitDepth) || 16;
       state.bitPerfectLockedFormat = {
-        sampleRate: Number(sampleRate) || 0,
-        bitDepth: Number(bitDepth) || 16,
+        sampleRate: rateNum,
+        bitDepth: depthNum,
         mixerBitPerfect: Boolean(mixerBitPerfect),
         deviceName: String(deviceName || ''),
         lockedAt: Date.now()
       };
+      const khzShort = rateNum ? `${(rateNum / 1000).toFixed(rateNum % 1000 === 0 ? 0 : 1)}kHz` : '';
+      const khzSpace = rateNum ? `${(rateNum / 1000).toFixed(rateNum % 1000 === 0 ? 0 : 1)} kHz` : '';
       const badge = $('bitperfect-mode-badge');
       if (badge && state.bitPerfectEnabled) {
-        const khz = sampleRate ? `${(sampleRate / 1000).toFixed(sampleRate % 1000 === 0 ? 0 : 1)}kHz` : '';
         badge.textContent = mixerBitPerfect
-          ? `BIT-PERFECT LOCKED · ${bitDepth}bit/${khz}${deviceName ? ' · ' + deviceName : ''}`
-          : `DIRECT PCM · ${bitDepth}bit/${khz}${deviceName ? ' · ' + deviceName : ''}`;
+          ? `BIT-PERFECT LOCKED · ${depthNum}bit/${khzShort}${deviceName ? ' · ' + deviceName : ''}`
+          : `DIRECT PCM · ${depthNum}bit/${khzShort}${deviceName ? ' · ' + deviceName : ''}`;
+      }
+      if (state.bitPerfectEnabled && state.isNativeBitPerfectPlaying && khzSpace) {
+        const hudLabel = mixerBitPerfect
+          ? `⚡ BIT-PERFECT LOCKED · ${khzSpace} / ${depthNum}-bit`
+          : `⚡ DIRECT PCM · ${khzSpace} / ${depthNum}-bit`;
+        if ($('quality-badge')) $('quality-badge').textContent = hudLabel;
+        if ($('mobile-quality')) $('mobile-quality').textContent = hudLabel;
+        if ($('room-quality')) $('room-quality').textContent = hudLabel;
+        if ($('fs-room-quality-badge')) $('fs-room-quality-badge').textContent = hudLabel;
+        const curTrack = Array.isArray(state.tracks) ? state.tracks.find(t => t && String(t.id) === String(state.currentId)) : null;
+        if (curTrack) {
+          if (!curTrack.sampleRate && rateNum > 0) curTrack.sampleRate = rateNum;
+          if (!curTrack.bitDepth && depthNum > 0) curTrack.bitDepth = depthNum;
+          if (typeof renderRoomSignal === 'function') renderRoomSignal(curTrack);
+          if (typeof updateMiniPlayerHud === 'function') updateMiniPlayerHud(curTrack);
+        }
       }
     };
     window.getBitPerfectTelemetry = function() {
@@ -25729,13 +25830,31 @@
       if (!isExternalFileDrag(event)) return;
       event.preventDefault(); dragDepth = 0; $('drop-target').classList.add('hidden'); $('drop-target').classList.remove('flex');
       const files = [];
+      const isSkippableDroppedDir = (dirName) => {
+        if (typeof library !== 'undefined' && library && typeof library.isSkippableLocalDirectoryName === 'function') {
+          return library.isSkippableLocalDirectoryName(dirName);
+        }
+        const clean = String(dirName || '').trim();
+        if (!clean || clean.charAt(0) === '.') return true;
+        const lower = clean.toLowerCase();
+        return lower === '__macosx' || lower === '@eadir' || lower === '$recycle.bin' || lower === 'system volume information' || lower === 'node_modules' || lower === 'lost+found';
+      };
+      const isSkippableDroppedFile = (fileName) => {
+        const clean = String(fileName || '').trim();
+        if (!clean) return true;
+        if (clean.indexOf('._') === 0) return true;
+        const lower = clean.toLowerCase();
+        return lower === '.ds_store' || lower === 'thumbs.db';
+      };
       async function readEntry(entry, prefix) {
         if (!entry) return;
         const cleanPrefix = prefix || '';
         const relPath = cleanPrefix ? (cleanPrefix + '/' + entry.name) : (entry.fullPath ? String(entry.fullPath).replace(/^\/+/, '') : entry.name);
         if (entry.isFile) {
+          if (isSkippableDroppedFile(entry.name)) return;
           await new Promise(resolve => entry.file(file => {
-            if (file && relPath && relPath !== file.name) {
+            if (!file || isSkippableDroppedFile(file.name)) return resolve();
+            if (relPath && relPath !== file.name) {
               try {
                 Object.defineProperty(file, 'relativePath', { value: relPath, configurable: true });
               } catch (_) {
@@ -25746,6 +25865,7 @@
             resolve();
           }, error => { console.warn('Could not read dropped file:', error); resolve(); }));
         } else if (entry.isDirectory) {
+          if (isSkippableDroppedDir(entry.name)) return;
           const nextPrefix = cleanPrefix ? (cleanPrefix + '/' + entry.name) : entry.name;
           const reader = entry.createReader();
           let entries = [];
@@ -25757,7 +25877,12 @@
       }
       const entries = [...(event.dataTransfer.items || [])].map(item => item.webkitGetAsEntry && item.webkitGetAsEntry()).filter(Boolean);
       if (entries.length) for (const entry of entries) await readEntry(entry, '');
-      else files.push(...event.dataTransfer.files);
+      else {
+        const rawFiles = [...(event.dataTransfer.files || [])];
+        for (let fi = 0; fi < rawFiles.length; fi++) {
+          if (rawFiles[fi] && !isSkippableDroppedFile(rawFiles[fi].name)) files.push(rawFiles[fi]);
+        }
+      }
       await addLocalFiles(files);
     });
 
