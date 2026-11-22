@@ -15,12 +15,15 @@ const mainActivityJava = fs.readFileSync(
   'utf8'
 );
 
-test('v3.9.78 version synchronization across sw.js, index.html, and build.gradle.kts (versionCode 132)', () => {
-  assert.match(swJs, /const CACHE_VERSION = 'v3\.9\.78';/);
-  assert.match(swJs, /const CACHE_NAME = 'nocturne-v3\.9\.78';/);
-  assert.ok(indexHtml.includes('FiiO M11S · v3.9.78'), 'FiiO badge should display v3.9.78');
-  assert.match(gradleKts, /versionCode = 132\b/);
-  assert.match(gradleKts, /versionName = "3\.9\.78"/);
+test('v3.9.78+ version synchronization across sw.js, index.html, and build.gradle.kts (versionCode >= 132)', () => {
+  const swMatch = swJs.match(/const CACHE_VERSION = 'v3\.9\.(\d+)';/);
+  assert.ok(swMatch && Number(swMatch[1]) >= 78);
+  const nameMatch = swJs.match(/const CACHE_NAME = 'nocturne-v3\.9\.(\d+)';/);
+  assert.ok(nameMatch && Number(nameMatch[1]) >= 78);
+  assert.ok(indexHtml.includes('FiiO M11S · v3.9.' + swMatch[1]), 'FiiO badge should match CACHE_VERSION');
+  const codeMatch = gradleKts.match(/versionCode = (\d+)\b/);
+  assert.ok(codeMatch && Number(codeMatch[1]) >= 132);
+  assert.ok(gradleKts.includes('versionName = "3.9.' + swMatch[1] + '"'));
 });
 
 test('v3.9.78 #play-button pauses active audio immediately even with mismatched dataset.trackId and cancels mid-load playback after 250ms', async () => {

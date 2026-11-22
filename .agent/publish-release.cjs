@@ -80,20 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.78';
-  const name = process.argv[3] || `Nocturne ${tag} (Bulletproof Play/Pause State Machine, Touch/Fast-Tap Capture Isolation, Android Bit-Perfect AudioFocus Guard & Shuffle/Queue Preload Re-Sync)`;
+  const tag = process.argv[2] || 'v3.9.79';
+  const name = process.argv[3] || `Nocturne ${tag} (Cloud Replaced-Track Tag & Preload Invalidation, OneDrive Delta Folder Cover Refresh, Queue Removal/Sort Preload Re-Sync & Android MediaStore Storage Aliases)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 132) — Sửa triệt để nút Play/Pause trên Web & Android/FiiO M11S + Chống tự dừng Bit-Perfect do WebView AudioFocus + Đồng bộ Preload Shuffle/Queue
+    : `### Nocturne ${tag} (versionCode 133) — Cập nhật Tag/Preload khi thay tệp Cloud, Làm mới ảnh bìa thư mục OneDrive Delta, Đồng bộ Preload khi sửa Hàng đợi & Tra cứu bí danh MediaStore Android
 
-#### 1. Sửa triệt để các luồng lỗi nút Play/Pause trên Web, Android WebView & FiiO M11S (\`index.html\`, \`MainActivity.java\`)
-- **Ưu tiên tạm dừng khi đang phát & chống khởi động lại bài (\`#play-button\`)**: Khi bất kỳ deck nào (\`audio\`, \`standbyAudio\`, \`activeDeck.element\`, \`corsBypassAudio\`) đang phát thực tế hoặc sau khi giải mã DSD đầy đủ (\`playDsdTrack\` gắn \`audio.dataset.trackId = String(track.id)\`), bấm \`#play-button\` / \`#room-play\` / \`#mini-play\` / \`#fullscreen-play-btn\` sẽ tạm dừng ngay lập tức thay vì rơi vào nhánh \`hasMismatchedTrack\` gọi lại \`playTrack\` từ đầu; đồng thời cho phép bấm Play/Pause sau 250ms khi đang nạp bài (\`state.isPlaybackLoading\`) để hủy nạp và về trạng thái tạm dừng (\`▶\`).
-- **Cách ly cảm ứng & chống nuốt click trên màn hình cảm ứng (\`resolveEventElement\`, \`attachReliableTransportTap\`)**: Giải quyết đích sự kiện kể cả khi chạm vào Text node (\`▶\`/\`Ⅱ\`) bên trong nút, tách hoàn toàn các nút điều khiển phát nhạc khỏi bộ chặn ghost-click toàn cục \`document.addEventListener('click', ..., true)\`, và chốt lại mốc \`_touchTapHandledAt\` sau khi \`el.click()\` thực thi xong để chặn ghost click trễ mà không nuốt lần chạm kế tiếp.
-- **Chống WebView tự cướp \`AudioFocus\` làm tự dừng \`BitPerfectAudioPlayer\` (\`MainActivity.java\`, \`index.html\`)**: Không tự gọi \`setupAudio()\` / \`state.context.resume()\` trước khi phân nhánh \`playTrack\` hoặc khi đang định tuyến sang Native Bit-Perfect, đồng thời bảo vệ \`BitPerfectAudioPlayer\` trước xung đột \`AUDIOFOCUS_LOSS\` nội bộ từ Chromium WebView trong cửa sổ 1.5 giây sau khi bấm Play/Resume ở tiền cảnh.
+#### 1. Làm mới Tag nhị phân, Preload & Ảnh bìa thư mục khi tệp Cloud thay đổi (\`index.html\`)
+- **\`invalidateCloudTrackContent\` & \`enrichCloudTrack\`**: Xóa \`metadataRetryAt\`, \`thumbnailRetryAt\`, \`_metaRateLimitRetries\` và hủy \`clearStalePreload()\` nếu bài bị sửa đang nằm trên \`standbyAudio\`; cho phép các thông số header nhị phân mới (\`sampleRate\`, \`bitDepth\`, \`channels\`, \`duration\`, \`albumArtist\`, \`iTunNORM\`, \`lyricsText\`) ghi đè thông số cũ khi tệp trên Google Drive / OneDrive được thay bản remaster tại cùng \`remoteId\`.
+- **\`applyMicrosoftSiblingFolderCovers\` & \`tryLoadMicrosoftDeltaSync\`**: Đánh dấu \`forceUpdate: true\` cho ảnh bìa thư mục mới/cập nhật trong OneDrive Delta và \`_needsFolderCoverRefresh\` khi bài không có ảnh nhúng chuyển thư mục, truyền \`{ forceNonEmbedded: true }\` để cập nhật ảnh bìa thư mục tương đương với Google Drive.
 
-#### 2. Đồng bộ lại \`preloadNext\` khi bật/tắt Trộn bài (Shuffle) & thao tác Hàng đợi (\`index.html\`)
-- **\`#shuffle-button\` & \`triggerRoonAction\`**: Xóa \`state.preloadTrackId\` / \`state.preloadReadyUrl\` cũ trước khi gọi \`preloadNext(true)\` khi đổi chế độ Shuffle, đồng thời kích hoạt \`preloadNext(true)\` ngay khi chèn bài qua \`play_next\` / \`add_queue\` / \`start_radio\`.
+#### 2. Đồng bộ lại \`preloadNext\` khi xóa/xếp lại Hàng đợi & Tra cứu bí danh MediaStore (\`index.html\`, \`MainActivity.java\`)
+- **\`removeFromQueue\`, \`moveQueueTrack\`, \`#queue-clear\`, \`#sonic-flow-btn\`, \`#queue-bpm-sort-btn\`**: Xóa \`state.preloadTrackId\` / \`state.preloadReadyUrl\` khi bài đầu hàng đợi bị xóa hoặc đổi vị trí (ngăn \`queueIndex()\` trong chế độ Shuffle giữ lại bài vừa xóa) và gọi \`preloadNext(true)\` trên cả Web Audio lẫn Native Bit-Perfect.
+- **\`queryMediaStoreAudioWithStorageAliases\` (\`MainActivity.java\`)**: Mở rộng \`resolveMediaStoreContentUriForPath\` tự động ánh xạ hai chiều \`/sdcard/\` ↔ \`/storage/emulated/0/\` và \`/mnt/media_rw/\` ↔ \`/storage/\` trên mọi biến thể đường dẫn (gốc, NFC, NFD, URL-decoded).
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

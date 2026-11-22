@@ -2193,25 +2193,48 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Nullable
+    private Uri queryMediaStoreAudioWithStorageAliases(@Nullable String candidatePath) {
+        if (candidatePath == null || candidatePath.isEmpty()) return null;
+        Uri found = queryMediaStoreAudioByDataPath(candidatePath);
+        if (found != null) return found;
+        if (candidatePath.startsWith("/sdcard/")) {
+            found = queryMediaStoreAudioByDataPath("/storage/emulated/0/" + candidatePath.substring(8));
+            if (found != null) return found;
+        } else if (candidatePath.startsWith("/storage/emulated/0/")) {
+            found = queryMediaStoreAudioByDataPath("/sdcard/" + candidatePath.substring(20));
+            if (found != null) return found;
+        } else if (candidatePath.startsWith("/mnt/media_rw/")) {
+            found = queryMediaStoreAudioByDataPath("/storage/" + candidatePath.substring(14));
+            if (found != null) return found;
+        } else if (candidatePath.startsWith("/storage/") && !candidatePath.startsWith("/storage/emulated/")) {
+            found = queryMediaStoreAudioByDataPath("/mnt/media_rw/" + candidatePath.substring(9));
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    @Nullable
     public Uri resolveMediaStoreContentUriForPath(@Nullable String filePath) {
         if (filePath == null || filePath.isEmpty()) return null;
         Uri found = queryMediaStoreAudioByDataPath(filePath);
         if (found != null) return found;
+        found = queryMediaStoreAudioWithStorageAliases(filePath);
+        if (found != null) return found;
 
         String nfcPath = java.text.Normalizer.normalize(filePath, java.text.Normalizer.Form.NFC);
         if (!nfcPath.equals(filePath)) {
-            found = queryMediaStoreAudioByDataPath(nfcPath);
+            found = queryMediaStoreAudioWithStorageAliases(nfcPath);
             if (found != null) return found;
         }
         String nfdPath = java.text.Normalizer.normalize(filePath, java.text.Normalizer.Form.NFD);
         if (!nfdPath.equals(filePath)) {
-            found = queryMediaStoreAudioByDataPath(nfdPath);
+            found = queryMediaStoreAudioWithStorageAliases(nfdPath);
             if (found != null) return found;
         }
         try {
             String decoded = URLDecoder.decode(filePath.replace("+", "%2B"), StandardCharsets.UTF_8.name());
             if (decoded != null && !decoded.equals(filePath)) {
-                found = queryMediaStoreAudioByDataPath(decoded);
+                found = queryMediaStoreAudioWithStorageAliases(decoded);
                 if (found != null) return found;
             }
         } catch (Exception ignored) {}

@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.78</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.79</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4127,18 +4127,18 @@
         const metadata = library.resolveTrackMetadata(tags, {title:track.title, artist:track.artist, album:track.album});
         Object.assign(track, metadata);
         const tagAa = String(tags.albumartist || tags.albumArtist || tags.album_artist || '').trim();
-        if (tagAa && !track.albumArtist) track.albumArtist = tagAa;
-        if (tags.iTunNORM && !track.iTunNORM) track.iTunNORM = tags.iTunNORM;
+        if (tagAa) track.albumArtist = tagAa;
+        if (tags.iTunNORM) track.iTunNORM = tags.iTunNORM;
         if (tags.replayGainTrackGain !== undefined) track.replayGainTrackGain = tags.replayGainTrackGain;
         if (tags.replayGainTrackPeak !== undefined) track.replayGainTrackPeak = tags.replayGainTrackPeak;
         if (tags.replayGainAlbumGain !== undefined) track.replayGainAlbumGain = tags.replayGainAlbumGain;
         if (tags.replayGainAlbumPeak !== undefined) track.replayGainAlbumPeak = tags.replayGainAlbumPeak;
-        if (tags.sampleRate > 0 && !track.sampleRate) track.sampleRate = tags.sampleRate;
-        if (tags.bitDepth > 0 && !track.bitDepth) track.bitDepth = tags.bitDepth;
-        if (tags.channels > 0 && !track.channels) track.channels = tags.channels;
-        if (tags.duration > 0 && !track.duration) track.duration = tags.duration;
+        if (tags.sampleRate > 0) track.sampleRate = tags.sampleRate;
+        if (tags.bitDepth > 0) track.bitDepth = tags.bitDepth;
+        if (tags.channels > 0) track.channels = tags.channels;
+        if (tags.duration > 0) track.duration = tags.duration;
         if (tags.metadataPointer > 0) track.dsfMetadataPointer = tags.metadataPointer;
-        if (tags.lyrics && !track.lyricsText) track.lyricsText = tags.lyrics;
+        if (tags.lyrics) track.lyricsText = tags.lyrics;
         if (tags.format === 'ALAC' && (!track.format || track.format === 'M4A')) track.format = 'ALAC';
         if (tags.format === 'DSF' && (!track.format || track.format === 'DSF')) { track.format = 'DSF'; track.isDsd = true; }
         if (!cover && typeof tags.cover === 'string' && tags.cover.startsWith('data:image')) cover = tags.cover;
@@ -5698,6 +5698,9 @@
       track._loadedFromSliceCache = false;
       track.sliceEndedEarly = false;
       track.metadataLoaded = false;
+      delete track.metadataRetryAt;
+      delete track.thumbnailRetryAt;
+      track._metaRateLimitRetries = 0;
       track.moovAtTail = false;
       track.fullAudioError = null;
       track._pendingSliceUpgrade = null;
@@ -5708,6 +5711,10 @@
       if (track._fullUpgradeAbort && track.id !== state.currentId) {
         try { track._fullUpgradeAbort.abort(); } catch (_) {}
         track._fullUpgradeAbort = null;
+      }
+      if (track.id === state.preloadTrackId && track.id !== state.currentId) {
+        if (typeof clearStalePreload === 'function') clearStalePreload();
+        else { state.preloadTrackId = null; state.preloadReadyUrl = null; }
       }
       if (track.id !== state.currentId && track.id !== state.preloadTrackId) {
         releaseUnusedCloudUrl(track);
@@ -13220,8 +13227,12 @@
             const t = state.queueTrackIds.indexOf(targetId);
             state.queueTrackIds = lib.smartQueueReorder(state.queueTrackIds, f, t);
           }
+          if (state.preloadTrackId && state.queueTrackIds[0] && String(state.preloadTrackId) !== String(state.queueTrackIds[0])) {
+            state.preloadTrackId = null;
+            state.preloadReadyUrl = null;
+          }
           renderQueue();
-          if (state.currentId && audio.src) preloadNext(true);
+          if (state.currentId && (audio.src || state.isNativeBitPerfectPlaying)) preloadNext(true);
           toast('Đã đổi thứ tự bài trong hàng đợi.');
         });
         row.addEventListener('dragend', () => {
@@ -13285,24 +13296,32 @@
       state.queueTrackIds = state.queueTrackIds.filter(item => item !== trackId);
       state.queueTrackIds.push(trackId);
       refreshQueueRows(); toast(`Đã thêm “${library.trackMetadata(track).title}” vào Phát tiếp theo.`);
-      if (state.currentId && audio.src) preloadNext(true);
+      if (state.currentId && (audio.src || state.isNativeBitPerfectPlaying)) preloadNext(true);
     }
     function removeFromQueue(trackId) {
       state.queueTrackIds = state.queueTrackIds.filter(item => item !== trackId);
       if (Array.isArray(state.queue)) {
         state.queue = state.queue.filter(item => (item && item.id ? item.id : item) !== trackId);
       }
+      if (state.preloadTrackId != null && String(state.preloadTrackId) === String(trackId)) {
+        state.preloadTrackId = null;
+        state.preloadReadyUrl = null;
+      }
       if ((!state.queueTrackIds || state.queueTrackIds.length === 0) && (!state.queue || state.queue.length === 0) && state.lyricsPreloadLifecycle) {
         state.lyricsPreloadLifecycle.cancelAll('queue_cleared');
       }
       refreshQueueRows();
-      if (state.currentId && audio.src) preloadNext(true);
+      if (state.currentId && (audio.src || state.isNativeBitPerfectPlaying)) preloadNext(true);
     }
     function moveQueueTrack(trackId, direction) {
       const index = state.queueTrackIds.indexOf(trackId), target = index + direction;
       if (index < 0 || target < 0 || target >= state.queueTrackIds.length) return;
       [state.queueTrackIds[index], state.queueTrackIds[target]] = [state.queueTrackIds[target], state.queueTrackIds[index]];
-      renderQueue(); if (state.currentId && audio.src) preloadNext(true);
+      if (state.preloadTrackId && state.queueTrackIds[0] && String(state.preloadTrackId) !== String(state.queueTrackIds[0])) {
+        state.preloadTrackId = null;
+        state.preloadReadyUrl = null;
+      }
+      renderQueue(); if (state.currentId && (audio.src || state.isNativeBitPerfectPlaying)) preloadNext(true);
     }
     function syncAutoplayButton() {
       const label = `Tự động phát tiếp: ${state.autoplay ? 'đang bật' : 'đang tắt'}`;
@@ -18028,7 +18047,7 @@
       const candTracksMap = new Map();
       for (let i = 0; i < state.tracks.length; i++) {
         const tr = state.tracks[i];
-        if (!tr || tr.source !== 'onedrive' || (tr.cover && tr.cover !== '♫')) continue;
+        if (!tr || tr.source !== 'onedrive') continue;
         const rp = String(tr.remotePath || tr.name || '').replace(/\\/g, '/');
         const slash = rp.lastIndexOf('/');
         const dir = slash > 0 ? rp.slice(0, slash) : '';
@@ -18036,9 +18055,13 @@
           ? library.resolveFolderCoverWithDiscFallback(siblingCoversByDir, dir)
           : (siblingCoversByDir.has(dir) ? siblingCoversByDir.get(dir) : null);
         if (!cand || !cand.id) continue;
+        const forceRefreshCover = Boolean((cand.forceUpdate || tr._needsFolderCoverRefresh) && !tr.metadataLoaded);
+        if (tr.cover && tr.cover !== '♫' && !forceRefreshCover) continue;
         const candKey = (cand.driveId ? (cand.driveId + ':') : '') + String(cand.id);
-        if (!candTracksMap.has(candKey)) candTracksMap.set(candKey, { cand, tracks: [] });
-        candTracksMap.get(candKey).tracks.push(tr);
+        if (!candTracksMap.has(candKey)) candTracksMap.set(candKey, { cand, tracks: [], forceNonEmbedded: false });
+        const groupEntry = candTracksMap.get(candKey);
+        if (forceRefreshCover) groupEntry.forceNonEmbedded = true;
+        groupEntry.tracks.push(tr);
       }
       const entries = Array.from(candTracksMap.values());
       if (!entries.length) return 0;
@@ -18050,7 +18073,8 @@
           const group = entries[cursor++];
           const cand = group && group.cand;
           const matched = (group && group.tracks) || [];
-          if (!cand || !matched.some(tr => !tr.cover || tr.cover === '♫')) continue;
+          const forceNonEmbedded = Boolean(group && group.forceNonEmbedded);
+          if (!cand || !matched.some(tr => !tr.cover || tr.cover === '♫' || (forceNonEmbedded && !tr.metadataLoaded))) continue;
           let thumbUrl = cand.downloadUrl || '';
           if (!thumbUrl) {
             try {
@@ -18068,7 +18092,10 @@
             : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(cand.id)}/content`;
           const cover = await fetchCloudImageCandidateDataUrl(thumbUrl, fallbackContentUrl, () => state.microsoftAccessToken || getMicrosoftToken(false));
           if (!cover) continue;
-          const changed = applyDiscoveredCloudFolderCover(matched, cover);
+          for (let mi = 0; mi < matched.length; mi++) {
+            if (matched[mi]) matched[mi]._needsFolderCoverRefresh = false;
+          }
+          const changed = applyDiscoveredCloudFolderCover(matched, cover, forceNonEmbedded ? { forceNonEmbedded: true } : undefined);
           if (changed.length) {
             appliedCount += changed.length;
             updatedTracks.push(...changed);
@@ -18345,6 +18372,7 @@
                 const pathChanged = Boolean(itemPath && existing.remotePath !== itemPath);
                 if (pathChanged) {
                   existing.remotePath = itemPath;
+                  if (!existing.metadataLoaded) existing._needsFolderCoverRefresh = true;
                   touched = true;
                 }
                 let msContentChanged = false;
@@ -18431,7 +18459,8 @@
                       name: item.name,
                       score: coverScore,
                       downloadUrl: item['@microsoft.graph.downloadUrl'] || '',
-                      driveId: itemDriveId
+                      driveId: itemDriveId,
+                      forceUpdate: true
                     });
                   }
                 }
@@ -22665,7 +22694,7 @@
     $('sleep-button-mobile').addEventListener('click', () => { const p = $('sleep-panel'); const isHidden = p.classList.toggle('hidden'); p.hidden = isHidden; });
     $('queue-close').addEventListener('click', closeQueue);
     $('queue-backdrop').addEventListener('click', closeQueue);
-    $('queue-clear').addEventListener('click', () => { state.queueTrackIds = []; state.queue = []; if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.cancelAll('queue_cleared'); renderQueue(); renderTracks(); if (state.currentId && audio.src) preloadNext(true); });
+    $('queue-clear').addEventListener('click', () => { state.queueTrackIds = []; state.queue = []; state.preloadTrackId = null; state.preloadReadyUrl = null; if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.cancelAll('queue_cleared'); renderQueue(); renderTracks(); if (state.currentId && (audio.src || state.isNativeBitPerfectPlaying)) preloadNext(true); });
     $('queue-add-library').addEventListener('click', () => { closeQueue(); $('track-list').scrollIntoView({behavior:'smooth', block:'start'}); toast('Nhấn ＋ ở một bài hát để thêm vào Phát tiếp theo.'); });
     /* $('sonic-flow-btn')?.addEventListener('click' */ safeOn($('sonic-flow-btn'), 'click', () => {
       const qTracks = queueTracks();
@@ -22674,7 +22703,12 @@
       if (typeof library !== 'undefined' && library && typeof library.generateSonicFlowQueue === 'function') {
         const flow = library.generateSonicFlowQueue(curTrack, qTracks);
         state.queueTrackIds = flow.orderedTracks.map(t => t.id).filter(id => id !== state.currentId);
+        if (state.preloadTrackId && state.queueTrackIds[0] && String(state.preloadTrackId) !== String(state.queueTrackIds[0])) {
+          state.preloadTrackId = null;
+          state.preloadReadyUrl = null;
+        }
         renderQueue();
+        if (state.currentId && (audio.src || state.isNativeBitPerfectPlaying)) preloadNext(true);
         toast(`Đã phối dòng chảy âm thanh Sonic Flow (${flow.avgSimilarityScore}% hòa quyện) 🌊`);
       } else {
         toast('Đã phối hàng đợi theo trường phái âm học Sonic Flow 🌊');
@@ -22688,7 +22722,12 @@
         ? library.sequenceHarmonicBpmQueue(qTracks, curTrack, 'smooth_asc')
         : qTracks;
       state.queueTrackIds = sorted.map(t => t.id).filter(id => id !== state.currentId);
+      if (state.preloadTrackId && state.queueTrackIds[0] && String(state.preloadTrackId) !== String(state.queueTrackIds[0])) {
+        state.preloadTrackId = null;
+        state.preloadReadyUrl = null;
+      }
       renderQueue();
+      if (state.currentId && (audio.src || state.isNativeBitPerfectPlaying)) preloadNext(true);
       toast('Đã sắp xếp hàng đợi theo tiết tấu BPM chuyển tiếp hài hòa ⚡');
     });
     /* $('queue-share-btn')?.addEventListener('click' */ safeOn($('queue-share-btn'), 'click', async () => {
