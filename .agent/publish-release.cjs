@@ -80,20 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.75';
-  const name = process.argv[3] || `Nocturne ${tag} (Google Drive & OneDrive Delta Folder/Pagination Hygiene + Stale content:// Path Auto-Recovery + Android MediaStore DISC_NUMBER & albumArtist)`;
+  const tag = process.argv[2] || 'v3.9.76';
+  const name = process.argv[3] || `Nocturne ${tag} (Web Gapless Clone & CUE Preload Continuity + Cloud Slice Cache Invalidation + FiiO Storage Scan Path Dedup & CUE Move Guard)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 129) — Vệ sinh đồng bộ Delta thư mục Cloud + Tự phục hồi \`content://\` -> \`path\` & Android MediaStore \`DISC_NUMBER\`
+    : `### Nocturne ${tag} (versionCode 130) — Liên tục phát Gapless khi đổi \`sampleRate\` & Preload CUE + Xóa cache Cloud bền bỉ & Khử trùng lặp quét bộ nhớ FiiO/Android
 
-#### 1. Đồng bộ tăng dần Google Drive & OneDrive sạch hơn khi xóa/chuyển thư mục (\`index.html\`)
-- **Google Drive (\`tryLoadGoogleChangesDelta\`)**: Xây dựng \`existingByParentId\` để dọn các bài mồ côi khi thư mục cha bị xóa/đưa vào Thùng rác (giữ nguyên bài đã được chuyển sang thư mục sống khác trong cùng batch), sửa xóa shortcut khi file đích bị xóa vĩnh viễn (\`change.removed\`), hủy cờ xóa nếu item được khôi phục trong cùng batch, và giới hạn tối đa 40 trang (\`GOOGLE_DELTA_MAX_PAGES\`) để reset cursor sạch tránh lặp kẹt.
-- **OneDrive (\`tryLoadMicrosoftDeltaSync\`)**: Theo dõi \`deletedFolderIds\` để dọn bài con còn kẹt trong thư mục đã xóa (giữ nguyên bài chuyển đi trong batch), tự xóa \`remoteDriveId\` cũ khi bài từ Shared Drive chuyển về Personal Drive, hủy cờ xóa khi item xuất hiện lại, và thêm giới hạn 40 trang (\`MICROSOFT_DELTA_MAX_PAGES\`).
+#### 1. Phát Gapless, đổi \`sampleRate\` Web & Preload CUE liền mạch (\`index.html\`)
+- **\`attachAudioElement\` & \`playTrack\`**: Khi \`AudioContext\` khởi tạo lại theo \`sampleRate\` mới (44.1kHz <-> 96kHz/192kHz) và nhân bản \`standbyAudio\`, tự dọn \`preloadReadyUrl\` cũ nếu \`readyState < 2\` và gọi \`clone.load()\` cho nguồn đang gắn (bổ sung guard \`readyState === 0 && networkState === 0\` trong \`playTrack\`) để không bị treo im lặng sau khi đổi DAC/tần số lấy mẫu.
+- **\`preloadNext\` & \`seekPreloadedCueStandby\`**: Giữ nguyên bộ đệm \`standbyAudio\` khỏe mạnh cùng bài kế khi \`preloadNext(true)\` kích hoạt lại (trộn bài/cập nhật hàng đợi) mà vẫn làm mới token Cloud gần hết hạn, đồng thời tự tua sẵn về \`cueStart > 0\` khi nạp trước đĩa CUE khác tệp.
 
-#### 2. Tự phục hồi \`content://\` -> \`path\` & Đồng bộ thẻ MediaStore (\`index.html\`, \`MainActivity.java\`)
-- **Tự phục hồi đường dẫn vật lý (\`ensureLocalTrackPlayableUrl\`, \`playTrack\`)**: Khi URI SAF \`content://...documents...\` hết hạn/bị từ chối (403/404) nhưng \`track.path\` vẫn đọc được qua \`/local-media?path=\` (200 OK), tự chuyển URL phát sang đường dẫn vật lý và thử phát lại ngay không cần quét lại thủ công.
-- **\`scanMediaStoreAudio\` (\`MainActivity.java\`)**: Hỗ trợ cột \`disc_number\` trên Android 11+ (fallback 3 tầng vẫn giữ \`album_artist\` trên FiiO M11S Android 10) qua helper \`parseMediaStoreLeadingInt\`, đồng thời lọc chuỗi rỗng/\`<unknown>\` ở \`albumArtist\`.
+#### 2. Dọn \`firstSliceCache\` bền bỉ khi bài Cloud đổi nội dung & Khử trùng lặp quét Android (\`index.html\`, \`MainActivity.java\`)
+- **\`deleteCachedFirstSlice\` & \`invalidateCloudTrackContent\`**: Bổ sung fallback \`openDatabase()\` khi \`state.db\` chưa mở hoặc đã đóng, đồng thời dọn sạch \`_loadedFromSliceCache\`, \`sliceEndedEarly\` và URL CDN OneDrive cũ (\`downloadUrl\`/\`downloadUrlAt\`) khi tệp Cloud thay đổi phiên bản.
+- **\`reconcileMovedFiioTracks\` & \`normalizeStorageScanPathKey\` (\`MainActivity.java\`)**: Chặn ghép nhầm bài con CUE với tệp mẹ nguyên bản cùng dung lượng, giữ nguyên \`discNumber\`/\`trackNumber\`/\`year\` khi chuyển đường dẫn, và chuẩn hóa khóa đường dẫn \`/sdcard\` ↔ \`/storage/emulated/0\` cùng \`canonicalPath\` trong \`startAsyncStorageScan\` để không quét trùng giữa MediaStore và thẻ MicroSD.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

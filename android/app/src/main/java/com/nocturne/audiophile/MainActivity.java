@@ -5848,11 +5848,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.75";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.76";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.75\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.76\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -6728,6 +6728,27 @@ public class MainActivity extends AppCompatActivity {
          * Streams 250-track chunks to WebView without freezing the UI thread or triggering Android ANR
          * on 5,000+ track MicroSD libraries, while skipping redundant overlapping sub-paths.
          */
+        private static String normalizeStorageScanPathKey(@Nullable String rawPath) {
+            if (rawPath == null) return "";
+            String p = rawPath.trim().replace('\\', '/').replaceAll("/+", "/");
+            if (p.isEmpty()) return "";
+            while (p.length() > 1 && p.endsWith("/")) {
+                p = p.substring(0, p.length() - 1);
+            }
+            String lower = p.toLowerCase(Locale.ROOT);
+            if ("/sdcard".equals(lower)) {
+                p = "/storage/emulated/0";
+                lower = p;
+            } else if (lower.startsWith("/sdcard/")) {
+                p = "/storage/emulated/0" + p.substring("/sdcard".length());
+                lower = p.toLowerCase(Locale.ROOT);
+            }
+            if (lower.startsWith("/storage/") || lower.startsWith("/mnt/media_rw/")) {
+                return lower;
+            }
+            return p;
+        }
+
         @JavascriptInterface
         public boolean startAsyncStorageScan(final int maxFiles) {
             if (!mActivity.mStorageScanRunning.compareAndSet(false, true)) {
@@ -6753,7 +6774,8 @@ public class MainActivity extends AppCompatActivity {
                             if (item == null) continue;
                             String p = item.optString("path", "").trim();
                             String u = item.optString("uri", "").trim();
-                            if (!p.isEmpty() && !seenPaths.add(p)) continue;
+                            String normP = normalizeStorageScanPathKey(p);
+                            if (!normP.isEmpty() && !seenPaths.add(normP)) continue;
                             if (!u.isEmpty() && !seenUris.add(u)) continue;
                             batch.put(item);
                             totalEmitted++;
@@ -6808,7 +6830,17 @@ public class MainActivity extends AppCompatActivity {
                         for (File f : collected) {
                             if (totalEmitted >= limit) break;
                             String abs = f.getAbsolutePath();
-                            if (!seenPaths.add(abs)) continue;
+                            String normAbs = normalizeStorageScanPathKey(abs);
+                            String normCanon = "";
+                            try {
+                                normCanon = normalizeStorageScanPathKey(f.getCanonicalPath());
+                            } catch (Throwable ignored) {}
+                            if ((!normAbs.isEmpty() && seenPaths.contains(normAbs))
+                                    || (!normCanon.isEmpty() && seenPaths.contains(normCanon))) {
+                                continue;
+                            }
+                            if (!normAbs.isEmpty()) seenPaths.add(normAbs);
+                            if (!normCanon.isEmpty()) seenPaths.add(normCanon);
                             try {
                                 JSONObject obj = new JSONObject();
                                 obj.put("name", f.getName());
