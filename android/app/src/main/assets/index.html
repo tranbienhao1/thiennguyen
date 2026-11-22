@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.76</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.77</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -15206,6 +15206,10 @@
 
       state.currentId = track.id;
       abortStaleFullAudioUpgrades([track.id, state.preloadTrackId]);
+      if (previousTrack && previousTrack.id !== track.id && previousTrack._dsdFetchAbort && track.id !== state.preloadTrackId) {
+        try { previousTrack._dsdFetchAbort.abort(); } catch (_) {}
+        previousTrack._dsdFetchAbort = null;
+      }
       if (typeof displayTrack === 'function') displayTrack(track);
       if (typeof applyOptimisticPlaybackUi === 'function') applyOptimisticPlaybackUi(track);
 
@@ -15267,7 +15271,7 @@
       if (!wasPreloaded) ++state.preloadGeneration;
       if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; }
       stopPrefetchDsdSlice();
-      if (state.dsdUrl) stopDsdWorker(false);
+      if (state.dsdTrackId || state.dsdBlob || state.dsdUrl) stopDsdWorker(false);
       if (track.isDsd) {
         if (state.isNativeBitPerfectPlaying) {
           try { if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
@@ -15318,7 +15322,14 @@
             previousTrack.file = null;
           }
         }
-        catch (error) { setPlaybackLoading(false); console.error('DSD playback setup failed:', error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); if (generation === state.playGeneration) $('play-button').textContent = '▶'; skipFailedTrack(generation, `Không thể chuẩn bị phát DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`); }
+        catch (error) {
+          if (generation !== state.playGeneration) return;
+          setPlaybackLoading(false);
+          console.error('DSD playback setup failed:', error);
+          if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+          if (generation === state.playGeneration) $('play-button').textContent = '▶';
+          skipFailedTrack(generation, `Không thể chuẩn bị phát DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`);
+        }
         return;
       }
 
@@ -15688,7 +15699,7 @@
       }
     }
     function stopDsdWorker(invalidate = true) {
-      if (!state.dsdWorker && !state.dsdUrl && !state.dsdBlob) return;
+      if (!state.dsdWorker && !state.dsdUrl && !state.dsdBlob && !state.dsdTrackId) return;
       if (state.dsdWorker) {
         try { state.dsdWorker.postMessage({type:'cancel'}); } catch (_) {}
         try { state.dsdWorker.terminate(); } catch (_) {}
@@ -15707,6 +15718,13 @@
         decodedTrack.url = '';
         decodedTrack.fullAudioPromise = null;
         decodedTrack.firstSlicePlayback = false;
+        decodedTrack.sliceEndedEarly = false;
+        decodedTrack.lastSlicePosition = null;
+        decodedTrack._pendingSeekAfterFullUpgrade = null;
+        if (typeof decodedTrack._dsdFullResolve === 'function') {
+          try { decodedTrack._dsdFullResolve(); } catch (_) {}
+          decodedTrack._dsdFullResolve = null;
+        }
       }
       state.dsdTrackId = null; state.dsdBlob = null;
     }
@@ -15811,6 +15829,7 @@
         let dsdSliceUrl = null, dsdFullResolve = null;
         track.firstSlicePlayback = false; track.sliceEndedEarly = false; track.dsdFirstSliceMs = null;
         track.fullAudioPromise = new Promise(resolve => { dsdFullResolve = resolve; });
+        track._dsdFullResolve = dsdFullResolve;
         // Pha C — cache lát đầu DSD: bài đã phát trước đây có lát PCM đầu
         // trong IndexedDB thì phát ngay không chờ worker giải mã lại ~2
         // giây đầu; worker vẫn giải mã file đầy đủ ở nền, lát của worker
@@ -15835,21 +15854,44 @@
           }
           console.debug('Cached DSD first slice unavailable, decoding instead:', error.message || error);
         }
-        if (generation !== state.playGeneration) return;
+        if (generation !== state.playGeneration) {
+          track.firstSlicePlayback = false;
+          track.fullAudioPromise = null;
+          track._pendingSeekAfterFullUpgrade = null;
+          track._dsdFullResolve = null;
+          if (dsdFullResolve) dsdFullResolve();
+          return;
+        }
         // Pha A — phát DSD từ lát PCM đầu (~2 giây) ngay khi worker gửi,
         // deck phát lát đó trong khi worker giải mã tiếp; đặt cờ lát đầu +
         // fullAudioPromise để guard 'ended'/'error' sẵn có không chuyển bài
         // khi lát đầu hết sớm (như đường lát đầu cloud).
         const worker = new Worker(new URL('dsd-worker.js', dsdWorkerBaseUrl));
         state.dsdWorker = worker;
+        state.dsdTrackId = track.id;
         worker.onmessage = async event => {
           const message = event.data || {};
-          if (generation !== state.playGeneration || state.dsdWorker !== worker) return;
+          if (generation !== state.playGeneration || state.dsdWorker !== worker) {
+            if (state.dsdWorker === worker) {
+              state.dsdWorker = null;
+              try { worker.postMessage({type:'cancel'}); } catch (_) {}
+              try { worker.terminate(); } catch (_) {}
+            }
+            if (generation !== state.playGeneration) {
+              track.firstSlicePlayback = false;
+              track.fullAudioPromise = null;
+              track._pendingSeekAfterFullUpgrade = null;
+              track._dsdFullResolve = null;
+              if (dsdFullResolve) dsdFullResolve();
+            }
+            return;
+          }
           if (message.type === 'progress') { $('play-button').textContent = `${Math.round(message.progress * 100)}%`; return; }
           if (message.type === 'error') {
             track.firstSlicePlayback = false;
             track.fullAudioPromise = null;
             track._pendingSeekAfterFullUpgrade = null;
+            track._dsdFullResolve = null;
             if (dsdFullResolve) dsdFullResolve();
             stopDsdWorker(false);
             $('play-button').textContent = '▶';
@@ -15887,6 +15929,7 @@
           state.dsdUrl = url; state.dsdBlob = message.blob; state.dsdTrackId = track.id; state.objectUrls.add(url);
           track.url = url; track.duration = message.duration; track.sampleRate = message.rate; track.channels = message.channels; track.dsdMultiplier = message.multiplier; track.pcmRate = message.targetRate; track.pcmDecimation = message.decimation; track.pcmBitDepth = message.bitDepth; track.dsdDecodeMs = message.decodeMs; track.dsdMaxChunkMs = message.maxChunkMs; track.dsdChunkCount = message.chunkCount; track.dsdChunksOverBudget = message.chunksOverBudget; track.dsdFinalChunkBytes = message.finalChunkBytes; track.dsdThroughputMBps = message.decodeThroughputMBps; track.dsdInitialChunkBytes = message.initialChunkBytes; track.dsdMaxConsecutiveOverBudget = message.maxConsecutiveOverBudget; track.dsdMinSliceThroughputMBps = message.minSliceThroughputMBps;
           track.firstSlicePlayback = false; track.sliceEndedEarly = false; track.dsdFirstSliceMs = null; track.lastSlicePosition = null;
+          track._dsdFullResolve = null;
           if (dsdFullResolve) dsdFullResolve();
           track.fullAudioPromise = null;
           setupAudio();
@@ -15967,11 +16010,12 @@
           }
         };
         worker.onerror = event => {
-          if (generation !== state.playGeneration) return;
           track.firstSlicePlayback = false;
           track.fullAudioPromise = null;
           track._pendingSeekAfterFullUpgrade = null;
+          track._dsdFullResolve = null;
           if (dsdFullResolve) dsdFullResolve();
+          if (generation !== state.playGeneration) return;
           stopDsdWorker(false); $('play-button').textContent = '▶';
           if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
           skipFailedTrack(generation, `Lỗi bộ giải mã DSD: ${event.message || 'worker không chạy được'}. Chuyển sang bài tiếp theo.`);
@@ -15981,6 +16025,7 @@
         track.firstSlicePlayback = false;
         track.fullAudioPromise = null;
         track._pendingSeekAfterFullUpgrade = null;
+        track._dsdFullResolve = null;
         if (dsdFullResolve) dsdFullResolve();
         stopDsdWorker(false); $('play-button').textContent = '▶'; if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false); skipFailedTrack(generation, `Không thể khởi chạy bộ giải mã DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`);
       }
@@ -20624,20 +20669,50 @@
     let fiioScanSkippedUnchangedCount = 0;
     let activeFiioScanMaps = null;
 
+    function normalizeFiioPathKey(rawPath) {
+      if (!rawPath) return '';
+      let p = String(rawPath).trim().replace(/\\/g, '/').replace(/\/+/g, '/');
+      if (!p) return '';
+      while (p.length > 1 && p.charAt(p.length - 1) === '/') p = p.slice(0, -1);
+      const lower = p.toLowerCase();
+      if (lower === '/sdcard') p = '/storage/emulated/0';
+      else if (lower.indexOf('/sdcard/') === 0) p = '/storage/emulated/0' + p.slice(7);
+      const lowerMapped = p.toLowerCase();
+      if (lowerMapped.indexOf('/storage/') === 0 || lowerMapped.indexOf('/mnt/media_rw/') === 0) return lowerMapped;
+      return p;
+    }
+
+    function prepareNormalizedFiioScanEntry(normPath, existingPaths, existingByPath) {
+      if (!normPath || typeof normalizeFiioPathKey !== 'function') return '';
+      const k = normalizeFiioPathKey(normPath);
+      if (k && existingPaths && !existingPaths.has(normPath) && existingPaths.has(k)) existingPaths.add(normPath);
+      if (k && existingByPath && !existingByPath.has(normPath) && existingByPath.has(k)) existingByPath.set(normPath, existingByPath.get(k));
+      return k;
+    }
+
     function buildExistingFiioTrackSets() {
       const existingPaths = new Set();
       const existingUris = new Set();
+      const normFn = (typeof normalizeFiioPathKey === 'function') ? normalizeFiioPathKey : (p => String(p || '').trim());
       for (let i = 0; i < state.tracks.length; i++) {
         const t = state.tracks[i];
         if (!t) continue;
-        if (t.path) existingPaths.add(t.path);
+        if (t.path) {
+          existingPaths.add(t.path);
+          const nk = normFn(t.path);
+          if (nk) existingPaths.add(nk);
+        }
         if (t.uri) existingUris.add(t.uri);
         if (t.url && t.url.indexOf('/local-media?') !== -1) {
           try {
             const u = new URL(t.url, 'https://appassets.androidplatform.net');
             const qp = u.searchParams.get('path');
             const qu = u.searchParams.get('uri');
-            if (qp) existingPaths.add(qp);
+            if (qp) {
+              existingPaths.add(qp);
+              const qk = normFn(qp);
+              if (qk) existingPaths.add(qk);
+            }
             if (qu) existingUris.add(qu);
           } catch (_) {}
         }
@@ -20668,9 +20743,17 @@
     function buildExistingFiioTrackMaps() {
       if (activeFiioScanMaps) return activeFiioScanMaps;
       const existingByPath = new Map(), existingByUri = new Map();
+      const normFn = (typeof normalizeFiioPathKey === 'function') ? normalizeFiioPathKey : (p => String(p || '').trim());
       for (let e = 0; e < state.tracks.length; e++) {
         const et = state.tracks[e];
-        if (et) { if (et.path) existingByPath.set(et.path, et); if (et.uri) existingByUri.set(et.uri, et); }
+        if (et) {
+          if (et.path) {
+            existingByPath.set(et.path, et);
+            const nk = normFn(et.path);
+            if (nk && !existingByPath.has(nk)) existingByPath.set(nk, et);
+          }
+          if (et.uri) existingByUri.set(et.uri, et);
+        }
       }
       return { existingByPath: existingByPath, existingByUri: existingByUri };
     }
@@ -21004,6 +21087,7 @@
         }
         if (lowerCheckName.endsWith('.iso') || lowerCheckName.endsWith('.m3u') || lowerCheckName.endsWith('.m3u8')) continue;
         const normPath = file.path ? String(file.path).trim() : '', normUri = file.uri ? String(file.uri).trim() : '';
+        const normPathKey = (typeof prepareNormalizedFiioScanEntry === 'function') ? prepareNormalizedFiioScanEntry(normPath, existingPaths, existingByPath) : '';
         if ((normPath && existingPaths.has(normPath)) || (normUri && existingUris.has(normUri))) {
           const prevTrack = (normPath && existingByPath.get(normPath)) || (normUri && existingByUri.get(normUri)) || null;
           if (prevTrack) {
@@ -21014,6 +21098,7 @@
             const bCov = prevTrack.cover || '', bMeta = (prevTrack.path || '') + '|' + (prevTrack.name || '') + '|' + (prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '') + '|' + (prevTrack.size || 0);
             applyFiioRescanFields(prevTrack, file, normPath, normUri, existingPaths, existingUris, existingByPath, existingByUri);
             if (typeof library !== 'undefined' && library && library.enrichFiioTrackMetadata) library.enrichFiioTrackMetadata(prevTrack);
+            if (normPathKey && normPathKey !== normPath) { existingPaths.add(normPathKey); existingByPath.set(normPathKey, prevTrack); }
             if ((prevTrack.cover || '') !== bCov || ((prevTrack.path || '') + '|' + (prevTrack.name || '') + '|' + (prevTrack.uri || '') + '|' + (prevTrack.artist || '') + '|' + (prevTrack.album || '') + '|' + (prevTrack.albumArtist || '') + '|' + (prevTrack.size || 0)) !== bMeta) fiioScanUpgradedCount++;
           }
           continue;
@@ -21025,6 +21110,7 @@
           }
           state.tracks.push(track);
           if (normPath) { existingPaths.add(normPath); existingByPath.set(normPath, track); }
+          if (normPathKey && normPathKey !== normPath) { existingPaths.add(normPathKey); existingByPath.set(normPathKey, track); }
           if (normUri) { existingUris.add(normUri); existingByUri.set(normUri, track); }
           added++;
         }
@@ -21202,13 +21288,32 @@
       const hasPaths = Boolean(scannedPaths && scannedPaths.size > 0);
       const hasUris = Boolean(scannedUris && scannedUris.size > 0);
       if (!hasPaths && !hasUris && !allowEmptyPrune) return 0;
+      const normFn = (typeof normalizeFiioPathKey === 'function') ? normalizeFiioPathKey : (p => String(p || '').trim());
+      const normalizedScannedPaths = new Set();
       const mountedPrefixes = new Set();
       if (hasPaths) {
         scannedPaths.forEach(function (sp) {
-          const pref = extractStorageRootPrefix(sp);
-          if (pref) mountedPrefixes.add(pref);
+          const nk = normFn(sp);
+          if (nk) normalizedScannedPaths.add(nk);
+          const prefRaw = extractStorageRootPrefix(sp);
+          if (prefRaw) mountedPrefixes.add(prefRaw);
+          const prefNorm = nk ? extractStorageRootPrefix(nk) : '';
+          if (prefNorm) mountedPrefixes.add(prefNorm);
         });
       }
+      const hasScannedPath = function (rawP) {
+        if (!hasPaths || !rawP) return false;
+        if (scannedPaths.has(rawP)) return true;
+        const nk = normFn(rawP);
+        return Boolean(nk && normalizedScannedPaths.has(nk));
+      };
+      const isPrefixMounted = function (rawP) {
+        const prefRaw = extractStorageRootPrefix(rawP);
+        if (prefRaw && mountedPrefixes.has(prefRaw)) return true;
+        const nk = normFn(rawP);
+        const prefNorm = nk ? extractStorageRootPrefix(nk) : '';
+        return Boolean(prefNorm && mountedPrefixes.has(prefNorm));
+      };
       const kept = [];
       const removedTracks = [];
       const prunedCueParentPaths = new Set();
@@ -21234,16 +21339,14 @@
         let keep = true;
         if (t.isCue && t.cueFilePath) {
           const cuePathStr = String(t.cueFilePath).trim();
-          const cuePrefix = extractStorageRootPrefix(cuePathStr);
-          if (cuePrefix && mountedPrefixes.has(cuePrefix) && hasPaths && !scannedPaths.has(cuePathStr)) {
+          if (isPrefixMounted(cuePathStr) && hasPaths && !hasScannedPath(cuePathStr)) {
             keep = false;
-            if (tPath && scannedPaths.has(tPath)) prunedCueParentPaths.add(tPath);
+            if (tPath && hasScannedPath(tPath)) prunedCueParentPaths.add(tPath);
           }
         }
         if (keep && tPath) {
-          const prefix = extractStorageRootPrefix(tPath);
-          if (prefix && mountedPrefixes.has(prefix)) {
-            keep = (hasPaths && scannedPaths.has(tPath)) || Boolean(tUri && hasUris && scannedUris.has(tUri));
+          if (isPrefixMounted(tPath)) {
+            keep = hasScannedPath(tPath) || Boolean(tUri && hasUris && scannedUris.has(tUri));
           }
         } else if (keep && tUri) {
           if (hasUris && !scannedUris.has(tUri)) keep = false;
@@ -21258,12 +21361,23 @@
       if (prunedCueParentPaths.size > 0 && cueParentFilesByPath && cueParentFilesByPath.size > 0) {
         const keptPaths = new Set();
         for (let ki = 0; ki < state.tracks.length; ki++) {
-          if (state.tracks[ki] && state.tracks[ki].path) keptPaths.add(String(state.tracks[ki].path).trim());
+          if (state.tracks[ki] && state.tracks[ki].path) {
+            const rawKeepPath = String(state.tracks[ki].path).trim();
+            keptPaths.add(rawKeepPath);
+            const normKeepPath = normFn(rawKeepPath);
+            if (normKeepPath) keptPaths.add(normKeepPath);
+          }
         }
+        const normalizedCueParentFiles = new Map();
+        cueParentFilesByPath.forEach(function (val, key) {
+          const nk = normFn(key);
+          if (nk && !normalizedCueParentFiles.has(nk)) normalizedCueParentFiles.set(nk, val);
+        });
         const hasFactory = typeof library !== 'undefined' && typeof library.createFiioTrack === 'function';
         prunedCueParentPaths.forEach(function (parentPath) {
-          if (keptPaths.has(parentPath)) return;
-          const fileDesc = cueParentFilesByPath.get(parentPath);
+          const normParentPath = normFn(parentPath);
+          if (keptPaths.has(parentPath) || (normParentPath && keptPaths.has(normParentPath))) return;
+          const fileDesc = cueParentFilesByPath.get(parentPath) || (normParentPath ? normalizedCueParentFiles.get(normParentPath) : null);
           if (!fileDesc) return;
           const restored = hasFactory ? library.createFiioTrack(fileDesc) : (typeof createFiioFallbackTrack === 'function' ? createFiioFallbackTrack(fileDesc) : null);
           if (restored) {
@@ -21272,6 +21386,7 @@
             }
             state.tracks.push(restored);
             keptPaths.add(parentPath);
+            if (normParentPath) keptPaths.add(normParentPath);
           }
         });
       }
@@ -21357,9 +21472,15 @@
           const scannedCueFiles = [];
           const existingCueParentPaths = new Set();
           const cueParentFilesByPath = new Map();
+          const normFn = (typeof normalizeFiioPathKey === 'function') ? normalizeFiioPathKey : (p => String(p || '').trim());
           for (let ei = 0; ei < state.tracks.length; ei++) {
             const et = state.tracks[ei];
-            if (et && et.isCue && et.path) existingCueParentPaths.add(String(et.path).trim());
+            if (et && et.isCue && et.path) {
+              const epRaw = String(et.path).trim();
+              existingCueParentPaths.add(epRaw);
+              const epNorm = normFn(epRaw);
+              if (epNorm) existingCueParentPaths.add(epNorm);
+            }
           }
           if (!silent) toast('Đang quét thư viện nhạc trên máy & thẻ MicroSD...');
 
@@ -21410,7 +21531,10 @@
                     const cPath = cFile.path ? String(cFile.path).trim() : '';
                     if (cPath) {
                       scannedPaths.add(cPath);
-                      if (existingCueParentPaths.has(cPath) && !/\.cue$/i.test(cPath)) cueParentFilesByPath.set(cPath, cFile);
+                      const cNorm = normFn(cPath);
+                      if ((existingCueParentPaths.has(cPath) || (cNorm && existingCueParentPaths.has(cNorm))) && !/\.cue$/i.test(cPath)) {
+                        cueParentFilesByPath.set(cPath, cFile);
+                      }
                     }
                     if (cFile.uri) scannedUris.add(String(cFile.uri).trim());
                   }
@@ -21502,16 +21626,36 @@
         }
 
         const seenPaths = new Set();
+        const seenNormalizedPaths = new Set();
         const seenUris = new Set();
         const uniqueFiles = [];
+        const legacyCueParentPaths = new Set();
+        const legacyCueParentFiles = new Map();
+        const normFn = (typeof normalizeFiioPathKey === 'function') ? normalizeFiioPathKey : (p => String(p || '').trim());
+        for (let ei = 0; ei < state.tracks.length; ei++) {
+          const et = state.tracks[ei];
+          if (et && et.isCue && et.path) {
+            const epRaw = String(et.path).trim();
+            legacyCueParentPaths.add(epRaw);
+            const epNorm = normFn(epRaw);
+            if (epNorm) legacyCueParentPaths.add(epNorm);
+          }
+        }
         for (let fi = 0; fi < allFiles.length; fi++) {
           const f = allFiles[fi];
           if (!f || (!f.path && !f.uri)) continue;
           const normPath = f.path ? String(f.path).trim() : '';
+          const normPathKey = normPath ? normFn(normPath) : '';
           const normUri = f.uri ? String(f.uri).trim() : '';
-          if (normPath && seenPaths.has(normPath)) continue;
+          if (normPath && (seenPaths.has(normPath) || (normPathKey && seenNormalizedPaths.has(normPathKey)))) continue;
           if (normUri && seenUris.has(normUri)) continue;
-          if (normPath) seenPaths.add(normPath);
+          if (normPath) {
+            seenPaths.add(normPath);
+            if (normPathKey) seenNormalizedPaths.add(normPathKey);
+            if ((legacyCueParentPaths.has(normPath) || (normPathKey && legacyCueParentPaths.has(normPathKey))) && !/\.cue$/i.test(normPath)) {
+              legacyCueParentFiles.set(normPath, f);
+            }
+          }
           if (normUri) seenUris.add(normUri);
           uniqueFiles.push(f);
         }
@@ -21532,7 +21676,9 @@
 
         fiioScanInProgress = false;
         activeFiioScanMaps = null;
-        const removedLegacy = (seenPaths.size > 0 || seenUris.size > 0 || allowEmptyPrune) ? pruneMissingFiioTracks(seenPaths, seenUris) : 0;
+        const removedLegacy = (seenPaths.size > 0 || seenUris.size > 0 || allowEmptyPrune)
+          ? pruneMissingFiioTracks(seenPaths, seenUris, { allowEmptyPrune: allowEmptyPrune, cueParentFilesByPath: legacyCueParentFiles })
+          : 0;
         finalizeFiioScanUi(uniqueFiles.length, addedCount, silent, silentIfEmpty, removedLegacy);
         if (typeof flushPendingFiioHotplugRescan === 'function') flushPendingFiioHotplugRescan();
       } catch (err) {

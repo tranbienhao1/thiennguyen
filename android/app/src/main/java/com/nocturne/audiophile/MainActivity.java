@@ -1906,14 +1906,19 @@ public class MainActivity extends AppCompatActivity {
                             channel.position(targetPos);
                             positioned = true;
                         }
-                    } catch (IOException ignored) {
-                        // Pipe-backed ContentProvider does not support FileChannel.position(); fall back to stream skip
+                    } catch (Exception ignored) {
+                        // Pipe-backed or FUSE-wrapped ContentProvider may reject FileChannel/position(); fall back to stream skip
                     }
                     if (!positioned) {
                         long toSkip = start;
                         byte[] skipBuf = new byte[8192];
                         while (toSkip > 0) {
-                            long skipped = this.mFis.skip(toSkip);
+                            long skipped = 0;
+                            try {
+                                skipped = this.mFis.skip(toSkip);
+                            } catch (IOException ignored) {
+                                skipped = 0;
+                            }
                             if (skipped > 0) {
                                 toSkip -= skipped;
                             } else {
@@ -1993,11 +1998,16 @@ public class MainActivity extends AppCompatActivity {
                         }
                         return 0;
                     }
-                } catch (IOException ignored) {}
+                } catch (Exception ignored) {}
                 long skipped = 0;
                 byte[] buf = new byte[(int) Math.min(8192L, toSkip)];
                 while (skipped < toSkip && !mClosed) {
-                    long s = mFis.skip(toSkip - skipped);
+                    long s = 0;
+                    try {
+                        s = mFis.skip(toSkip - skipped);
+                    } catch (IOException ignored) {
+                        s = 0;
+                    }
                     if (s > 0) {
                         skipped += s;
                     } else {
@@ -3269,6 +3279,8 @@ public class MainActivity extends AppCompatActivity {
                 if (parsedRange[2] == 0L) {
                     Map<String, String> respHeaders = buildLocalMediaCorsHeaders();
                     respHeaders.put("Content-Range", "bytes */" + fileLength);
+                    respHeaders.put("Content-Length", "0");
+                    respHeaders.put("Accept-Ranges", "bytes");
                     return new WebResourceResponse("text/plain", "UTF-8", 416, "Range Not Satisfiable", respHeaders,
                             new ByteArrayInputStream(new byte[0]));
                 }
@@ -3376,6 +3388,8 @@ public class MainActivity extends AppCompatActivity {
                 try { afd.close(); } catch (IOException ignored) {}
                 Map<String, String> respHeaders = buildLocalMediaCorsHeaders();
                 respHeaders.put("Content-Range", "bytes */" + totalLength);
+                respHeaders.put("Content-Length", "0");
+                respHeaders.put("Accept-Ranges", "bytes");
                 return new WebResourceResponse("text/plain", "UTF-8", 416, "Range Not Satisfiable", respHeaders,
                         new ByteArrayInputStream(new byte[0]));
             }
@@ -5848,11 +5862,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.76";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.77";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.76\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.77\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

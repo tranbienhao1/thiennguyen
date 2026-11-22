@@ -80,20 +80,19 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.76';
-  const name = process.argv[3] || `Nocturne ${tag} (Web Gapless Clone & CUE Preload Continuity + Cloud Slice Cache Invalidation + FiiO Storage Scan Path Dedup & CUE Move Guard)`;
+  const tag = process.argv[2] || 'v3.9.77';
+  const name = process.argv[3] || `Nocturne ${tag} (DSD Worker & Fetch Cancellation on Fast Source Switch + Android /local-media SAF Pipe/416 Range Resilience + FiiO /sdcard Normalization)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 130) — Liên tục phát Gapless khi đổi \`sampleRate\` & Preload CUE + Xóa cache Cloud bền bỉ & Khử trùng lặp quét bộ nhớ FiiO/Android
+    : `### Nocturne ${tag} (versionCode 131) — Dọn dẹp giải mã DSD khi chuyển nguồn nhanh + Phục hồi seek Range SAF & Chuẩn hóa đường dẫn FiiO/Android
 
-#### 1. Phát Gapless, đổi \`sampleRate\` Web & Preload CUE liền mạch (\`index.html\`)
-- **\`attachAudioElement\` & \`playTrack\`**: Khi \`AudioContext\` khởi tạo lại theo \`sampleRate\` mới (44.1kHz <-> 96kHz/192kHz) và nhân bản \`standbyAudio\`, tự dọn \`preloadReadyUrl\` cũ nếu \`readyState < 2\` và gọi \`clone.load()\` cho nguồn đang gắn (bổ sung guard \`readyState === 0 && networkState === 0\` trong \`playTrack\`) để không bị treo im lặng sau khi đổi DAC/tần số lấy mẫu.
-- **\`preloadNext\` & \`seekPreloadedCueStandby\`**: Giữ nguyên bộ đệm \`standbyAudio\` khỏe mạnh cùng bài kế khi \`preloadNext(true)\` kích hoạt lại (trộn bài/cập nhật hàng đợi) mà vẫn làm mới token Cloud gần hết hạn, đồng thời tự tua sẵn về \`cueStart > 0\` khi nạp trước đĩa CUE khác tệp.
+#### 1. Hủy đồng bộ tải & Worker DSD khi chuyển bài/nguồn nhanh (\`index.html\`)
+- **\`playTrack\`, \`stopDsdWorker\` & \`playDsdTrack\`**: Hủy \`_dsdFetchAbort\` ngay khi chuyển rời bài DSD Cloud đang tải, dọn sạch \`_pendingSeekAfterFullUpgrade\`, \`sliceEndedEarly\`, \`fullAudioPromise\` (\`_dsdFullResolve\`) và dừng ngay Worker lệch \`playGeneration\` kể cả khi lát đầu \`state.dsdUrl\` chưa kịp tạo, không làm tắt nhầm trạng thái đang tải của bài kế tiếp.
 
-#### 2. Dọn \`firstSliceCache\` bền bỉ khi bài Cloud đổi nội dung & Khử trùng lặp quét Android (\`index.html\`, \`MainActivity.java\`)
-- **\`deleteCachedFirstSlice\` & \`invalidateCloudTrackContent\`**: Bổ sung fallback \`openDatabase()\` khi \`state.db\` chưa mở hoặc đã đóng, đồng thời dọn sạch \`_loadedFromSliceCache\`, \`sliceEndedEarly\` và URL CDN OneDrive cũ (\`downloadUrl\`/\`downloadUrlAt\`) khi tệp Cloud thay đổi phiên bản.
-- **\`reconcileMovedFiioTracks\` & \`normalizeStorageScanPathKey\` (\`MainActivity.java\`)**: Chặn ghép nhầm bài con CUE với tệp mẹ nguyên bản cùng dung lượng, giữ nguyên \`discNumber\`/\`trackNumber\`/\`year\` khi chuyển đường dẫn, và chuẩn hóa khóa đường dẫn \`/sdcard\` ↔ \`/storage/emulated/0\` cùng \`canonicalPath\` trong \`startAsyncStorageScan\` để không quét trùng giữa MediaStore và thẻ MicroSD.
+#### 2. Phục hồi seek Range SAF/MediaStore & Chuẩn hóa đường dẫn quét nội bộ FiiO (\`MainActivity.java\`, \`index.html\`)
+- **\`BoundedContentUriInputStream\` & HTTP \`416\` (\`MainActivity.java\`)**: Chuyển \`catch\` khi truy cập \`FileChannel\` / \`mFis.skip()\` trên \`AssetFileDescriptor\` SAF sang fallback đọc tuần tự an toàn trước \`UnsupportedOperationException\` / \`ESPIPE\`, đồng thời bổ sung \`Content-Length: 0\` và \`Accept-Ranges: bytes\` cho phản hồi \`416 Range Not Satisfiable\`.
+- **\`normalizeFiioPathKey\` & \`scanFiioStorage\` (\`index.html\`)**: Chuẩn hóa ánh xạ \`/sdcard\` ↔ \`/storage/emulated/0\` và chữ hoa/thường dưới \`/storage/\`, \`/mnt/media_rw/\` xuyên suốt \`buildExistingFiioTrackSets\`, \`buildExistingFiioTrackMaps\`, \`ingestFiioScannedFilesChunk\`, \`pruneMissingFiioTracks\` và nhánh quét dự phòng cũ (kèm khôi phục tệp mẹ khi xóa \`.cue\`).
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
