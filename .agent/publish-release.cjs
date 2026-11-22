@@ -80,22 +80,25 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.86';
-  const name = process.argv[3] || `Nocturne ${tag} (Multi-Folder Saved Permission Recovery + Seamless Bit-Perfect-to-Web Position Handoff + Google Drive Full-Rescan Move/LRC Parity + Desktop & Listening Room Chrome E2E)`;
+  const tag = process.argv[2] || 'v3.9.87';
+  const name = process.argv[3] || `Nocturne ${tag} (Web->Bit-Perfect Position Handoff + Android SAF Permission Recovery + OneDrive Full-Rescan Move/Rename Parity + Prev/Queue Chrome E2E)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 140) — Khôi phục quyền đa thư mục cục bộ + Chuyển mượt Bit-Perfect sang Web Audio giữ đúng vị trí phát + Đồng bộ di chuyển/đổi tên Google Drive khi Full Rescan
+    : `### Nocturne ${tag} (versionCode 141) — Chuyển mượt Web Audio sang Bit-Perfect giữ đúng vị trí + Tự phục hồi quyền SAF Android + Đồng bộ di chuyển/đổi tên OneDrive khi Full Rescan
 
-#### 1. Khôi phục quyền đa thư mục cục bộ Web (\`reopenSavedFolderRecord\` & \`reopenSavedFolder\`)
-- Truyền đúng \`silentIfGranted\` cho cả các thư mục đã lưu thứ hai trở đi khi người dùng chủ động bấm **Mở lại thư mục đã lưu**, giúp mọi thư mục con đều được xin cấp lại quyền \`handle.requestPermission\` thay vì bị bỏ qua âm thầm.
-- Tự động xóa cờ lỗi \`_localAccessError\` ngay khi quyền đọc được cấp lại, không làm gián đoạn hoặc kẹt bài đang phát.
+#### 1. Chuyển mượt Web Audio -> Native Bit-Perfect giữ đúng vị trí phát (\`applyBitPerfectMode\` & \`playTrack\`)
+- Khi bật chế độ Bit-Perfect trong lúc Web Audio đang phát bài hợp lệ trên FiiO/Android (\`isTrackRoutedToNativeBitPerfect\`), tự động ghi lại giây phát hiện tại (\`_resumeAfterBpFallbackSec\`), tạm dừng HTML5 Audio và kích hoạt Native Bit-Perfect tại đúng vị trí phát.
+- Khởi tạo \`playTrack\` Native Bit-Perfect ưu tiên seek chính xác tới \`_resumeAfterBpFallbackSec\` khi chuyển từ Web Audio sang (vẫn bảo toàn hoàn toàn logic \`cueStartSec\` cho đĩa CUE).
 
-#### 2. Chuyển mượt từ Native Bit-Perfect về Web Audio & Giữ đúng vị trí phát (\`applyBitPerfectMode\`)
-- Khi tắt chế độ Bit-Perfect trong lúc đang phát nhạc trên FiiO/Android (\`state.isNativeBitPerfectPlaying\`), ghi lại chính xác \`lastBitPerfectPositionSec\` vào \`_resumeAfterBpFallbackSec\` và tự động nối tiếp sang Web Audio tại đúng giây hiện tại (nếu đang tạm dừng thì giữ nguyên trạng thái tạm dừng).
+#### 2. Tự phục hồi ảnh bìa & cờ lỗi truy cập khi cấp lại quyền SAF Android (\`onAndroidStoragePermissionGranted\`)
+- Xóa bộ đệm ảnh bìa lỗi (\`failedNativeCovers.clear()\`) và gỡ bỏ cờ \`_localAccessError\` / \`_pathFallbackRetriedGen\` trên các bài \`fiio\` / \`local\` ngay khi người dùng cấp lại quyền lưu trữ Android.
 
-#### 3. Google Drive Full-Rescan Move & Rename Parity (\`applyGoogleScanUpdate\`)
-- Cập nhật \`existing.parents\` mỗi khi tệp di chuyển sang thư mục mới (thay vì chỉ gán khi mảng cũ rỗng), làm mới bộ đệm ảnh bìa thư mục (\`checkedGoogleArtParents\`), mở khóa lại \`_checkedDriveLrc\` và phân tích lại \`discNumber\` / \`trackNumber\` khi tệp đổi tên.
+#### 3. Đồng bộ di chuyển/đổi tên OneDrive khi Full Rescan (\`loadMicrosoftFiles\`)
+- Cập nhật \`remoteParentId\`, xóa \`remoteDriveId\` cũ khi tệp chuyển từ thư mục chia sẻ về OneDrive cá nhân, đánh dấu \`_needsFolderCoverRefresh\` khi đổi đường dẫn và trích xuất lại \`discNumber\` / \`trackNumber\` khi di chuyển hoặc đổi tên tệp (không làm thay đổi truy vấn \`$select\`).
+
+#### 4. Mở rộng kiểm thử Chrome thực (CDP E2E)
+- Kiểm chứng thêm nút Previous (\`#previous-button\`) quay lại Track 1 và đóng/mở bảng Hàng đợi phát (\`#queue-button\`) không phát sinh lỗi JS.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
