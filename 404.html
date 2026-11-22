@@ -2367,7 +2367,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.84</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.85</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3924,6 +3924,22 @@
         cloudMetadataQueue.push(track);
       }
       runCloudMetadataQueue();
+    }
+    function resetCloudMetadataRetryForSource(source) {
+      if (!source || !state || !Array.isArray(state.tracks)) return 0;
+      cloudMetadataPausedUntil = 0;
+      let resetCount = 0;
+      for (let i = 0; i < state.tracks.length; i++) {
+        const tr = state.tracks[i];
+        if (!tr || tr.source !== source || (tr.metadataLoaded && tr.cover)) continue;
+        if (tr.metadataRetryAt || tr.thumbnailRetryAt || tr._metaRateLimitRetries) {
+          tr.metadataRetryAt = 0;
+          tr.thumbnailRetryAt = 0;
+          tr._metaRateLimitRetries = 0;
+          resetCount++;
+        }
+      }
+      return resetCount;
     }
     const pendingCloudCatalogPersistMap = new Map();
     let pendingCloudCatalogPersistTimer = null;
@@ -8184,6 +8200,13 @@
       if (vTrack.cover && typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(vTrack.cover, vTrack);
       return vTrack;
     }
+    const normalizeCueNfc = s => {
+      const raw = String(s || '');
+      if (typeof raw.normalize === 'function') {
+        try { return raw.normalize('NFC'); } catch (_) {}
+      }
+      return raw;
+    };
     const localFileKey = file => `${file.relativePath || file.webkitRelativePath || file.name}-${file.size}`;
     async function addLocalFiles(files) {
       const opts = (arguments[1] && typeof arguments[1] === 'object') ? arguments[1] : {};
@@ -8247,16 +8270,16 @@
           const parsedTracks = library.parseCueSheet(cueText);
           if (!parsedTracks || !parsedTracks.length) continue;
 
-          const cueFullPath = String(cueFile.relativePath || cueFile.webkitRelativePath || cueFile.name || '').replace(/\\/g, '/');
+          const cueFullPath = normalizeCueNfc(cueFile.relativePath || cueFile.webkitRelativePath || cueFile.name || '').replace(/\\/g, '/');
           const cueSlashIdx = cueFullPath.lastIndexOf('/');
           const cueDir = cueSlashIdx > 0 ? cueFullPath.slice(0, cueSlashIdx).toLowerCase() : '';
-          const cueBase = cueFile.name.replace(/\.[^.]+$/, '').toLowerCase();
+          const cueBase = normalizeCueNfc(cueFile.name).replace(/\.[^.]+$/, '').toLowerCase();
           const cueBaseClean = cueBase.replace(/\.(flac|wav|ape|wv|m4a|alac|aiff|aif|mp3|ogg|opus|dsf|dff)$/i, '');
-          const normCueFileKey = f => String(f || '').replace(/\\/g, '/').trim().toLowerCase();
+          const normCueFileKey = f => normalizeCueNfc(f || '').replace(/\\/g, '/').trim().toLowerCase();
           const distinctCueFiles = new Set(parsedTracks.map(pt => normCueFileKey((pt && pt.file) || parsedTracks.file || '')).filter(Boolean));
           const isMultiFileCue = Boolean(parsedTracks.isMultiFile || distinctCueFiles.size > 1);
           const getFileDirLower = f => {
-            const fp = String((f && (f.relativePath || f.webkitRelativePath || f.name)) || '').replace(/\\/g, '/');
+            const fp = normalizeCueNfc((f && (f.relativePath || f.webkitRelativePath || f.name)) || '').replace(/\\/g, '/');
             const s = fp.lastIndexOf('/');
             return s > 0 ? fp.slice(0, s).toLowerCase() : '';
           };
@@ -8268,11 +8291,11 @@
           const resolveCueTarget = async (rawTarget, skipParse) => {
             const fileKey = normCueFileKey(rawTarget || parsedTracks.file || '');
             if (resolvedByFileKey.has(fileKey)) return resolvedByFileKey.get(fileKey);
-            const rawNorm = String(rawTarget || parsedTracks.file || '').replace(/\\/g, '/');
+            const rawNorm = normalizeCueNfc(rawTarget || parsedTracks.file || '').replace(/\\/g, '/');
             const targetFilename = (rawNorm.indexOf('/') >= 0 ? rawNorm.slice(rawNorm.lastIndexOf('/') + 1) : rawNorm).toLowerCase();
             const targetBase = targetFilename.replace(/\.[^.]+$/, '');
             const matchesCueName = f => {
-              const fname = String((f && f.name) || '').toLowerCase();
+              const fname = normalizeCueNfc((f && f.name) || '').toLowerCase();
               const fbase = fname.replace(/\.[^.]+$/, '');
               return (targetFilename && fname === targetFilename) || (targetBase && fbase === targetBase) || (!isMultiFileCue && (fbase === cueBase || (cueBaseClean && fbase === cueBaseClean)));
             };
@@ -16788,6 +16811,7 @@
                 localStorage.setItem('nocturne-google-token', state.googleToken);
                 localStorage.setItem('nocturne-google-token-expires', String(state.googleExpiresAt));
               } catch (_) {}
+              if (typeof resetCloudMetadataRetryForSource === 'function') resetCloudMetadataRetryForSource('google');
               if (googleOAuthRefreshScheduler) googleOAuthRefreshScheduler.scheduleRefresh(state.googleExpiresAt);
               finish(resolve, state.googleToken);
             },
@@ -18125,6 +18149,11 @@
           state.microsoftExpiresAt = result.expiresOn.getTime();
           if (microsoftOAuthRefreshScheduler) microsoftOAuthRefreshScheduler.scheduleRefresh(state.microsoftExpiresAt);
         }
+        try {
+          localStorage.setItem('nocturne-microsoft-token', state.microsoftAccessToken);
+          if (state.microsoftExpiresAt) localStorage.setItem('nocturne-microsoft-token-expires', String(state.microsoftExpiresAt));
+        } catch (_) {}
+        if (typeof resetCloudMetadataRetryForSource === 'function') resetCloudMetadataRetryForSource('onedrive');
         return state.microsoftAccessToken;
       };
       if (!interactive) {
@@ -19992,6 +20021,7 @@
         localStorage.setItem('nocturne-google-token', token);
         localStorage.setItem('nocturne-google-token-expires', String(state.googleExpiresAt));
       } catch (_) {}
+      if (typeof resetCloudMetadataRetryForSource === 'function') resetCloudMetadataRetryForSource('google');
       cloudStatus('google', 'Đang quét Google Drive bằng token…', 'text-sky-300');
       await loadGoogleFiles();
       cloudStatus('google', 'Đã đồng bộ Google Drive', 'text-emerald-300');
@@ -20051,6 +20081,7 @@
         localStorage.setItem('nocturne-microsoft-token', token);
         localStorage.setItem('nocturne-microsoft-token-expires', String(state.microsoftExpiresAt));
       } catch (_) {}
+      if (typeof resetCloudMetadataRetryForSource === 'function') resetCloudMetadataRetryForSource('onedrive');
       cloudStatus('microsoft', 'Đang quét OneDrive bằng token…', 'text-sky-300');
       await loadMicrosoftFiles(token);
       cloudStatus('microsoft', 'OneDrive đã đồng bộ', 'text-emerald-300');
@@ -21080,13 +21111,20 @@
         }
       }
 
+      const normNfc = v => {
+        const raw = String(v || '');
+        if (typeof raw.normalize === 'function') {
+          try { return raw.normalize('NFC'); } catch (_) {}
+        }
+        return raw;
+      };
       const normDir = p => {
-        const s = String(p || '').replace(/\\/g, '/');
+        const s = normNfc(p).replace(/\\/g, '/');
         const idx = s.lastIndexOf('/');
         return idx > 0 ? s.slice(0, idx).toLowerCase() : '';
       };
       const normName = p => {
-        const s = String(p || '').replace(/\\/g, '/');
+        const s = normNfc(p).replace(/\\/g, '/');
         const idx = s.lastIndexOf('/');
         return (idx >= 0 ? s.slice(idx + 1) : s).toLowerCase();
       };

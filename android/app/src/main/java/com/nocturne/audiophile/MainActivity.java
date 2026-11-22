@@ -4522,7 +4522,8 @@ public class MainActivity extends AppCompatActivity {
                     Uri parsedUri = Uri.parse(trimmedUrl);
                     fileName = parsedUri.getQueryParameter("name");
                     if (fileName == null || fileName.isEmpty()) {
-                        String p = parsedUri.getQueryParameter("path");
+                        String p = extractLocalMediaQueryParam(parsedUri, "path");
+                        if (p == null) p = parsedUri.getQueryParameter("path");
                         if (p != null && !p.isEmpty()) fileName = new File(p).getName();
                     }
                 }
@@ -4858,8 +4859,10 @@ public class MainActivity extends AppCompatActivity {
                 if (resolvedPath.contains("/local-media?")) {
                     try {
                         Uri parsedLocal = Uri.parse(resolvedPath);
-                        String qUri = parsedLocal.getQueryParameter("uri");
-                        String qPath = parsedLocal.getQueryParameter("path");
+                        String qUri = extractLocalMediaQueryParam(parsedLocal, "uri");
+                        if (qUri == null) qUri = parsedLocal.getQueryParameter("uri");
+                        String qPath = extractLocalMediaQueryParam(parsedLocal, "path");
+                        if (qPath == null) qPath = parsedLocal.getQueryParameter("path");
                         if (qUri != null && !qUri.isEmpty()) {
                             resolvedUri = qUri;
                         } else if (qPath != null && !qPath.isEmpty()) {

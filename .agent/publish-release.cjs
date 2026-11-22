@@ -80,19 +80,19 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.84';
-  const name = process.argv[3] || `Nocturne ${tag} (Cloud First-Slice Retry Concurrency & Skip Guard + Headset/DAC Unplug Pause Safety During Slice Upgrade, DSD Decode & Native MediaSession Sync)`;
+  const tag = process.argv[2] || 'v3.9.85';
+  const name = process.argv[3] || `Nocturne ${tag} (Bit-Perfect Literal '+'/'%' Path Fix + Unicode NFC/NFD Multi-File CUE Matching + Instant Cloud Metadata Retry Unlock on Re-Auth)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 138) — Chống chạy song song khi thử lại First-Slice Cloud + Bảo vệ tạm dừng hoàn hảo khi rút tai nghe / USB DAC (Web Audio, DSD & Native Bit-Perfect)
+    : `### Nocturne ${tag} (versionCode 139) — Vá lỗi đường dẫn chứa '+'/'%' trên Bit-Perfect Android + Khớp tệp .CUE chuẩn Unicode NFC/NFD + Mở khóa tải Metadata Cloud tức thì khi đăng nhập lại
 
-#### 1. Chống đua lệnh & tải thừa khi tua bài sâu trên mạng yếu (\`index.html\`)
-- **\`retryPendingCurrentSliceUpgrade()\` & \`applySmartSeekTime()\`**: Bổ sung khóa \`_retryingSliceUpgrade\` chống gọi trùng song song trong lúc làm mới token Google Drive / URL tải OneDrive; sau khi chờ mạng xong sẽ kiểm tra lại đúng \`state.currentId\` và \`audio.src\` trước khi khởi chạy \`upgradeSliceToFullAudio\`, ngăn tải thừa tệp FLAC 60MB cho bài đã bỏ qua; đồng thời giữ đúng mốc tua đích \`_pendingSeekAfterFullUpgrade\` ngay khi đang thử lại.
+#### 1. Phát nhạc cục bộ & Tệp .CUE chứa ký tự đặc biệt (\`MainActivity.java\` + \`index.html\`)
+- **Sửa lỗi Bit-Perfect làm hỏng ký tự \`+\` thành khoảng trắng (\`MainActivity.java\`)**: Chuyển bộ phân giải \`/local-media?\` trong \`BitPerfectAudioPlayer\` sang \`extractLocalMediaQueryParam(parsedLocal, "path" / "uri")\` thay vì \`Uri.getQueryParameter()\`, giúp mở trọn vẹn mọi tệp/thư mục FLAC/WAV/DSD có dấu \`+\`, \`%\`, \`#\` (VD: *Florence + The Machine*, *24-Bit + Hi-Res*).
+- **Chuẩn hóa Unicode NFC khi khớp tệp \`.cue\` (\`addLocalFiles\` & \`expandFiioScannedCueSheets\`)**: Đảm bảo tệp \`.cue\` đơn hoặc nhiều tệp (\`multi-file CUE\`) có tên tiếng Việt/Nhật dạng NFD (macOS) khớp chính xác 100% với tệp âm thanh NFC trên Windows & Android/FiiO M11S.
 
-#### 2. An toàn tuyệt đối khi rút tai nghe 3.5mm / USB DAC / Bluetooth (\`index.html\` + \`MainActivity.java\`)
-- **\`window.onAndroidAudioBecomingNoisy()\`**: Nhận diện cả lúc đang nâng cấp \`First-Slice -> Full Audio\` (\`_upgradingFullAudio\`) và lúc đang nạp bài (\`state.isPlaybackLoading\`), gắn cờ \`_userPausedDuringUpgrade = true\` để ngăn nhạc bật ra loa ngoài sau khi rút tai nghe; bảo toàn \`state.dsdWorker\` khi lát DSD đã phát (không hủy phiên DSD khi tạm dừng); gọi \`updatePositionState(true)\` khóa đúng vị trí trên màn hình khóa/AVRCP.
-- **\`MainActivity.triggerAudioBecomingNoisy()\`**: Chủ động gọi \`syncAudioFocusNativeUiAndMediaSession(false)\` khi tạm dừng Native Bit-Perfect, đảm bảo thông báo và \`MediaSession\` chuyển ngay sang \`STATE_PAUSED\` ngay cả khi tắt màn hình / WebView ở nền.
+#### 2. Mở khóa tải lại Metadata & Ảnh bìa Cloud tức thì sau khi đăng nhập lại (\`index.html\`)
+- **\`resetCloudMetadataRetryForSource(source)\`**: Khi kết nối lại Google Drive hoặc OneDrive (qua OAuth, MSAL hoặc Access Token), tự động xóa thời gian chờ 60 phút (\`metadataRetryAt\`, \`thumbnailRetryAt\`, \`cloudMetadataPausedUntil\`) cho các bài chưa tải đủ tag/bìa, đồng thời lưu \`nocturne-microsoft-token\` / \`nocturne-microsoft-token-expires\` ngay trong \`getMicrosoftToken\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
