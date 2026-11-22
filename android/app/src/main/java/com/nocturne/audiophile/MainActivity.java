@@ -4808,7 +4808,11 @@ public class MainActivity extends AppCompatActivity {
             }
             try { built.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
             applyApi34BitPerfectMode(built);
-            notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, targetDevice);
+            AudioDeviceInfo reportedDevice = targetDevice;
+            if (reportedDevice == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try { reportedDevice = built.getRoutedDevice(); } catch (Throwable ignored) {}
+            }
+            notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, reportedDevice);
             return built;
         }
 

@@ -80,24 +80,24 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.90';
-  const name = process.argv[3] || `Nocturne ${tag} (Per-Source Cloud Catalog Cleanup + Native Bit-Perfect Locked HUD Sync + Drag-and-Drop Multi-Folder Hygiene + Mini Player HUD E2E)`;
+  const tag = process.argv[2] || 'v3.9.91';
+  const name = process.argv[3] || `Nocturne ${tag} (UI Cloud Disconnect Wiring + FiiO DAC Reconnect Telemetry + Web Multi-Folder LRC/Cover Parity + Queue/Resume Chrome E2E)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 144) — Dọn sạch từng nguồn Cloud độc lập + Đồng bộ HUD Native Bit-Perfect USB DAC + Lọc thư mục kéo-thả & Mini Player HUD E2E
+    : `### Nocturne ${tag} (versionCode 145) — Ngắt kết nối Google Drive / OneDrive độc lập + Telemetry USB DAC + Khớp LRC/Cover kéo-thả đa thư mục & Queue/Resume Chrome E2E
 
-#### 1. Dọn sạch từng nguồn Cloud độc lập (\`clearCloudSourceCatalog\`)
-- Thêm \`clearCloudSourceCatalog('google' | 'onedrive')\` xóa toàn bộ bài, \`catalog\` IndexedDB, lát đệm \`firstSliceCache\`, con trỏ Delta/Checkpoint và \`checkedGoogleArtParents\` của riêng nguồn bị ngắt mà vẫn bảo toàn tuyệt đối các nguồn khác & Local/FiiO, đồng thời thu hồi ảnh bìa mồ côi qua \`pruneOrphanedAlbumCovers()\`.
+#### 1. Giao diện Ngắt kết nối từng nguồn Cloud độc lập (\`disconnectCloudSource\`)
+- Bổ sung nút \`#google-disconnect\` và \`#microsoft-disconnect\` trong Cài đặt, nối trực tiếp vào \`disconnectCloudSource('google' | 'onedrive')\` để hủy token, xóa lịch làm mới OAuth, đặt lại trạng thái UI và gọi \`clearCloudSourceCatalog\` mà không làm mất nhạc của nguồn khác hoặc FiiO/Nội bộ.
 
-#### 2. Đồng bộ trực tiếp thông số khóa phần cứng Android USB DAC (\`onBitPerfectFormatLocked\`)
-- Khi Android Native khóa \`sampleRate\`/\`bitDepth\` qua \`BitPerfectAudioPlayer\`, cập nhật tức thì \`#quality-badge\`, \`#mobile-quality\`, \`#room-quality\`, \`#fs-room-quality-badge\`, bổ sung thông số thiếu cho track hiện tại và làm mới Mini Player HUD.
+#### 2. Telemetry USB DAC FiiO M11S & HUD khi tạm dừng (\`getRoutedDevice\`, \`onBitPerfectFormatLocked\`)
+- \`createAndConfigureBitPerfectAudioTrack\` tự động truy vấn \`built.getRoutedDevice()\` làm nhãn thiết bị khi chuyển mạch đầu ra, đồng thời \`onBitPerfectFormatLocked\` cập nhật HUD cả khi đang tạm dừng sau rút/cắm DAC và \`applyBitPerfectMode(false)\` đặt lại \`bitPerfectLockedFormat\`.
 
-#### 3. Vệ sinh thư mục hệ thống & tệp ma macOS khi kéo-thả đa thư mục trên Web (\`drop\`)
-- Tự động bỏ qua \`__MACOSX\`, \`.git\`, \`@eaDir\`, \`$RECYCLE.BIN\`, \`node_modules\` và tệp AppleDouble \`._*\` trong luồng kéo-thả nhiều thư mục chứa \`.cue\`/\`.lrc\`.
+#### 3. Khớp \`.lrc\` & ảnh bìa thư mục kéo-thả đa thư mục Unicode trên Web
+- Bổ sung nhánh dự phòng \`findLocalCueLrcFile\` cho file nhạc thường có tên \`.lrc\` lệch nhẹ hoặc đánh số đĩa, và chuẩn hóa Unicode NFC + chữ hoa/thường trong \`lookupLocalFolderCover\`.
 
 #### 4. Mở rộng Chrome thật (CDP E2E)
-- Kiểm chứng trực tiếp \`#mini-player-toggle\` mở \`#mini-player-hud\`, phát/tạm dừng qua \`#mini-play\`, chuyển bài qua \`#mini-next\` và đóng HUD với \`0\` lỗi JS.
+- Kiểm chứng thêm/xóa bài trực tiếp trong \`#queue-panel\` và khôi phục banner phiên phát \`#resume-session-banner\` -> \`#resume-session-play\` sau \`Page.reload\` với \`0\` lỗi JS.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
