@@ -1429,6 +1429,36 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void syncAudioFocusNativeUiAndMediaSession(final boolean isPlaying) {
+        try {
+            if (mBitPerfectPlayer != null) {
+                long bpPos = mBitPerfectPlayer.getPositionMs();
+                if (bpPos >= 0L) mLastMediaPositionMs = bpPos;
+                long bpDur = mBitPerfectPlayer.getDurationMs();
+                if (bpDur > 0L) mLastMediaDurationMs = bpDur;
+            }
+            if (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) {
+                runOnUiThread(() -> {
+                    try {
+                        showMediaNotification(mLastMediaTitle, mLastMediaArtist, mLastMediaAlbum, isPlaying);
+                    } catch (Throwable ignored) {}
+                });
+            }
+        } catch (Throwable ignored) {}
+        if (mWebView != null) {
+            final long syncPos = (mBitPerfectPlayer != null) ? mBitPerfectPlayer.getPositionMs() : -1L;
+            final long syncDur = (mBitPerfectPlayer != null) ? mBitPerfectPlayer.getDurationMs() : 0L;
+            mWebView.post(() -> {
+                if (mWebView == null) return;
+                String js = "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(" + (isPlaying ? "true" : "false") + ");";
+                if (isPlaying && syncPos >= 0L) {
+                    js += " if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + syncPos + ", " + syncDur + ");";
+                }
+                mWebView.evaluateJavascript(js, null);
+            });
+        }
+    }
+
     /**
      * Request Audio Focus for bit-perfect/exclusive media playback
      */
@@ -1471,11 +1501,7 @@ public class MainActivity extends AppCompatActivity {
                                     // triggers AUDIOFOCUS_LOSS here and would self-pause WebView playback!
                                     if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
                                         mBitPerfectPlayer.pause();
-                                        if (mWebView != null) {
-                                            mWebView.post(() -> mWebView.evaluateJavascript(
-                                                    "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
-                                                    null));
-                                        }
+                                        syncAudioFocusNativeUiAndMediaSession(false);
                                     }
                                     break;
                                 case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
@@ -1483,11 +1509,7 @@ public class MainActivity extends AppCompatActivity {
                                     if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
                                         mPausedByTransientFocusLoss = true;
                                         mBitPerfectPlayer.pause();
-                                        if (mWebView != null) {
-                                            mWebView.post(() -> mWebView.evaluateJavascript(
-                                                    "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
-                                                    null));
-                                        }
+                                        syncAudioFocusNativeUiAndMediaSession(false);
                                     }
                                     break;
                                 case AudioManager.AUDIOFOCUS_GAIN:
@@ -1497,11 +1519,7 @@ public class MainActivity extends AppCompatActivity {
                                         if (mPausedByTransientFocusLoss && mBitPerfectPlayer.isPaused()) {
                                             mPausedByTransientFocusLoss = false;
                                             mBitPerfectPlayer.resume();
-                                            if (mWebView != null) {
-                                                mWebView.post(() -> mWebView.evaluateJavascript(
-                                                        "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(true);",
-                                                        null));
-                                            }
+                                            syncAudioFocusNativeUiAndMediaSession(true);
                                         }
                                     }
                                     if (mWebView != null) {
@@ -1527,33 +1545,21 @@ public class MainActivity extends AppCompatActivity {
                         mPausedByTransientFocusLoss = false;
                         if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
                             mBitPerfectPlayer.pause();
-                            if (mWebView != null) {
-                                mWebView.post(() -> mWebView.evaluateJavascript(
-                                        "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
-                                        null));
-                            }
+                            syncAudioFocusNativeUiAndMediaSession(false);
                         }
                     } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
                         mHasAudioFocus = false;
                         if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
                             mPausedByTransientFocusLoss = true;
                             mBitPerfectPlayer.pause();
-                            if (mWebView != null) {
-                                mWebView.post(() -> mWebView.evaluateJavascript(
-                                        "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(false);",
-                                        null));
-                            }
+                            syncAudioFocusNativeUiAndMediaSession(false);
                         }
                     } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
                         mHasAudioFocus = true;
                         if (mPausedByTransientFocusLoss && mBitPerfectPlayer != null && mBitPerfectPlayer.isPaused()) {
                             mPausedByTransientFocusLoss = false;
                             mBitPerfectPlayer.resume();
-                            if (mWebView != null) {
-                                mWebView.post(() -> mWebView.evaluateJavascript(
-                                        "if (window.onNativeBitPerfectStateChange) window.onNativeBitPerfectStateChange(true);",
-                                        null));
-                            }
+                            syncAudioFocusNativeUiAndMediaSession(true);
                         }
                     }
                 };
@@ -5576,11 +5582,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.70";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.71";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.70\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.71\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

@@ -80,23 +80,22 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.70';
-  const name = process.argv[3] || `Nocturne ${tag} (Tua thông minh trên lát đầu Cloud & tự tải lại bản đầy đủ + Đọc đầy đủ WAV/AIFF/FLAC 12MB & SYNCEDLYRICS + Dọn sạch bộ đệm Cloud khi reset)`;
+  const tag = process.argv[2] || 'v3.9.71';
+  const name = process.argv[3] || `Nocturne ${tag} (Hủy tải DSD Cloud giữa chừng & giải phóng RAM + Đồng bộ khóa màn hình Android sau cuộc gọi/AudioFocus + Tự bỏ qua bài Cloud chưa cache khi Album ngoại tuyến)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 124) — Tua thông minh trên lát đầu Cloud + Đọc chuẩn WAV/AIFF/FLAC + Dọn triệt để bộ đệm Cloud
+    : `### Nocturne ${tag} (versionCode 125) — Hủy tải DSD Cloud & Giải phóng RAM + Đồng bộ AudioFocus Khóa màn hình Android + Chuyển tiếp Album Ngoại tuyến
 
-#### 1. Tua thông minh trên lát đầu Cloud & Tự kích hoạt tải lại bản đầy đủ (\`index.html\`)
-- **Không còn bị kẹp mốc tua bởi độ dài 15s của lát đầu**: \`applySmartSeekTime\` và thanh tua \`#room-seek\` sử dụng thời lượng thực của bài (\`curTrack.duration\`) khi đang ở \`firstSlicePlayback\`, đồng thời tự động gọi \`retryPendingCurrentSliceUpgrade()\` nếu lượt tải nền trước đó gặp rớt mạng tạm thời.
-- **Đồng bộ thanh tua khóa màn hình sau khi nâng cấp**: \`resumeFullAudioFromSlice\` cập nhật \`updatePositionState(true)\` ngay sau khi chuyển sang tệp đầy đủ.
+#### 1. Phát DSD Cloud an toàn RAM & Hủy tải tức thì khi chuyển bài (\`index.html\`)
+- **\`fetchCloudFile\`**: Chống tải trùng qua \`track._cloudFilePromise\`, gắn \`AbortController\` (\`track._dsdFetchAbort\`) tự hủy tải file DSD dung lượng lớn khi chuyển bài, và bổ sung dự phòng 2 lớp cho OneDrive chia sẻ (\`freshDirect\` -> Graph \`/drives/{remoteDriveId}/items/{remoteId}/content\`).
+- **\`releaseUnusedCloudUrl\`**: Chủ động hủy \`_dsdFetchAbort\` và giải phóng \`track.file = null\` trên bài DSD Cloud đã chuyển qua để chống tràn RAM trên máy nghe nhạc FiiO M11S (3GB RAM).
 
-#### 2. Đọc chuẩn metadata WAV/RF64/AIFF/AIFC & Ảnh bìa FLAC Hi-Res tới 12MB (\`index.html\` + \`MainActivity.java\`)
-- **Web nội bộ (\`readAudioMetadata\`)**: Tính chính xác thời lượng (\`duration\`) và đọc tag \`LIST/INFO\` (title/artist/album/track) cho tệp WAV/RF64, đồng thời bổ sung bộ phân tích chuẩn AIFF/AIFC (\`COMM\` 80-bit IEEE-754 sampleRate, bitDepth, channels, duration).
-- **Android / FiiO MicroSD (\`MainActivity.java\`)**: Nâng trần ảnh bìa nhúng FLAC lên 12 MB trong \`extractFlacPictureFromStream\` (downscale an toàn chống tràn RAM), hỗ trợ thêm thẻ \`SYNCEDLYRICS\` và tự lọc BOM UTF-8 trong \`extractFlacVorbisLyricsFromFile\`.
+#### 2. Đồng bộ khóa màn hình & Bluetooth AVRCP tức thì khi nhận cuộc gọi / AudioFocus trên Android (\`MainActivity.java\`)
+- **\`AUDIOFOCUS_LOSS\` / \`AUDIOFOCUS_LOSS_TRANSIENT\` / \`AUDIOFOCUS_GAIN\`**: Đồng bộ ngay \`updateMediaSessionMetadata\` và \`showMediaNotification\` ngay trên luồng gốc (kể cả khi màn hình tắt và WebView bị đóng băng trong cuộc gọi), đồng thời đồng bộ lại vị trí phát \`onNativeBitPerfectPosition\` khi tự phát tiếp sau cuộc gọi.
 
-#### 3. Dọn sạch bộ đệm lát Cloud & ảnh bìa mồ côi khi xóa danh mục Cloud (\`index.html\`)
-- **\`clearCloudCatalog\`**: Bổ sung \`purgeCloudSliceCacheAndOrphanedCovers()\` xóa toàn bộ lát \`google:*\`/\`onedrive:*\` trong \`firstSliceCache\`, đặt lại \`checkedGoogleArtParents\` và dọn các khóa \`albumCovers\` mồ côi không còn thuộc thư viện nội bộ.
+#### 3. Chuyển bài mượt mà trong Album hỗn hợp khi mất mạng (\`index.html\`)
+- **\`playNext\`**: Trong chế độ phát tuần tự Album (\`isSequentialAlbum\`) khi ngoại tuyến (\`navigator.onLine === false\` hoặc bộ lọc Offline), tự lọc các bài có thể phát ngoại tuyến (\`canPlayOffline\`) để nhảy sang bài nội bộ/có lát đệm kế tiếp thay vì vấp lỗi trên bài Cloud chưa cache.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

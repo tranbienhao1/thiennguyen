@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.70</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.71</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -5705,6 +5705,10 @@
         } catch (_) {}
       }
       if (track.id !== state.currentId) track._pendingSliceUpgrade = null;
+      if (track.id !== state.currentId && track.id !== state.preloadTrackId) {
+        if (track._dsdFetchAbort) { try { track._dsdFetchAbort.abort(); } catch (_) {} track._dsdFetchAbort = null; }
+        if (track.isDsd && track.file) track.file = null;
+      }
       if (!track.url) return;
       const absoluteUrl = new URL(track.url, location.href).href;
       if ([audio, standbyAudio].some(element => element.src === absoluteUrl)) return;
@@ -15805,7 +15809,7 @@
         toast('Hẹn giờ ngủ: đã tạm dừng khi hết bài.');
         return;
       }
-      const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
+      const isOfflineMode = (typeof navigator !== 'undefined' && navigator.onLine === false) || state.activeFocus === 'offline';
       const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
       const activeAlbum = typeof resolveActiveAlbumTracks === 'function' ? resolveActiveAlbumTracks(lib) : null;
       const isSequentialAlbum = Boolean((lib && typeof lib.shouldEnforceSequentialPlayback === 'function' && lib.shouldEnforceSequentialPlayback(state.playbackContext)) || activeAlbum);
@@ -15822,7 +15826,7 @@
       if (direction > 0 && auto && !state.autoplay) return;
 
       if (isSequentialAlbum) {
-        const albumTracks = (activeAlbum && activeAlbum.tracks && activeAlbum.tracks.length > 0)
+        let albumTracks = (activeAlbum && activeAlbum.tracks && activeAlbum.tracks.length > 0)
           ? activeAlbum.tracks
           : ((state.playbackContext && state.playbackContext.trackIds) || [])
               .map(id => trackById(id) || state.tracks.find(t => t && String(t.id) === String(id)))
@@ -15830,6 +15834,11 @@
         const albumTitle = (activeAlbum && activeAlbum.name) || (state.playbackContext && state.playbackContext.name) || '';
         if (albumTracks.length > 0 && (!state.playbackContext || state.playbackContext.type !== 'album')) {
           state.playbackContext = { type: 'album', key: (state.currentCollectionEntry && state.currentCollectionEntry.key) || 'album', name: albumTitle || 'Album', trackIds: albumTracks.map(t => t.id) };
+        }
+        const rawAlbumCount = albumTracks.length;
+        if (isOfflineMode && lib && lib.canPlayOffline) {
+          albumTracks = albumTracks.filter(t => t && (String(t.id) === currentIdStr || lib.canPlayOffline(t)));
+          if (albumTracks.length <= 1 && rawAlbumCount > 1) { toast('Đang ngoại tuyến — các bài tiếp theo trong album này cần kết nối mạng.'); return; }
         }
         const seqResult = (lib && typeof lib.resolveNextSequentialTrack === 'function')
           ? lib.resolveNextSequentialTrack(state.currentId, albumTracks, direction, { repeat: state.repeat })
@@ -15856,35 +15865,22 @@
             return;
           }
           if (!auto) {
-            if (typeof playRandomAlbumDiscovery === 'function') {
-              playRandomAlbumDiscovery();
-              return;
-            }
-            const albumMap = new Map();
-            const curKeyNorm = String((state.playbackContext && state.playbackContext.key) || (albumTitle ? 'album:' + albumTitle.toLowerCase() : '')).toLowerCase();
+            if (typeof playRandomAlbumDiscovery === 'function') { playRandomAlbumDiscovery(); return; }
+            const albumMap = new Map(), curK = String((state.playbackContext && state.playbackContext.key) || (albumTitle ? 'album:' + albumTitle.toLowerCase() : '')).toLowerCase();
             for (const t of (state.tracks || [])) {
               if (!t) continue;
-              const m = (lib && typeof lib.trackMetadata === 'function') ? lib.trackMetadata(t) : t;
-              const aName = String((m && m.album) || t.album || '').trim();
+              const m = (lib && lib.trackMetadata) ? lib.trackMetadata(t) : t, aName = String((m && m.album) || t.album || '').trim();
               if (!aName || (lib && aName === lib.UNKNOWN_ALBUM)) continue;
               const k = 'album:' + aName.toLowerCase();
               if (!albumMap.has(k)) albumMap.set(k, { key: k, name: aName, tracks: [] });
               albumMap.get(k).tracks.push(t);
             }
-            const allAlbums = [...albumMap.values()].filter(a => a.tracks.length > 0);
-            const otherAlbums = allAlbums.filter(a => a.key !== curKeyNorm && a.name.toLowerCase() !== String(albumTitle || '').toLowerCase());
-            const pickPool = otherAlbums.length > 0 ? otherAlbums : allAlbums;
-            if (pickPool.length > 0) {
-              const picked = pickPool[Math.floor(Math.random() * pickPool.length)];
-              const sortedPicked = (lib && typeof lib.sortAlbumTracks === 'function') ? lib.sortAlbumTracks(picked.tracks) : picked.tracks;
-              state.currentCollectionEntry = { action: 'album', key: picked.key, name: picked.name, tracks: sortedPicked };
-              state.trackScope = sortedPicked.map(t => t.id);
-              state.playbackContext = { type: 'album', key: picked.key, name: picked.name, trackIds: sortedPicked.map(t => t.id) };
-              state.queueTrackIds = sortedPicked.slice(1).map(t => t.id);
-              renderQueue();
-              toast(`🎲 Chuyển sang album ngẫu nhiên: ${picked.name} (${sortedPicked.length} bài · Phát tuần tự)`);
-              playTrack(sortedPicked[0].id);
-              return;
+            const allA = [...albumMap.values()].filter(a => a.tracks.length > 0), otherA = allA.filter(a => a.key !== curK && a.name.toLowerCase() !== String(albumTitle || '').toLowerCase()), pool = otherA.length ? otherA : allA;
+            if (pool.length) {
+              const p = pool[Math.floor(Math.random() * pool.length)], s = (lib && lib.sortAlbumTracks) ? lib.sortAlbumTracks(p.tracks) : p.tracks;
+              state.currentCollectionEntry = { action: 'album', key: p.key, name: p.name, tracks: s }; state.trackScope = s.map(t => t.id);
+              state.playbackContext = { type: 'album', key: p.key, name: p.name, trackIds: s.map(t => t.id) }; state.queueTrackIds = s.slice(1).map(t => t.id);
+              renderQueue(); toast(`🎲 Chuyển sang album ngẫu nhiên: ${p.name} (${s.length} bài · Phát tuần tự)`); playTrack(s[0].id); return;
             }
           }
           if (auto && state.roonRadio && lib && typeof lib.selectRoonRadioTrack === 'function') {
@@ -17378,64 +17374,97 @@
       }
     }
     async function fetchCloudFile(track, url, options, provider) {
-      if (track.source === 'onedrive' && !track.metadataLoaded && track.metadataRequest) await track.metadataRequest;
-      if (track.source === 'onedrive' && (!track.metadataLoaded || !track.cover) && state.microsoftAccessToken && (!track.metadataRetryAt || Date.now() >= track.metadataRetryAt)) {
-        track.metadataRetryAt = Date.now() + 60 * 60 * 1000;
-        await enrichCloudTrack(track).catch(error => console.debug('Cloud metadata remains unavailable:', error.message || error));
-      }
-      let blob;
-      try { blob = await library.fetchAudioBlob(url, options, provider); }
-      catch (error) {
-        if (error.status !== 401 && error.status !== 403) throw error;
-        if (track.source === 'google') {
+      if (track._cloudFilePromise) return track._cloudFilePromise;
+      const dsdController = (typeof AbortController === 'function') ? new AbortController() : null;
+      track._dsdFetchAbort = dsdController;
+      const fetchOpts = dsdController ? Object.assign({}, options || {}, { signal: dsdController.signal }) : options;
+      track._cloudFilePromise = (async () => {
+        if (track.source === 'onedrive' && !track.metadataLoaded && track.metadataRequest) await track.metadataRequest;
+        if (track.source === 'onedrive' && (!track.metadataLoaded || !track.cover) && state.microsoftAccessToken && (!track.metadataRetryAt || Date.now() >= track.metadataRetryAt)) {
+          track.metadataRetryAt = Date.now() + 60 * 60 * 1000;
+          await enrichCloudTrack(track).catch(error => console.debug('Cloud metadata remains unavailable:', error.message || error));
+        }
+        let blob;
+        try { blob = await library.fetchAudioBlob(url, fetchOpts, provider); }
+        catch (error) {
+          if ((error && (error.name === 'AbortError' || error.aborted === true)) || (dsdController && dsdController.signal.aborted)) throw error;
+          if (error.status !== 401 && error.status !== 403) throw error;
+          if (track.source === 'google') {
           if (!options || !options._refreshedGoogleOnce) {
             const newToken = await ensureGoogleToken(true);
-            const retryOpts = Object.assign({}, options, {
-              headers: Object.assign({}, (options && options.headers) || {}, { Authorization: `Bearer ${newToken}` }),
+            const retryOpts = Object.assign({}, fetchOpts || {}, {
+              headers: Object.assign({}, (fetchOpts && fetchOpts.headers) || {}, { Authorization: `Bearer ${newToken}` }),
               _refreshedGoogleOnce: true
             });
             blob = await library.fetchAudioBlob(url, retryOpts, provider);
           } else {
             throw new Error('Phiên Google Drive đã hết hạn hoặc bị từ chối. Mở Cấu hình Cloud API và nhấn “Tiếp tục với Google” để kết nối lại.');
           }
-        } else if (!isGraphContentUrl(url)) {
-          if (track && track.source === 'onedrive' && track.remoteId && typeof getMicrosoftToken === 'function') {
-            track.downloadUrl = '';
-            track.downloadUrlAt = 0;
-            const freshDirect = (typeof resolveMicrosoftDownloadUrl === 'function')
-              ? await resolveMicrosoftDownloadUrl(track).catch(() => '')
-              : '';
-            if (freshDirect && freshDirect !== url) {
-              blob = await library.fetchAudioBlob(freshDirect, {}, provider);
+          } else if (!isGraphContentUrl(url)) {
+            if (track && track.source === 'onedrive' && track.remoteId && typeof getMicrosoftToken === 'function') {
+              track.downloadUrl = '';
+              track.downloadUrlAt = 0;
+              const freshDirect = (typeof resolveMicrosoftDownloadUrl === 'function')
+                ? await resolveMicrosoftDownloadUrl(track).catch(() => '')
+                : '';
+              let fetchedDirect = false;
+              if (freshDirect && freshDirect !== url) {
+                try {
+                  const directOpts = dsdController ? { signal: dsdController.signal } : {};
+                  blob = await library.fetchAudioBlob(freshDirect, directOpts, provider);
+                  fetchedDirect = true;
+                } catch (directErr) {
+                  if ((directErr && (directErr.name === 'AbortError' || directErr.aborted === true)) || (dsdController && dsdController.signal.aborted)) throw directErr;
+                  track.downloadUrl = '';
+                  track.downloadUrlAt = 0;
+                }
+              }
+              if (!fetchedDirect) {
+                const token = await getMicrosoftToken(false);
+                const graphUrl = track.remoteDriveId
+                  ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}/content`
+                  : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
+                const msOpts = dsdController
+                  ? { headers: { Authorization: `Bearer ${token}` }, signal: dsdController.signal }
+                  : { headers: { Authorization: `Bearer ${token}` } };
+                blob = await library.fetchAudioBlob(graphUrl, msOpts, provider);
+              }
             } else {
-              const token = await getMicrosoftToken(false);
-              const graphUrl = track.remoteDriveId
-                ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(track.remoteDriveId)}/items/${encodeURIComponent(track.remoteId)}/content`
-                : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(track.remoteId)}/content`;
-              blob = await library.fetchAudioBlob(graphUrl, {headers:{Authorization:`Bearer ${token}`}}, provider);
+              throw error;
             }
           } else {
-            throw error;
+            const token = await getMicrosoftToken(false);
+            const msOpts = dsdController
+              ? { headers: { Authorization: `Bearer ${token}` }, signal: dsdController.signal }
+              : { headers: { Authorization: `Bearer ${token}` } };
+            blob = await library.fetchAudioBlob(url, msOpts, provider);
           }
-        } else {
-          const token = await getMicrosoftToken(false);
-          blob = await library.fetchAudioBlob(url, {headers:{Authorization:`Bearer ${token}`}}, provider);
         }
+        if (dsdController && dsdController.signal.aborted) {
+          const abortErr = new Error('DSD download aborted');
+          abortErr.name = 'AbortError';
+          throw abortErr;
+        }
+        blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
+        track.file = new File([blob], track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, {type:blob.type || 'application/octet-stream'});
+        track.size = blob.size || track.size;
+        if (!track.metadataLoaded || track.cover === undefined) {
+          await loadCloudMetadata(track, track.file);
+          persistCloudCatalog([track]).catch(error => console.warn('Could not save DSD metadata:', error));
+        } else if (isDsdFormat(track.format) && !track.sampleRate) {
+          const technical = await readAudioMetadata(track.file);
+          track.sampleRate = technical.sampleRate;
+          track.channels = technical.channels;
+          track.duration = technical.duration;
+          persistCloudCatalog([track]).catch(error => console.warn('Could not save DSD metadata:', error));
+        }
+        return track.file;
+      })();
+      try { return await track._cloudFilePromise; }
+      finally {
+        track._cloudFilePromise = null;
+        if (track._dsdFetchAbort === dsdController) track._dsdFetchAbort = null;
       }
-      blob = library.normalizeAudioBlob(blob, track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, blob.type);
-      track.file = new File([blob], track.name || `${track.title}.${String(track.format || '').toLowerCase()}`, {type:blob.type || 'application/octet-stream'});
-      track.size = blob.size || track.size;
-      if (!track.metadataLoaded || track.cover === undefined) {
-        await loadCloudMetadata(track, track.file);
-        persistCloudCatalog([track]).catch(error => console.warn('Could not save DSD metadata:', error));
-      } else if (isDsdFormat(track.format) && !track.sampleRate) {
-        const technical = await readAudioMetadata(track.file);
-        track.sampleRate = technical.sampleRate;
-        track.channels = technical.channels;
-        track.duration = technical.duration;
-        persistCloudCatalog([track]).catch(error => console.warn('Could not save DSD metadata:', error));
-      }
-      return track.file;
     }
     async function loadGoogleAudio(fileId) {
       const token = await ensureGoogleToken();
