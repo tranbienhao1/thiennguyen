@@ -576,11 +576,11 @@
     footer.glass .footer-main-container{height:88px;max-width:none;padding:0 24px;display:flex;align-items:center;width:100%;box-sizing:border-box}
     footer.glass .footer-main-container>div:first-child{height:88px;width:100%}
     .footer-left-col{width:28%!important;max-width:380px!important;flex-shrink:0!important;position:relative!important;z-index:20!important;pointer-events:auto!important}
-    .footer-center-controls{flex:1!important;max-width:640px!important;min-width:300px!important;margin:0 auto!important;position:relative!important;z-index:10!important;pointer-events:none!important}
+    .footer-center-controls{flex:1!important;max-width:640px!important;min-width:300px!important;margin:0 auto!important;position:relative!important;z-index:25!important;pointer-events:none!important}
     .footer-center-controls > *{pointer-events:auto!important}
     .footer-right-tools{width:26%!important;max-width:360px!important;flex-shrink:0!important;margin-left:auto!important;position:relative!important;z-index:20!important;pointer-events:auto!important}
     #player-cover{width:54px;height:54px;border-radius:0} #now-title{font-size:13px} #now-artist{color:#aaa}
-    #play-button{width:40px;height:40px;border-radius:50%;background:var(--roon-accent);color:white}
+    #play-button{width:40px;height:40px;border-radius:50%;background:var(--roon-accent);color:white;position:relative;z-index:30;pointer-events:auto}
     .audio-zone-empty{display:none}
     footer.player-idle #footer-telemetry-strip{display:none!important}
     footer.player-idle .footer-main-container{display:flex;align-items:center;justify-content:center;width:100%;height:88px}
@@ -602,7 +602,7 @@
     .artist-link{color:#7675ed;cursor:pointer} .artist-link:hover{text-decoration:underline}
     .album-link{cursor:pointer} .album-link:hover{text-decoration:underline}
     #listening-room{background:#151515!important}
-    #player-footer .footer-center-controls{z-index:10;position:relative}
+    #player-footer .footer-center-controls{z-index:25;position:relative}
     #footer-telemetry-strip{z-index:15;position:relative;height:28px!important;min-height:28px!important;max-height:28px!important;padding:2px 20px!important;box-sizing:border-box!important}
     @media(min-width:1500px){#sidebar{flex-basis:300px}#collection-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
     @media(max-width:1023.98px){#app-shell{height:calc(100dvh - 104px);min-height:360px}#sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(300px,86vw);height:100dvh;max-height:100dvh;transform:translateX(0)}body.sidebar-collapsed #sidebar{transform:translateX(-105%);opacity:0;pointer-events:none}body:not(.sidebar-collapsed) #sidebar{transform:translateX(0);opacity:1}#sidebar-toggle{display:grid}#content-col>header{min-height:58px;padding:0 16px!important}#home-view,#library-view{padding:30px 26px 46px}#home-heading{margin-bottom:46px;font-size:54px}#library-intro{margin:24px 0 36px}#collection-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 18px}.roon-stat-grid{gap:12px}.roon-stat{min-height:112px;padding:16px}.roon-stat-value{font-size:29px}}
@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.71</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.72</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3668,7 +3668,7 @@
       if (!cover.startsWith('data:image')) return cover;
       return cover.length > MAX_CATALOG_COVER_CHARS ? null : cover;
     }
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, ...(track.targetRemoteId ? {targetRemoteId:String(track.targetRemoteId)} : {}), ...(track.remoteDriveId ? {remoteDriveId:String(track.remoteDriveId)} : {}), ...(track.remoteParentId ? {remoteParentId:String(track.remoteParentId)} : {}), ...(track.remoteLrc && track.remoteLrc.id ? {remoteLrc:{id:String(track.remoteLrc.id), driveId:String(track.remoteLrc.driveId || ''), name:String(track.remoteLrc.name || '')}} : {}), remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, ...(track.targetRemoteId ? {targetRemoteId:String(track.targetRemoteId)} : {}), ...(track.remoteShortcutId ? {remoteShortcutId:String(track.remoteShortcutId)} : {}), ...(track.remoteDriveId ? {remoteDriveId:String(track.remoteDriveId)} : {}), ...(track.remoteParentId ? {remoteParentId:String(track.remoteParentId)} : {}), ...(track.remoteLrc && track.remoteLrc.id ? {remoteLrc:{id:String(track.remoteLrc.id), driveId:String(track.remoteLrc.driveId || ''), name:String(track.remoteLrc.name || '')}} : {}), remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
       const pathOrder = (typeof library !== 'undefined' && typeof library.extractDiscAndTrackFromPath === 'function')
@@ -3693,6 +3693,7 @@
         const cloned = resolvedDriveId ? Object.assign({}, rawItem, { _remoteDriveId: resolvedDriveId }) : rawItem;
         return { item: cloned, driveId: resolvedDriveId, isRemote: Boolean(resolvedDriveId) };
       }
+      const wrapperShortcutId = (rawItem.id && String(rawItem.id) !== String(remote.id)) ? String(rawItem.id) : (rawItem.remoteShortcutId ? String(rawItem.remoteShortcutId) : '');
       const normalized = Object.assign({}, rawItem, {
         id: String(remote.id),
         name: String(remote.name || rawItem.name || ''),
@@ -3707,6 +3708,7 @@
         '@microsoft.graph.downloadUrl': remote['@microsoft.graph.downloadUrl'] || rawItem['@microsoft.graph.downloadUrl'] || '',
         _remoteDriveId: resolvedDriveId
       });
+      if (wrapperShortcutId) normalized.remoteShortcutId = wrapperShortcutId;
       return { item: normalized, driveId: resolvedDriveId, isRemote: true };
     }
     const microsoftTrack = (rawItem, remotePath = '', existing = null) => {
@@ -3734,6 +3736,7 @@
       }));
       const msTrack = {id:`onedrive:${item.id}`, remoteId:item.id, remotePath, name:item.name || `Audio ${item.id}`, ...graphMetadata, format, size:Number(item.size) || 0, source:'onedrive', url:'', thumbnailUrl:thumbnail && thumbnail.url || '', downloadUrl:item['@microsoft.graph.downloadUrl'] || '', duration:Number(item.audio && item.audio.duration) / 1000 || 0, isDsd:isDsdFormat(format), metadataLoaded:graphMetadataLoaded, load:() => loadMicrosoftAudio(item.id)};
       if (norm.driveId) msTrack.remoteDriveId = norm.driveId;
+      if (item.remoteShortcutId && String(item.remoteShortcutId) !== String(item.id)) msTrack.remoteShortcutId = String(item.remoteShortcutId);
       const msParentId = (item.parentReference && item.parentReference.id) ? String(item.parentReference.id).trim() : '';
       if (msParentId) msTrack.remoteParentId = msParentId;
       if (rawAlbumArtist) msTrack.albumArtist = rawAlbumArtist;
@@ -3742,7 +3745,7 @@
       return msTrack;
     };
     function mergeMicrosoftTrack(track, item, remotePath = '') {
-      const currentUrl = track.url, currentFile = track.file, currentRev = track.contentRev, currentDriveId = track.remoteDriveId, currentParentId = track.remoteParentId;
+      const currentUrl = track.url, currentFile = track.file, currentRev = track.contentRev, currentDriveId = track.remoteDriveId, currentParentId = track.remoteParentId, currentShortcutId = track.remoteShortcutId;
       const currentDuration = Number(track.duration) || 0;
       const wasMetadataLoaded = Boolean(track.metadataLoaded);
       const prevTitle = track.title, prevArtist = track.artist, prevAlbum = track.album, prevAlbumArtist = track.albumArtist;
@@ -3763,6 +3766,7 @@
       if (!enriched.contentRev && currentRev) track.contentRev = currentRev;
       if (!enriched.remoteDriveId && currentDriveId) track.remoteDriveId = currentDriveId;
       if (!enriched.remoteParentId && currentParentId) track.remoteParentId = currentParentId;
+      if (!enriched.remoteShortcutId && currentShortcutId) track.remoteShortcutId = currentShortcutId;
       track.url = currentUrl || '';
       if (currentFile) track.file = currentFile;
       track.load = () => loadMicrosoftAudio(track.remoteId);
@@ -4396,15 +4400,22 @@
           }
         }
       };
-      window.onNativeBitPerfectError = (reason) => {
+      window.onNativeBitPerfectError = (reason, nativePosMs) => {
         console.warn('Native Bit-Perfect error, falling back to Web Audio:', reason);
         const wasNativeBp = Boolean(state.isNativeBitPerfectPlaying || state.isPlaybackLoading);
-        const resumePosSec = (Number.isFinite(state.lastBitPerfectPositionSec) && state.lastBitPerfectPositionSec > 0.5) ? state.lastBitPerfectPositionSec : 0;
+        const parsedNativeMs = Number(nativePosMs);
+        const nativePosSec = (Number.isFinite(parsedNativeMs) && parsedNativeMs > 500) ? (parsedNativeMs / 1000) : 0;
+        const trackedPosSec = (Number.isFinite(state.lastBitPerfectPositionSec) && state.lastBitPerfectPositionSec > 0.5) ? state.lastBitPerfectPositionSec : 0;
+        let resumePosSec = Math.max(nativePosSec, trackedPosSec);
         state.isNativeBitPerfectPlaying = false;
         state.isNativeBitPerfectPaused = false;
+        state._bpCueAdvancingId = null;
         if (!wasNativeBp && typeof audio !== 'undefined' && audio && !audio.paused) return;
         const curTrack = state.tracks.find(t => t && String(t.id) === String(state.currentId));
         if (!curTrack) return;
+        if (curTrack.isCue && Number.isFinite(curTrack.cueStart) && curTrack.cueStart > 0 && resumePosSec > 0 && resumePosSec < curTrack.cueStart) {
+          resumePosSec = curTrack.cueStart;
+        }
         const now = Date.now();
         const prevAt = Number(curTrack._nativeBpErrorAt || 0);
         const errCount = (now - prevAt < 30000) ? Number(curTrack._nativeBpErrorCount || 0) : 0;
@@ -4418,6 +4429,7 @@
         curTrack._skipNativeBpOnce = true;
         curTrack._nativeBpFallbackUntil = now + 5 * 60 * 1000;
         if (resumePosSec > 0) curTrack._resumeAfterBpFallbackSec = resumePosSec;
+        if (typeof toast === 'function') toast('Bit-Perfect không hỗ trợ luồng này — đang chuyển sang Web Audio.');
         if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
           try { state.context.resume().catch(() => {}); } catch (_) {}
         }
@@ -7067,15 +7079,47 @@
           const usable = restoredCatalog.entries;
           let restored = 0;
           const restoredTracks = [];
+          const existingById = new Map();
+          const gRemotes = new Set();
+          const gTargets = new Set();
+          const msRemotes = new Set();
+          const msShortcuts = new Set();
+          for (let ei = 0; ei < state.tracks.length; ei++) {
+            const st = state.tracks[ei];
+            if (!st || !st.id) continue;
+            existingById.set(st.id, st);
+            if (st.source === 'google') {
+              if (st.remoteId) gRemotes.add(String(st.remoteId));
+              if (st.targetRemoteId) gTargets.add(String(st.targetRemoteId));
+            } else if (st.source === 'onedrive') {
+              if (st.remoteId) msRemotes.add(String(st.remoteId));
+              if (st.remoteShortcutId) msShortcuts.add(String(st.remoteShortcutId));
+            }
+          }
           for (const entry of usable) {
             if (!entry || !entry.id) continue;
-            const existing = state.tracks.find(track => track.id === entry.id);
+            const existing = existingById.get(entry.id);
             if (existing) {
               if (existing.source === 'onedrive' && !existing.metadataLoaded && !entry.metadataLoaded) { existing.title = entry.title; existing.artist = entry.artist; existing.album = entry.album; existing.duration = entry.duration; }
               continue;
             }
+            if (entry.source === 'google') {
+              const gRid = entry.remoteId ? String(entry.remoteId) : '';
+              const gTid = entry.targetRemoteId ? String(entry.targetRemoteId) : '';
+              if (gRid && gTargets.has(gRid)) continue;
+              if (gTid && (gRemotes.has(gTid) || gTargets.has(gTid))) continue;
+              if (gRid) gRemotes.add(gRid);
+              if (gTid) gTargets.add(gTid);
+            } else if (entry.source === 'onedrive') {
+              const msRid = entry.remoteId ? String(entry.remoteId) : '';
+              const msSid = entry.remoteShortcutId ? String(entry.remoteShortcutId) : '';
+              if (msRid && msShortcuts.has(msRid)) continue;
+              if (msSid && (msRemotes.has(msSid) || msShortcuts.has(msSid))) continue;
+              if (msRid) msRemotes.add(msRid);
+              if (msSid) msShortcuts.add(msSid);
+            }
             const track = {...entry, url:'', isDsd:isDsdFormat(entry.format), load:() => entry.source === 'google' ? loadGoogleAudio(entry.remoteId) : loadMicrosoftAudio(entry.remoteId)};
-            state.tracks.push(track); restoredTracks.push(track); restored++;
+            state.tracks.push(track); existingById.set(track.id, track); restoredTracks.push(track); restored++;
           }
           if (restored) { if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers(); renderTracks(); queueCloudMetadata(restoredTracks); }
           if (restoredCatalog.changed) pruneCloudCatalog();
@@ -15363,7 +15407,19 @@
       if (target.dataset) target.dataset.trackId = String(track.id);
       if (isSilentUnlockSrc(target) || target.src !== playUrl || target.error) { target.src = playUrl; target.load(); }
       if (initialTargetSeekSec > 0) {
-        try { target.currentTime = initialTargetSeekSec; } catch (_) {}
+        if (target.readyState >= 1) {
+          try { target.currentTime = initialTargetSeekSec; } catch (_) {}
+        } else {
+          target.addEventListener('loadedmetadata', () => {
+            if (generation !== state.playGeneration) return;
+            try {
+              const safeInitPos = (Number.isFinite(target.duration) && target.duration > 0.5)
+                ? Math.min(initialTargetSeekSec, target.duration - 0.25)
+                : initialTargetSeekSec;
+              target.currentTime = Math.max(0, safeInitPos);
+            } catch (_) {}
+          }, { once: true });
+        }
       }
       target.defaultMuted = false; if (typeof target.removeAttribute === 'function') target.removeAttribute('muted');
       target.volume = audio.volume; target.muted = false;
@@ -16801,6 +16857,12 @@
       const scAddedTracks = [];
       let scPageToken = '';
       let scPageCount = 0;
+      const existingByTargetId = new Map();
+      if (existingByRemoteId && typeof existingByRemoteId.forEach === 'function') {
+        existingByRemoteId.forEach(tr => {
+          if (tr && tr.targetRemoteId) existingByTargetId.set(String(tr.targetRemoteId), tr);
+        });
+      }
       try {
         do {
           scPageCount++;
@@ -16831,12 +16893,13 @@
               if (existing && scTargetId && scTargetId !== file.id && existing.targetRemoteId !== scTargetId) {
                 const hadTarget = Boolean(existing.targetRemoteId);
                 existing.targetRemoteId = scTargetId;
+                existingByTargetId.set(scTargetId, existing);
                 if (hadTarget && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
                 if (updatedExistingTracks) updatedExistingTracks.push(existing);
               }
               continue;
             }
-            if (scTargetId && knownIds && knownIds.has(scTargetId)) continue;
+            if (scTargetId && ((knownIds && knownIds.has(scTargetId)) || existingByTargetId.has(scTargetId))) continue;
             if (typeof isCloudAudio === 'function' && !isCloudAudio(file)) continue;
             if (typeof googleTrack !== 'function') continue;
             const track = googleTrack(file);
@@ -16845,6 +16908,7 @@
             if (newlyAddedTracks) newlyAddedTracks.push(track);
             if (knownIds) knownIds.add(file.id);
             if (existingByRemoteId) existingByRemoteId.set(file.id, track);
+            if (track.targetRemoteId) existingByTargetId.set(String(track.targetRemoteId), track);
             scAdded++;
           }
           scPageToken = (data && data.nextPageToken) ? String(data.nextPageToken) : '';
@@ -16953,6 +17017,12 @@
       const updatedTrackIds = new Set();
       const changedArtParents = new Set();
       const deletedRemoteIds = new Set();
+      const existingByTargetId = new Map();
+      if (existingByRemoteId && typeof existingByRemoteId.forEach === 'function') {
+        existingByRemoteId.forEach(tr => {
+          if (tr && tr.targetRemoteId) existingByTargetId.set(String(tr.targetRemoteId), tr);
+        });
+      }
       const scoreFolderCover = (typeof library !== 'undefined' && typeof library.scoreFolderCoverFilename === 'function')
         ? library.scoreFolderCoverFilename
         : () => 0;
@@ -16963,6 +17033,61 @@
         if (!tr || !tr.id || updatedTrackIds.has(tr.id)) return;
         updatedTrackIds.add(tr.id);
         updatedTracks.push(tr);
+      };
+      const syncExistingGoogleChange = (existing, file, matchFid) => {
+        if (!existing || !file) return;
+        let touched = false;
+        if (Array.isArray(file.parents) && file.parents.length) {
+          const nextParents = file.parents.slice(0, 3);
+          if (!Array.isArray(existing.parents) || existing.parents.join(',') !== nextParents.join(',')) {
+            existing.parents = nextParents;
+            if (nextParents[0]) changedArtParents.add(String(nextParents[0]));
+            touched = true;
+          }
+        }
+        if (file.thumbnailLink && existing.thumbnailUrl !== file.thumbnailLink) {
+          existing.thumbnailUrl = file.thumbnailLink;
+          touched = true;
+        }
+        const fSize = Number(file.size) || 0;
+        let contentChanged = false;
+        if (fSize > 0 && existing.size !== fSize) {
+          if (existing.size > 0) contentChanged = true;
+          existing.size = fSize;
+          touched = true;
+        }
+        const incomingRev = String(file.md5Checksum || file.modifiedTime || '');
+        if (incomingRev && existing.contentRev !== incomingRev) {
+          if (existing.contentRev) contentChanged = true;
+          existing.contentRev = incomingRev;
+          touched = true;
+        }
+        const scTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
+        if (scTid && scTid !== matchFid && existing.targetRemoteId !== scTid) {
+          if (existing.targetRemoteId) contentChanged = true;
+          existing.targetRemoteId = scTid;
+          existingByTargetId.set(scTid, existing);
+          touched = true;
+        }
+        if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
+        if (file.name && existing.name !== file.name) {
+          existing.name = file.name;
+          if (!existing.metadataLoaded && typeof filenameMetadata === 'function') {
+            const rnMeta = filenameMetadata(file.name);
+            if (rnMeta) {
+              if (rnMeta.title) existing.title = rnMeta.title;
+              if (rnMeta.artist && rnMeta.artist !== 'Unknown Artist') existing.artist = rnMeta.artist;
+              if (rnMeta.album && rnMeta.album !== 'Unknown Album') existing.album = rnMeta.album;
+            }
+          }
+          if (typeof library !== 'undefined' && typeof library.extractDiscAndTrackFromPath === 'function') {
+            const rnOrder = library.extractDiscAndTrackFromPath({ name: file.name });
+            if (rnOrder && rnOrder.discNumber != null && (!existing.metadataLoaded || existing.discNumber == null)) existing.discNumber = rnOrder.discNumber;
+            if (rnOrder && rnOrder.trackNumber != null && (!existing.metadataLoaded || existing.trackNumber == null)) existing.trackNumber = rnOrder.trackNumber;
+          }
+          touched = true;
+        }
+        if (touched) markUpdatedTrack(existing);
       };
       while (cursor) {
         const params = new URLSearchParams({
@@ -16996,69 +17121,25 @@
           const fid = change && (change.fileId || (change.file && change.file.id));
           if (!fid) continue;
           if (change.removed || !change.file || change.file.trashed) {
-            if (knownIds.has(fid)) deletedRemoteIds.add(fid);
+            if (knownIds.has(fid)) {
+              deletedRemoteIds.add(fid);
+            } else if (change.file && change.file.trashed === true && existingByTargetId.has(fid)) {
+              const scAlias = existingByTargetId.get(fid);
+              if (scAlias && scAlias.remoteId) deletedRemoteIds.add(scAlias.remoteId);
+            }
             continue;
           }
           const file = change.file;
           if (knownIds.has(fid)) {
-            const existing = existingByRemoteId.get(fid);
-            if (existing) {
-              let touched = false;
-              if (Array.isArray(file.parents) && file.parents.length) {
-                const nextParents = file.parents.slice(0, 3);
-                if (!Array.isArray(existing.parents) || existing.parents.join(',') !== nextParents.join(',')) {
-                  existing.parents = nextParents;
-                  if (nextParents[0]) changedArtParents.add(String(nextParents[0]));
-                  touched = true;
-                }
-              }
-              if (file.thumbnailLink && existing.thumbnailUrl !== file.thumbnailLink) {
-                existing.thumbnailUrl = file.thumbnailLink;
-                touched = true;
-              }
-              const fSize = Number(file.size) || 0;
-              let contentChanged = false;
-              if (fSize > 0 && existing.size !== fSize) {
-                if (existing.size > 0) contentChanged = true;
-                existing.size = fSize;
-                touched = true;
-              }
-              const incomingRev = String(file.md5Checksum || file.modifiedTime || '');
-              if (incomingRev && existing.contentRev !== incomingRev) {
-                if (existing.contentRev) contentChanged = true;
-                existing.contentRev = incomingRev;
-                touched = true;
-              }
-              const scTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
-              if (scTid && scTid !== fid && existing.targetRemoteId !== scTid) {
-                if (existing.targetRemoteId) contentChanged = true;
-                existing.targetRemoteId = scTid;
-                touched = true;
-              }
-              if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
-              if (file.name && existing.name !== file.name) {
-                existing.name = file.name;
-                if (!existing.metadataLoaded && typeof filenameMetadata === 'function') {
-                  const rnMeta = filenameMetadata(file.name);
-                  if (rnMeta) {
-                    if (rnMeta.title) existing.title = rnMeta.title;
-                    if (rnMeta.artist && rnMeta.artist !== 'Unknown Artist') existing.artist = rnMeta.artist;
-                    if (rnMeta.album && rnMeta.album !== 'Unknown Album') existing.album = rnMeta.album;
-                  }
-                }
-                if (typeof library !== 'undefined' && typeof library.extractDiscAndTrackFromPath === 'function') {
-                  const rnOrder = library.extractDiscAndTrackFromPath({ name: file.name });
-                  if (rnOrder && rnOrder.discNumber != null && (!existing.metadataLoaded || existing.discNumber == null)) existing.discNumber = rnOrder.discNumber;
-                  if (rnOrder && rnOrder.trackNumber != null && (!existing.metadataLoaded || existing.trackNumber == null)) existing.trackNumber = rnOrder.trackNumber;
-                }
-                touched = true;
-              }
-              if (touched) markUpdatedTrack(existing);
-            }
+            syncExistingGoogleChange(existingByRemoteId.get(fid), file, fid);
+            continue;
+          }
+          if (existingByTargetId.has(fid)) {
+            syncExistingGoogleChange(existingByTargetId.get(fid), file, fid);
             continue;
           }
           const newScTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
-          if (newScTid && knownIds.has(newScTid)) continue;
+          if (newScTid && (knownIds.has(newScTid) || existingByTargetId.has(newScTid))) continue;
           if (!isCloudAudio(file)) {
             if (file.mimeType === 'application/vnd.google-apps.folder') {
               changedArtParents.add(String(fid));
@@ -17089,6 +17170,7 @@
           addedTracks.push(track);
           knownIds.add(file.id);
           existingByRemoteId.set(file.id, track);
+          if (track && track.targetRemoteId) existingByTargetId.set(String(track.targetRemoteId), track);
         }
         if (data && data.newStartPageToken) nextStartToken = String(data.newStartPageToken);
         cursor = (data && data.nextPageToken) ? String(data.nextPageToken) : '';
@@ -17151,13 +17233,63 @@
       let skippedCount = 0;
       const skippedSample = [];
       const existingByRemoteId = new Map();
+      const existingByTargetId = new Map();
       for (let i = 0; i < state.tracks.length; i++) {
         const t = state.tracks[i];
-        if (t && t.source === 'google') existingByRemoteId.set(t.remoteId || t.id, t);
+        if (t && t.source === 'google') {
+          existingByRemoteId.set(t.remoteId || t.id, t);
+          if (t.targetRemoteId) existingByTargetId.set(String(t.targetRemoteId), t);
+        }
       }
       const knownIds = new Set(existingByRemoteId.keys());
       const seenRemoteIds = new Set();
       const updatedExistingTracks = [];
+      const applyGoogleScanUpdate = (existing, file) => {
+        if (!existing || !file) return;
+        let touched = false;
+        if ((!Array.isArray(existing.parents) || !existing.parents.length) && Array.isArray(file.parents) && file.parents.length) {
+          existing.parents = file.parents.slice(0, 3);
+          touched = true;
+        }
+        if (!existing.thumbnailUrl && file.thumbnailLink) {
+          existing.thumbnailUrl = file.thumbnailLink;
+          touched = true;
+        }
+        const fSize = Number(file.size) || 0;
+        let contentChanged = false;
+        if (fSize > 0 && existing.size !== fSize) {
+          if (existing.size > 0) contentChanged = true;
+          existing.size = fSize;
+          touched = true;
+        }
+        const incomingRev = String(file.md5Checksum || file.modifiedTime || '');
+        if (incomingRev && existing.contentRev !== incomingRev) {
+          if (existing.contentRev) contentChanged = true;
+          existing.contentRev = incomingRev;
+          touched = true;
+        }
+        const scTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
+        if (scTid && scTid !== file.id && existing.targetRemoteId !== scTid) {
+          if (existing.targetRemoteId) contentChanged = true;
+          existing.targetRemoteId = scTid;
+          existingByTargetId.set(scTid, existing);
+          touched = true;
+        }
+        if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
+        if (file.name && existing.name !== file.name) {
+          existing.name = file.name;
+          if (!existing.metadataLoaded && typeof filenameMetadata === 'function') {
+            const rnMeta = filenameMetadata(file.name);
+            if (rnMeta) {
+              if (rnMeta.title) existing.title = rnMeta.title;
+              if (rnMeta.artist && rnMeta.artist !== 'Unknown Artist') existing.artist = rnMeta.artist;
+              if (rnMeta.album && rnMeta.album !== 'Unknown Album') existing.album = rnMeta.album;
+            }
+          }
+          touched = true;
+        }
+        if (touched) updatedExistingTracks.push(existing);
+      };
       let sawIncompleteSearch = false;
       const newlyAddedTracks = [];
       let persistChain = Promise.resolve();
@@ -17233,51 +17365,17 @@
             scanned++;
             if (file && file.id) seenRemoteIds.add(file.id);
             if (!file.id || knownIds.has(file.id)) {
-              const existing = file && file.id ? existingByRemoteId.get(file.id) : null;
-              if (existing) {
-                let touched = false;
-                if ((!Array.isArray(existing.parents) || !existing.parents.length) && Array.isArray(file.parents) && file.parents.length) {
-                  existing.parents = file.parents.slice(0, 3);
-                  touched = true;
-                }
-                if (!existing.thumbnailUrl && file.thumbnailLink) {
-                  existing.thumbnailUrl = file.thumbnailLink;
-                  touched = true;
-                }
-                const fSize = Number(file.size) || 0;
-                let contentChanged = false;
-                if (fSize > 0 && existing.size !== fSize) {
-                  if (existing.size > 0) contentChanged = true;
-                  existing.size = fSize;
-                  touched = true;
-                }
-                const incomingRev = String(file.md5Checksum || file.modifiedTime || '');
-                if (incomingRev && existing.contentRev !== incomingRev) {
-                  if (existing.contentRev) contentChanged = true;
-                  existing.contentRev = incomingRev;
-                  touched = true;
-                }
-                const scTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
-                if (scTid && scTid !== file.id && existing.targetRemoteId !== scTid) {
-                  if (existing.targetRemoteId) contentChanged = true;
-                  existing.targetRemoteId = scTid;
-                  touched = true;
-                }
-                if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
-                if (file.name && existing.name !== file.name) {
-                  existing.name = file.name;
-                  if (!existing.metadataLoaded && typeof filenameMetadata === 'function') {
-                    const rnMeta = filenameMetadata(file.name);
-                    if (rnMeta) {
-                      if (rnMeta.title) existing.title = rnMeta.title;
-                      if (rnMeta.artist && rnMeta.artist !== 'Unknown Artist') existing.artist = rnMeta.artist;
-                      if (rnMeta.album && rnMeta.album !== 'Unknown Album') existing.album = rnMeta.album;
-                    }
-                  }
-                  touched = true;
-                }
-                if (touched) updatedExistingTracks.push(existing);
-              }
+              applyGoogleScanUpdate(file && file.id ? existingByRemoteId.get(file.id) : null, file);
+              continue;
+            }
+            const matchedByTarget = existingByTargetId.get(file.id);
+            if (matchedByTarget) {
+              if (matchedByTarget.remoteId) seenRemoteIds.add(matchedByTarget.remoteId);
+              applyGoogleScanUpdate(matchedByTarget, file);
+              continue;
+            }
+            const scTargetId = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
+            if (scTargetId && (knownIds.has(scTargetId) || existingByTargetId.has(scTargetId))) {
               continue;
             }
             if (!isCloudAudio(file)) {
@@ -17293,6 +17391,7 @@
             newlyAddedTracks.push(track);
             knownIds.add(file.id);
             existingByRemoteId.set(file.id, track);
+            if (track && track.targetRemoteId) existingByTargetId.set(String(track.targetRemoteId), track);
             added++;
           }
 
@@ -17744,6 +17843,12 @@
     }
     async function enqueueMicrosoftSharedItems(token, queue, visitedFolders, existingByRemoteId, knownIds, seenRemoteIds, updatedExistingTracks) {
       const addedTracks = [];
+      const byShortcutId = new Map();
+      if (existingByRemoteId && typeof existingByRemoteId.forEach === 'function') {
+        existingByRemoteId.forEach(tr => {
+          if (tr && tr.remoteShortcutId) byShortcutId.set(String(tr.remoteShortcutId), tr);
+        });
+      }
       let next = 'https://graph.microsoft.com/v1.0/me/drive/sharedWithMe?$top=200';
       let pageCount = 0;
       let sharedListComplete = true;
@@ -17760,11 +17865,18 @@
             const item = norm && norm.item;
             const driveId = (norm && norm.driveId) ? String(norm.driveId) : '';
             if (!item || !item.id) continue;
+            const rawWrapperId = (raw && raw.id && String(raw.id) !== String(item.id))
+              ? String(raw.id)
+              : (item.remoteShortcutId ? String(item.remoteShortcutId) : '');
             const sharedPath = 'Shared/' + String(item.name || item.id);
             if (item.folder && driveId) {
               const fKey = driveId + ':' + item.id;
-              if (!visitedFolders || !visitedFolders.has(fKey)) {
-                if (visitedFolders) visitedFolders.add(fKey);
+              const rawFolderKey = rawWrapperId ? ('me:' + rawWrapperId) : '';
+              if (!visitedFolders || (!visitedFolders.has(fKey) && (!rawFolderKey || !visitedFolders.has(rawFolderKey)))) {
+                if (visitedFolders) {
+                  visitedFolders.add(fKey);
+                  if (rawFolderKey) visitedFolders.add(rawFolderKey);
+                }
                 if (queue) {
                   queue.push({
                     url: `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,cTag,size,audio,remoteItem&$top=500`,
@@ -17778,12 +17890,22 @@
             if (item.folder) continue;
             if (typeof isCloudAudio === 'function' && !isCloudAudio(item)) continue;
             if (seenRemoteIds) seenRemoteIds.add(item.id);
-            if (knownIds && knownIds.has(item.id)) {
-              const existing = existingByRemoteId ? existingByRemoteId.get(item.id) : null;
+            const aliasExisting =
+              (existingByRemoteId && (existingByRemoteId.get(item.id) || (rawWrapperId ? existingByRemoteId.get(rawWrapperId) : null))) ||
+              byShortcutId.get(item.id) ||
+              (rawWrapperId ? byShortcutId.get(rawWrapperId) : null);
+            if ((knownIds && knownIds.has(item.id)) || aliasExisting) {
+              const existing = aliasExisting;
               if (existing) {
+                if (seenRemoteIds && existing.remoteId) seenRemoteIds.add(existing.remoteId);
                 let touched = false;
                 if (driveId && existing.remoteDriveId !== driveId) {
                   existing.remoteDriveId = driveId;
+                  touched = true;
+                }
+                if (rawWrapperId && existing.remoteShortcutId !== rawWrapperId && String(existing.remoteId || '') !== rawWrapperId) {
+                  existing.remoteShortcutId = rawWrapperId;
+                  byShortcutId.set(rawWrapperId, existing);
                   touched = true;
                 }
                 if (item['@microsoft.graph.downloadUrl']) {
@@ -17820,6 +17942,8 @@
             if (typeof microsoftTrack !== 'function') continue;
             const track = microsoftTrack(item, sharedPath);
             if (driveId && !track.remoteDriveId) track.remoteDriveId = driveId;
+            if (rawWrapperId && !track.remoteShortcutId && String(track.remoteId || '') !== rawWrapperId) track.remoteShortcutId = rawWrapperId;
+            if (track.remoteShortcutId) byShortcutId.set(String(track.remoteShortcutId), track);
             state.tracks.push(track);
             addedTracks.push(track);
             if (knownIds) knownIds.add(item.id);
@@ -17855,6 +17979,12 @@
       const updatedTrackIds = new Set();
       const renamedFoldersById = new Map();
       const deletedRemoteIds = new Set();
+      const byShortcutId = new Map();
+      if (existingByRemoteId && typeof existingByRemoteId.forEach === 'function') {
+        existingByRemoteId.forEach(tr => {
+          if (tr && tr.remoteShortcutId) byShortcutId.set(String(tr.remoteShortcutId), tr);
+        });
+      }
       let latestDeltaLink = '';
       const markMsUpdated = tr => {
         if (!tr || !tr.id || updatedTrackIds.has(tr.id)) return;
@@ -17874,8 +18004,16 @@
             const item = (norm && norm.item) || rawItem;
             const itemDriveId = (norm && norm.driveId) ? String(norm.driveId) : '';
             if (!item || !item.id) continue;
+            const rawWrapperId = (rawItem.id && String(rawItem.id) !== String(item.id))
+              ? String(rawItem.id)
+              : (item.remoteShortcutId ? String(item.remoteShortcutId) : '');
             if (item.deleted) {
-              if (knownIds.has(item.id)) deletedRemoteIds.add(item.id);
+              if (knownIds.has(item.id)) {
+                deletedRemoteIds.add(item.id);
+              } else {
+                const delAlias = byShortcutId.get(item.id) || (rawItem.id ? byShortcutId.get(String(rawItem.id)) : null);
+                if (delAlias && delAlias.remoteId) deletedRemoteIds.add(delAlias.remoteId);
+              }
               continue;
             }
             const rawRefPath = (item.parentReference && item.parentReference.path) ? String(item.parentReference.path) : '';
@@ -17883,12 +18021,20 @@
             try { parentRaw = decodeURIComponent(parentRaw); } catch (_) {}
             const itemPath = parentRaw ? `${parentRaw}/${item.name}` : (norm && norm.isRemote ? `Shared/${item.name || item.id}` : (item.name || ''));
             const itemParentId = (item.parentReference && item.parentReference.id) ? String(item.parentReference.id).trim() : '';
-            if (!item.folder && knownIds.has(item.id)) {
-              const existing = existingByRemoteId.get(item.id);
+            const aliasExisting = !item.folder
+              ? ((existingByRemoteId && (existingByRemoteId.get(item.id) || (rawWrapperId ? existingByRemoteId.get(rawWrapperId) : null))) || byShortcutId.get(item.id) || (rawWrapperId ? byShortcutId.get(rawWrapperId) : null))
+              : null;
+            if (!item.folder && (knownIds.has(item.id) || aliasExisting)) {
+              const existing = aliasExisting;
               if (existing) {
                 let touched = false;
                 if (itemDriveId && existing.remoteDriveId !== itemDriveId) {
                   existing.remoteDriveId = itemDriveId;
+                  touched = true;
+                }
+                if (rawWrapperId && existing.remoteShortcutId !== rawWrapperId && String(existing.remoteId || '') !== rawWrapperId) {
+                  existing.remoteShortcutId = rawWrapperId;
+                  byShortcutId.set(rawWrapperId, existing);
                   touched = true;
                 }
                 if (itemParentId && existing.remoteParentId !== itemParentId) {
@@ -17959,6 +18105,8 @@
               const msTrack = microsoftTrack(item, itemPath);
               if (itemDriveId && !msTrack.remoteDriveId) msTrack.remoteDriveId = itemDriveId;
               if (itemParentId && !msTrack.remoteParentId) msTrack.remoteParentId = itemParentId;
+              if (rawWrapperId && !msTrack.remoteShortcutId && String(msTrack.remoteId || '') !== rawWrapperId) msTrack.remoteShortcutId = rawWrapperId;
+              if (msTrack.remoteShortcutId) byShortcutId.set(String(msTrack.remoteShortcutId), msTrack);
               state.tracks.push(msTrack);
               addedTracks.push(msTrack);
               knownIds.add(item.id);
@@ -18052,9 +18200,13 @@
       state.microsoftAccessToken = token || state.microsoftAccessToken;
       let added = 0, scannedFolders = 0;
       const existingByRemoteId = new Map();
+      const byShortcutId = new Map();
       for (let i = 0; i < state.tracks.length; i++) {
         const t = state.tracks[i];
-        if (t && t.source === 'onedrive' && t.remoteId) existingByRemoteId.set(t.remoteId, t);
+        if (t && t.source === 'onedrive' && t.remoteId) {
+          existingByRemoteId.set(t.remoteId, t);
+          if (t.remoteShortcutId) byShortcutId.set(String(t.remoteShortcutId), t);
+        }
       }
       const knownIds = new Set(existingByRemoteId.keys());
       const seenRemoteIds = new Set();
@@ -18082,14 +18234,26 @@
               const item = (norm && norm.item) || rawItem;
               const itemDriveId = (norm && norm.driveId) ? String(norm.driveId) : '';
               if (!item || !item.id) continue;
+              const rawWrapperId = (rawItem && rawItem.id && String(rawItem.id) !== String(item.id))
+                ? String(rawItem.id)
+                : (item.remoteShortcutId ? String(item.remoteShortcutId) : '');
               const itemPath = path ? `${path}/${item.name}` : item.name;
               if (!item.folder) seenRemoteIds.add(item.id);
-              if (!item.folder && knownIds.has(item.id)) {
-                const existing = existingByRemoteId.get(item.id);
+              const aliasExisting = !item.folder
+                ? ((existingByRemoteId.get(item.id) || (rawWrapperId ? existingByRemoteId.get(rawWrapperId) : null)) || byShortcutId.get(item.id) || (rawWrapperId ? byShortcutId.get(rawWrapperId) : null))
+                : null;
+              if (!item.folder && (knownIds.has(item.id) || aliasExisting)) {
+                const existing = aliasExisting;
                 if (existing) {
+                  if (existing.remoteId) seenRemoteIds.add(existing.remoteId);
                   let touched = false;
                   if (itemDriveId && existing.remoteDriveId !== itemDriveId) {
                     existing.remoteDriveId = itemDriveId;
+                    touched = true;
+                  }
+                  if (rawWrapperId && existing.remoteShortcutId !== rawWrapperId && String(existing.remoteId || '') !== rawWrapperId) {
+                    existing.remoteShortcutId = rawWrapperId;
+                    byShortcutId.set(rawWrapperId, existing);
                     touched = true;
                   }
                   if (item['@microsoft.graph.downloadUrl']) {
@@ -18136,8 +18300,10 @@
               }
               if (item.folder) {
                 const folderKey = (itemDriveId || 'me') + ':' + item.id;
-                if (!visitedFolders.has(folderKey)) {
+                const rawFolderKey = rawWrapperId ? ('me:' + rawWrapperId) : '';
+                if (!visitedFolders.has(folderKey) && (!rawFolderKey || !visitedFolders.has(rawFolderKey))) {
                   visitedFolders.add(folderKey);
+                  if (rawFolderKey) visitedFolders.add(rawFolderKey);
                   if (itemDriveId) {
                     queue.push({url:`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(itemDriveId)}/items/${encodeURIComponent(item.id)}/children?$select=id,name,file,folder,cTag,size,audio,remoteItem&$top=500`, path:itemPath, driveId:itemDriveId});
                   } else {
@@ -18162,9 +18328,11 @@
                 }
                 continue;
               }
-              if (knownIds.has(item.id)) continue;
+              if (knownIds.has(item.id) || aliasExisting) continue;
               const track = microsoftTrack(item, itemPath);
               if (itemDriveId && !track.remoteDriveId) track.remoteDriveId = itemDriveId;
+              if (rawWrapperId && !track.remoteShortcutId && String(track.remoteId || '') !== rawWrapperId) track.remoteShortcutId = rawWrapperId;
+              if (track.remoteShortcutId) byShortcutId.set(String(track.remoteShortcutId), track);
               state.tracks.push(track); pageTracks.push(track); knownIds.add(item.id); existingByRemoteId.set(item.id, track); added++;
             }
             if (pageTracks.length) {
@@ -21355,19 +21523,33 @@
       }
       return true;
     }
+    function boundPlayButtonCtxResume() {
+      if (!state.context || state.context.state !== 'suspended') return Promise.resolve();
+      if (typeof safeResumeAudioContext === 'function') return safeResumeAudioContext(350);
+      if (typeof setTimeout === 'function') {
+        return Promise.race([
+          Promise.resolve(state.context.resume()).catch(() => {}),
+          new Promise(r => setTimeout(r, 350))
+        ]);
+      }
+      return Promise.resolve(state.context.resume()).catch(() => {});
+    }
     $('play-button').addEventListener('click', async () => {
-      if (state._playBtnBusy) return;
+      const nativeBpActiveNow = Boolean(
+        state.isNativeBitPerfectPlaying ||
+        (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.isBitPerfectActive === 'function' && window.NocturneNative.isBitPerfectActive())
+      );
+      const nowPlayClick = Date.now();
+      const isActivelyPlayingAudio = Boolean(!nativeBpActiveNow && audio && !audio.paused && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(audio)));
+      if (state._playBtnBusy && state._playBtnBusyUntil && nowPlayClick < state._playBtnBusyUntil && !nativeBpActiveNow && !isActivelyPlayingAudio) return;
       state._playBtnBusy = true;
+      state._playBtnBusyUntil = nowPlayClick + 1200;
       try {
-        const nativeBpActiveNow = Boolean(
-          state.isNativeBitPerfectPlaying ||
-          (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.isBitPerfectActive === 'function' && window.NocturneNative.isBitPerfectActive())
-        );
         if (nativeBpActiveNow && handleNativeBitPerfectPlayPauseClick()) return;
         const wasContextSuspended = Boolean(state.context && state.context.state === 'suspended');
         if (typeof setupAudio === 'function') setupAudio();
         if (state.context && state.context.state === 'suspended') {
-          state.context.resume().catch(e => console.debug('AudioContext resume in play-button:', e));
+          try { state.context.resume().catch(e => console.debug('AudioContext resume in play-button:', e)); } catch (_) {}
         }
         if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; state.playGeneration++; stopDsdWorker(false); if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false); else $('play-button').textContent = '▶'; toast('Đã dừng giải mã DSD.'); return; }
         if (state.isPlaybackLoading && state._lastPlayTrackId === state.currentId && (!audio.src || audio.paused) && !audio.error && state._lastPlayTrackAt && (Date.now() - state._lastPlayTrackAt) < 900) {
@@ -21376,15 +21558,17 @@
         const hasMismatchedTrack = Boolean(state.currentId != null && audio && audio.dataset && audio.dataset.trackId && String(audio.dataset.trackId) !== String(state.currentId));
         if (!audio.src || audio.error || (typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(audio)) || (typeof location !== 'undefined' && audio.src === location.href) || hasMismatchedTrack) { const current = state.tracks.find(track => track.id === state.currentId); const next = current || state.tracks[0]; if (next) playTrack(next.id); return; }
         if (!audio.paused && wasContextSuspended) {
-          try { if (state.context && state.context.state === 'suspended') await state.context.resume(); } catch (_) {}
-          audio.defaultMuted = false;
-          if (typeof audio.removeAttribute === 'function') audio.removeAttribute('muted');
-          audio.muted = false;
-          if (state.activeDeck && state.activeDeck.router && state.activeDeck.router.gain) {
-            state.activeDeck.router.gain.value = 1;
+          await boundPlayButtonCtxResume();
+          if (state.context && state.context.state === 'running') {
+            audio.defaultMuted = false;
+            if (typeof audio.removeAttribute === 'function') audio.removeAttribute('muted');
+            audio.muted = false;
+            if (state.activeDeck && state.activeDeck.router && state.activeDeck.router.gain) {
+              state.activeDeck.router.gain.value = 1;
+            }
+            if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(true);
+            return;
           }
-          if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(true);
-          return;
         }
         if (audio.paused) {
           const curSliceTrack = state.tracks.find(track => track.id === state.currentId);
@@ -21426,8 +21610,28 @@
                 state.activeDeck.router.gain.value = 1;
               }
             }
-            if (state.context && state.context.state === 'suspended') await state.context.resume();
-            await audio.play();
+            if (state.context && state.context.state === 'suspended') {
+              try { state.context.resume().catch(() => {}); } catch (_) {}
+            }
+            const playPromise = Promise.resolve(audio.play());
+            if (typeof setTimeout === 'function') {
+              let settledPlay = false;
+              const releaseBusyTimer = setTimeout(() => {
+                if (!settledPlay) {
+                  state._playBtnBusy = false;
+                  state._playBtnBusyUntil = 0;
+                }
+              }, 800);
+              playPromise.then(() => {
+                settledPlay = true;
+                clearTimeout(releaseBusyTimer);
+              }, () => {
+                settledPlay = true;
+                clearTimeout(releaseBusyTimer);
+              });
+            }
+            await playPromise;
+            boundPlayButtonCtxResume().catch(() => {});
             if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(true);
           } catch (error) {
             console.error('Play button audio.play() failed:', error);
@@ -21447,6 +21651,7 @@
         }
       } finally {
         state._playBtnBusy = false;
+        state._playBtnBusyUntil = 0;
       }
     });
     $('previous-button').addEventListener('click', () => playNext(-1));
@@ -21460,6 +21665,7 @@
       el._reliableTransportTapBound = true;
       let startX = 0, startY = 0, startAt = 0, tracking = false;
       el.addEventListener('touchstart', e => {
+        el._touchTapGhostPending = false;
         if (e.touches && e.touches.length === 1) {
           startX = e.touches[0].clientX;
           startY = e.touches[0].clientY;
@@ -21477,14 +21683,16 @@
         const dx = Math.abs(t.clientX - startX);
         const dy = Math.abs(t.clientY - startY);
         const dt = Date.now() - startAt;
-        if (dx < 18 && dy < 18 && dt < 650 && !el.disabled) {
+        if (dx < 22 && dy < 22 && dt < 650 && !el.disabled) {
           if (e.cancelable && typeof e.preventDefault === 'function') e.preventDefault();
+          el._touchTapGhostPending = true;
           el._touchTapHandledAt = Date.now();
           el.click();
         }
       }, { passive: false });
       el.addEventListener('click', e => {
-        if (e && e.isTrusted && el._touchTapHandledAt && (Date.now() - el._touchTapHandledAt) < 600) {
+        if (e && e.isTrusted && el._touchTapGhostPending && el._touchTapHandledAt && (Date.now() - el._touchTapHandledAt) < 450) {
+          el._touchTapGhostPending = false;
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
@@ -23579,6 +23787,7 @@
       });
       element.addEventListener('play', () => {
         if (element._unlockingGesture) return;
+        if (state.isNativeBitPerfectPlaying) return;
         if (element !== audio) return;
         state.errorSkipCount = 0;
         setVisualizerRunning(true);
@@ -23598,6 +23807,7 @@
       });
       element.addEventListener('pause', () => {
         if (element._unlockingGesture) return;
+        if (state.isNativeBitPerfectPlaying) return;
         if (element._upgradingFullAudio) return;
         const standbyActivelyPlaying = Boolean(standbyAudio && !standbyAudio.paused && !standbyAudio._unlockingGesture && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(standbyAudio)) && standbyAudio.src);
         if (element === audio && standbyActivelyPlaying) return;

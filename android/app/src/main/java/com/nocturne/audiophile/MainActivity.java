@@ -1819,32 +1819,49 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public int read() throws IOException {
             if (mClosed || mRemaining <= 0) return -1;
-            int b = mRaf.read();
-            if (b != -1) mRemaining--;
-            return b;
+            try {
+                int b = mRaf.read();
+                if (b != -1) mRemaining--;
+                return b;
+            } catch (IOException ioErr) {
+                if (mClosed) return -1;
+                throw ioErr;
+            }
         }
 
         @Override
         public int read(@NonNull byte[] b, int off, int len) throws IOException {
+            if (off < 0 || len < 0 || off + len > b.length) throw new IndexOutOfBoundsException();
+            if (len == 0) return 0;
             if (mClosed || mRemaining <= 0) return -1;
             int toRead = (int) Math.min(len, mRemaining);
-            int bytesRead = mRaf.read(b, off, toRead);
-            if (bytesRead > 0) {
-                mRemaining -= bytesRead;
+            try {
+                int bytesRead = mRaf.read(b, off, toRead);
+                if (bytesRead > 0) {
+                    mRemaining -= bytesRead;
+                }
+                return bytesRead;
+            } catch (IOException ioErr) {
+                if (mClosed) return -1;
+                throw ioErr;
             }
-            return bytesRead;
         }
 
         @Override
         public long skip(long n) throws IOException {
             if (mClosed || n <= 0 || mRemaining <= 0) return 0;
-            long curPos = mRaf.getFilePointer();
-            long fileAvail = Math.max(0L, mRaf.length() - curPos);
-            long toSkip = Math.min(n, Math.min(mRemaining, fileAvail));
-            if (toSkip <= 0) return 0;
-            mRaf.seek(curPos + toSkip);
-            mRemaining -= toSkip;
-            return toSkip;
+            try {
+                long curPos = mRaf.getFilePointer();
+                long fileAvail = Math.max(0L, mRaf.length() - curPos);
+                long toSkip = Math.min(n, Math.min(mRemaining, fileAvail));
+                if (toSkip <= 0) return 0;
+                mRaf.seek(curPos + toSkip);
+                mRemaining -= toSkip;
+                return toSkip;
+            } catch (IOException ioErr) {
+                if (mClosed) return 0;
+                throw ioErr;
+            }
         }
 
         @Override
@@ -1857,7 +1874,9 @@ public class MainActivity extends AppCompatActivity {
         public void close() throws IOException {
             if (mClosed) return;
             mClosed = true;
-            mRaf.close();
+            try {
+                mRaf.close();
+            } catch (IOException ignored) {}
         }
     }
 
@@ -1926,20 +1945,32 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public int read() throws IOException {
             if (mClosed || mRemaining <= 0) return -1;
-            int b = mFis.read();
-            if (b != -1) mRemaining--;
-            return b;
+            try {
+                int b = mFis.read();
+                if (b != -1) mRemaining--;
+                return b;
+            } catch (IOException ioErr) {
+                if (mClosed) return -1;
+                throw ioErr;
+            }
         }
 
         @Override
         public int read(@NonNull byte[] b, int off, int len) throws IOException {
+            if (off < 0 || len < 0 || off + len > b.length) throw new IndexOutOfBoundsException();
+            if (len == 0) return 0;
             if (mClosed || mRemaining <= 0) return -1;
             int toRead = (int) Math.min(len, mRemaining);
-            int bytesRead = mFis.read(b, off, toRead);
-            if (bytesRead > 0) {
-                mRemaining -= bytesRead;
+            try {
+                int bytesRead = mFis.read(b, off, toRead);
+                if (bytesRead > 0) {
+                    mRemaining -= bytesRead;
+                }
+                return bytesRead;
+            } catch (IOException ioErr) {
+                if (mClosed) return -1;
+                throw ioErr;
             }
-            return bytesRead;
         }
 
         @Override
@@ -1947,33 +1978,38 @@ public class MainActivity extends AppCompatActivity {
             if (mClosed || n <= 0 || mRemaining <= 0) return 0;
             long toSkip = Math.min(n, mRemaining);
             try {
-                FileChannel channel = mFis.getChannel();
-                if (channel != null) {
-                    long curPos = channel.position();
-                    long fileAvail = Math.max(0L, channel.size() - curPos);
-                    long step = Math.min(toSkip, fileAvail);
-                    if (step > 0) {
-                        channel.position(curPos + step);
-                        mRemaining -= step;
-                        return step;
+                try {
+                    FileChannel channel = mFis.getChannel();
+                    if (channel != null) {
+                        long curPos = channel.position();
+                        long fileAvail = Math.max(0L, channel.size() - curPos);
+                        long step = Math.min(toSkip, fileAvail);
+                        if (step > 0) {
+                            channel.position(curPos + step);
+                            mRemaining -= step;
+                            return step;
+                        }
+                        return 0;
                     }
-                    return 0;
+                } catch (IOException ignored) {}
+                long skipped = 0;
+                byte[] buf = new byte[(int) Math.min(8192L, toSkip)];
+                while (skipped < toSkip && !mClosed) {
+                    long s = mFis.skip(toSkip - skipped);
+                    if (s > 0) {
+                        skipped += s;
+                    } else {
+                        int r = mFis.read(buf, 0, (int) Math.min(buf.length, toSkip - skipped));
+                        if (r < 0) break;
+                        skipped += r;
+                    }
                 }
-            } catch (IOException ignored) {}
-            long skipped = 0;
-            byte[] buf = new byte[(int) Math.min(8192L, toSkip)];
-            while (skipped < toSkip) {
-                long s = mFis.skip(toSkip - skipped);
-                if (s > 0) {
-                    skipped += s;
-                } else {
-                    int r = mFis.read(buf, 0, (int) Math.min(buf.length, toSkip - skipped));
-                    if (r < 0) break;
-                    skipped += r;
-                }
+                mRemaining -= skipped;
+                return skipped;
+            } catch (IOException ioErr) {
+                if (mClosed) return 0;
+                throw ioErr;
             }
-            mRemaining -= skipped;
-            return skipped;
         }
 
         @Override
@@ -1988,6 +2024,7 @@ public class MainActivity extends AppCompatActivity {
             mClosed = true;
             try {
                 if (mFis != null) mFis.close();
+            } catch (IOException ignored) {
             } finally {
                 try {
                     mAfd.close();
@@ -2186,11 +2223,18 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private static final int COVER_MAX_DIMENSION = 16384;
+    private static final long COVER_MAX_PIXELS = 100_000_000L;
+    private static final int COVER_MAX_DECODED_EDGE = 2048;
+
     static int computeCoverSampleSize(int srcWidth, int srcHeight, int targetEdge) {
         int sample = 1;
         int maxEdge = Math.max(srcWidth, srcHeight);
         if (targetEdge <= 0) return 1;
         while (maxEdge / (sample * 2) >= targetEdge) sample *= 2;
+        while ((srcWidth / sample) > COVER_MAX_DECODED_EDGE || (srcHeight / sample) > COVER_MAX_DECODED_EDGE) {
+            sample *= 2;
+        }
         return sample;
     }
 
@@ -2226,17 +2270,48 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private static boolean isCoverBoundsSafe(android.graphics.BitmapFactory.Options bounds) {
+        if (bounds == null || bounds.outWidth <= 0 || bounds.outHeight <= 0) return false;
+        if (bounds.outWidth > COVER_MAX_DIMENSION || bounds.outHeight > COVER_MAX_DIMENSION) return false;
+        return ((long) bounds.outWidth * (long) bounds.outHeight) <= COVER_MAX_PIXELS;
+    }
+
     private byte[] coverBytesToJpeg(byte[] raw, int size) {
         if (raw == null || raw.length == 0) return null;
         try {
             android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
             bounds.inJustDecodeBounds = true;
             android.graphics.BitmapFactory.decodeByteArray(raw, 0, raw.length, bounds);
-            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null;
+            if (!isCoverBoundsSafe(bounds)) return null;
             android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
             opts.inSampleSize = computeCoverSampleSize(bounds.outWidth, bounds.outHeight, size);
             opts.inPreferredConfig = android.graphics.Bitmap.Config.RGB_565;
             android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeByteArray(raw, 0, raw.length, opts);
+            if (bmp == null) return null;
+            try {
+                return coverBitmapToJpeg(bmp, size);
+            } finally {
+                try { bmp.recycle(); } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private byte[] coverFileToJpeg(File file, int size, long maxFileBytes) {
+        if (file == null || !file.isFile() || !file.canRead()) return null;
+        long len = file.length();
+        if (len <= 0 || len > maxFileBytes) return null;
+        try {
+            String absPath = file.getAbsolutePath();
+            android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeFile(absPath, bounds);
+            if (!isCoverBoundsSafe(bounds)) return null;
+            android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+            opts.inSampleSize = computeCoverSampleSize(bounds.outWidth, bounds.outHeight, size);
+            opts.inPreferredConfig = android.graphics.Bitmap.Config.RGB_565;
+            android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeFile(absPath, opts);
             if (bmp == null) return null;
             try {
                 return coverBitmapToJpeg(bmp, size);
@@ -2688,7 +2763,7 @@ public class MainActivity extends AppCompatActivity {
                     if (kid == null || !kid.isFile()) continue;
                     String name = kid.getName().toLowerCase(Locale.US);
                     if (name.equals(base + ".jpg") || name.equals(base + ".jpeg") || name.equals(base + ".png") || name.equals(base + ".webp")) {
-                        byte[] jpeg = coverBytesToJpeg(coverReadSmallFile(kid, 8L * 1024L * 1024L), size);
+                        byte[] jpeg = coverFileToJpeg(kid, size, 24L * 1024L * 1024L);
                         if (jpeg != null) return jpeg;
                     }
                 }
@@ -2703,14 +2778,14 @@ public class MainActivity extends AppCompatActivity {
                     String name = kid.getName().toLowerCase(Locale.US);
                     if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") || name.endsWith(".webp")) {
                         long len = kid.length();
-                        if (len > bestLen && len <= 10L * 1024L * 1024L) {
+                        if (len > bestLen && len <= 24L * 1024L * 1024L) {
                             bestLen = len;
                             bestImg = kid;
                         }
                     }
                 }
                 if (bestImg != null) {
-                    return coverBytesToJpeg(coverReadSmallFile(bestImg, 10L * 1024L * 1024L), size);
+                    return coverFileToJpeg(bestImg, size, 24L * 1024L * 1024L);
                 }
             }
         } catch (Throwable ignored) {}
@@ -4380,7 +4455,15 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } catch (Exception ignored) {}
             }
-            updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, false);
+            final long posMs = Math.max(0L, mCurrentPositionMs.get());
+            final long durMs = Math.max(0L, mDurationMs.get());
+            final String nTitle = (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) ? mLastMediaTitle : mCurrentTrackTitle;
+            final String nArtist = (mLastMediaArtist != null && !mLastMediaArtist.isEmpty()) ? mLastMediaArtist : mCurrentTrackArtist;
+            final String nAlbum = (mLastMediaAlbum != null && !mLastMediaAlbum.isEmpty()) ? mLastMediaAlbum : mCurrentTrackAlbum;
+            runOnUiThread(() -> {
+                updateMediaSessionPosition(posMs, durMs, false);
+                updateMediaNotification(nTitle, nArtist, nAlbum, false);
+            });
         }
 
         public void resume() {
@@ -4403,7 +4486,15 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } catch (Exception ignored) {}
             }
-            updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, true);
+            final long posMs = Math.max(0L, mCurrentPositionMs.get());
+            final long durMs = Math.max(0L, mDurationMs.get());
+            final String nTitle = (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) ? mLastMediaTitle : mCurrentTrackTitle;
+            final String nArtist = (mLastMediaArtist != null && !mLastMediaArtist.isEmpty()) ? mLastMediaArtist : mCurrentTrackArtist;
+            final String nAlbum = (mLastMediaAlbum != null && !mLastMediaAlbum.isEmpty()) ? mLastMediaAlbum : mCurrentTrackAlbum;
+            runOnUiThread(() -> {
+                updateMediaSessionPosition(posMs, durMs, true);
+                updateMediaNotification(nTitle, nArtist, nAlbum, true);
+            });
         }
 
         public void seek(long positionMs) {
@@ -4551,6 +4642,7 @@ public class MainActivity extends AppCompatActivity {
 
         private void notifyBitPerfectErrorToWeb(String reason) {
             if (mIsStopped || mWebView == null) return;
+            final long safePosMs = Math.max(0L, mCurrentPositionMs.get());
             final String safeMsg = (reason != null ? reason : "Bit-Perfect playback error")
                     .replace("\\", "\\\\")
                     .replace("'", "\\'")
@@ -4559,7 +4651,7 @@ public class MainActivity extends AppCompatActivity {
             mWebView.post(() -> {
                 if (mWebView != null) {
                     mWebView.evaluateJavascript(
-                            "if (typeof window.onNativeBitPerfectError === 'function') window.onNativeBitPerfectError('" + safeMsg + "');",
+                            "if (typeof window.onNativeBitPerfectError === 'function') window.onNativeBitPerfectError('" + safeMsg + "', " + safePosMs + ");",
                             null
                     );
                 }
@@ -4863,6 +4955,15 @@ public class MainActivity extends AppCompatActivity {
                             .build();
                 }
 
+                if (track == null || track.getState() != AudioTrack.STATE_INITIALIZED) {
+                    if (track != null) {
+                        try { track.release(); } catch (Exception ignored) {}
+                        track = null;
+                    }
+                    pendingErrorReason = "Bit-Perfect AudioTrack uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
+                    return;
+                }
+
                 mAudioTrack = track;
 
                 if (preferredDevice != null && track != null) {
@@ -5090,6 +5191,15 @@ public class MainActivity extends AppCompatActivity {
                                     break;
                                 }
                             }
+                            if (track == null || track.getState() != AudioTrack.STATE_INITIALIZED) {
+                                if (track != null) {
+                                    try { track.release(); } catch (Exception ignored) {}
+                                    track = null;
+                                }
+                                pendingErrorReason = "Bit-Perfect AudioTrack rebuild uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
+                                break;
+                            }
+
                             mAudioTrack = track;
                             if (preferredDevice != null) track.setPreferredDevice(preferredDevice);
                             try { track.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
@@ -5178,7 +5288,16 @@ public class MainActivity extends AppCompatActivity {
                                                 .setTransferMode(AudioTrack.MODE_STREAM)
                                                 .build();
                                     }
-                                    mAudioTrack = track;
+                                    if (track == null || track.getState() != AudioTrack.STATE_INITIALIZED) {
+                                if (track != null) {
+                                    try { track.release(); } catch (Exception ignored) {}
+                                    track = null;
+                                }
+                                pendingErrorReason = "Bit-Perfect AudioTrack rebuild uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
+                                break;
+                            }
+
+                            mAudioTrack = track;
                                     if (preferredDevice != null) {
                                         try { track.setPreferredDevice(preferredDevice); } catch (Throwable ignored) {}
                                     }
@@ -5582,11 +5701,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.71";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.72";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.71\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.72\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

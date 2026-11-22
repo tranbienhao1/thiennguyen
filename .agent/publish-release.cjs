@@ -80,22 +80,27 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.71';
-  const name = process.argv[3] || `Nocturne ${tag} (Hủy tải DSD Cloud giữa chừng & giải phóng RAM + Đồng bộ khóa màn hình Android sau cuộc gọi/AudioFocus + Tự bỏ qua bài Cloud chưa cache khi Album ngoại tuyến)`;
+  const tag = process.argv[2] || 'v3.9.72';
+  const name = process.argv[3] || `Nocturne ${tag} (Sửa triệt để nút Play/Pause Web & FiiO M11S + Chống trùng lặp Google Drive/OneDrive Shared & Shortcut + Bảo toàn vị trí khi fallback Bit-Perfect & Bảo vệ giải mã ảnh bìa lớn)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 125) — Hủy tải DSD Cloud & Giải phóng RAM + Đồng bộ AudioFocus Khóa màn hình Android + Chuyển tiếp Album Ngoại tuyến
+    : `### Nocturne ${tag} (versionCode 126) — Sửa triệt để Play/Pause (Web + FiiO M11S) + Chống trùng lặp Cloud Shared/Shortcut + Fallback Bit-Perfect & An toàn ảnh bìa lớn
 
-#### 1. Phát DSD Cloud an toàn RAM & Hủy tải tức thì khi chuyển bài (\`index.html\`)
-- **\`fetchCloudFile\`**: Chống tải trùng qua \`track._cloudFilePromise\`, gắn \`AbortController\` (\`track._dsdFetchAbort\`) tự hủy tải file DSD dung lượng lớn khi chuyển bài, và bổ sung dự phòng 2 lớp cho OneDrive chia sẻ (\`freshDirect\` -> Graph \`/drives/{remoteDriveId}/items/{remoteId}/content\`).
-- **\`releaseUnusedCloudUrl\`**: Chủ động hủy \`_dsdFetchAbort\` và giải phóng \`track.file = null\` trên bài DSD Cloud đã chuyển qua để chống tràn RAM trên máy nghe nhạc FiiO M11S (3GB RAM).
+#### 1. Khắc phục triệt để nút Play/Pause trên Web & Android/FiiO M11S (\`index.html\`, \`MainActivity.java\`)
+- **Chống treo \`AudioContext.resume()\` & khóa \`_playBtnBusy\` vĩnh viễn**: Bọc giới hạn timeout 350ms cho \`resume()\` và cơ chế tự nhả khóa theo mốc thời gian (\`_playBtnBusyUntil\`) cùng bộ giải phóng 800ms khi buffering chậm để nút Play/Pause không bao giờ bị đơ.
+- **Chặn sự kiện \`pause\`/\`play\` trễ từ HTML5 \`<audio>\` khi đang phát Bit-Perfect**: Khi chuyển sang phát \`BitPerfectAudioPlayer\` thuần native, các sự kiện \`pause\` bất đồng bộ từ deck HTML5 cũ không còn lật ngược biểu tượng nút về \`▶\` hay ghi đè trạng thái \`MediaSession\`.
+- **Sửa chạm liên tiếp (\`attachReliableTransportTap\`) & lớp phủ footer desktop (\`z-index\`)**: Dùng cờ ghost-click một lần (\`_touchTapGhostPending\`) tránh nuốt nhầm lần bấm Play/Pause thứ 2 và nâng \`.footer-center-controls\` / \`#play-button\` lên trên tránh vùng bấm lân cận che khuất.
+- **Đồng bộ notification & MediaSession Bit-Perfect trên UI thread (\`MainActivity.java\`)**: \`BitPerfectAudioPlayer.pause()/resume()\` giữ nguyên metadata thực đang phát (\`mLastMediaTitle\`) và cập nhật \`mLastMediaPositionMs\` trên UI thread.
 
-#### 2. Đồng bộ khóa màn hình & Bluetooth AVRCP tức thì khi nhận cuộc gọi / AudioFocus trên Android (\`MainActivity.java\`)
-- **\`AUDIOFOCUS_LOSS\` / \`AUDIOFOCUS_LOSS_TRANSIENT\` / \`AUDIOFOCUS_GAIN\`**: Đồng bộ ngay \`updateMediaSessionMetadata\` và \`showMediaNotification\` ngay trên luồng gốc (kể cả khi màn hình tắt và WebView bị đóng băng trong cuộc gọi), đồng thời đồng bộ lại vị trí phát \`onNativeBitPerfectPosition\` khi tự phát tiếp sau cuộc gọi.
+#### 2. Đồng bộ Google Drive & OneDrive: Chống trùng lặp Shared/Shortcut & Xóa đồng bộ (\`index.html\`)
+- **Google Drive (\`scanGoogleDriveAudioShortcuts\`, \`tryLoadGoogleChangesDelta\`, \`loadGoogleFiles\`)**: Ánh xạ hai chiều \`remoteId <-> targetRemoteId\`, chống nhân đôi nhiều shortcut cùng trỏ 1 bài hoặc giữa shortcut và file gốc, đồng thời xử lý đúng sự kiện xóa khi target bị cho vào Thùng rác.
+- **OneDrive (\`normalizeMicrosoftDriveItem\`, \`enqueueMicrosoftSharedItems\`, \`tryLoadMicrosoftDeltaSync\`, \`loadMicrosoftFiles\`)**: Bảo toàn \`remoteShortcutId\`, chống trùng lặp mục \`sharedWithMe\` với shortcut trong My files và xóa sạch bài qua ID shortcut trong Delta Sync.
+- **\`restoreCloudCatalog\`**: Lọc trùng lặp O(1) ngay khi nạp danh mục từ IndexedDB.
 
-#### 3. Chuyển bài mượt mà trong Album hỗn hợp khi mất mạng (\`index.html\`)
-- **\`playNext\`**: Trong chế độ phát tuần tự Album (\`isSequentialAlbum\`) khi ngoại tuyến (\`navigator.onLine === false\` hoặc bộ lọc Offline), tự lọc các bài có thể phát ngoại tuyến (\`canPlayOffline\`) để nhảy sang bài nội bộ/có lát đệm kế tiếp thay vì vấp lỗi trên bài Cloud chưa cache.
+#### 3. Bảo toàn vị trí khi Bit-Perfect fallback & tối ưu `/local-media`, `/local-cover` (\`MainActivity.java\`, \`index.html\`)
+- **Truyền mốc vị trí ms chính xác từ native (\`notifyBitPerfectErrorToWeb\`) + \`AudioTrack.STATE_INITIALIZED\`**: Giữ chính xác vị trí bài hát (kể cả trong CUE sheet) khi chuyển dự phòng sang Web Audio và bám sớm \`loadedmetadata\`.
+- **An toàn tua nhanh \`BoundedFileInputStream\` / \`BoundedContentUriInputStream\` & giải mã ảnh bìa lớn (\`coverFileToJpeg\`)**: Xử lý êm đóng luồng đồng thời khi tua nhanh HTTP 206 và giải mã trực tiếp file ảnh bìa tới 24 MB kèm giới hạn kích thước khung hình chống OOM.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
