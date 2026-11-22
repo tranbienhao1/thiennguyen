@@ -2367,7 +2367,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.82</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.83</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4406,6 +4406,7 @@
       window.onNativeBitPerfectError = (reason, nativePosMs) => {
         console.warn('Native Bit-Perfect error, falling back to Web Audio:', reason);
         const wasNativeBp = Boolean(state.isNativeBitPerfectPlaying || state.isPlaybackLoading);
+        const wasNativeBpPaused = Boolean(state.isNativeBitPerfectPaused);
         const parsedNativeMs = Number(nativePosMs);
         const nativePosSec = (Number.isFinite(parsedNativeMs) && parsedNativeMs > 500) ? (parsedNativeMs / 1000) : 0;
         const trackedPosSec = (Number.isFinite(state.lastBitPerfectPositionSec) && state.lastBitPerfectPositionSec > 0.5) ? state.lastBitPerfectPositionSec : 0;
@@ -4420,6 +4421,13 @@
           resumePosSec = curTrack.cueStart;
         }
         const now = Date.now();
+        if (wasNativeBpPaused) {
+          curTrack._skipNativeBpOnce = true;
+          curTrack._nativeBpFallbackUntil = now + 5 * 60 * 1000;
+          if (resumePosSec > 0) curTrack._resumeAfterBpFallbackSec = resumePosSec;
+          if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+          return;
+        }
         const prevAt = Number(curTrack._nativeBpErrorAt || 0);
         const errCount = (now - prevAt < 30000) ? Number(curTrack._nativeBpErrorCount || 0) : 0;
         curTrack._nativeBpErrorAt = now;
@@ -20981,6 +20989,9 @@
           existingUris.delete(oldUri);
           existingByUri.delete(oldUri);
           if (prevTrack.url && prevTrack.url.indexOf('/local-media?uri=') !== -1) prevTrack.url = '';
+          if (prevTrack.cover && prevTrack.cover.indexOf('/local-cover?uri=') !== -1) prevTrack.cover = '';
+          prevTrack._localAccessError = null;
+          prevTrack._pathFallbackRetriedGen = 0;
         }
         prevTrack.uri = normUri;
         existingUris.add(normUri);
@@ -20991,6 +21002,9 @@
           existingPaths.delete(oldPath);
           existingByPath.delete(oldPath);
           if (prevTrack.url && prevTrack.url.indexOf('/local-media?path=') !== -1) prevTrack.url = '';
+          if (prevTrack.cover && prevTrack.cover.indexOf('/local-cover?path=') !== -1) prevTrack.cover = '';
+          prevTrack._localAccessError = null;
+          prevTrack._pathFallbackRetriedGen = 0;
         }
         prevTrack.path = normPath;
         existingPaths.add(normPath);
@@ -22030,6 +22044,20 @@
       const fiioCount = getFiioTrackCount();
       if (reason === 'mounted' || reason === 'unmounted') {
         lastFiioStorageSyncAt = now;
+        if (reason === 'mounted') {
+          if (typeof failedNativeCovers !== 'undefined' && failedNativeCovers && typeof failedNativeCovers.clear === 'function') {
+            failedNativeCovers.clear();
+          }
+          if (typeof state !== 'undefined' && state && Array.isArray(state.tracks)) {
+            for (let ti = 0; ti < state.tracks.length; ti++) {
+              const tr = state.tracks[ti];
+              if (tr && (tr.source === 'fiio' || tr.source === 'local')) {
+                tr._localAccessError = null;
+                tr._pathFallbackRetriedGen = 0;
+              }
+            }
+          }
+        }
         if (fiioScanInProgress) {
           pendingFiioHotplugReason = reason;
           return;
@@ -27076,10 +27104,13 @@
       try {
         if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
         const nowMs = Date.now();
+        let clearedMsUrls = 0;
+        let triggeredRefresh = false;
         if (state.googleToken && state.googleExpiresAt) {
           const gRem = state.googleExpiresAt - nowMs;
           if (gRem < 5 * 60 * 1000 && (nowMs - lastTokenKeepAliveAt) >= 60000) {
             lastTokenKeepAliveAt = nowMs;
+            triggeredRefresh = true;
             if (typeof ensureGoogleToken === 'function') {
               ensureGoogleToken(gRem <= 0).catch(() => {});
             }
@@ -27089,11 +27120,21 @@
           const msRem = state.microsoftExpiresAt ? (state.microsoftExpiresAt - nowMs) : -1;
           if (msRem < 5 * 60 * 1000) {
             lastMicrosoftWakeRefreshAt = nowMs;
-            clearStaleMicrosoftDownloadUrls();
+            clearedMsUrls = clearStaleMicrosoftDownloadUrls();
+            triggeredRefresh = true;
             if (state.msAccount && typeof getMicrosoftToken === 'function') {
               getMicrosoftToken(false, msRem <= 0).catch(() => {});
             }
           }
+        }
+        const curTrack = Array.isArray(state.tracks) ? state.tracks.find(t => t && t.id === state.currentId) : null;
+        if (curTrack && curTrack._pendingSliceUpgrade && typeof retryPendingCurrentSliceUpgrade === 'function') {
+          retryPendingCurrentSliceUpgrade().catch(() => {});
+        }
+        if ((clearedMsUrls > 0 || triggeredRefresh) && state.currentId && typeof resyncNextPreload === 'function') {
+          state._preloadFailedTrackId = null;
+          state._preloadFailedAt = 0;
+          resyncNextPreload(false);
         }
       } catch (_) {}
     }
@@ -27338,17 +27379,22 @@
     }
     window.addEventListener('online', () => {
       if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.onOnline();
-      updateNetworkStatus(true);
-      toast('Đã kết nối Internet trở lại.');
-      checkForAppUpdate();
-      if (typeof retryPendingCurrentSliceUpgrade === 'function') retryPendingCurrentSliceUpgrade().catch(() => {});
-      if (state.currentId) preloadNext(true);
-      if (typeof runCloudMetadataQueue === 'function') runCloudMetadataQueue();
+      updateNetworkStatus(true); toast('Đã kết nối Internet trở lại.'); checkForAppUpdate();
       if (typeof scheduleOnlineCloudDeltaSync === 'function') scheduleOnlineCloudDeltaSync();
+      state._preloadFailedTrackId = null; state._preloadFailedAt = 0;
+      if (typeof runCloudWakeTokenRefresh === 'function') runCloudWakeTokenRefresh();
+      if (typeof retryPendingCurrentSliceUpgrade === 'function') retryPendingCurrentSliceUpgrade().catch(() => {});
+      if (typeof resyncNextPreload === 'function') resyncNextPreload(false); else if (state.currentId) preloadNext(true);
+      if (typeof runCloudMetadataQueue === 'function') runCloudMetadataQueue();
     });
     window.addEventListener('offline', () => {
       if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.onOffline('offline');
       updateNetworkStatus(false);
+      if (state.currentId && state.preloadTrackId && typeof resyncNextPreload === 'function') {
+        const preloaded = Array.isArray(state.tracks) ? state.tracks.find(t => t && t.id === state.preloadTrackId) : null;
+        const canPlayPreloadOffline = preloaded && typeof (library && library.canPlayOffline) === 'function' ? library.canPlayOffline(preloaded) : true;
+        if (preloaded && !canPlayPreloadOffline) resyncNextPreload(true);
+      }
       toast('Mất kết nối mạng. Đang ở chế độ Ngoại tuyến.');
     });
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {

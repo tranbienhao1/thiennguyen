@@ -80,20 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.82';
-  const name = process.argv[3] || `Nocturne ${tag} (Preload Re-Sync for Repeat/Shuffle/Autoplay/Album/Contextual Queue Across Web & Bit-Perfect + Google Drive & OneDrive Delta Sidecar .LRC & Shared Artwork Refresh)`;
+  const tag = process.argv[2] || 'v3.9.83';
+  const name = process.argv[3] || `Nocturne ${tag} (Online/Offline & Screen-Wake Cloud Preload/Token Recovery + Paused Bit-Perfect Fallback Guard + MicroSD Remount URI & Cover Self-Heal)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 136) — Đồng bộ nạp trước bài kế (Web Audio + Native Bit-Perfect) & Làm mới lời .LRC / ảnh bìa thư mục chia sẻ qua Cloud Delta Sync
+    : `### Nocturne ${tag} (versionCode 137) — Hồi phục nạp trước & token Cloud khi có mạng / bật màn hình + Bảo vệ Pause khi Bit-Perfect fallback + Tự làm mới URI/ảnh bìa khi gắn lại MicroSD
 
-#### 1. Đồng bộ hủy & nạp trước bài kế khi đổi Repeat / Shuffle / Autoplay / Album / Hàng đợi (\`index.html\`)
-- **Hợp nhất cơ chế \`resyncNextPreload(forceClear)\`**: Khi chuyển chế độ Repeat (\`#repeat-button\`), Shuffle (\`#shuffle-button\`), Autoplay (\`#autoplay-button\`), hoặc thêm Album / Danh sách gợi ý vào hàng đợi (\`#album-hero-queue\`, \`#contextual-queue-btn\`), tự động hủy bộ đệm \`standbyAudio\` cũ, bỏ ghim \`bpCloudPreloadTrackId\` và nạp lại đúng bài kế tiếp cho cả Web Audio lẫn Native Bit-Perfect.
-- **Bảo vệ Bit-Perfect khi bấm Phát Album (\`#album-hero-play\`, \`#album-hero-shuffle\`, \`#contextual-play-btn\`)**: Không đánh thức \`AudioContext\` của WebView khi bài đầu album đang định tuyến tới Native Bit-Perfect trên FiiO M11S/Android, đồng thời dọn sạch preload cũ trước khi chuyển ngữ cảnh phát.
+#### 1. Hồi phục mượt Cloud khi mất/có mạng & khi bật lại màn hình sau Doze (\`index.html\`)
+- **Sự kiện \`online\` & \`offline\`**: Khi mạng hồi phục, tự động xóa mốc chặn lỗi preload cũ (\`_preloadFailedTrackId\`), chạy \`runCloudWakeTokenRefresh()\` trước khi nối lại bản nâng cấp Full-Audio và kích hoạt \`resyncNextPreload(false)\` cho cả **Web Audio lẫn Native Bit-Perfect**; khi rớt mạng (\`offline\`), tự động dọn bộ đệm preload bài Cloud chưa cache để chuyển sang bài ngoại tuyến kế tiếp.
+- **\`runCloudWakeTokenRefresh()\`**: Khi bật lại màn hình sau Doze, nếu bài Cloud đang phát còn chờ nâng cấp từ First-Slice sẽ tự gọi \`retryPendingCurrentSliceUpgrade()\`, đồng thời làm mới preload nếu vừa xóa URL OneDrive hết hạn.
 
-#### 2. Google Drive & OneDrive Delta Sync — Làm mới lời bài hát \`.lrc\` & ảnh bìa thư mục chia sẻ (\`index.html\`)
-- **Google Drive Delta Sync (\`tryLoadGoogleChangesDelta\`)**: Nhận diện các tệp \`.lrc\` mới thêm/sửa hoặc shortcut trỏ tới thư mục chia sẻ, tự động mở khóa lại \`_checkedDriveLrc\` cho các bài hát cùng thư mục và làm mới danh sách thư mục ảnh bìa (\`changedArtParents\`, \`changedLrcParents\`).
-- **OneDrive Delta Sync & Shared Folders (\`tryLoadMicrosoftDeltaSync\`, \`applyMicrosoftSiblingLrcLinks\`, \`loadMicrosoftFiles\`)**: Chuẩn hóa Unicode NFC khi khớp tên \`.lrc\` (tiếng Việt/Nhật), phát hiện đổi \`cTag\`/\`driveId\` và tự động xóa liên kết \`remoteLrc\` mồ côi khi tệp \`.lrc\` bị xóa trên OneDrive; bật \`forceCoverRefresh\` cho thư mục chia sẻ khi chạy Delta Sync.
+#### 2. Bảo vệ trạng thái Pause khi Bit-Perfect fallback & Tự hồi phục MicroSD gắn lại (\`index.html\`)
+- **\`window.onNativeBitPerfectError\`**: Lưu \`wasNativeBpPaused\` trước khi đặt lại trạng thái; nếu người dùng đang tạm dừng khi USB DAC ngắt kết nối hoặc thiết bị báo lỗi Bit-Perfect, giữ nguyên trạng thái tạm dừng kèm vị trí phát \`_resumeAfterBpFallbackSec\` thay vì tự động phát nhạc ra loa ngoài.
+- **\`applyFiioRescanFields\` & \`window.onAndroidStorageStateChanged('mounted')\`**: Khi gắn lại thẻ nhớ MicroSD và Android cấp lại MediaStore \`content://\` URI mới, tự xóa cache ảnh lỗi \`failedNativeCovers\`, gỡ cờ \`_localAccessError\` / \`_pathFallbackRetriedGen\` và làm mới cả \`url\` lẫn \`cover\` để nhạc và ảnh bìa phục hồi tức thì không cần khởi động lại app.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
