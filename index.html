@@ -2369,7 +2369,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.91</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.92</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3657,8 +3657,16 @@
     const cloudStatus = (provider, message, tone = 'text-zinc-500') => {
       const element = $(`${provider}-state`);
       if (element) { element.textContent = message; element.className = `text-[10px] ${tone}`; }
-      $('cloud-status').textContent = message;
+      if ($('cloud-status')) $('cloud-status').textContent = message;
     };
+    function countSourceTracks(source) {
+      if (typeof state === 'undefined' || !state || !Array.isArray(state.tracks)) return 0;
+      let count = 0;
+      for (let i = 0; i < state.tracks.length; i++) {
+        if (state.tracks[i] && state.tracks[i].source === source) count++;
+      }
+      return count;
+    }
     // Pha C — giới hạn ảnh bìa lưu vào IndexedDB: ảnh gốc chưa downscale được
     // (canvas lỗi, ảnh <= 512px nhưng nặng) có thể là base64 vài MB; chỉ giữ
     // tối đa 512 KiB ký tự, còn lại lưu null để lần khôi phục sau nạp lại
@@ -6071,6 +6079,7 @@
           if (reacquiredFile) {
             track._localAccessError = '';
             track.file = reacquiredFile;
+            if (typeof setReopenFolderWarning === 'function') setReopenFolderWarning(false);
             if (track.isCue && state.tracks) {
               for (let i = 0; i < state.tracks.length; i++) {
                 const sib = state.tracks[i];
@@ -6941,6 +6950,41 @@
         } else {
           emptyBtn.classList.add('hidden');
         }
+      }
+    }
+    function setReopenFolderWarning(active) {
+      const isWarn = Boolean(active);
+      if (typeof document === 'undefined') return;
+      const sideBtn = $('reopen-folder');
+      const emptyBtn = $('empty-reopen-folder');
+      const applyWarn = (el, isPrimary) => {
+        if (!el || !el.classList) return;
+        const setClass = (cls, on) => {
+          if (typeof el.classList.toggle === 'function') el.classList.toggle(cls, on);
+          else if (on && typeof el.classList.add === 'function') el.classList.add(cls);
+          else if (!on && typeof el.classList.remove === 'function') el.classList.remove(cls);
+        };
+        setClass('border', isWarn && isPrimary);
+        setClass('border-amber-400/60', isWarn);
+        setClass('bg-amber-500/15', isWarn);
+        setClass('text-amber-200', isWarn);
+        if (isWarn) {
+          if (typeof el.setAttribute === 'function') el.setAttribute('data-perm-warning', 'true');
+        } else if (typeof el.removeAttribute === 'function') {
+          el.removeAttribute('data-perm-warning');
+        }
+      };
+      applyWarn(sideBtn, true);
+      applyWarn(emptyBtn, false);
+      const isDesktopWeb = typeof window !== 'undefined' && !window.isNativeAndroid && !window.NocturneNative && typeof window.showDirectoryPicker === 'function';
+      if (isWarn && isDesktopWeb && !savedLocalFolderRecord && typeof loadSavedLocalFolderHandles === 'function') {
+        loadSavedLocalFolderHandles().then(list => {
+          if (list && list[0]) {
+            updateSavedFolderButtons(list[0]);
+            applyWarn($('reopen-folder'), true);
+            applyWarn($('empty-reopen-folder'), false);
+          }
+        }).catch(() => {});
       }
     }
     async function loadSavedLocalFolderHandles() {
@@ -15992,6 +16036,7 @@
           toast('Tệp cục bộ đã bị xóa hoặc di chuyển — hãy mở lại thư mục nhạc để đồng bộ.');
         } else if (track._localAccessError === 'permission_denied') {
           const isNativeSafEnv = typeof window !== 'undefined' && (window.isNativeAndroid || window.NocturneNative);
+          if (!isNativeSafEnv && typeof setReopenFolderWarning === 'function') setReopenFolderWarning(true);
           toast(isNativeSafEnv
             ? 'Quyền truy cập thư mục Android/SAF cho bài hát này đã bị thu hồi — hãy chọn lại tệp hoặc nhấn Quét thẻ nhớ FiiO.'
             : 'Trình duyệt cần cấp lại quyền đọc thư mục cục bộ để phát bài này.');
@@ -16020,6 +16065,7 @@
           toast('Tệp cục bộ đã bị xóa hoặc di chuyển — hãy mở lại thư mục nhạc để đồng bộ.');
         } else if (track._localAccessError === 'permission_denied') {
           const isNativeSafEnv = typeof window !== 'undefined' && (window.isNativeAndroid || window.NocturneNative);
+          if (!isNativeSafEnv && typeof setReopenFolderWarning === 'function') setReopenFolderWarning(true);
           toast(isNativeSafEnv
             ? 'Quyền truy cập thư mục Android/SAF cho bài hát này đã bị thu hồi — hãy chọn lại tệp hoặc nhấn Quét thẻ nhớ FiiO.'
             : 'Trình duyệt cần cấp lại quyền đọc thư mục cục bộ để phát bài này.');
@@ -16885,6 +16931,7 @@
           if (!opts.silentIfGranted) toast('Trình duyệt chưa được cấp quyền đọc thư mục.');
           return { loaded: false, added: 0, removed: 0 };
         }
+        if (typeof setReopenFolderWarning === 'function') setReopenFolderWarning(false);
         const folderKey = 'dir:' + String(record.name || handle.name || 'local').toLowerCase();
         if (typeof state !== 'undefined' && state && Array.isArray(state.tracks)) {
           for (let ti = 0; ti < state.tracks.length; ti++) {
@@ -18006,7 +18053,8 @@
       if (addedTracks.length || updatedTracks.length || removed) {
         if (typeof renderTracks === 'function') renderTracks();
       }
-      if (typeof cloudStatus === 'function') cloudStatus('google', `Google Drive · ${knownIds.size - removed} bài`, 'text-emerald-300');
+      const googleCount = (typeof countSourceTracks === 'function') ? countSourceTracks('google') : Math.max(0, knownIds.size - removed);
+      if (typeof cloudStatus === 'function') cloudStatus('google', `Google Drive · ${googleCount} bài`, 'text-emerald-300');
       if (typeof toast === 'function') toast(`Đồng bộ nhanh Google Drive (Delta): +${addedTracks.length} mới, ~${updatedTracks.length} cập nhật, -${removed} đã xóa.`);
       return { handled: true, added: addedTracks.length, updated: updatedTracks.length, removed, newlyAddedTracks: addedTracks, changedArtParents: Array.from(changedArtParents), changedLrcParents: Array.from(changedLrcParents) };
     }
@@ -19124,7 +19172,8 @@
       if (addedTracks.length || updatedTracks.length || removed) {
         if (typeof renderTracks === 'function') renderTracks();
       }
-      if (typeof cloudStatus === 'function') cloudStatus('microsoft', `OneDrive · ${knownIds.size - removed} bài`, 'text-emerald-300');
+      const msDeltaCount = (typeof countSourceTracks === 'function') ? countSourceTracks('onedrive') : Math.max(0, knownIds.size - removed);
+      if (typeof cloudStatus === 'function') cloudStatus('microsoft', `OneDrive · ${msDeltaCount} bài`, 'text-emerald-300');
       if (typeof toast === 'function') toast(`Đồng bộ nhanh OneDrive (Delta): +${addedTracks.length} mới, ~${updatedTracks.length} cập nhật, -${removed} đã xóa.`);
       return { handled: true, added: addedTracks.length, updated: updatedTracks.length, removed };
     }
@@ -19367,7 +19416,8 @@
               }
               if (added > 0 || updatedExistingTracks.length > 0 || removedShared > 0) {
                 if (typeof renderTracks === 'function') renderTracks();
-                if (typeof cloudStatus === 'function') cloudStatus('microsoft', `OneDrive · ${knownIds.size} bài`, 'text-emerald-300');
+                const msSharedCount = (typeof countSourceTracks === 'function') ? countSourceTracks('onedrive') : knownIds.size;
+                if (typeof cloudStatus === 'function') cloudStatus('microsoft', `OneDrive · ${msSharedCount} bài`, 'text-emerald-300');
               }
             }
             return;

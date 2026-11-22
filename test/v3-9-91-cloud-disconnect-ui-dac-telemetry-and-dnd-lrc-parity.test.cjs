@@ -230,13 +230,30 @@ describe('v3.9.91 — Cloud Disconnect UI, FiiO DAC Reconnect Telemetry & Web Mu
     assert.equal(sandbox.lookupLocalFolderCover(multiMap, nfcLookup), 'blob:cover-vn');
   });
 
-  it('4. Version alignment and publish-release.cjs syntax are valid for v3.9.91 (versionCode 145)', () => {
-    assert.match(html, /FiiO M11S · v3\.9\.91/);
-    assert.match(sw, /const CACHE_VERSION = 'v3\.9\.91'/);
-    assert.match(sw, /const CACHE_NAME = 'nocturne-v3\.9\.91'/);
-    assert.match(gradle, /versionCode = 145\b/);
-    assert.match(gradle, /versionName = "3\.9\.91"/);
-    assert.match(releaseScript, /process\.argv\[2\] \|\| 'v3\.9\.91'/);
+  it('4. Version alignment and publish-release.cjs syntax are valid for v3.9.91+ (versionCode >= 145)', () => {
+    const semverTuple = s => String(s || '').split('.').map(n => parseInt(n, 10) || 0);
+    const geq = (a, b) => {
+      const va = semverTuple(a);
+      const vb = semverTuple(b);
+      for (let i = 0; i < 3; i++) {
+        if ((va[i] || 0) !== (vb[i] || 0)) return (va[i] || 0) > (vb[i] || 0);
+      }
+      return true;
+    };
+    const mHtml = html.match(/FiiO M11S · v(\d+\.\d+\.\d+)/);
+    const mSwVer = sw.match(/const CACHE_VERSION = 'v(\d+\.\d+\.\d+)'/);
+    const mSwName = sw.match(/const CACHE_NAME = 'nocturne-v(\d+\.\d+\.\d+)'/);
+    const mGCode = gradle.match(/versionCode = (\d+)\b/);
+    const mGName = gradle.match(/versionName = "(\d+\.\d+\.\d+)"/);
+    const mRel = releaseScript.match(/process\.argv\[2\] \|\| 'v(\d+\.\d+\.\d+)'/);
+    assert.ok(mHtml && mSwVer && mSwName && mGCode && mGName && mRel, 'All version markers must exist');
+    const ver = mHtml[1];
+    assert.equal(mSwVer[1], ver);
+    assert.equal(mSwName[1], ver);
+    assert.equal(mGName[1], ver);
+    assert.equal(mRel[1], ver);
+    assert.equal(geq(ver, '3.9.91'), true, `Expected version ${ver} >= 3.9.91`);
+    assert.ok(parseInt(mGCode[1], 10) >= 145, `Expected versionCode ${mGCode[1]} >= 145`);
     assert.doesNotThrow(() => new vm.Script(releaseScript));
   });
 });

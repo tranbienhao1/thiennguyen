@@ -4766,6 +4766,55 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        private static int convertPcmChunkTo16Bit(ByteBuffer src, int srcEncoding, int channels, byte[] dst16) {
+            if (src == null || dst16 == null || dst16.length < 2) return 0;
+            final int srcBps;
+            if (srcEncoding == 21) { // AudioFormat.ENCODING_PCM_24BIT_PACKED
+                srcBps = 3;
+            } else if (srcEncoding == 22 || srcEncoding == AudioFormat.ENCODING_PCM_FLOAT) {
+                srcBps = 4;
+            } else {
+                return 0;
+            }
+            int safeCh = Math.max(1, channels);
+            int maxFramesBySrc = src.remaining() / (srcBps * safeCh);
+            int maxFramesByDst = dst16.length / (2 * safeCh);
+            int frames = Math.min(maxFramesBySrc, maxFramesByDst);
+            if (frames <= 0) return 0;
+            int totalSamples = frames * safeCh;
+            int dstIdx = 0;
+            for (int i = 0; i < totalSamples; i++) {
+                int s16;
+                if (srcEncoding == 21) {
+                    int b0 = src.get() & 0xFF;
+                    int b1 = src.get() & 0xFF;
+                    byte b2 = src.get();
+                    int val24 = (b2 << 16) | (b1 << 8) | b0;
+                    s16 = val24 >> 8;
+                } else if (srcEncoding == 22) {
+                    int b0 = src.get() & 0xFF;
+                    int b1 = src.get() & 0xFF;
+                    int b2 = src.get() & 0xFF;
+                    byte b3 = src.get();
+                    int val32 = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
+                    s16 = val32 >> 16;
+                } else {
+                    int b0 = src.get() & 0xFF;
+                    int b1 = src.get() & 0xFF;
+                    int b2 = src.get() & 0xFF;
+                    int b3 = src.get() & 0xFF;
+                    int bits = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
+                    float f = Float.intBitsToFloat(bits);
+                    if (Float.isNaN(f)) f = 0.0f;
+                    int rounded = Math.round(f * 32767.0f);
+                    s16 = Math.max(-32768, Math.min(32767, rounded));
+                }
+                dst16[dstIdx++] = (byte) (s16 & 0xFF);
+                dst16[dstIdx++] = (byte) ((s16 >> 8) & 0xFF);
+            }
+            return dstIdx;
+        }
+
         @Nullable
         private AudioTrack createAndConfigureBitPerfectAudioTrack(
                 AudioAttributes audioAttributes,
@@ -4782,7 +4831,14 @@ public class MainActivity extends AppCompatActivity {
                         .setBufferSizeInBytes(bufferSize)
                         .setTransferMode(AudioTrack.MODE_STREAM)
                         .build();
-            } catch (Throwable directErr) {
+            } catch (Throwable ignored) {
+                built = null;
+            }
+            if (built == null || built.getState() != AudioTrack.STATE_INITIALIZED) {
+                if (built != null) {
+                    try { built.release(); } catch (Exception ignored) {}
+                    built = null;
+                }
                 try {
                     AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -4794,7 +4850,9 @@ public class MainActivity extends AppCompatActivity {
                             .setBufferSizeInBytes(bufferSize)
                             .setTransferMode(AudioTrack.MODE_STREAM)
                             .build();
-                } catch (Throwable ignored) {}
+                } catch (Throwable ignored) {
+                    built = null;
+                }
             }
             if (built == null || built.getState() != AudioTrack.STATE_INITIALIZED) {
                 if (built != null) {
@@ -4814,6 +4872,49 @@ public class MainActivity extends AppCompatActivity {
             }
             notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, reportedDevice);
             return built;
+        }
+
+        @Nullable
+        private AudioTrack rebuildAudioTrackWith16BitFallback(
+                AudioAttributes audioAttributes,
+                AudioFormat audioFormat,
+                int bufferSize,
+                int sampleRate,
+                int channelMask,
+                int pcmEncoding,
+                @Nullable AudioDeviceInfo targetDevice,
+                int[] outTrackEncoding) {
+            AudioTrack built = createAndConfigureBitPerfectAudioTrack(
+                    audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, targetDevice);
+            if (built != null) {
+                if (outTrackEncoding != null && outTrackEncoding.length > 0) outTrackEncoding[0] = pcmEncoding;
+                return built;
+            }
+            if (pcmEncoding != AudioFormat.ENCODING_PCM_16BIT) {
+                try {
+                    AudioFormat format16 = new AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(channelMask)
+                            .build();
+                    int minBuf16 = AudioTrack.getMinBufferSize(sampleRate, channelMask, AudioFormat.ENCODING_PCM_16BIT);
+                    int buf16 = Math.max(bufferSize, Math.max(minBuf16 > 0 ? minBuf16 * 4 : 65536, 65536));
+                    AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build();
+                    built = createAndConfigureBitPerfectAudioTrack(
+                            fallbackAttrs, format16, buf16, sampleRate, AudioFormat.ENCODING_PCM_16BIT, targetDevice);
+                    if (built != null) {
+                        if (outTrackEncoding != null && outTrackEncoding.length > 0) {
+                            outTrackEncoding[0] = AudioFormat.ENCODING_PCM_16BIT;
+                        }
+                        Log.i(TAG, "BitPerfect: Route switch fell back from enc=" + pcmEncoding + " to 16-bit PCM smoothly.");
+                        return built;
+                    }
+                } catch (Throwable ignored) {}
+            }
+            return null;
         }
 
         private void notifyBitPerfectFormatToWeb(int actualRate, int actualEncoding, boolean mixerBitPerfect, AudioDeviceInfo dev) {
@@ -5188,6 +5289,9 @@ public class MainActivity extends AppCompatActivity {
                 int consecutiveCodecErrors = 0;
                 int deadObjectRecoveries = 0;
                 int bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
+                int trackPcmEncoding = pcmEncoding;
+                byte[] downmix16Scratch = null;
+                ByteBuffer downmixOutBuf = null;
 
                 while (!mIsStopped && !sawOutputEOS && mPlaybackEpoch.get() == epoch) {
                     // Check pause
@@ -5230,7 +5334,10 @@ public class MainActivity extends AppCompatActivity {
                                 mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
                                         mAudioManager, audioAttributes, preferredDevice, audioFormat);
                             }
-                            track = createAndConfigureBitPerfectAudioTrack(audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, preferredDevice);
+                            int[] rebuiltEnc = new int[]{ trackPcmEncoding };
+                            track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, rebuiltEnc);
+                            trackPcmEncoding = rebuiltEnc[0];
+                            downmixOutBuf = null;
                             if (track == null) {
                                 pendingErrorReason = "Bit-Perfect route switch AudioTrack uninitialized";
                                 break;
@@ -5344,6 +5451,8 @@ public class MainActivity extends AppCompatActivity {
                             sampleRate = newRate;
                             channels = newCh;
                             pcmEncoding = newEncoding;
+                            trackPcmEncoding = pcmEncoding;
+                            downmixOutBuf = null;
                             channelMask = nextChannelMask;
                             bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
 
@@ -5439,11 +5548,14 @@ public class MainActivity extends AppCompatActivity {
                             outBuf.position(info.offset);
                             outBuf.limit(info.offset + info.size);
                             int totalWritten = 0;
+                            int totalWritten16 = 0;
                             int written = 0;
                             boolean abortedForSeek = false;
-                            while (outBuf.hasRemaining() && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                            downmixOutBuf = null;
+                            while ((outBuf.hasRemaining() || (downmixOutBuf != null && downmixOutBuf.hasRemaining())) && !mIsStopped && mPlaybackEpoch.get() == epoch) {
                                 if (mSeekTargetUs.get() >= 0L) {
                                     abortedForSeek = true;
+                                    downmixOutBuf = null;
                                     break;
                                 }
                                 if (mIsPaused) {
@@ -5462,6 +5574,7 @@ public class MainActivity extends AppCompatActivity {
                                     if (mIsStopped || mPlaybackEpoch.get() != epoch) break;
                                     if (mSeekTargetUs.get() >= 0L) {
                                         abortedForSeek = true;
+                                        downmixOutBuf = null;
                                         break;
                                     }
                                     if (!mIsPaused && !mRouteRefreshRequested.get() && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
@@ -5491,12 +5604,17 @@ public class MainActivity extends AppCompatActivity {
                                             mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
                                                     mAudioManager, audioAttributes, preferredDevice, audioFormat);
                                         }
-                                        track = createAndConfigureBitPerfectAudioTrack(audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, preferredDevice);
+                                        int[] midRebuiltEnc = new int[]{ trackPcmEncoding };
+                                        track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, midRebuiltEnc);
                                         if (track == null) {
                                             pendingErrorReason = "Bit-Perfect route switch AudioTrack uninitialized";
                                             written = -1;
                                             break;
                                         }
+                                        if (trackPcmEncoding != midRebuiltEnc[0]) {
+                                            downmixOutBuf = null;
+                                        }
+                                        trackPcmEncoding = midRebuiltEnc[0];
                                         if (!mIsPaused && !mIsStopped) {
                                             try { track.play(); } catch (Throwable ignored) {}
                                         }
@@ -5505,8 +5623,22 @@ public class MainActivity extends AppCompatActivity {
                                         continue;
                                     }
                                 }
-                                int rem = outBuf.remaining();
-                                written = track.write(outBuf, rem, AudioTrack.WRITE_NON_BLOCKING);
+                                boolean using16BitFallback = (trackPcmEncoding == AudioFormat.ENCODING_PCM_16BIT && pcmEncoding != AudioFormat.ENCODING_PCM_16BIT);
+                                if (using16BitFallback) {
+                                    if (downmixOutBuf == null || !downmixOutBuf.hasRemaining()) {
+                                        if (downmix16Scratch == null) downmix16Scratch = new byte[16384];
+                                        int convertedBytes = convertPcmChunkTo16Bit(outBuf, pcmEncoding, channels, downmix16Scratch);
+                                        downmixOutBuf = convertedBytes > 0 ? ByteBuffer.wrap(downmix16Scratch, 0, convertedBytes) : null;
+                                    }
+                                    if (downmixOutBuf == null || !downmixOutBuf.hasRemaining()) {
+                                        break;
+                                    }
+                                    written = track.write(downmixOutBuf, downmixOutBuf.remaining(), AudioTrack.WRITE_NON_BLOCKING);
+                                } else {
+                                    downmixOutBuf = null;
+                                    int rem = outBuf.remaining();
+                                    written = track.write(outBuf, rem, AudioTrack.WRITE_NON_BLOCKING);
+                                }
                                 if (written == AudioTrack.ERROR_DEAD_OBJECT && !mIsStopped && mPlaybackEpoch.get() == epoch && deadObjectRecoveries < 2) {
                                     deadObjectRecoveries++;
                                     Log.w(TAG, "BitPerfect: AudioTrack ERROR_DEAD_OBJECT on audio route switch, rebuilding (" + deadObjectRecoveries + "/2)");
@@ -5523,11 +5655,16 @@ public class MainActivity extends AppCompatActivity {
                                         mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
                                                 mAudioManager, audioAttributes, preferredDevice, audioFormat);
                                     }
-                                    track = createAndConfigureBitPerfectAudioTrack(audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, preferredDevice);
+                                    int[] deadRebuiltEnc = new int[]{ trackPcmEncoding };
+                                    track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, deadRebuiltEnc);
                                     if (track == null) {
                                         pendingErrorReason = "Bit-Perfect AudioTrack rebuild uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
                                         break;
                                     }
+                                    if (trackPcmEncoding != deadRebuiltEnc[0]) {
+                                        downmixOutBuf = null;
+                                    }
+                                    trackPcmEncoding = deadRebuiltEnc[0];
                                     if (!mIsPaused && !mIsStopped) {
                                         try { track.play(); } catch (Throwable ignored) {}
                                     }
@@ -5538,7 +5675,11 @@ public class MainActivity extends AppCompatActivity {
                                     break;
                                 }
                                 if (written > 0) {
-                                    totalWritten += written;
+                                    if (using16BitFallback) {
+                                        totalWritten16 += written;
+                                    } else {
+                                        totalWritten += written;
+                                    }
                                 } else {
                                     try { Thread.sleep(5); } catch (InterruptedException ie) { break; }
                                 }
@@ -5550,8 +5691,9 @@ public class MainActivity extends AppCompatActivity {
                                 }
                                 break;
                             }
-                            if (totalWritten > 0) {
-                                writtenFramesSinceBase += (totalWritten / Math.max(1, bytesPerFrame));
+                            if (totalWritten > 0 || totalWritten16 > 0) {
+                                writtenFramesSinceBase += (totalWritten / Math.max(1, bytesPerFrame))
+                                        + (totalWritten16 / Math.max(1, channels * 2));
                             }
                             if (!abortedForSeek && !mIsStopped && !mIsPaused && mPlaybackEpoch.get() == epoch) {
                                 long pcmPosMs = basePositionMs + ((writtenFramesSinceBase * 1000L) / Math.max(1, sampleRate));

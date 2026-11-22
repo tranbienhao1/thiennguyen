@@ -80,24 +80,23 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.91';
-  const name = process.argv[3] || `Nocturne ${tag} (UI Cloud Disconnect Wiring + FiiO DAC Reconnect Telemetry + Web Multi-Folder LRC/Cover Parity + Queue/Resume Chrome E2E)`;
+  const tag = process.argv[2] || 'v3.9.92';
+  const name = process.argv[3] || `Nocturne ${tag} (DAC Unplug 16-bit PCM Fallback + Local Permission Warning Recovery + Cloud Count Accuracy + Queue Reorder/Disconnect Chrome E2E)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 145) — Ngắt kết nối Google Drive / OneDrive độc lập + Telemetry USB DAC + Khớp LRC/Cover kéo-thả đa thư mục & Queue/Resume Chrome E2E
+    : `### Nocturne ${tag} (versionCode 146) — Fallback PCM 16-bit khi rút USB DAC Hi-Res + Khôi phục quyền thư mục Web + Đếm bài Cloud chuẩn & E2E Queue Reorder / Disconnect
 
-#### 1. Giao diện Ngắt kết nối từng nguồn Cloud độc lập (\`disconnectCloudSource\`)
-- Bổ sung nút \`#google-disconnect\` và \`#microsoft-disconnect\` trong Cài đặt, nối trực tiếp vào \`disconnectCloudSource('google' | 'onedrive')\` để hủy token, xóa lịch làm mới OAuth, đặt lại trạng thái UI và gọi \`clearCloudSourceCatalog\` mà không làm mất nhạc của nguồn khác hoặc FiiO/Nội bộ.
+#### 1. Fallback PCM 16-bit mượt mà khi rút USB DAC 24-bit/192kHz (\`MainActivity.java\`)
+- \`createAndConfigureBitPerfectAudioTrack\` tự động thử lại với \`AudioAttributes\` chuẩn ngay cả khi \`STATE_UNINITIALIZED\` không ném ngoại lệ.
+- Bổ sung \`convertPcmChunkTo16Bit\` (chuyển 24-bit packed, 32-bit PCM và PCM Float sang 16-bit LE căn chỉnh khung L/R) và \`rebuildAudioTrackWith16BitFallback\` trên các nhánh chuyển mạch \`mRouteRefreshRequested\` / \`ERROR_DEAD_OBJECT\`, đồng thời khôi phục đúng encoding gốc khi cắm lại USB DAC.
 
-#### 2. Telemetry USB DAC FiiO M11S & HUD khi tạm dừng (\`getRoutedDevice\`, \`onBitPerfectFormatLocked\`)
-- \`createAndConfigureBitPerfectAudioTrack\` tự động truy vấn \`built.getRoutedDevice()\` làm nhãn thiết bị khi chuyển mạch đầu ra, đồng thời \`onBitPerfectFormatLocked\` cập nhật HUD cả khi đang tạm dừng sau rút/cắm DAC và \`applyBitPerfectMode(false)\` đặt lại \`bitPerfectLockedFormat\`.
+#### 2. Làm nổi bật khôi phục quyền thư mục Web & độ chính xác \`cloudStatus\` (\`index.html\`)
+- \`setReopenFolderWarning(true/false)\` đánh dấu viền cảnh báo trên \`#reopen-folder\` và \`#empty-reopen-folder\` khi bài cục bộ gặp \`permission_denied\`, tự tải \`loadSavedLocalFolderHandles()\` nếu cần và xóa cảnh báo khi người dùng cấp quyền lại.
+- \`countSourceTracks(source)\` thống kê chính xác số bài \`google\` / \`onedrive\` hiện có trong \`state.tracks\` sau Delta Sync và Shared Scan.
 
-#### 3. Khớp \`.lrc\` & ảnh bìa thư mục kéo-thả đa thư mục Unicode trên Web
-- Bổ sung nhánh dự phòng \`findLocalCueLrcFile\` cho file nhạc thường có tên \`.lrc\` lệch nhẹ hoặc đánh số đĩa, và chuẩn hóa Unicode NFC + chữ hoa/thường trong \`lookupLocalFolderCover\`.
-
-#### 4. Mở rộng Chrome thật (CDP E2E)
-- Kiểm chứng thêm/xóa bài trực tiếp trong \`#queue-panel\` và khôi phục banner phiên phát \`#resume-session-banner\` -> \`#resume-session-play\` sau \`Page.reload\` với \`0\` lỗi JS.
+#### 3. Mở rộng Chrome thật (CDP E2E)
+- Kiểm chứng thêm 2 bài vào hàng đợi (\`rows === 2\`), đảo thứ tự qua \`[data-queue-move="down"]\`, xóa từng hàng và mở Cài đặt xác nhận \`#google-disconnect\` / \`#microsoft-disconnect\` + \`disconnectCloudSource\` với \`0\` lỗi JS.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
