@@ -3482,7 +3482,17 @@ public class MainActivity extends AppCompatActivity {
                 keyCode == KeyEvent.KEYCODE_MEDIA_REWIND;
     }
 
+    private volatile long mLastHardwareMediaKeyAtMs = 0L;
+    private volatile int mLastHardwareMediaKeyCode = -1;
+
     public void handleMediaKey(int keyCode) {
+        long nowKeyElapsed = SystemClock.elapsedRealtime();
+        if (keyCode == mLastHardwareMediaKeyCode && (nowKeyElapsed - mLastHardwareMediaKeyAtMs) < 180L) {
+            Log.d(TAG, "Debounced duplicate hardware media key: " + keyCode);
+            return;
+        }
+        mLastHardwareMediaKeyCode = keyCode;
+        mLastHardwareMediaKeyAtMs = nowKeyElapsed;
         Log.d(TAG, "Hardware Media Key intercepted: " + keyCode);
         switch (keyCode) {
             case KeyEvent.KEYCODE_MEDIA_NEXT:
@@ -3878,11 +3888,11 @@ public class MainActivity extends AppCompatActivity {
                 public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
                     if (mediaButtonIntent != null && mediaButtonIntent.hasExtra(Intent.EXTRA_KEY_EVENT)) {
                         KeyEvent ke = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
-                        if (ke != null && ke.getAction() == KeyEvent.ACTION_DOWN && ke.getRepeatCount() == 0) {
-                            if (isMediaKey(ke.getKeyCode())) {
+                        if (ke != null && isMediaKey(ke.getKeyCode())) {
+                            if (ke.getAction() == KeyEvent.ACTION_DOWN && ke.getRepeatCount() == 0) {
                                 handleMediaKey(ke.getKeyCode());
-                                return true;
                             }
+                            return true;
                         }
                     }
                     return super.onMediaButtonEvent(mediaButtonIntent);

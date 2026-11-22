@@ -80,20 +80,21 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.79';
-  const name = process.argv[3] || `Nocturne ${tag} (Cloud Replaced-Track Tag & Preload Invalidation, OneDrive Delta Folder Cover Refresh, Queue Removal/Sort Preload Re-Sync & Android MediaStore Storage Aliases)`;
+  const tag = process.argv[2] || 'v3.9.80';
+  const name = process.argv[3] || `Nocturne ${tag} (Deep Play/Pause Overhaul: First-Slice Upgrade Pause Guard, DSD Active-Slice Pause, Suspended Context Pause Priority, Standby Playing UI & Hardware Media Key Debounce)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 133) — Cập nhật Tag/Preload khi thay tệp Cloud, Làm mới ảnh bìa thư mục OneDrive Delta, Đồng bộ Preload khi sửa Hàng đợi & Tra cứu bí danh MediaStore Android
+    : `### Nocturne ${tag} (versionCode 134) — Đại tu toàn diện Play/Pause: Chống tự phát lại khi nâng cấp First-Slice -> Full Audio, Tạm dừng DSD khi đang giải mã nền, Ưu tiên Pause khi AudioContext suspended & Chống lặp phím cứng Media
 
-#### 1. Làm mới Tag nhị phân, Preload & Ảnh bìa thư mục khi tệp Cloud thay đổi (\`index.html\`)
-- **\`invalidateCloudTrackContent\` & \`enrichCloudTrack\`**: Xóa \`metadataRetryAt\`, \`thumbnailRetryAt\`, \`_metaRateLimitRetries\` và hủy \`clearStalePreload()\` nếu bài bị sửa đang nằm trên \`standbyAudio\`; cho phép các thông số header nhị phân mới (\`sampleRate\`, \`bitDepth\`, \`channels\`, \`duration\`, \`albumArtist\`, \`iTunNORM\`, \`lyricsText\`) ghi đè thông số cũ khi tệp trên Google Drive / OneDrive được thay bản remaster tại cùng \`remoteId\`.
-- **\`applyMicrosoftSiblingFolderCovers\` & \`tryLoadMicrosoftDeltaSync\`**: Đánh dấu \`forceUpdate: true\` cho ảnh bìa thư mục mới/cập nhật trong OneDrive Delta và \`_needsFolderCoverRefresh\` khi bài không có ảnh nhúng chuyển thư mục, truyền \`{ forceNonEmbedded: true }\` để cập nhật ảnh bìa thư mục tương đương với Google Drive.
+#### 1. Triệt tiêu 5 lỗi cốt lõi của nút Play/Pause trên Web Audio, HTML5 Audio & DSD (\`index.html\`)
+- **Chống cướp lệnh Pause khi nâng cấp First-Slice → Full Audio (\`upgradeSliceToFullAudio\`, \`resumeFullAudioFromSlice\`, \`playDsdTrack\`, \`recoverStalledAudioStream\`)**: Khi tệp đầy đủ tải xong ở giây thứ 1–4 và gọi \`deck.src = fullUrl; deck.load()\`, trình duyệt tạm đặt \`audio.paused = true\` trong khi \`deck._upgradingFullAudio === true\`. Nút \`#play-button\`, \`window.onHardwarePause\` và \`navigator.mediaSession\` (\`pause\`) nay nhận diện \`audio._upgradingFullAudio\` là đang phát, gắn cờ \`_userPausedDuringUpgrade = true\` khi người dùng bấm Tạm dừng và chặn hoàn toàn callback \`loadedmetadata\` tự động gọi \`deck.play()\` phát nhạc lại ngoài ý muốn.
+- **Tạm dừng mượt bài DSD ngay khi đang giải mã nền (\`playDsdTrack\` & \`#play-button\`)**: Khi lát PCM DSD đầu tiên đã bắt đầu phát (\`state.dsdUrl\` hoặc \`!audio.paused\`), bấm \`#play-button\` sẽ tạm dừng/tiếp tục \`audio\` tức thì thay vì hủy \`state.dsdWorker\` và xóa trắng \`audio.src\`; đồng thời chặn thông điệp \`progress\` của worker ghi đè biểu tượng \`Ⅱ\` bằng \`%\`.
+- **Ưu tiên tuyệt đối lệnh Pause khi nút đang hiển thị \`Ⅱ\` / \`⏸\` kể cả khi \`AudioContext\` đang \`suspended\`**: Khắc phục lỗi khi chuyển qua lại từ Bit-Perfect hoặc từ nền Android làm \`state.context.state === 'suspended'\` trong khi \`!audio.paused\` và nút hiện \`Ⅱ\`, bấm Pause từng bị nhánh \`wasContextSuspended\` nuốt lệnh và giữ nhạc phát tiếp.
+- **Đồng bộ tức thì trạng thái \`standbyAudio\` & cách ly \`audio.dataset.trackId\` khi chuyển bài**: \`clearOptimisticLoadingUi()\` kiểm tra cả \`standbyAudio\` trước khi \`finishPlaybackStart\` hoán đổi deck để không bao giờ bật nhầm biểu tượng \`▶\` khi nhạc vừa phát; tạm dừng ngay bài cũ khi chuyển sang bài Cloud/DSD mới cần tải mạng và không ghi đè \`audio.dataset.trackId\` của deck cũ nếu người dùng bấm Pause giữa lúc đang tải bài mới.
 
-#### 2. Đồng bộ lại \`preloadNext\` khi xóa/xếp lại Hàng đợi & Tra cứu bí danh MediaStore (\`index.html\`, \`MainActivity.java\`)
-- **\`removeFromQueue\`, \`moveQueueTrack\`, \`#queue-clear\`, \`#sonic-flow-btn\`, \`#queue-bpm-sort-btn\`**: Xóa \`state.preloadTrackId\` / \`state.preloadReadyUrl\` khi bài đầu hàng đợi bị xóa hoặc đổi vị trí (ngăn \`queueIndex()\` trong chế độ Shuffle giữ lại bài vừa xóa) và gọi \`preloadNext(true)\` trên cả Web Audio lẫn Native Bit-Perfect.
-- **\`queryMediaStoreAudioWithStorageAliases\` (\`MainActivity.java\`)**: Mở rộng \`resolveMediaStoreContentUriForPath\` tự động ánh xạ hai chiều \`/sdcard/\` ↔ \`/storage/emulated/0/\` và \`/mnt/media_rw/\` ↔ \`/storage/\` trên mọi biến thể đường dẫn (gốc, NFC, NFD, URL-decoded).
+#### 2. Chống bật tắt kép phím cứng Play/Pause trên FiiO M11S & Android (\`MainActivity.java\`)
+- **\`handleMediaKey\` & \`MediaSession.Callback.onMediaButtonEvent\`**: Bổ sung bộ lọc chống dội 180ms (\`mLastHardwareMediaKeyAtMs\` / \`mLastHardwareMediaKeyCode\`) và nuốt trọn cả \`ACTION_DOWN\` lẫn \`ACTION_UP\` của phím media trong \`onMediaButtonEvent\`, ngăn phím cứng Play/Pause hoặc tai nghe Bluetooth kích hoạt kép qua cả \`dispatchKeyEvent\` và \`MediaSession\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

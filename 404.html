@@ -2368,7 +2368,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.79</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.80</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -6374,6 +6374,13 @@
               }
               if (typeof updatePositionState === 'function') updatePositionState(true);
             }
+            if (deck._userPausedDuringUpgrade) {
+              deck._userPausedDuringUpgrade = false;
+              clearUpgradeFlag();
+              restoreDeckGain();
+              if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+              return;
+            }
             if (!wasPaused || endedEarly) {
               if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') { try { state.context.resume().catch(() => {}); } catch (_) {} }
               deck.play().then(() => {
@@ -9674,6 +9681,7 @@
         renderTracks();
       }));
       function handleTrackRowActivation(rowTrackId) {
+        if (state.isPlaybackLoading && String(state._lastPlayTrackId) === String(rowTrackId) && state._lastPlayTrackAt && (Date.now() - state._lastPlayTrackAt) < 400) return;
         const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
         const track = (state.tracks && state.tracks.find(t => t.id === rowTrackId)) || (tracks && tracks.find(t => t.id === rowTrackId));
 
@@ -11928,7 +11936,13 @@
         clearTimeout(applyOptimisticPlaybackUi._safetyTimer);
         applyOptimisticPlaybackUi._safetyTimer = null;
       }
-      const isPlaying = Boolean((state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) || (state.activeDeck && state.activeDeck.element && !state.activeDeck.element.paused) || (audio && !audio.paused));
+      const isPlaying = Boolean(
+        (state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) ||
+        (state.activeDeck && state.activeDeck.element && !state.activeDeck.element.paused) ||
+        (audio && (!audio.paused || audio._upgradingFullAudio)) ||
+        (standbyAudio && (!standbyAudio.paused || standbyAudio._upgradingFullAudio) && standbyAudio.src && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(standbyAudio))) ||
+        (state.corsBypassAudio && !state.corsBypassAudio.paused && state.corsBypassAudio.src)
+      );
       const defaultIcon = isPlaying ? 'Ⅱ' : '▶';
 
       const playBtn = $('play-button');
@@ -15248,7 +15262,12 @@
       }
       const needsAsyncLoad = Boolean(track.load && !(track.url && state.objectUrls.has(track.url)));
       unlockAudioDecksOnGesture(needsAsyncLoad ? null : standbyAudio);
+      if ((needsAsyncLoad || track.isDsd) && !(Number(state.crossfadeSeconds) > 0) && previousTrack && previousTrack.id !== track.id && audio && !audio.paused) {
+        try { audio.pause(); } catch (_) {}
       }
+      }
+      if (audio) audio._userPausedDuringUpgrade = false;
+      if (standbyAudio) standbyAudio._userPausedDuringUpgrade = false;
       setPlaybackLoading(true);
 
       if (state.usingCorsBypassAudio && state.corsBypassAudio) {
@@ -15623,9 +15642,15 @@
           }
         }
       }
-      const onPlaybackLoadError = () => {
-        setPlaybackLoading(false);
+      const onPlaybackLoadError = (evt) => {
         if (generation !== state.playGeneration) return;
+        if (evt && evt.type === 'stalled') {
+          if (!target.paused || state.isPlaybackLoading) return;
+        }
+        if ((track && track.firstSlicePlayback && (track.fullAudioPromise || track.fullAudioUrl)) || (track && track._loadedFromSliceCache) || isExternalNonAppAssetsHttpUrl(playUrl)) {
+          return;
+        }
+        setPlaybackLoading(false);
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         const playBtn = $('play-button');
         if (playBtn && playBtn.textContent === '…') playBtn.textContent = '▶';
@@ -15633,8 +15658,12 @@
       target.addEventListener('error', onPlaybackLoadError, { once: true });
       target.addEventListener('stalled', onPlaybackLoadError, { once: true });
       target.addEventListener('playing', () => {
-        setPlaybackLoading(false);
+        if (typeof target.removeEventListener === 'function') {
+          target.removeEventListener('error', onPlaybackLoadError);
+          target.removeEventListener('stalled', onPlaybackLoadError);
+        }
         if (generation !== state.playGeneration) return;
+        setPlaybackLoading(false);
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         if (typeof resumeCloudMetadataQueue === 'function') resumeCloudMetadataQueue();
         const mode = wasPreloaded ? 'preload' : track.source === 'local' ? 'local' : track.firstSlicePlayback ? 'slice' : 'full';
@@ -15912,7 +15941,12 @@
             }
             return;
           }
-          if (message.type === 'progress') { $('play-button').textContent = `${Math.round(message.progress * 100)}%`; return; }
+          if (message.type === 'progress') {
+            if (!state.dsdUrl && (!audio || !audio.src || audio.paused)) {
+              $('play-button').textContent = `${Math.round(message.progress * 100)}%`;
+            }
+            return;
+          }
           if (message.type === 'error') {
             track.firstSlicePlayback = false;
             track.fullAudioPromise = null;
@@ -15992,6 +16026,14 @@
                 const safePosition = Number.isFinite(deck.duration) && deck.duration > 0.5 ? Math.min(targetDsdPos, deck.duration - 0.25) : targetDsdPos;
                 deck.currentTime = Math.max(0, safePosition);
               } catch (_) {}
+              if (deck._userPausedDuringUpgrade) {
+                deck._userPausedDuringUpgrade = false;
+                $('play-button').textContent = '▶';
+                if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+                if (typeof updatePositionState === 'function') updatePositionState(true);
+                scheduleTrackRender();
+                return;
+              }
               if (!sliceWasPaused || sliceEndedEarly || pendingDsdSeek !== null) deck.play().then(() => { if (generation === state.playGeneration) { $('play-button').textContent = 'Ⅱ'; if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(true); } }).catch(error => console.warn('Could not resume after upgrading DSD to the full decoded audio:', error.message || error));
               else { $('play-button').textContent = '▶'; if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false); }
               if (typeof updatePositionState === 'function') updatePositionState(true);
@@ -22068,51 +22110,62 @@
       if (activeDeckEl && activeDeckEl !== audio && !activeDeckEl.paused && activeDeckEl.src && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(activeDeckEl)) && (!audio || audio.paused)) {
         audio = activeDeckEl;
       }
-      const isAudioElPlaying = Boolean(!nativeBpActiveNow && audio && !audio.paused && audio.src && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(audio)));
+      const isAudioElPlaying = Boolean(!nativeBpActiveNow && audio && (!audio.paused || audio._upgradingFullAudio) && audio.src && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(audio)));
+      const isStandbyCurrentPlaying = Boolean(!nativeBpActiveNow && standbyAudio && standbyAudio !== audio && (!standbyAudio.paused || standbyAudio._upgradingFullAudio) && standbyAudio.src && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(standbyAudio)) && standbyAudio.dataset && state.currentId != null && String(standbyAudio.dataset.trackId) === String(state.currentId));
       const isCorsElPlaying = Boolean(!nativeBpActiveNow && state.corsBypassAudio && !state.corsBypassAudio.paused && state.corsBypassAudio.src);
-      const isActivelyPlayingAudio = Boolean(isAudioElPlaying || isCorsElPlaying);
+      const isActivelyPlayingAudio = Boolean(isAudioElPlaying || isStandbyCurrentPlaying || isCorsElPlaying);
       if (state._playBtnBusy && state._playBtnBusyUntil && nowPlayClick < state._playBtnBusyUntil && !nativeBpActiveNow && !isActivelyPlayingAudio && !state.isPlaybackLoading) return;
       state._playBtnBusy = true;
       state._playBtnBusyUntil = nowPlayClick + 1200;
       try {
         if (nativeBpActiveNow && handleNativeBitPerfectPlayPauseClick()) return;
         const wasContextSuspended = Boolean(state.context && state.context.state === 'suspended');
-        if (state.dsdWorker) {
-          const activeWorker = state.dsdWorker;
-          state.dsdWorker = null;
-          try { activeWorker.postMessage({type:'cancel'}); } catch (_) {}
-          try { activeWorker.terminate(); } catch (_) {}
-          state.playGeneration++;
-          stopDsdWorker(false);
-          setPlaybackLoading(false);
-          if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
-          if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
-          else $('play-button').textContent = '▶';
-          toast('Đã dừng giải mã DSD.');
-          return;
-        }
+        const playBtnEl = $('play-button');
+        const playBtnShowsPlay = Boolean(playBtnEl && playBtnEl.textContent === '▶');
         if (isActivelyPlayingAudio) {
           if (!audio.paused && wasContextSuspended) {
-            if (typeof setupAudio === 'function') setupAudio();
-            await boundPlayButtonCtxResume();
-            if (state.context && state.context.state === 'running') {
-              audio.defaultMuted = false;
-              if (typeof audio.removeAttribute === 'function') audio.removeAttribute('muted');
-              audio.muted = false;
-              if (state.activeDeck && state.activeDeck.router && state.activeDeck.router.gain) {
-                state.activeDeck.router.gain.value = 1;
+            if (playBtnShowsPlay && !state.isPlaybackLoading && !state.usingCorsBypassAudio) {
+              if (typeof setupAudio === 'function') setupAudio();
+              await boundPlayButtonCtxResume();
+              if (state.context && state.context.state === 'running') {
+                audio.defaultMuted = false;
+                if (typeof audio.removeAttribute === 'function') audio.removeAttribute('muted');
+                audio.muted = false;
+                if (state.activeDeck && state.activeDeck.router && state.activeDeck.router.gain) {
+                  state.activeDeck.router.gain.value = 1;
+                }
+                if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(true);
+                return;
               }
-              if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(true);
-              return;
             }
           }
+          const wasLoadingAnotherTrack = Boolean(
+            state.isPlaybackLoading &&
+            audio &&
+            audio.dataset &&
+            audio.dataset.trackId &&
+            state.currentId != null &&
+            String(audio.dataset.trackId) !== String(state.currentId)
+          );
           if (state.isPlaybackLoading) {
             state.playGeneration++;
             setPlaybackLoading(false);
             if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
           }
-          if (audio && audio.dataset && state.currentId != null) {
+          if (!wasLoadingAnotherTrack && audio && audio.dataset && state.currentId != null) {
             audio.dataset.trackId = String(state.currentId);
+          }
+          if (audio && audio._upgradingFullAudio) {
+            audio._userPausedDuringUpgrade = true;
+            audio._upgradingFullAudio = false;
+          }
+          if (standbyAudio && standbyAudio._upgradingFullAudio) {
+            standbyAudio._userPausedDuringUpgrade = true;
+            standbyAudio._upgradingFullAudio = false;
+          }
+          if (activeDeckEl && activeDeckEl._upgradingFullAudio) {
+            activeDeckEl._userPausedDuringUpgrade = true;
+            activeDeckEl._upgradingFullAudio = false;
           }
           if (standbyAudio && standbyAudio !== audio && !standbyAudio.paused) {
             try { standbyAudio.pause(); } catch (_) {}
@@ -22128,6 +22181,20 @@
           }
           if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
           else $('play-button').textContent = '▶';
+          return;
+        }
+        if (state.dsdWorker && !(state.dsdUrl && audio && audio.src)) {
+          const activeWorker = state.dsdWorker;
+          state.dsdWorker = null;
+          try { activeWorker.postMessage({type:'cancel'}); } catch (_) {}
+          try { activeWorker.terminate(); } catch (_) {}
+          state.playGeneration++;
+          stopDsdWorker(false);
+          setPlaybackLoading(false);
+          if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+          if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+          else $('play-button').textContent = '▶';
+          toast('Đã dừng giải mã DSD.');
           return;
         }
         if (state.isPlaybackLoading && state._lastPlayTrackId === state.currentId && (!audio.src || audio.paused) && !audio.error) {
@@ -22177,6 +22244,8 @@
             }
           }
           try {
+            audio._userPausedDuringUpgrade = false;
+            if (standbyAudio) standbyAudio._userPausedDuringUpgrade = false;
             audio._unlockToken = (audio._unlockToken || 0) + 1;
             audio._unlockingGesture = false;
             audio.defaultMuted = false;
@@ -22283,7 +22352,7 @@
         }
       }, { passive: false });
       el.addEventListener('click', e => {
-        if (e && e.isTrusted && el._touchTapGhostPending && el._touchTapHandledAt && (Date.now() - el._touchTapHandledAt) < 450) {
+        if (e && e.isTrusted && el._touchTapGhostPending && el._touchTapHandledAt && (Date.now() - el._touchTapHandledAt) < 900) {
           el._touchTapGhostPending = false;
           e.preventDefault();
           e.stopPropagation();
@@ -22297,12 +22366,14 @@
     window.onHardwarePlayPause = () => { const btn = $('play-button'); if (btn) btn.click(); };
     window.onHardwarePlay = () => {
       if (state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) return;
-      if (!state.isNativeBitPerfectPlaying && audio && !audio.paused) return;
+      if (!state.isNativeBitPerfectPlaying && audio && (!audio.paused || audio._upgradingFullAudio)) return;
+      if (!state.isNativeBitPerfectPlaying && state.corsBypassAudio && !state.corsBypassAudio.paused) return;
       const btn = $('play-button'); if (btn) btn.click();
     };
     window.onHardwarePause = () => {
       if (state.isNativeBitPerfectPlaying && state.isNativeBitPerfectPaused) return;
-      if (!state.isNativeBitPerfectPlaying && (!audio || audio.paused)) return;
+      const webPlayingNow = Boolean((audio && (!audio.paused || audio._upgradingFullAudio)) || (state.corsBypassAudio && !state.corsBypassAudio.paused));
+      if (!state.isNativeBitPerfectPlaying && !webPlayingNow) return;
       const btn = $('play-button'); if (btn) btn.click();
     };
     window.onHardwareNext = () => { const btn = $('next-button'); if (btn) btn.click(); else if (typeof playNext === 'function') playNext(1); };
@@ -24086,6 +24157,7 @@
             const safePosition = Number.isFinite(element.duration) && element.duration > 0.5 ? Math.min(resumePosition, element.duration - 0.25) : resumePosition;
             element.currentTime = Math.max(0, safePosition);
           } catch (_) {}
+          if (element._userPausedDuringUpgrade) { element._userPausedDuringUpgrade = false; if (typeof clearTimeout === 'function') clearTimeout(resumeFlagTimer); clearResumeUpgradeFlag(); if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false); if (typeof updatePositionState === 'function') updatePositionState(true); return; }
           if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') { try { state.context.resume().catch(() => {}); } catch (_) {} }
           element.play().then(() => {
             if (typeof clearTimeout === 'function') clearTimeout(resumeFlagTimer);
@@ -24594,6 +24666,7 @@
           const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
           if (curAudio && curAudio.src) {
             try {
+              curAudio._userPausedDuringUpgrade = false;
               if (state.context && state.context.state === 'suspended') await state.context.resume();
               curAudio.muted = false;
               if (state.activeDeck && state.activeDeck.router && state.activeDeck.router.gain && state.activeDeck.router.gain.value < 0.05) {
@@ -24620,7 +24693,19 @@
             return;
           }
           const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+          if (curAudio && curAudio._upgradingFullAudio) {
+            curAudio._userPausedDuringUpgrade = true;
+            curAudio._upgradingFullAudio = false;
+          }
+          if (audio && audio._upgradingFullAudio) {
+            audio._userPausedDuringUpgrade = true;
+            audio._upgradingFullAudio = false;
+          }
+          if (state.corsBypassAudio && state.corsBypassAudio !== curAudio && !state.corsBypassAudio.paused) {
+            try { state.corsBypassAudio.pause(); } catch (_) {}
+          }
           if (curAudio) curAudio.pause();
+          if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
         });
         action('previoustrack', () => playNext(-1));
         action('nexttrack', () => playNext(1));
@@ -26705,6 +26790,12 @@
                 : safeResume;
               deck.currentTime = Math.max(0, targetSeek);
             } catch (_) {}
+          }
+          if (deck._userPausedDuringUpgrade) {
+            deck._userPausedDuringUpgrade = false;
+            if (clearReconnectFlag) clearReconnectFlag();
+            if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+            return;
           }
           if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
             state.context.resume().catch(() => {});
