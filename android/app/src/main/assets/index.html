@@ -2367,7 +2367,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.85</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.86</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4296,6 +4296,12 @@
         const volVal = $('volume') ? $('volume').value : 80;
         if (typeof setGain === 'function') setGain(volVal);
         if (state.isNativeBitPerfectPlaying) {
+          const wasBpPaused = Boolean(state.isNativeBitPerfectPaused);
+          const handoffPosSec = (Number.isFinite(state.lastBitPerfectPositionSec) && state.lastBitPerfectPositionSec > 0.5) ? state.lastBitPerfectPositionSec : 0;
+          const curBpTrack = Array.isArray(state.tracks) ? state.tracks.find(t => t && String(t.id) === String(state.currentId)) : null;
+          if (curBpTrack && handoffPosSec > 0) {
+            curBpTrack._resumeAfterBpFallbackSec = handoffPosSec;
+          }
           /* window.NocturneNative?.stopBitPerfectPlayback */ if (typeof window !== 'undefined' && window.NocturneNative && window.NocturneNative.stopBitPerfectPlayback) {
             window.NocturneNative.stopBitPerfectPlayback();
           }
@@ -4303,6 +4309,9 @@
           state.isNativeBitPerfectPaused = false;
           if (typeof syncPlaybackButtonsUi === 'function') {
             syncPlaybackButtonsUi(Boolean(audio && !audio.paused && audio.src && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(audio))));
+          }
+          if (!wasBpPaused && curBpTrack && typeof playTrack === 'function') {
+            playTrack(curBpTrack.id);
           }
         }
       }
@@ -16503,9 +16512,17 @@
           if (!opts.silentIfGranted) toast('Trình duyệt chưa được cấp quyền đọc thư mục.');
           return { loaded: false, added: 0, removed: 0 };
         }
+        const folderKey = 'dir:' + String(record.name || handle.name || 'local').toLowerCase();
+        if (typeof state !== 'undefined' && state && Array.isArray(state.tracks)) {
+          for (let ti = 0; ti < state.tracks.length; ti++) {
+            const tr = state.tracks[ti];
+            if (tr && (tr.folderRootKey === folderKey || (tr.source === 'local' && tr._localAccessError === 'permission_denied'))) {
+              tr._localAccessError = null;
+            }
+          }
+        }
         if (!opts.silentIfGranted && !opts.suppressProgressToast) toast(`Đang nạp lại thư mục "${record.name || handle.name}"…`);
         const files = await collectAudioAndCoverFilesFromDirectoryHandle(handle);
-        const folderKey = 'dir:' + String(record.name || handle.name || 'local').toLowerCase();
         if (files.length) {
           const res = await addLocalFiles(files, { folderRootKey: folderKey, pruneMissing: true, silent: Boolean(opts.silentIfGranted || opts.suppressProgressToast) });
           return { loaded: true, added: (res && res.added) || 0, removed: (res && res.removed) || 0 };
@@ -16556,7 +16573,7 @@
       for (let ti = 0; ti < targets.length; ti++) {
         const isPrimary = ti === 0;
         const res = await reopenSavedFolderRecord(targets[ti], {
-          silentIfGranted: isPrimary ? Boolean(opts.silentIfGranted) : true,
+          silentIfGranted: Boolean(opts.silentIfGranted),
           suppressProgressToast: !isPrimary || targets.length > 1
         });
         if (res && res.loaded) {
@@ -17674,9 +17691,18 @@
       const applyGoogleScanUpdate = (existing, file) => {
         if (!existing || !file) return;
         let touched = false;
-        if ((!Array.isArray(existing.parents) || !existing.parents.length) && Array.isArray(file.parents) && file.parents.length) {
-          existing.parents = file.parents.slice(0, 3);
-          touched = true;
+        if (Array.isArray(file.parents) && file.parents.length) {
+          const nextParents = file.parents.slice(0, 3);
+          if (!Array.isArray(existing.parents) || existing.parents.join(',') !== nextParents.join(',')) {
+            existing.parents = file.parents.slice(0, 3);
+            if (nextParents[0]) {
+              if (typeof checkedGoogleArtParents !== 'undefined' && checkedGoogleArtParents && typeof checkedGoogleArtParents.delete === 'function') {
+                checkedGoogleArtParents.delete(String(nextParents[0]));
+              }
+              existing._checkedDriveLrc = false;
+            }
+            touched = true;
+          }
         }
         if (!existing.thumbnailUrl && file.thumbnailLink) {
           existing.thumbnailUrl = file.thumbnailLink;
@@ -17712,6 +17738,11 @@
               if (rnMeta.artist && rnMeta.artist !== 'Unknown Artist') existing.artist = rnMeta.artist;
               if (rnMeta.album && rnMeta.album !== 'Unknown Album') existing.album = rnMeta.album;
             }
+          }
+          if (typeof library !== 'undefined' && library && typeof library.extractDiscAndTrackFromPath === 'function') {
+            const rnOrder = library.extractDiscAndTrackFromPath({ name: file.name });
+            if (rnOrder && rnOrder.discNumber != null && (!existing.metadataLoaded || existing.discNumber == null)) existing.discNumber = rnOrder.discNumber;
+            if (rnOrder && rnOrder.trackNumber != null && (!existing.metadataLoaded || existing.trackNumber == null)) existing.trackNumber = rnOrder.trackNumber;
           }
           touched = true;
         }

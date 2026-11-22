@@ -80,19 +80,22 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.85';
-  const name = process.argv[3] || `Nocturne ${tag} (Bit-Perfect Literal '+'/'%' Path Fix + Unicode NFC/NFD Multi-File CUE Matching + Instant Cloud Metadata Retry Unlock on Re-Auth)`;
+  const tag = process.argv[2] || 'v3.9.86';
+  const name = process.argv[3] || `Nocturne ${tag} (Multi-Folder Saved Permission Recovery + Seamless Bit-Perfect-to-Web Position Handoff + Google Drive Full-Rescan Move/LRC Parity + Desktop & Listening Room Chrome E2E)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 139) — Vá lỗi đường dẫn chứa '+'/'%' trên Bit-Perfect Android + Khớp tệp .CUE chuẩn Unicode NFC/NFD + Mở khóa tải Metadata Cloud tức thì khi đăng nhập lại
+    : `### Nocturne ${tag} (versionCode 140) — Khôi phục quyền đa thư mục cục bộ + Chuyển mượt Bit-Perfect sang Web Audio giữ đúng vị trí phát + Đồng bộ di chuyển/đổi tên Google Drive khi Full Rescan
 
-#### 1. Phát nhạc cục bộ & Tệp .CUE chứa ký tự đặc biệt (\`MainActivity.java\` + \`index.html\`)
-- **Sửa lỗi Bit-Perfect làm hỏng ký tự \`+\` thành khoảng trắng (\`MainActivity.java\`)**: Chuyển bộ phân giải \`/local-media?\` trong \`BitPerfectAudioPlayer\` sang \`extractLocalMediaQueryParam(parsedLocal, "path" / "uri")\` thay vì \`Uri.getQueryParameter()\`, giúp mở trọn vẹn mọi tệp/thư mục FLAC/WAV/DSD có dấu \`+\`, \`%\`, \`#\` (VD: *Florence + The Machine*, *24-Bit + Hi-Res*).
-- **Chuẩn hóa Unicode NFC khi khớp tệp \`.cue\` (\`addLocalFiles\` & \`expandFiioScannedCueSheets\`)**: Đảm bảo tệp \`.cue\` đơn hoặc nhiều tệp (\`multi-file CUE\`) có tên tiếng Việt/Nhật dạng NFD (macOS) khớp chính xác 100% với tệp âm thanh NFC trên Windows & Android/FiiO M11S.
+#### 1. Khôi phục quyền đa thư mục cục bộ Web (\`reopenSavedFolderRecord\` & \`reopenSavedFolder\`)
+- Truyền đúng \`silentIfGranted\` cho cả các thư mục đã lưu thứ hai trở đi khi người dùng chủ động bấm **Mở lại thư mục đã lưu**, giúp mọi thư mục con đều được xin cấp lại quyền \`handle.requestPermission\` thay vì bị bỏ qua âm thầm.
+- Tự động xóa cờ lỗi \`_localAccessError\` ngay khi quyền đọc được cấp lại, không làm gián đoạn hoặc kẹt bài đang phát.
 
-#### 2. Mở khóa tải lại Metadata & Ảnh bìa Cloud tức thì sau khi đăng nhập lại (\`index.html\`)
-- **\`resetCloudMetadataRetryForSource(source)\`**: Khi kết nối lại Google Drive hoặc OneDrive (qua OAuth, MSAL hoặc Access Token), tự động xóa thời gian chờ 60 phút (\`metadataRetryAt\`, \`thumbnailRetryAt\`, \`cloudMetadataPausedUntil\`) cho các bài chưa tải đủ tag/bìa, đồng thời lưu \`nocturne-microsoft-token\` / \`nocturne-microsoft-token-expires\` ngay trong \`getMicrosoftToken\`.
+#### 2. Chuyển mượt từ Native Bit-Perfect về Web Audio & Giữ đúng vị trí phát (\`applyBitPerfectMode\`)
+- Khi tắt chế độ Bit-Perfect trong lúc đang phát nhạc trên FiiO/Android (\`state.isNativeBitPerfectPlaying\`), ghi lại chính xác \`lastBitPerfectPositionSec\` vào \`_resumeAfterBpFallbackSec\` và tự động nối tiếp sang Web Audio tại đúng giây hiện tại (nếu đang tạm dừng thì giữ nguyên trạng thái tạm dừng).
+
+#### 3. Google Drive Full-Rescan Move & Rename Parity (\`applyGoogleScanUpdate\`)
+- Cập nhật \`existing.parents\` mỗi khi tệp di chuyển sang thư mục mới (thay vì chỉ gán khi mảng cũ rỗng), làm mới bộ đệm ảnh bìa thư mục (\`checkedGoogleArtParents\`), mở khóa lại \`_checkedDriveLrc\` và phân tích lại \`discNumber\` / \`trackNumber\` khi tệp đổi tên.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
