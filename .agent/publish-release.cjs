@@ -91,7 +91,7 @@ async function main() {
 - Thêm \`clearCloudSourceCatalog('google' | 'onedrive')\` xóa toàn bộ bài, \`catalog\` IndexedDB, lát đệm \`firstSliceCache\`, con trỏ Delta/Checkpoint và \`checkedGoogleArtParents\` của riêng nguồn bị ngắt mà vẫn bảo toàn tuyệt đối các nguồn khác & Local/FiiO, đồng thời thu hồi ảnh bìa mồ côi qua \`pruneOrphanedAlbumCovers()\`.
 
 #### 2. Đồng bộ trực tiếp thông số khóa phần cứng Android USB DAC (\`onBitPerfectFormatLocked\`)
-- Khi Android Native khóa \`sampleRate\`/\`bitDepth\` qua \`BitPerfectAudioPlayer\`, cập nhật tức thì `#quality-badge\`, `#mobile-quality\`, `#room-quality\`, \`#fs-room-quality-badge\`, bổ sung thông số thiếu cho track hiện tại và làm mới Mini Player HUD.
+- Khi Android Native khóa \`sampleRate\`/\`bitDepth\` qua \`BitPerfectAudioPlayer\`, cập nhật tức thì \`#quality-badge\`, \`#mobile-quality\`, \`#room-quality\`, \`#fs-room-quality-badge\`, bổ sung thông số thiếu cho track hiện tại và làm mới Mini Player HUD.
 
 #### 3. Vệ sinh thư mục hệ thống & tệp ma macOS khi kéo-thả đa thư mục trên Web (\`drop\`)
 - Tự động bỏ qua \`__MACOSX\`, \`.git\`, \`@eaDir\`, \`$RECYCLE.BIN\`, \`node_modules\` và tệp AppleDouble \`._*\` trong luồng kéo-thả nhiều thư mục chứa \`.cue\`/\`.lrc\`.
