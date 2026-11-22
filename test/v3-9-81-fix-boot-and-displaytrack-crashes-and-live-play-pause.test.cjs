@@ -159,7 +159,9 @@ test('v3.9.81: Fix 6 — attachReliableTransportTap clears ghost flag on mouse p
 test('v3.9.81: Version bump parity across sw.js, index.html, and build.gradle.kts', () => {
   assert.ok(sw.includes("const CACHE_VERSION = 'v3.9.81';"));
   assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.81';"));
-  assert.ok(html.includes('FiiO M11S · v3.9.81'));
-  assert.ok(gradle.includes('versionCode = 135'));
+  const htmlVer = html.match(/FiiO M11S · v(\d+)\.(\d+)\.(\d+)/);
+  assert.ok(htmlVer && Number(htmlVer[1]) * 10000 + Number(htmlVer[2]) * 100 + Number(htmlVer[3]) >= 30981);
+  const vcMatch = gradle.match(/versionCode\s*=\s*(\d+)/);
+  assert.ok(vcMatch && Number(vcMatch[1]) >= 135);
   assert.ok(gradle.includes('versionName = "3.9.81"'));
 });

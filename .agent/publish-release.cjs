@@ -80,22 +80,20 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.81';
-  const name = process.argv[3] || `Nocturne ${tag} (Critical Playback & Boot Hotfix: Fix 5 Fatal Live-Chrome Crashes in displayTrack, setupAudio Sub-Bass DSP, Boot IIFE, Pre-Body Script + Hybrid Touch/Mouse Play/Pause & Cloud Token Persistence)`;
+  const tag = process.argv[2] || 'v3.9.82';
+  const name = process.argv[3] || `Nocturne ${tag} (Preload Re-Sync for Repeat/Shuffle/Autoplay/Album/Contextual Queue Across Web & Bit-Perfect + Google Drive & OneDrive Delta Sidecar .LRC & Shared Artwork Refresh)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 135) — Vá khẩn 5 lỗi Runtime chí mạng khiến nhạc không phát được / kẹt nút Play-Pause (kiểm chứng trực tiếp trên Chrome thực)
+    : `### Nocturne ${tag} (versionCode 136) — Đồng bộ nạp trước bài kế (Web Audio + Native Bit-Perfect) & Làm mới lời .LRC / ảnh bìa thư mục chia sẻ qua Cloud Delta Sync
 
-#### 1. Vá triệt để 5 lỗi JavaScript Runtime chặn phát nhạc ngay lần bấm đầu tiên (\`index.html\`)
-- **Sửa lỗi \`displayTrack()\` ném \`TypeError: Cannot read properties of null (reading 'sampleRate')\`**: Biểu thức \`(state.context ? state.context.sampleRate : 48000) ? state.context.sampleRate ...\` luôn đánh giá truthy khi \`state.context === null\`, làm sập \`playTrack()\` ngay trước khi \`setupAudio()\` và \`audio.play()\` kịp chạy — nguyên nhân trực tiếp khiến bấm Play hoặc chạm bài hát hoàn toàn không bật được nhạc.
-- **Sửa lỗi \`applySubBassPunch()\` & \`applySubBassPhaseProfile()\` làm sập \`setupAudio()\`**: \`calculateSubBassPunchParams()\` trả về \`{ frequency, gain, q }\` và \`calculateSubBassPhaseParams()\` trả về \`{ cutoffHz, mixGain, isActive }\`, nhưng \`index.html\` gọi \`setTargetAtTime(params.centerFreq / params.qFactor / params.gainDb / params.centerFreqHz)\` là \`undefined\` / \`NaN\`, khiến Chrome ném \`TypeError: Failed to execute 'setTargetAtTime' on 'AudioParam': The provided float value is non-finite\` ngay cú bấm Play đầu tiên, làm kẹt nút ở trạng thái \`…\` và đứt nửa đồ thị Web Audio.
-- **Sửa lỗi \`ReferenceError: quick is not defined\` tại \`syncQuickSleepPill()\`**: Bọc đầy đủ dấu nháy cho \`'quick-sleep-btn'\`, \`'text-indigo-300'\`, \`'border-indigo-400/50'\`, \`'aria-pressed'\`, giúp toàn bộ khối khởi động cuối app (khôi phục thư viện FiiO/Cloud, khôi phục phiên nghe, bật Bit-Perfect) chạy trọn vẹn với 0 lỗi.
-- **Di chuyển inline script thu gọn sidebar vào sau thẻ \`<body>\`**: Tránh lỗi \`Cannot read properties of null (reading 'classList')\` khi mở app trên mobile/FiiO M11S.
+#### 1. Đồng bộ hủy & nạp trước bài kế khi đổi Repeat / Shuffle / Autoplay / Album / Hàng đợi (\`index.html\`)
+- **Hợp nhất cơ chế \`resyncNextPreload(forceClear)\`**: Khi chuyển chế độ Repeat (\`#repeat-button\`), Shuffle (\`#shuffle-button\`), Autoplay (\`#autoplay-button\`), hoặc thêm Album / Danh sách gợi ý vào hàng đợi (\`#album-hero-queue\`, \`#contextual-queue-btn\`), tự động hủy bộ đệm \`standbyAudio\` cũ, bỏ ghim \`bpCloudPreloadTrackId\` và nạp lại đúng bài kế tiếp cho cả Web Audio lẫn Native Bit-Perfect.
+- **Bảo vệ Bit-Perfect khi bấm Phát Album (\`#album-hero-play\`, \`#album-hero-shuffle\`, \`#contextual-play-btn\`)**: Không đánh thức \`AudioContext\` của WebView khi bài đầu album đang định tuyến tới Native Bit-Perfect trên FiiO M11S/Android, đồng thời dọn sạch preload cũ trước khi chuyển ngữ cảnh phát.
 
-#### 2. Vá chạm/chuột lai cho nút Play/Pause & Giữ phiên đăng nhập Cloud khi tải lại
-- **\`attachReliableTransportTap\`**: Xóa cờ \`_touchTapGhostPending\` khi nhận \`pointerdown\` từ chuột/bút và rút ngắn cửa sổ lọc ghost-click từ 900ms xuống 450ms, đảm bảo bấm cảm ứng liên tiếp hay chuyển giữa cảm ứng và chuột đều nhận ngay cú bấm đầu tiên.
-- **Lưu & khôi phục Access Token Google Drive / OneDrive còn hạn**: Lưu thêm mốc hết hạn \`nocturne-google-token-expires\` & \`nocturne-microsoft-token-expires\` và tự động khôi phục vào \`state\` khi khởi động lại app/OTA.
+#### 2. Google Drive & OneDrive Delta Sync — Làm mới lời bài hát \`.lrc\` & ảnh bìa thư mục chia sẻ (\`index.html\`)
+- **Google Drive Delta Sync (\`tryLoadGoogleChangesDelta\`)**: Nhận diện các tệp \`.lrc\` mới thêm/sửa hoặc shortcut trỏ tới thư mục chia sẻ, tự động mở khóa lại \`_checkedDriveLrc\` cho các bài hát cùng thư mục và làm mới danh sách thư mục ảnh bìa (\`changedArtParents\`, \`changedLrcParents\`).
+- **OneDrive Delta Sync & Shared Folders (\`tryLoadMicrosoftDeltaSync\`, \`applyMicrosoftSiblingLrcLinks\`, \`loadMicrosoftFiles\`)**: Chuẩn hóa Unicode NFC khi khớp tên \`.lrc\` (tiếng Việt/Nhật), phát hiện đổi \`cTag\`/\`driveId\` và tự động xóa liên kết \`remoteLrc\` mồ côi khi tệp \`.lrc\` bị xóa trên OneDrive; bật \`forceCoverRefresh\` cho thư mục chia sẻ khi chạy Delta Sync.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

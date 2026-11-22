@@ -2367,7 +2367,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.81</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.82</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -8841,9 +8841,13 @@
             if (typeof library !== 'undefined' && library && typeof library.sortAlbumTracks === 'function' && entry.tracks.length > 1) {
               entry.tracks = library.sortAlbumTracks(entry.tracks, { groupByAlbum: !isAlbum });
             }
+            const firstAlbumTrack = entry.tracks[0];
+            const routeToNativeBp = Boolean(typeof isTrackRoutedToNativeBitPerfect === 'function' && isTrackRoutedToNativeBitPerfect(firstAlbumTrack));
+            if (!routeToNativeBp) {
             if (typeof setupAudio === 'function') setupAudio();
             if (state.context && state.context.state === 'suspended') {
               state.context.resume().catch(e => console.debug('AudioContext resume in album-hero-play:', e));
+            }
             }
             if (isAlbum) {
               state.playbackContext = { type: 'album', key: entry.key, name: entry.name, trackIds: entry.tracks.map(t => t.id) };
@@ -8851,6 +8855,7 @@
               state.playbackContext = { type: 'artist', key: entry.key, name: entry.name, trackIds: entry.tracks.map(t => t.id) };
             }
             state.queueTrackIds = entry.tracks.slice(1).map(t => t.id);
+            bpCloudPreloadTrackId = null;
             if (state.preloadTrackId && state.preloadTrackId !== entry.tracks[0].id && state.preloadTrackId !== (state.queueTrackIds[0] || null) && typeof clearStalePreload === 'function') clearStalePreload();
             renderQueue();
             playTrack(entry.tracks[0].id);
@@ -8868,6 +8873,8 @@
           }
           state.playbackContext = { type: isAlbum ? 'album' : 'artist', key: entry.key, name: entry.name, trackIds: pool.map(t => t.id) };
           state.queueTrackIds = pool.slice(1).map(t => t.id);
+          bpCloudPreloadTrackId = null;
+          if (state.preloadTrackId && state.preloadTrackId !== pool[0].id && state.preloadTrackId !== (state.queueTrackIds[0] || null) && typeof clearStalePreload === 'function') clearStalePreload();
           renderQueue();
           playTrack(pool[0].id);
           toast(`Đang phát ngẫu nhiên: ${entry.name} (${pool.length} bài)`);
@@ -8883,6 +8890,7 @@
             }
           }
           renderQueue();
+          if (count > 0 && state.currentId && typeof resyncNextPreload === 'function') resyncNextPreload(true);
           toast(`Đã thêm ${count} bài vào hàng đợi.`);
         };
       }
@@ -14786,7 +14794,10 @@
       const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
       if (isOfflineMode) return;
       const index = queueIndex(), next = index >= 0 ? state.tracks[index] : null;
-      if (!next || next.id === state.currentId || next.isDsd) return;
+      if (!next || next.id === state.currentId || next.isDsd) {
+        bpCloudPreloadTrackId = null;
+        return;
+      }
       if (next.source !== 'google' && next.source !== 'onedrive') return;
       if (next.url && state.objectUrls && state.objectUrls.has(next.url)) return;
       if (bpCloudPreloadTrackId === next.id || state.preloadBusyId === next.id) return;
@@ -14814,6 +14825,19 @@
         if (bpCloudPreloadTrackId === next.id) bpCloudPreloadTrackId = null;
         if (state.preloadBusyId === next.id) state.preloadBusyId = null;
       }
+    }
+    function resyncNextPreload(forceClear = false) {
+      if (forceClear || state.repeat === 2 || !state.autoplay) {
+        bpCloudPreloadTrackId = null;
+        state.preloadTrackId = null;
+        state.preloadReadyUrl = null;
+        if (typeof clearStalePreload === 'function') clearStalePreload();
+      }
+      if (!state.currentId) return;
+      if (state.isNativeBitPerfectPlaying && typeof preloadCloudNextDuringBitPerfect === 'function') {
+        preloadCloudNextDuringBitPerfect();
+      }
+      if (typeof preloadNext === 'function') preloadNext(true);
     }
     function isSameCueParentTrack(curTrack, nextTrack) {
       if (!curTrack || !nextTrack || !curTrack.isCue || !nextTrack.isCue) return false;
@@ -17319,6 +17343,7 @@
       const updatedTracks = [];
       const updatedTrackIds = new Set();
       const changedArtParents = new Set();
+      const changedLrcParents = new Set();
       const removedFolderIds = new Set();
       const deletedRemoteIds = new Set();
       const existingByTargetId = new Map();
@@ -17470,6 +17495,7 @@
             if (file.mimeType === 'application/vnd.google-apps.folder') {
               removedFolderIds.delete(String(fid));
               changedArtParents.add(String(fid));
+              changedLrcParents.add(String(fid));
               const folderName = String(file.name || '').trim();
               if (folderName && isDiscDirFn(folderName)) {
                 const dm = folderName.match(/\b(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*(\d{1,2})\b/i);
@@ -17483,6 +17509,17 @@
                     }
                   }
                 }
+              }
+            } else if (file.mimeType === 'application/vnd.google-apps.shortcut' && file.shortcutDetails && file.shortcutDetails.targetId && file.shortcutDetails.targetMimeType === 'application/vnd.google-apps.folder') {
+              const targetFolderId = String(file.shortcutDetails.targetId).trim();
+              if (targetFolderId) {
+                changedArtParents.add(targetFolderId);
+                changedLrcParents.add(targetFolderId);
+              }
+            } else if (Array.isArray(file.parents) && file.parents.length && /\.lrc$/i.test(String(file.name || ''))) {
+              for (let pi = 0; pi < file.parents.length; pi++) {
+                const pid = String(file.parents[pi] || '').trim();
+                if (pid) changedLrcParents.add(pid);
               }
             } else if (Array.isArray(file.parents) && file.parents.length && scoreFolderCover(file.name || '') > 0) {
               for (let pi = 0; pi < file.parents.length; pi++) {
@@ -17519,6 +17556,16 @@
       if (changedArtParents.size > 0 && typeof checkedGoogleArtParents !== 'undefined' && checkedGoogleArtParents) {
         changedArtParents.forEach(pid => checkedGoogleArtParents.delete(pid));
       }
+      if (changedLrcParents.size > 0 && Array.isArray(state.tracks)) {
+        for (let ti = 0; ti < state.tracks.length; ti++) {
+          const tr = state.tracks[ti];
+          if (!tr || tr.source !== 'google') continue;
+          const hasMatchingParent = Array.isArray(tr.parents) && tr.parents.some(p => changedLrcParents.has(String(p)));
+          if (hasMatchingParent || tr.targetRemoteId) {
+            tr._checkedDriveLrc = false;
+          }
+        }
+      }
       const toPersist = addedTracks.concat(updatedTracks);
       if (toPersist.length > 0) {
         await persistCloudCatalog(toPersist, { skipPrune: true }).catch(() => {});
@@ -17530,7 +17577,7 @@
       }
       if (typeof cloudStatus === 'function') cloudStatus('google', `Google Drive · ${knownIds.size - removed} bài`, 'text-emerald-300');
       if (typeof toast === 'function') toast(`Đồng bộ nhanh Google Drive (Delta): +${addedTracks.length} mới, ~${updatedTracks.length} cập nhật, -${removed} đã xóa.`);
-      return { handled: true, added: addedTracks.length, updated: updatedTracks.length, removed, newlyAddedTracks: addedTracks, changedArtParents: Array.from(changedArtParents) };
+      return { handled: true, added: addedTracks.length, updated: updatedTracks.length, removed, newlyAddedTracks: addedTracks, changedArtParents: Array.from(changedArtParents), changedLrcParents: Array.from(changedLrcParents) };
     }
 
     function removeDeletedCloudTracks(source, seenRemoteIds, isCompleteScan) {
@@ -18179,25 +18226,39 @@
     }
     async function applyMicrosoftSiblingLrcLinks(siblingLrcByBase) {
       if (!siblingLrcByBase || !siblingLrcByBase.size) return 0;
+      const normalizeLrcBase = function (rawPath) {
+        let base = String(rawPath || '').replace(/\\/g, '/').trim().replace(/\.[^.]+$/, '');
+        if (typeof base.normalize === 'function') {
+          try { base = base.normalize('NFC'); } catch (_) {}
+        }
+        return base.toLowerCase();
+      };
       const updatedTracks = [];
       for (let i = 0; i < state.tracks.length; i++) {
         const tr = state.tracks[i];
         if (!tr || tr.source !== 'onedrive') continue;
         const rp = String(tr.remotePath || tr.name || '').replace(/\\/g, '/').trim();
         if (!rp) continue;
-        const baseKey = rp.replace(/\.[^.]+$/, '').toLowerCase();
-        const lrcCand = siblingLrcByBase.get(baseKey);
+        const rawKey = rp.replace(/\.[^.]+$/, '').toLowerCase();
+        const nfcKey = normalizeLrcBase(rp);
+        const lrcCand = siblingLrcByBase.get(nfcKey) || siblingLrcByBase.get(rawKey);
         if (!lrcCand || !lrcCand.id) continue;
         const prevId = tr.remoteLrc && tr.remoteLrc.id ? String(tr.remoteLrc.id) : '';
         const prevDl = tr.remoteLrc && tr.remoteLrc.downloadUrl ? String(tr.remoteLrc.downloadUrl) : '';
+        const prevDrive = tr.remoteLrc && tr.remoteLrc.driveId ? String(tr.remoteLrc.driveId) : '';
+        const prevRev = tr.remoteLrc && tr.remoteLrc.cTag ? String(tr.remoteLrc.cTag) : '';
         const nextDl = lrcCand.downloadUrl ? String(lrcCand.downloadUrl) : '';
-        if (prevId !== String(lrcCand.id) || (nextDl && prevDl !== nextDl)) {
+        const nextDrive = String(lrcCand.driveId || tr.remoteDriveId || '');
+        const nextRev = lrcCand.cTag ? String(lrcCand.cTag) : '';
+        if (prevId !== String(lrcCand.id) || (nextDl && prevDl !== nextDl) || (nextDrive && prevDrive !== nextDrive) || (nextRev && prevRev !== nextRev)) {
           tr.remoteLrc = {
             id: String(lrcCand.id),
-            driveId: String(lrcCand.driveId || ''),
+            driveId: nextDrive,
             downloadUrl: nextDl || prevDl,
-            name: String(lrcCand.name || '')
+            name: String(lrcCand.name || ''),
+            ...(nextRev ? { cTag: nextRev } : {})
           };
+          tr._cloudLrcChecked = false;
           updatedTracks.push(tr);
         }
       }
@@ -18347,6 +18408,7 @@
       const renamedFoldersById = new Map();
       const deletedFolderIds = new Set();
       const deletedRemoteIds = new Set();
+      const deletedLrcIds = new Set();
       const byShortcutId = new Map();
       const existingByParentId = new Map();
       if (existingByRemoteId && typeof existingByRemoteId.forEach === 'function') {
@@ -18396,6 +18458,10 @@
               } else {
                 const delAlias = byShortcutId.get(item.id) || (rawItem.id ? byShortcutId.get(String(rawItem.id)) : null);
                 if (delAlias && delAlias.remoteId) deletedRemoteIds.add(delAlias.remoteId);
+                else {
+                  deletedLrcIds.add(String(item.id));
+                  if (rawWrapperId) deletedLrcIds.add(rawWrapperId);
+                }
               }
               if (existingByParentId.has(String(item.id))) deletedFolderIds.add(String(item.id));
               if (rawWrapperId && existingByParentId.has(rawWrapperId)) deletedFolderIds.add(rawWrapperId);
@@ -18506,13 +18572,18 @@
               existingByRemoteId.set(item.id, msTrack);
             } else {
               if (siblingLrcByBase && /\.lrc$/i.test(String(item.name || ''))) {
-                const lrcBase = String(itemPath || item.name || '').replace(/\\/g, '/').replace(/\.[^.]+$/, '').toLowerCase();
+                let lrcBase = String(itemPath || item.name || '').replace(/\\/g, '/').replace(/\.[^.]+$/, '');
+                if (typeof lrcBase.normalize === 'function') {
+                  try { lrcBase = lrcBase.normalize('NFC'); } catch (_) {}
+                }
+                lrcBase = lrcBase.toLowerCase();
                 if (lrcBase) {
                   siblingLrcByBase.set(lrcBase, {
                     id: item.id,
                     name: item.name,
                     downloadUrl: item['@microsoft.graph.downloadUrl'] || '',
-                    driveId: itemDriveId
+                    driveId: itemDriveId,
+                    cTag: String(item.cTag || item.eTag || '')
                   });
                 }
               }
@@ -18571,6 +18642,17 @@
               const fOrder = library.extractDiscAndTrackFromPath({ remotePath: nextRemotePath, name: leafName });
               if (fOrder && fOrder.discNumber != null) tr.discNumber = fOrder.discNumber;
             }
+            markMsUpdated(tr);
+          }
+        }
+      }
+      if (deletedLrcIds.size > 0 && Array.isArray(state.tracks)) {
+        for (let ti = 0; ti < state.tracks.length; ti++) {
+          const tr = state.tracks[ti];
+          if (!tr || tr.source !== 'onedrive' || !tr.remoteLrc || !tr.remoteLrc.id) continue;
+          if (deletedLrcIds.has(String(tr.remoteLrc.id))) {
+            tr.remoteLrc = null;
+            tr._cloudLrcChecked = false;
             markMsUpdated(tr);
           }
         }
@@ -18720,16 +18802,20 @@
               }
               if (!isCloudAudio(item)) {
                 if (/\.lrc$/i.test(String(item.name || ''))) {
-                  const lrcBase = String(itemPath || item.name || '').replace(/\\/g, '/').replace(/\.[^.]+$/, '').toLowerCase();
+                  let lrcBase = String(itemPath || item.name || '').replace(/\\/g, '/').replace(/\.[^.]+$/, '');
+                  if (typeof lrcBase.normalize === 'function') {
+                    try { lrcBase = lrcBase.normalize('NFC'); } catch (_) {}
+                  }
+                  lrcBase = lrcBase.toLowerCase();
                   if (lrcBase) {
-                    siblingLrcByBase.set(lrcBase, { id: item.id, name: item.name, downloadUrl: item['@microsoft.graph.downloadUrl'] || '', driveId: itemDriveId });
+                    siblingLrcByBase.set(lrcBase, { id: item.id, name: item.name, downloadUrl: item['@microsoft.graph.downloadUrl'] || '', driveId: itemDriveId, cTag: String(item.cTag || item.eTag || '') });
                   }
                 }
                 const coverScore = scoreFolderCover(item.name || '');
                 if (coverScore > 0) {
                   const prevCand = siblingCoversByDir.get(path);
                   if (!prevCand || coverScore > prevCand.score) {
-                    siblingCoversByDir.set(path, { id: item.id, name: item.name, score: coverScore, downloadUrl: item['@microsoft.graph.downloadUrl'] || '', driveId: itemDriveId });
+                    siblingCoversByDir.set(path, { id: item.id, name: item.name, score: coverScore, downloadUrl: item['@microsoft.graph.downloadUrl'] || '', driveId: itemDriveId, ...(folderNode.forceCoverRefresh ? { forceUpdate: true } : {}) });
                   }
                 }
                 continue;
@@ -18779,6 +18865,9 @@
               }
               while (queue.length) {
                 const sharedBatch = queue.splice(0, FOLDER_BATCH_CONCURRENCY);
+                for (let bi = 0; bi < sharedBatch.length; bi++) {
+                  if (sharedBatch[bi]) sharedBatch[bi].forceCoverRefresh = true;
+                }
                 await Promise.all(sharedBatch.map(node => scanFolderNode(node).catch(() => { sharedFolderScanFailed = true; })));
               }
               if (updatedExistingTracks.length > 0) {
@@ -22749,6 +22838,9 @@
           trackIds: rec.tracks.map(t => t.id)
         };
         state.queueTrackIds = rec.tracks.slice(1).map(t => t.id);
+        bpCloudPreloadTrackId = null;
+        if (state.preloadTrackId && state.preloadTrackId !== rec.tracks[0].id && state.preloadTrackId !== (state.queueTrackIds[0] || null) && typeof clearStalePreload === 'function') clearStalePreload();
+        renderQueue();
         playTrack(rec.tracks[0].id);
         toast(typeof library !== 'undefined' && typeof library.formatContextualRecommendationBadge === 'function' ? library.formatContextualRecommendationBadge(rec) : `Đang phát: ${rec.title}`);
       });
@@ -22764,6 +22856,8 @@
         }
         const newIds = rec.tracks.map(t => t.id);
         state.queueTrackIds = [...(state.queueTrackIds || []), ...newIds];
+        renderQueue();
+        if (state.currentId && typeof resyncNextPreload === 'function') resyncNextPreload(true);
         toast(`Đã thêm ${newIds.length} bài vào hàng đợi.`);
       });
     }
@@ -22908,7 +23002,7 @@
       toast(state.roonRadio ? '⚡ Roon Radio đã bật.' : 'Roon Radio đã tắt.');
       if (state.currentId && audio.src) preloadNext(true);
     });
-    $('autoplay-button').addEventListener('click', event => { state.autoplay = !state.autoplay; syncAutoplayButton(); toast(state.autoplay ? 'Tự động phát tiếp đã bật.' : 'Tự động phát tiếp đã tắt.'); if (state.currentId) preloadNext(true); });
+    $('autoplay-button').addEventListener('click', event => { state.autoplay = !state.autoplay; syncAutoplayButton(); toast(state.autoplay ? 'Tự động phát tiếp đã bật.' : 'Tự động phát tiếp đã tắt.'); if (typeof resyncNextPreload === 'function') resyncNextPreload(true); else if (state.currentId) preloadNext(true); });
     const toggleSleepPanel = () => { const p = $('sleep-panel'); const isHidden = p.classList.toggle('hidden'); p.hidden = isHidden; };
     $('sleep-button').addEventListener('click', toggleSleepPanel);
     $('sleep-close').addEventListener('click', () => { const p = $('sleep-panel'); p.classList.add('hidden'); p.hidden = true; });
@@ -23792,8 +23886,8 @@
         }
       }
     }, { passive: true });
-    $('shuffle-button').addEventListener('click', event => { state.shuffle = !state.shuffle; state.preloadTrackId = null; state.preloadReadyUrl = null; event.currentTarget.classList.toggle('text-violet-300', state.shuffle); if (typeof syncTransportModesUI === 'function') syncTransportModesUI(); toast(state.shuffle ? 'Đã bật trộn bài.' : 'Đã tắt trộn bài.'); if (state.currentId) preloadNext(true); });
-    $('repeat-button').addEventListener('click', event => { state.repeat = (state.repeat + 1) % 3; event.currentTarget.textContent = state.repeat === 2 ? '↻¹' : '↻'; event.currentTarget.classList.toggle('text-violet-300', state.repeat > 0); if (typeof syncTransportModesUI === 'function') syncTransportModesUI(); toast(['Không lặp','Lặp danh sách','Lặp bài hiện tại'][state.repeat]); if (state.currentId) preloadNext(true); });
+    $('shuffle-button').addEventListener('click', event => { state.shuffle = !state.shuffle; state.preloadTrackId = null; state.preloadReadyUrl = null; event.currentTarget.classList.toggle('text-violet-300', state.shuffle); if (typeof syncTransportModesUI === 'function') syncTransportModesUI(); toast(state.shuffle ? 'Đã bật trộn bài.' : 'Đã tắt trộn bài.'); if (typeof resyncNextPreload === 'function') resyncNextPreload(true); else if (state.currentId) preloadNext(true); });
+    $('repeat-button').addEventListener('click', event => { state.repeat = (state.repeat + 1) % 3; event.currentTarget.textContent = state.repeat === 2 ? '↻¹' : '↻'; event.currentTarget.classList.toggle('text-violet-300', state.repeat > 0); if (typeof syncTransportModesUI === 'function') syncTransportModesUI(); toast(['Không lặp','Lặp danh sách','Lặp bài hiện tại'][state.repeat]); if (typeof resyncNextPreload === 'function') resyncNextPreload(true); else if (state.currentId) preloadNext(true); });
     $('favorite-button').addEventListener('click', () => {
       const track = state.tracks.find(item => item.id === state.currentId);
       if (!track) return;
