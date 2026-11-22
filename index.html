@@ -1765,14 +1765,13 @@
     }
   </style>
 </head>
-
+<body class="min-h-screen overflow-x-hidden text-zinc-100">
   <script>
     // Immediate sidebar collapse on mobile / FiiO DAP to prevent blocking main UI
-    if (typeof window !== 'undefined' && (window.innerWidth < 1024 || window.isNativeAndroid || window.NocturneNative)) {
+    if (typeof window !== 'undefined' && document.body && (window.innerWidth < 1024 || window.isNativeAndroid || window.NocturneNative)) {
       document.body.classList.add('sidebar-collapsed');
     }
   </script>
-<body class="min-h-screen overflow-x-hidden text-zinc-100">
   <div id="app-ambient-backdrop" class="pointer-events-none fixed inset-0 z-0 opacity-0 transition-opacity duration-1000" aria-hidden="true"></div>
   <button id="sidebar-backdrop" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm transition-opacity lg:hidden" type="button" aria-label="Đóng thanh bên" hidden></button>
   <main id="app-shell" class="mx-auto flex min-h-screen max-w-[1600px] flex-col pb-32 lg:flex-row lg:gap-5 lg:px-5">
@@ -2368,7 +2367,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.80</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.81</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -11348,10 +11347,20 @@
 
       if (state.subBassPunchNodes && state.context) {
         const now = state.context.currentTime;
-        state.subBassPunchNodes.filter.frequency.setTargetAtTime(params.centerFreq, now, 0.015);
-        state.subBassPunchNodes.filter.Q.setTargetAtTime(params.qFactor, now, 0.015);
-        state.subBassPunchNodes.filter.gain.setTargetAtTime(params.gainDb, now, 0.015);
-        const preampLinear = Math.pow(10, (params.preampSafetyOffset || 0) / 20);
+        const centerFreq = (Number.isFinite(params.centerFreq) && params.centerFreq > 0)
+          ? params.centerFreq
+          : ((Number.isFinite(params.frequency) && params.frequency > 0) ? params.frequency : 42);
+        const qFactor = (Number.isFinite(params.qFactor) && params.qFactor > 0)
+          ? params.qFactor
+          : ((Number.isFinite(params.q) && params.q > 0) ? params.q : 1.2);
+        const gainDb = Number.isFinite(params.gainDb)
+          ? params.gainDb
+          : (Number.isFinite(params.gain) ? params.gain : 0);
+        const preampOffset = Number.isFinite(params.preampSafetyOffset) ? params.preampSafetyOffset : 0;
+        state.subBassPunchNodes.filter.frequency.setTargetAtTime(centerFreq, now, 0.015);
+        state.subBassPunchNodes.filter.Q.setTargetAtTime(qFactor, now, 0.015);
+        state.subBassPunchNodes.filter.gain.setTargetAtTime(gainDb, now, 0.015);
+        const preampLinear = Math.pow(10, preampOffset / 20);
         state.subBassPunchNodes.safetyPreamp.gain.setTargetAtTime(preampLinear, now, 0.015);
       }
 
@@ -11385,7 +11394,10 @@
           badgeEl.textContent = 'OFF';
           badgeEl.className = 'rounded border border-zinc-700 bg-zinc-800/40 px-1.5 py-0.5 text-[9px] font-mono font-medium text-zinc-400';
         } else {
-          badgeEl.textContent = currentParams.gainDb > 0 ? `+${currentParams.gainDb.toFixed(1)}dB` : currentProfile.badge;
+          const displayGainDb = Number.isFinite(currentParams.gainDb)
+            ? currentParams.gainDb
+            : (Number.isFinite(currentParams.gain) ? currentParams.gain : 0);
+          badgeEl.textContent = displayGainDb > 0 ? `+${displayGainDb.toFixed(1)}dB` : currentProfile.badge;
           badgeEl.className = 'rounded border border-indigo-400/30 bg-indigo-500/15 px-1.5 py-0.5 text-[9px] font-mono font-medium text-indigo-300';
         }
       }
@@ -11575,19 +11587,29 @@
       if (state.subBassPhaseNodes) {
         const nodes = state.subBassPhaseNodes;
         const now = state.context ? state.context.currentTime : 0;
-        if (params.isBypass) {
+        const isBypass = params.isBypass === true || params.isActive === false || profile.id === 'bypass';
+        if (isBypass) {
           nodes.wetGain.gain.setTargetAtTime(0, now, 0.015);
           nodes.dryGain.gain.setTargetAtTime(1.0, now, 0.015);
         } else {
-          nodes.lowpass.frequency.setTargetAtTime(Math.min(120, params.centerFreqHz * 1.5), now, 0.015);
-          nodes.allpass.frequency.setTargetAtTime(params.centerFreqHz, now, 0.015);
+          const centerFreqHz = (Number.isFinite(params.centerFreqHz) && params.centerFreqHz > 0)
+            ? params.centerFreqHz
+            : ((Number.isFinite(params.cutoffHz) && params.cutoffHz > 0) ? params.cutoffHz : 65);
+          const wetLevel = Number.isFinite(params.wetLevel)
+            ? params.wetLevel
+            : (Number.isFinite(params.mixGain) ? params.mixGain : 0);
+          const dryLevel = Number.isFinite(params.dryLevel)
+            ? params.dryLevel
+            : Math.max(0, Math.min(1.0, 1.0 - wetLevel * 0.25));
+          nodes.lowpass.frequency.setTargetAtTime(Math.min(120, centerFreqHz * 1.5), now, 0.015);
+          nodes.allpass.frequency.setTargetAtTime(centerFreqHz, now, 0.015);
           if (params.exciterDrive > 0 && typeof (lib && lib.generateBassExciterTransferCurve) === 'function') {
             nodes.shaper.curve = lib.generateBassExciterTransferCurve(params.exciterDrive, 1024);
           } else {
             nodes.shaper.curve = null;
           }
-          nodes.wetGain.gain.setTargetAtTime(params.wetLevel, now, 0.015);
-          nodes.dryGain.gain.setTargetAtTime(params.dryLevel, now, 0.015);
+          nodes.wetGain.gain.setTargetAtTime(wetLevel, now, 0.015);
+          nodes.dryGain.gain.setTargetAtTime(dryLevel, now, 0.015);
         }
       }
 
@@ -12934,7 +12956,7 @@
         if ($('fs-zone-current-desc')) $('fs-zone-current-desc').textContent = curZoneDesc;
       }
       if (state.bitPerfectEnabled) {
-        const rateStr = track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : ((state.context ? state.context.sampleRate : 48000) ? `${(state.context.sampleRate / 1000).toFixed(state.context.sampleRate % 1000 ? 1 : 0)} kHz` : '44.1 kHz');
+        const rateStr = track.sampleRate ? `${(track.sampleRate / 1000).toFixed(track.sampleRate % 1000 ? 1 : 0)} kHz` : ((state.context && state.context.sampleRate) ? `${(state.context.sampleRate / 1000).toFixed(state.context.sampleRate % 1000 ? 1 : 0)} kHz` : '44.1 kHz');
         const depthStr = track.bitDepth ? `${track.bitDepth}-bit` : '16-bit';
         const bitPerfectText = `⚡ BIT-PERFECT DIRECT · ${rateStr} / ${depthStr}`;
         $('quality-badge').textContent = bitPerfectText;
@@ -12960,7 +12982,7 @@
         }
       }
       $('room-title').textContent = room.title; $('room-artist').textContent = room.artist; $('room-album').textContent = room.album;
-      const roomOutputText = `Nguồn: ${room.sourceName}. AudioContext ${(state.context ? state.context.sampleRate : 48000) ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.${state.stereoBalance ? ` · Cân bằng: ${library.formatBalance(state.stereoBalance)}` : ''}${state.crossfeed ? ` · Crossfeed: ${library.formatCrossfeed(state.crossfeed)}` : ''}`;
+      const roomOutputText = `Nguồn: ${room.sourceName}. AudioContext ${(state.context && state.context.sampleRate) ? `${(state.context.sampleRate / 1000).toFixed(1)} kHz` : 'tùy cấu hình trình duyệt'}; thiết bị đầu ra/DAC do browser và hệ điều hành chọn, không thể xác nhận bit-perfect từ ứng dụng web.${state.stereoBalance ? ` · Cân bằng: ${library.formatBalance(state.stereoBalance)}` : ''}${state.crossfeed ? ` · Crossfeed: ${library.formatCrossfeed(state.crossfeed)}` : ''}`;
       renderRoomSignal(track); $('room-output').textContent = roomOutputText;
       if ($('fs-room-output')) $('fs-room-output').textContent = roomOutputText;
       if (!state.bitPerfectEnabled) {
@@ -16722,7 +16744,10 @@
               state.googleToken = result.access_token;
               state.googleExpiresAt = Date.now() + (Number(result.expires_in) || 3600) * 1000;
               state.googleLastRefreshAt = Date.now();
-              try { localStorage.setItem('nocturne-google-token', state.googleToken); } catch (_) {}
+              try {
+                localStorage.setItem('nocturne-google-token', state.googleToken);
+                localStorage.setItem('nocturne-google-token-expires', String(state.googleExpiresAt));
+              } catch (_) {}
               if (googleOAuthRefreshScheduler) googleOAuthRefreshScheduler.scheduleRefresh(state.googleExpiresAt);
               finish(resolve, state.googleToken);
             },
@@ -19858,7 +19883,10 @@
       if (parsed.expiresInSeconds && parsed.expiresInSeconds !== 3600) {
         state.googleExpiresAt = Date.now() + parsed.expiresInSeconds * 1000;
       }
-      try { localStorage.setItem('nocturne-google-token', token); } catch (_) {}
+      try {
+        localStorage.setItem('nocturne-google-token', token);
+        localStorage.setItem('nocturne-google-token-expires', String(state.googleExpiresAt));
+      } catch (_) {}
       cloudStatus('google', 'Đang quét Google Drive bằng token…', 'text-sky-300');
       await loadGoogleFiles();
       cloudStatus('google', 'Đã đồng bộ Google Drive', 'text-emerald-300');
@@ -19914,7 +19942,10 @@
       if (parsed.expiresInSeconds && parsed.expiresInSeconds !== 3600) {
         state.microsoftExpiresAt = Date.now() + parsed.expiresInSeconds * 1000;
       }
-      try { localStorage.setItem('nocturne-microsoft-token', token); } catch (_) {}
+      try {
+        localStorage.setItem('nocturne-microsoft-token', token);
+        localStorage.setItem('nocturne-microsoft-token-expires', String(state.microsoftExpiresAt));
+      } catch (_) {}
       cloudStatus('microsoft', 'Đang quét OneDrive bằng token…', 'text-sky-300');
       await loadMicrosoftFiles(token);
       cloudStatus('microsoft', 'OneDrive đã đồng bộ', 'text-emerald-300');
@@ -22319,6 +22350,11 @@
       if (!el || el._reliableTransportTapBound || typeof el.addEventListener !== 'function') return;
       el._reliableTransportTapBound = true;
       let startX = 0, startY = 0, startAt = 0, tracking = false;
+      el.addEventListener('pointerdown', e => {
+        if (e && e.pointerType && e.pointerType !== 'touch') {
+          el._touchTapGhostPending = false;
+        }
+      }, { passive: true });
       el.addEventListener('touchstart', e => {
         el._touchTapGhostPending = false;
         if (e.touches && e.touches.length === 1) {
@@ -22352,7 +22388,7 @@
         }
       }, { passive: false });
       el.addEventListener('click', e => {
-        if (e && e.isTrusted && el._touchTapGhostPending && el._touchTapHandledAt && (Date.now() - el._touchTapHandledAt) < 900) {
+        if (e && e.isTrusted && el._touchTapGhostPending && el._touchTapHandledAt && (Date.now() - el._touchTapHandledAt) < 450) {
           el._touchTapGhostPending = false;
           e.preventDefault();
           e.stopPropagation();
@@ -25251,11 +25287,22 @@
       const googleConfig = library.parseCloudConfig(localStorage.getItem('nocturne-google'));
       $('google-client-id').value = googleConfig.clientId || '';
       const savedGoogleToken = localStorage.getItem('nocturne-google-token');
+      const savedGoogleExp = Number(localStorage.getItem('nocturne-google-token-expires')) || 0;
       if (savedGoogleToken && $('google-token-direct')) $('google-token-direct').value = savedGoogleToken;
+      if (savedGoogleToken && savedGoogleExp > Date.now() + 30000) {
+        state.googleToken = savedGoogleToken;
+        state.googleExpiresAt = savedGoogleExp;
+        if (googleOAuthRefreshScheduler) googleOAuthRefreshScheduler.scheduleRefresh(state.googleExpiresAt);
+      }
       const microsoftConfig = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
       $('microsoft-client-id').value = microsoftConfig.clientId || '';
       const savedMsToken = localStorage.getItem('nocturne-microsoft-token');
+      const savedMsExp = Number(localStorage.getItem('nocturne-microsoft-token-expires')) || 0;
       if (savedMsToken && $('microsoft-token-direct')) $('microsoft-token-direct').value = savedMsToken;
+      if (savedMsToken && savedMsExp > Date.now() + 30000) {
+        state.microsoftAccessToken = savedMsToken;
+        state.microsoftExpiresAt = savedMsExp;
+      }
       if (googleConfig.clientId || savedGoogleToken || DEFAULT_GOOGLE_CLIENT_ID) { $('google-state').textContent = googleConfig.clientId ? 'Client ID riêng · sẵn sàng' : 'Sẵn sàng kết nối'; $('cloud-status').textContent = 'Google Drive · sẵn sàng'; }
       if (microsoftConfig.clientId || savedMsToken) { $('microsoft-state').textContent = 'Sẵn sàng kết nối'; $('cloud-status').textContent = (googleConfig.clientId || savedGoogleToken || DEFAULT_GOOGLE_CLIENT_ID) ? 'Google Drive / OneDrive · sẵn sàng' : 'OneDrive · sẵn sàng'; }
     } catch (error) { console.warn('Could not load saved cloud configuration:', error); }
@@ -26403,14 +26450,14 @@
     const QUICK_SLEEP_STEPS = [0, 15, 30, 45, 60, 'track-end'];
     let quickSleepStepIdx = 0;
     function syncQuickSleepPill() {
-      const btn = $(quick-sleep-btn);
+      const btn = $('quick-sleep-btn');
       if (!btn) return;
       const isTrackEnd = Boolean(state.sleepAtTrackEnd);
       const hasDeadline = Boolean(state.sleepDeadline && state.sleepDeadline > Date.now());
       const active = isTrackEnd || hasDeadline;
-      btn.classList.toggle(text-indigo-300, active);
-      btn.classList.toggle(border-indigo-400/50, active);
-      btn.setAttribute(aria-pressed, String(active));
+      btn.classList.toggle('text-indigo-300', active);
+      btn.classList.toggle('border-indigo-400/50', active);
+      btn.setAttribute('aria-pressed', String(active));
       if (isTrackEnd) {
         btn.innerHTML = '🌙&nbsp; Hết bài';
       } else if (hasDeadline) {
@@ -26420,7 +26467,7 @@
         btn.innerHTML = '🌙&nbsp; Ngủ';
       }
     }
-    safeOn($(quick-sleep-btn), 'click', () => {
+    safeOn($('quick-sleep-btn'), 'click', () => {
       quickSleepStepIdx = (quickSleepStepIdx + 1) % QUICK_SLEEP_STEPS.length;
       const step = QUICK_SLEEP_STEPS[quickSleepStepIdx];
       if (step === 0) {

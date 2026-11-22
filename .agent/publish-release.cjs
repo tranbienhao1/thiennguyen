@@ -80,21 +80,22 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.80';
-  const name = process.argv[3] || `Nocturne ${tag} (Deep Play/Pause Overhaul: First-Slice Upgrade Pause Guard, DSD Active-Slice Pause, Suspended Context Pause Priority, Standby Playing UI & Hardware Media Key Debounce)`;
+  const tag = process.argv[2] || 'v3.9.81';
+  const name = process.argv[3] || `Nocturne ${tag} (Critical Playback & Boot Hotfix: Fix 5 Fatal Live-Chrome Crashes in displayTrack, setupAudio Sub-Bass DSP, Boot IIFE, Pre-Body Script + Hybrid Touch/Mouse Play/Pause & Cloud Token Persistence)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 134) — Đại tu toàn diện Play/Pause: Chống tự phát lại khi nâng cấp First-Slice -> Full Audio, Tạm dừng DSD khi đang giải mã nền, Ưu tiên Pause khi AudioContext suspended & Chống lặp phím cứng Media
+    : `### Nocturne ${tag} (versionCode 135) — Vá khẩn 5 lỗi Runtime chí mạng khiến nhạc không phát được / kẹt nút Play-Pause (kiểm chứng trực tiếp trên Chrome thực)
 
-#### 1. Triệt tiêu 5 lỗi cốt lõi của nút Play/Pause trên Web Audio, HTML5 Audio & DSD (\`index.html\`)
-- **Chống cướp lệnh Pause khi nâng cấp First-Slice → Full Audio (\`upgradeSliceToFullAudio\`, \`resumeFullAudioFromSlice\`, \`playDsdTrack\`, \`recoverStalledAudioStream\`)**: Khi tệp đầy đủ tải xong ở giây thứ 1–4 và gọi \`deck.src = fullUrl; deck.load()\`, trình duyệt tạm đặt \`audio.paused = true\` trong khi \`deck._upgradingFullAudio === true\`. Nút \`#play-button\`, \`window.onHardwarePause\` và \`navigator.mediaSession\` (\`pause\`) nay nhận diện \`audio._upgradingFullAudio\` là đang phát, gắn cờ \`_userPausedDuringUpgrade = true\` khi người dùng bấm Tạm dừng và chặn hoàn toàn callback \`loadedmetadata\` tự động gọi \`deck.play()\` phát nhạc lại ngoài ý muốn.
-- **Tạm dừng mượt bài DSD ngay khi đang giải mã nền (\`playDsdTrack\` & \`#play-button\`)**: Khi lát PCM DSD đầu tiên đã bắt đầu phát (\`state.dsdUrl\` hoặc \`!audio.paused\`), bấm \`#play-button\` sẽ tạm dừng/tiếp tục \`audio\` tức thì thay vì hủy \`state.dsdWorker\` và xóa trắng \`audio.src\`; đồng thời chặn thông điệp \`progress\` của worker ghi đè biểu tượng \`Ⅱ\` bằng \`%\`.
-- **Ưu tiên tuyệt đối lệnh Pause khi nút đang hiển thị \`Ⅱ\` / \`⏸\` kể cả khi \`AudioContext\` đang \`suspended\`**: Khắc phục lỗi khi chuyển qua lại từ Bit-Perfect hoặc từ nền Android làm \`state.context.state === 'suspended'\` trong khi \`!audio.paused\` và nút hiện \`Ⅱ\`, bấm Pause từng bị nhánh \`wasContextSuspended\` nuốt lệnh và giữ nhạc phát tiếp.
-- **Đồng bộ tức thì trạng thái \`standbyAudio\` & cách ly \`audio.dataset.trackId\` khi chuyển bài**: \`clearOptimisticLoadingUi()\` kiểm tra cả \`standbyAudio\` trước khi \`finishPlaybackStart\` hoán đổi deck để không bao giờ bật nhầm biểu tượng \`▶\` khi nhạc vừa phát; tạm dừng ngay bài cũ khi chuyển sang bài Cloud/DSD mới cần tải mạng và không ghi đè \`audio.dataset.trackId\` của deck cũ nếu người dùng bấm Pause giữa lúc đang tải bài mới.
+#### 1. Vá triệt để 5 lỗi JavaScript Runtime chặn phát nhạc ngay lần bấm đầu tiên (\`index.html\`)
+- **Sửa lỗi \`displayTrack()\` ném \`TypeError: Cannot read properties of null (reading 'sampleRate')\`**: Biểu thức \`(state.context ? state.context.sampleRate : 48000) ? state.context.sampleRate ...\` luôn đánh giá truthy khi \`state.context === null\`, làm sập \`playTrack()\` ngay trước khi \`setupAudio()\` và \`audio.play()\` kịp chạy — nguyên nhân trực tiếp khiến bấm Play hoặc chạm bài hát hoàn toàn không bật được nhạc.
+- **Sửa lỗi \`applySubBassPunch()\` & \`applySubBassPhaseProfile()\` làm sập \`setupAudio()\`**: \`calculateSubBassPunchParams()\` trả về \`{ frequency, gain, q }\` và \`calculateSubBassPhaseParams()\` trả về \`{ cutoffHz, mixGain, isActive }\`, nhưng \`index.html\` gọi \`setTargetAtTime(params.centerFreq / params.qFactor / params.gainDb / params.centerFreqHz)\` là \`undefined\` / \`NaN\`, khiến Chrome ném \`TypeError: Failed to execute 'setTargetAtTime' on 'AudioParam': The provided float value is non-finite\` ngay cú bấm Play đầu tiên, làm kẹt nút ở trạng thái \`…\` và đứt nửa đồ thị Web Audio.
+- **Sửa lỗi \`ReferenceError: quick is not defined\` tại \`syncQuickSleepPill()\`**: Bọc đầy đủ dấu nháy cho \`'quick-sleep-btn'\`, \`'text-indigo-300'\`, \`'border-indigo-400/50'\`, \`'aria-pressed'\`, giúp toàn bộ khối khởi động cuối app (khôi phục thư viện FiiO/Cloud, khôi phục phiên nghe, bật Bit-Perfect) chạy trọn vẹn với 0 lỗi.
+- **Di chuyển inline script thu gọn sidebar vào sau thẻ \`<body>\`**: Tránh lỗi \`Cannot read properties of null (reading 'classList')\` khi mở app trên mobile/FiiO M11S.
 
-#### 2. Chống bật tắt kép phím cứng Play/Pause trên FiiO M11S & Android (\`MainActivity.java\`)
-- **\`handleMediaKey\` & \`MediaSession.Callback.onMediaButtonEvent\`**: Bổ sung bộ lọc chống dội 180ms (\`mLastHardwareMediaKeyAtMs\` / \`mLastHardwareMediaKeyCode\`) và nuốt trọn cả \`ACTION_DOWN\` lẫn \`ACTION_UP\` của phím media trong \`onMediaButtonEvent\`, ngăn phím cứng Play/Pause hoặc tai nghe Bluetooth kích hoạt kép qua cả \`dispatchKeyEvent\` và \`MediaSession\`.
+#### 2. Vá chạm/chuột lai cho nút Play/Pause & Giữ phiên đăng nhập Cloud khi tải lại
+- **\`attachReliableTransportTap\`**: Xóa cờ \`_touchTapGhostPending\` khi nhận \`pointerdown\` từ chuột/bút và rút ngắn cửa sổ lọc ghost-click từ 900ms xuống 450ms, đảm bảo bấm cảm ứng liên tiếp hay chuyển giữa cảm ứng và chuột đều nhận ngay cú bấm đầu tiên.
+- **Lưu & khôi phục Access Token Google Drive / OneDrive còn hạn**: Lưu thêm mốc hết hạn \`nocturne-google-token-expires\` & \`nocturne-microsoft-token-expires\` và tự động khôi phục vào \`state\` khi khởi động lại app/OTA.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
