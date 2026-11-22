@@ -2369,7 +2369,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.92</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.93</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4458,6 +4458,7 @@
         let resumePosSec = Math.max(nativePosSec, trackedPosSec);
         state.isNativeBitPerfectPlaying = false;
         state.isNativeBitPerfectPaused = false;
+        state.bitPerfectLockedFormat = null;
         state._bpCueAdvancingId = null;
         if (!wasNativeBp && typeof audio !== 'undefined' && audio && !audio.paused) return;
         const curTrack = state.tracks.find(t => t && String(t.id) === String(state.currentId));
@@ -4471,6 +4472,7 @@
           curTrack._nativeBpFallbackUntil = now + 5 * 60 * 1000;
           if (resumePosSec > 0) curTrack._resumeAfterBpFallbackSec = resumePosSec;
           if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+          if (typeof updatePositionState === 'function') updatePositionState(true);
           return;
         }
         const prevAt = Number(curTrack._nativeBpErrorAt || 0);
@@ -7151,9 +7153,23 @@
     function pruneSliceCache() {
       let store;
       try { store = sliceCacheTransaction('readwrite'); } catch (error) { return; }
-      const currentTrack = Array.isArray(state && state.tracks) ? state.tracks.find(t => t.id === state.currentId) : null;
-      const currentKey = currentTrack ? library.historyTrackKey(currentTrack) : null;
-      const pinnedKeys = currentKey ? [currentKey] : [];
+      const pinnedSet = new Set();
+      if (state && Array.isArray(state.tracks)) {
+        const pinCandidateIds = [
+          state.currentId,
+          state.preloadTrackId,
+          typeof bpCloudPreloadTrackId !== 'undefined' ? bpCloudPreloadTrackId : null,
+          Array.isArray(state.queueTrackIds) && state.queueTrackIds.length ? state.queueTrackIds[0] : null
+        ];
+        for (let pi = 0; pi < pinCandidateIds.length; pi++) {
+          const cid = pinCandidateIds[pi];
+          if (cid == null) continue;
+          const ctr = state.tracks.find(t => t && String(t.id) === String(cid));
+          const ckey = ctr ? library.historyTrackKey(ctr) : '';
+          if (ckey) pinnedSet.add(ckey);
+        }
+      }
+      const pinnedKeys = Array.from(pinnedSet);
 
       const request = store.getAll();
       request.onsuccess = () => {
@@ -8462,16 +8478,31 @@
         } else if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
           text = new TextDecoder('utf-16be').decode(bytes.subarray(2));
         } else {
-          try {
-            text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-          } catch (_) {
+          if (bytes.length >= 8 && bytes.length % 2 === 0) {
+            const sampleLen = Math.min(bytes.length, 512) & ~1;
+            const pairs = sampleLen / 2;
+            let evenNulls = 0, oddNulls = 0;
+            for (let p = 0; p < sampleLen; p += 2) {
+              if (bytes[p] === 0) evenNulls++;
+              if (bytes[p + 1] === 0) oddNulls++;
+            }
+            if (pairs > 0 && oddNulls / pairs >= 0.4 && evenNulls / pairs < 0.05) {
+              try { text = new TextDecoder('utf-16le').decode(bytes); } catch (_) {}
+            } else if (pairs > 0 && evenNulls / pairs >= 0.4 && oddNulls / pairs < 0.05) {
+              try { text = new TextDecoder('utf-16be').decode(bytes); } catch (_) {}
+            }
+          }
+          if (!text) {
             try {
-              const sjis = new TextDecoder('shift-jis', { fatal: true }).decode(bytes);
-              if (/[\u3040-\u30FF\u4E00-\u9FFF\uFF61-\uFF9F]/.test(sjis)) text = sjis;
-            } catch (__) {}
-            if (!text) {
-              try { text = new TextDecoder('windows-1252').decode(bytes); }
-              catch (___) { text = new TextDecoder('utf-8').decode(bytes); }
+              text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+            } catch (_) {
+              try {
+                const sjis = new TextDecoder('shift-jis', { fatal: true }).decode(bytes);
+                if (/[\u3040-\u30FF\u4E00-\u9FFF\uFF61-\uFF9F]/.test(sjis)) text = sjis;
+              } catch (__) {}
+              if (!text) {
+                try { text = new TextDecoder('windows-1252').decode(bytes); } catch (___) { text = new TextDecoder('utf-8').decode(bytes); }
+              }
             }
           }
         }
@@ -23213,6 +23244,8 @@
       if (!hud) return;
       const isHidden = typeof show === 'boolean' ? !show : !hud.classList.contains('hidden');
       hud.classList.toggle('hidden', isHidden);
+      hud.hidden = isHidden;
+      if (!isHidden && typeof hud.removeAttribute === 'function') hud.removeAttribute('hidden');
       if (!isHidden) {
         updateMiniPlayerHud();
       }

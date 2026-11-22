@@ -80,23 +80,23 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.92';
-  const name = process.argv[3] || `Nocturne ${tag} (DAC Unplug 16-bit PCM Fallback + Local Permission Warning Recovery + Cloud Count Accuracy + Queue Reorder/Disconnect Chrome E2E)`;
+  const tag = process.argv[2] || 'v3.9.93';
+  const name = process.argv[3] || `Nocturne ${tag} (Bit-Perfect Fallback AVRCP Sync + Multi-Track Slice Pinning + BOM-less UTF-16 CUE + Keyboard/A-B Loop E2E)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 146) — Fallback PCM 16-bit khi rút USB DAC Hi-Res + Khôi phục quyền thư mục Web + Đếm bài Cloud chuẩn & E2E Queue Reorder / Disconnect
+    : `### Nocturne ${tag} (versionCode 147) — Đồng bộ AVRCP fallback Native Bit-Perfect + Ghim cache đa bài + Giải mã CUE UTF-16 không BOM & Phím tắt/A-B Loop E2E
 
-#### 1. Fallback PCM 16-bit mượt mà khi rút USB DAC 24-bit/192kHz (\`MainActivity.java\`)
-- \`createAndConfigureBitPerfectAudioTrack\` tự động thử lại với \`AudioAttributes\` chuẩn ngay cả khi \`STATE_UNINITIALIZED\` không ném ngoại lệ.
-- Bổ sung \`convertPcmChunkTo16Bit\` (chuyển 24-bit packed, 32-bit PCM và PCM Float sang 16-bit LE căn chỉnh khung L/R) và \`rebuildAudioTrackWith16BitFallback\` trên các nhánh chuyển mạch \`mRouteRefreshRequested\` / \`ERROR_DEAD_OBJECT\`, đồng thời khôi phục đúng encoding gốc khi cắm lại USB DAC.
+#### 1. Đồng bộ AVRCP / MediaSession khi Bit-Perfect chuyển dự phòng (\`MainActivity.java\`, \`index.html\`)
+- \`BitPerfectAudioPlayer.runPlaybackLoop\` cập nhật vị trí tạm dừng chuẩn về \`updateMediaSessionPosition\` trước khi báo fallback về Web Audio.
+- \`window.onNativeBitPerfectError\` đặt lại \`state.bitPerfectLockedFormat = null\` và gọi \`updatePositionState(true)\` khi đang tạm dừng.
 
-#### 2. Làm nổi bật khôi phục quyền thư mục Web & độ chính xác \`cloudStatus\` (\`index.html\`)
-- \`setReopenFolderWarning(true/false)\` đánh dấu viền cảnh báo trên \`#reopen-folder\` và \`#empty-reopen-folder\` khi bài cục bộ gặp \`permission_denied\`, tự tải \`loadSavedLocalFolderHandles()\` nếu cần và xóa cảnh báo khi người dùng cấp quyền lại.
-- \`countSourceTracks(source)\` thống kê chính xác số bài \`google\` / \`onedrive\` hiện có trong \`state.tracks\` sau Delta Sync và Shared Scan.
+#### 2. Ghim cache lát đầu đa bài & Giải mã CUE/LRC UTF-16 không BOM (\`index.html\`)
+- \`pruneSliceCache\` ghim đồng thời bài đang phát (\`currentId\`), bài kế đã preload (\`preloadTrackId\`, \`bpCloudPreloadTrackId\`) và đầu hàng đợi (\`queueTrackIds[0]\`) để không bị đẩy nhầm khi chuyển nguồn hỗn hợp.
+- \`decodeTextBytesAuto\` nhận diện tự động UTF-16LE / UTF-16BE không có BOM trước chuỗi fallback UTF-8 / Shift-JIS / windows-1252.
 
 #### 3. Mở rộng Chrome thật (CDP E2E)
-- Kiểm chứng thêm 2 bài vào hàng đợi (\`rows === 2\`), đảo thứ tự qua \`[data-queue-move="down"]\`, xóa từng hàng và mở Cài đặt xác nhận \`#google-disconnect\` / \`#microsoft-disconnect\` + \`disconnectCloudSource\` với \`0\` lỗi JS.
+- Kiểm chứng phím tắt bàn phím Desktop (\`Space\` tạm dừng/phát, \`m\` mở/đóng Mini Player HUD) và chu trình lặp đoạn A-B (\`cycleAbLoop\`: chốt A, tua nhảy về A tại B, hủy lặp A-B) với \`0\` lỗi JS.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

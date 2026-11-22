@@ -5792,6 +5792,9 @@ public class MainActivity extends AppCompatActivity {
                 }
                 if (sessionCurrent) mCurrentSourceKey = "";
                 if (pendingErrorReason != null && sessionCurrent && !mIsStopped) {
+                    final long errPosMs = Math.max(0L, mCurrentPositionMs.get());
+                    final long errDurMs = Math.max(0L, mDurationMs.get());
+                    runOnUiThread(() -> updateMediaSessionPosition(errPosMs, errDurMs, false));
                     notifyBitPerfectErrorToWeb(pendingErrorReason);
                 }
             }
