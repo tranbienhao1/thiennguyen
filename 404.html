@@ -2218,6 +2218,7 @@
               Kết nối Google Drive bằng Token
             </button>
           </div>
+          <button id="google-full-resync" type="button" class="mt-2.5 w-full rounded-lg border border-sky-400/30 bg-sky-500/15 px-3 py-2 text-[11px] font-medium text-sky-200 transition hover:bg-sky-500/25">🔄 Quét lại toàn bộ Google Drive (khắc phục thiếu bài)</button>
           <button id="google-disconnect" type="button" class="mt-2.5 w-full rounded-lg border border-rose-300/25 bg-rose-500/10 px-3 py-2 text-[11px] font-medium text-rose-200 transition hover:bg-rose-500/20">Ngắt kết nối &amp; xóa nhạc Google Drive</button>
 
           <!-- Tier 3: Custom Client ID Override (Advanced) -->
@@ -2369,7 +2370,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.93</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.94</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -17421,12 +17422,12 @@
         let response;
         try {
           response = (typeof fetchWithTimeout === 'function')
-            ? await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${curToken}` } }, 25000)
+            ? await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${curToken}` } }, 35000)
             : await fetch(url, { headers: { Authorization: `Bearer ${curToken}` } });
         } catch (netErr) {
-          if (retryCount < 3) {
+          if (retryCount < 4) {
             retryCount++;
-            const backoffMs = Math.min(500 * Math.pow(2, retryCount), 4000);
+            const backoffMs = Math.min(500 * Math.pow(2, retryCount), 6000);
             await new Promise(resolve => setTimeout(resolve, backoffMs));
             continue;
           }
@@ -17443,15 +17444,35 @@
           }
         }
 
-        if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 3) {
+        if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 4) {
           retryCount++;
           const retryAfterHeader = response.headers && typeof response.headers.get === 'function' ? response.headers.get('retry-after') : '';
           const retryAfterSec = retryAfterHeader ? Number(retryAfterHeader) : 0;
           const backoffMs = (Number.isFinite(retryAfterSec) && retryAfterSec > 0)
-            ? Math.min(8000, Math.round(retryAfterSec * 1000))
-            : Math.min(1000 * Math.pow(2, retryCount), 8000);
+            ? Math.min(10000, Math.round(retryAfterSec * 1000))
+            : Math.min(1000 * Math.pow(2, retryCount), 10000);
           await new Promise(resolve => setTimeout(resolve, backoffMs));
           continue;
+        }
+
+        if (response.status === 403 && retryCount < 4) {
+          let errBody = '';
+          try {
+            if (typeof response.clone === 'function') {
+              const cloned = response.clone();
+              if (cloned && typeof cloned.text === 'function') errBody = await cloned.text();
+            }
+          } catch (_) {}
+          if (!errBody || /rateLimitExceeded|userRateLimitExceeded|quotaExceeded|backendError|sharingRateLimitExceeded/i.test(errBody)) {
+            retryCount++;
+            const retryAfter403 = response.headers && typeof response.headers.get === 'function' ? response.headers.get('retry-after') : '';
+            const retryAfter403Sec = retryAfter403 ? Number(retryAfter403) : 0;
+            const backoff403Ms = (Number.isFinite(retryAfter403Sec) && retryAfter403Sec > 0)
+              ? Math.min(10000, Math.round(retryAfter403Sec * 1000))
+              : Math.min(1000 * Math.pow(2, retryCount), 10000);
+            await new Promise(resolve => setTimeout(resolve, backoff403Ms));
+            continue;
+          }
         }
 
         return response;
@@ -17690,62 +17711,124 @@
       const scAddedTracks = [];
       let scPageToken = '';
       let scPageCount = 0;
+      let useAllDrives = true;
+      const shortcutFolderQueue = [];
+      const visitedShortcutFolders = new Set();
       const existingByTargetId = new Map();
       if (existingByRemoteId && typeof existingByRemoteId.forEach === 'function') {
         existingByRemoteId.forEach(tr => {
           if (tr && tr.targetRemoteId) existingByTargetId.set(String(tr.targetRemoteId), tr);
         });
       }
+      const enqueueFolderId = folderId => {
+        const fid = folderId ? String(folderId).trim() : '';
+        if (!fid || visitedShortcutFolders.has(fid) || visitedShortcutFolders.size >= 250) return;
+        visitedShortcutFolders.add(fid);
+        shortcutFolderQueue.push(fid);
+      };
+      const ingestDiscoveredFile = (file, inheritedParentId) => {
+        if (!file || !file.id) return;
+        if (file.mimeType === 'application/vnd.google-apps.folder') {
+          enqueueFolderId(file.id);
+          return;
+        }
+        if (file.mimeType === 'application/vnd.google-apps.shortcut' && file.shortcutDetails && file.shortcutDetails.targetId && file.shortcutDetails.targetMimeType === 'application/vnd.google-apps.folder') {
+          enqueueFolderId(file.shortcutDetails.targetId);
+          return;
+        }
+        if (seenRemoteIds) seenRemoteIds.add(file.id);
+        const scTargetId = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
+        if (knownIds && knownIds.has(file.id)) {
+          const existing = existingByRemoteId ? existingByRemoteId.get(file.id) : null;
+          if (existing && scTargetId && scTargetId !== file.id && existing.targetRemoteId !== scTargetId) {
+            const hadTarget = Boolean(existing.targetRemoteId);
+            existing.targetRemoteId = scTargetId;
+            existingByTargetId.set(scTargetId, existing);
+            if (hadTarget && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
+            if (updatedExistingTracks) updatedExistingTracks.push(existing);
+          }
+          return;
+        }
+        if (existingByTargetId.has(file.id)) return;
+        if (scTargetId && ((knownIds && knownIds.has(scTargetId)) || existingByTargetId.has(scTargetId))) return;
+        if (typeof isCloudAudio === 'function' && !isCloudAudio(file)) return;
+        if (typeof googleTrack !== 'function') return;
+        const trackFile = (!Array.isArray(file.parents) || !file.parents.length) && inheritedParentId
+          ? Object.assign({}, file, { parents: [inheritedParentId] })
+          : file;
+        const track = googleTrack(trackFile);
+        state.tracks.push(track);
+        scAddedTracks.push(track);
+        if (newlyAddedTracks) newlyAddedTracks.push(track);
+        if (knownIds) knownIds.add(track.remoteId || file.id);
+        if (existingByRemoteId) existingByRemoteId.set(track.remoteId || file.id, track);
+        if (track.targetRemoteId) existingByTargetId.set(String(track.targetRemoteId), track);
+        scAdded++;
+      };
       try {
         do {
           scPageCount++;
-          const params = new URLSearchParams({
-            q: GOOGLE_DRIVE_SHORTCUT_QUERY,
-            fields: 'nextPageToken,files(id,name,fileExtension,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)',
-            pageSize: '1000',
-            corpora: 'user',
-            supportsAllDrives: 'true',
-            includeItemsFromAllDrives: 'true'
-          });
-          if (scPageToken) params.set('pageToken', scPageToken);
-          const response = await fetchGoogleDrivePageWithRetry(
-            `https://www.googleapis.com/drive/v3/files?${params}`,
-            getToken,
-            refreshToken
-          );
+          let response = null;
+          while (true) {
+            const params = new URLSearchParams({
+              q: GOOGLE_DRIVE_SHORTCUT_QUERY,
+              fields: 'nextPageToken,files(id,name,fileExtension,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)',
+              pageSize: '1000',
+              corpora: useAllDrives ? 'allDrives' : 'user',
+              supportsAllDrives: 'true',
+              includeItemsFromAllDrives: 'true'
+            });
+            if (scPageToken) params.set('pageToken', scPageToken);
+            response = await fetchGoogleDrivePageWithRetry(
+              `https://www.googleapis.com/drive/v3/files?${params}`,
+              getToken,
+              refreshToken
+            );
+            if (response && response.status === 400 && useAllDrives) {
+              useAllDrives = false;
+              scPageToken = '';
+              continue;
+            }
+            break;
+          }
           if (!response || !response.ok) break;
           const data = await response.json();
           const scFiles = (data && Array.isArray(data.files)) ? data.files : [];
           for (let si = 0; si < scFiles.length; si++) {
-            const file = scFiles[si];
-            if (!file || !file.id) continue;
-            if (seenRemoteIds) seenRemoteIds.add(file.id);
-            const scTargetId = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
-            if (knownIds && knownIds.has(file.id)) {
-              const existing = existingByRemoteId ? existingByRemoteId.get(file.id) : null;
-              if (existing && scTargetId && scTargetId !== file.id && existing.targetRemoteId !== scTargetId) {
-                const hadTarget = Boolean(existing.targetRemoteId);
-                existing.targetRemoteId = scTargetId;
-                existingByTargetId.set(scTargetId, existing);
-                if (hadTarget && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
-                if (updatedExistingTracks) updatedExistingTracks.push(existing);
-              }
-              continue;
-            }
-            if (scTargetId && ((knownIds && knownIds.has(scTargetId)) || existingByTargetId.has(scTargetId))) continue;
-            if (typeof isCloudAudio === 'function' && !isCloudAudio(file)) continue;
-            if (typeof googleTrack !== 'function') continue;
-            const track = googleTrack(file);
-            state.tracks.push(track);
-            scAddedTracks.push(track);
-            if (newlyAddedTracks) newlyAddedTracks.push(track);
-            if (knownIds) knownIds.add(file.id);
-            if (existingByRemoteId) existingByRemoteId.set(file.id, track);
-            if (track.targetRemoteId) existingByTargetId.set(String(track.targetRemoteId), track);
-            scAdded++;
+            ingestDiscoveredFile(scFiles[si], null);
           }
           scPageToken = (data && data.nextPageToken) ? String(data.nextPageToken) : '';
-        } while (scPageToken && scPageCount < 10);
+        } while (scPageToken && scPageCount < 100);
+
+        let folderPagesFetched = 0;
+        while (shortcutFolderQueue.length > 0 && folderPagesFetched < 50) {
+          const folderId = shortcutFolderQueue.shift();
+          let folderPageToken = '';
+          do {
+            folderPagesFetched++;
+            const escapedFolderId = String(folderId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const fParams = new URLSearchParams({
+              q: `'${escapedFolderId}' in parents and trashed = false`,
+              fields: 'nextPageToken,files(id,name,fileExtension,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)',
+              pageSize: '1000',
+              supportsAllDrives: 'true',
+              includeItemsFromAllDrives: 'true'
+            });
+            if (folderPageToken) fParams.set('pageToken', folderPageToken);
+            const fResp = await fetchGoogleDrivePageWithRetry(
+              `https://www.googleapis.com/drive/v3/files?${fParams}`,
+              getToken,
+              refreshToken
+            );
+            if (!fResp || !fResp.ok) break;
+            const fData = await fResp.json();
+            const children = (fData && Array.isArray(fData.files)) ? fData.files : [];
+            for (let ci = 0; ci < children.length; ci++) {
+              ingestDiscoveredFile(children[ci], folderId);
+            }
+            folderPageToken = (fData && fData.nextPageToken) ? String(fData.nextPageToken) : '';
+          } while (folderPageToken && folderPagesFetched < 50);
+        }
       } catch (scErr) {
         console.debug('Google Drive shortcut scan skipped:', (scErr && scErr.message) || scErr);
       }
@@ -17753,6 +17836,8 @@
     }
 
     const GOOGLE_DELTA_TOKEN_KEY = 'nocturne-google-delta-token';
+    const GOOGLE_SYNC_SCHEMA_KEY = 'nocturne-google-sync-schema';
+    const GOOGLE_SYNC_SCHEMA_VERSION = 'v2-alldrives-shortcuts';
     const MICROSOFT_DELTA_LINK_KEY = 'nocturne-microsoft-delta-link';
     const GOOGLE_SYNC_CHECKPOINT_KEY = 'nocturne-google-sync-checkpoint';
     const MICROSOFT_SYNC_CHECKPOINT_KEY = 'nocturne-microsoft-sync-checkpoint';
@@ -18118,6 +18203,8 @@
     }
 
     async function loadGoogleFiles() {
+      const syncOptions = (arguments && arguments[0] && typeof arguments[0] === 'object') ? arguments[0] : {};
+      const forceFullScan = Boolean(syncOptions.forceFullScan);
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         if (typeof cloudStatus === 'function') cloudStatus('google', 'Google Drive · Ngoại tuyến (dùng bộ đệm)', 'text-amber-300');
         if (typeof toast === 'function') toast('Đang ngoại tuyến — giữ nguyên danh mục Google Drive đã lưu cục bộ.');
@@ -18125,9 +18212,11 @@
       }
       if (state && state._googleSyncPromise) return state._googleSyncPromise;
       const syncRun = (async () => {
+      try { if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setCloudSyncActive === 'function') window.NocturneNative.setCloudSyncActive(true); } catch (_) {}
+      try {
       await restoreCloudCatalog();
       let token = await ensureGoogleToken();
-      let pageToken = '', added = 0, scanned = 0, useOrderBy = true;
+      let pageToken = '', added = 0, scanned = 0, useOrderBy = true, useAllDrives = true;
       let skippedCount = 0;
       const skippedSample = [];
       const existingByRemoteId = new Map();
@@ -18210,15 +18299,24 @@
       let skippedFullArtworkPass = false;
       let resumedFromCheckpoint = false;
       let deltaChangedArtParents = [];
+      let persistFailed = false;
 
       try {
-        const gResumeCp = (typeof readCloudSyncCheckpoint === 'function') ? readCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY) : null;
+        const existingDeltaTok = (typeof readCloudDeltaCursor === 'function' && typeof GOOGLE_DELTA_TOKEN_KEY === 'string') ? readCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY) : '';
+        const savedSchema = (typeof readCloudDeltaCursor === 'function' && typeof GOOGLE_SYNC_SCHEMA_KEY === 'string') ? readCloudDeltaCursor(GOOGLE_SYNC_SCHEMA_KEY) : '';
+        const schemaNeedsFullRescan = forceFullScan || (Boolean(existingDeltaTok) && typeof GOOGLE_SYNC_SCHEMA_VERSION === 'string' && savedSchema !== GOOGLE_SYNC_SCHEMA_VERSION);
+        if (schemaNeedsFullRescan) {
+          if (typeof writeCloudDeltaCursor === 'function' && typeof GOOGLE_DELTA_TOKEN_KEY === 'string') writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, '');
+          if (forceFullScan && typeof clearCloudSyncCheckpoint === 'function' && typeof GOOGLE_SYNC_CHECKPOINT_KEY === 'string') clearCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY);
+        }
+        const gResumeCp = (!forceFullScan && typeof readCloudSyncCheckpoint === 'function') ? readCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY) : null;
         if (gResumeCp && gResumeCp.pageToken) {
           pageToken = String(gResumeCp.pageToken);
           useOrderBy = gResumeCp.useOrderBy !== false;
+          if (gResumeCp.useAllDrives === false) useAllDrives = false;
           resumedFromCheckpoint = true;
         }
-        if (!resumedFromCheckpoint && typeof tryLoadGoogleChangesDelta === 'function' && knownIds.size > 0) {
+        if (!forceFullScan && !resumedFromCheckpoint && typeof tryLoadGoogleChangesDelta === 'function' && knownIds.size > 0) {
           const deltaRes = await tryLoadGoogleChangesDelta(token, existingByRemoteId, knownIds);
           if (deltaRes && deltaRes.handled) {
             if (Array.isArray(deltaRes.newlyAddedTracks) && deltaRes.newlyAddedTracks.length) {
@@ -18232,34 +18330,44 @@
           }
         }
         do {
-          const params = new URLSearchParams({
-            q: GOOGLE_DRIVE_CANDIDATE_QUERY,
-            // files(id,name,mimeType,size,thumbnailLink)
-            // corpora:'allDrives'
-            fields: 'nextPageToken,incompleteSearch,files(id,name,fileExtension,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)',
-            pageSize: '1000',
-            corpora: 'user',
-            supportsAllDrives:'true',
-            includeItemsFromAllDrives:'true'
-          });
-          if (useOrderBy) params.set('orderBy', 'modifiedTime desc');
-          if (pageToken) params.set('pageToken', pageToken);
+          let response = null;
+          while (true) {
+            const params = new URLSearchParams({
+              q: GOOGLE_DRIVE_CANDIDATE_QUERY,
+              // files(id,name,mimeType,size,thumbnailLink)
+              // corpora:'allDrives'
+              fields: 'nextPageToken,incompleteSearch,files(id,name,fileExtension,mimeType,size,parents,modifiedTime,md5Checksum,shortcutDetails,thumbnailLink)',
+              pageSize: '1000',
+              corpora: useAllDrives ? 'allDrives' : 'user',
+              supportsAllDrives:'true',
+              includeItemsFromAllDrives:'true'
+            });
+            if (useOrderBy) params.set('orderBy', 'modifiedTime desc');
+            if (pageToken) params.set('pageToken', pageToken);
 
-          let response = await fetchGoogleDrivePageWithRetry(
-            `https://www.googleapis.com/drive/v3/files?${params}`,
-            () => token,
-            async () => { token = await ensureGoogleToken(true); return token; }
-          );
+            response = await fetchGoogleDrivePageWithRetry(
+              `https://www.googleapis.com/drive/v3/files?${params}`,
+              () => token,
+              async () => { token = await ensureGoogleToken(true); return token; }
+            );
 
-          if (response.status === 400 && resumedFromCheckpoint && pageToken) {
-            if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY);
-            pageToken = '';
-            resumedFromCheckpoint = false;
+            if (response.status === 400 && resumedFromCheckpoint && pageToken) {
+              if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY);
+              pageToken = '';
+              resumedFromCheckpoint = false;
+              continue;
+            }
+            if (response.status === 400 && useAllDrives) {
+              if (pageToken) pageToken = '';
+              useAllDrives = false;
+              continue;
+            }
+            if (response.status === 400 && useOrderBy) {
+              if (pageToken) pageToken = '';
+              useOrderBy = false;
             continue;
-          }
-          if (response.status === 400 && useOrderBy) {
-            useOrderBy = false;
-            continue;
+            }
+            break;
           }
           if (response.status === 401) {
             const body = await response.text();
@@ -18311,7 +18419,7 @@
 
           if (pageTracks.length > 0) {
             // Ghi IndexedDB nền (không chạy prune giữa chừng, không chặn fetch trang sau)
-            persistChain = persistChain.then(() => persistCloudCatalog(pageTracks, { skipPrune: true })).catch(() => {});
+            persistChain = persistChain.then(() => persistCloudCatalog(pageTracks, { skipPrune: true })).catch(() => { persistFailed = true; });
             // Hiển thị bài mới ngay lên UI (hoãn nếu người dùng đang cuộn)
             if (typeof scheduleBackgroundRender === 'function') scheduleBackgroundRender();
             else if (typeof scheduleTrackRender === 'function') scheduleTrackRender();
@@ -18320,7 +18428,10 @@
 
           pageToken = data.nextPageToken || '';
           if (pageToken && typeof writeCloudSyncCheckpoint === 'function') {
-            writeCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY, { pageToken, useOrderBy });
+            await persistChain;
+            if (!persistFailed) {
+              writeCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY, { pageToken, useOrderBy, useAllDrives });
+            }
           }
           cloudStatus('google', `Đang quét Google Drive… ${scanned} mục · ${knownIds.size} bài`, 'text-sky-300');
         } while (pageToken);
@@ -18353,6 +18464,9 @@
         cloudStatus('google', `Google Drive · ${knownIds.size} bài`, 'text-emerald-300');
         toast(`Đã quét hết Drive: ${knownIds.size} bài âm thanh (${added} bài mới).`);
         console.info('[DriveSync]', { scanned, added, totalGoogleTracks: knownIds.size, skippedCount, skippedSample });
+        if (!sawIncompleteSearch && typeof writeCloudDeltaCursor === 'function' && typeof GOOGLE_SYNC_SCHEMA_KEY === 'string' && typeof GOOGLE_SYNC_SCHEMA_VERSION === 'string') {
+          writeCloudDeltaCursor(GOOGLE_SYNC_SCHEMA_KEY, GOOGLE_SYNC_SCHEMA_VERSION);
+        }
         if (!sawIncompleteSearch && typeof fetchGoogleStartPageToken === 'function' && typeof writeCloudDeltaCursor === 'function') {
           const startTok = await fetchGoogleStartPageToken(token).catch(() => '');
           if (startTok) writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, startTok);
@@ -18362,6 +18476,9 @@
         }
       } catch (error) {
         await persistChain;
+        if (persistFailed && typeof clearCloudSyncCheckpoint === 'function' && typeof GOOGLE_SYNC_CHECKPOINT_KEY === 'string') {
+          clearCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY);
+        }
         renderTracks();
         if (added) toast(`Đã lưu ${added} bài mới trước khi đồng bộ bị gián đoạn.`);
         throw error;
@@ -18377,6 +18494,9 @@
           const artOpts = deltaChangedArtParents.length ? { forceParentIds: deltaChangedArtParents } : undefined;
           discoverGoogleDriveFolderArtwork(artCandidates, artOpts).catch(() => {});
         }
+      }
+      } finally {
+        try { if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setCloudSyncActive === 'function') window.NocturneNative.setCloudSyncActive(false); } catch (_) {}
       }
       })();
       if (state) state._googleSyncPromise = syncRun;
@@ -19856,6 +19976,29 @@
         button.disabled = false;
         button.textContent = 'Xóa danh mục Cloud đã lưu';
         settingsError(new Error(`Không thể xóa danh mục Cloud: ${error.message || error}`));
+      }
+    });
+    /* $('google-full-resync')?.addEventListener('click' */ safeOn($('google-full-resync'), 'click', async () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        toast('Đang ngoại tuyến — cần Internet để quét lại Google Drive.');
+        return;
+      }
+      const btn = $('google-full-resync');
+      const prevLabel = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang quét lại toàn bộ Google Drive…'; }
+      try {
+        await ensureGoogleToken().catch(() => '');
+        if (!state.googleToken || (state.googleExpiresAt && Date.now() >= state.googleExpiresAt - 15000)) {
+          await connectGoogle();
+          return;
+        }
+        cloudStatus('google', 'Đang quét lại toàn bộ Google Drive…', 'text-sky-300');
+        await loadGoogleFiles({ forceFullScan: true });
+      } catch (err) {
+        if (isSettingsOpen && isSettingsOpen()) settingsError(new Error(`Không thể quét lại Google Drive: ${err.message || err}`));
+        else toast(`Không thể quét lại Google Drive: ${err.message || err}`);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = prevLabel || '🔄 Quét lại toàn bộ Google Drive (khắc phục thiếu bài)'; }
       }
     });
     /* $('google-disconnect')?.addEventListener('click' */ safeOn($('google-disconnect'), 'click', async () => {

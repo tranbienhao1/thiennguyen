@@ -179,10 +179,11 @@
       if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         const isMobileOrDap = window.innerWidth <= 768 || Boolean(window.isNativeAndroid || window.NocturneNative);
         const contentCol = document.getElementById('content-col');
-        if (contentCol && !isMobileOrDap) {
+        if (contentCol) {
           const style = window.getComputedStyle ? window.getComputedStyle(contentCol) : null;
           const overflowY = style ? style.overflowY : '';
-          if (overflowY === 'auto' || overflowY === 'scroll') {
+          const colScrollable = overflowY === 'auto' || overflowY === 'scroll';
+          if (colScrollable && (!isMobileOrDap || window.innerWidth >= 1024)) {
             this._scrollTarget = contentCol;
             return contentCol;
           }

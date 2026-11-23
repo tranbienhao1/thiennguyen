@@ -80,23 +80,22 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.93';
-  const name = process.argv[3] || `Nocturne ${tag} (Bit-Perfect Fallback AVRCP Sync + Multi-Track Slice Pinning + BOM-less UTF-16 CUE + Keyboard/A-B Loop E2E)`;
+  const tag = process.argv[2] || 'v3.9.94';
+  const name = process.argv[3] || `Nocturne ${tag} (Android Google Drive Full Sync Fix + Shared Drives/Folder Shortcuts + 403 Backoff + WakeLock Sync Guard)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 147) — Đồng bộ AVRCP fallback Native Bit-Perfect + Ghim cache đa bài + Giải mã CUE UTF-16 không BOM & Phím tắt/A-B Loop E2E
+    : `### Nocturne ${tag} (versionCode 148) — Khắc phục triệt để lỗi đồng bộ thiếu nhạc Google Drive trên Android đời mới
 
-#### 1. Đồng bộ AVRCP / MediaSession khi Bit-Perfect chuyển dự phòng (\`MainActivity.java\`, \`index.html\`)
-- \`BitPerfectAudioPlayer.runPlaybackLoop\` cập nhật vị trí tạm dừng chuẩn về \`updateMediaSessionPosition\` trước khi báo fallback về Web Audio.
-- \`window.onNativeBitPerfectError\` đặt lại \`state.bitPerfectLockedFormat = null\` và gọi \`updatePositionState(true)\` khi đang tạm dừng.
+#### 1. Quét đầy đủ Shared Drives, Folder Shortcuts & Retry 403 Rate-Limit (\`index.html\`)
+- \`fetchGoogleDrivePageWithRetry\` tăng timeout lên \`35000ms\`, nâng số lần thử lại (\`< 4\`) và hỗ trợ exponential backoff cho \`HTTP 403\` (\`rateLimitExceeded\` / \`userRateLimitExceeded\`).
+- \`loadGoogleFiles\` và \`scanGoogleDriveAudioShortcuts\` chuyển sang \`corpora: 'allDrives'\` (kèm fallback \`'user'\` khi gặp \`400\`), reset \`pageToken\` khi đổi \`orderBy\`, nâng giới hạn trang shortcut lên \`100\` và duyệt đệ quy các shortcut trỏ tới thư mục chia sẻ.
+- Tự động nâng cấp schema đồng bộ (\`nocturne-google-sync-schema\`) một lần để dọn con trỏ delta cũ bị thiếu bài và bổ sung nút \`#google-full-resync\` trong Cài đặt.
 
-#### 2. Ghim cache lát đầu đa bài & Giải mã CUE/LRC UTF-16 không BOM (\`index.html\`)
-- \`pruneSliceCache\` ghim đồng thời bài đang phát (\`currentId\`), bài kế đã preload (\`preloadTrackId\`, \`bpCloudPreloadTrackId\`) và đầu hàng đợi (\`queueTrackIds[0]\`) để không bị đẩy nhầm khi chuyển nguồn hỗn hợp.
-- \`decodeTextBytesAuto\` nhận diện tự động UTF-16LE / UTF-16BE không có BOM trước chuỗi fallback UTF-8 / Shift-JIS / windows-1252.
-
-#### 3. Mở rộng Chrome thật (CDP E2E)
-- Kiểm chứng phím tắt bàn phím Desktop (\`Space\` tạm dừng/phát, \`m\` mở/đóng Mini Player HUD) và chu trình lặp đoạn A-B (\`cycleAbLoop\`: chốt A, tua nhảy về A tại B, hủy lặp A-B) với \`0\` lỗi JS.
+#### 2. Đồng bộ bền bỉ trên Android đời mới (\`MainActivity.java\`, \`virtual-scroll.js\`)
+- Thêm \`setCloudSyncActive(boolean)\` qua \`NocturneNative\` giữ \`WakeLock\` + \`WifiLock\` trong suốt quá trình quét Google Drive khi chưa phát nhạc để Android 12–15+ không đóng băng kết nối mạng.
+- Chờ \`persistChain\` lưu xong vào IndexedDB trước khi ghi checkpoint từng trang (\`nocturne-google-sync-checkpoint\`).
+- \`VirtualTrackList.getScrollTarget\` kiểm tra \`overflowY\` thực tế của \`#content-col\` để hiển thị đầy đủ danh sách trên màn hình rộng / tablet Android (\`>= 1024px\`).
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

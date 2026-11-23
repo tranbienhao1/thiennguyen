@@ -208,6 +208,7 @@ public class MainActivity extends AppCompatActivity {
     private final java.util.concurrent.atomic.AtomicBoolean mStorageScanRunning = new java.util.concurrent.atomic.AtomicBoolean(false);
     private volatile boolean mIsInBackground = false;
     private volatile boolean mIsMediaPlaying = false;
+    private volatile boolean mIsCloudSyncActive = false;
     private volatile String mOtaPendingVersion = "";
     private boolean mIsMediaReceiverRegistered = false;
     private boolean mIsStorageReceiverRegistered = false;
@@ -1413,6 +1414,15 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public void setCloudSyncActive(boolean active) {
+        mIsCloudSyncActive = active;
+        if (active) {
+            acquireWakeLock(true);
+        } else if (!mIsMediaPlaying && (mBitPerfectPlayer == null || !mBitPerfectPlayer.isPlaying())) {
+            releaseWakeLock();
+        }
+    }
+
     public void releaseWakeLock() {
         try {
             if (mWakeLock != null && mWakeLock.isHeld()) {
@@ -1673,8 +1683,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         mIsInBackground = true;
-        // Release WakeLock/WifiLock immediately if playback is paused/idle when entering background
-        if (!mIsMediaPlaying && (mBitPerfectPlayer == null || !mBitPerfectPlayer.isPlaying())) {
+        // Release WakeLock/WifiLock immediately if playback is paused/idle when entering background (unless cloud sync is active)
+        if (!mIsCloudSyncActive && !mIsMediaPlaying && (mBitPerfectPlayer == null || !mBitPerfectPlayer.isPlaying())) {
             releaseWakeLock();
         }
         // Keep audio playback running smoothly, but let Web pause heavy visualizers to save battery/RAM
@@ -4012,7 +4022,9 @@ public class MainActivity extends AppCompatActivity {
                 showMediaNotification(title, artist, album, false);
             }
             updateMediaSessionMetadata(title, artist, album, false);
-            releaseWakeLock();
+            if (!mIsCloudSyncActive) {
+                releaseWakeLock();
+            }
         }
     }
 
@@ -5861,6 +5873,11 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void releaseWakeLock() {
             mActivity.runOnUiThread(mActivity::releaseWakeLock);
+        }
+
+        @JavascriptInterface
+        public void setCloudSyncActive(boolean active) {
+            mActivity.runOnUiThread(() -> mActivity.setCloudSyncActive(active));
         }
 
         @JavascriptInterface
