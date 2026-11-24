@@ -43,6 +43,8 @@ import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Process;
 import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
@@ -165,8 +167,8 @@ public class MainActivity extends AppCompatActivity {
     private static final String WAKELOCK_TAG = "Nocturne:AudiophilePlaybackWakeLock";
     private static final String DEFAULT_ASSET_URL = "https://appassets.androidplatform.net/assets/index.html";
 
-    private static final String NOTIFICATION_CHANNEL_ID = "nocturne_playback";
-    private static final int NOTIFICATION_ID = 1001;
+    private static final String NOTIFICATION_CHANNEL_ID = NocturnePlaybackService.CHANNEL_ID; // unified from nocturne_playback
+    private static final int NOTIFICATION_ID = NocturnePlaybackService.NOTIFICATION_ID;
 
     public static final String ACTION_PLAY_PAUSE = "com.nocturne.audiophile.ACTION_PLAY_PAUSE";
     public static final String ACTION_NEXT = "com.nocturne.audiophile.ACTION_NEXT";
@@ -217,6 +219,12 @@ public class MainActivity extends AppCompatActivity {
     private volatile boolean mIsInBackground = false;
     private volatile boolean mIsMediaPlaying = false;
     private volatile boolean mIsCloudSyncActive = false;
+    private volatile boolean mNextTrackIsRemote = false;
+    private ConnectivityManager.NetworkCallback mNetworkCallback = null;
+    private boolean mIsNetworkCallbackRegistered = false;
+    private boolean mIsScreenOnReceiverRegistered = false;
+    private volatile long mLastNetworkWakeNotifyAtMs = 0L;
+    private volatile long mLastScreenOnWakeNotifyAtMs = 0L;
     private volatile String mOtaPendingVersion = "";
     private boolean mIsMediaReceiverRegistered = false;
     private boolean mIsStorageReceiverRegistered = false;
@@ -264,6 +272,7 @@ public class MainActivity extends AppCompatActivity {
         initMediaSession();
         registerMediaNotificationReceiver();
         registerStorageMountReceiver();
+        registerWakeAndNetworkObservers();
         createNotificationChannelIfNeeded();
 
         // 3. Register activity result launchers for file selection & permissions
@@ -1399,6 +1408,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void acquireWakeLock(boolean needWifiLock) {
+        final boolean effectiveNeedWifi = needWifiLock || mIsCloudSyncActive || mNextTrackIsRemote;
         try {
             if (mWakeLock != null && !mWakeLock.isHeld()) {
                 mWakeLock.acquire(10 * 60 * 60 * 1000L); // 10 hours max safety timeout
@@ -1408,7 +1418,7 @@ public class MainActivity extends AppCompatActivity {
             Log.w(TAG, "Failed to acquire WakeLock: " + e.getMessage());
         }
         try {
-            if (needWifiLock) {
+            if (effectiveNeedWifi) {
                 if (mWifiLock != null && !mWifiLock.isHeld()) {
                     mWifiLock.acquire();
                     Log.d(TAG, "Acquired Hi-Res playback WifiLock");
@@ -1419,6 +1429,20 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (Exception e) {
             Log.w(TAG, "Failed to update WifiLock: " + e.getMessage());
+        }
+    }
+
+    public void setPendingNextCloudWifiLock(boolean nextIsRemote) {
+        mNextTrackIsRemote = nextIsRemote;
+        if (mBitPerfectPlayer != null) {
+            mBitPerfectPlayer.setPendingNextCloudWifiLock(nextIsRemote);
+        }
+        if (nextIsRemote) {
+            if (mIsMediaPlaying || (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying())) {
+                acquireWakeLock(true);
+            }
+        } else if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying() && !mBitPerfectPlayer.isRemoteStream() && !mIsCloudSyncActive) {
+            acquireWakeLock(false);
         }
     }
 
@@ -1453,17 +1477,22 @@ public class MainActivity extends AppCompatActivity {
     private void syncAudioFocusNativeUiAndMediaSession(final boolean isPlaying) {
         try {
             if (mBitPerfectPlayer != null) {
-                long bpPos = mBitPerfectPlayer.getPositionMs();
+                long bpPos = mBitPerfectPlayer.getDisplayPositionMs();
                 if (bpPos >= 0L) mLastMediaPositionMs = bpPos;
-                long bpDur = mBitPerfectPlayer.getDurationMs();
+                long bpDur = mBitPerfectPlayer.getDisplayDurationMs();
                 if (bpDur > 0L) mLastMediaDurationMs = bpDur;
             }
             if (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) {
                 runOnUiThread(() -> {
                     try {
                         showMediaNotification(mLastMediaTitle, mLastMediaArtist, mLastMediaAlbum, isPlaying);
+                        if (!isPlaying) {
+                            NocturnePlaybackService.syncBackgroundPauseIfRunning(mLastMediaTitle, mLastMediaArtist, mLastMediaAlbum);
+                        }
                     } catch (Throwable ignored) {}
                 });
+            } else if (!isPlaying) {
+                NocturnePlaybackService.syncBackgroundPauseIfRunning(null, null, null);
             }
         } catch (Throwable ignored) {}
         if (mWebView != null) {
@@ -1559,6 +1588,9 @@ public class MainActivity extends AppCompatActivity {
                                             mPausedByTransientFocusLoss = false;
                                             mBitPerfectPlayer.resume();
                                             syncAudioFocusNativeUiAndMediaSession(true);
+                                            if (mBitPerfectPlayer.isRemoteStream() || mNextTrackIsRemote) {
+                                                postJsToWebView("if (typeof window.runCloudWakeTokenRefresh === 'function') { window.runCloudWakeTokenRefresh(); }");
+                                            }
                                         }
                                     }
                                     if (mWebView != null) {
@@ -1599,6 +1631,9 @@ public class MainActivity extends AppCompatActivity {
                             mPausedByTransientFocusLoss = false;
                             mBitPerfectPlayer.resume();
                             syncAudioFocusNativeUiAndMediaSession(true);
+                            if (mBitPerfectPlayer.isRemoteStream() || mNextTrackIsRemote) {
+                                postJsToWebView("if (typeof window.runCloudWakeTokenRefresh === 'function') { window.runCloudWakeTokenRefresh(); }");
+                            }
                         }
                     }
                 };
@@ -1786,14 +1821,108 @@ public class MainActivity extends AppCompatActivity {
         mIsStorageReceiverRegistered = false;
     }
 
+    private void postJsToWebView(final String js) {
+        if (js == null || js.isEmpty()) return;
+        runOnUiThread(() -> {
+            WebView wv = mWebView;
+            if (wv != null && !isFinishing() && !isDestroyed()) {
+                try {
+                    wv.evaluateJavascript(js, null);
+                } catch (Throwable ignored) {}
+            }
+        });
+    }
+
+    private final BroadcastReceiver mScreenOnReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null || !Intent.ACTION_SCREEN_ON.equals(intent.getAction())) return;
+            long nowElapsed = SystemClock.elapsedRealtime();
+            if ((nowElapsed - mLastScreenOnWakeNotifyAtMs) < 2000L) return;
+            mLastScreenOnWakeNotifyAtMs = nowElapsed;
+            postJsToWebView("if(typeof window.runCloudWakeTokenRefresh==='function'){window.runCloudWakeTokenRefresh();}");
+        }
+    };
+
+    private void registerWakeAndNetworkObservers() {
+        if (!mIsScreenOnReceiverRegistered) {
+            try {
+                IntentFilter screenFilter = new IntentFilter(Intent.ACTION_SCREEN_ON);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    registerReceiver(mScreenOnReceiver, screenFilter, Context.RECEIVER_EXPORTED);
+                } else {
+                    registerReceiver(mScreenOnReceiver, screenFilter);
+                }
+                mIsScreenOnReceiverRegistered = true;
+            } catch (Throwable t) {
+                Log.w(TAG, "registerScreenOnReceiver warning: " + t.getMessage());
+            }
+        }
+        if (!mIsNetworkCallbackRegistered && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm != null) {
+                    mNetworkCallback = new ConnectivityManager.NetworkCallback() {
+                        private void notifyNetworkReady() {
+                            long nowElapsed = SystemClock.elapsedRealtime();
+                            if ((nowElapsed - mLastNetworkWakeNotifyAtMs) < 2000L) return;
+                            mLastNetworkWakeNotifyAtMs = nowElapsed;
+                            postJsToWebView(
+                                    "if(typeof window.onAndroidNetworkAvailable==='function'){window.onAndroidNetworkAvailable();}"
+                                            + "else if(typeof window.runCloudWakeTokenRefresh==='function'){window.runCloudWakeTokenRefresh();}"
+                            );
+                        }
+
+                        @Override
+                        public void onAvailable(Network network) {
+                            notifyNetworkReady();
+                        }
+
+                        @Override
+                        public void onCapabilitiesChanged(Network network, NetworkCapabilities caps) {
+                            if (caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                                notifyNetworkReady();
+                            }
+                        }
+                    };
+                    cm.registerDefaultNetworkCallback(mNetworkCallback);
+                    mIsNetworkCallbackRegistered = true;
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "registerDefaultNetworkCallback warning: " + t.getMessage());
+            }
+        }
+    }
+
+    private void unregisterWakeAndNetworkObservers() {
+        if (mIsScreenOnReceiverRegistered) {
+            try {
+                unregisterReceiver(mScreenOnReceiver);
+            } catch (Throwable ignored) {}
+            mIsScreenOnReceiverRegistered = false;
+        }
+        if (mIsNetworkCallbackRegistered && mNetworkCallback != null) {
+            try {
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                if (cm != null) {
+                    cm.unregisterNetworkCallback(mNetworkCallback);
+                }
+            } catch (Throwable ignored) {}
+            mNetworkCallback = null;
+            mIsNetworkCallbackRegistered = false;
+        }
+    }
+
     @Override
     protected void onDestroy() {
+        mNextTrackIsRemote = false;
         stopBitPerfectPlayback();
         cancelMediaNotification();
         releaseWakeLock();
         abandonAudioFocus();
         unregisterMediaNotificationReceiver();
         unregisterStorageMountReceiver();
+        unregisterWakeAndNetworkObservers();
         NocturnePlaybackService.sMediaSessionToken = null;
         try {
             Intent stopIntent = new Intent(this, NocturnePlaybackService.class);
@@ -3584,15 +3713,16 @@ public class MainActivity extends AppCompatActivity {
                     nowPlaying = true;
                 }
                 updateMediaSessionPosition(
-                    mLastMediaPositionMs >= 0L ? mLastMediaPositionMs : mBitPerfectPlayer.getPositionMs(),
-                    mLastMediaDurationMs > 0L ? mLastMediaDurationMs : mBitPerfectPlayer.getDurationMs(),
+                    mBitPerfectPlayer.getDisplayPositionMs() >= 0L ? mBitPerfectPlayer.getDisplayPositionMs() : mLastMediaPositionMs,
+                    mBitPerfectPlayer.getDisplayDurationMs() > 0L ? mBitPerfectPlayer.getDisplayDurationMs() : mLastMediaDurationMs,
                     nowPlaying
                 );
                 if (mWebView != null) {
-                    mWebView.evaluateJavascript(
-                            "if (typeof window.onNativeBitPerfectStateChange === 'function') { window.onNativeBitPerfectStateChange(" + (nowPlaying ? "true" : "false") + "); }",
-                            null
-                    );
+                    String js = "if (typeof window.onNativeBitPerfectStateChange === 'function') { window.onNativeBitPerfectStateChange(" + (nowPlaying ? "true" : "false") + "); }";
+                    if (nowPlaying && (mBitPerfectPlayer.isRemoteStream() || mNextTrackIsRemote)) {
+                        js += " if (typeof window.runCloudWakeTokenRefresh === 'function') { window.runCloudWakeTokenRefresh(); }";
+                    }
+                    mWebView.evaluateJavascript(js, null);
                 }
                 return;
             }
@@ -3613,15 +3743,16 @@ public class MainActivity extends AppCompatActivity {
                 if (mBitPerfectPlayer.isPaused()) {
                     mBitPerfectPlayer.resume();
                     updateMediaSessionPosition(
-                        mLastMediaPositionMs >= 0L ? mLastMediaPositionMs : mBitPerfectPlayer.getPositionMs(),
-                        mLastMediaDurationMs > 0L ? mLastMediaDurationMs : mBitPerfectPlayer.getDurationMs(),
+                        mBitPerfectPlayer.getDisplayPositionMs() >= 0L ? mBitPerfectPlayer.getDisplayPositionMs() : mLastMediaPositionMs,
+                        mBitPerfectPlayer.getDisplayDurationMs() > 0L ? mBitPerfectPlayer.getDisplayDurationMs() : mLastMediaDurationMs,
                         true
                     );
                     if (mWebView != null) {
-                        mWebView.evaluateJavascript(
-                                "if (typeof window.onNativeBitPerfectStateChange === 'function') { window.onNativeBitPerfectStateChange(true); }",
-                                null
-                        );
+                        String js = "if (typeof window.onNativeBitPerfectStateChange === 'function') { window.onNativeBitPerfectStateChange(true); }";
+                        if (mBitPerfectPlayer.isRemoteStream() || mNextTrackIsRemote) {
+                            js += " if (typeof window.runCloudWakeTokenRefresh === 'function') { window.runCloudWakeTokenRefresh(); }";
+                        }
+                        mWebView.evaluateJavascript(js, null);
                     }
                 }
                 return;
@@ -3642,8 +3773,8 @@ public class MainActivity extends AppCompatActivity {
                 if (mBitPerfectPlayer.isPlaying()) {
                     mBitPerfectPlayer.pause();
                     updateMediaSessionPosition(
-                        mLastMediaPositionMs >= 0L ? mLastMediaPositionMs : mBitPerfectPlayer.getPositionMs(),
-                        mLastMediaDurationMs > 0L ? mLastMediaDurationMs : mBitPerfectPlayer.getDurationMs(),
+                        mBitPerfectPlayer.getDisplayPositionMs() >= 0L ? mBitPerfectPlayer.getDisplayPositionMs() : mLastMediaPositionMs,
+                        mBitPerfectPlayer.getDisplayDurationMs() > 0L ? mBitPerfectPlayer.getDisplayDurationMs() : mLastMediaDurationMs,
                         false
                     );
                     if (mWebView != null) {
@@ -3858,20 +3989,33 @@ public class MainActivity extends AppCompatActivity {
 
     private void notifyUsbDacChange(AudioDeviceInfo[] devices, boolean connected) {
         if (devices == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        AudioDeviceInfo targetDev = null;
+        boolean hasUsbDacChange = false;
         for (AudioDeviceInfo dev : devices) {
             if (dev == null || !dev.isSink()) continue;
-            if (!isExternalAudioSinkType(dev.getType())) continue;
+            int t = dev.getType();
+            if (!isExternalAudioSinkType(t)) continue;
+            boolean isUsb = (t == AudioDeviceInfo.TYPE_USB_DEVICE || t == AudioDeviceInfo.TYPE_USB_HEADSET);
+            if (targetDev == null || (isUsb && !hasUsbDacChange)) {
+                targetDev = dev;
+            }
+            if (isUsb) {
+                hasUsbDacChange = true;
+            }
+        }
+        if (targetDev != null) {
             if (!connected && !hasActiveExternalAudioSink()) {
                 triggerAudioBecomingNoisy("DEVICE_REMOVED");
+            } else if (!connected && hasUsbDacChange) {
+                triggerAudioBecomingNoisy("USB_DAC_REMOVED");
             }
             if (mBitPerfectPlayer != null && mBitPerfectPlayer.isActive()) {
                 mBitPerfectPlayer.onAudioOutputRouteChanged(connected);
             }
-            String rawName = dev.getProductName() != null ? dev.getProductName().toString() : "Audio Output";
+            String rawName = targetDev.getProductName() != null ? targetDev.getProductName().toString() : "Audio Output";
             String safeName = rawName.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ");
             final String js = "if(typeof window.onAndroidAudioDeviceChanged==='function'){window.onAndroidAudioDeviceChanged('" + safeName + "'," + (connected ? "true" : "false") + ");}";
             runOnUiThread(() -> { if (mWebView != null) mWebView.evaluateJavascript(js, null); });
-            break;
         }
     }
 
@@ -4001,7 +4145,7 @@ public class MainActivity extends AppCompatActivity {
         mIsMediaPlaying = isPlaying;
         NocturnePlaybackService.sCurrentAlbumArt = loadCachedCoverBitmap(album, artist);
         if (isPlaying) {
-            boolean needWifi = !(mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying() && !mBitPerfectPlayer.isRemoteStream());
+            boolean needWifi = !(mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying() && !mBitPerfectPlayer.isRemoteStream() && !mNextTrackIsRemote);
             acquireWakeLock(needWifi);
             try {
                 Intent svcIntent = new Intent(this, NocturnePlaybackService.class);
@@ -4026,7 +4170,8 @@ public class MainActivity extends AppCompatActivity {
                 pauseIntent.putExtra(NocturnePlaybackService.EXTRA_IS_PLAYING, false);
                 startService(pauseIntent);
             } catch (Exception bgPauseErr) {
-                // On Android 10 (FiiO M11S) with screen off, startService may throw IllegalStateException; fall back to direct notification update
+                // On Android 10 (FiiO M11S) with screen off, startService may throw IllegalStateException; sync active service & fall back to direct notification update
+                NocturnePlaybackService.syncBackgroundPauseIfRunning(title, artist, album);
                 showMediaNotification(title, artist, album, false);
             }
             updateMediaSessionMetadata(title, artist, album, false);
@@ -4141,10 +4286,10 @@ public class MainActivity extends AppCompatActivity {
             boolean bpActive = mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused());
             long effectivePosMs = (mLastMediaPositionMs >= 0L)
                 ? mLastMediaPositionMs
-                : (bpActive ? mBitPerfectPlayer.getPositionMs() : PlaybackState.PLAYBACK_POSITION_UNKNOWN);
+                : (bpActive ? mBitPerfectPlayer.getDisplayPositionMs() : PlaybackState.PLAYBACK_POSITION_UNKNOWN);
             long effectiveDurMs = (mLastMediaDurationMs > 0L)
                 ? mLastMediaDurationMs
-                : (bpActive && mBitPerfectPlayer.getDurationMs() > 0L ? mBitPerfectPlayer.getDurationMs() : 0L);
+                : (bpActive && mBitPerfectPlayer.getDisplayDurationMs() > 0L ? mBitPerfectPlayer.getDisplayDurationMs() : 0L);
             PlaybackState.Builder psb = new PlaybackState.Builder()
                 .setActions(MEDIA_SESSION_ACTIONS)
                 .setState(isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
@@ -4198,7 +4343,6 @@ public class MainActivity extends AppCompatActivity {
                     .setContentTitle(displayTitle)
                     .setContentText(displayArtist)
                     .setSubText(displayAlbum)
-                    .setOngoing(true)
                     .setAutoCancel(false)
                     .setPriority(NotificationCompat.PRIORITY_LOW)
                     .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -4209,6 +4353,11 @@ public class MainActivity extends AppCompatActivity {
                     .addAction(android.R.drawable.ic_media_next, "Next", pNext);
             if (coverBmp != null) {
                 builder.setLargeIcon(coverBmp);
+            }
+            if (isPlaying) {
+                builder.setOngoing(true);
+            } else {
+                builder.setOngoing(false);
             }
 
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -4228,6 +4377,10 @@ public class MainActivity extends AppCompatActivity {
             if (nm != null) {
                 nm.cancel(NOTIFICATION_ID);
             }
+            try {
+                NocturnePlaybackService.stopIfRunning();
+                stopService(new Intent(this, NocturnePlaybackService.class));
+            } catch (Exception ignored) {}
             if (mMediaSession != null) {
                 try {
                     PlaybackState.Builder psb = new PlaybackState.Builder()
@@ -4490,6 +4643,7 @@ public class MainActivity extends AppCompatActivity {
         private volatile boolean mIsPaused = false;
         private volatile boolean mIsStopped = false;
         private volatile boolean mIsRemoteStream = false;
+        private volatile boolean mNextTrackIsRemote = false;
         // v3.9.25: epoch guard so a stale (slow-to-die) playback thread can never clobber the next session's state.
         private final AtomicInteger mPlaybackEpoch = new AtomicInteger(0);
         private final Object mSeekLock = new Object();
@@ -4509,20 +4663,45 @@ public class MainActivity extends AppCompatActivity {
         private String mPendingStreamSource = "";
         private String mPendingStreamRemoteId = "";
         private long mPendingStreamKnownBytes = -1L;
+        private long mPendingStreamKnownDurationMs = 0L;
 
-        private Map<String, String> mStartStreamHeaders = new HashMap<>();
-        private String mStartStreamSource = "";
-        private String mStartStreamRemoteId = "";
-        private long mStartStreamKnownBytes = -1L;
+        private static final class StreamLaunchParams {
+            final Map<String, String> headers;
+            final String source;
+            final String remoteId;
+            final long knownBytes;
+            final long knownDurationMs;
+            StreamLaunchParams(Map<String, String> headers, String source, String remoteId, long knownBytes, long knownDurationMs) {
+                this.headers = headers != null ? new HashMap<>(headers) : new HashMap<>();
+                this.source = source != null ? source : "";
+                this.remoteId = remoteId != null ? remoteId : "";
+                this.knownBytes = knownBytes;
+                this.knownDurationMs = knownDurationMs;
+            }
+        }
+        private final java.util.concurrent.ConcurrentHashMap<Integer, StreamLaunchParams> mEpochLaunchParams = new java.util.concurrent.ConcurrentHashMap<>();
         private volatile HttpRangeMediaDataSource mActiveDataSource = null;
 
         private Thread mPlaybackThread = null;
         private volatile AudioTrack mAudioTrack = null;
-        private boolean mPreferredMixerAttributesSet = false;
+        private volatile boolean mPreferredMixerAttributesSet = false;
+        private final Object mMixerLock = new Object();
+        private AudioDeviceInfo mMixerDevice = null;
+        private AudioAttributes mMixerAudioAttrs = null;
+        private int mMixerEpoch = 0;
         private volatile String mCurrentSourceKey = "";
         private String mCurrentTrackTitle = "";
         private String mCurrentTrackArtist = "";
         private String mCurrentTrackAlbum = "";
+        private volatile long mCueWindowStartMs = 0L;
+        private volatile long mCueWindowDurationMs = 0L;
+        private volatile long mTrackWindowSeq = 0L;
+        private long mPendingWindowCueStartMs = 0L;
+        private long mPendingWindowCueDurationMs = 0L;
+        private String mPendingWindowTitle = "";
+        private String mPendingWindowArtist = "";
+        private String mPendingWindowAlbum = "";
+        private long mPendingWindowAtElapsedMs = 0L;
 
         private Map<String, String> parseHeadersJson(@Nullable String headersJson) {
             Map<String, String> result = new HashMap<>();
@@ -4557,6 +4736,47 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        public void setPendingKnownDuration(long durationMs) {
+            synchronized (mStreamAuthLock) {
+                mPendingStreamKnownDurationMs = durationMs > 0L ? durationMs : 0L;
+            }
+        }
+
+        public void setTrackWindowMeta(long cueStartMs, long cueDurationMs, @Nullable String title, @Nullable String artist, @Nullable String album) {
+            final long safeStartMs = Math.max(0L, cueStartMs);
+            final long safeDurMs = Math.max(0L, cueDurationMs);
+            final String safeTitle = title != null ? title.trim() : "";
+            final String safeArtist = artist != null ? artist.trim() : "";
+            final String safeAlbum = album != null ? album.trim() : "";
+            synchronized (mStreamAuthLock) {
+                mPendingWindowCueStartMs = safeStartMs;
+                mPendingWindowCueDurationMs = safeDurMs;
+                mPendingWindowTitle = safeTitle;
+                mPendingWindowArtist = safeArtist;
+                mPendingWindowAlbum = safeAlbum;
+                mPendingWindowAtElapsedMs = SystemClock.elapsedRealtime();
+            }
+            if (isActive()) {
+                mCueWindowStartMs = safeStartMs;
+                mCueWindowDurationMs = safeDurMs;
+                mTrackWindowSeq++;
+                if (!safeTitle.isEmpty()) {
+                    mCurrentTrackTitle = safeTitle;
+                    mCurrentTrackArtist = !safeArtist.isEmpty() ? safeArtist : mCurrentTrackArtist;
+                    mCurrentTrackAlbum = safeAlbum;
+                    final boolean activePlaying = isPlaying();
+                    final long dispPos = Math.max(0L, getDisplayPositionMs());
+                    final long dispDur = Math.max(0L, getDisplayDurationMs());
+                    runOnUiThread(() -> {
+                        if (!mIsStopped && isActive()) {
+                            updateMediaSessionPosition(dispPos, dispDur, activePlaying);
+                            updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, activePlaying);
+                        }
+                    });
+                }
+            }
+        }
+
         public void updateActiveStreamAuth(@Nullable String url, @Nullable String headersJson) {
             Map<String, String> parsed = parseHeadersJson(headersJson);
             String trimmedUrl = url != null ? url.trim() : "";
@@ -4572,11 +4792,59 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+        public void setPendingNextCloudWifiLock(boolean nextIsRemote) {
+            mNextTrackIsRemote = nextIsRemote;
+        }
+
         public void provideRefreshedAuth(long epoch, @Nullable String newUrl, @Nullable String headersJson, boolean ok) {
             Map<String, String> parsed = parseHeadersJson(headersJson);
             HttpRangeMediaDataSource activeDs = mActiveDataSource;
             if (activeDs != null && activeDs.getEpoch() == (int) epoch) {
                 activeDs.deliverAuthRefresh(newUrl, parsed, ok);
+            }
+        }
+
+        private boolean applyPreferredMixerLocked(int epoch, AudioAttributes attrs, @Nullable AudioDeviceInfo device, AudioFormat format) {
+            if (Build.VERSION.SDK_INT < 34 || mAudioManager == null || attrs == null || device == null || format == null) {
+                return false;
+            }
+            int devType = device.getType();
+            if (devType != AudioDeviceInfo.TYPE_USB_DEVICE && devType != AudioDeviceInfo.TYPE_USB_HEADSET) {
+                return false;
+            }
+            synchronized (mMixerLock) {
+                if (mPreferredMixerAttributesSet && mMixerDevice != null && mMixerAudioAttrs != null) {
+                    Api34AudioHelper.clearPreferredMixer(mAudioManager, mMixerAudioAttrs, mMixerDevice);
+                    mPreferredMixerAttributesSet = false;
+                    mMixerDevice = null;
+                    mMixerAudioAttrs = null;
+                    mMixerEpoch = 0;
+                }
+                boolean ok = Api34AudioHelper.setPreferredMixerBitPerfect(mAudioManager, attrs, device, format);
+                if (ok) {
+                    mPreferredMixerAttributesSet = true;
+                    mMixerDevice = device;
+                    mMixerAudioAttrs = attrs;
+                    mMixerEpoch = epoch;
+                }
+                return ok;
+            }
+        }
+
+        private void clearPreferredMixerIfMatches(int expectedEpoch) {
+            if (Build.VERSION.SDK_INT < 34 || mAudioManager == null) return;
+            synchronized (mMixerLock) {
+                if (!mPreferredMixerAttributesSet) return;
+                if (expectedEpoch > 0 && mMixerEpoch != expectedEpoch) return;
+                final AudioAttributes audioAttributes = mMixerAudioAttrs;
+                final AudioDeviceInfo preferredDevice = mMixerDevice;
+                if (preferredDevice != null && audioAttributes != null) {
+                    Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
+                }
+                mPreferredMixerAttributesSet = false;
+                mMixerDevice = null;
+                mMixerAudioAttrs = null;
+                mMixerEpoch = 0;
             }
         }
 
@@ -4599,6 +4867,12 @@ public class MainActivity extends AppCompatActivity {
             String consumedSource = "";
             String consumedRemoteId = "";
             long consumedKnownBytes = -1L;
+            long consumedKnownDurationMs = 0L;
+            long winCueStartMs = 0L;
+            long winCueDurMs = 0L;
+            String winTitle = "";
+            String winArtist = "";
+            String winAlbum = "";
             synchronized (mStreamAuthLock) {
                 if (trimmedUrl.equals(mPendingStreamUrl)) {
                     consumedHeaders.putAll(mPendingStreamHeaders);
@@ -4611,6 +4885,21 @@ public class MainActivity extends AppCompatActivity {
                     mPendingStreamRemoteId = "";
                     mPendingStreamKnownBytes = -1L;
                 }
+                consumedKnownDurationMs = mPendingStreamKnownDurationMs;
+                mPendingStreamKnownDurationMs = 0L;
+                if (mPendingWindowAtElapsedMs > 0L && (SystemClock.elapsedRealtime() - mPendingWindowAtElapsedMs) < 15000L) {
+                    winCueStartMs = mPendingWindowCueStartMs;
+                    winCueDurMs = mPendingWindowCueDurationMs;
+                    winTitle = mPendingWindowTitle;
+                    winArtist = mPendingWindowArtist;
+                    winAlbum = mPendingWindowAlbum;
+                }
+                mPendingWindowCueStartMs = 0L;
+                mPendingWindowCueDurationMs = 0L;
+                mPendingWindowTitle = "";
+                mPendingWindowArtist = "";
+                mPendingWindowAlbum = "";
+                mPendingWindowAtElapsedMs = 0L;
             }
 
             mIsStopped = false;
@@ -4623,44 +4912,53 @@ public class MainActivity extends AppCompatActivity {
                 mSeekGeneration.incrementAndGet();
                 mLastSeekRequestedElapsedMs = 0L;
             }
-            mCurrentPositionMs.set(0);
+            mCueWindowStartMs = winCueStartMs;
+            mCueWindowDurationMs = winCueDurMs;
+            mTrackWindowSeq++;
+            mCurrentPositionMs.set(winCueStartMs);
             mDurationMs.set(0);
             mRouteRefreshRequested.set(false);
             mRouteRefreshWasDisconnect = false;
             mRouteRefreshWasConnect = false;
-            mStartStreamHeaders = consumedHeaders;
-            mStartStreamSource = consumedSource;
-            mStartStreamRemoteId = consumedRemoteId;
-            mStartStreamKnownBytes = consumedKnownBytes;
 
-            acquireWakeLock(mIsRemoteStream);
+            acquireWakeLock(mIsRemoteStream || mNextTrackIsRemote);
             requestAudioFocus();
 
-            // Derive display title from file name or ?name= parameter
+            // Use JS-supplied track metadata when available to suppress placeholder notification flashes
             try {
-                String fileName = null;
-                if (trimmedUrl.contains("/local-media?")) {
-                    Uri parsedUri = Uri.parse(trimmedUrl);
-                    fileName = parsedUri.getQueryParameter("name");
-                    if (fileName == null || fileName.isEmpty()) {
-                        String p = extractLocalMediaQueryParam(parsedUri, "path");
-                        if (p == null) p = parsedUri.getQueryParameter("path");
-                        if (p != null && !p.isEmpty()) fileName = new File(p).getName();
+                if (!winTitle.isEmpty()) {
+                    mCurrentTrackTitle = winTitle;
+                    mCurrentTrackArtist = !winArtist.isEmpty() ? winArtist : (isFiioDevice() ? "FiiO Bit-Perfect Engine" : "Bit-Perfect Direct Audio");
+                    mCurrentTrackAlbum = winAlbum;
+                } else {
+                    String fileName = null;
+                    if (trimmedUrl.contains("/local-media?")) {
+                        Uri parsedUri = Uri.parse(trimmedUrl);
+                        fileName = parsedUri.getQueryParameter("name");
+                        if (fileName == null || fileName.isEmpty()) {
+                            String p = extractLocalMediaQueryParam(parsedUri, "path");
+                            if (p == null) p = parsedUri.getQueryParameter("path");
+                            if (p != null && !p.isEmpty()) fileName = new File(p).getName();
+                        }
                     }
+                    if (fileName == null || fileName.isEmpty()) {
+                        fileName = new File(trimmedUrl).getName();
+                    }
+                    if (fileName.contains("?")) fileName = fileName.substring(0, fileName.indexOf('?'));
+                    int dot = fileName.lastIndexOf('.');
+                    if (dot > 0) fileName = fileName.substring(0, dot);
+                    mCurrentTrackTitle = fileName.replace('_', ' ');
+                    mCurrentTrackArtist = isFiioDevice() ? "FiiO Bit-Perfect Engine" : "Bit-Perfect Direct Audio";
+                    mCurrentTrackAlbum = "Direct Bit-Perfect Playback";
                 }
-                if (fileName == null || fileName.isEmpty()) {
-                    fileName = new File(trimmedUrl).getName();
-                }
-                if (fileName.contains("?")) fileName = fileName.substring(0, fileName.indexOf('?'));
-                int dot = fileName.lastIndexOf('.');
-                if (dot > 0) fileName = fileName.substring(0, dot);
-                mCurrentTrackTitle = fileName.replace('_', ' ');
-                mCurrentTrackArtist = isFiioDevice() ? "FiiO Bit-Perfect Engine" : "Bit-Perfect Direct Audio";
-                mCurrentTrackAlbum = "Direct Bit-Perfect Playback";
+                mLastMediaPositionMs = 0L;
+                mLastMediaDurationMs = winCueDurMs > 0L ? winCueDurMs : Math.max(0L, consumedKnownDurationMs);
                 updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, true);
             } catch (Exception ignored) {}
 
             final int playbackEpoch = mPlaybackEpoch.incrementAndGet();
+            mEpochLaunchParams.put(playbackEpoch, new StreamLaunchParams(
+                    consumedHeaders, consumedSource, consumedRemoteId, consumedKnownBytes, consumedKnownDurationMs));
             mPlaybackThread = new Thread(() -> {
                 Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
                 runPlaybackLoop(trimmedUrl, sampleRate, bitDepth, playbackEpoch);
@@ -4684,8 +4982,8 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } catch (Exception ignored) {}
             }
-            final long posMs = Math.max(0L, mCurrentPositionMs.get());
-            final long durMs = Math.max(0L, mDurationMs.get());
+            final long posMs = Math.max(0L, getDisplayPositionMs());
+            final long durMs = Math.max(0L, getDisplayDurationMs());
             final String nTitle = (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) ? mLastMediaTitle : mCurrentTrackTitle;
             final String nArtist = (mLastMediaArtist != null && !mLastMediaArtist.isEmpty()) ? mLastMediaArtist : mCurrentTrackArtist;
             final String nAlbum = (mLastMediaAlbum != null && !mLastMediaAlbum.isEmpty()) ? mLastMediaAlbum : mCurrentTrackAlbum;
@@ -4696,7 +4994,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void resume() {
-            acquireWakeLock(mIsRemoteStream);
+            acquireWakeLock(mIsRemoteStream || mNextTrackIsRemote);
             requestAudioFocus();
             if (!isActive()) {
                 releaseWakeLock();
@@ -4716,8 +5014,8 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } catch (Exception ignored) {}
             }
-            final long posMs = Math.max(0L, mCurrentPositionMs.get());
-            final long durMs = Math.max(0L, mDurationMs.get());
+            final long posMs = Math.max(0L, getDisplayPositionMs());
+            final long durMs = Math.max(0L, getDisplayDurationMs());
             final String nTitle = (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) ? mLastMediaTitle : mCurrentTrackTitle;
             final String nArtist = (mLastMediaArtist != null && !mLastMediaArtist.isEmpty()) ? mLastMediaArtist : mCurrentTrackArtist;
             final String nAlbum = (mLastMediaAlbum != null && !mLastMediaAlbum.isEmpty()) ? mLastMediaAlbum : mCurrentTrackAlbum;
@@ -4746,6 +5044,8 @@ public class MainActivity extends AppCompatActivity {
             if (!mIsStopped) {
                 final long posForJs = clampedMs;
                 final long durForJs = Math.max(0L, durMs);
+                final long mediaPosMs = (mCueWindowDurationMs > 0L || mCueWindowStartMs > 0L) ? toWindowRelativePositionMs(clampedMs) : clampedMs;
+                final long mediaDurMs = getDisplayDurationMs(durForJs);
                 final String titleSnap = mCurrentTrackTitle;
                 final String artistSnap = mCurrentTrackArtist;
                 final String albumSnap = mCurrentTrackAlbum;
@@ -4758,7 +5058,11 @@ public class MainActivity extends AppCompatActivity {
                                     albumSnap,
                                     isPlaying());
                         }
-                        updateMediaSessionPosition(posForJs, durForJs, isPlaying());
+                        if (mediaPosMs != posForJs || mediaDurMs != durForJs) {
+                            updateMediaSessionPosition(mediaPosMs, mediaDurMs, isPlaying());
+                        } else {
+                            updateMediaSessionPosition(posForJs, durForJs, isPlaying());
+                        }
                         if (mWebView != null && !isFinishing() && !isDestroyed()) {
                             mWebView.evaluateJavascript(
                                     "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + posForJs + ", " + durForJs + ");",
@@ -4797,6 +5101,7 @@ public class MainActivity extends AppCompatActivity {
 
         private synchronized void stopInternal(boolean preserveSession) {
             mPlaybackEpoch.incrementAndGet();
+            mEpochLaunchParams.clear();
             mIsStopped = true;
             synchronized (mSeekLock) {
                 mSeekTargetUs.set(-1);
@@ -4831,10 +5136,19 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Exception ignored) {}
                 mAudioTrack = null;
             }
+            clearPreferredMixerIfMatches(0);
             mIsPlaying = false;
             mIsPaused = false;
             mCurrentSourceKey = "";
             if (!preserveSession) {
+                mCueWindowStartMs = 0L;
+                mCueWindowDurationMs = 0L;
+                mTrackWindowSeq++;
+                synchronized (mStreamAuthLock) {
+                    mPendingStreamKnownDurationMs = 0L;
+                }
+                mNextTrackIsRemote = false;
+                MainActivity.this.mNextTrackIsRemote = false;
                 cancelMediaNotification();
                 releaseWakeLock();
                 abandonAudioFocus();
@@ -4867,6 +5181,33 @@ public class MainActivity extends AppCompatActivity {
 
         public long getDurationMs() {
             return mDurationMs.get();
+        }
+
+        private long toWindowRelativePositionMs(long rawPosMs) {
+            if (rawPosMs < 0L) return -1L;
+            long winStart = Math.max(0L, mCueWindowStartMs);
+            long winDur = mCueWindowDurationMs;
+            if (winDur > 0L || winStart > 0L) {
+                long rel = Math.max(0L, rawPosMs - winStart);
+                return winDur > 0L ? Math.min(rel, winDur) : rel;
+            }
+            return rawPosMs;
+        }
+
+        public long getDisplayPositionMs() {
+            return toWindowRelativePositionMs(mCurrentPositionMs.get());
+        }
+
+        public long getDisplayDurationMs() {
+            long winDur = mCueWindowDurationMs;
+            if (winDur > 0L) return winDur;
+            return Math.max(0L, mDurationMs.get());
+        }
+
+        private long getDisplayDurationMs(long rawDurMs) {
+            long winDur = mCueWindowDurationMs;
+            if (winDur > 0L) return winDur;
+            return Math.max(0L, rawDurMs);
         }
 
         private static int pcmBytesPerFrame(int channels, int pcmEncoding) {
@@ -4909,6 +5250,123 @@ public class MainActivity extends AppCompatActivity {
                     } catch (Throwable ignored) {}
                 }
             }
+        }
+
+        private static float readSampleNormalized(ByteBuffer src, int byteOffset, int srcEncoding) {
+            if (srcEncoding == AudioFormat.ENCODING_PCM_16BIT) {
+                int b0 = src.get(byteOffset) & 0xFF;
+                byte b1 = src.get(byteOffset + 1);
+                short s16 = (short) ((b1 << 8) | b0);
+                return s16 / 32768.0f;
+            } else if (srcEncoding == 21) {
+                int b0 = src.get(byteOffset) & 0xFF;
+                int b1 = src.get(byteOffset + 1) & 0xFF;
+                byte b2 = src.get(byteOffset + 2);
+                int val24 = (b2 << 16) | (b1 << 8) | b0;
+                return val24 / 8388608.0f;
+            } else if (srcEncoding == 22) {
+                int b0 = src.get(byteOffset) & 0xFF;
+                int b1 = src.get(byteOffset + 1) & 0xFF;
+                int b2 = src.get(byteOffset + 2) & 0xFF;
+                byte b3 = src.get(byteOffset + 3);
+                int val32 = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
+                return val32 / 2147483648.0f;
+            } else {
+                int b0 = src.get(byteOffset) & 0xFF;
+                int b1 = src.get(byteOffset + 1) & 0xFF;
+                int b2 = src.get(byteOffset + 2) & 0xFF;
+                int b3 = src.get(byteOffset + 3) & 0xFF;
+                int bits = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
+                float f = Float.intBitsToFloat(bits);
+                return Float.isNaN(f) ? 0.0f : f;
+            }
+        }
+
+        private static int convertPcmChunkTo16BitResampled(
+                ByteBuffer src, int srcEncoding, int channels, int srcRate, int dstRate, byte[] dst16) {
+            if (src == null || dst16 == null || dst16.length < 2) return 0;
+            final int srcBps = (srcEncoding == AudioFormat.ENCODING_PCM_16BIT) ? 2
+                    : (srcEncoding == 21 ? 3 : ((srcEncoding == 22 || srcEncoding == AudioFormat.ENCODING_PCM_FLOAT) ? 4 : 0));
+            if (srcBps == 0) return 0;
+            int safeCh = Math.max(1, channels);
+            int srcFrames = src.remaining() / (srcBps * safeCh);
+            int maxDstFrames = dst16.length / (2 * safeCh);
+            if (srcFrames <= 0 || maxDstFrames <= 0) return 0;
+            double ratio = (double) Math.max(1, srcRate) / (double) Math.max(1, dstRate);
+            int dstFrames = Math.max(1, (int) Math.floor((double) srcFrames / ratio));
+            if (dstFrames > maxDstFrames) {
+                int maxSrc = Math.max(1, (int) Math.floor(maxDstFrames * ratio));
+                srcFrames = Math.min(srcFrames, maxSrc);
+                dstFrames = Math.min(maxDstFrames, Math.max(1, (int) Math.floor((double) srcFrames / ratio)));
+            }
+            int basePos = src.position();
+            int dstIdx = 0;
+            for (int f = 0; f < dstFrames; f++) {
+                double srcPos = f * ratio;
+                int i0 = Math.min(srcFrames - 1, (int) srcPos);
+                int i1 = Math.min(srcFrames - 1, i0 + 1);
+                float frac = (float) (srcPos - i0);
+                for (int c = 0; c < safeCh; c++) {
+                    float s0 = readSampleNormalized(src, basePos + (i0 * safeCh + c) * srcBps, srcEncoding);
+                    float s1 = (i1 == i0) ? s0 : readSampleNormalized(src, basePos + (i1 * safeCh + c) * srcBps, srcEncoding);
+                    float interp = s0 + (s1 - s0) * frac;
+                    if (Float.isNaN(interp)) interp = 0.0f;
+                    int s16 = Math.max(-32768, Math.min(32767, Math.round(interp * 32767.0f)));
+                    dst16[dstIdx++] = (byte) (s16 & 0xFF);
+                    dst16[dstIdx++] = (byte) ((s16 >> 8) & 0xFF);
+                }
+            }
+            src.position(basePos + srcFrames * safeCh * srcBps);
+            return dstIdx;
+        }
+
+        private static ByteBuffer transcodeCarryBuffer(
+                ByteBuffer oldBuf, int oldEnc, int oldRate, int newEnc, int newRate, int channels) {
+            if (oldBuf == null || !oldBuf.hasRemaining()) return null;
+            int oldBps = (oldEnc == AudioFormat.ENCODING_PCM_16BIT) ? 2 : (oldEnc == 21 ? 3 : 4);
+            int newBps = (newEnc == AudioFormat.ENCODING_PCM_16BIT) ? 2 : (newEnc == 21 ? 3 : 4);
+            int safeCh = Math.max(1, channels);
+            int srcFrames = oldBuf.remaining() / (oldBps * safeCh);
+            if (srcFrames <= 0) return null;
+            double ratio = (double) Math.max(1, oldRate) / (double) Math.max(1, newRate);
+            int dstFrames = (oldRate == newRate) ? srcFrames : Math.max(1, (int) Math.floor((double) srcFrames / ratio));
+            byte[] out = new byte[dstFrames * safeCh * newBps];
+            int basePos = oldBuf.position();
+            int dstIdx = 0;
+            for (int f = 0; f < dstFrames; f++) {
+                double srcPos = (oldRate == newRate) ? (double) f : (f * ratio);
+                int i0 = Math.min(srcFrames - 1, (int) srcPos);
+                int i1 = Math.min(srcFrames - 1, i0 + 1);
+                float frac = (float) (srcPos - i0);
+                for (int c = 0; c < safeCh; c++) {
+                    float s0 = readSampleNormalized(oldBuf, basePos + (i0 * safeCh + c) * oldBps, oldEnc);
+                    float s1 = (i1 == i0) ? s0 : readSampleNormalized(oldBuf, basePos + (i1 * safeCh + c) * oldBps, oldEnc);
+                    float interp = Math.max(-1.0f, Math.min(1.0f, s0 + (s1 - s0) * frac));
+                    if (newEnc == AudioFormat.ENCODING_PCM_16BIT) {
+                        int s16 = Math.max(-32768, Math.min(32767, Math.round(interp * 32767.0f)));
+                        out[dstIdx++] = (byte) (s16 & 0xFF);
+                        out[dstIdx++] = (byte) ((s16 >> 8) & 0xFF);
+                    } else if (newEnc == 21) {
+                        int v24 = Math.max(-8388608, Math.min(8388607, Math.round(interp * 8388607.0f)));
+                        out[dstIdx++] = (byte) (v24 & 0xFF);
+                        out[dstIdx++] = (byte) ((v24 >> 8) & 0xFF);
+                        out[dstIdx++] = (byte) ((v24 >> 16) & 0xFF);
+                    } else if (newEnc == 22) {
+                        int v32 = (int) Math.round((double) interp * 2147483647.0);
+                        out[dstIdx++] = (byte) (v32 & 0xFF);
+                        out[dstIdx++] = (byte) ((v32 >> 8) & 0xFF);
+                        out[dstIdx++] = (byte) ((v32 >> 16) & 0xFF);
+                        out[dstIdx++] = (byte) ((v32 >> 24) & 0xFF);
+                    } else {
+                        int bits = Float.floatToRawIntBits(interp);
+                        out[dstIdx++] = (byte) (bits & 0xFF);
+                        out[dstIdx++] = (byte) ((bits >> 8) & 0xFF);
+                        out[dstIdx++] = (byte) ((bits >> 16) & 0xFF);
+                        out[dstIdx++] = (byte) ((bits >> 24) & 0xFF);
+                    }
+                }
+            }
+            return ByteBuffer.wrap(out);
         }
 
         private static int convertPcmChunkTo16Bit(ByteBuffer src, int srcEncoding, int channels, byte[] dst16) {
@@ -5009,7 +5467,8 @@ public class MainActivity extends AppCompatActivity {
             if (targetDevice != null) {
                 try { built.setPreferredDevice(targetDevice); } catch (Throwable ignored) {}
             }
-            try { built.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+            final AudioTrack track = built;
+            try { track.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
             applyApi34BitPerfectMode(built);
             AudioDeviceInfo reportedDevice = targetDevice;
             if (reportedDevice == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -5028,13 +5487,24 @@ public class MainActivity extends AppCompatActivity {
                 int channelMask,
                 int pcmEncoding,
                 @Nullable AudioDeviceInfo targetDevice,
-                int[] outTrackEncoding) {
+                int[] outTrackEncoding,
+                int[] outTrackSampleRate,
+                int epoch) {
+            if (outTrackSampleRate != null && outTrackSampleRate.length > 0) {
+                outTrackSampleRate[0] = sampleRate;
+            }
+            if (Build.VERSION.SDK_INT >= 34 && targetDevice != null &&
+                    (targetDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                     targetDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                applyPreferredMixerLocked(epoch, audioAttributes, targetDevice, audioFormat);
+            }
             AudioTrack built = createAndConfigureBitPerfectAudioTrack(
                     audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, targetDevice);
             if (built != null) {
                 if (outTrackEncoding != null && outTrackEncoding.length > 0) outTrackEncoding[0] = pcmEncoding;
                 return built;
             }
+            clearPreferredMixerIfMatches(epoch);
             if (pcmEncoding != AudioFormat.ENCODING_PCM_16BIT) {
                 try {
                     AudioFormat format16 = new AudioFormat.Builder()
@@ -5044,12 +5514,13 @@ public class MainActivity extends AppCompatActivity {
                             .build();
                     int minBuf16 = AudioTrack.getMinBufferSize(sampleRate, channelMask, AudioFormat.ENCODING_PCM_16BIT);
                     int buf16 = Math.max(bufferSize, Math.max(minBuf16 > 0 ? minBuf16 * 4 : 65536, 65536));
-                    AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build();
+                    if (Build.VERSION.SDK_INT >= 34 && targetDevice != null &&
+                            (targetDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                             targetDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                        applyPreferredMixerLocked(epoch, audioAttributes, targetDevice, format16);
+                    }
                     built = createAndConfigureBitPerfectAudioTrack(
-                            fallbackAttrs, format16, buf16, sampleRate, AudioFormat.ENCODING_PCM_16BIT, targetDevice);
+                            audioAttributes, format16, buf16, sampleRate, AudioFormat.ENCODING_PCM_16BIT, targetDevice);
                     if (built != null) {
                         if (outTrackEncoding != null && outTrackEncoding.length > 0) {
                             outTrackEncoding[0] = AudioFormat.ENCODING_PCM_16BIT;
@@ -5057,6 +5528,66 @@ public class MainActivity extends AppCompatActivity {
                         Log.i(TAG, "BitPerfect: Route switch fell back from enc=" + pcmEncoding + " to 16-bit PCM smoothly.");
                         return built;
                     }
+                    clearPreferredMixerIfMatches(epoch);
+                } catch (Throwable ignored) {}
+            }
+            java.util.LinkedHashSet<Integer> candidateRates = new java.util.LinkedHashSet<>();
+            int[] devRates = (targetDevice != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) ? targetDevice.getSampleRates() : null;
+            java.util.HashSet<Integer> supportedSet = new java.util.HashSet<>();
+            if (devRates != null) {
+                for (int r : devRates) {
+                    if (r > 0) supportedSet.add(r);
+                }
+            }
+            for (int div : new int[]{ 2, 4, 8 }) {
+                int cand = sampleRate / div;
+                if (cand >= 44100 && (sampleRate % div) == 0 && (supportedSet.isEmpty() || supportedSet.contains(cand))) {
+                    candidateRates.add(cand);
+                }
+            }
+            int[] familyRates = (sampleRate % 44100 == 0)
+                    ? new int[]{ 44100, 88200, 48000, 96000 }
+                    : new int[]{ 48000, 96000, 44100, 88200 };
+            for (int r : familyRates) {
+                if (r != sampleRate && (supportedSet.isEmpty() || supportedSet.contains(r))) {
+                    candidateRates.add(r);
+                }
+            }
+            if (devRates != null) {
+                for (int r : devRates) {
+                    if (r > 0 && r != sampleRate) candidateRates.add(r);
+                }
+            }
+            candidateRates.add(48000);
+            candidateRates.add(44100);
+            for (int candRate : candidateRates) {
+                if (candRate == sampleRate) continue;
+                try {
+                    AudioFormat format16Rate = new AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(candRate)
+                            .setChannelMask(channelMask)
+                            .build();
+                    int minBufRate = AudioTrack.getMinBufferSize(candRate, channelMask, AudioFormat.ENCODING_PCM_16BIT);
+                    int bufRate = Math.max(minBufRate > 0 ? minBufRate * 4 : 65536, 65536);
+                    if (Build.VERSION.SDK_INT >= 34 && targetDevice != null &&
+                            (targetDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                             targetDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                        applyPreferredMixerLocked(epoch, audioAttributes, targetDevice, format16Rate);
+                    }
+                    built = createAndConfigureBitPerfectAudioTrack(
+                            audioAttributes, format16Rate, bufRate, candRate, AudioFormat.ENCODING_PCM_16BIT, targetDevice);
+                    if (built != null) {
+                        if (outTrackEncoding != null && outTrackEncoding.length > 0) {
+                            outTrackEncoding[0] = AudioFormat.ENCODING_PCM_16BIT;
+                        }
+                        if (outTrackSampleRate != null && outTrackSampleRate.length > 0) {
+                            outTrackSampleRate[0] = candRate;
+                        }
+                        Log.i(TAG, "BitPerfect: Route switch adapted sampleRate " + sampleRate + " -> " + candRate + "Hz (16-bit PCM).");
+                        return built;
+                    }
+                    clearPreferredMixerIfMatches(epoch);
                 } catch (Throwable ignored) {}
             }
             return null;
@@ -5207,14 +5738,13 @@ public class MainActivity extends AppCompatActivity {
                         ? resolvedUri
                         : (resolvedPath != null ? resolvedPath : "");
 
-                final Map<String, String> streamHeaders = mStartStreamHeaders != null ? new HashMap<>(mStartStreamHeaders) : new HashMap<>();
-                final String streamSource = mStartStreamSource != null ? mStartStreamSource : "";
-                final String streamRemoteId = mStartStreamRemoteId != null ? mStartStreamRemoteId : "";
-                final long streamKnownBytes = mStartStreamKnownBytes;
-                mStartStreamHeaders = null;
-                mStartStreamSource = "";
-                mStartStreamRemoteId = "";
-                mStartStreamKnownBytes = -1L;
+                final StreamLaunchParams launchParams = mEpochLaunchParams.remove(epoch);
+                final Map<String, String> streamHeaders = (launchParams != null && launchParams.headers != null)
+                        ? launchParams.headers : new HashMap<>();
+                final String streamSource = (launchParams != null && launchParams.source != null) ? launchParams.source : "";
+                final String streamRemoteId = (launchParams != null && launchParams.remoteId != null) ? launchParams.remoteId : "";
+                final long streamKnownBytes = launchParams != null ? launchParams.knownBytes : -1L;
+                final long streamKnownDurationMs = launchParams != null ? launchParams.knownDurationMs : 0L;
 
                 long knownSourceBytes = streamKnownBytes > 0L ? streamKnownBytes : 0L;
                 isHttpStream = (resolvedUri == null || resolvedUri.isEmpty()) && resolvedPath != null
@@ -5300,7 +5830,11 @@ public class MainActivity extends AppCompatActivity {
                         format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) : 2;
                 long durUs = format.containsKey(MediaFormat.KEY_DURATION) ?
                         format.getLong(MediaFormat.KEY_DURATION) : 0;
-                mDurationMs.set(durUs / 1000);
+                long resolvedDurMs = durUs / 1000L;
+                if (resolvedDurMs <= 0L && streamKnownDurationMs > 0L) {
+                    resolvedDurMs = streamKnownDurationMs;
+                }
+                mDurationMs.set(resolvedDurMs);
                 if (mDurationMs.get() <= 0) {
                     android.media.MediaMetadataRetriever durMmr = new android.media.MediaMetadataRetriever();
                     try {
@@ -5322,10 +5856,17 @@ public class MainActivity extends AppCompatActivity {
                         } else if (isHttpStream && httpDataSource != null) {
                             try {
                                 final HttpRangeMediaDataSource sharedHttpSource = httpDataSource;
+                                final long durMmrStartMs = SystemClock.uptimeMillis();
+                                final long[] durMmrReadBytes = new long[]{ 0L };
                                 durMmr.setDataSource(new MediaDataSource() {
                                     @Override
                                     public int readAt(long position, byte[] buffer, int offset, int size) throws IOException {
-                                        return sharedHttpSource.readAt(position, buffer, offset, size);
+                                        if ((SystemClock.uptimeMillis() - durMmrStartMs) > 2500L || durMmrReadBytes[0] >= 2L * 1024L * 1024L) {
+                                            throw new IOException("durMmr budget exceeded");
+                                        }
+                                        int n = sharedHttpSource.readAt(position, buffer, offset, size);
+                                        if (n > 0) durMmrReadBytes[0] += n;
+                                        return n;
                                     }
 
                                     @Override
@@ -5388,15 +5929,33 @@ public class MainActivity extends AppCompatActivity {
 
                 // 3. Create and configure decoder (preserve >=24-bit Hi-Res precision via PCM_FLOAT when supported)
                 String mime = format.getString(MediaFormat.KEY_MIME);
-                if (requestedBitDepth >= 24 && Build.VERSION.SDK_INT >= 24 && !format.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+                int extractedBitDepth = 0;
+                if (format.containsKey("bits-per-sample")) {
+                    try { extractedBitDepth = format.getInteger("bits-per-sample"); } catch (Throwable ignored) {}
+                }
+                if (extractedBitDepth <= 0 && Build.VERSION.SDK_INT >= 24 && format.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+                    try {
+                        int extEnc = format.getInteger(MediaFormat.KEY_PCM_ENCODING);
+                        if (extEnc == 21) extractedBitDepth = 24;
+                        else if (extEnc == 22 || extEnc == AudioFormat.ENCODING_PCM_FLOAT) extractedBitDepth = 32;
+                    } catch (Throwable ignored) {}
+                }
+                if (extractedBitDepth <= 0 && requestedBitDepth <= 16 && sampleRate > 48000
+                        && ("audio/flac".equalsIgnoreCase(mime) || "audio/alac".equalsIgnoreCase(mime))) {
+                    extractedBitDepth = 24;
+                }
+                final int effectiveBitDepth = Math.max(requestedBitDepth, extractedBitDepth);
+                if (effectiveBitDepth >= 24 && Build.VERSION.SDK_INT >= 24 && !format.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
                     try {
                         format.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_FLOAT);
                     } catch (Throwable ignored) {}
                 }
                 decoder = MediaCodec.createDecoderByType(mime);
+                boolean codecForced16Bit = false;
                 try {
                     decoder.configure(format, null, null, 0);
                 } catch (Throwable hiResConfigErr) {
+                    codecForced16Bit = true;
                     if (Build.VERSION.SDK_INT >= 24 && format.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
                         format.setInteger(MediaFormat.KEY_PCM_ENCODING, AudioFormat.ENCODING_PCM_16BIT);
                     }
@@ -5415,19 +5974,24 @@ public class MainActivity extends AppCompatActivity {
                 }
                 audioAttributes = attrBuilder.build();
 
-                // 5. Build AudioTrack (preserve full 24-bit/32-bit Hi-Res precision via ENCODING_PCM_FLOAT on FiiO M11S Android 10 API 29)
+                // 5. Build AudioTrack aligned to MediaCodec actual PCM output encoding (preserving >=24-bit via PCM_FLOAT)
                 int channelMask = resolveBitPerfectChannelMask(channels);
                 if (channelMask == 0) {
                     pendingErrorReason = "Unsupported Bit-Perfect channel count (" + channels + "ch)";
                     return;
                 }
                 int pcmEncoding = AudioFormat.ENCODING_PCM_16BIT;
-                if (requestedBitDepth == 24 && Build.VERSION.SDK_INT >= 31) {
-                    pcmEncoding = AudioFormat.ENCODING_PCM_24BIT_PACKED;
-                } else if (requestedBitDepth == 32 && Build.VERSION.SDK_INT >= 31) {
-                    pcmEncoding = AudioFormat.ENCODING_PCM_32BIT;
-                } else if (requestedBitDepth >= 24 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                MediaFormat initialOutFmt = null;
+                try { initialOutFmt = decoder.getOutputFormat(); } catch (Throwable ignored) {}
+                if (Build.VERSION.SDK_INT >= 24 && initialOutFmt != null && initialOutFmt.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+                    try { pcmEncoding = initialOutFmt.getInteger(MediaFormat.KEY_PCM_ENCODING); } catch (Throwable ignored) {}
+                } else if (Build.VERSION.SDK_INT >= 24 && format.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+                    try { pcmEncoding = format.getInteger(MediaFormat.KEY_PCM_ENCODING); } catch (Throwable ignored) {}
+                } else if (!codecForced16Bit && ((requestedBitDepth >= 24 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) || (effectiveBitDepth >= 24 && Build.VERSION.SDK_INT >= 24))) {
                     pcmEncoding = AudioFormat.ENCODING_PCM_FLOAT;
+                }
+                if (codecForced16Bit) {
+                    pcmEncoding = AudioFormat.ENCODING_PCM_16BIT;
                 }
 
                 AudioFormat audioFormat = new AudioFormat.Builder()
@@ -5454,58 +6018,36 @@ public class MainActivity extends AppCompatActivity {
 
                 // 6. Resolve preferred DAC device & apply Android 14+ Bit-Perfect Mixer Attributes BEFORE AudioTrack.build()
                 preferredDevice = findPreferredBitPerfectDevice();
+                int trackPcmEncoding = pcmEncoding;
+                int trackSampleRate = sampleRate;
                 if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
                         (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
                          preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
-                    mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
-                            mAudioManager, audioAttributes, preferredDevice, audioFormat);
-                    Log.i(TAG, "BitPerfect: Pre-build setPreferredMixerBitPerfect(" + sampleRate + "Hz, enc=" + pcmEncoding + "): " + mPreferredMixerAttributesSet);
+                    boolean preMixerOk = applyPreferredMixerLocked(epoch, audioAttributes, preferredDevice, audioFormat);
+                    Log.i(TAG, "BitPerfect: Pre-build setPreferredMixerBitPerfect(" + sampleRate + "Hz, enc=" + pcmEncoding + "): " + preMixerOk);
                 }
 
-                try {
-                    track = new AudioTrack.Builder()
-                            .setAudioAttributes(audioAttributes)
-                            .setAudioFormat(audioFormat)
-                            .setBufferSizeInBytes(bufferSize)
-                            .setTransferMode(AudioTrack.MODE_STREAM)
-                            .build();
-                } catch (Throwable t) {
-                    Log.w(TAG, "Direct AudioTrack build failed, falling back to standard attributes: " + t.getMessage());
-                    AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build();
-                    track = new AudioTrack.Builder()
-                            .setAudioAttributes(fallbackAttrs)
-                            .setAudioFormat(audioFormat)
-                            .setBufferSizeInBytes(bufferSize)
-                            .setTransferMode(AudioTrack.MODE_STREAM)
-                            .build();
+                track = createAndConfigureBitPerfectAudioTrack(
+                        audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, preferredDevice);
+                if (track == null) {
+                    clearPreferredMixerIfMatches(epoch);
+                    int[] initEnc = new int[]{ trackPcmEncoding };
+                    int[] initRate = new int[]{ trackSampleRate };
+                    track = rebuildAudioTrackWith16BitFallback(
+                            audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, initEnc, initRate, epoch);
+                    trackPcmEncoding = initEnc[0];
+                    trackSampleRate = initRate[0];
                 }
-
                 if (track == null || track.getState() != AudioTrack.STATE_INITIALIZED) {
                     if (track != null) {
                         try { track.release(); } catch (Exception ignored) {}
+                        if (mAudioTrack == track) mAudioTrack = null;
                         track = null;
                     }
-                    pendingErrorReason = "Bit-Perfect AudioTrack uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
+                    pendingErrorReason = "[ROUTE] Bit-Perfect AudioTrack uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
                     return;
                 }
-
-                mAudioTrack = track;
-
-                if (preferredDevice != null && track != null) {
-                    boolean devOk = track.setPreferredDevice(preferredDevice);
-                    Log.i(TAG, "BitPerfect: AudioTrack.setPreferredDevice(" + preferredDevice.getProductName() + ", type=" + preferredDevice.getType() + "): " + devOk);
-                }
-                // Lock AudioTrack software gain to unity (1.0 / 0 dBFS) for zero digital attenuation
-                if (track != null) {
-                    try { track.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
-                }
-
-                // 7. For Android 14+ (API 34+), also invoke AudioTrack.setBitPerfectMode if exposed
                 applyApi34BitPerfectMode(track);
-                notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, preferredDevice);
 
                 // 8. Playback loop
                 if (!mIsPaused && !mIsStopped) {
@@ -5516,6 +6058,8 @@ public class MainActivity extends AppCompatActivity {
                 boolean sawOutputEOS = false;
                 final long TIMEOUT_US = 10000;
                 long lastUiUpdateElapsedMs = 0L;
+                long lastMediaSessionSyncElapsedMs = 0L;
+                long lastCueBoundaryTriggeredSeq = -1L;
                 long basePositionMs = 0L;
                 long writtenFramesSinceBase = 0L;
                 long lastPtsPosMs = -1L;
@@ -5523,8 +6067,12 @@ public class MainActivity extends AppCompatActivity {
                 int idleDrainIterations = 0;
                 int consecutiveCodecErrors = 0;
                 int deadObjectRecoveries = 0;
+                int zeroWriteStallCount = 0;
+                int pendingInputIndex = -1;
                 int bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
-                int trackPcmEncoding = pcmEncoding;
+                int trackBytesPerFrame = pcmBytesPerFrame(channels, trackPcmEncoding);
+                int downmixBufEncoding = AudioFormat.ENCODING_PCM_16BIT;
+                int downmixBufSampleRate = trackSampleRate;
                 byte[] downmix16Scratch = null;
                 ByteBuffer downmixOutBuf = null;
                 long loopSeekGen = mSeekGeneration.get();
@@ -5558,30 +6106,36 @@ public class MainActivity extends AppCompatActivity {
                                  newPreferred.getType() == AudioDeviceInfo.TYPE_USB_HEADSET);
                         if (wasDisconnect || oldDevId != newDevId || (wasConnect && isUsbTarget)) {
                             Log.i(TAG, "BitPerfect: Audio output route changed (wasDisconnect=" + wasDisconnect + ", wasConnect=" + wasConnect + ", oldId=" + oldDevId + ", newId=" + newDevId + "), rebuilding AudioTrack");
-                            if (mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
-                                Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
-                                mPreferredMixerAttributesSet = false;
-                            }
+                            clearPreferredMixerIfMatches(epoch);
                             if (track != null) {
                                 try { track.pause(); } catch (Exception ignored) {}
                                 try { track.flush(); } catch (Exception ignored) {}
                                 try { track.stop(); } catch (Exception ignored) {}
                                 try { track.release(); } catch (Exception ignored) {}
+                                if (mAudioTrack == track) {
+                                    mAudioTrack = null;
+                                }
                                 track = null;
                             }
                             preferredDevice = newPreferred;
-                            if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
-                                    (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
-                                     preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
-                                mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
-                                        mAudioManager, audioAttributes, preferredDevice, audioFormat);
-                            }
+                            int prevTrackRate = trackSampleRate;
                             int[] rebuiltEnc = new int[]{ trackPcmEncoding };
-                            track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, rebuiltEnc);
+                            int[] rebuiltRate = new int[]{ trackSampleRate };
+                            track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, rebuiltEnc, rebuiltRate, epoch);
                             trackPcmEncoding = rebuiltEnc[0];
-                            downmixOutBuf = null;
+                            trackSampleRate = rebuiltRate[0];
+                            trackBytesPerFrame = pcmBytesPerFrame(channels, trackPcmEncoding);
+                            if (prevTrackRate != trackSampleRate) {
+                                basePositionMs += (writtenFramesSinceBase * 1000L) / Math.max(1, prevTrackRate);
+                                writtenFramesSinceBase = 0L;
+                            }
+                            if (downmixOutBuf != null && downmixOutBuf.hasRemaining() && (downmixBufEncoding != trackPcmEncoding || downmixBufSampleRate != trackSampleRate)) {
+                                downmixOutBuf = transcodeCarryBuffer(downmixOutBuf, downmixBufEncoding, downmixBufSampleRate, trackPcmEncoding, trackSampleRate, channels);
+                                downmixBufEncoding = trackPcmEncoding;
+                                downmixBufSampleRate = trackSampleRate;
+                            }
                             if (track == null) {
-                                pendingErrorReason = "Bit-Perfect route switch AudioTrack uninitialized";
+                                pendingErrorReason = "[ROUTE] Bit-Perfect route switch AudioTrack uninitialized";
                                 break;
                             }
                         }
@@ -5624,6 +6178,8 @@ public class MainActivity extends AppCompatActivity {
                         try {
                             extractor.seekTo(seekTargetUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
                             decoder.flush();
+                            pendingInputIndex = -1;
+                            downmixOutBuf = null;
                             if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
                                 track.pause();
                             }
@@ -5647,6 +6203,7 @@ public class MainActivity extends AppCompatActivity {
                             stuckPtsCount = 0;
                             idleDrainIterations = 0;
                             consecutiveCodecErrors = 0;
+                            zeroWriteStallCount = 0;
                             final boolean seekStillCurrent;
                             synchronized (mSeekLock) {
                                 seekStillCurrent = (mSeekTargetUs.get() < 0L && mSeekGeneration.get() == loopSeekGen);
@@ -5678,8 +6235,9 @@ public class MainActivity extends AppCompatActivity {
 
                     // Feed input buffer
                     if (!sawInputEOS) {
-                        int inIndex = decoder.dequeueInputBuffer(TIMEOUT_US);
+                        int inIndex = (pendingInputIndex >= 0) ? pendingInputIndex : decoder.dequeueInputBuffer(TIMEOUT_US);
                         if (inIndex >= 0) {
+                            pendingInputIndex = inIndex;
                             ByteBuffer inBuf = decoder.getInputBuffer(inIndex);
                             if (inBuf != null) {
                                 inBuf.clear();
@@ -5691,17 +6249,20 @@ public class MainActivity extends AppCompatActivity {
                                             break;
                                         }
                                         decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                                        pendingInputIndex = -1;
                                         sawInputEOS = true;
+                                    } else if (sampleSize == 0) {
+                                        extractor.advance();
                                     } else {
                                         long ptsUs = extractor.getSampleTime();
                                         decoder.queueInputBuffer(inIndex, 0, sampleSize, ptsUs, 0);
+                                        pendingInputIndex = -1;
                                         extractor.advance();
                                     }
                                     consecutiveCodecErrors = 0;
                                 } catch (Exception inputErr) {
                                     if (mSeekTargetUs.get() >= 0L && !mIsStopped && mPlaybackEpoch.get() == epoch) {
                                         consecutiveCodecErrors = 0;
-                                        try { decoder.queueInputBuffer(inIndex, 0, 0, 0, 0); } catch (Exception ignored) {}
                                         continue;
                                     }
                                     consecutiveCodecErrors++;
@@ -5714,12 +6275,13 @@ public class MainActivity extends AppCompatActivity {
                                     if (!advancedPastCorrupt && consecutiveCodecErrors < 5) consecutiveCodecErrors = 5;
                                     if (writtenFramesSinceBase > 0L && consecutiveCodecErrors >= 5) {
                                         Log.w(TAG, "BitPerfect: Truncated/corrupt audio tail after " + writtenFramesSinceBase + " frames, finishing cleanly");
-                                        try { decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM); } catch (Exception ignored) {}
+                                        try {
+                                            decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                                            pendingInputIndex = -1;
+                                        } catch (Exception ignored) {}
                                         sawInputEOS = true;
                                     } else if (consecutiveCodecErrors >= 5) {
                                         throw inputErr;
-                                    } else {
-                                        try { decoder.queueInputBuffer(inIndex, 0, 0, 0, 0); } catch (Exception ignored) {}
                                     }
                                 }
                             }
@@ -5739,6 +6301,8 @@ public class MainActivity extends AppCompatActivity {
                         int newEncoding = pcmEncoding;
                         if (newFormat.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
                             newEncoding = newFormat.getInteger(MediaFormat.KEY_PCM_ENCODING);
+                        } else if (codecForced16Bit) {
+                            newEncoding = AudioFormat.ENCODING_PCM_16BIT;
                         }
 
                         if (newRate != sampleRate || newCh != channels || newEncoding != pcmEncoding) {
@@ -5747,18 +6311,28 @@ public class MainActivity extends AppCompatActivity {
                                 pendingErrorReason = "Unsupported Bit-Perfect output channel count (" + newCh + "ch)";
                                 break;
                             }
+                            if (trackSampleRate != newRate) {
+                                basePositionMs += (writtenFramesSinceBase * 1000L) / Math.max(1, trackSampleRate);
+                                writtenFramesSinceBase = 0L;
+                            }
                             sampleRate = newRate;
                             channels = newCh;
                             pcmEncoding = newEncoding;
                             trackPcmEncoding = pcmEncoding;
+                            trackSampleRate = sampleRate;
                             downmixOutBuf = null;
                             channelMask = nextChannelMask;
                             bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
+                            trackBytesPerFrame = pcmBytesPerFrame(channels, trackPcmEncoding);
 
+                            clearPreferredMixerIfMatches(epoch);
                             try {
                                 track.stop();
                                 track.release();
                             } catch (Exception ignored) {}
+                            if (mAudioTrack == track) {
+                                mAudioTrack = null;
+                            }
                             track = null;
 
                             audioFormat = new AudioFormat.Builder()
@@ -5769,7 +6343,9 @@ public class MainActivity extends AppCompatActivity {
                             minBufSize = AudioTrack.getMinBufferSize(sampleRate, channelMask, pcmEncoding);
                             if (minBufSize <= 0 && pcmEncoding != AudioFormat.ENCODING_PCM_16BIT) {
                                 pcmEncoding = AudioFormat.ENCODING_PCM_16BIT;
+                                trackPcmEncoding = pcmEncoding;
                                 bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
+                                trackBytesPerFrame = bytesPerFrame;
                                 audioFormat = new AudioFormat.Builder()
                                         .setEncoding(pcmEncoding)
                                         .setSampleRate(sampleRate)
@@ -5781,50 +6357,23 @@ public class MainActivity extends AppCompatActivity {
                             boolean fiioHiResRebuild = isFiioDevice() && sampleRate >= 88200;
                             bufferSize = fiioHiResRebuild ? Math.max(minBufSize * 6, 196608) : Math.max(minBufSize * 4, 131072);
 
-                            if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
-                                    (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
-                                     preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
-                                mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
-                                        mAudioManager, audioAttributes, preferredDevice, audioFormat);
-                            }
-                            try {
-                                track = new AudioTrack.Builder()
-                                        .setAudioAttributes(audioAttributes)
-                                        .setAudioFormat(audioFormat)
-                                        .setBufferSizeInBytes(bufferSize)
-                                        .setTransferMode(AudioTrack.MODE_STREAM)
-                                        .build();
-                            } catch (Throwable t) {
-                                try {
-                                    AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
-                                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                                            .build();
-                                    track = new AudioTrack.Builder()
-                                            .setAudioAttributes(fallbackAttrs)
-                                            .setAudioFormat(audioFormat)
-                                            .setBufferSizeInBytes(bufferSize)
-                                            .setTransferMode(AudioTrack.MODE_STREAM)
-                                            .build();
-                                } catch (Throwable fallbackErr) {
-                                    pendingErrorReason = "Bit-Perfect AudioTrack format rebuild failed (" + sampleRate + "Hz/" + channels + "ch)";
-                                    break;
-                                }
-                            }
+                            int[] fmtRebuiltEnc = new int[]{ trackPcmEncoding };
+                            int[] fmtRebuiltRate = new int[]{ trackSampleRate };
+                            track = rebuildAudioTrackWith16BitFallback(
+                                    audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, fmtRebuiltEnc, fmtRebuiltRate, epoch);
+                            trackPcmEncoding = fmtRebuiltEnc[0];
+                            trackSampleRate = fmtRebuiltRate[0];
+                            trackBytesPerFrame = pcmBytesPerFrame(channels, trackPcmEncoding);
                             if (track == null || track.getState() != AudioTrack.STATE_INITIALIZED) {
                                 if (track != null) {
                                     try { track.release(); } catch (Exception ignored) {}
+                                    if (mAudioTrack == track) mAudioTrack = null;
                                     track = null;
                                 }
-                                pendingErrorReason = "Bit-Perfect AudioTrack rebuild uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
+                                pendingErrorReason = "[ROUTE] Bit-Perfect AudioTrack rebuild uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
                                 break;
                             }
-
-                            mAudioTrack = track;
-                            if (preferredDevice != null) track.setPreferredDevice(preferredDevice);
-                            try { track.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
                             applyApi34BitPerfectMode(track);
-                            notifyBitPerfectFormatToWeb(sampleRate, pcmEncoding, mPreferredMixerAttributesSet, preferredDevice);
                             if (!mIsPaused && !mIsStopped) {
                                 track.play();
                             }
@@ -5847,10 +6396,12 @@ public class MainActivity extends AppCompatActivity {
                             outBuf.position(info.offset);
                             outBuf.limit(info.offset + info.size);
                             int totalWritten = 0;
-                            int totalWritten16 = 0;
+                            int totalWrittenTrackBytes = 0;
                             int written = 0;
                             boolean abortedForSeek = false;
-                            downmixOutBuf = null;
+                            if (downmixOutBuf != null && !downmixOutBuf.hasRemaining()) {
+                                downmixOutBuf = null;
+                            }
                             while ((outBuf.hasRemaining() || (downmixOutBuf != null && downmixOutBuf.hasRemaining())) && !mIsStopped && mPlaybackEpoch.get() == epoch) {
                                 if (mSeekTargetUs.get() >= 0L || mSeekGeneration.get() != loopSeekGen) {
                                     abortedForSeek = true;
@@ -5893,32 +6444,43 @@ public class MainActivity extends AppCompatActivity {
                                              newPreferred.getType() == AudioDeviceInfo.TYPE_USB_HEADSET);
                                     if (wasDisconnect || oldDevId != newDevId || (wasConnect && isUsbTarget)) {
                                         Log.i(TAG, "BitPerfect: Audio output route changed mid-buffer (wasDisconnect=" + wasDisconnect + ", wasConnect=" + wasConnect + ", oldId=" + oldDevId + ", newId=" + newDevId + "), rebuilding AudioTrack");
-                                        if (mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
-                                            Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
-                                            mPreferredMixerAttributesSet = false;
-                                        }
+                                        clearPreferredMixerIfMatches(epoch);
                                         try { track.pause(); } catch (Exception ignored) {}
                                         try { track.flush(); } catch (Exception ignored) {}
                                         try { track.stop(); } catch (Exception ignored) {}
                                         try { track.release(); } catch (Exception ignored) {}
-                                        preferredDevice = newPreferred;
-                                        if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
-                                                (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
-                                                 preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
-                                            mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
-                                                    mAudioManager, audioAttributes, preferredDevice, audioFormat);
+                                        if (mAudioTrack == track) {
+                                            mAudioTrack = null;
                                         }
+                                        track = null;
+                                        preferredDevice = newPreferred;
+                                        int prevTrackRate = trackSampleRate;
                                         int[] midRebuiltEnc = new int[]{ trackPcmEncoding };
-                                        track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, midRebuiltEnc);
+                                        int[] midRebuiltRate = new int[]{ trackSampleRate };
+                                        track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, midRebuiltEnc, midRebuiltRate, epoch);
                                         if (track == null) {
-                                            pendingErrorReason = "Bit-Perfect route switch AudioTrack uninitialized";
+                                            pendingErrorReason = "[ROUTE] Bit-Perfect route switch AudioTrack uninitialized";
                                             written = -1;
                                             break;
                                         }
-                                        if (trackPcmEncoding != midRebuiltEnc[0]) {
-                                            downmixOutBuf = null;
+                                        if (totalWritten > 0 || totalWrittenTrackBytes > 0) {
+                                            writtenFramesSinceBase += (totalWritten / Math.max(1, bytesPerFrame))
+                                                    + (totalWrittenTrackBytes / Math.max(1, trackBytesPerFrame));
+                                            totalWritten = 0;
+                                            totalWrittenTrackBytes = 0;
                                         }
                                         trackPcmEncoding = midRebuiltEnc[0];
+                                        trackSampleRate = midRebuiltRate[0];
+                                        trackBytesPerFrame = pcmBytesPerFrame(channels, trackPcmEncoding);
+                                        if (prevTrackRate != trackSampleRate) {
+                                            basePositionMs += (writtenFramesSinceBase * 1000L) / Math.max(1, prevTrackRate);
+                                            writtenFramesSinceBase = 0L;
+                                        }
+                                        if (downmixOutBuf != null && downmixOutBuf.hasRemaining() && (downmixBufEncoding != trackPcmEncoding || downmixBufSampleRate != trackSampleRate)) {
+                                            downmixOutBuf = transcodeCarryBuffer(downmixOutBuf, downmixBufEncoding, downmixBufSampleRate, trackPcmEncoding, trackSampleRate, channels);
+                                            downmixBufEncoding = trackPcmEncoding;
+                                            downmixBufSampleRate = trackSampleRate;
+                                        }
                                         if (!mIsPaused && !mIsStopped) {
                                             try { track.play(); } catch (Throwable ignored) {}
                                         }
@@ -5927,48 +6489,81 @@ public class MainActivity extends AppCompatActivity {
                                         continue;
                                     }
                                 }
-                                boolean using16BitFallback = (trackPcmEncoding == AudioFormat.ENCODING_PCM_16BIT && pcmEncoding != AudioFormat.ENCODING_PCM_16BIT);
-                                if (using16BitFallback) {
-                                    if (downmixOutBuf == null || !downmixOutBuf.hasRemaining()) {
+                                if (!mIsPaused && !mIsStopped && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                                    try { track.play(); } catch (Throwable ignored) {}
+                                    if (track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                                        zeroWriteStallCount++;
+                                        if (zeroWriteStallCount >= 50) {
+                                            written = AudioTrack.ERROR_DEAD_OBJECT;
+                                        } else {
+                                            try { Thread.sleep(10); } catch (InterruptedException ie) { break; }
+                                            continue;
+                                        }
+                                    }
+                                }
+                                boolean wroteFromCarry = false;
+                                boolean using16BitFallback = (trackSampleRate != sampleRate) || (trackPcmEncoding == AudioFormat.ENCODING_PCM_16BIT && pcmEncoding != AudioFormat.ENCODING_PCM_16BIT);
+                                if (written != AudioTrack.ERROR_DEAD_OBJECT) {
+                                    if (downmixOutBuf != null && downmixOutBuf.hasRemaining()) {
+                                        wroteFromCarry = true;
+                                        written = track.write(downmixOutBuf, downmixOutBuf.remaining(), AudioTrack.WRITE_NON_BLOCKING);
+                                    } else if (using16BitFallback) {
                                         if (downmix16Scratch == null) downmix16Scratch = new byte[16384];
-                                        int convertedBytes = convertPcmChunkTo16Bit(outBuf, pcmEncoding, channels, downmix16Scratch);
+                                        int convertedBytes = (trackSampleRate != sampleRate)
+                                                ? convertPcmChunkTo16BitResampled(outBuf, pcmEncoding, channels, sampleRate, trackSampleRate, downmix16Scratch)
+                                                : convertPcmChunkTo16Bit(outBuf, pcmEncoding, channels, downmix16Scratch);
+                                        downmixBufEncoding = AudioFormat.ENCODING_PCM_16BIT;
+                                        downmixBufSampleRate = trackSampleRate;
                                         downmixOutBuf = convertedBytes > 0 ? ByteBuffer.wrap(downmix16Scratch, 0, convertedBytes) : null;
+                                        if (downmixOutBuf == null || !downmixOutBuf.hasRemaining()) {
+                                            break;
+                                        }
+                                        wroteFromCarry = true;
+                                        written = track.write(downmixOutBuf, downmixOutBuf.remaining(), AudioTrack.WRITE_NON_BLOCKING);
+                                    } else {
+                                        downmixOutBuf = null;
+                                        int rem = outBuf.remaining();
+                                        written = track.write(outBuf, rem, AudioTrack.WRITE_NON_BLOCKING);
                                     }
-                                    if (downmixOutBuf == null || !downmixOutBuf.hasRemaining()) {
-                                        break;
-                                    }
-                                    written = track.write(downmixOutBuf, downmixOutBuf.remaining(), AudioTrack.WRITE_NON_BLOCKING);
-                                } else {
-                                    downmixOutBuf = null;
-                                    int rem = outBuf.remaining();
-                                    written = track.write(outBuf, rem, AudioTrack.WRITE_NON_BLOCKING);
                                 }
                                 if (written == AudioTrack.ERROR_DEAD_OBJECT && !mIsStopped && mPlaybackEpoch.get() == epoch && deadObjectRecoveries < 2) {
                                     deadObjectRecoveries++;
+                                    zeroWriteStallCount = 0;
                                     Log.w(TAG, "BitPerfect: AudioTrack ERROR_DEAD_OBJECT on audio route switch, rebuilding (" + deadObjectRecoveries + "/2)");
-                                    if (mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
-                                        Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
-                                        mPreferredMixerAttributesSet = false;
-                                    }
+                                    clearPreferredMixerIfMatches(epoch);
                                     try { track.stop(); } catch (Exception ignored) {}
                                     try { track.release(); } catch (Exception ignored) {}
-                                    preferredDevice = findPreferredBitPerfectDevice();
-                                    if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
-                                            (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
-                                             preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
-                                        mPreferredMixerAttributesSet = Api34AudioHelper.setPreferredMixerBitPerfect(
-                                                mAudioManager, audioAttributes, preferredDevice, audioFormat);
+                                    if (mAudioTrack == track) {
+                                        mAudioTrack = null;
                                     }
+                                    track = null;
+                                    preferredDevice = findPreferredBitPerfectDevice();
+                                    int prevTrackRate = trackSampleRate;
                                     int[] deadRebuiltEnc = new int[]{ trackPcmEncoding };
-                                    track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, deadRebuiltEnc);
+                                    int[] deadRebuiltRate = new int[]{ trackSampleRate };
+                                    track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, deadRebuiltEnc, deadRebuiltRate, epoch);
                                     if (track == null) {
-                                        pendingErrorReason = "Bit-Perfect AudioTrack rebuild uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
+                                        pendingErrorReason = "[ROUTE] Bit-Perfect AudioTrack rebuild uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
                                         break;
                                     }
-                                    if (trackPcmEncoding != deadRebuiltEnc[0]) {
-                                        downmixOutBuf = null;
+                                    if (totalWritten > 0 || totalWrittenTrackBytes > 0) {
+                                        writtenFramesSinceBase += (totalWritten / Math.max(1, bytesPerFrame))
+                                                + (totalWrittenTrackBytes / Math.max(1, trackBytesPerFrame));
+                                        totalWritten = 0;
+                                        totalWrittenTrackBytes = 0;
                                     }
                                     trackPcmEncoding = deadRebuiltEnc[0];
+                                    trackSampleRate = deadRebuiltRate[0];
+                                    trackBytesPerFrame = pcmBytesPerFrame(channels, trackPcmEncoding);
+                                    if (prevTrackRate != trackSampleRate) {
+                                        basePositionMs += (writtenFramesSinceBase * 1000L) / Math.max(1, prevTrackRate);
+                                        writtenFramesSinceBase = 0L;
+                                    }
+                                    if (downmixOutBuf != null && downmixOutBuf.hasRemaining() && (downmixBufEncoding != trackPcmEncoding || downmixBufSampleRate != trackSampleRate)) {
+                                        downmixOutBuf = transcodeCarryBuffer(downmixOutBuf, downmixBufEncoding, downmixBufSampleRate, trackPcmEncoding, trackSampleRate, channels);
+                                        downmixBufEncoding = trackPcmEncoding;
+                                        downmixBufSampleRate = trackSampleRate;
+                                    }
                                     if (!mIsPaused && !mIsStopped) {
                                         try { track.play(); } catch (Throwable ignored) {}
                                     }
@@ -5979,8 +6574,9 @@ public class MainActivity extends AppCompatActivity {
                                     break;
                                 }
                                 if (written > 0) {
-                                    if (using16BitFallback) {
-                                        totalWritten16 += written;
+                                    zeroWriteStallCount = 0;
+                                    if (wroteFromCarry) {
+                                        totalWrittenTrackBytes += written;
                                     } else {
                                         totalWritten += written;
                                     }
@@ -5990,20 +6586,20 @@ public class MainActivity extends AppCompatActivity {
                             }
                             if (written < 0) {
                                 decoder.releaseOutputBuffer(outIndex, false);
-                                if (!mIsStopped && mPlaybackEpoch.get() == epoch) {
+                                if (pendingErrorReason == null && !mIsStopped && mPlaybackEpoch.get() == epoch) {
                                     pendingErrorReason = "AudioTrack write error (" + written + ")";
                                 }
                                 break;
                             }
-                            if (totalWritten > 0 || totalWritten16 > 0) {
+                            if (totalWritten > 0 || totalWrittenTrackBytes > 0) {
                                 writtenFramesSinceBase += (totalWritten / Math.max(1, bytesPerFrame))
-                                        + (totalWritten16 / Math.max(1, channels * 2));
+                                        + (totalWrittenTrackBytes / Math.max(1, trackBytesPerFrame));
                             }
                             if (!abortedForSeek && (mSeekTargetUs.get() >= 0L || mSeekGeneration.get() != loopSeekGen)) {
                                 abortedForSeek = true;
                             }
                             if (!abortedForSeek && !mIsStopped && !mIsPaused && mPlaybackEpoch.get() == epoch) {
-                                long pcmPosMs = basePositionMs + ((writtenFramesSinceBase * 1000L) / Math.max(1, sampleRate));
+                                long pcmPosMs = basePositionMs + ((writtenFramesSinceBase * 1000L) / Math.max(1, trackSampleRate));
                                 long ptsPosMs = info.presentationTimeUs > 0 ? (info.presentationTimeUs / 1000L) : -1L;
                                 if (ptsPosMs > 0 && ptsPosMs == lastPtsPosMs) {
                                     stuckPtsCount++;
@@ -6021,9 +6617,17 @@ public class MainActivity extends AppCompatActivity {
                                 if (mSeekTargetUs.get() < 0L && mSeekGeneration.get() == loopSeekGen) {
                                     mCurrentPositionMs.set(posMs);
                                     long nowElapsed = SystemClock.uptimeMillis();
+                                    final long winStartMs = mCueWindowStartMs;
+                                    final long winDurMs = mCueWindowDurationMs;
+                                    final long winSeq = mTrackWindowSeq;
+                                    boolean cueBoundaryCrossed = (winDurMs > 0L && lastCueBoundaryTriggeredSeq != winSeq
+                                            && posMs >= Math.max(winStartMs, winStartMs + winDurMs - 140L));
                                     final long uiUpdateIntervalMs = mIsInBackground ? 2000L : 250L;
-                                    if ((lastUiUpdateElapsedMs == 0L || (nowElapsed - lastUiUpdateElapsedMs >= uiUpdateIntervalMs)) && !mIsStopped && !mIsPaused && mWebView != null) {
+                                    if ((cueBoundaryCrossed || lastUiUpdateElapsedMs == 0L || (nowElapsed - lastUiUpdateElapsedMs >= uiUpdateIntervalMs)) && !mIsStopped && !mIsPaused && mWebView != null) {
                                         lastUiUpdateElapsedMs = nowElapsed;
+                                        if (cueBoundaryCrossed) {
+                                            lastCueBoundaryTriggeredSeq = winSeq;
+                                        }
                                         final long reportPosMs = posMs;
                                         final long reportDurMs = mDurationMs.get();
                                         final long reportSeekGen = loopSeekGen;
@@ -6035,6 +6639,16 @@ public class MainActivity extends AppCompatActivity {
                                                             null
                                                     );
                                                 }
+                                            }
+                                        });
+                                    }
+                                    if (lastMediaSessionSyncElapsedMs == 0L || (nowElapsed - lastMediaSessionSyncElapsedMs >= 1000L)) {
+                                        lastMediaSessionSyncElapsedMs = nowElapsed;
+                                        final long mediaPosMs = toWindowRelativePositionMs(posMs);
+                                        final long mediaDurMs = getDisplayDurationMs(knownDurMs);
+                                        runOnUiThread(() -> {
+                                            if (!mIsStopped && !mIsPaused && mPlaybackEpoch.get() == epoch) {
+                                                updateMediaSessionPosition(mediaPosMs, mediaDurMs, true);
                                             }
                                         });
                                     }
@@ -6094,16 +6708,13 @@ public class MainActivity extends AppCompatActivity {
                         try { track.stop(); } catch (Exception ignored) {}
                         try { track.release(); } catch (Exception ignored) {}
                     }
-                    if (mAudioTrack == track) {
+                    if (mAudioTrack == track || sessionCurrent) {
                         mAudioTrack = null;
                     }
                 } catch (Exception ignored) {}
 
                 try {
-                    if (sessionCurrent && mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
-                        Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
-                        mPreferredMixerAttributesSet = false;
-                    }
+                    clearPreferredMixerIfMatches(epoch);
                 } catch (Exception ignored) {}
 
                 try {
@@ -6125,8 +6736,8 @@ public class MainActivity extends AppCompatActivity {
                 }
                 if (sessionCurrent) mCurrentSourceKey = "";
                 if (pendingErrorReason != null && sessionCurrent && !mIsStopped) {
-                    final long errPosMs = Math.max(0L, mCurrentPositionMs.get());
-                    final long errDurMs = Math.max(0L, mDurationMs.get());
+                    final long errPosMs = Math.max(0L, getDisplayPositionMs());
+                    final long errDurMs = Math.max(0L, getDisplayDurationMs());
                     runOnUiThread(() -> updateMediaSessionPosition(errPosMs, errDurMs, false));
                     notifyBitPerfectErrorToWeb(pendingErrorReason);
                 }
@@ -6143,6 +6754,7 @@ public class MainActivity extends AppCompatActivity {
             private static final long AUTH_REFRESH_TIMEOUT_MS = 12000L;
 
             private final Object mLock = new Object();
+            private final Object mStreamIoLock = new Object();
             private final Object mAuthWaitLock = new Object();
             private final LinkedHashMap<Long, byte[]> mChunkCache = new LinkedHashMap<>(24, 0.75f, true);
 
@@ -6357,145 +6969,147 @@ public class MainActivity extends AppCompatActivity {
             }
 
             private byte[] fetchChunkWithRecovery(long chunkStart) throws IOException {
-                int reconnectAttempt = 0;
-                int authRefreshAttempt = 0;
-                boolean emittedReconnecting = false;
-                byte[] partialBuf = new byte[CHUNK_SIZE];
-                int partialFilled = 0;
+                synchronized (mStreamIoLock) {
+                    int reconnectAttempt = 0;
+                    int authRefreshAttempt = 0;
+                    boolean emittedReconnecting = false;
+                    byte[] partialBuf = new byte[CHUNK_SIZE];
+                    int partialFilled = 0;
 
-                while (!shouldAbort()) {
-                    synchronized (mLock) {
-                        byte[] cached = mChunkCache.get(chunkStart);
-                        if (cached != null) {
-                            return cached;
-                        }
-                        if (mTotalSize >= 0L && chunkStart >= mTotalSize) {
-                            return null;
-                        }
-                    }
-
-                    long retryAfterOverrideMs = -1L;
-                    try {
-                        long desiredPos = chunkStart + partialFilled;
+                    while (!shouldAbort()) {
                         synchronized (mLock) {
-                            if (mSeqStream != null && mSeqPos < desiredPos && (desiredPos - mSeqPos) <= 2L * CHUNK_SIZE) {
-                                drainAndCacheSequentialLocked(desiredPos);
-                                byte[] cachedAfterDrain = mChunkCache.get(chunkStart);
-                                if (cachedAfterDrain != null) {
-                                    return cachedAfterDrain;
-                                }
+                            byte[] cached = mChunkCache.get(chunkStart);
+                            if (cached != null) {
+                                return cached;
                             }
-                            if (mSeqStream == null || mSeqPos != desiredPos) {
-                                closeStreamLocked();
-                                openRangeStreamLocked(desiredPos);
-                                if (mTotalSize >= 0L && chunkStart >= mTotalSize) {
-                                    return null;
-                                }
+                            if (mTotalSize >= 0L && chunkStart >= mTotalSize) {
+                                return null;
                             }
                         }
 
-                        int targetLen = CHUNK_SIZE;
-                        if (mTotalSize > 0L) {
-                            long rem = mTotalSize - chunkStart;
-                            if (rem <= 0L) return null;
-                            if (rem < targetLen) targetLen = (int) rem;
-                        }
-
-                        while (partialFilled < targetLen && !shouldAbort()) {
-                            InputStream activeS;
+                        long retryAfterOverrideMs = -1L;
+                        try {
+                            long desiredPos = chunkStart + partialFilled;
                             synchronized (mLock) {
-                                activeS = mSeqStream;
-                            }
-                            if (activeS == null) {
-                                throw new EOFException("Stream unexpectedly closed");
-                            }
-                            int n = activeS.read(partialBuf, partialFilled, targetLen - partialFilled);
-                            if (n < 0) {
-                                if (mTotalSize > 0L && (chunkStart + partialFilled) < mTotalSize) {
-                                    throw new EOFException("Premature EOF at " + (chunkStart + partialFilled) + "/" + mTotalSize);
+                                if (mSeqStream != null && mSeqPos < desiredPos && (desiredPos - mSeqPos) <= 2L * CHUNK_SIZE) {
+                                    drainAndCacheSequentialLocked(desiredPos);
+                                    byte[] cachedAfterDrain = mChunkCache.get(chunkStart);
+                                    if (cachedAfterDrain != null) {
+                                        return cachedAfterDrain;
+                                    }
                                 }
-                                if (mTotalSize <= 0L && partialFilled > 0) {
-                                    mTotalSize = chunkStart + partialFilled;
-                                }
-                                synchronized (mLock) {
+                                if (mSeqStream == null || mSeqPos != desiredPos) {
                                     closeStreamLocked();
+                                    openRangeStreamLocked(desiredPos);
+                                    if (mTotalSize >= 0L && chunkStart >= mTotalSize) {
+                                        return null;
+                                    }
                                 }
-                                break;
                             }
-                            if (n > 0) {
-                                partialFilled += n;
+
+                            int targetLen = CHUNK_SIZE;
+                            if (mTotalSize > 0L) {
+                                long rem = mTotalSize - chunkStart;
+                                if (rem <= 0L) return null;
+                                if (rem < targetLen) targetLen = (int) rem;
+                            }
+
+                            while (partialFilled < targetLen && !shouldAbort()) {
+                                InputStream activeS;
                                 synchronized (mLock) {
-                                    mSeqPos += n;
+                                    activeS = mSeqStream;
                                 }
+                                if (activeS == null) {
+                                    throw new EOFException("Stream unexpectedly closed");
+                                }
+                                int n = activeS.read(partialBuf, partialFilled, targetLen - partialFilled);
+                                if (n < 0) {
+                                    if (mTotalSize > 0L && (chunkStart + partialFilled) < mTotalSize) {
+                                        throw new EOFException("Premature EOF at " + (chunkStart + partialFilled) + "/" + mTotalSize);
+                                    }
+                                    if (mTotalSize <= 0L && partialFilled > 0) {
+                                        mTotalSize = chunkStart + partialFilled;
+                                    }
+                                    synchronized (mLock) {
+                                        closeStreamLocked();
+                                    }
+                                    break;
+                                }
+                                if (n > 0) {
+                                    partialFilled += n;
+                                    synchronized (mLock) {
+                                        mSeqPos += n;
+                                    }
+                                }
+                            }
+
+                            if (partialFilled > 0) {
+                                byte[] exact = (partialFilled == partialBuf.length) ? partialBuf : Arrays.copyOf(partialBuf, partialFilled);
+                                synchronized (mLock) {
+                                    putChunkLocked(chunkStart, exact);
+                                }
+                                if (emittedReconnecting) {
+                                    notifyBitPerfectReconnectStatusToWeb("recovered", reconnectAttempt, MAX_RECONNECT_ATTEMPTS);
+                                }
+                                return exact;
+                            }
+                            return null;
+                        } catch (AuthRefreshRequestedException authReq) {
+                            synchronized (mLock) {
+                                closeStreamLocked();
+                            }
+                            if (mResolvedRedirectUrl != null && !mResolvedRedirectUrl.equals(mCurrentUrl)) {
+                                mResolvedRedirectUrl = null;
+                                continue;
+                            }
+                            authRefreshAttempt++;
+                            if (authRefreshAttempt > 2) {
+                                mFatalError = "[AUTH] HTTP " + authReq.statusCode + " authentication failed";
+                                throw new IOException(mFatalError);
+                            }
+                            boolean ok = requestAuthRefreshFromWeb(authReq.statusCode, authReq.failedUrl);
+                            if (!ok) {
+                                mFatalError = "[AUTH] HTTP " + authReq.statusCode + " token refresh failed";
+                                throw new IOException(mFatalError);
+                            }
+                            continue;
+                        } catch (RetryableHttpException retryEx) {
+                            synchronized (mLock) {
+                                closeStreamLocked();
+                            }
+                            retryAfterOverrideMs = retryEx.retryAfterMs;
+                            reconnectAttempt++;
+                            if (reconnectAttempt > MAX_RECONNECT_ATTEMPTS) {
+                                mFatalError = "[NET] HTTP " + retryEx.statusCode + " reconnect failed after " + MAX_RECONNECT_ATTEMPTS + " attempts";
+                                throw new IOException(mFatalError, retryEx);
+                            }
+                        } catch (IOException ioErr) {
+                            synchronized (mLock) {
+                                closeStreamLocked();
+                            }
+                            if (shouldAbort()) {
+                                throw ioErr;
+                            }
+                            if (mFatalError != null) {
+                                throw ioErr;
+                            }
+                            reconnectAttempt++;
+                            if (reconnectAttempt > MAX_RECONNECT_ATTEMPTS) {
+                                String detail = ioErr.getMessage() != null ? ioErr.getMessage() : ioErr.getClass().getSimpleName();
+                                mFatalError = "[NET] Stream reconnect failed after " + MAX_RECONNECT_ATTEMPTS + " attempts: " + detail;
+                                throw new IOException(mFatalError, ioErr);
                             }
                         }
 
-                        if (partialFilled > 0) {
-                            byte[] exact = (partialFilled == partialBuf.length) ? partialBuf : Arrays.copyOf(partialBuf, partialFilled);
-                            synchronized (mLock) {
-                                putChunkLocked(chunkStart, exact);
-                            }
-                            if (emittedReconnecting) {
-                                notifyBitPerfectReconnectStatusToWeb("recovered", reconnectAttempt, MAX_RECONNECT_ATTEMPTS);
-                            }
-                            return exact;
-                        }
-                        return null;
-                    } catch (AuthRefreshRequestedException authReq) {
-                        synchronized (mLock) {
-                            closeStreamLocked();
-                        }
-                        if (mResolvedRedirectUrl != null && !mResolvedRedirectUrl.equals(mCurrentUrl)) {
-                            mResolvedRedirectUrl = null;
-                            continue;
-                        }
-                        authRefreshAttempt++;
-                        if (authRefreshAttempt > 2) {
-                            mFatalError = "[AUTH] HTTP " + authReq.statusCode + " authentication failed";
-                            throw new IOException(mFatalError);
-                        }
-                        boolean ok = requestAuthRefreshFromWeb(authReq.statusCode, authReq.failedUrl);
-                        if (!ok) {
-                            mFatalError = "[AUTH] HTTP " + authReq.statusCode + " token refresh failed";
-                            throw new IOException(mFatalError);
-                        }
-                        continue;
-                    } catch (RetryableHttpException retryEx) {
-                        synchronized (mLock) {
-                            closeStreamLocked();
-                        }
-                        retryAfterOverrideMs = retryEx.retryAfterMs;
-                        reconnectAttempt++;
-                        if (reconnectAttempt > MAX_RECONNECT_ATTEMPTS) {
-                            mFatalError = "[NET] HTTP " + retryEx.statusCode + " reconnect failed after " + MAX_RECONNECT_ATTEMPTS + " attempts";
-                            throw new IOException(mFatalError, retryEx);
-                        }
-                    } catch (IOException ioErr) {
-                        synchronized (mLock) {
-                            closeStreamLocked();
-                        }
-                        if (shouldAbort()) {
-                            throw ioErr;
-                        }
-                        if (mFatalError != null) {
-                            throw ioErr;
-                        }
-                        reconnectAttempt++;
-                        if (reconnectAttempt > MAX_RECONNECT_ATTEMPTS) {
-                            String detail = ioErr.getMessage() != null ? ioErr.getMessage() : ioErr.getClass().getSimpleName();
-                            mFatalError = "[NET] Stream reconnect failed after " + MAX_RECONNECT_ATTEMPTS + " attempts: " + detail;
-                            throw new IOException(mFatalError, ioErr);
-                        }
+                        notifyBitPerfectReconnectStatusToWeb("reconnecting", reconnectAttempt, MAX_RECONNECT_ATTEMPTS);
+                        emittedReconnecting = true;
+                        long expDelayMs = Math.min(4000L, 250L << Math.min(4, Math.max(0, reconnectAttempt - 1)));
+                        long sleepTotalMs = retryAfterOverrideMs > 0L ? Math.min(8000L, retryAfterOverrideMs) : expDelayMs;
+                        sleepInterruptibly(sleepTotalMs);
                     }
 
-                    notifyBitPerfectReconnectStatusToWeb("reconnecting", reconnectAttempt, MAX_RECONNECT_ATTEMPTS);
-                    emittedReconnecting = true;
-                    long expDelayMs = Math.min(4000L, 250L << Math.min(4, Math.max(0, reconnectAttempt - 1)));
-                    long sleepTotalMs = retryAfterOverrideMs > 0L ? Math.min(8000L, retryAfterOverrideMs) : expDelayMs;
-                    sleepInterruptibly(sleepTotalMs);
+                    throw new IOException("Stream aborted");
                 }
-
-                throw new IOException("Stream aborted");
             }
 
             private void sleepInterruptibly(long totalMs) {
@@ -6627,6 +7241,10 @@ public class MainActivity extends AppCompatActivity {
                         mActiveConn = conn;
                         mActiveStream = is;
                         mSeqPos = rangeStart;
+                        if (shouldAbort()) {
+                            closeStreamLocked();
+                            throw new IOException("Stream aborted");
+                        }
                         if (rangeStart < reqStart) {
                             if ((reqStart - rangeStart) > 4L * CHUNK_SIZE) {
                                 closeStreamLocked();
@@ -6657,6 +7275,10 @@ public class MainActivity extends AppCompatActivity {
                             mActiveConn = conn;
                             mActiveStream = is;
                             mSeqPos = 0L;
+                            if (shouldAbort()) {
+                                closeStreamLocked();
+                                throw new IOException("Stream aborted");
+                            }
                             if (reqStart > 0L) {
                                 drainAndCacheSequentialLocked(reqStart);
                             }
@@ -6725,13 +7347,16 @@ public class MainActivity extends AppCompatActivity {
                         + "} else if (window.NocturneNative && typeof window.NocturneNative.provideBitPerfectRefreshedAuth === 'function') {"
                         + " window.NocturneNative.provideBitPerfectRefreshedAuth(" + mEpoch + ", '', '{}', false);"
                         + "}";
-                mWebView.post(() -> {
+                boolean posted = mWebView.post(() -> {
                     if (mWebView != null && !shouldAbort()) {
                         mWebView.evaluateJavascript(js, null);
                     } else {
                         latch.countDown();
                     }
                 });
+                if (!posted) {
+                    latch.countDown();
+                }
                 try {
                     boolean signaled = latch.await(AUTH_REFRESH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
                     if (!signaled || shouldAbort()) {
@@ -6748,19 +7373,28 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
 
+                final boolean ok;
+                final String nextUrl;
+                final Map<String, String> nextHeaders;
                 synchronized (mAuthWaitLock) {
                     if (!mAuthRefreshOk) return false;
+                    ok = true;
+                    nextUrl = mRefreshedUrl;
+                    nextHeaders = mRefreshedHeaders != null ? new HashMap<>(mRefreshedHeaders) : null;
+                }
+                if (ok) {
                     synchronized (mLock) {
-                        if (mRefreshedUrl != null && !mRefreshedUrl.isEmpty()) {
-                            mCurrentUrl = mRefreshedUrl;
+                        if (nextUrl != null && !nextUrl.isEmpty()) {
+                            mCurrentUrl = nextUrl;
                         }
                         mResolvedRedirectUrl = null;
-                        if (mRefreshedHeaders != null) {
-                            mHeaders = new HashMap<>(mRefreshedHeaders);
+                        if (nextHeaders != null) {
+                            mHeaders = nextHeaders;
                         }
                     }
                     return true;
                 }
+                return false;
             }
 
             private String extractUrlHost(@Nullable String rawUrl) {
@@ -6858,6 +7492,14 @@ public class MainActivity extends AppCompatActivity {
         mBitPerfectPlayer.setPendingStreamAuth(url, headersJson, source, remoteId, knownBytes);
     }
 
+    public void setBitPerfectKnownDuration(long durationMs) {
+        mBitPerfectPlayer.setPendingKnownDuration(durationMs);
+    }
+
+    public void setBitPerfectTrackWindow(long cueStartMs, long cueDurationMs, String title, String artist, String album) {
+        mBitPerfectPlayer.setTrackWindowMeta(cueStartMs, cueDurationMs, title, artist, album);
+    }
+
     public void updateBitPerfectStreamAuth(String url, String headersJson) {
         mBitPerfectPlayer.updateActiveStreamAuth(url, headersJson);
     }
@@ -6929,6 +7571,11 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void setCloudSyncActive(boolean active) {
             mActivity.runOnUiThread(() -> mActivity.setCloudSyncActive(active));
+        }
+
+        @JavascriptInterface
+        public void setPendingNextCloudWifiLock(boolean nextIsRemote) {
+            mActivity.runOnUiThread(() -> mActivity.setPendingNextCloudWifiLock(nextIsRemote));
         }
 
         @JavascriptInterface
@@ -7330,7 +7977,57 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public String readLocalTextFile(@Nullable String filePath) {
             if (filePath == null || filePath.trim().isEmpty()) return "";
+            String trimmed = filePath.trim();
             try {
+                if (trimmed.startsWith("content://")) {
+                    ContentResolver resolver = mActivity.getContentResolver();
+                    if (resolver == null) return "";
+                    Uri contentUri = Uri.parse(trimmed);
+                    String displayName = "";
+                    long reportedSize = -1L;
+                    try (Cursor cursor = resolver.query(
+                            contentUri,
+                            new String[]{OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE},
+                            null,
+                            null,
+                            null
+                    )) {
+                        if (cursor != null && cursor.moveToFirst()) {
+                            int nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                            if (nameIdx >= 0 && !cursor.isNull(nameIdx)) {
+                                displayName = cursor.getString(nameIdx);
+                            }
+                            int sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE);
+                            if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) {
+                                reportedSize = cursor.getLong(sizeIdx);
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                    if (displayName == null || displayName.trim().isEmpty()) {
+                        String seg = contentUri.getLastPathSegment();
+                        displayName = seg != null ? seg : "";
+                    }
+                    String lowerUriName = displayName.trim().toLowerCase(Locale.US);
+                    boolean allowedUri = lowerUriName.endsWith(".cue") || lowerUriName.endsWith(".lrc")
+                            || lowerUriName.endsWith(".lyricsfile") || lowerUriName.endsWith(".txt")
+                            || lowerUriName.endsWith(".m3u") || lowerUriName.endsWith(".m3u8");
+                    if (!allowedUri) return "";
+                    if (reportedSize > MAX_LOCAL_TEXT_FILE_BYTES) return "";
+                    try (InputStream is = resolver.openInputStream(contentUri);
+                         ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+                        if (is == null) return "";
+                        byte[] buf = new byte[8192];
+                        int read;
+                        int total = 0;
+                        while ((read = is.read(buf)) != -1) {
+                            if (total + read > MAX_LOCAL_TEXT_FILE_BYTES) return "";
+                            bos.write(buf, 0, read);
+                            total += read;
+                        }
+                        if (total <= 0) return "";
+                        return decodeLyricsBytes(bos.toByteArray());
+                    }
+                }
                 File f = resolveReadableLocalFile(filePath.trim());
                 if (!f.exists() || !f.isFile() || !f.canRead()) return "";
                 String lower = f.getName().toLowerCase(Locale.US);
@@ -8383,6 +9080,16 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void setBitPerfectStreamAuth(String url, String headersJson, String source, String remoteId, long knownBytes) {
             mActivity.setBitPerfectStreamAuth(url, headersJson, source, remoteId, knownBytes);
+        }
+
+        @JavascriptInterface
+        public void setBitPerfectKnownDuration(long durationMs) {
+            mActivity.setBitPerfectKnownDuration(durationMs);
+        }
+
+        @JavascriptInterface
+        public void setBitPerfectTrackWindow(long cueStartMs, long cueDurationMs, String title, String artist, String album) {
+            mActivity.setBitPerfectTrackWindow(cueStartMs, cueDurationMs, title, artist, album);
         }
 
         @JavascriptInterface

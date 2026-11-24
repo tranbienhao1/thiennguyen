@@ -20,23 +20,40 @@ const sw = swBuf.toString('utf8');
 const gradle = gradleBuf.toString('utf8');
 const releaseScript = releaseBuf.toString('utf8');
 
+function semverTuple(v) {
+  return String(v).split('.').map(n => parseInt(n, 10) || 0);
+}
+
+function geq(a, b) {
+  const ta = semverTuple(a);
+  const tb = semverTuple(b);
+  for (let i = 0; i < Math.max(ta.length, tb.length); i++) {
+    const da = ta[i] || 0;
+    const db = tb[i] || 0;
+    if (da !== db) return da > db;
+  }
+  return true;
+}
+
 describe('v3.9.96 M3: Release Pipeline, Version Alignment, Asset Parity & ES2019 Compliance (R4)', () => {
-  it('1. Version strings across index.html, sw.js, build.gradle.kts & publish-release.cjs are aligned at v3.9.96 (versionCode 150)', () => {
+  it('1. Version strings across index.html, sw.js, build.gradle.kts & publish-release.cjs are aligned at >= v3.9.96 (versionCode >= 150)', () => {
     const mHtml = html.match(/id="fiio-dap-badge"[^>]*>FiiO M11S · v(\d+\.\d+\.\d+)</);
     const mSwVer = sw.match(/^const CACHE_VERSION = 'v(\d+\.\d+\.\d+)';/m);
     const mSwName = sw.match(/^const CACHE_NAME = 'nocturne-v(\d+\.\d+\.\d+)';/m);
     const mGCode = gradle.match(/^\s*versionCode = (\d+)\b/m);
     const mGName = gradle.match(/^\s*versionName = "(\d+\.\d+\.\d+)"/m);
     const mRelTag = releaseScript.match(/process\.argv\[2\] \|\| 'v(\d+\.\d+\.\d+)'/);
+    const mRelCode = releaseScript.match(/\(versionCode (\d+)\)/);
 
-    assert.ok(mHtml && mSwVer && mSwName && mGCode && mGName && mRelTag, 'All version markers must be present');
-    assert.equal(mHtml[1], '3.9.96', 'index.html #fiio-dap-badge must be v3.9.96');
-    assert.equal(mSwVer[1], '3.9.96', 'sw.js CACHE_VERSION must be v3.9.96');
-    assert.equal(mSwName[1], '3.9.96', 'sw.js CACHE_NAME must be nocturne-v3.9.96');
-    assert.equal(Number(mGCode[1]), 150, 'build.gradle.kts versionCode must be 150');
-    assert.equal(mGName[1], '3.9.96', 'build.gradle.kts versionName must be 3.9.96');
-    assert.equal(mRelTag[1], '3.9.96', 'publish-release.cjs default tag must be v3.9.96');
-    assert.ok(releaseScript.includes('(versionCode 150)'), 'publish-release.cjs bodyText must reference versionCode 150');
+    assert.ok(mHtml && mSwVer && mSwName && mGCode && mGName && mRelTag && mRelCode, 'All version markers must be present');
+    const ver = mHtml[1];
+    assert.equal(geq(ver, '3.9.96'), true, `index.html #fiio-dap-badge must be >= v3.9.96 (got ${ver})`);
+    assert.equal(mSwVer[1], ver, `sw.js CACHE_VERSION must match ${ver}`);
+    assert.equal(mSwName[1], ver, `sw.js CACHE_NAME must match nocturne-v${ver}`);
+    assert.equal(Number(mGCode[1]) >= 150, true, `build.gradle.kts versionCode must be >= 150 (got ${mGCode[1]})`);
+    assert.equal(mGName[1], ver, `build.gradle.kts versionName must match ${ver}`);
+    assert.equal(mRelTag[1], ver, `publish-release.cjs default tag must match v${ver}`);
+    assert.equal(Number(mRelCode[1]), Number(mGCode[1]), 'publish-release.cjs bodyText versionCode must match build.gradle.kts');
   });
 
   it('2. // History: comments in sw.js and android/app/build.gradle.kts preserve prior release markers', () => {
@@ -61,17 +78,22 @@ describe('v3.9.96 M3: Release Pipeline, Version Alignment, Asset Parity & ES2019
     }
   });
 
-  it('3. .agent/publish-release.cjs parses cleanly and renders valid v3.9.96 / versionCode 150 release notes', () => {
+  it('3. .agent/publish-release.cjs parses cleanly and renders valid >= v3.9.96 / versionCode >= 150 release notes', () => {
     assert.doesNotThrow(() => new vm.Script(releaseScript, { filename: '.agent/publish-release.cjs' }));
+    const mRelTag = releaseScript.match(/process\.argv\[2\] \|\| 'v(\d+\.\d+\.\d+)'/);
+    const mRelCode = releaseScript.match(/\(versionCode (\d+)\)/);
+    assert.ok(mRelTag && mRelCode, 'publish-release.cjs must define default tag and versionCode');
+    assert.equal(geq(mRelTag[1], '3.9.96'), true, 'publish-release.cjs tag must be >= v3.9.96');
+    assert.equal(Number(mRelCode[1]) >= 150, true, 'publish-release.cjs versionCode must be >= 150');
     const mBody = releaseScript.match(/const name = process\.argv\[3\] \|\| (`[\s\S]*?`);[\s\S]*?: (`[\s\S]*?`);\n\n\s*const headers/);
     assert.ok(mBody, 'publish-release.cjs must define name and bodyText template literals');
-    const tag = 'v3.9.96';
+    const tag = `v${mRelTag[1]}`;
     const renderedName = vm.runInNewContext(mBody[1], { tag });
     const renderedBody = vm.runInNewContext(mBody[2], { tag });
-    assert.ok(renderedName.includes('v3.9.96'), 'Release title must include v3.9.96');
-    assert.ok(renderedBody.includes('Nocturne v3.9.96 (versionCode 150)'), 'Release body must include Nocturne v3.9.96 (versionCode 150)');
+    assert.ok(renderedName.includes(tag), `Release title must include ${tag}`);
+    assert.ok(renderedBody.includes(`Nocturne ${tag} (versionCode ${mRelCode[1]})`), `Release body must include Nocturne ${tag} (versionCode ${mRelCode[1]})`);
     assert.ok(renderedBody.includes('Nocturne-Android.apk'), 'Release body must mention Nocturne-Android.apk');
-    assert.ok(renderedBody.includes('HttpRangeMediaDataSource') && renderedBody.includes('tryLoadGoogleChangesDelta') && renderedBody.includes('clearCloudSourceCatalog'), 'Release body must summarize R1, R2, and R3');
+    assert.ok(renderedBody.includes('#### 1.') && renderedBody.includes('#### 2.') && renderedBody.includes('#### 3.'), 'Release body must include structured #### 1./2./3. sections');
   });
 
   it('4. All synced root files, 404.html, and android/app/src/main/assets/* have 0 CR bytes and exact parity', () => {

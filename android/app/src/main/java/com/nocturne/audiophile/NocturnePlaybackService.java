@@ -40,6 +40,7 @@ public class NocturnePlaybackService extends Service {
 
     public static volatile MediaSession.Token sMediaSessionToken = null;
     public static volatile android.graphics.Bitmap sCurrentAlbumArt = null;
+    private static volatile NocturnePlaybackService sInstance = null;
     public static final long PAUSE_IDLE_TIMEOUT_MS = 20L * 60L * 1000L;
 
     private final android.os.Handler mIdleHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -54,6 +55,7 @@ public class NocturnePlaybackService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        sInstance = this;
         ensureNotificationChannel();
     }
 
@@ -211,8 +213,54 @@ public class NocturnePlaybackService extends Service {
         return builder.build();
     }
 
+    private void applyPausedNotificationState(@Nullable String title, @Nullable String artist, @Nullable String album) {
+        mIdleHandler.removeCallbacks(mIdleStopRunnable);
+        Notification notification = buildNotification(title, artist, album, false);
+        mIdleHandler.postDelayed(mIdleStopRunnable, PAUSE_IDLE_TIMEOUT_MS);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_DETACH);
+            } else {
+                stopForeground(false);
+            }
+        } catch (Exception ignored) {}
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) {
+                nm.notify(NOTIFICATION_ID, notification);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    public static boolean syncBackgroundPauseIfRunning(@Nullable String title, @Nullable String artist, @Nullable String album) {
+        final NocturnePlaybackService svc = sInstance;
+        if (svc == null) return false;
+        svc.mIdleHandler.post(() -> {
+            if (sInstance == svc) {
+                svc.applyPausedNotificationState(title, artist, album);
+            }
+        });
+        return true;
+    }
+
+    public static boolean stopIfRunning() {
+        final NocturnePlaybackService svc = sInstance;
+        if (svc == null) return false;
+        svc.mIdleHandler.post(() -> {
+            if (sInstance == svc) {
+                svc.mIdleHandler.removeCallbacks(svc.mIdleStopRunnable);
+                svc.stopForegroundCompat();
+                svc.stopSelf();
+            }
+        });
+        return true;
+    }
+
     @Override
     public void onDestroy() {
+        if (sInstance == this) {
+            sInstance = null;
+        }
         mIdleHandler.removeCallbacks(mIdleStopRunnable);
         stopForegroundCompat();
         super.onDestroy();

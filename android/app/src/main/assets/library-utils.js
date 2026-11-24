@@ -1727,6 +1727,12 @@
       icon: 'source'
     };
 
+    const isNativeBp = Boolean(options.isNativeBitPerfect && !isDsd);
+    const isWebBp = Boolean(!isNativeBp && options.bitPerfectEnabled && !isDsd);
+    const lockedBp = (options.bitPerfectLockedFormat && typeof options.bitPerfectLockedFormat === 'object')
+      ? options.bitPerfectLockedFormat
+      : null;
+
     // 2. Stage: Decode
     let decodeStep;
     if (isDsd) {
@@ -1738,6 +1744,15 @@
         description: `Decimation FIR 48-tap → PCM ${(targetRate / 1000).toFixed(1)} kHz / ${targetDepth}-bit`,
         detail: 'Giải mã phần mềm thời gian thực bằng Web Worker (dsd2pcm)',
         badge: 'DSD → PCM',
+        icon: 'decode'
+      };
+    } else if (isNativeBp) {
+      decodeStep = {
+        stage: 'decode',
+        title: 'Giải mã & truyền tải Native (Bit-Perfect)',
+        description: 'Android MediaCodec → AudioTrack Direct (Bit-Perfect)',
+        detail: 'Giải mã trực tiếp trên tầng Native Android, không qua Web Audio',
+        badge: (lockedBp && lockedBp.mixerBitPerfect) ? 'Bit-Perfect Direct' : 'Direct PCM',
         icon: 'decode'
       };
     } else {
@@ -1754,6 +1769,7 @@
 
     // 3. Stage: DSP
     const dspActive = [];
+    if (!isNativeBp && !isWebBp) {
     if (options.eqEnabled) {
       const presetLabel = options.eqPreset ? ((options.eqPresetLabels && options.eqPresetLabels[options.eqPreset]) || options.eqPreset) : 'Tùy chỉnh';
       const preampText = Number.isFinite(options.eqPreamp) ? ` (Preamp ${options.eqPreamp.toFixed(1)} dB)` : '';
@@ -1821,9 +1837,30 @@
         dspActive.push(`Bù Pha Trầm: ${phaseProfile.badge} (${phaseProfile.name.split(' (')[0]})`);
       }
     }
+    }
 
     let dspStep;
-    if (dspActive.length > 0) {
+    if (isNativeBp) {
+      dspStep = {
+        stage: 'dsp',
+        title: 'Xử lý DSP (Bypass)',
+        description: 'Bypass hoàn toàn Web Audio & Android Mixer',
+        detail: 'Tín hiệu PCM nguyên bản truyền thẳng tới AudioTrack Native (0 dB)',
+        badge: 'Bit-perfect',
+        isEnhanced: false,
+        icon: 'bypass'
+      };
+    } else if (isWebBp) {
+      dspStep = {
+        stage: 'dsp',
+        title: 'Xử lý DSP (Bypass)',
+        description: 'Web Audio Pure Direct (Bypass DSP, 0 dB)',
+        detail: 'Tắt EQ, Crossfeed và hiệu ứng để giữ nguyên tín hiệu',
+        badge: 'Bit-perfect',
+        isEnhanced: false,
+        icon: 'bypass'
+      };
+    } else if (dspActive.length > 0) {
       dspStep = {
         stage: 'dsp',
         title: 'Xử lý DSP (Digital Signal Processing)',
@@ -1852,16 +1889,37 @@
       : (options.renderTelemetry && typeof options.renderTelemetry === 'object'
         ? formatVisualizerRenderTelemetry(options.renderTelemetry)
         : '');
-    const outputStep = {
-      stage: 'output',
-      title: 'Thiết bị đầu ra (Output)',
-      description: `AudioContext Destination · ${contextRate}`,
-      detail: renderTelemetryText
-        ? `Hệ điều hành / Trình duyệt điều phối tới DAC hoặc Loa/Tai nghe · Visualizer: ${renderTelemetryText}`
-        : 'Hệ điều hành / Trình duyệt điều phối tới DAC hoặc Loa/Tai nghe',
-      badge: contextRate,
-      icon: 'output'
-    };
+    let outputStep;
+    if (isNativeBp) {
+      const outRate = (lockedBp && Number(lockedBp.sampleRate)) || sampleRate || Number(options.contextRate) || 0;
+      const outDepth = (lockedBp && Number(lockedBp.bitDepth)) || bitDepth || 16;
+      const outRateText = outRate ? `${(outRate / 1000).toFixed(outRate % 1000 ? 1 : 0)} kHz` : 'Native Rate';
+      const devName = lockedBp
+        ? String(lockedBp.deviceName || '').trim()
+        : (options.androidAudioDeviceName ? String(options.androidAudioDeviceName).trim() : '');
+      const baseDetail = (lockedBp && lockedBp.mixerBitPerfect)
+        ? 'USB DAC / AudioTrack Mixer Bit-Perfect (0 dBFS)'
+        : 'AudioTrack Direct PCM · Android HAL';
+      outputStep = {
+        stage: 'output',
+        title: 'Thiết bị đầu ra (Output)',
+        description: `${devName || 'Android Bit-Perfect Direct'} · ${outRateText} / ${outDepth}-bit`,
+        detail: renderTelemetryText ? `${baseDetail} · Visualizer: ${renderTelemetryText}` : baseDetail,
+        badge: `${outRateText} · ${(lockedBp && lockedBp.mixerBitPerfect) || devName ? 'USB DAC' : 'Direct'}`,
+        icon: 'output'
+      };
+    } else {
+      outputStep = {
+        stage: 'output',
+        title: 'Thiết bị đầu ra (Output)',
+        description: `AudioContext Destination · ${contextRate}`,
+        detail: renderTelemetryText
+          ? `Hệ điều hành / Trình duyệt điều phối tới DAC hoặc Loa/Tai nghe · Visualizer: ${renderTelemetryText}`
+          : 'Hệ điều hành / Trình duyệt điều phối tới DAC hoặc Loa/Tai nghe',
+        badge: contextRate,
+        icon: 'output'
+      };
+    }
 
     // Quality Tier Assessment
     let qualityTier = 'standard';
@@ -1877,7 +1935,9 @@
       qualityLabel = 'LOSSLESS';
     }
 
-    if (dspActive.length > 0) {
+    if (isNativeBp) {
+      qualityLabel = (lockedBp && lockedBp.mixerBitPerfect) ? 'BIT-PERFECT' : 'DIRECT PCM';
+    } else if (dspActive.length > 0) {
       qualityLabel = `${qualityLabel} · ENHANCED`;
     }
 
@@ -1887,6 +1947,9 @@
       hasDsp: dspActive.length > 0,
       steps: [sourceStep, decodeStep, dspStep, outputStep]
     };
+    if (isNativeBp) {
+      result.isNativeBitPerfect = true;
+    }
     if (renderTelemetryText) {
       result.renderTelemetry = renderTelemetryText;
     }
@@ -3008,7 +3071,11 @@
   function buildRoonSignalPathStages(track, options = {}) {
     if (!track) return [];
     const stages = [];
-    const isBypassed = !!options.isDspBypassed;
+    const isNativeBp = Boolean(options.isNativeBitPerfect && !track.isDsd);
+    const isBypassed = Boolean(options.isDspBypassed || isNativeBp || (options.bitPerfectEnabled && !track.isDsd));
+    const lockedBp = (options.bitPerfectLockedFormat && typeof options.bitPerfectLockedFormat === 'object')
+      ? options.bitPerfectLockedFormat
+      : null;
 
     // Stage 1: Source
     const sourceRateStr = track.sampleRate ? `${(track.sampleRate / 1000).toFixed(1)}kHz` : 'PCM';
@@ -3031,8 +3098,10 @@
       name: 'Bộ giải mã',
       icon: 'cpu',
       status: 'bitperfect',
-      description: track.isDsd ? 'DSD-to-PCM Audio Worker Engine' : 'Trình giải mã Native Audio Web',
-      subtext: 'Bảo toàn nguyên vẹn bitstream'
+      description: track.isDsd
+        ? 'DSD-to-PCM Audio Worker Engine'
+        : (isNativeBp ? 'Android MediaCodec → AudioTrack Direct (Bit-Perfect)' : 'Trình giải mã Native Audio Web'),
+      subtext: isNativeBp ? 'Bypass hoàn toàn tầng trộn Web Audio' : 'Bảo toàn nguyên vẹn bitstream'
     });
 
     // Stage 3: DSP
@@ -3046,21 +3115,28 @@
     });
 
     // Stage 4: Output
-    const outRate = options.outputSampleRate || 48000;
+    const outRate = (isNativeBp && lockedBp && Number(lockedBp.sampleRate)) || options.outputSampleRate || 48000;
+    const outDepth = (isNativeBp && lockedBp && Number(lockedBp.bitDepth)) || Number(track.bitDepth) || 16;
+    const outDevName = (isNativeBp && lockedBp)
+      ? String(lockedBp.deviceName || '').trim()
+      : (isNativeBp && options.androidAudioDeviceName ? String(options.androidAudioDeviceName).trim() : '');
     const outRenderTelemetry = typeof options.renderTelemetry === 'string' && options.renderTelemetry.trim()
       ? options.renderTelemetry.trim()
       : (options.renderTelemetry && typeof options.renderTelemetry === 'object'
         ? formatVisualizerRenderTelemetry(options.renderTelemetry)
         : '');
+    const outBaseSubtext = isNativeBp
+      ? `${(lockedBp && lockedBp.mixerBitPerfect) ? 'USB DAC Bit-Perfect' : 'Direct PCM'} ${(outRate / 1000).toFixed(1)} kHz / ${outDepth}-bit`
+      : `AudioContext ${(outRate / 1000).toFixed(1)} kHz`;
     stages.push({
       stage: 'output',
       name: 'Đầu ra & Vùng phát',
       icon: 'speaker',
       status: 'ready',
-      description: options.zoneName || 'Phòng nghe Audiophile',
+      description: outDevName || options.zoneName || 'Phòng nghe Audiophile',
       subtext: outRenderTelemetry
-        ? `AudioContext ${(outRate / 1000).toFixed(1)} kHz · ${outRenderTelemetry}`
-        : `AudioContext ${(outRate / 1000).toFixed(1)} kHz`
+        ? `${outBaseSubtext} · ${outRenderTelemetry}`
+        : outBaseSubtext
     });
 
     return stages;
@@ -6466,7 +6542,7 @@
     for (let i = 0; i < mapped.length; i++) {
       if (currentCount <= limitCount && currentTotalBytes <= limitTotal) break;
       const candidate = mapped[i];
-      if (candidate.isPinned && (mapped.length - i) <= pinnedKeys.size && currentCount > pinnedKeys.size) {
+      if (candidate.isPinned && !(options && options.allowEvictPinned)) {
         continue;
       }
       keysToEvict.push(candidate.key);
@@ -8251,7 +8327,7 @@
       if (!entry) continue;
       const key = String(entry.key || entry.id || '');
       const size = Number(entry.size || entry.byteLength || (entry.blob && entry.blob.size) || 0);
-      const timestamp = Number(entry.timestamp || entry.cachedAt || 0);
+      const timestamp = Number(entry.lastAccessedAt || entry.savedAt || entry.timestamp || entry.cachedAt || 0);
 
       const isExpired = timestamp > 0 && (now - timestamp > maxAgeMs);
       let isReferenced = false;

@@ -35,38 +35,56 @@ function extractFunction(code, name) {
 }
 
 function fakeStore(initialRows) {
-  const tx = {oncomplete: null, onerror: null};
-  const store = {
-    transaction: tx,
-    _rows: initialRows.map(row => ({...row})),
-    getAll() {
-      const request = {result: null, onsuccess: null, onerror: null};
-      queueMicrotask(() => {
-        request.result = store._rows.slice();
-        if (request.onsuccess) request.onsuccess();
-        setTimeout(() => { if (tx.oncomplete) tx.oncomplete(); }, 0);
-      });
-      return request;
-    },
-    delete(id) { store._rows = store._rows.filter(row => row.id !== id); },
-    put(entry) {
-      const index = store._rows.findIndex(row => row.id === entry.id);
-      if (index >= 0) store._rows[index] = {...entry};
-      else store._rows.push({...entry});
+  const rows = initialRows.map(row => ({...row}));
+  function createTxStore() {
+    const tx = {oncomplete: null, onerror: null, onabort: null};
+    let completeScheduled = false;
+    function scheduleComplete() {
+      if (completeScheduled) return;
+      completeScheduled = true;
+      setTimeout(() => { if (tx.oncomplete) tx.oncomplete(); }, 0);
     }
+    return {
+      transaction: tx,
+      get _rows() { return rows; },
+      getAll() {
+        const request = {result: null, onsuccess: null, onerror: null};
+        queueMicrotask(() => {
+          request.result = rows.slice();
+          if (request.onsuccess) request.onsuccess();
+          scheduleComplete();
+        });
+        return request;
+      },
+      delete(id) {
+        for (let i = rows.length - 1; i >= 0; i--) {
+          if (rows[i].id === id) rows.splice(i, 1);
+        }
+        scheduleComplete();
+      },
+      put(entry) {
+        const index = rows.findIndex(row => row.id === entry.id);
+        if (index >= 0) rows[index] = {...entry};
+        else rows.push({...entry});
+        scheduleComplete();
+      }
+    };
+  }
+  return {
+    _rows: rows,
+    catalogTransaction: () => createTxStore()
   };
-  return store;
 }
 
 const dataCover = size => `data:image/jpeg;base64,${'x'.repeat(size)}`;
 
 async function runPrune(rows) {
-  const store = fakeStore(rows);
-  const context = vm.createContext({library, catalogTransaction: () => store, Promise, console});
+  const db = fakeStore(rows);
+  const context = vm.createContext({library, catalogTransaction: db.catalogTransaction, Promise, console});
   const source = extractFunction(appCode, 'pruneCloudCatalog');
   vm.runInContext(source, context, {filename: 'pruneCloudCatalog.js'});
   await vm.runInContext('pruneCloudCatalog()', context, {filename: 'pruneCloudCatalog.call.js'});
-  return store._rows;
+  return db._rows;
 }
 
 (async () => {
