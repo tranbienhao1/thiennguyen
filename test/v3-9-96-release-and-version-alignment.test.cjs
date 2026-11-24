@@ -114,7 +114,7 @@ describe('v3.9.96 M3: Release Pipeline, Version Alignment, Asset Parity & ES2019
         const stripped = line
           .replace(/\/\*[\s\S]*?\*\//g, '')
           .replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`/g, '');
-        assert.equal(/[^\w$]\?\.\w|\?\.\[|\?\.\(/.test(stripped), false, `${rel} forbidden optional chaining (?.) in: ${line.trim()}`);
+        assert.equal(/\?\.(?!\d)/.test(stripped), false, `${rel} forbidden optional chaining (?.) in: ${line.trim()}`);
         assert.equal(/\?\?/.test(stripped), false, `${rel} forbidden nullish coalescing (??/??=) in: ${line.trim()}`);
         assert.equal(/\|\|=|&&=/.test(stripped), false, `${rel} forbidden logical assignment in: ${line.trim()}`);
         assert.equal(/\.replaceAll\s*\(/.test(stripped), false, `${rel} forbidden .replaceAll() in: ${line.trim()}`);
