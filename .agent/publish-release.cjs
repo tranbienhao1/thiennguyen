@@ -80,24 +80,24 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.95';
-  const name = process.argv[3] || `Nocturne ${tag} (Mixed Cloud/Local Preload Expiry Guard, USB DAC Mid-Playback Reconnect & Cloud Folder Cover Propagation)`;
+  const tag = process.argv[2] || 'v3.9.96';
+  const name = process.argv[3] || `Nocturne ${tag} (Cloud Delta & Checkpoint Recovery, Native Bit-Perfect HTTP Range Stream Reconnect & Seek Sync, Cache Hygiene & Keyboard Shortcuts)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 149) — Gia cố Preload Cloud/Nội bộ, USB DAC Reconnect & Lan truyền Ảnh bìa Thư mục Cloud
+    : `### Nocturne ${tag} (versionCode 150) — Gia cố Đồng bộ Delta/Checkpoint Cloud, Luồng Bit-Perfect HTTP Range & Phím tắt / Cache Hygiene
 
-#### 1. Chuyển tiếp bài kế Mixed Cloud <-> Nội bộ & Phím tắt điều khiển (\`index.html\`)
-- Bổ sung \`isPreloadedStandbyStaleOrErrored(next, preloadUrl)\` kiểm tra \`standbyAudio.error\`, URL OneDrive pre-signed sắp hết hạn và token Google Drive gần hết hạn; tích hợp vào \`tryReuseHealthyStandbyPreload\`, \`preloadNext\` và \`playTrack\` để tự động vô hiệu hóa URL cũ và tải lại luồng sạch khi chuyển bài.
-- Bổ sung \`event.preventDefault()\` cho phím tắt \`n\` / \`p\` và mở rộng bài kiểm thử Chrome CDP E2E thực tế cho bộ phím \`n\` / \`p\` / \`s\` / \`r\`.
+#### 1. Khôi phục Delta Cursor & Tiếp tục Quét Cloud Thư viện lớn (\`index.html\`)
+- Bổ sung \`parseCloudRetryAfterMs\` (hỗ trợ số giây, HTTP-date và giới hạn 30s + jitter) cùng cơ chế lan truyền OAuth token mới làm tươi trong \`fetchGoogleDrivePageWithRetry\`, \`graphGet\`, \`enqueueMicrosoftSharedItems\` và \`saveMicrosoftLatestDeltaLink\`.
+- Gia cố \`tryLoadGoogleChangesDelta\` và \`tryLoadMicrosoftDeltaSync\` để lưu các trang đã đồng bộ trước khi xử lý \`410 Gone\` / \`syncStateNotFound\` / lỗi mạng hoặc vượt ngưỡng trang; khôi phục checkpoint Google Drive / OneDrive khi gặp \`404\`/\`410\`, giữ hàng đợi >500 thư mục, hoãn xóa checkpoint cho đến khi hoàn tất \`scanGoogleDriveAudioShortcuts\` và chia sẻ khóa WakeLock/WifiLock \`setCloudSyncActive\` xuyên suốt cả hai nguồn Cloud.
 
-#### 2. Tự động dựng lại AudioTrack khi cắm lại USB DAC & Đồng bộ Bit-Perfect HUD (\`MainActivity.java\`, \`index.html\`)
-- Bổ sung cờ \`mRouteRefreshWasConnect\` trong \`BitPerfectAudioPlayer\` để luôn dựng lại \`AudioTrack\` và cấu hình lại API 34 Bit-Perfect mixer khi cắm USB DAC ngoài giữa lúc đang phát (kể cả khi Android tái sử dụng \`deviceId\` hoặc đang fallback 16-bit trên loa trong).
-- Reset \`state.bitPerfectLockedFormat = null\` trong \`playTrack\` tại các điểm chuyển đổi giữa DSD, Native Bit-Perfect bài mới và Web Audio để badge tần số mẫu / bit-depth không bao giờ hiển thị thông số cũ.
+#### 2. Tự động Kết nối lại & Tua HTTP Range cho Native Bit-Perfect Cloud (\`MainActivity.java\`, \`index.html\`)
+- Triển khai \`HttpRangeMediaDataSource\` trong \`BitPerfectAudioPlayer\` (bộ nhớ đệm LRU 16 chunk × 256 KB giữ đầu/cuối tệp, xử lý \`206\`/\`416\` và chuyển hướng khác host, tự kết nối lại tối đa 5 lần khi rớt mạng hoặc EOF sớm, chờ làm mới OAuth \`401\`/\`403\`/\`404\`/\`410\` qua \`CountDownLatch\` và \`window.onNativeBitPerfectAuthRefresh\`).
+- Định tuyến luồng \`google\` / \`onedrive\` trực tiếp qua \`resolveCloudBitPerfectStream\` + \`setBitPerfectStreamAuth\` không tạo \`blob:\`, phân loại lỗi \`[NET]\`/\`[AUTH]\` trong \`onNativeBitPerfectError\`, và đồng bộ tua nhanh (\`mSeekGeneration\`, gộp 90ms cho luồng mạng, \`extractor.getSampleTime()\`, giữ \`sawOutputEOS\`, \`_bpSeekHoldUntilMs\`, \`#room-seek\` \`isSeeking\`, và chuẩn hóa offset CUE trên \`seekByStep\`, \`wfCanvas\`, \`0\`–\`9\`, \`j\`/\`l\`).
 
-#### 3. Lan truyền Ảnh bìa Thư mục Cloud & Dọn dẹp Object URLs (\`library-utils.js\`, \`index.html\`)
-- Mở rộng \`library.extractTrackDirectory\` hỗ trợ \`remotePath\`, \`parentPath\` / \`folderPath\`, \`remoteParentId\` (OneDrive) và \`parents[0]\` (Google Drive) đồng thời bỏ qua \`blob:\` / \`data:\` URL, giúp \`restoreCloudCatalog\` -> \`propagateAndBroadcastCovers\` lan truyền ảnh bìa chuẩn xác sau khi tải lại trang.
-- Mở rộng \`pruneRemovedLocalFolderTracks\` thu hồi các \`blob:\` cover không còn được tham chiếu và gọi \`pruneOrphanedAlbumCovers()\` + \`pruneExcessObjectUrls()\`.
+#### 3. Vệ sinh Bộ nhớ đệm Cloud & Phím tắt Điều khiển (\`index.html\`, \`library-utils.js\`, Chrome E2E)
+- Đồng bộ hóa việc dọn dẹp \`firstSliceCache\` theo cả khóa \`library.historyTrackKey\` (\`["google",...]\` / \`["onedrive",...]\`) lẫn tiền tố cũ trong \`clearCloudSourceCatalog\`, \`purgeCloudSliceCacheAndOrphanedCovers\` và \`defragmentCacheDatabase\`; chặn tái sinh \`cloudCatalog\` bằng \`_cloudSourceCleared\`, dọn hàng đợi metadata/persist, và tự phát hiện đổi tài khoản Google Drive / OneDrive.
+- Vá lỗi null \`volume-mobile\` trong \`setGain\`, đồng bộ \`corsBypassAudio.volume\`, thông báo khóa âm lượng Bit-Perfect cho \`toggleMute\`/\`ArrowUp\`/\`ArrowDown\`, tránh xung đột phím \`n\` với Night Dimmer, và mở rộng kiểm thử Chrome CDP E2E cho \`ArrowUp\`, \`ArrowDown\`, \`u\`, \`0\`–\`9\`, \`j\`, \`l\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

@@ -2280,6 +2280,7 @@
               Lấy token tại: <a href="https://developer.microsoft.com/en-us/graph/graph-explorer" target="_blank" rel="noopener" class="text-sky-400 hover:underline">Microsoft Graph Explorer</a> (quyền Files.Read)
             </div>
           </div>
+          <button id="microsoft-full-resync" type="button" class="mt-2.5 w-full rounded-lg border border-sky-400/30 bg-sky-500/15 px-3 py-2 text-[11px] font-medium text-sky-200 transition hover:bg-sky-500/25">🔄 Quét lại toàn bộ OneDrive (khắc phục thiếu bài)</button>
           <button id="microsoft-disconnect" type="button" class="mt-2.5 w-full rounded-lg border border-rose-300/25 bg-rose-500/10 px-3 py-2 text-[11px] font-medium text-rose-200 transition hover:bg-rose-500/20">Ngắt kết nối &amp; xóa nhạc OneDrive</button>
 
           <!-- Tier 3: Custom Client ID Override (Advanced) -->
@@ -2370,7 +2371,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.95</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.96</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3928,7 +3929,7 @@
     }
     function queueCloudMetadata(tracks) {
       for (const track of tracks) {
-        if (!track || !['google','onedrive'].includes(track.source) || (track.metadataLoaded && track.cover) || cloudMetadataQueued.has(track)) continue;
+        if (!track || track._cloudSourceCleared || !['google','onedrive'].includes(track.source) || (track.metadataLoaded && track.cover) || cloudMetadataQueued.has(track)) continue;
         if (track.source === 'google' && (!state.googleToken || Date.now() >= state.googleExpiresAt - 60000)) continue;
         if (track.source === 'onedrive' && !state.microsoftAccessToken) continue;
         cloudMetadataQueued.add(track);
@@ -3970,7 +3971,7 @@
       return persistCloudCatalog(batch, { skipPrune: !runPrune }).catch(() => {});
     }
     function queueCloudCatalogPersist(track) {
-      if (!track || !track.id || !['google', 'onedrive'].includes(track.source)) return;
+      if (!track || !track.id || track._cloudSourceCleared || !['google', 'onedrive'].includes(track.source)) return;
       pendingCloudCatalogPersistMap.set(track.id, track);
       if (pendingCloudCatalogPersistMap.size >= CLOUD_CATALOG_PERSIST_BATCH_SIZE) {
         flushQueuedCloudCatalogPersist(false);
@@ -4001,7 +4002,7 @@
         if (cloudMetadataPausedUntil && Date.now() < cloudMetadataPausedUntil) break;
         const track = cloudMetadataQueue.shift();
         if (!track) continue;
-        if ((track.metadataLoaded && track.cover) || (track.metadataRetryAt && Date.now() < track.metadataRetryAt)) { cloudMetadataQueued.delete(track); continue; }
+        if (track._cloudSourceCleared || (track.metadataLoaded && track.cover) || (track.metadataRetryAt && Date.now() < track.metadataRetryAt)) { cloudMetadataQueued.delete(track); continue; }
         track.metadataRetryAt = Date.now() + 60 * 60 * 1000;
         cloudMetadataActive++;
         track.metadataRequest = enrichCloudTrack(track).catch(error => console.debug('Cloud metadata enrichment was skipped:', error.message || error)).finally(() => {
@@ -4010,7 +4011,7 @@
           cloudMetadataActive--;
           if (track._requeueMetaOnBackoff) {
             delete track._requeueMetaOnBackoff;
-            if (!cloudMetadataQueued.has(track)) {
+            if (!track._cloudSourceCleared && !cloudMetadataQueued.has(track)) {
               cloudMetadataQueued.add(track);
               cloudMetadataQueue.unshift(track);
             }
@@ -4135,10 +4136,12 @@
       }));
     }
     async function enrichCloudTrack(track) {
+      if (!track || track._cloudSourceCleared) return;
       const [tagResult, imageResult] = await allSettledCompat([
         cloudTagRequest(track),
         track.source === 'onedrive' ? microsoftThumbnail(track) : googleThumbnail(track)
       ]);
+      if (track._cloudSourceCleared) return;
       let changed = false;
       if (tagResult.status === 'fulfilled') {
         const tags = tagResult.value || {};
@@ -4170,6 +4173,7 @@
         if (!cover && typeof tags.cover === 'string' && tags.cover.startsWith('data:image')) cover = tags.cover;
         if (cover) track.cover = await normalizeCoverImage(cover);
         else if (track.cover === undefined) track.cover = null;
+        if (track._cloudSourceCleared) return;
         if (track.cover) {
           if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(track.cover, track);
           const aKey = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function') ? library.buildAlbumKey(track) : (track.album || '');
@@ -4192,6 +4196,7 @@
       }
       if (!track.cover && imageResult.status === 'fulfilled' && imageResult.value) {
         track.cover = await normalizeCoverImage(imageResult.value);
+        if (track._cloudSourceCleared) return;
         if (track.cover) {
           if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(track.cover, track);
           const aKey = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function') ? library.buildAlbumKey(track) : (track.album || '');
@@ -4199,6 +4204,7 @@
         }
         changed = true;
       }
+      if (track._cloudSourceCleared) return;
       if (changed) {
         cloudMetadataBackoffMs = 0;
         trackMetadataRevision++;
@@ -4328,6 +4334,8 @@
           state.isNativeBitPerfectPlaying = false;
           state.isNativeBitPerfectPaused = false;
           state.bitPerfectLockedFormat = null;
+          state._bpSeekHoldUntilMs = 0;
+          state._bpSeekTargetSec = null;
           if (typeof syncPlaybackButtonsUi === 'function') {
             syncPlaybackButtonsUi(Boolean(audio && !audio.paused && audio.src && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(audio))));
           }
@@ -4374,6 +4382,34 @@
     }
     if (typeof window !== 'undefined') window.syncPlaybackButtonsUi = syncPlaybackButtonsUi;
 
+    function syncSeekUiAfterJump(relSec, durSec) {
+      const safeDur = (Number.isFinite(durSec) && durSec > 0) ? durSec : 0;
+      const safeRel = Math.max(0, safeDur > 0 ? Math.min(relSec, safeDur) : relSec);
+      const curFmt = typeof formatTime === 'function' ? formatTime(safeRel) : '';
+      if (typeof $ === 'function') {
+        if (curFmt) {
+          if ($('current-time')) $('current-time').textContent = curFmt;
+          if ($('current-time-mobile')) $('current-time-mobile').textContent = curFmt;
+          if ($('room-current-time')) $('room-current-time').textContent = curFmt;
+          if ($('fullscreen-time-cur')) $('fullscreen-time-cur').textContent = curFmt;
+        }
+        if (safeDur > 0) {
+          if ($('room-remaining') && typeof formatRemainingTime === 'function') {
+            $('room-remaining').textContent = formatRemainingTime(safeRel, safeDur);
+          }
+          const ratio = Math.max(0, Math.min(1000, Math.round((safeRel / safeDur) * 1000)));
+          if (typeof syncSeek === 'function') syncSeek(ratio);
+          const rSeek = $('room-seek');
+          if (rSeek) {
+            rSeek.value = String(ratio);
+            if (typeof paintSeek === 'function') paintSeek(rSeek, ratio);
+          }
+        }
+      }
+      if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+    }
+    if (typeof window !== 'undefined') window.syncSeekUiAfterJump = syncSeekUiAfterJump;
+
     function setupBitPerfectIntegration() {
       const toggle = $('bitperfect-mode-toggle');
       if (toggle) {
@@ -4386,6 +4422,13 @@
       window.onNativeBitPerfectPosition = (positionMs, durationMs) => {
         if (!state.isSeeking && Number.isFinite(positionMs) && positionMs >= 0) {
           const curSec = positionMs / 1000;
+          const seekHoldUntil = Number(state._bpSeekHoldUntilMs || 0);
+          const seekTargetSec = Number(state._bpSeekTargetSec);
+          if (seekHoldUntil > Date.now() && Number.isFinite(seekTargetSec)) {
+            if (Math.abs(curSec - seekTargetSec) > 1.5) return;
+            state._bpSeekHoldUntilMs = 0;
+            state._bpSeekTargetSec = null;
+          }
           state.lastBitPerfectPositionSec = curSec;
           state.lastBitPerfectPositionAtMs = Date.now();
           const curTrack = state.tracks.find(t => t && String(t.id) === String(state.currentId));
@@ -4442,7 +4485,14 @@
             displayDurSec > 0 &&
             typeof library !== 'undefined' && library &&
             typeof library.shouldPreloadNext === 'function' &&
-            library.shouldPreloadNext(displayCurSec, displayDurSec) &&
+            library.shouldPreloadNext(
+              displayDurSec,
+              displayCurSec,
+              '',
+              state.preloadReadyUrl || '',
+              (library.PRELOAD_LEAD_SECONDS || 15),
+              (typeof location !== 'undefined' && location && location.href) ? location.href : ''
+            ) &&
             typeof preloadCloudNextDuringBitPerfect === 'function'
           ) {
             preloadCloudNextDuringBitPerfect();
@@ -4461,6 +4511,8 @@
         state.isNativeBitPerfectPaused = false;
         state.bitPerfectLockedFormat = null;
         state._bpCueAdvancingId = null;
+        state._bpSeekHoldUntilMs = 0;
+        state._bpSeekTargetSec = null;
         if (!wasNativeBp && typeof audio !== 'undefined' && audio && !audio.paused) return;
         const curTrack = state.tracks.find(t => t && String(t.id) === String(state.currentId));
         if (!curTrack) return;
@@ -4468,6 +4520,61 @@
           resumePosSec = curTrack.cueStart;
         }
         const now = Date.now();
+        const reasonStr = String(reason || '');
+        const isNetBpError = reasonStr.indexOf('[NET]') === 0;
+        const isAuthBpError = reasonStr.indexOf('[AUTH]') === 0;
+        if (isAuthBpError && (curTrack.source === 'google' || curTrack.source === 'onedrive')) {
+          if (curTrack.source === 'onedrive') {
+            curTrack.downloadUrl = '';
+            curTrack.downloadUrlAt = 0;
+          }
+          if (resumePosSec > 0) curTrack._resumeAfterBpFallbackSec = resumePosSec;
+          curTrack._nativeBpFallbackUntil = 0;
+          if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+          if (typeof updatePositionState === 'function') updatePositionState(true);
+          if (typeof cloudStatus === 'function') {
+            cloudStatus(curTrack.source === 'google' ? 'google' : 'microsoft', 'Phiên hết hạn · cần đăng nhập lại', 'text-amber-300');
+          }
+          if (typeof toast === 'function') {
+            toast(curTrack.source === 'google'
+              ? 'Phiên Google Drive đã hết hạn — vui lòng kết nối lại trong Cấu hình Cloud API.'
+              : 'Phiên OneDrive đã hết hạn — vui lòng kết nối lại trong Cấu hình Cloud API.');
+          }
+          return;
+        }
+        if (isNetBpError) {
+          const isOfflineNow = typeof navigator !== 'undefined' && navigator.onLine === false;
+          if (resumePosSec > 0) curTrack._resumeAfterBpFallbackSec = resumePosSec;
+          curTrack._nativeBpFallbackUntil = 0;
+          if (isOfflineNow && (curTrack.source === 'google' || curTrack.source === 'onedrive')) {
+            if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+            if (typeof updatePositionState === 'function') updatePositionState(true);
+            if (typeof toast === 'function') toast('Mất kết nối mạng — đã tạm dừng phát Bit-Perfect.');
+            return;
+          }
+          if (wasNativeBpPaused) {
+            curTrack._skipNativeBpOnce = true;
+            if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+            if (typeof updatePositionState === 'function') updatePositionState(true);
+            return;
+          }
+          const netPrevAt = Number(curTrack._nativeBpErrorAt || 0);
+          const netErrCount = (now - netPrevAt < 30000) ? Number(curTrack._nativeBpErrorCount || 0) : 0;
+          curTrack._nativeBpErrorAt = now;
+          curTrack._nativeBpErrorCount = netErrCount + 1;
+          if (netErrCount >= 2) {
+            if (typeof toast === 'function') toast('Kết nối cloud Bit-Perfect bị gián đoạn, chuyển sang bài tiếp theo.');
+            if (typeof playNext === 'function') playNext(1, false);
+            return;
+          }
+          curTrack._skipNativeBpOnce = true;
+          if (typeof toast === 'function') toast('Kết nối cloud Bit-Perfect bị gián đoạn — đang thử phát qua Web Audio.');
+          if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
+            try { state.context.resume().catch(() => {}); } catch (_) {}
+          }
+          if (typeof playTrack === 'function') playTrack(curTrack.id);
+          return;
+        }
         if (wasNativeBpPaused) {
           curTrack._skipNativeBpOnce = true;
           curTrack._nativeBpFallbackUntil = now + 5 * 60 * 1000;
@@ -4492,7 +4599,7 @@
         if (state.context && state.context.state === 'suspended' && typeof state.context.resume === 'function') {
           try { state.context.resume().catch(() => {}); } catch (_) {}
         }
-        playTrack(curTrack.id);
+        if (typeof playTrack === 'function') playTrack(curTrack.id);
       };
       window.onBitPerfectPlaybackComplete = () => {
         state.isNativeBitPerfectPlaying = false;
@@ -4529,6 +4636,91 @@
         }
         if (typeof updatePositionState === 'function') updatePositionState(true);
         if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
+      };
+      window.onNativeBitPerfectAuthRefresh = async (epoch, source, remoteId, failedUrl, status) => {
+        let responded = false;
+        const reply = (ok, nextUrl, nextHeaders) => {
+          if (responded) return;
+          responded = true;
+          try {
+            if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.provideBitPerfectRefreshedAuth === 'function') {
+              window.NocturneNative.provideBitPerfectRefreshedAuth(
+                Number(epoch) || 0,
+                String(nextUrl || ''),
+                JSON.stringify(nextHeaders || {}),
+                Boolean(ok)
+              );
+            }
+          } catch (_) {}
+        };
+        try {
+          const src = String(source || '').toLowerCase();
+          const curTrack = Array.isArray(state.tracks) ? state.tracks.find(t => t && String(t.id) === String(state.currentId)) : null;
+          const rId = String(remoteId || (curTrack && (curTrack.targetRemoteId || curTrack.remoteId)) || '');
+          if (src === 'google') {
+            let tok = '';
+            if (typeof ensureGoogleToken === 'function') {
+              tok = await ensureGoogleToken(true);
+            } else if (state && state.googleToken) {
+              tok = state.googleToken;
+            }
+            const nextUrl = failedUrl || (typeof buildGoogleDriveMediaUrl === 'function' && rId ? buildGoogleDriveMediaUrl(rId) : '');
+            if (tok && nextUrl) {
+              if (curTrack && curTrack.source === 'google') curTrack.url = nextUrl;
+              reply(true, nextUrl, { Authorization: 'Bearer ' + tok });
+            } else {
+              reply(false, '', {});
+            }
+            return;
+          }
+          if (src === 'onedrive') {
+            if (curTrack && curTrack.source === 'onedrive') {
+              curTrack.downloadUrl = '';
+              curTrack.downloadUrlAt = 0;
+            }
+            const failedStr = String(failedUrl || '');
+            const failedIsGraphContent = /https:\/\/graph\.microsoft\.com\/.+\/content(\?|$)/i.test(failedStr);
+            if (!failedIsGraphContent && curTrack && typeof resolveMicrosoftDownloadUrl === 'function') {
+              const freshUrl = await resolveMicrosoftDownloadUrl(curTrack).catch(() => '');
+              if (freshUrl && freshUrl !== failedStr) {
+                curTrack.url = freshUrl;
+                reply(true, freshUrl, {});
+                return;
+              }
+            }
+            let msTok = '';
+            if (state && state.msAccount && typeof getMicrosoftToken === 'function') {
+              msTok = await getMicrosoftToken(false, true);
+            } else if (state && state.microsoftAccessToken) {
+              msTok = state.microsoftAccessToken;
+            }
+            const graphUrl = (typeof buildOneDriveGraphContentUrl === 'function')
+              ? buildOneDriveGraphContentUrl(curTrack, rId)
+              : '';
+            if (msTok && graphUrl) {
+              if (curTrack && curTrack.source === 'onedrive') curTrack.url = graphUrl;
+              reply(true, graphUrl, { Authorization: 'Bearer ' + msTok });
+            } else {
+              reply(false, '', {});
+            }
+            return;
+          }
+          reply(false, '', {});
+        } catch (_) {
+          reply(false, '', {});
+        } finally {
+          if (!responded) reply(false, '', {});
+        }
+      };
+      window.onNativeBitPerfectReconnectStatus = (status, attempt, maxAttempts) => {
+        state._bpReconnectStatus = String(status || '');
+        if (typeof toast === 'function') {
+          if (status === 'reconnecting' && Number(attempt) <= 1) {
+            toast('Đang kết nối lại luồng Bit-Perfect (' + (Number(attempt) || 1) + '/' + (Number(maxAttempts) || 5) + ')…');
+          } else if (status === 'recovered') {
+            toast('Đã khôi phục luồng Bit-Perfect.');
+          }
+        }
       };
       if (window._bpPosPollTimer) clearInterval(window._bpPosPollTimer);
       if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.getBitPerfectPosition === 'function') {
@@ -5503,11 +5695,20 @@
       toast(state.activeFocus === 'offline' ? 'Đã lọc danh sách: Chỉ phát bài hát Ngoại tuyến.' : 'Đã hiển thị tất cả bài hát.');
     });
     function getCurrentPlaybackPositionSeconds() {
-      if (state.isNativeBitPerfectPlaying) {
+      if (state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) {
+        const holdUntil = Number(state._bpSeekHoldUntilMs || 0);
+        const holdTarget = Number(state._bpSeekTargetSec);
         if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.getBitPerfectPosition === 'function') {
           const ms = Number(window.NocturneNative.getBitPerfectPosition());
-          if (Number.isFinite(ms) && ms >= 0) return ms / 1000;
+          if (Number.isFinite(ms) && ms >= 0) {
+            const nativeSec = ms / 1000;
+            if (holdUntil > Date.now() && Number.isFinite(holdTarget) && Math.abs(nativeSec - holdTarget) > 1.5) {
+              return holdTarget;
+            }
+            return nativeSec;
+          }
         }
+        if (holdUntil > Date.now() && Number.isFinite(holdTarget)) return holdTarget;
         return (Number.isFinite(state.lastBitPerfectPositionSec) && state.lastBitPerfectPositionSec >= 0) ? state.lastBitPerfectPositionSec : 0;
       }
       const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
@@ -5515,7 +5716,7 @@
     }
     function getCurrentPlaybackDurationSeconds(curTrack, curAudio) {
       const trk = curTrack || (state && Array.isArray(state.tracks) ? state.tracks.find(t => t && String(t.id) === String(state.currentId)) : null);
-      if (state.isNativeBitPerfectPlaying) {
+      if (state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) {
         if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.getBitPerfectDuration === 'function') {
           const ms = Number(window.NocturneNative.getBitPerfectDuration());
           if (Number.isFinite(ms) && ms > 0) return ms / 1000;
@@ -5523,6 +5724,9 @@
         return (trk && Number.isFinite(trk.duration) && trk.duration > 0) ? trk.duration : 0;
       }
       const el = curAudio || ((state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio);
+      if (trk && trk.firstSlicePlayback && Number.isFinite(trk.duration) && trk.duration > 0 && (!el || !Number.isFinite(el.duration) || el.duration <= 0 || trk.duration > el.duration)) {
+        return trk.duration;
+      }
       if (el && Number.isFinite(el.duration) && el.duration > 0) return el.duration;
       return (trk && Number.isFinite(trk.duration) && trk.duration > 0) ? trk.duration : 0;
     }
@@ -5530,17 +5734,27 @@
       const sec = Number(targetSec);
       if (!Number.isFinite(sec) || sec <= 0) return false;
       const trackIdToMatch = expectedTrackId !== undefined ? expectedTrackId : state.currentId;
-      if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
-        try { window.NocturneNative.seekBitPerfectPlayback(Math.round(sec * 1000)); return true; } catch (_) {}
+      if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+        try {
+          window.NocturneNative.seekBitPerfectPlayback(Math.round(sec * 1000));
+          state.lastBitPerfectPositionSec = sec;
+          state.lastBitPerfectPositionAtMs = Date.now();
+          state._bpSeekHoldUntilMs = Date.now() + 900;
+          state._bpSeekTargetSec = sec;
+          return true;
+        } catch (_) {}
       }
       const curTrack = (state && Array.isArray(state.tracks) && trackIdToMatch != null)
         ? state.tracks.find(item => item && String(item.id) === String(trackIdToMatch))
         : null;
-      if (curTrack && curTrack.firstSlicePlayback && typeof applySmartSeekTime === 'function') {
-        applySmartSeekTime(sec);
-        return true;
-      }
       const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      if (curTrack && curTrack.firstSlicePlayback && typeof applySmartSeekTime === 'function') {
+        if (applySmartSeekTime.length <= 1) {
+          applySmartSeekTime(sec);
+          return true;
+        }
+        return Boolean(applySmartSeekTime(curAudio, curTrack, sec));
+      }
       if (!curAudio) return false;
       const applySeek = () => {
         if (trackIdToMatch && state.currentId !== trackIdToMatch) return;
@@ -5548,7 +5762,11 @@
           ? state.tracks.find(item => item && String(item.id) === String(trackIdToMatch))
           : null;
         if (liveTrack && liveTrack.firstSlicePlayback && typeof applySmartSeekTime === 'function') {
-          applySmartSeekTime(sec);
+          if (applySmartSeekTime.length <= 1) {
+            applySmartSeekTime(sec);
+          } else {
+            applySmartSeekTime(curAudio, liveTrack, sec);
+          }
           return;
         }
         try {
@@ -7254,7 +7472,7 @@
       const options = arguments[1];
       const skipPrune = Boolean(options === true || (options && options.skipPrune));
       if (cloudCatalogResetting) return Promise.resolve();
-      const rawEntries = tracks.filter(track => ['google','onedrive'].includes(track.source)).map(serializableCloudTrack);
+      const rawEntries = tracks.filter(track => track && !track._cloudSourceCleared && ['google','onedrive'].includes(track.source)).map(serializableCloudTrack);
       if (!rawEntries.length) return Promise.resolve();
       const entries = (library && typeof library.deduplicateCatalogCovers === 'function')
         ? library.deduplicateCatalogCovers(rawEntries)
@@ -7383,7 +7601,12 @@
             let removed = 0;
             for (let i = 0; i < keys.length; i++) {
               const k = String(keys[i] || '');
-              if (k.indexOf('google:') === 0 || k.indexOf('onedrive:') === 0) {
+              if (
+                k.indexOf('["google",') === 0 ||
+                k.indexOf('["onedrive",') === 0 ||
+                k.indexOf('google:') === 0 ||
+                k.indexOf('onedrive:') === 0
+              ) {
                 try { store.delete(keys[i]); removed++; } catch (_) {}
               }
             }
@@ -7429,6 +7652,46 @@
     }
     function clearCloudCatalog() {
       if (state.lyricsPreloadLifecycle) state.lyricsPreloadLifecycle.cancelAll('queue_cleared');
+      if (typeof state !== 'undefined' && state && Array.isArray(state.tracks)) {
+        for (let i = 0; i < state.tracks.length; i++) {
+          const tr = state.tracks[i];
+          if (tr && (tr.source === 'google' || tr.source === 'onedrive')) {
+            tr._cloudSourceCleared = true;
+          }
+        }
+      }
+      if (typeof pendingCloudCatalogPersistMap !== 'undefined' && pendingCloudCatalogPersistMap && typeof pendingCloudCatalogPersistMap.forEach === 'function') {
+        const toDelete = [];
+        pendingCloudCatalogPersistMap.forEach((tr, k) => {
+          if (tr && (tr.source === 'google' || tr.source === 'onedrive')) {
+            tr._cloudSourceCleared = true;
+            toDelete.push(k);
+          }
+        });
+        for (let di = 0; di < toDelete.length; di++) pendingCloudCatalogPersistMap.delete(toDelete[di]);
+        if (pendingCloudCatalogPersistMap.size === 0 && typeof pendingCloudCatalogPersistTimer !== 'undefined' && pendingCloudCatalogPersistTimer) {
+          clearTimeout(pendingCloudCatalogPersistTimer);
+          pendingCloudCatalogPersistTimer = null;
+        }
+      }
+      if (typeof cloudMetadataQueue !== 'undefined' && Array.isArray(cloudMetadataQueue)) {
+        for (let qi = cloudMetadataQueue.length - 1; qi >= 0; qi--) {
+          const qTr = cloudMetadataQueue[qi];
+          if (qTr && (qTr.source === 'google' || qTr.source === 'onedrive')) {
+            qTr._cloudSourceCleared = true;
+            if (typeof cloudMetadataQueued !== 'undefined' && cloudMetadataQueued && typeof cloudMetadataQueued.delete === 'function') {
+              cloudMetadataQueued.delete(qTr);
+            }
+            cloudMetadataQueue.splice(qi, 1);
+          }
+        }
+      }
+      try {
+        if (typeof localStorage !== 'undefined' && localStorage) {
+          localStorage.removeItem('nocturne-google-account');
+          localStorage.removeItem('nocturne-microsoft-account');
+        }
+      } catch (_) {}
       if (typeof clearCloudSyncCheckpoint === 'function') {
         clearCloudSyncCheckpoint('nocturne-google-sync-checkpoint');
         clearCloudSyncCheckpoint('nocturne-microsoft-sync-checkpoint');
@@ -7531,6 +7794,9 @@
         if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint('nocturne-google-sync-checkpoint');
         if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor('nocturne-google-delta-token', '');
         try {
+          if (typeof localStorage !== 'undefined' && localStorage) localStorage.removeItem('nocturne-google-account');
+        } catch (_) {}
+        try {
           if (typeof checkedGoogleArtParents !== 'undefined' && checkedGoogleArtParents && typeof checkedGoogleArtParents.clear === 'function') {
             checkedGoogleArtParents.clear();
           }
@@ -7538,20 +7804,37 @@
       } else {
         if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint('nocturne-microsoft-sync-checkpoint');
         if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor('nocturne-microsoft-delta-link', '');
+        try {
+          if (typeof localStorage !== 'undefined' && localStorage) localStorage.removeItem('nocturne-microsoft-account');
+        } catch (_) {}
       }
       const removedIds = [];
       const removedIdSet = new Set();
       for (let i = state.tracks.length - 1; i >= 0; i--) {
         const tr = state.tracks[i];
         if (!tr || tr.source !== source) continue;
+        tr._cloudSourceCleared = true;
         if (state.currentId != null && String(tr.id) === String(state.currentId)) {
-          if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') {
+          if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') {
             try { window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
             state.isNativeBitPerfectPlaying = false;
             state.isNativeBitPerfectPaused = false;
-          } else if (typeof audio !== 'undefined' && audio && typeof audio.pause === 'function') {
+          }
+          if (typeof audio !== 'undefined' && audio && typeof audio.pause === 'function') {
             try { audio.pause(); } catch (_) {}
           }
+          if (typeof standbyAudio !== 'undefined' && standbyAudio && typeof standbyAudio.pause === 'function') {
+            try { standbyAudio.pause(); } catch (_) {}
+          }
+          if (state.corsBypassAudio && typeof state.corsBypassAudio.pause === 'function') {
+            try { state.corsBypassAudio.pause(); } catch (_) {}
+          }
+          if (state.dsdTrackId != null && String(state.dsdTrackId) === String(tr.id) && typeof stopDsdWorker === 'function') {
+            try { stopDsdWorker(false); } catch (_) {}
+          }
+          if (typeof state.playGeneration === 'number') state.playGeneration++;
+          if (typeof setPlaybackLoading === 'function') setPlaybackLoading(false);
+          if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
           state.currentId = null;
         }
         if (typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(tr);
@@ -7564,6 +7847,46 @@
       }
       if (state.preloadTrackId != null && removedIdSet.has(String(state.preloadTrackId)) && typeof clearStalePreload === 'function') {
         clearStalePreload();
+      }
+      if (typeof bpCloudPreloadTrackId !== 'undefined' && bpCloudPreloadTrackId != null && removedIdSet.has(String(bpCloudPreloadTrackId))) {
+        bpCloudPreloadTrackId = null;
+      }
+      if (typeof pendingCloudCatalogPersistMap !== 'undefined' && pendingCloudCatalogPersistMap && typeof pendingCloudCatalogPersistMap.forEach === 'function') {
+        const purgeKeys = [];
+        pendingCloudCatalogPersistMap.forEach((pTr, pKey) => {
+          if ((pTr && pTr.source === source) || removedIdSet.has(String(pKey))) {
+            if (pTr) pTr._cloudSourceCleared = true;
+            purgeKeys.push(pKey);
+          }
+        });
+        for (let pi = 0; pi < purgeKeys.length; pi++) pendingCloudCatalogPersistMap.delete(purgeKeys[pi]);
+        if (pendingCloudCatalogPersistMap.size === 0 && typeof pendingCloudCatalogPersistTimer !== 'undefined' && pendingCloudCatalogPersistTimer) {
+          clearTimeout(pendingCloudCatalogPersistTimer);
+          pendingCloudCatalogPersistTimer = null;
+        }
+      }
+      if (typeof cloudMetadataQueue !== 'undefined' && Array.isArray(cloudMetadataQueue)) {
+        for (let qi = cloudMetadataQueue.length - 1; qi >= 0; qi--) {
+          const qTr = cloudMetadataQueue[qi];
+          if (qTr && qTr.source === source) {
+            qTr._cloudSourceCleared = true;
+            if (typeof cloudMetadataQueued !== 'undefined' && cloudMetadataQueued && typeof cloudMetadataQueued.delete === 'function') {
+              cloudMetadataQueued.delete(qTr);
+            }
+            cloudMetadataQueue.splice(qi, 1);
+          }
+        }
+      }
+      if (removedIdSet.size > 0 && typeof localStorage !== 'undefined' && localStorage) {
+        try {
+          const rawSess = localStorage.getItem('nocturne-playback-session');
+          if (rawSess) {
+            const parsedSess = JSON.parse(rawSess);
+            if (parsedSess && parsedSess.trackId != null && removedIdSet.has(String(parsedSess.trackId))) {
+              localStorage.removeItem('nocturne-playback-session');
+            }
+          }
+        } catch (_) {}
       }
       if (typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
       if (typeof renderTracks === 'function') renderTracks();
@@ -7586,11 +7909,14 @@
             const req = store.getAllKeys();
             req.onsuccess = () => {
               const keys = req.result || [];
-              const prefix = source + ':';
+              const legacyPrefix = source + ':';
+              const jsonPrefix = '["' + source + '",';
               let deletedCount = 0;
               for (let k = 0; k < keys.length; k++) {
-                if (String(keys[k] || '').indexOf(prefix) === 0) {
-                  try { store.delete(keys[k]); deletedCount++; } catch (_) {}
+                const rawKey = keys[k];
+                const keyStr = String(rawKey || '');
+                if (keyStr.indexOf(jsonPrefix) === 0 || keyStr.indexOf(legacyPrefix) === 0) {
+                  try { store.delete(rawKey); deletedCount++; } catch (_) {}
                 }
               }
               if (!deletedCount) return resolve();
@@ -7616,6 +7942,7 @@
           if (typeof localStorage !== 'undefined') {
             localStorage.removeItem('nocturne-google-token');
             localStorage.removeItem('nocturne-google-token-expires');
+            localStorage.removeItem('nocturne-google-account');
           }
         } catch (_) {}
         if ($('google-token-direct')) $('google-token-direct').value = '';
@@ -7628,6 +7955,7 @@
           if (typeof localStorage !== 'undefined') {
             localStorage.removeItem('nocturne-microsoft-token');
             localStorage.removeItem('nocturne-microsoft-token-expires');
+            localStorage.removeItem('nocturne-microsoft-account');
           }
         } catch (_) {}
         if ($('microsoft-token-direct')) $('microsoft-token-direct').value = '';
@@ -11445,22 +11773,33 @@
     function setGain(value) {
       const num = Number(value);
       if (num > 0) volumeBeforeMute = num;
+      const volEl = $('volume');
+      const volMobEl = $('volume-mobile');
       if (state.bitPerfectEnabled) {
         // In Bit-Perfect mode, maintain volume at unity gain (1.0 / 0 dB) to prevent software digital bit reduction, deferring volume to the external DAC / hardware.
         audio.volume = 1.0;
         standbyAudio.volume = 1.0;
-        $('volume').value = 100;
-        if ($('volume-mobile')) $('volume-mobile').value = 100;
+        if (state.corsBypassAudio) state.corsBypassAudio.volume = 1.0;
+        if (volEl) volEl.value = 100;
+        if (volMobEl) volMobEl.value = 100;
         return;
       }
       const linear = num / 100, volume = linear === 0 ? 0 : Math.pow(10, (-60 + linear * 60) / 20);
       const rgMult = (state.replayGainEnabled && Number.isFinite(state.replayGainMultiplier)) ? state.replayGainMultiplier : 1;
       const effectiveVolume = Math.max(0, Math.min(1, volume * rgMult));
       audio.volume = effectiveVolume; standbyAudio.volume = effectiveVolume;
-      $('volume').value = value; $('volume-mobile').value = value;
+      if (state.corsBypassAudio) state.corsBypassAudio.volume = effectiveVolume;
+      if (volEl) volEl.value = value;
+      if (volMobEl) volMobEl.value = value;
     }
     function toggleMute() {
-      const current = Number($('volume').value) || 0;
+      if (state && state.bitPerfectEnabled) {
+        setGain(100);
+        toast('Bit-Perfect đang bật (âm lượng cố định 100%, chỉnh trên DAC).');
+        return;
+      }
+      const volEl = $('volume');
+      const current = volEl ? (Number(volEl.value) || 0) : (volumeBeforeMute || 80);
       if (current > 0) {
         volumeBeforeMute = current;
         setGain(0);
@@ -15299,20 +15638,40 @@
         return;
       }
       if (next.source !== 'google' && next.source !== 'onedrive') return;
-      if (next.url && state.objectUrls && state.objectUrls.has(next.url)) return;
+      const isDirectNativeBp = Boolean(
+        typeof window !== 'undefined' &&
+        window.NocturneNative &&
+        typeof window.NocturneNative.setBitPerfectStreamAuth === 'function' &&
+        state.bitPerfectEnabled &&
+        !next._skipNativeBpOnce &&
+        !(next._nativeBpFallbackUntil && Date.now() < next._nativeBpFallbackUntil)
+      );
+      if (!isDirectNativeBp && next.url && state.objectUrls && state.objectUrls.has(next.url)) return;
       if (bpCloudPreloadTrackId === next.id || state.preloadBusyId === next.id) return;
+      if (state.preloadTrackId === next.id && state.preloadReadyUrl) return;
       if (state._preloadFailedTrackId === next.id && state._preloadFailedAt && (Date.now() - state._preloadFailedAt) < 8000) return;
-      if (typeof next.load !== 'function') return;
+      if (!isDirectNativeBp && typeof next.load !== 'function') return;
       bpCloudPreloadTrackId = next.id;
       const generation = ++state.preloadGeneration;
       state.preloadTrackId = next.id;
       state.preloadBusyId = next.id;
       try {
         if (typeof prepareCloudTrackForPreload === 'function') await prepareCloudTrackForPreload(next);
-        await next.load();
-        if (generation === state.preloadGeneration && next.url) {
-          if (state._preloadFailedTrackId === next.id) { state._preloadFailedTrackId = null; state._preloadFailedAt = 0; }
-          state.preloadReadyUrl = next.url;
+        if (isDirectNativeBp) {
+          let preResolved = null;
+          if (typeof resolveCloudBitPerfectStream === 'function') {
+            preResolved = await resolveCloudBitPerfectStream(next);
+          }
+          if (generation === state.preloadGeneration) {
+            if (state._preloadFailedTrackId === next.id) { state._preloadFailedTrackId = null; state._preloadFailedAt = 0; }
+            state.preloadReadyUrl = (preResolved && preResolved.url) ? preResolved.url : (next.downloadUrl || ('cloud-bp:' + next.id));
+          }
+        } else {
+          await next.load();
+          if (generation === state.preloadGeneration && next.url) {
+            if (state._preloadFailedTrackId === next.id) { state._preloadFailedTrackId = null; state._preloadFailedAt = 0; }
+            state.preloadReadyUrl = next.url;
+          }
         }
       } catch (err) {
         if (generation === state.preloadGeneration) {
@@ -15436,6 +15795,20 @@
       const index = queueIndex(), next = index >= 0 ? state.tracks[index] : null;
       if (!next || next.id === state.currentId) {
         clearStalePreload();
+        return;
+      }
+      if (
+        state.isNativeBitPerfectPlaying &&
+        state.bitPerfectEnabled &&
+        !next.isDsd &&
+        !next._skipNativeBpOnce &&
+        !(next._nativeBpFallbackUntil && Date.now() < next._nativeBpFallbackUntil) &&
+        (next.source === 'google' || next.source === 'onedrive') &&
+        typeof window !== 'undefined' &&
+        window.NocturneNative &&
+        typeof window.NocturneNative.setBitPerfectStreamAuth === 'function'
+      ) {
+        if (typeof preloadCloudNextDuringBitPerfect === 'function') preloadCloudNextDuringBitPerfect();
         return;
       }
       if (typeof trySkipSameCueStandbyPreload === 'function' && trySkipSameCueStandbyPreload(next)) return;
@@ -15701,6 +16074,108 @@
         return false;
       }
     }
+    function buildGoogleDriveMediaUrl(fileId) {
+      return 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(String(fileId || '')) + '?alt=media&supportsAllDrives=true';
+    }
+    function buildOneDriveGraphContentUrl(track, fallbackRemoteId) {
+      const rId = String((track && track.remoteId) || fallbackRemoteId || '');
+      const driveId = String((track && track.remoteDriveId) || '');
+      if (!rId) return '';
+      return driveId
+        ? ('https://graph.microsoft.com/v1.0/drives/' + encodeURIComponent(driveId) + '/items/' + encodeURIComponent(rId) + '/content')
+        : ('https://graph.microsoft.com/v1.0/me/drive/items/' + encodeURIComponent(rId) + '/content');
+    }
+    async function resolveCloudBitPerfectStream(track, options) {
+      if (!track || !track.source) return null;
+      const forceRefresh = Boolean(options && options.forceRefresh);
+      const preferGraphContent = Boolean(options && options.preferGraphContent);
+      if (track.source === 'google') {
+        const fileId = String(track.targetRemoteId || track.remoteId || '');
+        if (!fileId) return null;
+        let token = '';
+        if (typeof ensureGoogleToken === 'function') {
+          token = await ensureGoogleToken(forceRefresh);
+        } else if (state && state.googleToken) {
+          token = state.googleToken;
+        }
+        if (!token) throw new Error('Phiên Google Drive đã hết hạn.');
+        return {
+          url: buildGoogleDriveMediaUrl(fileId),
+          headers: { Authorization: 'Bearer ' + token },
+          source: 'google',
+          remoteId: fileId,
+          size: Number(track.size) || 0
+        };
+      }
+      if (track.source === 'onedrive') {
+        const remoteId = String(track.remoteId || '');
+        if (!remoteId) return null;
+        const maxAge = (typeof MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS === 'number' && MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS > 0)
+          ? MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS
+          : (30 * 60 * 1000);
+        if (forceRefresh || (track.downloadUrl && (!track.downloadUrlAt || (Date.now() - track.downloadUrlAt) >= (maxAge - 5 * 60 * 1000)))) {
+          track.downloadUrl = '';
+          track.downloadUrlAt = 0;
+        }
+        if (!preferGraphContent && typeof resolveMicrosoftDownloadUrl === 'function') {
+          const directUrl = await resolveMicrosoftDownloadUrl(track).catch(() => '');
+          if (directUrl) {
+            return {
+              url: directUrl,
+              headers: {},
+              source: 'onedrive',
+              remoteId: remoteId,
+              size: Number(track.size) || 0
+            };
+          }
+        }
+        let msToken = (state && state.microsoftAccessToken) ? state.microsoftAccessToken : '';
+        const msNearExpiry = Boolean(state && state.microsoftExpiresAt && Date.now() >= (state.microsoftExpiresAt - 60000));
+        if ((!msToken || forceRefresh || msNearExpiry) && state && state.msAccount && typeof getMicrosoftToken === 'function') {
+          msToken = await getMicrosoftToken(false, forceRefresh);
+        } else if (!msToken && typeof getMicrosoftToken === 'function') {
+          msToken = await getMicrosoftToken(false, forceRefresh);
+        }
+        const graphUrl = buildOneDriveGraphContentUrl(track, remoteId);
+        if (!msToken || !graphUrl) throw new Error('Phiên OneDrive đã hết hạn.');
+        return {
+          url: graphUrl,
+          headers: { Authorization: 'Bearer ' + msToken },
+          source: 'onedrive',
+          remoteId: remoteId,
+          size: Number(track.size) || 0
+        };
+      }
+      return null;
+    }
+    function pushActiveBitPerfectStreamAuth(source, token) {
+      try {
+        if (!token || !state || (!state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused)) return false;
+        if (typeof window === 'undefined' || !window.NocturneNative || typeof window.NocturneNative.updateBitPerfectStreamAuth !== 'function') return false;
+        const curTrack = Array.isArray(state.tracks) ? state.tracks.find(t => t && String(t.id) === String(state.currentId)) : null;
+        if (!curTrack || curTrack.source !== source) return false;
+        if (source === 'google') {
+          const fileId = String(curTrack.targetRemoteId || curTrack.remoteId || '');
+          if (!fileId) return false;
+          const activeUrl = (curTrack.url && /^https:\/\/www\.googleapis\.com\//i.test(curTrack.url))
+            ? curTrack.url
+            : buildGoogleDriveMediaUrl(fileId);
+          window.NocturneNative.updateBitPerfectStreamAuth(activeUrl, JSON.stringify({ Authorization: 'Bearer ' + token }));
+          return true;
+        }
+        if (source === 'onedrive') {
+          const activeUrl = String(curTrack.url || '');
+          if (/https:\/\/graph\.microsoft\.com\/.+\/content(\?|$)/i.test(activeUrl)) {
+            window.NocturneNative.updateBitPerfectStreamAuth(activeUrl, JSON.stringify({ Authorization: 'Bearer ' + token }));
+            return true;
+          }
+          return false;
+        }
+        return false;
+      } catch (_) {
+        return false;
+      }
+    }
     const SILENT_UNLOCK_WAV = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
     function isSilentUnlockSrc(el) {
       if (!el || !el.src) return false;
@@ -15772,17 +16247,30 @@
     }
     function isTrackRoutedToNativeBitPerfect(track) {
       if (!track || track.isDsd || track._skipNativeBpOnce) return false;
-      const preBpUrl = track.url || track.src || '';
-      return Boolean(
+      if (track._nativeBpFallbackUntil && Date.now() < track._nativeBpFallbackUntil) return false;
+      const hasNativeBp = Boolean(
         typeof window !== 'undefined' &&
         window.NocturneNative &&
         window.NocturneNative.isBitPerfectSupported &&
         state.bitPerfectEnabled &&
+        (typeof window.NocturneNative.isBitPerfectSupported !== 'function' || window.NocturneNative.isBitPerfectSupported())
+      );
+      if (!hasNativeBp) return false;
+      const isOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+      if (
+        isOnline &&
+        (track.source === 'google' || track.source === 'onedrive') &&
+        (track.remoteId || track.targetRemoteId) &&
+        typeof window.NocturneNative.setBitPerfectStreamAuth === 'function'
+      ) {
+        return true;
+      }
+      const preBpUrl = track.url || track.src || '';
+      return Boolean(
         preBpUrl &&
         !preBpUrl.startsWith('blob:') &&
         !preBpUrl.startsWith('data:') &&
-        (preBpUrl.includes('/local-media?') || preBpUrl.startsWith('content://') || preBpUrl.startsWith('file://') || preBpUrl.startsWith('/') || /^https?:\/\//i.test(preBpUrl)) &&
-        (typeof window.NocturneNative.isBitPerfectSupported !== 'function' || window.NocturneNative.isBitPerfectSupported())
+        (preBpUrl.includes('/local-media?') || preBpUrl.startsWith('content://') || preBpUrl.startsWith('file://') || preBpUrl.startsWith('/') || /^https?:\/\//i.test(preBpUrl))
       );
     }
     function suspendWebAudioForBitPerfect() {
@@ -15893,6 +16381,8 @@
           state.isNativeBitPerfectPlaying = false;
           state.isNativeBitPerfectPaused = false;
           state.bitPerfectLockedFormat = null;
+          state._bpSeekHoldUntilMs = 0;
+          state._bpSeekTargetSec = null;
         }
         try {
           clearStalePreload();
@@ -15953,30 +16443,62 @@
       if (track.source === 'google' || track.source === 'onedrive') {
         if (typeof pauseCloudMetadataQueue === 'function') pauseCloudMetadataQueue(12000);
       }
-      if (track.load && !cachedCloudUrl) {
-        if (state.isNativeBitPerfectPlaying) {
-          try { const nat = window.NocturneNative; if (nat && nat.stopBitPerfectPlayback) nat.stopBitPerfectPlayback(); } catch (_) {}
-          state.isNativeBitPerfectPlaying = false; state.isNativeBitPerfectPaused = false; state.bitPerfectLockedFormat = null;
+      const skipNativeBpOnce = Boolean(track._skipNativeBpOnce || (track._nativeBpFallbackUntil && Date.now() < track._nativeBpFallbackUntil));
+      if (skipNativeBpOnce) track._skipNativeBpOnce = false;
+      let cloudBpStream = null;
+      const isOnlineForCloudBp = typeof navigator === 'undefined' || navigator.onLine !== false;
+      const canAttemptCloudNativeBp = Boolean(
+        !track.isDsd &&
+        !skipNativeBpOnce &&
+        isOnlineForCloudBp &&
+        (track.source === 'google' || track.source === 'onedrive') &&
+        (track.remoteId || track.targetRemoteId) &&
+        typeof window !== 'undefined' &&
+        window.NocturneNative &&
+        window.NocturneNative.isBitPerfectSupported &&
+        state.bitPerfectEnabled &&
+        typeof window.NocturneNative.setBitPerfectStreamAuth === 'function' &&
+        (typeof window.NocturneNative.isBitPerfectSupported !== 'function' || window.NocturneNative.isBitPerfectSupported()) &&
+        typeof resolveCloudBitPerfectStream === 'function'
+      );
+      if (canAttemptCloudNativeBp) {
+        try {
+          cloudBpStream = await resolveCloudBitPerfectStream(track);
+        } catch (cloudBpErr) {
+          console.warn('Direct cloud Bit-Perfect stream resolution failed, falling back:', cloudBpErr);
+          cloudBpStream = null;
         }
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-          const canPlay = typeof (library && library.canPlayOffline) === 'function' ? library.canPlayOffline(track) : (track.source === 'local' || !!track.file || !!track.blob);
-          if (!canPlay) {
-            toast('Đang ngoại tuyến. Bài hát cloud này cần Internet để tải.');
-            setPlaybackLoading(false);
-            if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
-            return;
+        if (generation !== state.playGeneration) { setPlaybackLoading(false); return; }
+        if (cloudBpStream && cloudBpStream.url) {
+          if (track.url && state.objectUrls && state.objectUrls.has(track.url) && typeof releaseTrackUrl === 'function') {
+            releaseTrackUrl(track.url);
+          }
+          track.url = cloudBpStream.url;
+          track.firstSlicePlayback = false;
+          if ((!track.metadataLoaded || !track.cover) && typeof queueCloudMetadata === 'function') {
+            queueCloudMetadata([track]);
           }
         }
-        try { await track.load(); }
-        catch (error) { setPlaybackLoading(false); console.error('Track streaming failed:', error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); releaseUnusedCloudUrl(track); skipFailedTrack(generation, `Không thể phát bài hát: ${mediaErrorMessage(error)}. Chuyển sang bài tiếp theo.`); return; }
+      }
+      if (track.load && !cachedCloudUrl) {
+        if (!(cloudBpStream && cloudBpStream.url)) {
+          if (state.isNativeBitPerfectPlaying) {
+            try { const nat = window.NocturneNative; if (nat && nat.stopBitPerfectPlayback) nat.stopBitPerfectPlayback(); } catch (_) {}
+            state.isNativeBitPerfectPlaying = false; state.isNativeBitPerfectPaused = false; state.bitPerfectLockedFormat = null;
+          }
+          if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            const canPlay = (library && library.canPlayOffline) ? library.canPlayOffline(track) : (track.source === 'local' || !!track.file || !!track.blob);
+            if (!canPlay) { toast('Đang ngoại tuyến. Bài hát cloud này cần Internet để tải.'); setPlaybackLoading(false); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); return; }
+          }
+          try { await track.load(); }
+          catch (error) { setPlaybackLoading(false); console.error('Track streaming failed:', error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); releaseUnusedCloudUrl(track); skipFailedTrack(generation, `Không thể phát bài hát: ${mediaErrorMessage(error)}. Chuyển sang bài tiếp theo.`); return; }
+        }
       }
       if (generation !== state.playGeneration) { setPlaybackLoading(false); return; }
       if (!track.url && track.src) track.url = track.src;
 
       // 2. Android Integration (FiiO M11S & Android Phones) — guarded against empty / blob: / data: URLs:
       const bpCandidateUrl = track.url || track.src || '';
-      const skipNativeBpOnce = Boolean(track._skipNativeBpOnce || (track._nativeBpFallbackUntil && Date.now() < track._nativeBpFallbackUntil));
-      if (skipNativeBpOnce) track._skipNativeBpOnce = false;
       const isNativeBpPlayable = Boolean(
         !track.isDsd &&
         !skipNativeBpOnce &&
@@ -16004,6 +16526,8 @@
             const prevPosSec = Number(state.lastBitPerfectPositionSec) || 0;
             if (Math.abs(prevPosSec - sameCueStartSec) >= 1.5 && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
               window.NocturneNative.seekBitPerfectPlayback(Math.round(sameCueStartSec * 1000));
+              state._bpSeekHoldUntilMs = Date.now() + 900;
+              state._bpSeekTargetSec = sameCueStartSec;
             }
             if (state.isNativeBitPerfectPaused && typeof window.NocturneNative.resumeBitPerfectPlayback === 'function') {
               window.NocturneNative.resumeBitPerfectPlayback();
@@ -16032,6 +16556,27 @@
             scheduleTrackRender();
             return;
           }
+          if (typeof window.NocturneNative.setBitPerfectStreamAuth === 'function') {
+            if (cloudBpStream && cloudBpStream.url) {
+              window.NocturneNative.setBitPerfectStreamAuth(
+                cloudBpStream.url,
+                JSON.stringify(cloudBpStream.headers || {}),
+                String(cloudBpStream.source || track.source || ''),
+                String(cloudBpStream.remoteId || track.remoteId || ''),
+                Number(cloudBpStream.size || track.size) || 0
+              );
+            } else if (/^https?:\/\//i.test(bpCandidateUrl)) {
+              window.NocturneNative.setBitPerfectStreamAuth(
+                bpCandidateUrl,
+                '{}',
+                String(track.source || ''),
+                String(track.remoteId || track.id || ''),
+                Number(track.size) || 0
+              );
+            }
+          }
+          state._bpSeekHoldUntilMs = 0;
+          state._bpSeekTargetSec = null;
           const bpStarted = window.NocturneNative.startBitPerfectPlayback(track.url || track.src, track.sampleRate || 44100, track.bitDepth || 16);
           if (bpStarted !== false) {
             const cueStartSec = (Number.isFinite(track.cueStart) && track.cueStart > 0) ? track.cueStart : 0;
@@ -16051,6 +16596,10 @@
               if (typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
                 window.NocturneNative.seekBitPerfectPlayback(Math.round(bpHandoffSec * 1000));
               }
+            }
+            if (cueStartSec > 0 || bpHandoffSec > 0) {
+              state._bpSeekHoldUntilMs = Date.now() + 900;
+              state._bpSeekTargetSec = bpHandoffSec > 0 ? bpHandoffSec : cueStartSec;
             }
             audio.pause();
             standbyAudio.pause();
@@ -16079,6 +16628,21 @@
         state.isNativeBitPerfectPaused = false;
         state.bitPerfectLockedFormat = null;
         state.lastBitPerfectPositionSec = 0;
+        state._bpSeekHoldUntilMs = 0;
+        state._bpSeekTargetSec = null;
+      }
+      if (cloudBpStream && cloudBpStream.url) {
+        track.url = '';
+        if (typeof track.load === 'function') {
+          try { await track.load(); }
+          catch (fallbackLoadErr) {
+            setPlaybackLoading(false);
+            if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+            releaseUnusedCloudUrl(track);
+            skipFailedTrack(generation, 'Không thể phát bài hát: ' + mediaErrorMessage(fallbackLoadErr) + '. Chuyển sang bài tiếp theo.');
+            return;
+          }
+        }
       }
 
       // 1. PC Desktop / WebAudio Bit-Perfect mode (also used on Android when track.url is blob:):
@@ -17319,6 +17883,7 @@
               } catch (_) {}
               if (typeof resetCloudMetadataRetryForSource === 'function') resetCloudMetadataRetryForSource('google');
               if (googleOAuthRefreshScheduler) googleOAuthRefreshScheduler.scheduleRefresh(state.googleExpiresAt);
+              if (typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('google', state.googleToken);
               finish(resolve, state.googleToken);
             },
             error_callback: error => finish(reject, new Error((error ? error.message : "") || `Không mở được cửa sổ OAuth của Google (${(error ? error.type : "") || 'lỗi popup'}). Cho phép popup cho website này rồi nhấn kết nối lại.`))
@@ -17451,9 +18016,37 @@
       }
     }
 
+    function parseCloudRetryAfterMs(headerValue, maxCapMs) {
+      const cap = (Number.isFinite(Number(maxCapMs)) && Number(maxCapMs) > 0) ? Number(maxCapMs) : 30000;
+      if (headerValue == null) return 0;
+      const raw = String(headerValue).trim();
+      if (!raw) return 0;
+      const sec = Number(raw);
+      if (Number.isFinite(sec)) {
+        if (sec <= 0) return 0;
+        return Math.min(cap, Math.max(1, Math.round(sec * 1000)));
+      }
+      const parsedDateMs = Date.parse(raw);
+      if (Number.isFinite(parsedDateMs)) {
+        const deltaMs = parsedDateMs - Date.now();
+        return deltaMs > 0 ? Math.min(cap, Math.round(deltaMs)) : 0;
+      }
+      return 0;
+    }
+
     async function fetchGoogleDrivePageWithRetry(url, getToken, refreshToken) {
       let retryCount = 0;
       let refreshedTokenOnce = false;
+      const resolveRetryAfterMs = (hdrVal) => {
+        if (typeof parseCloudRetryAfterMs === 'function') return parseCloudRetryAfterMs(hdrVal, 30000);
+        if (hdrVal == null) return 0;
+        const raw = String(hdrVal).trim();
+        if (!raw) return 0;
+        const sec = Number(raw);
+        if (Number.isFinite(sec)) return sec > 0 ? Math.min(30000, Math.max(1, Math.round(sec * 1000))) : 0;
+        const dt = Date.parse(raw);
+        return (Number.isFinite(dt) && dt > Date.now()) ? Math.min(30000, Math.round(dt - Date.now())) : 0;
+      };
       while (true) {
         const curToken = typeof getToken === 'function' ? getToken() : getToken;
         let response;
@@ -17462,9 +18055,9 @@
             ? await fetchWithTimeout(url, { headers: { Authorization: `Bearer ${curToken}` } }, 35000)
             : await fetch(url, { headers: { Authorization: `Bearer ${curToken}` } });
         } catch (netErr) {
-          if (retryCount < 4) {
+          if (retryCount < 5) {
             retryCount++;
-            const backoffMs = Math.min(500 * Math.pow(2, retryCount), 6000);
+            const backoffMs = Math.min(500 * Math.pow(2, retryCount), 6000) + Math.floor(Math.random() * 350);
             await new Promise(resolve => setTimeout(resolve, backoffMs));
             continue;
           }
@@ -17481,18 +18074,17 @@
           }
         }
 
-        if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 4) {
+        if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 5) {
           retryCount++;
           const retryAfterHeader = response.headers && typeof response.headers.get === 'function' ? response.headers.get('retry-after') : '';
-          const retryAfterSec = retryAfterHeader ? Number(retryAfterHeader) : 0;
-          const backoffMs = (Number.isFinite(retryAfterSec) && retryAfterSec > 0)
-            ? Math.min(10000, Math.round(retryAfterSec * 1000))
-            : Math.min(1000 * Math.pow(2, retryCount), 10000);
+          const retryAfterMs = resolveRetryAfterMs(retryAfterHeader);
+          const baseMs = retryAfterMs > 0 ? retryAfterMs : Math.min(1000 * Math.pow(2, retryCount), 30000);
+          const backoffMs = Math.min(30000, baseMs) + Math.floor(Math.random() * 350);
           await new Promise(resolve => setTimeout(resolve, backoffMs));
           continue;
         }
 
-        if (response.status === 403 && retryCount < 4) {
+        if (response.status === 403 && retryCount < 5) {
           let errBody = '';
           try {
             if (typeof response.clone === 'function') {
@@ -17503,10 +18095,9 @@
           if (!errBody || /rateLimitExceeded|userRateLimitExceeded|quotaExceeded|backendError|sharingRateLimitExceeded/i.test(errBody)) {
             retryCount++;
             const retryAfter403 = response.headers && typeof response.headers.get === 'function' ? response.headers.get('retry-after') : '';
-            const retryAfter403Sec = retryAfter403 ? Number(retryAfter403) : 0;
-            const backoff403Ms = (Number.isFinite(retryAfter403Sec) && retryAfter403Sec > 0)
-              ? Math.min(10000, Math.round(retryAfter403Sec * 1000))
-              : Math.min(1000 * Math.pow(2, retryCount), 10000);
+            const retryAfter403Ms = resolveRetryAfterMs(retryAfter403);
+            const base403Ms = retryAfter403Ms > 0 ? retryAfter403Ms : Math.min(1000 * Math.pow(2, retryCount), 30000);
+            const backoff403Ms = Math.min(30000, base403Ms) + Math.floor(Math.random() * 350);
             await new Promise(resolve => setTimeout(resolve, backoff403Ms));
             continue;
           }
@@ -17749,6 +18340,9 @@
       let scPageToken = '';
       let scPageCount = 0;
       let useAllDrives = true;
+      let shortcutScanIncomplete = false;
+      const SHORTCUT_FOLDER_MAX_PAGES = 250;
+      const SHORTCUT_MAX_FOLDERS = 1000;
       const shortcutFolderQueue = [];
       const visitedShortcutFolders = new Set();
       const existingByTargetId = new Map();
@@ -17759,7 +18353,11 @@
       }
       const enqueueFolderId = folderId => {
         const fid = folderId ? String(folderId).trim() : '';
-        if (!fid || visitedShortcutFolders.has(fid) || visitedShortcutFolders.size >= 250) return;
+        if (!fid || visitedShortcutFolders.has(fid)) return;
+        if (visitedShortcutFolders.size >= SHORTCUT_MAX_FOLDERS) {
+          shortcutScanIncomplete = true;
+          return;
+        }
         visitedShortcutFolders.add(fid);
         shortcutFolderQueue.push(fid);
       };
@@ -17828,7 +18426,7 @@
             }
             break;
           }
-          if (!response || !response.ok) break;
+          if (!response || !response.ok) { shortcutScanIncomplete = true; break; }
           const data = await response.json();
           const scFiles = (data && Array.isArray(data.files)) ? data.files : [];
           for (let si = 0; si < scFiles.length; si++) {
@@ -17836,9 +18434,10 @@
           }
           scPageToken = (data && data.nextPageToken) ? String(data.nextPageToken) : '';
         } while (scPageToken && scPageCount < 100);
+        if (scPageToken) shortcutScanIncomplete = true;
 
         let folderPagesFetched = 0;
-        while (shortcutFolderQueue.length > 0 && folderPagesFetched < 50) {
+        while (shortcutFolderQueue.length > 0 && folderPagesFetched < SHORTCUT_FOLDER_MAX_PAGES) {
           const folderId = shortcutFolderQueue.shift();
           let folderPageToken = '';
           do {
@@ -17857,25 +18456,30 @@
               getToken,
               refreshToken
             );
-            if (!fResp || !fResp.ok) break;
+            if (!fResp || !fResp.ok) { shortcutScanIncomplete = true; break; }
             const fData = await fResp.json();
             const children = (fData && Array.isArray(fData.files)) ? fData.files : [];
             for (let ci = 0; ci < children.length; ci++) {
               ingestDiscoveredFile(children[ci], folderId);
             }
             folderPageToken = (fData && fData.nextPageToken) ? String(fData.nextPageToken) : '';
-          } while (folderPageToken && folderPagesFetched < 50);
+          } while (folderPageToken && folderPagesFetched < SHORTCUT_FOLDER_MAX_PAGES);
+          if (folderPageToken) shortcutScanIncomplete = true;
         }
+        if (shortcutFolderQueue.length > 0) shortcutScanIncomplete = true;
       } catch (scErr) {
+        shortcutScanIncomplete = true;
         console.debug('Google Drive shortcut scan skipped:', (scErr && scErr.message) || scErr);
       }
-      return { added: scAdded, tracks: scAddedTracks };
+      return { added: scAdded, tracks: scAddedTracks, incomplete: shortcutScanIncomplete };
     }
 
     const GOOGLE_DELTA_TOKEN_KEY = 'nocturne-google-delta-token';
     const GOOGLE_SYNC_SCHEMA_KEY = 'nocturne-google-sync-schema';
     const GOOGLE_SYNC_SCHEMA_VERSION = 'v2-alldrives-shortcuts';
+    const GOOGLE_ACCOUNT_KEY = 'nocturne-google-account';
     const MICROSOFT_DELTA_LINK_KEY = 'nocturne-microsoft-delta-link';
+    const MICROSOFT_ACCOUNT_KEY = 'nocturne-microsoft-account';
     const GOOGLE_SYNC_CHECKPOINT_KEY = 'nocturne-google-sync-checkpoint';
     const MICROSOFT_SYNC_CHECKPOINT_KEY = 'nocturne-microsoft-sync-checkpoint';
     const CLOUD_SYNC_CHECKPOINT_TTL_MS = 6 * 60 * 60 * 1000;
@@ -17898,13 +18502,16 @@
     }
     function writeCloudSyncCheckpoint(key, data) {
       try {
-        if (typeof localStorage === 'undefined' || !localStorage) return;
+        if (typeof localStorage === 'undefined' || !localStorage) return false;
         if (!data || typeof data !== 'object') {
           localStorage.removeItem(key);
-          return;
+          return true;
         }
         localStorage.setItem(key, JSON.stringify(Object.assign({}, data, { savedAt: Number(data.savedAt) || Date.now() })));
-      } catch (_) {}
+        return true;
+      } catch (_) {
+        return false;
+      }
     }
     function clearCloudSyncCheckpoint(key) {
       try {
@@ -18060,115 +18667,135 @@
         }
         if (touched) markUpdatedTrack(existing);
       };
-      while (cursor) {
-        deltaPageCount++;
-        if (deltaPageCount > GOOGLE_DELTA_MAX_PAGES) {
-          writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, '');
-          return { handled: false, resetCursor: true };
+      let deltaPersisted = false;
+      const flushDeltaPersistence = async () => {
+        if (deltaPersisted) return;
+        const pending = addedTracks.concat(updatedTracks);
+        if (pending.length > 0 && typeof persistCloudCatalog === 'function') {
+          deltaPersisted = true;
+          await persistCloudCatalog(pending, { skipPrune: true }).catch(() => {});
         }
-        const params = new URLSearchParams({
-          pageToken: cursor,
-          supportsAllDrives: 'true',
-          includeItemsFromAllDrives: 'true',
-          pageSize: '1000',
-          fields: 'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,fileExtension,mimeType,size,parents,modifiedTime,md5Checksum,trashed,shortcutDetails,thumbnailLink))'
-        });
-        const response = await fetchGoogleDrivePageWithRetry(
-          `https://www.googleapis.com/drive/v3/changes?${params}`,
-          () => curToken,
-          async () => { curToken = await ensureGoogleToken(true); return curToken; }
-        );
-        if (response.status === 400 || response.status === 404 || response.status === 410) {
-          writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, '');
-          return { handled: false, resetCursor: true };
-        }
-        if (response.status === 401) {
-          const body = await response.text();
-          throw new Error(`Google Drive từ chối phiên đăng nhập (401). ${googleConfigurationHint(401, body)} Nếu phiên hết hạn, hãy nhấn “Tiếp tục với Google” rồi thử lại.`);
-        }
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(`Google Drive API ${response.status}: ${googleConfigurationHint(response.status, body)}`);
-        }
-        const data = await response.json();
-        const changes = (data && Array.isArray(data.changes)) ? data.changes : [];
-        for (let ci = 0; ci < changes.length; ci++) {
-          const change = changes[ci];
-          const fid = change && (change.fileId || (change.file && change.file.id));
-          if (!fid) continue;
-          if (change.removed || !change.file || change.file.trashed) {
+      };
+      try {
+        while (cursor) {
+          deltaPageCount++;
+          if (deltaPageCount > GOOGLE_DELTA_MAX_PAGES) {
+            writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, '');
+            await flushDeltaPersistence();
+            return { handled: false, resetCursor: true };
+          }
+          const params = new URLSearchParams({
+            pageToken: cursor,
+            supportsAllDrives: 'true',
+            includeItemsFromAllDrives: 'true',
+            pageSize: '1000',
+            fields: 'nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,fileExtension,mimeType,size,parents,modifiedTime,md5Checksum,trashed,shortcutDetails,thumbnailLink))'
+          });
+          const response = await fetchGoogleDrivePageWithRetry(
+            `https://www.googleapis.com/drive/v3/changes?${params}`,
+            () => curToken,
+            async () => {
+              curToken = await ensureGoogleToken(true);
+              if (typeof state !== 'undefined' && state && curToken) state.googleToken = curToken;
+              return curToken;
+            }
+          );
+          if (response.status === 400 || response.status === 404 || response.status === 410) {
+            writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, '');
+            await flushDeltaPersistence();
+            return { handled: false, resetCursor: true };
+          }
+          if (response.status === 401) {
+            const body = await response.text();
+            throw new Error(`Google Drive từ chối phiên đăng nhập (401). ${googleConfigurationHint(401, body)} Nếu phiên hết hạn, hãy nhấn “Tiếp tục với Google” rồi thử lại.`);
+          }
+          if (!response.ok) {
+            const body = await response.text();
+            throw new Error(`Google Drive API ${response.status}: ${googleConfigurationHint(response.status, body)}`);
+          }
+          const data = await response.json();
+          const changes = (data && Array.isArray(data.changes)) ? data.changes : [];
+          for (let ci = 0; ci < changes.length; ci++) {
+            const change = changes[ci];
+            const fid = change && (change.fileId || (change.file && change.file.id));
+            if (!fid) continue;
+            if (change.removed || !change.file || change.file.trashed) {
+              if (knownIds.has(fid)) {
+                deletedRemoteIds.add(fid);
+              } else if (existingByTargetId.has(fid)) {
+                const scAlias = existingByTargetId.get(fid);
+                if (scAlias && scAlias.remoteId) deletedRemoteIds.add(scAlias.remoteId);
+              }
+              if (existingByParentId.has(String(fid))) {
+                removedFolderIds.add(String(fid));
+              }
+              continue;
+            }
+            const file = change.file;
+            deletedRemoteIds.delete(fid);
             if (knownIds.has(fid)) {
-              deletedRemoteIds.add(fid);
-            } else if (existingByTargetId.has(fid)) {
-              const scAlias = existingByTargetId.get(fid);
-              if (scAlias && scAlias.remoteId) deletedRemoteIds.add(scAlias.remoteId);
+              syncExistingGoogleChange(existingByRemoteId.get(fid), file, fid);
+              continue;
             }
-            if (existingByParentId.has(String(fid))) {
-              removedFolderIds.add(String(fid));
+            if (existingByTargetId.has(fid)) {
+              const scMatch = existingByTargetId.get(fid);
+              if (scMatch && scMatch.remoteId) deletedRemoteIds.delete(scMatch.remoteId);
+              syncExistingGoogleChange(scMatch, file, fid);
+              continue;
             }
-            continue;
-          }
-          const file = change.file;
-          deletedRemoteIds.delete(fid);
-          if (knownIds.has(fid)) {
-            syncExistingGoogleChange(existingByRemoteId.get(fid), file, fid);
-            continue;
-          }
-          if (existingByTargetId.has(fid)) {
-            const scMatch = existingByTargetId.get(fid);
-            if (scMatch && scMatch.remoteId) deletedRemoteIds.delete(scMatch.remoteId);
-            syncExistingGoogleChange(scMatch, file, fid);
-            continue;
-          }
-          const newScTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
-          if (newScTid && (knownIds.has(newScTid) || existingByTargetId.has(newScTid))) continue;
-          if (!isCloudAudio(file)) {
-            if (file.mimeType === 'application/vnd.google-apps.folder') {
-              removedFolderIds.delete(String(fid));
-              changedArtParents.add(String(fid));
-              changedLrcParents.add(String(fid));
-              const folderName = String(file.name || '').trim();
-              if (folderName && isDiscDirFn(folderName)) {
-                const dm = folderName.match(/\b(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*(\d{1,2})\b/i);
-                const parsedDisc = dm ? parseInt(dm[1], 10) : 0;
-                if (parsedDisc > 0) {
-                  for (let ti = 0; ti < state.tracks.length; ti++) {
-                    const tr = state.tracks[ti];
-                    if (tr && tr.source === 'google' && Array.isArray(tr.parents) && tr.parents.indexOf(fid) !== -1 && tr.discNumber !== parsedDisc) {
-                      tr.discNumber = parsedDisc;
-                      markUpdatedTrack(tr);
+            const newScTid = (file.shortcutDetails && file.shortcutDetails.targetId) ? String(file.shortcutDetails.targetId).trim() : '';
+            if (newScTid && (knownIds.has(newScTid) || existingByTargetId.has(newScTid))) continue;
+            if (!isCloudAudio(file)) {
+              if (file.mimeType === 'application/vnd.google-apps.folder') {
+                removedFolderIds.delete(String(fid));
+                changedArtParents.add(String(fid));
+                changedLrcParents.add(String(fid));
+                const folderName = String(file.name || '').trim();
+                if (folderName && isDiscDirFn(folderName)) {
+                  const dm = folderName.match(/\b(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*(\d{1,2})\b/i);
+                  const parsedDisc = dm ? parseInt(dm[1], 10) : 0;
+                  if (parsedDisc > 0) {
+                    for (let ti = 0; ti < state.tracks.length; ti++) {
+                      const tr = state.tracks[ti];
+                      if (tr && tr.source === 'google' && Array.isArray(tr.parents) && tr.parents.indexOf(fid) !== -1 && tr.discNumber !== parsedDisc) {
+                        tr.discNumber = parsedDisc;
+                        markUpdatedTrack(tr);
+                      }
                     }
                   }
                 }
+              } else if (file.mimeType === 'application/vnd.google-apps.shortcut' && file.shortcutDetails && file.shortcutDetails.targetId && file.shortcutDetails.targetMimeType === 'application/vnd.google-apps.folder') {
+                const targetFolderId = String(file.shortcutDetails.targetId).trim();
+                if (targetFolderId) {
+                  changedArtParents.add(targetFolderId);
+                  changedLrcParents.add(targetFolderId);
+                }
+              } else if (Array.isArray(file.parents) && file.parents.length && /\.lrc$/i.test(String(file.name || ''))) {
+                for (let pi = 0; pi < file.parents.length; pi++) {
+                  const pid = String(file.parents[pi] || '').trim();
+                  if (pid) changedLrcParents.add(pid);
+                }
+              } else if (Array.isArray(file.parents) && file.parents.length && scoreFolderCover(file.name || '') > 0) {
+                for (let pi = 0; pi < file.parents.length; pi++) {
+                  const pid = String(file.parents[pi] || '').trim();
+                  if (pid) changedArtParents.add(pid);
+                }
               }
-            } else if (file.mimeType === 'application/vnd.google-apps.shortcut' && file.shortcutDetails && file.shortcutDetails.targetId && file.shortcutDetails.targetMimeType === 'application/vnd.google-apps.folder') {
-              const targetFolderId = String(file.shortcutDetails.targetId).trim();
-              if (targetFolderId) {
-                changedArtParents.add(targetFolderId);
-                changedLrcParents.add(targetFolderId);
-              }
-            } else if (Array.isArray(file.parents) && file.parents.length && /\.lrc$/i.test(String(file.name || ''))) {
-              for (let pi = 0; pi < file.parents.length; pi++) {
-                const pid = String(file.parents[pi] || '').trim();
-                if (pid) changedLrcParents.add(pid);
-              }
-            } else if (Array.isArray(file.parents) && file.parents.length && scoreFolderCover(file.name || '') > 0) {
-              for (let pi = 0; pi < file.parents.length; pi++) {
-                const pid = String(file.parents[pi] || '').trim();
-                if (pid) changedArtParents.add(pid);
-              }
+              continue;
             }
-            continue;
+            const track = googleTrack(file);
+            state.tracks.push(track);
+            addedTracks.push(track);
+            knownIds.add(file.id);
+            existingByRemoteId.set(file.id, track);
+            if (track && track.targetRemoteId) existingByTargetId.set(String(track.targetRemoteId), track);
           }
-          const track = googleTrack(file);
-          state.tracks.push(track);
-          addedTracks.push(track);
-          knownIds.add(file.id);
-          existingByRemoteId.set(file.id, track);
-          if (track && track.targetRemoteId) existingByTargetId.set(String(track.targetRemoteId), track);
+          if (data && data.newStartPageToken) nextStartToken = String(data.newStartPageToken);
+          cursor = (data && data.nextPageToken) ? String(data.nextPageToken) : '';
         }
-        if (data && data.newStartPageToken) nextStartToken = String(data.newStartPageToken);
-        cursor = (data && data.nextPageToken) ? String(data.nextPageToken) : '';
+      } catch (deltaErr) {
+        await flushDeltaPersistence();
+        throw deltaErr;
       }
       if (removedFolderIds.size > 0) {
         removedFolderIds.forEach(rfid => {
@@ -18197,10 +18824,7 @@
           }
         }
       }
-      const toPersist = addedTracks.concat(updatedTracks);
-      if (toPersist.length > 0) {
-        await persistCloudCatalog(toPersist, { skipPrune: true }).catch(() => {});
-      }
+      await flushDeltaPersistence();
       const removed = await removeCloudTracksByRemoteIds('google', deletedRemoteIds);
       if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
       if (addedTracks.length || updatedTracks.length || removed) {
@@ -18239,6 +18863,66 @@
       });
     }
 
+    let lastNativeCloudSyncLock = null;
+    function updateNativeCloudSyncWakeLock() {
+      const active = Boolean(typeof state !== 'undefined' && state && (state._googleCloudSyncActive || state._microsoftCloudSyncActive));
+      if (active === lastNativeCloudSyncLock) return;
+      lastNativeCloudSyncLock = active;
+      try {
+        if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setCloudSyncActive === 'function') {
+          window.NocturneNative.setCloudSyncActive(active);
+        }
+      } catch (_) {}
+    }
+
+    async function verifyGoogleDriveAccountSwitch(getToken, refreshToken) {
+      if (typeof localStorage === 'undefined' || !localStorage) return { switched: false };
+      if (typeof fetchGoogleDrivePageWithRetry !== 'function' && typeof fetchWithTimeout !== 'function' && typeof fetch !== 'function') {
+        return { switched: false };
+      }
+      try {
+        const aboutUrl = 'https://www.googleapis.com/drive/v3/about?fields=user(permissionId,emailAddress)';
+        let resp = null;
+        if (typeof fetchGoogleDrivePageWithRetry === 'function') {
+          resp = await fetchGoogleDrivePageWithRetry(aboutUrl, getToken, refreshToken);
+        } else {
+          const curTok = typeof getToken === 'function' ? getToken() : getToken;
+          const doFetch = (typeof fetchWithTimeout === 'function')
+            ? ((u, o) => fetchWithTimeout(u, o, 8000))
+            : ((u, o) => fetch(u, o));
+          resp = await doFetch(aboutUrl, { headers: { Authorization: `Bearer ${curTok}` } });
+        }
+        if (!resp || !resp.ok) return { switched: false };
+        const data = await resp.json();
+        const user = data && data.user;
+        const accountId = String((user && (user.permissionId || user.emailAddress)) || '').trim().toLowerCase();
+        if (!accountId) return { switched: false };
+        let prevAccountId = '';
+        try {
+          prevAccountId = String(localStorage.getItem(GOOGLE_ACCOUNT_KEY) || '').trim().toLowerCase();
+        } catch (_) {}
+        let switched = false;
+        if (prevAccountId && prevAccountId !== accountId) {
+          switched = true;
+          if (typeof clearCloudSourceCatalog === 'function') {
+            await clearCloudSourceCatalog('google').catch(() => {});
+          }
+          if (typeof writeCloudDeltaCursor === 'function' && typeof GOOGLE_SYNC_SCHEMA_KEY === 'string') {
+            writeCloudDeltaCursor(GOOGLE_SYNC_SCHEMA_KEY, '');
+          }
+        }
+        try {
+          localStorage.setItem(GOOGLE_ACCOUNT_KEY, accountId);
+        } catch (_) {}
+        if (switched && typeof toast === 'function') {
+          toast('Đã phát hiện đổi tài khoản Google Drive — đang làm mới danh mục.');
+        }
+        return { switched: switched, accountId: accountId };
+      } catch (_) {
+        return { switched: false };
+      }
+    }
+
     async function loadGoogleFiles() {
       const syncOptions = (arguments && arguments[0] && typeof arguments[0] === 'object') ? arguments[0] : {};
       const forceFullScan = Boolean(syncOptions.forceFullScan);
@@ -18249,10 +18933,26 @@
       }
       if (state && state._googleSyncPromise) return state._googleSyncPromise;
       const syncRun = (async () => {
-      try { if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setCloudSyncActive === 'function') window.NocturneNative.setCloudSyncActive(true); } catch (_) {}
+      if (typeof state !== 'undefined' && state) state._googleCloudSyncActive = true;
+      if (typeof updateNativeCloudSyncWakeLock === 'function') {
+        updateNativeCloudSyncWakeLock();
+      } else {
+        try { if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setCloudSyncActive === 'function') window.NocturneNative.setCloudSyncActive(true); } catch (_) {}
+      }
       try {
       await restoreCloudCatalog();
       let token = await ensureGoogleToken();
+      let activeGoogleAccountId = '';
+      if (typeof verifyGoogleDriveAccountSwitch === 'function') {
+        const gAcctRes = await verifyGoogleDriveAccountSwitch(
+          () => token,
+          async () => { token = await ensureGoogleToken(true); return token; }
+        );
+        if (gAcctRes && gAcctRes.accountId) activeGoogleAccountId = gAcctRes.accountId;
+        if (gAcctRes && gAcctRes.switched && state && state.currentId === null && typeof syncPlaybackButtonsUi === 'function') {
+          syncPlaybackButtonsUi(false);
+        }
+      }
       let pageToken = '', added = 0, scanned = 0, useOrderBy = true, useAllDrives = true;
       let skippedCount = 0;
       const skippedSample = [];
@@ -18331,6 +19031,8 @@
         if (touched) updatedExistingTracks.push(existing);
       };
       let sawIncompleteSearch = false;
+      let shortcutScanIncomplete = false;
+      let hadSuccessfulPageFetch = false;
       const newlyAddedTracks = [];
       let persistChain = Promise.resolve();
       let skippedFullArtworkPass = false;
@@ -18355,6 +19057,7 @@
         }
         if (!forceFullScan && !resumedFromCheckpoint && typeof tryLoadGoogleChangesDelta === 'function' && knownIds.size > 0) {
           const deltaRes = await tryLoadGoogleChangesDelta(token, existingByRemoteId, knownIds);
+          if (typeof state !== 'undefined' && state && state.googleToken) token = state.googleToken;
           if (deltaRes && deltaRes.handled) {
             if (Array.isArray(deltaRes.newlyAddedTracks) && deltaRes.newlyAddedTracks.length) {
               for (let di = 0; di < deltaRes.newlyAddedTracks.length; di++) newlyAddedTracks.push(deltaRes.newlyAddedTracks[di]);
@@ -18388,7 +19091,7 @@
               async () => { token = await ensureGoogleToken(true); return token; }
             );
 
-            if (response.status === 400 && resumedFromCheckpoint && pageToken) {
+            if ((response.status === 400 || response.status === 404 || response.status === 410) && resumedFromCheckpoint && pageToken) {
               if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY);
               pageToken = '';
               resumedFromCheckpoint = false;
@@ -18416,6 +19119,7 @@
           }
 
           const data = await response.json(), pageTracks = [];
+          hadSuccessfulPageFetch = true;
           if (data.incompleteSearch) {
             sawIncompleteSearch = true;
             console.warn('Google Drive reported an incomplete search; My Drive results were still returned.');
@@ -18473,7 +19177,6 @@
           cloudStatus('google', `Đang quét Google Drive… ${scanned} mục · ${knownIds.size} bài`, 'text-sky-300');
         } while (pageToken);
 
-        if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY);
         if (typeof scanGoogleDriveAudioShortcuts === 'function') {
           const scRes = await scanGoogleDriveAudioShortcuts(
             () => token,
@@ -18484,31 +19187,44 @@
             updatedExistingTracks,
             newlyAddedTracks
           );
+          if (scRes && scRes.incomplete) shortcutScanIncomplete = true;
           if (scRes && scRes.added > 0 && Array.isArray(scRes.tracks) && scRes.tracks.length) {
             added += scRes.added;
-            persistChain = persistChain.then(() => persistCloudCatalog(scRes.tracks, { skipPrune: true })).catch(() => {});
+            persistChain = persistChain.then(() => persistCloudCatalog(scRes.tracks, { skipPrune: true })).catch(() => { persistFailed = true; });
           }
         }
         if (updatedExistingTracks.length > 0) {
-          persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => {});
+          persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => { persistFailed = true; });
         }
         await persistChain;
-        if (!sawIncompleteSearch && !resumedFromCheckpoint && seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {
+        if (!shortcutScanIncomplete && !persistFailed && typeof clearCloudSyncCheckpoint === 'function') {
+          clearCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY);
+        }
+        const isGoogleScanComplete = !sawIncompleteSearch && !shortcutScanIncomplete && !resumedFromCheckpoint && !persistFailed;
+        if (isGoogleScanComplete && seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {
           await removeDeletedCloudTracks('google', seenRemoteIds, true);
+        } else if (isGoogleScanComplete && hadSuccessfulPageFetch && seenRemoteIds.size === 0 && knownIds.size > 0 && typeof clearCloudSourceCatalog === 'function') {
+          await clearCloudSourceCatalog('google');
+          if (activeGoogleAccountId && typeof localStorage !== 'undefined' && localStorage) {
+            try { localStorage.setItem(GOOGLE_ACCOUNT_KEY, activeGoogleAccountId); } catch (_) {}
+          }
+          knownIds.clear();
+          existingByRemoteId.clear();
+          existingByTargetId.clear();
         }
         if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
         renderTracks();
         cloudStatus('google', `Google Drive · ${knownIds.size} bài`, 'text-emerald-300');
         toast(`Đã quét hết Drive: ${knownIds.size} bài âm thanh (${added} bài mới).`);
         console.info('[DriveSync]', { scanned, added, totalGoogleTracks: knownIds.size, skippedCount, skippedSample });
-        if (!sawIncompleteSearch && typeof writeCloudDeltaCursor === 'function' && typeof GOOGLE_SYNC_SCHEMA_KEY === 'string' && typeof GOOGLE_SYNC_SCHEMA_VERSION === 'string') {
+        if (!sawIncompleteSearch && !shortcutScanIncomplete && !persistFailed && typeof writeCloudDeltaCursor === 'function' && typeof GOOGLE_SYNC_SCHEMA_KEY === 'string' && typeof GOOGLE_SYNC_SCHEMA_VERSION === 'string') {
           writeCloudDeltaCursor(GOOGLE_SYNC_SCHEMA_KEY, GOOGLE_SYNC_SCHEMA_VERSION);
         }
-        if (!sawIncompleteSearch && typeof fetchGoogleStartPageToken === 'function' && typeof writeCloudDeltaCursor === 'function') {
+        if (!sawIncompleteSearch && !shortcutScanIncomplete && !persistFailed && typeof fetchGoogleStartPageToken === 'function' && typeof writeCloudDeltaCursor === 'function') {
           const startTok = await fetchGoogleStartPageToken(token).catch(() => '');
           if (startTok) writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, startTok);
         }
-        if (!sawIncompleteSearch && typeof pruneOrphanedSliceCacheEntries === 'function') {
+        if (isGoogleScanComplete && typeof pruneOrphanedSliceCacheEntries === 'function') {
           pruneOrphanedSliceCacheEntries('google').catch(() => {});
         }
       } catch (error) {
@@ -18517,6 +19233,7 @@
           clearCloudSyncCheckpoint(GOOGLE_SYNC_CHECKPOINT_KEY);
         }
         renderTracks();
+        if (typeof cloudStatus === 'function') cloudStatus('google', `Google Drive · tạm dừng (${knownIds.size} bài)`, 'text-amber-300');
         if (added) toast(`Đã lưu ${added} bài mới trước khi đồng bộ bị gián đoạn.`);
         throw error;
       } finally {
@@ -18533,7 +19250,12 @@
         }
       }
       } finally {
-        try { if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setCloudSyncActive === 'function') window.NocturneNative.setCloudSyncActive(false); } catch (_) {}
+        if (typeof state !== 'undefined' && state) state._googleCloudSyncActive = false;
+        if (typeof updateNativeCloudSyncWakeLock === 'function') {
+          updateNativeCloudSyncWakeLock();
+        } else if (!(typeof state !== 'undefined' && state && state._microsoftCloudSyncActive)) {
+          try { if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setCloudSyncActive === 'function') window.NocturneNative.setCloudSyncActive(false); } catch (_) {}
+        }
       }
       })();
       if (state) state._googleSyncPromise = syncRun;
@@ -18713,33 +19435,55 @@
     async function graphGet(url, token = state.microsoftAccessToken) {
       let retryCount = 0;
       let refreshedOnce = false;
+      let activeToken = token || (typeof state !== 'undefined' && state ? state.microsoftAccessToken : '');
+      const resolveMsRetryAfterMs = (hdrVal) => {
+        if (typeof parseCloudRetryAfterMs === 'function') return parseCloudRetryAfterMs(hdrVal, 30000);
+        if (hdrVal == null) return 0;
+        const raw = String(hdrVal).trim();
+        if (!raw) return 0;
+        const sec = Number(raw);
+        if (Number.isFinite(sec)) return sec > 0 ? Math.min(30000, Math.max(1, Math.round(sec * 1000))) : 0;
+        const dt = Date.parse(raw);
+        return (Number.isFinite(dt) && dt > Date.now()) ? Math.min(30000, Math.round(dt - Date.now())) : 0;
+      };
       while (true) {
+        if (!activeToken && typeof state !== 'undefined' && state && state.microsoftAccessToken) {
+          activeToken = state.microsoftAccessToken;
+        }
         let response;
         try {
           response = (typeof fetchWithTimeout === 'function')
-            ? await fetchWithTimeout(url, {headers:{Authorization:`Bearer ${token}`}}, 25000)
-            : await fetch(url, {headers:{Authorization:`Bearer ${token}`}});
+            ? await fetchWithTimeout(url, {headers:{Authorization:`Bearer ${activeToken}`}}, 25000)
+            : await fetch(url, {headers:{Authorization:`Bearer ${activeToken}`}});
         } catch (netErr) {
-          if (retryCount < 3) {
+          if (retryCount < 5) {
             retryCount++;
-            await new Promise(resolve => setTimeout(resolve, Math.min(400 * Math.pow(2, retryCount), 4000)));
+            const netWaitMs = Math.min(500 * Math.pow(2, retryCount), 16000) + Math.floor(Math.random() * 350);
+            await new Promise(resolve => setTimeout(resolve, netWaitMs));
             continue;
           }
           throw netErr;
         }
-        if (response.status === 401 && !refreshedOnce) {
+        if (response.status === 401 && !refreshedOnce && typeof getMicrosoftToken === 'function') {
           refreshedOnce = true;
-          token = await getMicrosoftToken(false, true);
-          state.microsoftAccessToken = token;
-          continue;
+          try {
+            const refreshed = await getMicrosoftToken(false, true);
+            if (refreshed) {
+              activeToken = refreshed;
+              if (typeof state !== 'undefined' && state) state.microsoftAccessToken = refreshed;
+            }
+            continue;
+          } catch (authErr) {
+            if (authErr && authErr.status == null) authErr.status = 401;
+            throw authErr;
+          }
         }
-        if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 3) {
+        if ((response.status === 429 || (response.status >= 500 && response.status <= 504)) && retryCount < 5) {
           retryCount++;
           const retryAfterHeader = response.headers && typeof response.headers.get === 'function' ? response.headers.get('retry-after') : '';
-          const retryAfterSec = retryAfterHeader ? Number(retryAfterHeader) : 0;
-          const waitMs = (Number.isFinite(retryAfterSec) && retryAfterSec > 0)
-            ? Math.min(8000, Math.round(retryAfterSec * 1000))
-            : Math.min(400 * Math.pow(2, retryCount), 4000);
+          const retryAfterMs = resolveMsRetryAfterMs(retryAfterHeader);
+          const baseMs = retryAfterMs > 0 ? retryAfterMs : Math.min(1000 * Math.pow(2, retryCount), 30000);
+          const waitMs = Math.min(30000, baseMs) + Math.floor(Math.random() * 350);
           await new Promise(resolve => setTimeout(resolve, waitMs));
           continue;
         }
@@ -18769,6 +19513,9 @@
       if (state.msal) return state.msal;
       if (microsoftMsalInitPromise) return microsoftMsalInitPromise;
       microsoftMsalInitPromise = (async () => {
+        if (typeof msal === 'undefined' || !msal || typeof msal.PublicClientApplication !== 'function') {
+          throw new Error('Phiên OneDrive đã hết hạn. Hãy kết nối lại trong Cấu hình Cloud API.');
+        }
         const config = library.parseCloudConfig(localStorage.getItem('nocturne-microsoft'));
         const clientId = config.clientId || (safeVal($('microsoft-client-id')) || '').trim() || DEFAULT_MICROSOFT_CLIENT_ID;
         const msalInstance = new msal.PublicClientApplication({auth:{clientId, authority:'https://login.microsoftonline.com/common', redirectUri:location.origin + location.pathname}, cache:{cacheLocation:'localStorage', storeAuthStateInCookie:false}});
@@ -18798,6 +19545,7 @@
           if (state.microsoftExpiresAt) localStorage.setItem('nocturne-microsoft-token-expires', String(state.microsoftExpiresAt));
         } catch (_) {}
         if (typeof resetCloudMetadataRetryForSource === 'function') resetCloudMetadataRetryForSource('onedrive');
+        if (typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('onedrive', state.microsoftAccessToken);
         return state.microsoftAccessToken;
       };
       if (!interactive) {
@@ -18805,11 +19553,15 @@
           throw new Error('Phiên OneDrive đã hết hạn. Hãy kết nối lại trong Cấu hình Cloud API.');
         }
         if (forceRefresh) {
+          if (state.microsoftAccessToken && state.microsoftLastForceRefreshAt && (Date.now() - state.microsoftLastForceRefreshAt) < 8000 && (!state.microsoftExpiresAt || Date.now() < state.microsoftExpiresAt - 15000)) {
+            return state.microsoftAccessToken;
+          }
           if (microsoftTokenForceRefreshPromise) {
             return microsoftTokenForceRefreshPromise;
           }
           microsoftTokenForceRefreshPromise = (async () => {
             const result = await state.msal.acquireTokenSilent({scopes:['Files.Read'], account:state.msAccount, forceRefresh:true});
+            state.microsoftLastForceRefreshAt = Date.now();
             return applyResult(result);
           })().finally(() => {
             microsoftTokenForceRefreshPromise = null;
@@ -18967,10 +19719,12 @@
       let next = 'https://graph.microsoft.com/v1.0/me/drive/sharedWithMe?$top=200';
       let pageCount = 0;
       let sharedListComplete = true;
+      const initialStateTok = (typeof state !== 'undefined' && state && state.microsoftAccessToken) ? state.microsoftAccessToken : '';
       try {
-        while (next && pageCount < 5) {
+        while (next && pageCount < 25) {
           pageCount++;
-          const data = await graphGet(next, token);
+          const curMsTok = (typeof state !== 'undefined' && state && state.microsoftAccessToken && state.microsoftAccessToken !== initialStateTok) ? state.microsoftAccessToken : (token || initialStateTok);
+          const data = await graphGet(next, curMsTok);
           const entries = (data && Array.isArray(data.value)) ? data.value : [];
           for (let ei = 0; ei < entries.length; ei++) {
             const raw = entries[ei];
@@ -19075,7 +19829,8 @@
       return addedTracks;
     }
     async function saveMicrosoftLatestDeltaLink(token) {
-      const data = await graphGet('https://graph.microsoft.com/v1.0/me/drive/root/delta?token=latest', token);
+      const activeTok = (typeof state !== 'undefined' && state && state.microsoftAccessToken) ? state.microsoftAccessToken : token;
+      const data = await graphGet('https://graph.microsoft.com/v1.0/me/drive/root/delta?token=latest', activeTok);
       const deltaLink = data && data['@odata.deltaLink'] ? String(data['@odata.deltaLink']) : '';
       if (deltaLink && typeof writeCloudDeltaCursor === 'function') {
         writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, deltaLink);
@@ -19120,14 +19875,23 @@
         updatedTrackIds.add(tr.id);
         updatedTracks.push(tr);
       };
+      const persistPartialMsDelta = async () => {
+        const partial = addedTracks.concat(updatedTracks);
+        if (partial.length > 0 && typeof persistCloudCatalog === 'function') {
+          await persistCloudCatalog(partial, { skipPrune: true }).catch(() => {});
+        }
+      };
+      const initialStateTok = (typeof state !== 'undefined' && state && state.microsoftAccessToken) ? state.microsoftAccessToken : '';
       try {
         while (nextUrl) {
           msDeltaPageCount++;
           if (msDeltaPageCount > MICROSOFT_DELTA_MAX_PAGES) {
+            await persistPartialMsDelta();
             if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, '');
             return { handled: false, resetCursor: true };
           }
-          const data = await graphGet(nextUrl, token);
+          const curMsTok = (typeof state !== 'undefined' && state && state.microsoftAccessToken && state.microsoftAccessToken !== initialStateTok) ? state.microsoftAccessToken : (token || initialStateTok);
+          const data = await graphGet(nextUrl, curMsTok);
           const items = (data && Array.isArray(data.value)) ? data.value : [];
           for (let ii = 0; ii < items.length; ii++) {
             const rawItem = items[ii];
@@ -19298,8 +20062,9 @@
           nextUrl = (data && data['@odata.nextLink']) ? String(data['@odata.nextLink']) : '';
         }
       } catch (deltaErr) {
+        await persistPartialMsDelta();
         const msg = String(deltaErr && deltaErr.message ? deltaErr.message : deltaErr || '');
-        if (deltaErr && (deltaErr.status === 410 || deltaErr.status === 400 || deltaErr.status === 404 || /resyncRequired|invalidDeltaToken/i.test(msg))) {
+        if (deltaErr && (deltaErr.status === 410 || deltaErr.status === 400 || deltaErr.status === 404 || /resyncRequired|invalidDeltaToken|syncStateNotFound|deltaToken/i.test(msg))) {
           if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, '');
           return { handled: false, resetCursor: true };
         }
@@ -19349,10 +20114,7 @@
       if (latestDeltaLink && typeof writeCloudDeltaCursor === 'function') {
         writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, latestDeltaLink);
       }
-      const toPersist = addedTracks.concat(updatedTracks);
-      if (toPersist.length > 0) {
-        await persistCloudCatalog(toPersist, { skipPrune: true }).catch(() => {});
-      }
+      await persistPartialMsDelta();
       const removed = (typeof removeCloudTracksByRemoteIds === 'function')
         ? await removeCloudTracksByRemoteIds('onedrive', deletedRemoteIds)
         : 0;
@@ -19365,7 +20127,52 @@
       if (typeof toast === 'function') toast(`Đồng bộ nhanh OneDrive (Delta): +${addedTracks.length} mới, ~${updatedTracks.length} cập nhật, -${removed} đã xóa.`);
       return { handled: true, added: addedTracks.length, updated: updatedTracks.length, removed };
     }
+    async function verifyMicrosoftAccountSwitch(token) {
+      if (typeof localStorage === 'undefined' || !localStorage) return { switched: false };
+      let msAcctKey = '';
+      try {
+        if (typeof state !== 'undefined' && state && state.msAccount) {
+          const rawMsalId = state.msAccount.homeAccountId || state.msAccount.localAccountId || state.msAccount.username || '';
+          if (rawMsalId) msAcctKey = 'msal:' + String(rawMsalId).trim().toLowerCase();
+        }
+        if (!msAcctKey && (typeof fetchWithTimeout === 'function' || typeof fetch === 'function')) {
+          const activeTok = token || (typeof state !== 'undefined' && state ? state.microsoftAccessToken : '');
+          if (activeTok) {
+            const doFetch = (typeof fetchWithTimeout === 'function')
+              ? ((u, o) => fetchWithTimeout(u, o, 8000))
+              : ((u, o) => fetch(u, o));
+            const resp = await doFetch('https://graph.microsoft.com/v1.0/me/drive?$select=id,owner', {
+              headers: { Authorization: `Bearer ${activeTok}` }
+            });
+            if (resp && resp.ok) {
+              const driveMeta = await resp.json();
+              const driveOwnerId = (driveMeta && (driveMeta.id || (driveMeta.owner && driveMeta.owner.user && (driveMeta.owner.user.id || driveMeta.owner.user.email)))) || '';
+              if (driveOwnerId) msAcctKey = 'drive:' + String(driveOwnerId).trim().toLowerCase();
+            }
+          }
+        }
+        if (!msAcctKey) return { switched: false };
+        const prevAccountId = String(localStorage.getItem(MICROSOFT_ACCOUNT_KEY) || '').trim().toLowerCase();
+        let switched = false;
+        if (prevAccountId && prevAccountId !== msAcctKey) {
+          switched = true;
+          if (typeof clearCloudSourceCatalog === 'function') {
+            await clearCloudSourceCatalog('onedrive').catch(() => {});
+          }
+        }
+        localStorage.setItem(MICROSOFT_ACCOUNT_KEY, msAcctKey);
+        if (switched && typeof toast === 'function') {
+          toast('Đã phát hiện đổi tài khoản OneDrive — đang làm mới danh mục.');
+        }
+        return { switched: switched, accountId: msAcctKey };
+      } catch (_) {
+        return { switched: false };
+      }
+    }
+
     async function loadMicrosoftFiles(token) {
+      const syncOptions = (arguments && arguments[1] && typeof arguments[1] === 'object') ? arguments[1] : {};
+      const forceFullScan = Boolean(syncOptions.forceFullScan);
       if (token && state) state.microsoftAccessToken = token;
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         if (typeof cloudStatus === 'function') cloudStatus('microsoft', 'OneDrive · Ngoại tuyến (dùng bộ đệm)', 'text-amber-300');
@@ -19374,8 +20181,32 @@
       }
       if (state && state._microsoftSyncPromise) return state._microsoftSyncPromise;
       const syncRun = (async () => {
+      if (typeof state !== 'undefined' && state) state._microsoftCloudSyncActive = true;
+      if (typeof updateNativeCloudSyncWakeLock === 'function') {
+        updateNativeCloudSyncWakeLock();
+      } else {
+        try { if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setCloudSyncActive === 'function') window.NocturneNative.setCloudSyncActive(true); } catch (_) {}
+      }
+      try {
       await restoreCloudCatalog();
-      state.microsoftAccessToken = token || state.microsoftAccessToken;
+      if (state && state.msAccount && (!state.microsoftAccessToken || (state.microsoftExpiresAt && Date.now() >= state.microsoftExpiresAt - 300000)) && typeof getMicrosoftToken === 'function') {
+        const refreshedTok = await getMicrosoftToken(false).catch(() => '');
+        if (refreshedTok) token = refreshedTok;
+      }
+      if (token && state) state.microsoftAccessToken = token;
+      else if (state && state.microsoftAccessToken) token = state.microsoftAccessToken;
+      let activeMsAccountId = '';
+      if (typeof verifyMicrosoftAccountSwitch === 'function') {
+        const msAcctRes = await verifyMicrosoftAccountSwitch(token);
+        if (msAcctRes && msAcctRes.accountId) activeMsAccountId = msAcctRes.accountId;
+        if (msAcctRes && msAcctRes.switched && state && state.currentId === null && typeof syncPlaybackButtonsUi === 'function') {
+          syncPlaybackButtonsUi(false);
+        }
+      }
+      if (forceFullScan) {
+        if (typeof writeCloudDeltaCursor === 'function' && typeof MICROSOFT_DELTA_LINK_KEY === 'string') writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, '');
+        if (typeof clearCloudSyncCheckpoint === 'function' && typeof MICROSOFT_SYNC_CHECKPOINT_KEY === 'string') clearCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY);
+      }
       let added = 0, scannedFolders = 0;
       const existingByRemoteId = new Map();
       const byShortcutId = new Map();
@@ -19389,22 +20220,28 @@
       const knownIds = new Set(existingByRemoteId.keys());
       const seenRemoteIds = new Set();
       let persistChain = Promise.resolve();
+      let msPersistFailed = false;
+      let hadSuccessfulFolderFetch = false;
       const siblingCoversByDir = new Map();
       const siblingLrcByBase = new Map();
       const scoreFolderCover = (typeof library !== 'undefined' && typeof library.scoreFolderCoverFilename === 'function')
         ? library.scoreFolderCoverFilename
         : () => 0;
-      const queue = [{url:'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,cTag,size,audio&$top=500', path:'', driveId:''}];
+      const MS_ROOT_CHILDREN_URL = 'https://graph.microsoft.com/v1.0/me/drive/root/children?$select=id,name,file,folder,cTag,size,audio&$top=500';
+      const queue = [{url: MS_ROOT_CHILDREN_URL, path:'', driveId:''}];
       const visitedFolders = new Set();
       const updatedExistingTracks = [];
+      let sharedScanComplete = true;
       try {
         const FOLDER_BATCH_CONCURRENCY = 3;
         const scanFolderNode = async (folderNode) => {
-          const url = folderNode.url, path = folderNode.path;
+          const path = folderNode.path;
           scannedFolders++;
-          let next = url, pageTracks = [];
+          let next = folderNode.url, pageTracks = [];
+          try {
           while (next) {
             const data = await graphGet(next);
+            hadSuccessfulFolderFetch = true;
             for (const rawItem of data.value || []) {
               const norm = (typeof normalizeMicrosoftDriveItem === 'function')
                 ? normalizeMicrosoftDriveItem(rawItem, folderNode.driveId)
@@ -19541,108 +20378,165 @@
             }
             if (pageTracks.length) {
               const batch = pageTracks;
-              persistChain = persistChain.then(() => persistCloudCatalog(batch, { skipPrune: true })).catch(() => {});
+              persistChain = persistChain.then(() => persistCloudCatalog(batch, { skipPrune: true })).catch(() => { msPersistFailed = true; });
               if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
               if (typeof scheduleTrackRender === 'function') scheduleTrackRender();
               pageTracks = [];
             }
             cloudStatus('microsoft', `Đang quét OneDrive… ${scannedFolders} thư mục · ${knownIds.size} bài`, 'text-sky-300');
             next = data['@odata.nextLink'] || '';
+            if (next) folderNode.url = next;
+          }
+          folderNode._completed = true;
+          } catch (nodeErr) {
+            const st = Number(nodeErr && nodeErr.status) || 0;
+            const msg = String(nodeErr && nodeErr.message ? nodeErr.message : nodeErr || '');
+            if (msResumedFromCheckpoint && folderNode.path && st === 404) {
+              folderNode._completed = true;
+              return;
+            }
+            if (msResumedFromCheckpoint && (st === 410 || st === 400 || (st === 404 && !folderNode.path) || /resyncRequired|invalidDeltaToken|syncStateNotFound|skipToken/i.test(msg))) {
+              nodeErr._msCheckpointExpired = true;
+            }
+            throw nodeErr;
+          }
+        };
+        const MS_CHECKPOINT_MAX_QUEUE = 4000;
+        const saveMsCheckpoint = (nodes) => {
+          if (typeof writeCloudSyncCheckpoint !== 'function') return;
+          if (!Array.isArray(nodes) || !nodes.length || nodes.length > MS_CHECKPOINT_MAX_QUEUE || msPersistFailed) {
+            if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY);
+            return;
+          }
+          const serialized = nodes.map(n => (n.driveId ? { url: n.url, path: n.path || '', driveId: n.driveId } : { url: n.url, path: n.path || '' }));
+          const ok = writeCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY, { queue: serialized });
+          if (ok === false && typeof clearCloudSyncCheckpoint === 'function') {
+            clearCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY);
           }
         };
         let msResumedFromCheckpoint = false;
-        let activeMsBatch = [];
-        const msResumeCp = (typeof readCloudSyncCheckpoint === 'function') ? readCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY) : null;
-        if (msResumeCp && Array.isArray(msResumeCp.queue) && msResumeCp.queue.length > 0) {
-          queue.length = 0;
-          for (let ci = 0; ci < msResumeCp.queue.length; ci++) {
-            const cNode = msResumeCp.queue[ci];
-            if (cNode && typeof cNode.url === 'string' && cNode.url) {
-              queue.push({ url: cNode.url, path: String(cNode.path || ''), driveId: String(cNode.driveId || '') });
-            }
-          }
-          if (queue.length > 0) msResumedFromCheckpoint = true;
-        }
-        if (!msResumedFromCheckpoint && typeof tryLoadMicrosoftDeltaSync === 'function' && knownIds.size > 0) {
-          siblingCoversByDir._lrcMap = siblingLrcByBase;
-          const msDelta = await tryLoadMicrosoftDeltaSync(token, existingByRemoteId, knownIds, siblingCoversByDir);
-          if (msDelta && msDelta.handled) {
+        let restartedFromExpiredMsCp = false;
+        for (let msAttempt = 0; msAttempt < 2; msAttempt++) {
+          msResumedFromCheckpoint = false;
+          let activeMsBatch = [];
+          const msResumeCp = (!forceFullScan && !restartedFromExpiredMsCp && typeof readCloudSyncCheckpoint === 'function') ? readCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY) : null;
+          if (msResumeCp && Array.isArray(msResumeCp.queue) && msResumeCp.queue.length > 0) {
             queue.length = 0;
-            if (typeof enqueueMicrosoftSharedItems === 'function') {
-              let sharedFolderScanFailed = false;
-              const sharedDeltaAdded = await enqueueMicrosoftSharedItems(token, queue, visitedFolders, existingByRemoteId, knownIds, seenRemoteIds, updatedExistingTracks).catch(() => { sharedFolderScanFailed = true; return []; });
-              if (sharedDeltaAdded && sharedDeltaAdded.length) {
-                added += sharedDeltaAdded.length;
-                persistChain = persistChain.then(() => persistCloudCatalog(sharedDeltaAdded, { skipPrune: true })).catch(() => {});
-              }
-              while (queue.length) {
-                const sharedBatch = queue.splice(0, FOLDER_BATCH_CONCURRENCY);
-                for (let bi = 0; bi < sharedBatch.length; bi++) {
-                  if (sharedBatch[bi]) sharedBatch[bi].forceCoverRefresh = true;
-                }
-                await Promise.all(sharedBatch.map(node => scanFolderNode(node).catch(() => { sharedFolderScanFailed = true; })));
-              }
-              if (updatedExistingTracks.length > 0) {
-                persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => {});
-              }
-              await persistChain;
-              let removedShared = 0;
-              if (sharedDeltaAdded && sharedDeltaAdded._sharedScanComplete && !sharedFolderScanFailed && typeof removeCloudTracksByRemoteIds === 'function') {
-                const staleSharedIds = new Set();
-                for (let si = 0; si < state.tracks.length; si++) {
-                  const st = state.tracks[si];
-                  if (!st || st.source !== 'onedrive' || !st.remoteDriveId) continue;
-                  const srid = st.remoteId || st.id;
-                  if (srid && !seenRemoteIds.has(srid)) staleSharedIds.add(srid);
-                }
-                if (staleSharedIds.size > 0) {
-                  removedShared = await removeCloudTracksByRemoteIds('onedrive', staleSharedIds);
-                  staleSharedIds.forEach(srid => { knownIds.delete(srid); existingByRemoteId.delete(srid); });
-                  if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
-                  if (typeof pruneOrphanedSliceCacheEntries === 'function') pruneOrphanedSliceCacheEntries('onedrive').catch(() => {});
-                }
-              }
-              if (added > 0 || updatedExistingTracks.length > 0 || removedShared > 0) {
-                if (typeof renderTracks === 'function') renderTracks();
-                const msSharedCount = (typeof countSourceTracks === 'function') ? countSourceTracks('onedrive') : knownIds.size;
-                if (typeof cloudStatus === 'function') cloudStatus('microsoft', `OneDrive · ${msSharedCount} bài`, 'text-emerald-300');
+            for (let ci = 0; ci < msResumeCp.queue.length; ci++) {
+              const cNode = msResumeCp.queue[ci];
+              if (cNode && typeof cNode.url === 'string' && cNode.url) {
+                queue.push({ url: cNode.url, path: String(cNode.path || ''), driveId: String(cNode.driveId || '') });
               }
             }
-            return;
+            if (queue.length > 0) msResumedFromCheckpoint = true;
           }
-        }
-        if (!msResumedFromCheckpoint && typeof enqueueMicrosoftSharedItems === 'function') {
-          const sharedAdded = await enqueueMicrosoftSharedItems(token, queue, visitedFolders, existingByRemoteId, knownIds, seenRemoteIds, updatedExistingTracks);
-          if (sharedAdded && sharedAdded.length) {
-            added += sharedAdded.length;
-            persistChain = persistChain.then(() => persistCloudCatalog(sharedAdded, { skipPrune: true })).catch(() => {});
-          }
-        }
-        try {
-          while (queue.length) {
-            activeMsBatch = queue.splice(0, FOLDER_BATCH_CONCURRENCY);
-            await Promise.all(activeMsBatch.map(node => scanFolderNode(node)));
-            activeMsBatch = [];
-            if (queue.length > 0 && typeof writeCloudSyncCheckpoint === 'function') {
-              writeCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY, { queue: queue.slice(0, 500) });
+          if (!forceFullScan && !restartedFromExpiredMsCp && !msResumedFromCheckpoint && typeof tryLoadMicrosoftDeltaSync === 'function' && knownIds.size > 0) {
+            if (typeof state !== 'undefined' && state && state.microsoftAccessToken) token = state.microsoftAccessToken;
+            siblingCoversByDir._lrcMap = siblingLrcByBase;
+            const msDelta = await tryLoadMicrosoftDeltaSync(token, existingByRemoteId, knownIds, siblingCoversByDir);
+            if (typeof state !== 'undefined' && state && state.microsoftAccessToken) token = state.microsoftAccessToken;
+            if (msDelta && msDelta.handled) {
+              queue.length = 0;
+              if (typeof enqueueMicrosoftSharedItems === 'function') {
+                let sharedFolderScanFailed = false;
+                const sharedDeltaAdded = await enqueueMicrosoftSharedItems(token, queue, visitedFolders, existingByRemoteId, knownIds, seenRemoteIds, updatedExistingTracks).catch(() => { sharedFolderScanFailed = true; return []; });
+                if (sharedDeltaAdded && sharedDeltaAdded.length) {
+                  added += sharedDeltaAdded.length;
+                  persistChain = persistChain.then(() => persistCloudCatalog(sharedDeltaAdded, { skipPrune: true })).catch(() => { msPersistFailed = true; });
+                }
+                while (queue.length) {
+                  const sharedBatch = queue.splice(0, FOLDER_BATCH_CONCURRENCY);
+                  for (let bi = 0; bi < sharedBatch.length; bi++) {
+                    if (sharedBatch[bi]) sharedBatch[bi].forceCoverRefresh = true;
+                  }
+                  await Promise.all(sharedBatch.map(node => scanFolderNode(node).catch(() => { sharedFolderScanFailed = true; })));
+                }
+                if (updatedExistingTracks.length > 0) {
+                  persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => { msPersistFailed = true; });
+                }
+                await persistChain;
+                let removedShared = 0;
+                if (sharedDeltaAdded && sharedDeltaAdded._sharedScanComplete && !sharedFolderScanFailed && typeof removeCloudTracksByRemoteIds === 'function') {
+                  const staleSharedIds = new Set();
+                  for (let si = 0; si < state.tracks.length; si++) {
+                    const st = state.tracks[si];
+                    if (!st || st.source !== 'onedrive' || !st.remoteDriveId) continue;
+                    const srid = st.remoteId || st.id;
+                    if (srid && !seenRemoteIds.has(srid)) staleSharedIds.add(srid);
+                  }
+                  if (staleSharedIds.size > 0) {
+                    removedShared = await removeCloudTracksByRemoteIds('onedrive', staleSharedIds);
+                    staleSharedIds.forEach(srid => { knownIds.delete(srid); existingByRemoteId.delete(srid); });
+                    if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
+                    if (typeof pruneOrphanedSliceCacheEntries === 'function') pruneOrphanedSliceCacheEntries('onedrive').catch(() => {});
+                  }
+                }
+                if (added > 0 || updatedExistingTracks.length > 0 || removedShared > 0) {
+                  if (typeof renderTracks === 'function') renderTracks();
+                  const msSharedCount = (typeof countSourceTracks === 'function') ? countSourceTracks('onedrive') : knownIds.size;
+                  if (typeof cloudStatus === 'function') cloudStatus('microsoft', `OneDrive · ${msSharedCount} bài`, 'text-emerald-300');
+                }
+              }
+              return;
             }
           }
-        } catch (batchErr) {
-          const remainingForCp = activeMsBatch.concat(queue);
-          if (remainingForCp.length > 0 && typeof writeCloudSyncCheckpoint === 'function') {
-            writeCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY, { queue: remainingForCp.slice(0, 500) });
+          if (!msResumedFromCheckpoint && typeof enqueueMicrosoftSharedItems === 'function') {
+            const sharedAdded = await enqueueMicrosoftSharedItems(token, queue, visitedFolders, existingByRemoteId, knownIds, seenRemoteIds, updatedExistingTracks);
+            if (sharedAdded && sharedAdded._sharedScanComplete === false) sharedScanComplete = false;
+            if (sharedAdded && sharedAdded.length) {
+              added += sharedAdded.length;
+              persistChain = persistChain.then(() => persistCloudCatalog(sharedAdded, { skipPrune: true })).catch(() => { msPersistFailed = true; });
+            }
           }
-          throw batchErr;
+          try {
+            while (queue.length) {
+              activeMsBatch = queue.splice(0, FOLDER_BATCH_CONCURRENCY);
+              await Promise.all(activeMsBatch.map(node => scanFolderNode(node)));
+              activeMsBatch = [];
+              if (queue.length > 0 && typeof writeCloudSyncCheckpoint === 'function') {
+                await persistChain;
+                saveMsCheckpoint(queue);
+              }
+            }
+            break;
+          } catch (batchErr) {
+            await persistChain;
+            if (msResumedFromCheckpoint && !restartedFromExpiredMsCp && batchErr && batchErr._msCheckpointExpired) {
+              if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY);
+              restartedFromExpiredMsCp = true;
+              msResumedFromCheckpoint = false;
+              queue.length = 0;
+              queue.push({ url: MS_ROOT_CHILDREN_URL, path: '', driveId: '' });
+              visitedFolders.clear();
+              seenRemoteIds.clear();
+              activeMsBatch = [];
+              continue;
+            }
+            const remainingForCp = activeMsBatch.filter(n => n && !n._completed).concat(queue);
+            if (remainingForCp.length > 0 && typeof writeCloudSyncCheckpoint === 'function') {
+              saveMsCheckpoint(remainingForCp);
+            }
+            throw batchErr;
+          }
         }
         if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY);
         if (updatedExistingTracks.length > 0) {
-          persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => {});
+          persistChain = persistChain.then(() => persistCloudCatalog(updatedExistingTracks, { skipPrune: true })).catch(() => { msPersistFailed = true; });
         }
         await persistChain;
-        if (!msResumedFromCheckpoint && seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {
+        if (!msResumedFromCheckpoint && sharedScanComplete && seenRemoteIds.size > 0 && typeof removeDeletedCloudTracks === 'function') {
           await removeDeletedCloudTracks('onedrive', seenRemoteIds, true);
+        } else if (!msResumedFromCheckpoint && sharedScanComplete && hadSuccessfulFolderFetch && seenRemoteIds.size === 0 && knownIds.size > 0 && typeof clearCloudSourceCatalog === 'function') {
+          await clearCloudSourceCatalog('onedrive');
+          if (activeMsAccountId && typeof localStorage !== 'undefined' && localStorage) {
+            try { localStorage.setItem(MICROSOFT_ACCOUNT_KEY, activeMsAccountId); } catch (_) {}
+          }
+          knownIds.clear();
+          existingByRemoteId.clear();
+          byShortcutId.clear();
         }
         await pruneCloudCatalog();
+        if (typeof state !== 'undefined' && state && state.microsoftAccessToken) token = state.microsoftAccessToken;
         if (typeof saveMicrosoftLatestDeltaLink === 'function') {
           await saveMicrosoftLatestDeltaLink(token).catch(() => {});
         }
@@ -19654,7 +20548,11 @@
         toast(`Đã quét hết OneDrive: tìm thấy ${knownIds.size} bài âm thanh (${added} bài mới).`);
       } catch (error) {
         await persistChain;
+        if (msPersistFailed && typeof clearCloudSyncCheckpoint === 'function' && typeof MICROSOFT_SYNC_CHECKPOINT_KEY === 'string') {
+          clearCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY);
+        }
         renderTracks();
+        if (typeof cloudStatus === 'function') cloudStatus('microsoft', `OneDrive · tạm dừng (${knownIds.size} bài)`, 'text-amber-300');
         if (added) toast(`Đã lưu ${added} bài mới trước khi đồng bộ bị gián đoạn.`);
         throw error;
       } finally {
@@ -19667,6 +20565,14 @@
         }
         if (siblingLrcByBase.size > 0 && typeof applyMicrosoftSiblingLrcLinks === 'function') {
           applyMicrosoftSiblingLrcLinks(siblingLrcByBase).catch(() => {});
+        }
+      }
+      } finally {
+        if (typeof state !== 'undefined' && state) state._microsoftCloudSyncActive = false;
+        if (typeof updateNativeCloudSyncWakeLock === 'function') {
+          updateNativeCloudSyncWakeLock();
+        } else if (!(typeof state !== 'undefined' && state && state._googleCloudSyncActive)) {
+          try { if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setCloudSyncActive === 'function') window.NocturneNative.setCloudSyncActive(false); } catch (_) {}
         }
       }
       })();
@@ -20051,6 +20957,32 @@
         settingsError(new Error(`Không thể ngắt kết nối Google Drive: ${err.message || err}`));
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = prevLabel || 'Ngắt kết nối & xóa nhạc Google Drive'; }
+      }
+    });
+    /* $('microsoft-full-resync')?.addEventListener('click' */ safeOn($('microsoft-full-resync'), 'click', async () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        toast('Đang ngoại tuyến — cần Internet để quét lại OneDrive.');
+        return;
+      }
+      const btn = $('microsoft-full-resync');
+      const prevLabel = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Đang quét lại toàn bộ OneDrive…'; }
+      try {
+        let token = state.microsoftAccessToken || '';
+        if (state && state.msAccount && (!token || (state.microsoftExpiresAt && Date.now() >= state.microsoftExpiresAt - 15000))) {
+          token = await getMicrosoftToken(false).catch(() => token);
+        }
+        if (!token) {
+          await connectMicrosoft();
+          return;
+        }
+        cloudStatus('microsoft', 'Đang quét lại toàn bộ OneDrive…', 'text-sky-300');
+        await loadMicrosoftFiles(token, { forceFullScan: true });
+      } catch (err) {
+        if (typeof isSettingsOpen === 'function' && isSettingsOpen()) settingsError(new Error(`Không thể quét lại OneDrive: ${err.message || err}`));
+        else toast(`Không thể quét lại OneDrive: ${err.message || err}`);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = prevLabel || '🔄 Quét lại toàn bộ OneDrive (khắc phục thiếu bài)'; }
       }
     });
     /* $('microsoft-disconnect')?.addEventListener('click' */ safeOn($('microsoft-disconnect'), 'click', async () => {
@@ -20746,6 +21678,7 @@
         localStorage.setItem('nocturne-google-token-expires', String(state.googleExpiresAt));
       } catch (_) {}
       if (typeof resetCloudMetadataRetryForSource === 'function') resetCloudMetadataRetryForSource('google');
+      if (typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('google', token);
       cloudStatus('google', 'Đang quét Google Drive bằng token…', 'text-sky-300');
       await loadGoogleFiles();
       cloudStatus('google', 'Đã đồng bộ Google Drive', 'text-emerald-300');
@@ -20806,6 +21739,7 @@
         localStorage.setItem('nocturne-microsoft-token-expires', String(state.microsoftExpiresAt));
       } catch (_) {}
       if (typeof resetCloudMetadataRetryForSource === 'function') resetCloudMetadataRetryForSource('onedrive');
+      if (typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('onedrive', token);
       cloudStatus('microsoft', 'Đang quét OneDrive bằng token…', 'text-sky-300');
       await loadMicrosoftFiles(token);
       cloudStatus('microsoft', 'OneDrive đã đồng bộ', 'text-emerald-300');
@@ -23328,7 +24262,7 @@
       const trackDurSec = (curTrack && Number.isFinite(curTrack.cueStart) && Number.isFinite(curTrack.duration) && curTrack.duration > 0)
         ? curTrack.duration
         : rawDurSec;
-      if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+      if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
         const curAbsSec = (typeof getCurrentPlaybackPositionSeconds === 'function')
           ? getCurrentPlaybackPositionSeconds()
           : ((typeof window.NocturneNative.getBitPerfectPosition === 'function') ? ((Number(window.NocturneNative.getBitPerfectPosition()) || 0) / 1000) : (state.lastBitPerfectPositionSec || 0));
@@ -23337,7 +24271,11 @@
         if (trackDurSec > 0) nextRelSec = Math.min(trackDurSec, nextRelSec);
         const targetAbsSec = cueOffset + nextRelSec;
         state.lastBitPerfectPositionSec = targetAbsSec;
+        state.lastBitPerfectPositionAtMs = Date.now();
+        state._bpSeekHoldUntilMs = Date.now() + 900;
+        state._bpSeekTargetSec = targetAbsSec;
         window.NocturneNative.seekBitPerfectPlayback(Math.round(targetAbsSec * 1000));
+        if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(nextRelSec, trackDurSec);
         if (typeof syncSeek === 'function' && trackDurSec > 0) syncSeek((nextRelSec / trackDurSec) * 1000);
         if ($('current-time') && typeof formatTime === 'function') $('current-time').textContent = formatTime(nextRelSec);
         if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
@@ -23353,6 +24291,7 @@
           if (typeof applySmartSeekTime === 'function') applySmartSeekTime(curAudio, curTrack, targetAbsSec);
           else curAudio.currentTime = targetAbsSec;
         } catch (_) {}
+        if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(nextRelSec, trackDurSec);
         if (typeof syncSeek === 'function' && trackDurSec > 0) syncSeek((nextRelSec / trackDurSec) * 1000);
         if ($('current-time') && typeof formatTime === 'function') $('current-time').textContent = formatTime(nextRelSec);
         if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
@@ -23373,9 +24312,13 @@
       let nextRelSec = Math.max(0, targetMs / 1000);
       if (trackDurSec > 0) nextRelSec = Math.min(trackDurSec, nextRelSec);
       const targetAbsSec = cueOffset + nextRelSec;
-      if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+      if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
         state.lastBitPerfectPositionSec = targetAbsSec;
+        state.lastBitPerfectPositionAtMs = Date.now();
+        state._bpSeekHoldUntilMs = Date.now() + 900;
+        state._bpSeekTargetSec = targetAbsSec;
         window.NocturneNative.seekBitPerfectPlayback(Math.round(targetAbsSec * 1000));
+        if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(nextRelSec, trackDurSec);
         if (typeof syncSeek === 'function' && trackDurSec > 0) syncSeek((nextRelSec / trackDurSec) * 1000);
         if ($('current-time') && typeof formatTime === 'function') $('current-time').textContent = formatTime(nextRelSec);
         if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
@@ -23387,6 +24330,7 @@
           if (typeof applySmartSeekTime === 'function') applySmartSeekTime(curAudio, curTrack, targetAbsSec);
           else curAudio.currentTime = targetAbsSec;
         } catch (_) {}
+        if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(nextRelSec, trackDurSec);
         if (typeof syncSeek === 'function' && trackDurSec > 0) syncSeek((nextRelSec / trackDurSec) * 1000);
         if ($('current-time') && typeof formatTime === 'function') $('current-time').textContent = formatTime(nextRelSec);
         if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
@@ -23491,11 +24435,12 @@
       const handleMiniSeek = (e) => {
         const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
         const curTrack = (typeof trackById === 'function' && state.currentId ? trackById(state.currentId) : null) || state.tracks.find(t => t.id === state.currentId);
-        const dur = (typeof getCurrentPlaybackDurationSeconds === 'function')
+        const isCue = Boolean(curTrack && curTrack.cueStart !== undefined && curTrack.duration);
+        const dur = isCue ? curTrack.duration : ((typeof getCurrentPlaybackDurationSeconds === 'function')
           ? getCurrentPlaybackDurationSeconds(curTrack, curAudio)
           : ((curAudio && Number.isFinite(curAudio.duration) && curAudio.duration > 0)
             ? curAudio.duration
-            : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0));
+            : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0)));
         if (dur > 0) {
           const rect = miniWf.getBoundingClientRect();
           const frac = (typeof library !== 'undefined' && library && typeof library.calculateMiniHudScrubFraction === 'function')
@@ -23504,14 +24449,22 @@
           const seekTime = (typeof library !== 'undefined' && library && typeof library.calculateMiniHudScrubTime === 'function')
             ? library.calculateMiniHudScrubTime(frac, dur)
             : frac * dur;
-          if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
-            window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(seekTime * 1000)));
-            state.lastBitPerfectPositionSec = seekTime;
-            syncSeek(Math.round(frac * 1000));
-          } else {
-            curAudio.currentTime = seekTime;
+          const cueOffset = (isCue && Number.isFinite(curTrack.cueStart) && curTrack.cueStart > 0) ? curTrack.cueStart : 0;
+          const absSeekTime = cueOffset + seekTime;
+          if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+            window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(absSeekTime * 1000)));
+            state.lastBitPerfectPositionSec = absSeekTime;
+            state.lastBitPerfectPositionAtMs = Date.now();
+            state._bpSeekHoldUntilMs = Date.now() + 900;
+            state._bpSeekTargetSec = absSeekTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(seekTime, dur);
+          } else if (curAudio) {
+            if (isCue) curAudio.currentTime = absSeekTime;
+            else if (typeof applySmartSeekTime === 'function') { if (!applySmartSeekTime(curAudio, curTrack, absSeekTime)) return; }
+            else curAudio.currentTime = absSeekTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(seekTime, dur);
           }
-          updatePositionState();
+          updatePositionState(true);
           renderWaveformSeekbar();
         }
       };
@@ -23932,13 +24885,20 @@
       }
     });
     $('room-seek').addEventListener('input', event => {
+      state.isSeeking = true;
       paintSeek(event.currentTarget, event.currentTarget.value);
+      if (typeof syncSeek === 'function') syncSeek(event.currentTarget.value);
       const curTrack = state.tracks.find(t => t.id === state.currentId);
       const isCue = curTrack && curTrack.cueStart !== undefined && curTrack.duration;
-      const roomDur = isCue ? curTrack.duration : ((typeof getCurrentPlaybackDurationSeconds === 'function') ? getCurrentPlaybackDurationSeconds(curTrack, audio) : (audio.duration || 0));
+      const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      const roomDur = isCue ? curTrack.duration : ((typeof getCurrentPlaybackDurationSeconds === 'function') ? getCurrentPlaybackDurationSeconds(curTrack, curAudio) : (audio.duration || 0));
       const previewTime = Number(event.currentTarget.value) / 1000 * roomDur;
-      $('room-current-time').textContent = formatTime(previewTime);
-      if (isCue || state.isNativeBitPerfectPlaying || !(Number.isFinite(audio.duration) && audio.duration > 0)) {
+      const previewFmt = formatTime(previewTime);
+      if ($('room-current-time')) $('room-current-time').textContent = previewFmt;
+      if ($('current-time')) $('current-time').textContent = previewFmt;
+      if ($('current-time-mobile')) $('current-time-mobile').textContent = previewFmt;
+      if ($('fullscreen-time-cur')) $('fullscreen-time-cur').textContent = previewFmt;
+      if (isCue || state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused || curAudio !== audio || (curTrack && curTrack.firstSlicePlayback) || !(Number.isFinite(audio.duration) && audio.duration > 0) || (roomDur > 0 && roomDur !== audio.duration)) {
         $('room-remaining').textContent = formatRemainingTime(previewTime, roomDur);
       } else {
         $('room-remaining').textContent = formatRemainingTime(previewTime, audio.duration);
@@ -23976,24 +24936,33 @@
       curAudio.currentTime = safeSec;
       return true;
     }
+    function syncNativeBpSeekState(absSec, relSec, durSec) {
+      state.lastBitPerfectPositionSec = absSec;
+      state.lastBitPerfectPositionAtMs = Date.now();
+      state._bpSeekHoldUntilMs = Date.now() + 900;
+      state._bpSeekTargetSec = absSec;
+      if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(relSec, durSec);
+    }
     $('room-seek').addEventListener('change', event => {
       const curTrack = state.tracks.find(t => t.id === state.currentId);
+      const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
       const ratio = Number(event.currentTarget.value) / 1000;
-      const dur = (curTrack && curTrack.cueStart !== undefined && curTrack.duration) ? curTrack.duration : ((typeof getCurrentPlaybackDurationSeconds === 'function') ? getCurrentPlaybackDurationSeconds(curTrack, audio) : ((curTrack ? curTrack.duration : 0) || audio.duration || 0));
-      if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && /* window.NocturneNative?.seekBitPerfectPlayback */ (window.NocturneNative && window.NocturneNative.seekBitPerfectPlayback)) {
+      const dur = (curTrack && curTrack.cueStart !== undefined && curTrack.duration) ? curTrack.duration : (typeof getCurrentPlaybackDurationSeconds === 'function' ? getCurrentPlaybackDurationSeconds(curTrack, curAudio) : ((curTrack ? curTrack.duration : 0) || audio.duration || 0));
+      if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && /* window.NocturneNative?.seekBitPerfectPlayback */ (window.NocturneNative && window.NocturneNative.seekBitPerfectPlayback)) {
         const cueOffset = (curTrack && Number.isFinite(curTrack.cueStart) && curTrack.cueStart > 0) ? curTrack.cueStart : 0;
         const targetSec = Math.max(0, cueOffset + (ratio * dur));
         window.NocturneNative.seekBitPerfectPlayback(Math.round(targetSec * 1000));
-        state.lastBitPerfectPositionSec = targetSec;
-        syncSeek(Number(event.currentTarget.value));
-        if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+        syncNativeBpSeekState(targetSec, ratio * dur, dur);
       } else if (curTrack && curTrack.cueStart !== undefined) {
-        audio.currentTime = curTrack.cueStart + (ratio * curTrack.duration);
+        curAudio.currentTime = curTrack.cueStart + (ratio * curTrack.duration);
+        if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(ratio * curTrack.duration, curTrack.duration);
       } else if (dur > 0 || Number.isFinite(audio.duration)) {
-        applySmartSeekTime(audio, curTrack, ratio * (dur > 0 ? dur : audio.duration));
+        const targetSec = curAudio === audio ? ratio * (dur > 0 ? dur : audio.duration) : ratio * (dur > 0 ? dur : curAudio.duration);
+        applySmartSeekTime(curAudio, curTrack, targetSec);
+        if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(targetSec, dur > 0 ? dur : curAudio.duration);
       }
       state.isSeeking = false;
-      updatePositionState();
+      if (typeof updatePositionState === 'function') updatePositionState(true);
     });
     function attachWaveformTouchScrub(canvasEl, tooltipEl, options) {
       if (!canvasEl || canvasEl._touchScrubBound) return;
@@ -24033,15 +25002,21 @@
         }
         if (commitSeek && m.dur > 0) {
           const targetTrackSec = Math.max(0, Math.min(m.fraction * m.dur, m.dur));
-          if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
-            window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(targetTrackSec * 1000)));
-            state.lastBitPerfectPositionSec = targetTrackSec;
+          const cueOffset = (m.isCue && Number.isFinite(m.curTrack.cueStart) && m.curTrack.cueStart > 0) ? m.curTrack.cueStart : 0;
+          const absSec = cueOffset + targetTrackSec;
+          if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+            window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(absSec * 1000)));
+            state.lastBitPerfectPositionSec = absSec;
+            state.lastBitPerfectPositionAtMs = Date.now();
+            state._bpSeekHoldUntilMs = Date.now() + 900;
+            state._bpSeekTargetSec = absSec;
             if (typeof syncSeek === 'function') syncSeek(Math.round(m.fraction * 1000));
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(targetTrackSec, m.dur);
           } else if (m.curAudio) {
-            const absSec = m.isCue ? (m.curTrack.cueStart + targetTrackSec) : targetTrackSec;
             if (m.isCue) m.curAudio.currentTime = absSec;
             else if (typeof applySmartSeekTime === 'function') applySmartSeekTime(m.curAudio, m.curTrack, absSec);
             else m.curAudio.currentTime = absSec;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(targetTrackSec, m.dur);
           }
           if (typeof updatePositionState === 'function') updatePositionState(true);
           if (opts.fullscreen && typeof updateRoonFullscreenUI === 'function') updateRoonFullscreenUI();
@@ -24072,11 +25047,21 @@
           const m = resolveTouchMetrics(0);
           if (m && m.dur > 0) {
             const targetTrackSec = Math.max(0, Math.min(lastScrubFrac * m.dur, m.dur));
-            if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
-              window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(targetTrackSec * 1000)));
-              state.lastBitPerfectPositionSec = targetTrackSec;
+            const cueOffset = (m.isCue && Number.isFinite(m.curTrack.cueStart) && m.curTrack.cueStart > 0) ? m.curTrack.cueStart : 0;
+            const absSec = cueOffset + targetTrackSec;
+            if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+              window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(absSec * 1000)));
+              state.lastBitPerfectPositionSec = absSec;
+              state.lastBitPerfectPositionAtMs = Date.now();
+              state._bpSeekHoldUntilMs = Date.now() + 900;
+              state._bpSeekTargetSec = absSec;
+              if (typeof syncSeek === 'function') syncSeek(Math.round(lastScrubFrac * 1000));
+              if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(targetTrackSec, m.dur);
             } else if (m.curAudio) {
-              m.curAudio.currentTime = m.isCue ? (m.curTrack.cueStart + targetTrackSec) : targetTrackSec;
+              if (m.isCue) m.curAudio.currentTime = absSec;
+              else if (typeof applySmartSeekTime === 'function') applySmartSeekTime(m.curAudio, m.curTrack, absSec);
+              else m.curAudio.currentTime = absSec;
+              if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(targetTrackSec, m.dur);
             }
           }
         }
@@ -24115,12 +25100,17 @@
         if (e.buttons === 1 && dur > 0) {
           state.isSeeking = true;
           let targetTime = Math.max(0, Math.min(fraction * dur, dur));
-          if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
-            window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(targetTime * 1000)));
-            state.lastBitPerfectPositionSec = targetTime;
-          } else if (currentAudio) {
+          const relTime = targetTime;
+          if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
             if (isCue) targetTime += curTrack.cueStart;
-            currentAudio.currentTime = targetTime;
+            window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(targetTime * 1000)));
+            state.lastBitPerfectPositionSec = targetTime; state.lastBitPerfectPositionAtMs = Date.now(); state._bpSeekHoldUntilMs = Date.now() + 900; state._bpSeekTargetSec = targetTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(relTime, dur);
+          } else if (currentAudio) {
+            if (isCue) { targetTime += curTrack.cueStart; currentAudio.currentTime = targetTime; }
+            else if (typeof applySmartSeekTime === 'function') applySmartSeekTime(currentAudio, curTrack, targetTime);
+            else currentAudio.currentTime = targetTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(relTime, dur);
           }
           updatePositionState(true);
         }
@@ -24143,12 +25133,17 @@
         const dur = isCue ? curTrack.duration : ((typeof getCurrentPlaybackDurationSeconds === 'function') ? getCurrentPlaybackDurationSeconds(curTrack, currentAudio) : ((currentAudio && Number.isFinite(currentAudio.duration) && currentAudio.duration > 0) ? currentAudio.duration : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0)));
         if (dur > 0) {
           let targetTime = Math.max(0, Math.min(fraction * dur, dur));
-          if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
-            window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(targetTime * 1000)));
-            state.lastBitPerfectPositionSec = targetTime;
-          } else if (currentAudio) {
+          const relTime = targetTime;
+          if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
             if (isCue) targetTime += curTrack.cueStart;
-            currentAudio.currentTime = targetTime;
+            window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(targetTime * 1000)));
+            state.lastBitPerfectPositionSec = targetTime; state.lastBitPerfectPositionAtMs = Date.now(); state._bpSeekHoldUntilMs = Date.now() + 900; state._bpSeekTargetSec = targetTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(relTime, dur);
+          } else if (currentAudio) {
+            if (isCue) { targetTime += curTrack.cueStart; currentAudio.currentTime = targetTime; }
+            else if (typeof applySmartSeekTime === 'function') { if (!applySmartSeekTime(currentAudio, curTrack, targetTime)) return; }
+            else currentAudio.currentTime = targetTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(relTime, dur);
           } else {
             return;
           }
@@ -24163,31 +25158,49 @@
       const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
       const curTrack = state.tracks.find(t => t.id === state.currentId);
       const isCue = Boolean(curTrack && curTrack.cueStart !== undefined && curTrack.duration);
+      const cueOffset = (isCue && Number.isFinite(curTrack.cueStart) && curTrack.cueStart > 0) ? curTrack.cueStart : 0;
       const dur = isCue ? curTrack.duration : ((typeof getCurrentPlaybackDurationSeconds === 'function') ? getCurrentPlaybackDurationSeconds(curTrack, curAudio) : (curAudio && Number.isFinite(curAudio.duration) ? curAudio.duration : 0));
       if (!Number.isFinite(dur) || dur <= 0) return;
-      if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
-        const curPosSec = (typeof getCurrentPlaybackPositionSeconds === 'function') ? getCurrentPlaybackPositionSeconds() : (state.lastBitPerfectPositionSec || 0);
-        const nextSec = library.clampSeekTime(curPosSec, dur, delta);
-        window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(nextSec * 1000)));
-        state.lastBitPerfectPositionSec = nextSec;
-        if (typeof syncSeek === 'function' && dur > 0) syncSeek(Math.round((nextSec / dur) * 1000));
-        if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+      if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+        const curAbsSec = (typeof getCurrentPlaybackPositionSeconds === 'function') ? getCurrentPlaybackPositionSeconds() : (state.lastBitPerfectPositionSec || 0);
+        const curRelSec = Math.max(0, curAbsSec - cueOffset);
+        const nextRelSec = library.clampSeekTime(curRelSec, dur, delta);
+        const targetAbsSec = cueOffset + nextRelSec;
+        window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(targetAbsSec * 1000)));
+        state.lastBitPerfectPositionSec = targetAbsSec;
+        state.lastBitPerfectPositionAtMs = Date.now();
+        state._bpSeekHoldUntilMs = Date.now() + 900;
+        state._bpSeekTargetSec = targetAbsSec;
+        if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(nextRelSec, dur);
+        else {
+          if (typeof syncSeek === 'function' && dur > 0) syncSeek(Math.round((nextRelSec / dur) * 1000));
+          if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+        }
         updatePositionState(true);
-        toast(`Đã tua tới ${formatTime(nextSec)} / ${formatTime(dur)}.`);
+        toast(`Đã tua tới ${formatTime(nextRelSec)} / ${formatTime(dur)}.`);
         return;
       }
-      if (!Number.isFinite(curAudio.duration)) return;
-      const next = library.clampSeekTime(audio.currentTime, audio.duration, delta);
+      if (!curAudio || !Number.isFinite(curAudio.duration)) return;
       if (isCue && typeof (library && library.calculateSeekTargetTime) === 'function') {
         const res = library.calculateSeekTargetTime(0, curTrack, curAudio.duration, { delta, currentRawTime: curAudio.currentTime });
         curAudio.currentTime = res.targetAbsoluteTime;
+        if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(res.targetTrackTime, curTrack.duration);
         updatePositionState(true);
         toast(`Đã tua tới ${formatTime(res.targetTrackTime)} / ${formatTime(curTrack.duration)}.`);
         return;
       }
+      const seekDur = (curTrack && curTrack.firstSlicePlayback && dur > curAudio.duration) ? dur : curAudio.duration;
+      const next = (curAudio === audio && seekDur === audio.duration)
+        ? library.clampSeekTime(audio.currentTime, audio.duration, delta)
+        : library.clampSeekTime(curAudio.currentTime, seekDur, delta);
       if (applySmartSeekTime(curAudio, curTrack, next)) {
+        if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(next, seekDur);
         updatePositionState(true);
-        toast(`Đã tua tới ${formatTime(next)} / ${formatTime(audio.duration)}.`);
+        if (curAudio === audio && seekDur === audio.duration) {
+          toast(`Đã tua tới ${formatTime(next)} / ${formatTime(audio.duration)}.`);
+        } else {
+          toast(`Đã tua tới ${formatTime(next)} / ${formatTime(seekDur)}.`);
+        }
       }
     };
     const hasSeekableDuration = () => {
@@ -24242,26 +25255,39 @@
       }
       if (!$('queue-panel').classList.contains('hidden')) { if (event.key.toLowerCase() === 'q') closeQueue(); return; }
       if (event.code === 'Space' || event.key.toLowerCase() === 'k') { event.preventDefault(); $('play-button').click(); }
-      else if (event.key.toLowerCase() === 'j') { event.preventDefault(); seekByStep(-10); }
-      else if (event.key.toLowerCase() === 'l') { event.preventDefault(); seekByStep(10); }
       else if (event.key.toLowerCase() === 'c') { event.preventDefault(); if (typeof copyNowPlayingToClipboard === 'function') copyNowPlayingToClipboard(); }
       else if (event.key.toLowerCase() === 'd') { event.preventDefault(); if (typeof playRandomAlbumDiscovery === 'function') playRandomAlbumDiscovery(); }
       else if (/^[0-9]$/.test(event.key) && !event.shiftKey) {
         const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
         const curTrack = state.tracks.find(t => t.id === state.currentId);
         const isCue = Boolean(curTrack && curTrack.cueStart !== undefined && curTrack.duration);
+        const cueOffset = (isCue && Number.isFinite(curTrack.cueStart) && curTrack.cueStart > 0) ? curTrack.cueStart : 0;
         const dur = isCue ? curTrack.duration : ((typeof getCurrentPlaybackDurationSeconds === 'function') ? getCurrentPlaybackDurationSeconds(curTrack, curAudio) : (curAudio && Number.isFinite(curAudio.duration) ? curAudio.duration : 0));
         if (dur > 1) {
           event.preventDefault();
           const pct = Number(event.key) * 10;
           const trackTargetSec = Math.min(Math.max(0, (dur * pct) / 100), Math.max(0, dur - 0.25));
-          if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
-            window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(trackTargetSec * 1000)));
-            state.lastBitPerfectPositionSec = trackTargetSec;
-            if (typeof syncSeek === 'function') syncSeek(Math.round((trackTargetSec / dur) * 1000));
-            if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+          const absTargetSec = cueOffset + trackTargetSec;
+          if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+            window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(absTargetSec * 1000)));
+            state.lastBitPerfectPositionSec = absTargetSec;
+            state.lastBitPerfectPositionAtMs = Date.now();
+            state._bpSeekHoldUntilMs = Date.now() + 900;
+            state._bpSeekTargetSec = absTargetSec;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(trackTargetSec, dur);
+            else {
+              if (typeof syncSeek === 'function') syncSeek(Math.round((trackTargetSec / dur) * 1000));
+              if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+            }
           } else if (curAudio) {
-            curAudio.currentTime = isCue ? (curTrack.cueStart + trackTargetSec) : trackTargetSec;
+            if (isCue) {
+              curAudio.currentTime = absTargetSec;
+            } else if (typeof applySmartSeekTime === 'function') {
+              if (!applySmartSeekTime(curAudio, curTrack, absTargetSec)) return;
+            } else {
+              curAudio.currentTime = absTargetSec;
+            }
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(trackTargetSec, dur);
           }
           if (typeof updatePositionState === 'function') updatePositionState(true);
           toast(`Đã tua tới ${pct}% (${formatTime(trackTargetSec)})`);
@@ -24273,8 +25299,19 @@
       else if ((event.key === 'ArrowRight' || event.key.toLowerCase() === 'l') && hasSeekableDuration()) { event.preventDefault(); seekByStep(10); }
       else if (event.key === '[' && hasSeekableDuration()) { event.preventDefault(); seekByStep(-10); }
       else if (event.key === ']' && hasSeekableDuration()) { event.preventDefault(); seekByStep(10); }
-      else if (event.key === 'ArrowUp') { event.preventDefault(); const cur = Number($('volume').value) || 0; const next = Math.min(100, cur + 5); setGain(next); toast(`Âm lượng: ${next}%`); }
-      else if (event.key === 'ArrowDown') { event.preventDefault(); const cur = Number($('volume').value) || 0; const next = Math.max(0, cur - 5); setGain(next); toast(`Âm lượng: ${next}%`); }
+      else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        if (state && state.bitPerfectEnabled) {
+          setGain(100);
+          toast('Bit-Perfect đang bật (âm lượng cố định 100%, chỉnh trên DAC).');
+        } else {
+          const volEl = $('volume');
+          const cur = volEl ? (Number(volEl.value) || 0) : 0;
+          const next = event.key === 'ArrowUp' ? Math.min(100, cur + 5) : Math.max(0, cur - 5);
+          setGain(next);
+          toast(`Âm lượng: ${next}%`);
+        }
+      }
       else if (event.key.toLowerCase() === 'm') { event.preventDefault(); toggleMiniPlayerHud(); }
       else if (event.key.toLowerCase() === 'u') { event.preventDefault(); toggleMute(); }
       else if (event.key.toLowerCase() === 'n') { event.preventDefault(); playNext(1); }
@@ -24992,51 +26029,56 @@
       state.isSeeking = true;
       paintSeek(input, input.value);
       syncSeek(input.value);
+      const rSeek = $('room-seek');
+      if (rSeek) {
+        rSeek.value = input.value;
+        paintSeek(rSeek, input.value);
+      }
       const curTrack = state.tracks.find(t => t.id === state.currentId);
       const isCue = curTrack && curTrack.cueStart !== undefined && curTrack.duration;
-      const dur = isCue ? curTrack.duration : ((typeof getCurrentPlaybackDurationSeconds === 'function') ? getCurrentPlaybackDurationSeconds(curTrack, audio) : (audio.duration || 0));
-      const timeFmt = formatTime(Number(input.value) / 1000 * dur);
+      const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
+      const dur = isCue ? curTrack.duration : ((typeof getCurrentPlaybackDurationSeconds === 'function') ? getCurrentPlaybackDurationSeconds(curTrack, curAudio) : (audio.duration || 0));
+      const previewSec = Number(input.value) / 1000 * dur;
+      const timeFmt = formatTime(previewSec);
       $('current-time').textContent = timeFmt;
       $('current-time-mobile').textContent = timeFmt;
       if ($('room-current-time')) $('room-current-time').textContent = timeFmt;
       if ($('fullscreen-time-cur')) $('fullscreen-time-cur').textContent = timeFmt;
+      if ($('room-remaining') && dur > 0) $('room-remaining').textContent = formatRemainingTime(previewSec, dur);
     };
     [$('seek'), $('seek-mobile')].forEach(input => {
       input.addEventListener('input', () => previewSeekInput(input));
       input.addEventListener('change', () => {
         const curTrack = state.tracks.find(t => t.id === state.currentId);
+        const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
         const ratio = Number(input.value) / 1000;
-        const dur = (curTrack && curTrack.cueStart !== undefined && curTrack.duration) ? curTrack.duration : ((typeof getCurrentPlaybackDurationSeconds === 'function') ? getCurrentPlaybackDurationSeconds(curTrack, audio) : ((curTrack ? curTrack.duration : 0) || audio.duration || 0));
-        if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && /* window.NocturneNative?.seekBitPerfectPlayback */ (window.NocturneNative && window.NocturneNative.seekBitPerfectPlayback)) {
+        const dur = (curTrack && curTrack.cueStart !== undefined && curTrack.duration) ? curTrack.duration : (typeof getCurrentPlaybackDurationSeconds === 'function' ? getCurrentPlaybackDurationSeconds(curTrack, curAudio) : ((curTrack ? curTrack.duration : 0) || audio.duration || 0));
+        if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && /* window.NocturneNative?.seekBitPerfectPlayback */ (window.NocturneNative && window.NocturneNative.seekBitPerfectPlayback)) {
           const cueOffset = (curTrack && Number.isFinite(curTrack.cueStart) && curTrack.cueStart > 0) ? curTrack.cueStart : 0;
           const sec = Math.max(0, cueOffset + (ratio * dur));
           window.NocturneNative.seekBitPerfectPlayback(Math.round(sec * 1000));
-          state.lastBitPerfectPositionSec = sec;
-          syncSeek(Number(input.value));
-          if (typeof renderWaveformSeekbar === 'function') renderWaveformSeekbar();
+          syncNativeBpSeekState(sec, ratio * dur, dur);
         } else if (curTrack && curTrack.cueStart !== undefined) {
-          audio.currentTime = curTrack.cueStart + (ratio * curTrack.duration);
-        } else if (Number.isFinite(audio.duration)) {
-          const targetSeekSec = ratio * audio.duration;
+          curAudio.currentTime = curTrack.cueStart + (ratio * curTrack.duration);
+          if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(ratio * curTrack.duration, curTrack.duration);
+        } else if (dur > 0 || Number.isFinite(curAudio.duration)) {
+          const effectiveDur = (curTrack && curTrack.firstSlicePlayback && dur > curAudio.duration) ? dur : (Number.isFinite(curAudio.duration) && curAudio.duration > 0 ? curAudio.duration : dur);
+          const targetSeekSec = ratio * effectiveDur;
           if (curTrack && curTrack.firstSlicePlayback && curTrack.fullAudioPromise) {
             let bufferedEnd = 0;
-            try {
-              if (audio.buffered && audio.buffered.length > 0) bufferedEnd = audio.buffered.end(audio.buffered.length - 1);
-            } catch (_) {}
+            try { if (curAudio.buffered && curAudio.buffered.length > 0) bufferedEnd = curAudio.buffered.end(curAudio.buffered.length - 1); } catch (_) {}
             if (bufferedEnd > 0 && targetSeekSec > bufferedEnd + 0.5) {
               curTrack._pendingSeekAfterFullUpgrade = targetSeekSec;
               curTrack.lastSlicePosition = targetSeekSec;
               toast(`⏳ Đang tải bản FLAC đầy đủ — sẽ nhảy tới ${formatTime(targetSeekSec)} ngay khi xong...`);
-            } else {
-              curTrack._pendingSeekAfterFullUpgrade = null;
-              audio.currentTime = targetSeekSec;
-            }
-          } else {
-            audio.currentTime = targetSeekSec;
-          }
+            } else { curTrack._pendingSeekAfterFullUpgrade = null; curAudio.currentTime = targetSeekSec; }
+          } else if (curTrack && curTrack.firstSlicePlayback && curTrack._pendingSliceUpgrade && typeof applySmartSeekTime === 'function') {
+            applySmartSeekTime(curAudio, curTrack, targetSeekSec);
+          } else { curAudio.currentTime = targetSeekSec; }
+          if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(targetSeekSec, effectiveDur);
         }
         state.isSeeking = false;
-        updatePositionState();
+        updatePositionState(true);
       });
     });
     [$('volume'), $('volume-mobile')].forEach(input => input.addEventListener('input', () => setGain(input.value)));
@@ -25679,22 +26721,32 @@
         action('nexttrack', () => playNext(1));
         const seekByMediaSessionOffset = delta => {
           const curTrack = state.tracks.find(t => t.id === state.currentId);
-          if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && window.NocturneNative.seekBitPerfectPlayback) {
+          if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && window.NocturneNative.seekBitPerfectPlayback) {
             const curSec = (typeof getCurrentPlaybackPositionSeconds === 'function') ? getCurrentPlaybackPositionSeconds() : 0;
             const nativeDurMs = (typeof window.NocturneNative.getBitPerfectDuration === 'function') ? (Number(window.NocturneNative.getBitPerfectDuration()) || 0) : 0;
             const durSec = nativeDurMs > 0 ? (nativeDurMs / 1000) : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0);
             const res = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
               ? library.calculateSeekTargetTime(0, curTrack, durSec, { delta, currentRawTime: curSec })
-              : { targetAbsoluteTime: delta < 0 ? Math.max(0, curSec + delta) : (durSec > 0 ? Math.min(durSec, curSec + delta) : curSec + delta) };
+              : { targetAbsoluteTime: delta < 0 ? Math.max(0, curSec + delta) : (durSec > 0 ? Math.min(durSec, curSec + delta) : curSec + delta), targetTrackTime: delta < 0 ? Math.max(0, curSec + delta) : (durSec > 0 ? Math.min(durSec, curSec + delta) : curSec + delta) };
             window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(res.targetAbsoluteTime * 1000)));
+            state.lastBitPerfectPositionSec = res.targetAbsoluteTime;
+            state.lastBitPerfectPositionAtMs = Date.now();
+            state._bpSeekHoldUntilMs = Date.now() + 900;
+            state._bpSeekTargetSec = res.targetAbsoluteTime;
+            const uiDur = (curTrack && Number.isFinite(curTrack.cueStart) && Number.isFinite(curTrack.duration) && curTrack.duration > 0) ? curTrack.duration : durSec;
+            const uiRel = Number.isFinite(res.targetTrackTime) ? res.targetTrackTime : res.targetAbsoluteTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(uiRel, uiDur);
             updatePositionState(true);
             return;
           }
           const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
           const res = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
             ? library.calculateSeekTargetTime(0, curTrack, curAudio.duration, { delta, currentRawTime: curAudio.currentTime })
-            : { targetAbsoluteTime: delta < 0 ? Math.max(0, (curAudio.currentTime || 0) + delta) : Math.min(curAudio.duration || 0, (curAudio.currentTime || 0) + delta) };
+            : { targetAbsoluteTime: delta < 0 ? Math.max(0, (curAudio.currentTime || 0) + delta) : Math.min(curAudio.duration || 0, (curAudio.currentTime || 0) + delta), targetTrackTime: delta < 0 ? Math.max(0, (curAudio.currentTime || 0) + delta) : Math.min(curAudio.duration || 0, (curAudio.currentTime || 0) + delta) };
           applySmartSeekTime(curAudio, curTrack, res.targetAbsoluteTime);
+          const uiDur = (curTrack && Number.isFinite(curTrack.cueStart) && Number.isFinite(curTrack.duration) && curTrack.duration > 0) ? curTrack.duration : (curAudio.duration || 0);
+          const uiRel = Number.isFinite(res.targetTrackTime) ? res.targetTrackTime : res.targetAbsoluteTime;
+          if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(uiRel, uiDur);
           updatePositionState(true);
         };
         action('seekbackward', event => seekByMediaSessionOffset(-(event.seekOffset || 10)));
@@ -25703,15 +26755,30 @@
           if (event.seekTime != null) {
             const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
             const curTrack = state.tracks.find(t => t.id === state.currentId);
-            if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && window.NocturneNative.seekBitPerfectPlayback) {
-              window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(Number(event.seekTime) * 1000)));
+            if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && window.NocturneNative.seekBitPerfectPlayback) {
+              const nativeDurMs = (typeof window.NocturneNative.getBitPerfectDuration === 'function') ? (Number(window.NocturneNative.getBitPerfectDuration()) || 0) : 0;
+              const durSec = nativeDurMs > 0 ? (nativeDurMs / 1000) : (curTrack && Number.isFinite(curTrack.duration) ? curTrack.duration : 0);
+              const res = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
+                ? library.calculateSeekTargetTime(event.seekTime, curTrack, durSec)
+                : { targetAbsoluteTime: Math.max(0, Number(event.seekTime) || 0), targetTrackTime: Math.max(0, Number(event.seekTime) || 0) };
+              window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(res.targetAbsoluteTime * 1000)));
+              state.lastBitPerfectPositionSec = res.targetAbsoluteTime;
+              state.lastBitPerfectPositionAtMs = Date.now();
+              state._bpSeekHoldUntilMs = Date.now() + 900;
+              state._bpSeekTargetSec = res.targetAbsoluteTime;
+              const uiDur = (curTrack && Number.isFinite(curTrack.cueStart) && Number.isFinite(curTrack.duration) && curTrack.duration > 0) ? curTrack.duration : durSec;
+              const uiRel = Number.isFinite(res.targetTrackTime) ? res.targetTrackTime : res.targetAbsoluteTime;
+              if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(uiRel, uiDur);
               updatePositionState(true);
               return;
             }
             const res = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
               ? library.calculateSeekTargetTime(event.seekTime, curTrack, curAudio.duration)
-              : { targetAbsoluteTime: Math.min(Math.max(0, event.seekTime), curAudio.duration || 0) };
+              : { targetAbsoluteTime: Math.min(Math.max(0, event.seekTime), curAudio.duration || 0), targetTrackTime: Math.min(Math.max(0, event.seekTime), curAudio.duration || 0) };
             applySmartSeekTime(curAudio, curTrack, res.targetAbsoluteTime);
+            const uiDur = (curTrack && Number.isFinite(curTrack.cueStart) && Number.isFinite(curTrack.duration) && curTrack.duration > 0) ? curTrack.duration : (curAudio.duration || 0);
+            const uiRel = Number.isFinite(res.targetTrackTime) ? res.targetTrackTime : res.targetAbsoluteTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(uiRel, uiDur);
             updatePositionState(true);
           }
         });
@@ -26596,11 +27663,18 @@
           const seekRes = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
             ? library.calculateSeekTargetTime(ratio, track, dur, { isFraction: true })
             : { targetAbsoluteTime: ratio * dur };
-          if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+          if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
             window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(seekRes.targetAbsoluteTime * 1000)));
             state.lastBitPerfectPositionSec = seekRes.targetAbsoluteTime;
+            state.lastBitPerfectPositionAtMs = Date.now();
+            state._bpSeekHoldUntilMs = Date.now() + 900;
+            state._bpSeekTargetSec = seekRes.targetAbsoluteTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(ratio * dur, dur);
           } else if (currentAudio) {
-            currentAudio.currentTime = seekRes.targetAbsoluteTime;
+            if (isCue) currentAudio.currentTime = seekRes.targetAbsoluteTime;
+            else if (typeof applySmartSeekTime === 'function') applySmartSeekTime(currentAudio, track, seekRes.targetAbsoluteTime);
+            else currentAudio.currentTime = seekRes.targetAbsoluteTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(ratio * dur, dur);
           }
           updatePositionState(true);
         }
@@ -26629,11 +27703,18 @@
           const seekRes = (typeof library !== 'undefined' && library && typeof library.calculateSeekTargetTime === 'function')
             ? library.calculateSeekTargetTime(ratio, track, dur, { isFraction: true })
             : { targetAbsoluteTime: ratio * dur };
-          if (state.isNativeBitPerfectPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
+          if ((state.isNativeBitPerfectPlaying || state.isNativeBitPerfectPaused) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
             window.NocturneNative.seekBitPerfectPlayback(Math.max(0, Math.round(seekRes.targetAbsoluteTime * 1000)));
             state.lastBitPerfectPositionSec = seekRes.targetAbsoluteTime;
+            state.lastBitPerfectPositionAtMs = Date.now();
+            state._bpSeekHoldUntilMs = Date.now() + 900;
+            state._bpSeekTargetSec = seekRes.targetAbsoluteTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(ratio * dur, dur);
           } else if (currentAudio) {
-            currentAudio.currentTime = seekRes.targetAbsoluteTime;
+            if (isCue) currentAudio.currentTime = seekRes.targetAbsoluteTime;
+            else if (typeof applySmartSeekTime === 'function') { if (!applySmartSeekTime(currentAudio, track, seekRes.targetAbsoluteTime)) return; }
+            else currentAudio.currentTime = seekRes.targetAbsoluteTime;
+            if (typeof syncSeekUiAfterJump === 'function') syncSeekUiAfterJump(ratio * dur, dur);
           } else {
             return;
           }
@@ -27647,7 +28728,8 @@
       if (typeof triggerHapticTick === 'function') triggerHapticTick();
     });
     document.addEventListener('keydown', e => {
-      if (!e || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!e || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+      if (e.target && e.target.closest && e.target.closest('button, a, [role="button"]')) return;
       const tag = e.target && e.target.tagName ? String(e.target.tagName).toLowerCase() : '';
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || (e.target && e.target.isContentEditable)) return;
       if (e.key === 'n' || e.key === 'N') {
@@ -27962,7 +29044,9 @@
             lastTokenKeepAliveAt = nowMs;
             triggeredRefresh = true;
             if (typeof ensureGoogleToken === 'function') {
-              ensureGoogleToken(gRem <= 0).catch(() => {});
+              ensureGoogleToken(gRem <= 0).then(tok => {
+                if (tok && typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('google', tok);
+              }).catch(() => {});
             }
           }
         }
@@ -27973,7 +29057,9 @@
             clearedMsUrls = clearStaleMicrosoftDownloadUrls();
             triggeredRefresh = true;
             if (state.msAccount && typeof getMicrosoftToken === 'function') {
-              getMicrosoftToken(false, msRem <= 0).catch(() => {});
+              getMicrosoftToken(false, msRem <= 0).then(tok => {
+                if (tok && typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('onedrive', tok);
+              }).catch(() => {});
             }
           }
         }
@@ -27997,7 +29083,9 @@
           if (remainingMs < 5 * 60 * 1000 && (nowMs - lastTokenKeepAliveAt) >= 120000) {
             lastTokenKeepAliveAt = nowMs;
             if (typeof ensureGoogleToken === 'function') {
-              ensureGoogleToken(remainingMs <= 0).catch(() => {});
+              ensureGoogleToken(remainingMs <= 0).then(tok => {
+                if (tok && typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('google', tok);
+              }).catch(() => {});
             }
           }
         }
@@ -28007,7 +29095,9 @@
             lastMicrosoftWakeRefreshAt = nowMs;
             clearStaleMicrosoftDownloadUrls();
             if (typeof getMicrosoftToken === 'function') {
-              getMicrosoftToken(false, msRemainingMs <= 0).catch(() => {});
+              getMicrosoftToken(false, msRemainingMs <= 0).then(tok => {
+                if (tok && typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('onedrive', tok);
+              }).catch(() => {});
             }
           }
         }

@@ -8235,6 +8235,9 @@
     for (const t of tracks) {
       if (!t) continue;
       if (t.id) activeTrackIds.add(String(t.id));
+      const hk = historyTrackKey(t);
+      if (hk) activeTrackIds.add(hk);
+      if (t.source && t.remoteId) activeTrackIds.add(String(t.source) + ':' + String(t.remoteId));
       if (t.url) activeUrls.add(String(t.url));
       if (t.title) activeTitles.add(metadataKey(t.title));
     }

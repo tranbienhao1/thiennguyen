@@ -35,6 +35,7 @@ import android.media.AudioMixerAttributes;
 import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.media.MediaCodec;
+import android.media.MediaDataSource;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMetadata;
@@ -111,6 +112,7 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -120,6 +122,9 @@ import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.net.HttpURLConnection;
@@ -129,9 +134,12 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -4484,12 +4492,29 @@ public class MainActivity extends AppCompatActivity {
         private volatile boolean mIsRemoteStream = false;
         // v3.9.25: epoch guard so a stale (slow-to-die) playback thread can never clobber the next session's state.
         private final AtomicInteger mPlaybackEpoch = new AtomicInteger(0);
+        private final Object mSeekLock = new Object();
         private final AtomicLong mSeekTargetUs = new AtomicLong(-1);
+        private final AtomicLong mSeekGeneration = new AtomicLong(0);
+        private volatile long mLastSeekRequestedElapsedMs = 0L;
+        private static final long REMOTE_SEEK_COALESCE_WINDOW_MS = 90L;
         private final AtomicLong mCurrentPositionMs = new AtomicLong(0);
         private final AtomicLong mDurationMs = new AtomicLong(0);
         private final java.util.concurrent.atomic.AtomicBoolean mRouteRefreshRequested = new java.util.concurrent.atomic.AtomicBoolean(false);
         private volatile boolean mRouteRefreshWasDisconnect = false;
         private volatile boolean mRouteRefreshWasConnect = false;
+
+        private final Object mStreamAuthLock = new Object();
+        private String mPendingStreamUrl = "";
+        private final Map<String, String> mPendingStreamHeaders = new HashMap<>();
+        private String mPendingStreamSource = "";
+        private String mPendingStreamRemoteId = "";
+        private long mPendingStreamKnownBytes = -1L;
+
+        private Map<String, String> mStartStreamHeaders = new HashMap<>();
+        private String mStartStreamSource = "";
+        private String mStartStreamRemoteId = "";
+        private long mStartStreamKnownBytes = -1L;
+        private volatile HttpRangeMediaDataSource mActiveDataSource = null;
 
         private Thread mPlaybackThread = null;
         private volatile AudioTrack mAudioTrack = null;
@@ -4498,6 +4523,62 @@ public class MainActivity extends AppCompatActivity {
         private String mCurrentTrackTitle = "";
         private String mCurrentTrackArtist = "";
         private String mCurrentTrackAlbum = "";
+
+        private Map<String, String> parseHeadersJson(@Nullable String headersJson) {
+            Map<String, String> result = new HashMap<>();
+            if (headersJson == null) return result;
+            String trimmed = headersJson.trim();
+            if (trimmed.isEmpty() || "{}".equals(trimmed)) return result;
+            try {
+                JSONObject obj = new JSONObject(trimmed);
+                Iterator<String> keys = obj.keys();
+                while (keys.hasNext()) {
+                    String k = keys.next();
+                    if (k != null && !k.trim().isEmpty() && !obj.isNull(k)) {
+                        String v = obj.optString(k, "");
+                        if (!v.isEmpty()) {
+                            result.put(k, v);
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+            return result;
+        }
+
+        public void setPendingStreamAuth(@Nullable String url, @Nullable String headersJson, @Nullable String source, @Nullable String remoteId, long knownBytes) {
+            Map<String, String> parsed = parseHeadersJson(headersJson);
+            synchronized (mStreamAuthLock) {
+                mPendingStreamUrl = url != null ? url.trim() : "";
+                mPendingStreamHeaders.clear();
+                mPendingStreamHeaders.putAll(parsed);
+                mPendingStreamSource = source != null ? source.trim().toLowerCase(Locale.US) : "";
+                mPendingStreamRemoteId = remoteId != null ? remoteId.trim() : "";
+                mPendingStreamKnownBytes = knownBytes > 0L ? knownBytes : -1L;
+            }
+        }
+
+        public void updateActiveStreamAuth(@Nullable String url, @Nullable String headersJson) {
+            Map<String, String> parsed = parseHeadersJson(headersJson);
+            String trimmedUrl = url != null ? url.trim() : "";
+            synchronized (mStreamAuthLock) {
+                if (!trimmedUrl.isEmpty() && trimmedUrl.equals(mPendingStreamUrl)) {
+                    mPendingStreamHeaders.clear();
+                    mPendingStreamHeaders.putAll(parsed);
+                }
+            }
+            HttpRangeMediaDataSource activeDs = mActiveDataSource;
+            if (activeDs != null && !mIsStopped) {
+                activeDs.updateStreamAuth(trimmedUrl, parsed);
+            }
+        }
+
+        public void provideRefreshedAuth(long epoch, @Nullable String newUrl, @Nullable String headersJson, boolean ok) {
+            Map<String, String> parsed = parseHeadersJson(headersJson);
+            HttpRangeMediaDataSource activeDs = mActiveDataSource;
+            if (activeDs != null && activeDs.getEpoch() == (int) epoch) {
+                activeDs.deliverAuthRefresh(newUrl, parsed, ok);
+            }
+        }
 
         public synchronized boolean start(String urlOrPath, int sampleRate, int bitDepth) {
             stopInternal(true);
@@ -4514,17 +4595,43 @@ public class MainActivity extends AppCompatActivity {
                 return false;
             }
 
+            Map<String, String> consumedHeaders = new HashMap<>();
+            String consumedSource = "";
+            String consumedRemoteId = "";
+            long consumedKnownBytes = -1L;
+            synchronized (mStreamAuthLock) {
+                if (trimmedUrl.equals(mPendingStreamUrl)) {
+                    consumedHeaders.putAll(mPendingStreamHeaders);
+                    consumedSource = mPendingStreamSource;
+                    consumedRemoteId = mPendingStreamRemoteId;
+                    consumedKnownBytes = mPendingStreamKnownBytes;
+                    mPendingStreamUrl = "";
+                    mPendingStreamHeaders.clear();
+                    mPendingStreamSource = "";
+                    mPendingStreamRemoteId = "";
+                    mPendingStreamKnownBytes = -1L;
+                }
+            }
+
             mIsStopped = false;
             mIsPaused = false;
             mIsPlaying = true;
             mLastBitPerfectStartOrResumeElapsedMs = android.os.SystemClock.elapsedRealtime();
             mIsRemoteStream = !(trimmedUrl.startsWith("/") || trimmedUrl.startsWith("file://") || trimmedUrl.startsWith("content://") || trimmedUrl.contains("/local-media?"));
-            mSeekTargetUs.set(-1);
+            synchronized (mSeekLock) {
+                mSeekTargetUs.set(-1);
+                mSeekGeneration.incrementAndGet();
+                mLastSeekRequestedElapsedMs = 0L;
+            }
             mCurrentPositionMs.set(0);
             mDurationMs.set(0);
             mRouteRefreshRequested.set(false);
             mRouteRefreshWasDisconnect = false;
             mRouteRefreshWasConnect = false;
+            mStartStreamHeaders = consumedHeaders;
+            mStartStreamSource = consumedSource;
+            mStartStreamRemoteId = consumedRemoteId;
+            mStartStreamKnownBytes = consumedKnownBytes;
 
             acquireWakeLock(mIsRemoteStream);
             requestAudioFocus();
@@ -4626,24 +4733,37 @@ public class MainActivity extends AppCompatActivity {
             if (durMs > 0L) {
                 clampedMs = Math.min(clampedMs, durMs);
             }
-            mSeekTargetUs.set(clampedMs * 1000L);
-            mCurrentPositionMs.set(clampedMs);
+            final long seekGen;
+            synchronized (mSeekLock) {
+                mSeekTargetUs.set(clampedMs * 1000L);
+                mCurrentPositionMs.set(clampedMs);
+                seekGen = mSeekGeneration.incrementAndGet();
+                mLastSeekRequestedElapsedMs = SystemClock.uptimeMillis();
+            }
             synchronized (mPauseLock) {
                 mPauseLock.notifyAll();
             }
             if (!mIsStopped) {
-                updateMediaSessionMetadata(
-                        mCurrentTrackTitle,
-                        mCurrentTrackArtist,
-                        mCurrentTrackAlbum,
-                        isPlaying());
                 final long posForJs = clampedMs;
                 final long durForJs = Math.max(0L, durMs);
+                final String titleSnap = mCurrentTrackTitle;
+                final String artistSnap = mCurrentTrackArtist;
+                final String albumSnap = mCurrentTrackAlbum;
                 runOnUiThread(() -> {
-                    if (!mIsStopped && mWebView != null && !isFinishing() && !isDestroyed()) {
-                        mWebView.evaluateJavascript(
-                                "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + posForJs + ", " + durForJs + ");",
-                                null);
+                    if (!mIsStopped && mSeekGeneration.get() == seekGen) {
+                        if (mLastMediaTitle == null || mLastMediaTitle.isEmpty()) {
+                            updateMediaSessionMetadata(
+                                    titleSnap,
+                                    artistSnap,
+                                    albumSnap,
+                                    isPlaying());
+                        }
+                        updateMediaSessionPosition(posForJs, durForJs, isPlaying());
+                        if (mWebView != null && !isFinishing() && !isDestroyed()) {
+                            mWebView.evaluateJavascript(
+                                    "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + posForJs + ", " + durForJs + ");",
+                                    null);
+                        }
                     }
                 });
             }
@@ -4678,6 +4798,10 @@ public class MainActivity extends AppCompatActivity {
         private synchronized void stopInternal(boolean preserveSession) {
             mPlaybackEpoch.incrementAndGet();
             mIsStopped = true;
+            synchronized (mSeekLock) {
+                mSeekTargetUs.set(-1);
+                mSeekGeneration.incrementAndGet();
+            }
             synchronized (mPauseLock) {
                 mIsPaused = false;
                 mPauseLock.notifyAll();
@@ -4688,6 +4812,10 @@ public class MainActivity extends AppCompatActivity {
                 try { unblockTrack.flush(); } catch (Exception ignored) {}
                 try { unblockTrack.stop(); } catch (Exception ignored) {}
             }
+            HttpRangeMediaDataSource activeDs = mActiveDataSource;
+            if (activeDs != null) {
+                activeDs.abortAndDisconnect();
+            }
             if (mPlaybackThread != null) {
                 try {
                     mPlaybackThread.interrupt();
@@ -4695,6 +4823,7 @@ public class MainActivity extends AppCompatActivity {
                 } catch (InterruptedException ignored) {}
                 mPlaybackThread = null;
             }
+            mActiveDataSource = null;
             if (mAudioTrack != null) {
                 try {
                     mAudioTrack.stop();
@@ -4965,6 +5094,52 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        private void notifyBitPerfectReconnectStatusToWeb(final String status, final int attempt, final int maxAttempts) {
+            if (mIsStopped || mWebView == null) return;
+            final String safeStatus = (status != null ? status : "reconnecting")
+                    .replace("\\", "\\\\")
+                    .replace("'", "\\'");
+            mWebView.post(() -> {
+                if (mWebView != null && !mIsStopped) {
+                    mWebView.evaluateJavascript(
+                            "if (typeof window.onNativeBitPerfectReconnectStatus === 'function') window.onNativeBitPerfectReconnectStatus('" + safeStatus + "', " + attempt + ", " + maxAttempts + ");",
+                            null
+                    );
+                }
+            });
+        }
+
+        private boolean isRemoteStreamNetworkOrAuthException(@Nullable Throwable err) {
+            Throwable cur = err;
+            int depth = 0;
+            while (cur != null && depth < 6) {
+                if (cur instanceof IOException) return true;
+                String msg = cur.getMessage();
+                if (msg != null) {
+                    String low = msg.toLowerCase(Locale.US);
+                    if (low.contains("http ") || low.contains("network") || low.contains("timeout")
+                            || low.contains("reset") || low.contains("eof") || low.contains("refused")
+                            || low.contains("unresolved") || low.contains("unknownhost") || low.contains("[net]") || low.contains("[auth]")) {
+                        return true;
+                    }
+                }
+                cur = cur.getCause();
+                depth++;
+            }
+            return false;
+        }
+
+        private String formatRemoteStreamError(@Nullable HttpRangeMediaDataSource ds, @Nullable Throwable err) {
+            if (ds != null && ds.hasFatalError()) {
+                return ds.getFatalErrorMessage();
+            }
+            String msg = err != null && err.getMessage() != null ? err.getMessage() : "Remote stream read error";
+            if (msg.startsWith("[AUTH]") || msg.startsWith("[NET]")) {
+                return msg;
+            }
+            return "[NET] " + msg;
+        }
+
         private void runPlaybackLoop(String urlOrPath, int requestedSampleRate, int requestedBitDepth, final int epoch) {
             MediaExtractor extractor = new MediaExtractor();
             MediaCodec decoder = null;
@@ -4972,6 +5147,8 @@ public class MainActivity extends AppCompatActivity {
             AudioDeviceInfo preferredDevice = null;
             AudioAttributes audioAttributes = null;
             String pendingErrorReason = null;
+            HttpRangeMediaDataSource httpDataSource = null;
+            boolean isHttpStream = false;
 
             try {
                 // 1. Resolve source (supports /local-media?uri=content://..., /local-media?path=..., content://, file://, and http(s)://)
@@ -5030,7 +5207,19 @@ public class MainActivity extends AppCompatActivity {
                         ? resolvedUri
                         : (resolvedPath != null ? resolvedPath : "");
 
-                long knownSourceBytes = 0L;
+                final Map<String, String> streamHeaders = mStartStreamHeaders != null ? new HashMap<>(mStartStreamHeaders) : new HashMap<>();
+                final String streamSource = mStartStreamSource != null ? mStartStreamSource : "";
+                final String streamRemoteId = mStartStreamRemoteId != null ? mStartStreamRemoteId : "";
+                final long streamKnownBytes = mStartStreamKnownBytes;
+                mStartStreamHeaders = null;
+                mStartStreamSource = "";
+                mStartStreamRemoteId = "";
+                mStartStreamKnownBytes = -1L;
+
+                long knownSourceBytes = streamKnownBytes > 0L ? streamKnownBytes : 0L;
+                isHttpStream = (resolvedUri == null || resolvedUri.isEmpty()) && resolvedPath != null
+                        && (resolvedPath.regionMatches(true, 0, "http://", 0, 7)
+                            || resolvedPath.regionMatches(true, 0, "https://", 0, 8));
                 if (resolvedUri != null && resolvedUri.startsWith("content://")) {
                     try {
                         extractor.setDataSource(MainActivity.this, Uri.parse(resolvedUri), null);
@@ -5045,6 +5234,12 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }
                     }
+                } else if (isHttpStream) {
+                    httpDataSource = new HttpRangeMediaDataSource(resolvedPath, streamHeaders, streamSource, streamRemoteId, streamKnownBytes, epoch);
+                    mActiveDataSource = httpDataSource;
+                    extractor.setDataSource(httpDataSource);
+                    long dsSize = httpDataSource.getSize();
+                    if (dsSize > 0L) knownSourceBytes = dsSize;
                 } else {
                     File localFile = resolveReadableLocalFile(resolvedPath);
                     if (localFile.exists() && localFile.canRead()) {
@@ -5124,6 +5319,27 @@ public class MainActivity extends AppCompatActivity {
                                     }
                                 } catch (Throwable ignored) {}
                             }
+                        } else if (isHttpStream && httpDataSource != null) {
+                            try {
+                                final HttpRangeMediaDataSource sharedHttpSource = httpDataSource;
+                                durMmr.setDataSource(new MediaDataSource() {
+                                    @Override
+                                    public int readAt(long position, byte[] buffer, int offset, int size) throws IOException {
+                                        return sharedHttpSource.readAt(position, buffer, offset, size);
+                                    }
+
+                                    @Override
+                                    public long getSize() throws IOException {
+                                        return sharedHttpSource.getSize();
+                                    }
+
+                                    @Override
+                                    public void close() {
+                                        // Non-closing proxy: extractor owns sharedHttpSource; durMmr.release() must not close it.
+                                    }
+                                });
+                                mmrBound = true;
+                            } catch (Throwable ignored) {}
                         } else if (resolvedPath != null && !resolvedPath.isEmpty()) {
                             File localDurFile = new File(resolvedPath);
                             if (localDurFile.exists() && localDurFile.canRead()) {
@@ -5158,6 +5374,9 @@ public class MainActivity extends AppCompatActivity {
                             try (ParcelFileDescriptor szPfd = getContentResolver().openFileDescriptor(Uri.parse(resolvedUri), "r")) {
                                 if (szPfd != null) knownSourceBytes = szPfd.getStatSize();
                             } catch (Throwable ignored) {}
+                        } else if (knownSourceBytes <= 0L && httpDataSource != null) {
+                            long dsSize = httpDataSource.getSize();
+                            if (dsSize > 0L) knownSourceBytes = dsSize;
                         }
                         try {
                             int bps = format.getInteger(MediaFormat.KEY_BIT_RATE);
@@ -5308,11 +5527,13 @@ public class MainActivity extends AppCompatActivity {
                 int trackPcmEncoding = pcmEncoding;
                 byte[] downmix16Scratch = null;
                 ByteBuffer downmixOutBuf = null;
+                long loopSeekGen = mSeekGeneration.get();
 
-                while (!mIsStopped && !sawOutputEOS && mPlaybackEpoch.get() == epoch) {
+                while (!mIsStopped && mPlaybackEpoch.get() == epoch) {
+                    while (!mIsStopped && !sawOutputEOS && mPlaybackEpoch.get() == epoch) {
                     // Check pause
                     synchronized (mPauseLock) {
-                        while (mIsPaused && !mIsStopped && !mRouteRefreshRequested.get()) {
+                        while (mIsPaused && !mIsStopped && mSeekTargetUs.get() < 0L && !mRouteRefreshRequested.get()) {
                             if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
                                 track.pause();
                             }
@@ -5373,10 +5594,35 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     // Check seek
-                    long seekUs = mSeekTargetUs.getAndSet(-1);
-                    if (seekUs >= 0) {
+                    if (mIsRemoteStream && mSeekTargetUs.get() >= 0L) {
+                        while (!mIsStopped && mPlaybackEpoch.get() == epoch) {
+                            final boolean hasPendingSeek;
+                            final long sinceSeekMs;
+                            synchronized (mSeekLock) {
+                                hasPendingSeek = (mSeekTargetUs.get() >= 0L);
+                                sinceSeekMs = SystemClock.uptimeMillis() - mLastSeekRequestedElapsedMs;
+                            }
+                            if (!hasPendingSeek || sinceSeekMs >= REMOTE_SEEK_COALESCE_WINDOW_MS) {
+                                break;
+                            }
+                            long sleepMs = Math.min(25L, REMOTE_SEEK_COALESCE_WINDOW_MS - Math.max(0L, sinceSeekMs));
+                            if (sleepMs > 0L) {
+                                try { Thread.sleep(sleepMs); } catch (InterruptedException ie) { break; }
+                            }
+                        }
+                        if (mIsStopped || mPlaybackEpoch.get() != epoch) break;
+                    }
+                    final long preSeekGen;
+                    final long seekTargetUs;
+                    synchronized (mSeekLock) {
+                        preSeekGen = mSeekGeneration.get();
+                        long seekUs = mSeekTargetUs.getAndSet(-1);
+                        seekTargetUs = seekUs;
+                    }
+                    if (seekTargetUs >= 0) {
+                        loopSeekGen = preSeekGen;
                         try {
-                            extractor.seekTo(seekUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+                            extractor.seekTo(seekTargetUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
                             decoder.flush();
                             if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
                                 track.pause();
@@ -5386,25 +5632,44 @@ public class MainActivity extends AppCompatActivity {
                                 track.play();
                             }
                             sawInputEOS = false;
-                            basePositionMs = seekUs / 1000L;
+                            sawOutputEOS = false;
+                            long actualPtsUs = -1L;
+                            try {
+                                actualPtsUs = extractor.getSampleTime();
+                            } catch (Exception ignored) {}
+                            basePositionMs = (actualPtsUs >= 0L) ? (actualPtsUs / 1000L) : (seekTargetUs / 1000L);
+                            long knownDurOnSeek = mDurationMs.get();
+                            if (knownDurOnSeek > 0L && basePositionMs > knownDurOnSeek) {
+                                basePositionMs = knownDurOnSeek;
+                            }
                             writtenFramesSinceBase = 0L;
                             lastPtsPosMs = -1L;
                             stuckPtsCount = 0;
                             idleDrainIterations = 0;
                             consecutiveCodecErrors = 0;
-                            mCurrentPositionMs.set(basePositionMs);
-                            lastUiUpdateElapsedMs = SystemClock.uptimeMillis();
-                            if (mWebView != null && !mIsStopped) {
-                                final long seekReportPosMs = basePositionMs;
-                                final long seekReportDurMs = mDurationMs.get();
-                                mWebView.post(() -> {
-                                    if (!mIsStopped && mWebView != null) {
-                                        mWebView.evaluateJavascript(
-                                                "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + seekReportPosMs + ", " + seekReportDurMs + ");",
-                                                null
-                                        );
-                                    }
-                                });
+                            final boolean seekStillCurrent;
+                            synchronized (mSeekLock) {
+                                seekStillCurrent = (mSeekTargetUs.get() < 0L && mSeekGeneration.get() == loopSeekGen);
+                            }
+                            if (seekStillCurrent) {
+                                mCurrentPositionMs.set(basePositionMs);
+                                lastUiUpdateElapsedMs = SystemClock.uptimeMillis();
+                                if (mWebView != null && !mIsStopped) {
+                                    final long seekReportPosMs = basePositionMs;
+                                    final long seekReportDurMs = mDurationMs.get();
+                                    final long seekReportGen = loopSeekGen;
+                                    mWebView.post(() -> {
+                                        if (!mIsStopped && mPlaybackEpoch.get() == epoch && mSeekGeneration.get() == seekReportGen && mSeekTargetUs.get() < 0L && mWebView != null) {
+                                            mWebView.evaluateJavascript(
+                                                    "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + seekReportPosMs + ", " + seekReportDurMs + ");",
+                                                    null
+                                            );
+                                        }
+                                    });
+                                }
+                            }
+                            if (mIsPaused && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                                continue;
                             }
                         } catch (Exception e) {
                             Log.w(TAG, "BitPerfect: Seek error: " + e.getMessage());
@@ -5421,6 +5686,10 @@ public class MainActivity extends AppCompatActivity {
                                 try {
                                     int sampleSize = extractor.readSampleData(inBuf, 0);
                                     if (sampleSize < 0) {
+                                        if (httpDataSource != null && httpDataSource.hasFatalError()) {
+                                            pendingErrorReason = httpDataSource.getFatalErrorMessage();
+                                            break;
+                                        }
                                         decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                                         sawInputEOS = true;
                                     } else {
@@ -5430,9 +5699,18 @@ public class MainActivity extends AppCompatActivity {
                                     }
                                     consecutiveCodecErrors = 0;
                                 } catch (Exception inputErr) {
+                                    if (mSeekTargetUs.get() >= 0L && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                                        consecutiveCodecErrors = 0;
+                                        try { decoder.queueInputBuffer(inIndex, 0, 0, 0, 0); } catch (Exception ignored) {}
+                                        continue;
+                                    }
                                     consecutiveCodecErrors++;
                                     boolean advancedPastCorrupt = false;
                                     try { advancedPastCorrupt = extractor.advance(); } catch (Exception ignored) {}
+                                    if (httpDataSource != null && (httpDataSource.hasFatalError() || isRemoteStreamNetworkOrAuthException(inputErr))) {
+                                        pendingErrorReason = formatRemoteStreamError(httpDataSource, inputErr);
+                                        break;
+                                    }
                                     if (!advancedPastCorrupt && consecutiveCodecErrors < 5) consecutiveCodecErrors = 5;
                                     if (writtenFramesSinceBase > 0L && consecutiveCodecErrors >= 5) {
                                         Log.w(TAG, "BitPerfect: Truncated/corrupt audio tail after " + writtenFramesSinceBase + " frames, finishing cleanly");
@@ -5574,7 +5852,7 @@ public class MainActivity extends AppCompatActivity {
                             boolean abortedForSeek = false;
                             downmixOutBuf = null;
                             while ((outBuf.hasRemaining() || (downmixOutBuf != null && downmixOutBuf.hasRemaining())) && !mIsStopped && mPlaybackEpoch.get() == epoch) {
-                                if (mSeekTargetUs.get() >= 0L) {
+                                if (mSeekTargetUs.get() >= 0L || mSeekGeneration.get() != loopSeekGen) {
                                     abortedForSeek = true;
                                     downmixOutBuf = null;
                                     break;
@@ -5593,7 +5871,7 @@ public class MainActivity extends AppCompatActivity {
                                         }
                                     }
                                     if (mIsStopped || mPlaybackEpoch.get() != epoch) break;
-                                    if (mSeekTargetUs.get() >= 0L) {
+                                    if (mSeekTargetUs.get() >= 0L || mSeekGeneration.get() != loopSeekGen) {
                                         abortedForSeek = true;
                                         downmixOutBuf = null;
                                         break;
@@ -5721,6 +5999,9 @@ public class MainActivity extends AppCompatActivity {
                                 writtenFramesSinceBase += (totalWritten / Math.max(1, bytesPerFrame))
                                         + (totalWritten16 / Math.max(1, channels * 2));
                             }
+                            if (!abortedForSeek && (mSeekTargetUs.get() >= 0L || mSeekGeneration.get() != loopSeekGen)) {
+                                abortedForSeek = true;
+                            }
                             if (!abortedForSeek && !mIsStopped && !mIsPaused && mPlaybackEpoch.get() == epoch) {
                                 long pcmPosMs = basePositionMs + ((writtenFramesSinceBase * 1000L) / Math.max(1, sampleRate));
                                 long ptsPosMs = info.presentationTimeUs > 0 ? (info.presentationTimeUs / 1000L) : -1L;
@@ -5737,26 +6018,40 @@ public class MainActivity extends AppCompatActivity {
                                 if (knownDurMs > 0 && posMs > knownDurMs) {
                                     posMs = knownDurMs;
                                 }
-                                mCurrentPositionMs.set(posMs);
-                                long nowElapsed = SystemClock.uptimeMillis();
-                                final long uiUpdateIntervalMs = mIsInBackground ? 2000L : 250L;
-                                if ((lastUiUpdateElapsedMs == 0L || (nowElapsed - lastUiUpdateElapsedMs >= uiUpdateIntervalMs)) && !mIsStopped && !mIsPaused && mWebView != null) {
-                                    lastUiUpdateElapsedMs = nowElapsed;
-                                    final long reportPosMs = posMs;
-                                    final long reportDurMs = mDurationMs.get();
-                                    mWebView.post(() -> {
-                                        if (!mIsStopped && !mIsPaused && mWebView != null) {
-                                            mWebView.evaluateJavascript(
-                                                    "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + reportPosMs + ", " + reportDurMs + ");",
-                                                    null
-                                            );
-                                        }
-                                    });
+                                if (mSeekTargetUs.get() < 0L && mSeekGeneration.get() == loopSeekGen) {
+                                    mCurrentPositionMs.set(posMs);
+                                    long nowElapsed = SystemClock.uptimeMillis();
+                                    final long uiUpdateIntervalMs = mIsInBackground ? 2000L : 250L;
+                                    if ((lastUiUpdateElapsedMs == 0L || (nowElapsed - lastUiUpdateElapsedMs >= uiUpdateIntervalMs)) && !mIsStopped && !mIsPaused && mWebView != null) {
+                                        lastUiUpdateElapsedMs = nowElapsed;
+                                        final long reportPosMs = posMs;
+                                        final long reportDurMs = mDurationMs.get();
+                                        final long reportSeekGen = loopSeekGen;
+                                        mWebView.post(() -> {
+                                            if (!mIsStopped && !mIsPaused && mWebView != null) {
+                                                if (mPlaybackEpoch.get() == epoch && mSeekGeneration.get() == reportSeekGen && mSeekTargetUs.get() < 0L) {
+                                                    mWebView.evaluateJavascript(
+                                                            "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + reportPosMs + ", " + reportDurMs + ");",
+                                                            null
+                                                    );
+                                                }
+                                            }
+                                        });
+                                    }
                                 }
                             }
                         }
                         decoder.releaseOutputBuffer(outIndex, false);
                     }
+                    if (sawOutputEOS && mSeekTargetUs.get() >= 0L && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                        sawOutputEOS = false;
+                    }
+                    }
+                    if (!mIsStopped && mPlaybackEpoch.get() == epoch && sawOutputEOS && mSeekTargetUs.get() >= 0L) {
+                        sawOutputEOS = false;
+                        continue;
+                    }
+                    break;
                 }
 
                 // If completed naturally (sawOutputEOS)
@@ -5778,10 +6073,22 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 Log.e(TAG, "BitPerfect: Playback engine error: " + e.getMessage(), e);
                 if (mPlaybackEpoch.get() == epoch && !mIsStopped) {
-                    pendingErrorReason = e.getMessage() != null ? e.getMessage() : "Bit-Perfect playback engine error";
+                    if (httpDataSource != null && httpDataSource.hasFatalError()) {
+                        pendingErrorReason = httpDataSource.getFatalErrorMessage();
+                    } else if (isHttpStream && isRemoteStreamNetworkOrAuthException(e)) {
+                        pendingErrorReason = formatRemoteStreamError(httpDataSource, e);
+                    } else {
+                        pendingErrorReason = e.getMessage() != null ? e.getMessage() : "Bit-Perfect playback engine error";
+                    }
                 }
             } finally {
                 final boolean sessionCurrent = (mPlaybackEpoch.get() == epoch);
+                if (httpDataSource != null) {
+                    try { httpDataSource.close(); } catch (Exception ignored) {}
+                    if (mActiveDataSource == httpDataSource) {
+                        mActiveDataSource = null;
+                    }
+                }
                 try {
                     if (track != null) {
                         try { track.stop(); } catch (Exception ignored) {}
@@ -5825,9 +6132,739 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
+
+        private class HttpRangeMediaDataSource extends MediaDataSource {
+            private static final int CHUNK_SIZE = 256 * 1024;
+            private static final int MAX_CACHED_CHUNKS = 16;
+            private static final int MAX_REDIRECTS = 5;
+            private static final int MAX_RECONNECT_ATTEMPTS = 5;
+            private static final int CONNECT_TIMEOUT_MS = 10000;
+            private static final int READ_TIMEOUT_MS = 15000;
+            private static final long AUTH_REFRESH_TIMEOUT_MS = 12000L;
+
+            private final Object mLock = new Object();
+            private final Object mAuthWaitLock = new Object();
+            private final LinkedHashMap<Long, byte[]> mChunkCache = new LinkedHashMap<>(24, 0.75f, true);
+
+            private volatile String mCurrentUrl;
+            private volatile String mResolvedRedirectUrl = null;
+            private volatile Map<String, String> mHeaders;
+            private final String mSource;
+            private final String mRemoteId;
+            private final int mEpoch;
+            private volatile long mTotalSize;
+            private volatile boolean mSizeProbed = false;
+            private volatile String mFatalError = null;
+            private volatile boolean mClosed = false;
+
+            private HttpURLConnection mSeqConn = null;
+            private InputStream mSeqStream = null;
+            private long mSeqPos = -1L;
+            private volatile HttpURLConnection mActiveConn = null;
+            private volatile InputStream mActiveStream = null;
+
+            private CountDownLatch mPendingAuthLatch = null;
+            private volatile boolean mAuthRefreshOk = false;
+            private volatile String mRefreshedUrl = null;
+            private volatile Map<String, String> mRefreshedHeaders = null;
+
+            HttpRangeMediaDataSource(
+                    String url,
+                    @Nullable Map<String, String> headers,
+                    @Nullable String source,
+                    @Nullable String remoteId,
+                    long knownBytes,
+                    int epoch) {
+                this.mCurrentUrl = url != null ? url.trim() : "";
+                this.mHeaders = headers != null ? new HashMap<>(headers) : new HashMap<>();
+                this.mSource = source != null ? source : "";
+                this.mRemoteId = remoteId != null ? remoteId : "";
+                this.mTotalSize = knownBytes > 0L ? knownBytes : -1L;
+                this.mEpoch = epoch;
+            }
+
+            int getEpoch() {
+                return mEpoch;
+            }
+
+            boolean hasFatalError() {
+                return mFatalError != null && !mFatalError.isEmpty();
+            }
+
+            @Nullable
+            String getFatalErrorMessage() {
+                return mFatalError;
+            }
+
+            void updateStreamAuth(@Nullable String url, @Nullable Map<String, String> newHeaders) {
+                synchronized (mLock) {
+                    if (url != null && !url.isEmpty() && !url.equals(mCurrentUrl)) {
+                        mCurrentUrl = url;
+                        mResolvedRedirectUrl = null;
+                    }
+                    if (newHeaders != null) {
+                        mHeaders = new HashMap<>(newHeaders);
+                    }
+                }
+            }
+
+            void deliverAuthRefresh(@Nullable String newUrl, @Nullable Map<String, String> newHeaders, boolean ok) {
+                synchronized (mAuthWaitLock) {
+                    mAuthRefreshOk = ok;
+                    mRefreshedUrl = (newUrl != null && !newUrl.trim().isEmpty()) ? newUrl.trim() : null;
+                    mRefreshedHeaders = newHeaders != null ? new HashMap<>(newHeaders) : new HashMap<>();
+                    if (mPendingAuthLatch != null) {
+                        mPendingAuthLatch.countDown();
+                    }
+                }
+            }
+
+            void abortAndDisconnect() {
+                mClosed = true;
+                InputStream s = mActiveStream;
+                HttpURLConnection c = mActiveConn;
+                mActiveStream = null;
+                mActiveConn = null;
+                if (s != null) {
+                    try { s.close(); } catch (Exception ignored) {}
+                }
+                if (c != null) {
+                    try { c.disconnect(); } catch (Exception ignored) {}
+                }
+                synchronized (mAuthWaitLock) {
+                    if (mPendingAuthLatch != null) {
+                        mPendingAuthLatch.countDown();
+                    }
+                }
+            }
+
+            @Override
+            public void close() {
+                abortAndDisconnect();
+                synchronized (mLock) {
+                    closeStreamLocked();
+                    mChunkCache.clear();
+                }
+            }
+
+            private boolean shouldAbort() {
+                return mClosed || mIsStopped || mPlaybackEpoch.get() != mEpoch || Thread.currentThread().isInterrupted();
+            }
+
+            private void closeStreamLocked() {
+                InputStream s = mSeqStream;
+                HttpURLConnection c = mSeqConn;
+                mSeqStream = null;
+                mSeqConn = null;
+                mSeqPos = -1L;
+                if (mActiveStream == s) mActiveStream = null;
+                if (mActiveConn == c) mActiveConn = null;
+                if (s != null) {
+                    try { s.close(); } catch (Exception ignored) {}
+                }
+                if (c != null) {
+                    try { c.disconnect(); } catch (Exception ignored) {}
+                }
+            }
+
+            private void putChunkLocked(long chunkStart, byte[] data) {
+                if (data == null || data.length == 0) return;
+                mChunkCache.put(chunkStart, data);
+                while (mChunkCache.size() > MAX_CACHED_CHUNKS) {
+                    long evictKey = -1L;
+                    Iterator<Map.Entry<Long, byte[]>> it = mChunkCache.entrySet().iterator();
+                    while (it.hasNext()) {
+                        long k = it.next().getKey();
+                        boolean isPinnedHead = (k == 0L);
+                        boolean isPinnedTail = (mTotalSize > 0L && k >= mTotalSize - 2L * CHUNK_SIZE);
+                        if (!isPinnedHead && !isPinnedTail) {
+                            evictKey = k;
+                            break;
+                        }
+                    }
+                    if (evictKey >= 0L) {
+                        mChunkCache.remove(evictKey);
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            @Override
+            public long getSize() throws IOException {
+                if (mTotalSize > 0L) {
+                    return mTotalSize;
+                }
+                if (!mSizeProbed && !shouldAbort()) {
+                    mSizeProbed = true;
+                    try {
+                        fetchChunkWithRecovery(0L);
+                    } catch (IOException e) {
+                        if (mFatalError != null) throw e;
+                    }
+                }
+                return mTotalSize > 0L ? mTotalSize : -1L;
+            }
+
+            @Override
+            public int readAt(long position, byte[] buffer, int offset, int size) throws IOException {
+                if (position < 0L || buffer == null || offset < 0 || size < 0 || offset + size > buffer.length) {
+                    throw new IllegalArgumentException("Invalid readAt arguments");
+                }
+                if (size == 0) return 0;
+                if (shouldAbort()) {
+                    throw new IOException("Stream closed or playback stopped");
+                }
+                if (mTotalSize >= 0L && position >= mTotalSize) {
+                    return -1;
+                }
+                int toRead = size;
+                if (mTotalSize >= 0L) {
+                    long rem = mTotalSize - position;
+                    if (rem <= 0L) return -1;
+                    if (rem < toRead) toRead = (int) rem;
+                }
+
+                int totalCopied = 0;
+                while (totalCopied < toRead) {
+                    if (shouldAbort()) {
+                        throw new IOException("Stream closed or playback stopped");
+                    }
+                    long curPos = position + totalCopied;
+                    if (mTotalSize >= 0L && curPos >= mTotalSize) {
+                        break;
+                    }
+                    long chunkStart = (curPos / CHUNK_SIZE) * CHUNK_SIZE;
+                    int chunkOffset = (int) (curPos - chunkStart);
+                    byte[] chunk;
+                    synchronized (mLock) {
+                        chunk = mChunkCache.get(chunkStart);
+                    }
+                    if (chunk == null) {
+                        chunk = fetchChunkWithRecovery(chunkStart);
+                        if (chunk == null) {
+                            break;
+                        }
+                    }
+                    if (chunkOffset >= chunk.length) {
+                        break;
+                    }
+                    int avail = Math.min(toRead - totalCopied, chunk.length - chunkOffset);
+                    System.arraycopy(chunk, chunkOffset, buffer, offset + totalCopied, avail);
+                    totalCopied += avail;
+                }
+                return totalCopied > 0 ? totalCopied : -1;
+            }
+
+            private byte[] fetchChunkWithRecovery(long chunkStart) throws IOException {
+                int reconnectAttempt = 0;
+                int authRefreshAttempt = 0;
+                boolean emittedReconnecting = false;
+                byte[] partialBuf = new byte[CHUNK_SIZE];
+                int partialFilled = 0;
+
+                while (!shouldAbort()) {
+                    synchronized (mLock) {
+                        byte[] cached = mChunkCache.get(chunkStart);
+                        if (cached != null) {
+                            return cached;
+                        }
+                        if (mTotalSize >= 0L && chunkStart >= mTotalSize) {
+                            return null;
+                        }
+                    }
+
+                    long retryAfterOverrideMs = -1L;
+                    try {
+                        long desiredPos = chunkStart + partialFilled;
+                        synchronized (mLock) {
+                            if (mSeqStream != null && mSeqPos < desiredPos && (desiredPos - mSeqPos) <= 2L * CHUNK_SIZE) {
+                                drainAndCacheSequentialLocked(desiredPos);
+                                byte[] cachedAfterDrain = mChunkCache.get(chunkStart);
+                                if (cachedAfterDrain != null) {
+                                    return cachedAfterDrain;
+                                }
+                            }
+                            if (mSeqStream == null || mSeqPos != desiredPos) {
+                                closeStreamLocked();
+                                openRangeStreamLocked(desiredPos);
+                                if (mTotalSize >= 0L && chunkStart >= mTotalSize) {
+                                    return null;
+                                }
+                            }
+                        }
+
+                        int targetLen = CHUNK_SIZE;
+                        if (mTotalSize > 0L) {
+                            long rem = mTotalSize - chunkStart;
+                            if (rem <= 0L) return null;
+                            if (rem < targetLen) targetLen = (int) rem;
+                        }
+
+                        while (partialFilled < targetLen && !shouldAbort()) {
+                            InputStream activeS;
+                            synchronized (mLock) {
+                                activeS = mSeqStream;
+                            }
+                            if (activeS == null) {
+                                throw new EOFException("Stream unexpectedly closed");
+                            }
+                            int n = activeS.read(partialBuf, partialFilled, targetLen - partialFilled);
+                            if (n < 0) {
+                                if (mTotalSize > 0L && (chunkStart + partialFilled) < mTotalSize) {
+                                    throw new EOFException("Premature EOF at " + (chunkStart + partialFilled) + "/" + mTotalSize);
+                                }
+                                if (mTotalSize <= 0L && partialFilled > 0) {
+                                    mTotalSize = chunkStart + partialFilled;
+                                }
+                                synchronized (mLock) {
+                                    closeStreamLocked();
+                                }
+                                break;
+                            }
+                            if (n > 0) {
+                                partialFilled += n;
+                                synchronized (mLock) {
+                                    mSeqPos += n;
+                                }
+                            }
+                        }
+
+                        if (partialFilled > 0) {
+                            byte[] exact = (partialFilled == partialBuf.length) ? partialBuf : Arrays.copyOf(partialBuf, partialFilled);
+                            synchronized (mLock) {
+                                putChunkLocked(chunkStart, exact);
+                            }
+                            if (emittedReconnecting) {
+                                notifyBitPerfectReconnectStatusToWeb("recovered", reconnectAttempt, MAX_RECONNECT_ATTEMPTS);
+                            }
+                            return exact;
+                        }
+                        return null;
+                    } catch (AuthRefreshRequestedException authReq) {
+                        synchronized (mLock) {
+                            closeStreamLocked();
+                        }
+                        if (mResolvedRedirectUrl != null && !mResolvedRedirectUrl.equals(mCurrentUrl)) {
+                            mResolvedRedirectUrl = null;
+                            continue;
+                        }
+                        authRefreshAttempt++;
+                        if (authRefreshAttempt > 2) {
+                            mFatalError = "[AUTH] HTTP " + authReq.statusCode + " authentication failed";
+                            throw new IOException(mFatalError);
+                        }
+                        boolean ok = requestAuthRefreshFromWeb(authReq.statusCode, authReq.failedUrl);
+                        if (!ok) {
+                            mFatalError = "[AUTH] HTTP " + authReq.statusCode + " token refresh failed";
+                            throw new IOException(mFatalError);
+                        }
+                        continue;
+                    } catch (RetryableHttpException retryEx) {
+                        synchronized (mLock) {
+                            closeStreamLocked();
+                        }
+                        retryAfterOverrideMs = retryEx.retryAfterMs;
+                        reconnectAttempt++;
+                        if (reconnectAttempt > MAX_RECONNECT_ATTEMPTS) {
+                            mFatalError = "[NET] HTTP " + retryEx.statusCode + " reconnect failed after " + MAX_RECONNECT_ATTEMPTS + " attempts";
+                            throw new IOException(mFatalError, retryEx);
+                        }
+                    } catch (IOException ioErr) {
+                        synchronized (mLock) {
+                            closeStreamLocked();
+                        }
+                        if (shouldAbort()) {
+                            throw ioErr;
+                        }
+                        if (mFatalError != null) {
+                            throw ioErr;
+                        }
+                        reconnectAttempt++;
+                        if (reconnectAttempt > MAX_RECONNECT_ATTEMPTS) {
+                            String detail = ioErr.getMessage() != null ? ioErr.getMessage() : ioErr.getClass().getSimpleName();
+                            mFatalError = "[NET] Stream reconnect failed after " + MAX_RECONNECT_ATTEMPTS + " attempts: " + detail;
+                            throw new IOException(mFatalError, ioErr);
+                        }
+                    }
+
+                    notifyBitPerfectReconnectStatusToWeb("reconnecting", reconnectAttempt, MAX_RECONNECT_ATTEMPTS);
+                    emittedReconnecting = true;
+                    long expDelayMs = Math.min(4000L, 250L << Math.min(4, Math.max(0, reconnectAttempt - 1)));
+                    long sleepTotalMs = retryAfterOverrideMs > 0L ? Math.min(8000L, retryAfterOverrideMs) : expDelayMs;
+                    sleepInterruptibly(sleepTotalMs);
+                }
+
+                throw new IOException("Stream aborted");
+            }
+
+            private void sleepInterruptibly(long totalMs) {
+                long remaining = Math.max(0L, totalMs);
+                while (remaining > 0L && !shouldAbort()) {
+                    long step = Math.min(100L, remaining);
+                    try {
+                        Thread.sleep(step);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    remaining -= step;
+                }
+            }
+
+            private void drainAndCacheSequentialLocked(long targetPos) throws IOException {
+                while (mSeqStream != null && mSeqPos < targetPos && !shouldAbort()) {
+                    long curChunkStart = (mSeqPos / CHUNK_SIZE) * CHUNK_SIZE;
+                    int curOffsetInChunk = (int) (mSeqPos - curChunkStart);
+                    if (curOffsetInChunk == 0 && (curChunkStart + CHUNK_SIZE) <= targetPos) {
+                        byte[] buf = new byte[CHUNK_SIZE];
+                        int filled = 0;
+                        while (filled < CHUNK_SIZE && !shouldAbort()) {
+                            int n = mSeqStream.read(buf, filled, CHUNK_SIZE - filled);
+                            if (n < 0) {
+                                if (mTotalSize > 0L && (curChunkStart + filled) < mTotalSize) {
+                                    throw new EOFException("Premature EOF during sequential drain");
+                                }
+                                if (filled > 0) {
+                                    putChunkLocked(curChunkStart, Arrays.copyOf(buf, filled));
+                                }
+                                closeStreamLocked();
+                                return;
+                            }
+                            if (n > 0) {
+                                filled += n;
+                                mSeqPos += n;
+                            }
+                        }
+                        if (filled > 0) {
+                            putChunkLocked(curChunkStart, filled == CHUNK_SIZE ? buf : Arrays.copyOf(buf, filled));
+                        }
+                    } else {
+                        int toSkip = (int) Math.min(65536L, targetPos - mSeqPos);
+                        byte[] scratch = new byte[toSkip];
+                        int n = mSeqStream.read(scratch, 0, toSkip);
+                        if (n < 0) {
+                            if (mTotalSize > 0L && mSeqPos < mTotalSize) {
+                                throw new EOFException("Premature EOF during sequential skip");
+                            }
+                            closeStreamLocked();
+                            return;
+                        }
+                        mSeqPos += n;
+                    }
+                }
+            }
+
+            private void openRangeStreamLocked(long reqStart) throws IOException, AuthRefreshRequestedException, RetryableHttpException {
+                String activeUrl = (mResolvedRedirectUrl != null && !mResolvedRedirectUrl.isEmpty()) ? mResolvedRedirectUrl : mCurrentUrl;
+                if (activeUrl == null || activeUrl.isEmpty()) {
+                    mFatalError = "[NET] Empty remote stream URL";
+                    throw new IOException(mFatalError);
+                }
+                String baseHost = extractUrlHost(mCurrentUrl);
+                Map<String, String> headersSnapshot = mHeaders != null ? new HashMap<>(mHeaders) : new HashMap<>();
+
+                for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+                    if (shouldAbort()) {
+                        throw new IOException("Stream aborted");
+                    }
+                    URL parsedUrl = new URL(activeUrl);
+                    HttpURLConnection conn = (HttpURLConnection) parsedUrl.openConnection();
+                    mActiveConn = conn;
+                    conn.setInstanceFollowRedirects(false);
+                    conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                    conn.setReadTimeout(READ_TIMEOUT_MS);
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("Accept-Encoding", "identity");
+                    conn.setRequestProperty("Range", "bytes=" + reqStart + "-");
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Nocturne/3.9");
+
+                    String reqHost = extractUrlHost(activeUrl);
+                    boolean sameHost = !baseHost.isEmpty() && baseHost.equalsIgnoreCase(reqHost);
+                    for (Map.Entry<String, String> entry : headersSnapshot.entrySet()) {
+                        String key = entry.getKey();
+                        String val = entry.getValue();
+                        if (key == null || val == null) continue;
+                        if (!sameHost && "authorization".equalsIgnoreCase(key)) {
+                            continue;
+                        }
+                        conn.setRequestProperty(key, val);
+                    }
+
+                    int status = conn.getResponseCode();
+                    if (status == HttpURLConnection.HTTP_MOVED_TEMP
+                            || status == HttpURLConnection.HTTP_MOVED_PERM
+                            || status == HttpURLConnection.HTTP_SEE_OTHER
+                            || status == 307
+                            || status == 308) {
+                        String location = conn.getHeaderField("Location");
+                        conn.disconnect();
+                        if (mActiveConn == conn) mActiveConn = null;
+                        if (location == null || location.trim().isEmpty()) {
+                            throw new IOException("HTTP " + status + " redirect missing Location");
+                        }
+                        activeUrl = new URL(parsedUrl, location.trim()).toString();
+                        mResolvedRedirectUrl = activeUrl;
+                        continue;
+                    }
+
+                    if (status == HttpURLConnection.HTTP_PARTIAL) {
+                        String contentRange = conn.getHeaderField("Content-Range");
+                        long rangeStart = reqStart;
+                        if (contentRange != null) {
+                            long[] parsedCr = parseContentRange(contentRange);
+                            if (parsedCr[0] >= 0L) rangeStart = parsedCr[0];
+                            if (parsedCr[1] > 0L) mTotalSize = parsedCr[1];
+                        }
+                        if (rangeStart > reqStart) {
+                            conn.disconnect();
+                            if (mActiveConn == conn) mActiveConn = null;
+                            throw new IOException("Content-Range start " + rangeStart + " > requested " + reqStart);
+                        }
+                        InputStream is = conn.getInputStream();
+                        mSeqConn = conn;
+                        mSeqStream = is;
+                        mActiveConn = conn;
+                        mActiveStream = is;
+                        mSeqPos = rangeStart;
+                        if (rangeStart < reqStart) {
+                            if ((reqStart - rangeStart) > 4L * CHUNK_SIZE) {
+                                closeStreamLocked();
+                                throw new IOException("Server returned unaligned Content-Range start " + rangeStart + " for " + reqStart);
+                            }
+                            drainAndCacheSequentialLocked(reqStart);
+                        }
+                        return;
+                    }
+
+                    if (status == HttpURLConnection.HTTP_OK) {
+                        long contentLen = -1L;
+                        try {
+                            contentLen = conn.getContentLengthLong();
+                        } catch (Throwable ignored) {
+                            String clStr = conn.getHeaderField("Content-Length");
+                            if (clStr != null) {
+                                try { contentLen = Long.parseLong(clStr.trim()); } catch (Exception ignored2) {}
+                            }
+                        }
+                        if (contentLen > 0L) {
+                            mTotalSize = contentLen;
+                        }
+                        if (reqStart == 0L || reqStart <= 4L * CHUNK_SIZE) {
+                            InputStream is = conn.getInputStream();
+                            mSeqConn = conn;
+                            mSeqStream = is;
+                            mActiveConn = conn;
+                            mActiveStream = is;
+                            mSeqPos = 0L;
+                            if (reqStart > 0L) {
+                                drainAndCacheSequentialLocked(reqStart);
+                            }
+                            return;
+                        }
+                        conn.disconnect();
+                        if (mActiveConn == conn) mActiveConn = null;
+                        mFatalError = "[NET] Server ignored Range header (HTTP 200 at offset " + reqStart + ")";
+                        throw new IOException(mFatalError);
+                    }
+
+                    if (status == 416) {
+                        String contentRange = conn.getHeaderField("Content-Range");
+                        conn.disconnect();
+                        if (mActiveConn == conn) mActiveConn = null;
+                        if (contentRange != null) {
+                            long[] parsedCr = parseContentRange(contentRange);
+                            if (parsedCr[1] >= 0L) {
+                                mTotalSize = parsedCr[1];
+                            }
+                        }
+                        if (mTotalSize >= 0L && reqStart >= mTotalSize) {
+                            return;
+                        }
+                        throw new IOException("HTTP 416 Range Not Satisfiable at offset " + reqStart);
+                    }
+
+                    long retryAfterMs = parseRetryAfterMs(conn.getHeaderField("Retry-After"));
+                    String errSnippet = readSmallErrorSnippet(conn);
+                    conn.disconnect();
+                    if (mActiveConn == conn) mActiveConn = null;
+
+                    if (status == 403 && isGoogleRateLimitBody(errSnippet)) {
+                        throw new RetryableHttpException(status, retryAfterMs);
+                    }
+                    if (status == 401 || status == 403
+                            || ((status == 404 || status == 410) && ("onedrive".equalsIgnoreCase(mSource) || mResolvedRedirectUrl != null))) {
+                        throw new AuthRefreshRequestedException(status, activeUrl);
+                    }
+                    if (status == 429 || status == 503 || status == 500 || status == 502 || status == 504) {
+                        throw new RetryableHttpException(status, retryAfterMs);
+                    }
+
+                    mFatalError = "[NET] HTTP " + status + (errSnippet.isEmpty() ? "" : (": " + errSnippet));
+                    throw new IOException(mFatalError);
+                }
+
+                mFatalError = "[NET] Too many HTTP redirects";
+                throw new IOException(mFatalError);
+            }
+
+            private boolean requestAuthRefreshFromWeb(int statusCode, String failedUrl) {
+                if (shouldAbort() || mWebView == null) return false;
+                final CountDownLatch latch = new CountDownLatch(1);
+                synchronized (mAuthWaitLock) {
+                    mAuthRefreshOk = false;
+                    mRefreshedUrl = null;
+                    mRefreshedHeaders = null;
+                    mPendingAuthLatch = latch;
+                }
+                final String safeSrc = mSource.replace("\\", "\\\\").replace("'", "\\'");
+                final String safeRemote = mRemoteId.replace("\\", "\\\\").replace("'", "\\'");
+                final String safeUrl = (failedUrl != null ? failedUrl : "").replace("\\", "\\\\").replace("'", "\\'");
+                final String js = "if (typeof window.onNativeBitPerfectAuthRefresh === 'function') {"
+                        + " window.onNativeBitPerfectAuthRefresh(" + mEpoch + ", '" + safeSrc + "', '" + safeRemote + "', '" + safeUrl + "', " + statusCode + ");"
+                        + "} else if (window.NocturneNative && typeof window.NocturneNative.provideBitPerfectRefreshedAuth === 'function') {"
+                        + " window.NocturneNative.provideBitPerfectRefreshedAuth(" + mEpoch + ", '', '{}', false);"
+                        + "}";
+                mWebView.post(() -> {
+                    if (mWebView != null && !shouldAbort()) {
+                        mWebView.evaluateJavascript(js, null);
+                    } else {
+                        latch.countDown();
+                    }
+                });
+                try {
+                    boolean signaled = latch.await(AUTH_REFRESH_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+                    if (!signaled || shouldAbort()) {
+                        return false;
+                    }
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                } finally {
+                    synchronized (mAuthWaitLock) {
+                        if (mPendingAuthLatch == latch) {
+                            mPendingAuthLatch = null;
+                        }
+                    }
+                }
+
+                synchronized (mAuthWaitLock) {
+                    if (!mAuthRefreshOk) return false;
+                    synchronized (mLock) {
+                        if (mRefreshedUrl != null && !mRefreshedUrl.isEmpty()) {
+                            mCurrentUrl = mRefreshedUrl;
+                        }
+                        mResolvedRedirectUrl = null;
+                        if (mRefreshedHeaders != null) {
+                            mHeaders = new HashMap<>(mRefreshedHeaders);
+                        }
+                    }
+                    return true;
+                }
+            }
+
+            private String extractUrlHost(@Nullable String rawUrl) {
+                if (rawUrl == null || rawUrl.isEmpty()) return "";
+                try {
+                    String host = new URL(rawUrl).getHost();
+                    return host != null ? host.toLowerCase(Locale.US) : "";
+                } catch (Exception ignored) {
+                    return "";
+                }
+            }
+
+            private long[] parseContentRange(@Nullable String header) {
+                long[] res = new long[]{ -1L, -1L };
+                if (header == null) return res;
+                String trimmed = header.trim();
+                if (!trimmed.regionMatches(true, 0, "bytes ", 0, 6)) return res;
+                String spec = trimmed.substring(6).trim();
+                int slash = spec.indexOf('/');
+                if (slash < 0) return res;
+                String rangePart = spec.substring(0, slash).trim();
+                String totalPart = spec.substring(slash + 1).trim();
+                if (!"*".equals(totalPart)) {
+                    try { res[1] = Long.parseLong(totalPart); } catch (Exception ignored) {}
+                }
+                if (!"*".equals(rangePart)) {
+                    int dash = rangePart.indexOf('-');
+                    if (dash > 0) {
+                        try { res[0] = Long.parseLong(rangePart.substring(0, dash).trim()); } catch (Exception ignored) {}
+                    }
+                }
+                return res;
+            }
+
+            private long parseRetryAfterMs(@Nullable String retryAfter) {
+                if (retryAfter == null || retryAfter.trim().isEmpty()) return -1L;
+                try {
+                    long sec = Long.parseLong(retryAfter.trim());
+                    return sec > 0L ? Math.min(8000L, sec * 1000L) : -1L;
+                } catch (Exception ignored) {
+                    return -1L;
+                }
+            }
+
+            private String readSmallErrorSnippet(HttpURLConnection conn) {
+                InputStream err = null;
+                try {
+                    err = conn.getErrorStream();
+                    if (err == null) return "";
+                    byte[] buf = new byte[1024];
+                    int n = err.read(buf);
+                    if (n <= 0) return "";
+                    return new String(buf, 0, n, StandardCharsets.UTF_8).replace('\n', ' ').replace('\r', ' ').trim();
+                } catch (Exception ignored) {
+                    return "";
+                } finally {
+                    if (err != null) {
+                        try { err.close(); } catch (Exception ignored) {}
+                    }
+                }
+            }
+
+            private boolean isGoogleRateLimitBody(@Nullable String body) {
+                if (body == null || body.isEmpty()) return false;
+                String low = body.toLowerCase(Locale.US);
+                return low.contains("ratelimitexceeded")
+                        || low.contains("userratelimitexceeded")
+                        || low.contains("quotaexceeded")
+                        || low.contains("sharingratelimitexceeded");
+            }
+        }
+
+        private static class AuthRefreshRequestedException extends Exception {
+            final int statusCode;
+            final String failedUrl;
+            AuthRefreshRequestedException(int statusCode, String failedUrl) {
+                this.statusCode = statusCode;
+                this.failedUrl = failedUrl;
+            }
+        }
+
+        private static class RetryableHttpException extends Exception {
+            final int statusCode;
+            final long retryAfterMs;
+            RetryableHttpException(int statusCode, long retryAfterMs) {
+                this.statusCode = statusCode;
+                this.retryAfterMs = retryAfterMs;
+            }
+        }
     }
 
     private final BitPerfectAudioPlayer mBitPerfectPlayer = new BitPerfectAudioPlayer();
+
+    public void setBitPerfectStreamAuth(String url, String headersJson, String source, String remoteId, long knownBytes) {
+        mBitPerfectPlayer.setPendingStreamAuth(url, headersJson, source, remoteId, knownBytes);
+    }
+
+    public void updateBitPerfectStreamAuth(String url, String headersJson) {
+        mBitPerfectPlayer.updateActiveStreamAuth(url, headersJson);
+    }
+
+    public void provideBitPerfectRefreshedAuth(long epoch, String newUrl, String headersJson, boolean ok) {
+        mBitPerfectPlayer.provideRefreshedAuth(epoch, newUrl, headersJson, ok);
+    }
 
     public boolean startBitPerfectPlayback(String urlOrPath, int sampleRate, int bitDepth) {
         mPausedByTransientFocusLoss = false;
@@ -7341,6 +8378,21 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(mActivity, message, Toast.LENGTH_SHORT).show()
                 );
             }
+        }
+
+        @JavascriptInterface
+        public void setBitPerfectStreamAuth(String url, String headersJson, String source, String remoteId, long knownBytes) {
+            mActivity.setBitPerfectStreamAuth(url, headersJson, source, remoteId, knownBytes);
+        }
+
+        @JavascriptInterface
+        public void updateBitPerfectStreamAuth(String url, String headersJson) {
+            mActivity.updateBitPerfectStreamAuth(url, headersJson);
+        }
+
+        @JavascriptInterface
+        public void provideBitPerfectRefreshedAuth(long epoch, String newUrl, String headersJson, boolean ok) {
+            mActivity.provideBitPerfectRefreshedAuth(epoch, newUrl, headersJson, ok);
         }
 
         @JavascriptInterface
