@@ -4489,6 +4489,7 @@ public class MainActivity extends AppCompatActivity {
         private final AtomicLong mDurationMs = new AtomicLong(0);
         private final java.util.concurrent.atomic.AtomicBoolean mRouteRefreshRequested = new java.util.concurrent.atomic.AtomicBoolean(false);
         private volatile boolean mRouteRefreshWasDisconnect = false;
+        private volatile boolean mRouteRefreshWasConnect = false;
 
         private Thread mPlaybackThread = null;
         private volatile AudioTrack mAudioTrack = null;
@@ -4523,6 +4524,7 @@ public class MainActivity extends AppCompatActivity {
             mDurationMs.set(0);
             mRouteRefreshRequested.set(false);
             mRouteRefreshWasDisconnect = false;
+            mRouteRefreshWasConnect = false;
 
             acquireWakeLock(mIsRemoteStream);
             requestAudioFocus();
@@ -4660,6 +4662,8 @@ public class MainActivity extends AppCompatActivity {
             if (!isActive()) return;
             if (!connected) {
                 mRouteRefreshWasDisconnect = true;
+            } else {
+                mRouteRefreshWasConnect = true;
             }
             mRouteRefreshRequested.set(true);
             synchronized (mPauseLock) {
@@ -5322,12 +5326,17 @@ public class MainActivity extends AppCompatActivity {
                     if (mIsStopped || mPlaybackEpoch.get() != epoch) break;
                     if (mRouteRefreshRequested.compareAndSet(true, false) && !mIsStopped && mPlaybackEpoch.get() == epoch) {
                         boolean wasDisconnect = mRouteRefreshWasDisconnect;
+                        boolean wasConnect = mRouteRefreshWasConnect;
                         mRouteRefreshWasDisconnect = false;
+                        mRouteRefreshWasConnect = false;
                         AudioDeviceInfo newPreferred = findPreferredBitPerfectDevice();
                         int oldDevId = preferredDevice != null ? preferredDevice.getId() : -1;
                         int newDevId = newPreferred != null ? newPreferred.getId() : -1;
-                        if (wasDisconnect || oldDevId != newDevId) {
-                            Log.i(TAG, "BitPerfect: Audio output route changed (wasDisconnect=" + wasDisconnect + ", oldId=" + oldDevId + ", newId=" + newDevId + "), rebuilding AudioTrack");
+                        boolean isUsbTarget = newPreferred != null &&
+                                (newPreferred.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                                 newPreferred.getType() == AudioDeviceInfo.TYPE_USB_HEADSET);
+                        if (wasDisconnect || oldDevId != newDevId || (wasConnect && isUsbTarget)) {
+                            Log.i(TAG, "BitPerfect: Audio output route changed (wasDisconnect=" + wasDisconnect + ", wasConnect=" + wasConnect + ", oldId=" + oldDevId + ", newId=" + newDevId + "), rebuilding AudioTrack");
                             if (mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
                                 Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
                                 mPreferredMixerAttributesSet = false;
@@ -5595,12 +5604,17 @@ public class MainActivity extends AppCompatActivity {
                                 }
                                 if (mRouteRefreshRequested.compareAndSet(true, false) && !mIsStopped && mPlaybackEpoch.get() == epoch) {
                                     boolean wasDisconnect = mRouteRefreshWasDisconnect;
+                                    boolean wasConnect = mRouteRefreshWasConnect;
                                     mRouteRefreshWasDisconnect = false;
+                                    mRouteRefreshWasConnect = false;
                                     AudioDeviceInfo newPreferred = findPreferredBitPerfectDevice();
                                     int oldDevId = preferredDevice != null ? preferredDevice.getId() : -1;
                                     int newDevId = newPreferred != null ? newPreferred.getId() : -1;
-                                    if (wasDisconnect || oldDevId != newDevId) {
-                                        Log.i(TAG, "BitPerfect: Audio output route changed mid-buffer (wasDisconnect=" + wasDisconnect + ", oldId=" + oldDevId + ", newId=" + newDevId + "), rebuilding AudioTrack");
+                                    boolean isUsbTarget = newPreferred != null &&
+                                            (newPreferred.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                                             newPreferred.getType() == AudioDeviceInfo.TYPE_USB_HEADSET);
+                                    if (wasDisconnect || oldDevId != newDevId || (wasConnect && isUsbTarget)) {
+                                        Log.i(TAG, "BitPerfect: Audio output route changed mid-buffer (wasDisconnect=" + wasDisconnect + ", wasConnect=" + wasConnect + ", oldId=" + oldDevId + ", newId=" + newDevId + "), rebuilding AudioTrack");
                                         if (mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= 34 && preferredDevice != null && mAudioManager != null && audioAttributes != null) {
                                             Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);
                                             mPreferredMixerAttributesSet = false;

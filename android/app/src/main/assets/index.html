@@ -2370,7 +2370,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.94</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.95</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -8884,8 +8884,19 @@
             state.objectUrls.delete(tr.url);
           }
         }
+        if (tr.cover && typeof tr.cover === 'string' && tr.cover.indexOf('blob:') === 0 && state.objectUrls && state.objectUrls.has(tr.cover)) {
+          const coverReferenced = state.tracks.some((other, oIdx) => oIdx !== i && other && other.cover === tr.cover);
+          if (!coverReferenced) {
+            try { URL.revokeObjectURL(tr.cover); } catch (_) {}
+            state.objectUrls.delete(tr.cover);
+          }
+        }
         state.tracks.splice(i, 1);
         removedCount++;
+      }
+      if (removedCount > 0) {
+        if (typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
+        if (typeof pruneExcessObjectUrls === 'function') pruneExcessObjectUrls();
       }
       return removedCount;
     }
@@ -15366,13 +15377,32 @@
         standbyAudio.addEventListener('loadedmetadata', applyPreloadCueSeek, { once: true });
       }
     }
+    function isPreloadedStandbyStaleOrErrored(next, preloadUrl) {
+      if (!next) return false;
+      if (typeof standbyAudio !== 'undefined' && standbyAudio && standbyAudio.error) return true;
+      const urlStr = String(preloadUrl || '');
+      if (!/^https?:\/\//i.test(urlStr)) return false;
+      if (next.source === 'onedrive') {
+        const maxAge = (typeof MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS === 'number' && MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS > 0) ? MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS : (30 * 60 * 1000);
+        return !next.downloadUrlAt || (Date.now() - next.downloadUrlAt) >= (maxAge - 5 * 60 * 1000);
+      }
+      if (next.source === 'google') {
+        return Boolean(state.googleExpiresAt && Date.now() >= (state.googleExpiresAt - 5 * 60 * 1000));
+      }
+      return false;
+    }
+    function invalidateStaleStandbyPreload(track, url) {
+      if (!isPreloadedStandbyStaleOrErrored(track, url)) return false;
+      if (track.source === 'onedrive' && /^https?:\/\//i.test(String(url))) {
+        track.downloadUrl = ''; track.downloadUrlAt = 0;
+        if (track.url === url || /^https?:\/\//i.test(String(track.url || ''))) track.url = '';
+      }
+      return true;
+    }
     async function tryReuseHealthyStandbyPreload(next, preloadUrl) {
       if (!next || !preloadUrl || !standbyAudio || state.preloadTrackId !== next.id || standbyAudio.src !== preloadUrl || standbyAudio.error) return false;
       if (!(state.preloadBusyId === next.id || Number(standbyAudio.readyState) >= 2)) return false;
-      if (next.source === 'onedrive' && /^https?:\/\//i.test(String(preloadUrl))) {
-        const maxAge = (typeof MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS === 'number' && MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS > 0) ? MICROSOFT_DOWNLOAD_URL_MAX_AGE_MS : (30 * 60 * 1000);
-        if (!next.downloadUrlAt || (Date.now() - next.downloadUrlAt) >= (maxAge - 5 * 60 * 1000)) return false;
-      }
+      if (typeof isPreloadedStandbyStaleOrErrored === 'function' && isPreloadedStandbyStaleOrErrored(next, preloadUrl)) return false;
       if (next.firstSlicePlayback && (next.source === 'google' || next.source === 'onedrive') && typeof prepareCloudTrackForPreload === 'function') {
         await prepareCloudTrackForPreload(next);
       }
@@ -15380,21 +15410,7 @@
       seekPreloadedCueStandby(next, preloadUrl, state.preloadGeneration);
       return true;
     }
-    async function preloadNext(force = false) {
-      if (!state.context || !state.deckA || !state.deckB) return;
-      if (state.crossfadeUntil && state.context.currentTime < state.crossfadeUntil) return;
-      const index = queueIndex(), next = index >= 0 ? state.tracks[index] : null;
-      if (!next || next.id === state.currentId) {
-        clearStalePreload();
-        return;
-      }
-      if (typeof trySkipSameCueStandbyPreload === 'function' && trySkipSameCueStandbyPreload(next)) return;
-      const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
-      if (isOfflineMode && typeof (library && library.canPlayOffline) === 'function' && !library.canPlayOffline(next)) {
-        clearStalePreload();
-        return;
-      }
-      if (next.isDsd) { await preloadDsdNext(next); return; }
+    function refreshPreloadNetworkPlan(isOfflineMode) {
       if (typeof (library && library.calculateNetworkThroughputAdaptiveProfile) === 'function') {
         const navConn = (typeof navigator !== 'undefined' && navigator.connection) || {};
         state.networkProfile = library.calculateNetworkThroughputAdaptiveProfile(state.networkSpeedSamples, {
@@ -15413,6 +15429,23 @@
           saveData: isSaveData
         });
       }
+    }
+    async function preloadNext(force = false) {
+      if (!state.context || !state.deckA || !state.deckB) return;
+      if (state.crossfadeUntil && state.context.currentTime < state.crossfadeUntil) return;
+      const index = queueIndex(), next = index >= 0 ? state.tracks[index] : null;
+      if (!next || next.id === state.currentId) {
+        clearStalePreload();
+        return;
+      }
+      if (typeof trySkipSameCueStandbyPreload === 'function' && trySkipSameCueStandbyPreload(next)) return;
+      const isOfflineMode = (typeof navigator !== 'undefined' && !navigator.onLine) || state.activeFocus === 'offline';
+      if (isOfflineMode && typeof (library && library.canPlayOffline) === 'function' && !library.canPlayOffline(next)) {
+        clearStalePreload();
+        return;
+      }
+      if (next.isDsd) { await preloadDsdNext(next); return; }
+      if (typeof refreshPreloadNetworkPlan === 'function') refreshPreloadNetworkPlan(isOfflineMode);
       if (!force && state._preloadFailedTrackId === next.id && state._preloadFailedAt && (Date.now() - state._preloadFailedAt) < 8000) return;
       if (typeof ensureLocalTrackPlayableUrl === 'function') await ensureLocalTrackPlayableUrl(next);
       if (next.source === 'local' && !next.isDsd && !next.url && next.file) {
@@ -15420,7 +15453,8 @@
       }
       const preloadUrl = next.url ? new URL(next.url, location.href).href : '';
       if (typeof tryReuseHealthyStandbyPreload === 'function' && await tryReuseHealthyStandbyPreload(next, preloadUrl)) return;
-      if (!force && state.preloadTrackId === next.id && (state.preloadBusyId === next.id || (preloadUrl && standbyAudio.src === preloadUrl))) return;
+      const stale = typeof invalidateStaleStandbyPreload === 'function' && invalidateStaleStandbyPreload(next, preloadUrl);
+      if (!force && !stale && state.preloadTrackId === next.id && (state.preloadBusyId === next.id || (preloadUrl && standbyAudio.src === preloadUrl))) return;
       const oldPreload = state.tracks.find(track => track.id === state.preloadTrackId);
       const generation = ++state.preloadGeneration;
       state.preloadTrackId = next.id; state.preloadBusyId = next.id; state.preloadReadyUrl = null;
@@ -15844,7 +15878,8 @@
       const fsRoomBpmInit = $('fs-room-bpm-badge');
       if (fsRoomBpmInit) fsRoomBpmInit.textContent = '-- BPM';
       const trackUrl = track.url ? new URL(track.url, location.href).href : '';
-      const wasPreloaded = state.preloadTrackId === track.id && !!trackUrl && standbyAudio.src === trackUrl;
+      const preloadExpiredOnPlay = typeof invalidateStaleStandbyPreload === 'function' && invalidateStaleStandbyPreload(track, trackUrl);
+      const wasPreloaded = !preloadExpiredOnPlay && state.preloadTrackId === track.id && !!trackUrl && standbyAudio.src === trackUrl;
       state.queueTrackIds = (state.queueTrackIds || []).filter(item => item !== track.id && String(item) !== String(track.id));
       // 2. NON-BLOCKING DOM: Defer renderQueue() using requestAnimationFrame or requestIdleCallback instead of executing heavy DOM layout thrashing synchronously in the click handler and inside playTrack.
       if (typeof deferRenderQueue === 'function') deferRenderQueue(); else renderQueue();
@@ -15857,6 +15892,7 @@
           try { if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
           state.isNativeBitPerfectPlaying = false;
           state.isNativeBitPerfectPaused = false;
+          state.bitPerfectLockedFormat = null;
         }
         try {
           clearStalePreload();
@@ -15919,9 +15955,8 @@
       }
       if (track.load && !cachedCloudUrl) {
         if (state.isNativeBitPerfectPlaying) {
-          try { if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
-          state.isNativeBitPerfectPlaying = false;
-          state.isNativeBitPerfectPaused = false;
+          try { const nat = window.NocturneNative; if (nat && nat.stopBitPerfectPlayback) nat.stopBitPerfectPlayback(); } catch (_) {}
+          state.isNativeBitPerfectPlaying = false; state.isNativeBitPerfectPaused = false; state.bitPerfectLockedFormat = null;
         }
         if (typeof navigator !== 'undefined' && navigator.onLine === false) {
           const canPlay = typeof (library && library.canPlayOffline) === 'function' ? library.canPlayOffline(track) : (track.source === 'local' || !!track.file || !!track.blob);
@@ -16003,6 +16038,7 @@
             state._bpCueAdvancingId = null;
             state.isNativeBitPerfectPlaying = true;
             state.isNativeBitPerfectPaused = false;
+            state.bitPerfectLockedFormat = null;
             state.lastBitPerfectPositionSec = cueStartSec;
             state.lastBitPerfectPositionAtMs = 0;
             if (cueStartSec > 0 && !(track._resumeAfterBpFallbackSec > cueStartSec) && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
@@ -16041,6 +16077,7 @@
         try { if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
         state.isNativeBitPerfectPlaying = false;
         state.isNativeBitPerfectPaused = false;
+        state.bitPerfectLockedFormat = null;
         state.lastBitPerfectPositionSec = 0;
       }
 
@@ -24240,8 +24277,8 @@
       else if (event.key === 'ArrowDown') { event.preventDefault(); const cur = Number($('volume').value) || 0; const next = Math.max(0, cur - 5); setGain(next); toast(`Âm lượng: ${next}%`); }
       else if (event.key.toLowerCase() === 'm') { event.preventDefault(); toggleMiniPlayerHud(); }
       else if (event.key.toLowerCase() === 'u') { event.preventDefault(); toggleMute(); }
-      else if (event.key.toLowerCase() === 'n') playNext(1);
-      else if (event.key.toLowerCase() === 'p') playNext(-1);
+      else if (event.key.toLowerCase() === 'n') { event.preventDefault(); playNext(1); }
+      else if (event.key.toLowerCase() === 'p') { event.preventDefault(); playNext(-1); }
       else if (event.key.toLowerCase() === 'q') $('queue-panel').classList.contains('hidden') ? openQueue() : closeQueue();
       else if (event.key.toLowerCase() === 'e') cycleEqPreset();
       else if (event.key.toLowerCase() === 'x') toggleCrossfade();

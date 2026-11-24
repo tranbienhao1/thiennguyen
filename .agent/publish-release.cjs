@@ -80,22 +80,24 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.94';
-  const name = process.argv[3] || `Nocturne ${tag} (Android Google Drive Full Sync Fix + Shared Drives/Folder Shortcuts + 403 Backoff + WakeLock Sync Guard)`;
+  const tag = process.argv[2] || 'v3.9.95';
+  const name = process.argv[3] || `Nocturne ${tag} (Mixed Cloud/Local Preload Expiry Guard, USB DAC Mid-Playback Reconnect & Cloud Folder Cover Propagation)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 148) — Khắc phục triệt để lỗi đồng bộ thiếu nhạc Google Drive trên Android đời mới
+    : `### Nocturne ${tag} (versionCode 149) — Gia cố Preload Cloud/Nội bộ, USB DAC Reconnect & Lan truyền Ảnh bìa Thư mục Cloud
 
-#### 1. Quét đầy đủ Shared Drives, Folder Shortcuts & Retry 403 Rate-Limit (\`index.html\`)
-- \`fetchGoogleDrivePageWithRetry\` tăng timeout lên \`35000ms\`, nâng số lần thử lại (\`< 4\`) và hỗ trợ exponential backoff cho \`HTTP 403\` (\`rateLimitExceeded\` / \`userRateLimitExceeded\`).
-- \`loadGoogleFiles\` và \`scanGoogleDriveAudioShortcuts\` chuyển sang \`corpora: 'allDrives'\` (kèm fallback \`'user'\` khi gặp \`400\`), reset \`pageToken\` khi đổi \`orderBy\`, nâng giới hạn trang shortcut lên \`100\` và duyệt đệ quy các shortcut trỏ tới thư mục chia sẻ.
-- Tự động nâng cấp schema đồng bộ (\`nocturne-google-sync-schema\`) một lần để dọn con trỏ delta cũ bị thiếu bài và bổ sung nút \`#google-full-resync\` trong Cài đặt.
+#### 1. Chuyển tiếp bài kế Mixed Cloud <-> Nội bộ & Phím tắt điều khiển (\`index.html\`)
+- Bổ sung \`isPreloadedStandbyStaleOrErrored(next, preloadUrl)\` kiểm tra \`standbyAudio.error\`, URL OneDrive pre-signed sắp hết hạn và token Google Drive gần hết hạn; tích hợp vào \`tryReuseHealthyStandbyPreload\`, \`preloadNext\` và \`playTrack\` để tự động vô hiệu hóa URL cũ và tải lại luồng sạch khi chuyển bài.
+- Bổ sung \`event.preventDefault()\` cho phím tắt \`n\` / \`p\` và mở rộng bài kiểm thử Chrome CDP E2E thực tế cho bộ phím \`n\` / \`p\` / \`s\` / \`r\`.
 
-#### 2. Đồng bộ bền bỉ trên Android đời mới (\`MainActivity.java\`, \`virtual-scroll.js\`)
-- Thêm \`setCloudSyncActive(boolean)\` qua \`NocturneNative\` giữ \`WakeLock\` + \`WifiLock\` trong suốt quá trình quét Google Drive khi chưa phát nhạc để Android 12–15+ không đóng băng kết nối mạng.
-- Chờ \`persistChain\` lưu xong vào IndexedDB trước khi ghi checkpoint từng trang (\`nocturne-google-sync-checkpoint\`).
-- \`VirtualTrackList.getScrollTarget\` kiểm tra \`overflowY\` thực tế của \`#content-col\` để hiển thị đầy đủ danh sách trên màn hình rộng / tablet Android (\`>= 1024px\`).
+#### 2. Tự động dựng lại AudioTrack khi cắm lại USB DAC & Đồng bộ Bit-Perfect HUD (\`MainActivity.java\`, \`index.html\`)
+- Bổ sung cờ \`mRouteRefreshWasConnect\` trong \`BitPerfectAudioPlayer\` để luôn dựng lại \`AudioTrack\` và cấu hình lại API 34 Bit-Perfect mixer khi cắm USB DAC ngoài giữa lúc đang phát (kể cả khi Android tái sử dụng \`deviceId\` hoặc đang fallback 16-bit trên loa trong).
+- Reset \`state.bitPerfectLockedFormat = null\` trong \`playTrack\` tại các điểm chuyển đổi giữa DSD, Native Bit-Perfect bài mới và Web Audio để badge tần số mẫu / bit-depth không bao giờ hiển thị thông số cũ.
+
+#### 3. Lan truyền Ảnh bìa Thư mục Cloud & Dọn dẹp Object URLs (\`library-utils.js\`, \`index.html\`)
+- Mở rộng \`library.extractTrackDirectory\` hỗ trợ \`remotePath\`, \`parentPath\` / \`folderPath\`, \`remoteParentId\` (OneDrive) và \`parents[0]\` (Google Drive) đồng thời bỏ qua \`blob:\` / \`data:\` URL, giúp \`restoreCloudCatalog\` -> \`propagateAndBroadcastCovers\` lan truyền ảnh bìa chuẩn xác sau khi tải lại trang.
+- Mở rộng \`pruneRemovedLocalFolderTracks\` thu hồi các \`blob:\` cover không còn được tham chiếu và gọi \`pruneOrphanedAlbumCovers()\` + \`pruneExcessObjectUrls()\`.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;
