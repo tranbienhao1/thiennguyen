@@ -34,7 +34,12 @@ test('2. BitPerfectAudioPlayer uses an epoch guard so stale threads cannot clobb
   assert.ok(java.includes('while (!mIsStopped && !sawOutputEOS && mPlaybackEpoch.get() == epoch) {'));
   assert.ok(java.includes('if (sawOutputEOS && !mIsStopped && mPlaybackEpoch.get() == epoch) {'), 'stale thread must not fire a completion/next-track event');
   assert.ok(java.includes('final boolean sessionCurrent = (mPlaybackEpoch.get() == epoch);'));
-  assert.ok(java.includes('if (sessionCurrent) {\n                    mIsPlaying = false;\n                    mIsPaused = false;\n                    releaseWakeLock();\n                    abandonAudioFocus();\n                }'), 'stale thread must not release the new session wake lock / audio focus');
+  assert.match(
+    java,
+    /if \(holdTransition\)\s*\{[\s\S]{0,400}\}\s*else if \(sessionCurrent\)\s*\{\s*mIsPlaying = false;\s*mIsPaused = false;[\s\S]{0,120}releaseWakeLock\(\);\s*abandonAudioFocus\(\);\s*(?:\}\s*)?\}/,
+    'stale thread must not release the new session wake lock / audio focus'
+  );
+  assert.match(java, /final boolean holdTransition =[^;]*sessionCurrent[^;]*;/, 'transition hold must also require sessionCurrent');
 });
 
 test('3. Version sync v3.9.25 (versionCode 79), Unix LF asset parity, and Web Audio invariants', () => {

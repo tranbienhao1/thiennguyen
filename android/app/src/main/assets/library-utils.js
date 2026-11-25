@@ -71,6 +71,82 @@
     return cleanMetadataValue(stripLeadingTrackNumber(value), fallback);
   }
 
+  const ROMAN_DISC_MAP = {
+    I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10
+  };
+
+  function parseDiscSubfolderInfo(name) {
+    if (name == null || name === '') return { isDiscFolder: false, discNumber: null, label: '' };
+    const clean = normalize(name);
+    if (!clean) return { isDiscFolder: false, discNumber: null, label: '' };
+    if (/^(?:vol(?:ume)?|part)\b[^:]*:/i.test(clean)) {
+      return { isDiscFolder: false, discNumber: null, label: clean };
+    }
+    const m = clean.match(/^(cd|disc|disk|sacd|side|vol(?:ume)?|part|dvd|bd)\s*[-_.#]?\s*(0*\d{1,2}|[a-d]|[ivx]{1,4})(?=$|[\s\-_.:,()[\]/])(.*)$/i);
+    if (!m) return { isDiscFolder: false, discNumber: null, label: clean };
+    const prefix = m[1].toLowerCase();
+    const tok = m[2];
+    const rest = m[3] || '';
+    if (/^[a-z]+$/i.test(tok) && /^-[a-z]/i.test(rest)) {
+      return { isDiscFolder: false, discNumber: null, label: clean };
+    }
+    if ((prefix === 'vol' || prefix === 'volume' || prefix === 'part') && /^\s*[-–—]/.test(rest)) {
+      if (!/^\s*[-–—]\s*(?:bonus|disc|cd|side|part|extra|extras|live|demo|demos|instrumental|acoustic|edition|of\b|\d+|[ivx]+)\b/i.test(rest)) {
+        return { isDiscFolder: false, discNumber: null, label: clean };
+      }
+    }
+    let discNumber = null;
+    if (/^\d+$/.test(tok)) {
+      const n = parseInt(tok, 10);
+      if (n >= 1 && n <= 99) discNumber = n;
+    } else if (/^[a-d]$/i.test(tok)) {
+      discNumber = 'ABCD'.indexOf(tok.toUpperCase()) + 1;
+    } else {
+      const rom = ROMAN_DISC_MAP[tok.toUpperCase()];
+      if (rom) discNumber = rom;
+    }
+    if (!discNumber) return { isDiscFolder: false, discNumber: null, label: clean };
+    return { isDiscFolder: true, discNumber: discNumber, label: clean };
+  }
+
+  function stripAlbumDiscSuffix(albumName) {
+    const clean = normalize(albumName);
+    if (!clean) return '';
+    const discCore = '(?:cd|disc|disk|sacd|side|vol(?:ume)?|part|dvd|bd)\\s*[-_.#]?\\s*(?:0*\\d{1,2}|[a-d]|[ivx]{1,4})(?:\\s*(?:of|\\/)\\s*(?:0*\\d{1,2}|[ivx]{1,4}))?(?:\\s*[-_–—:]\\s*[^)\\]]+)?';
+    const bracketRe = new RegExp('\\s*(?:\\(' + discCore + '\\)|\\[' + discCore + '\\])\\s*$', 'i');
+    const dashRe = new RegExp('\\s*(?:[-–—]+|,)\\s*' + discCore + '\\s*$', 'i');
+    let out = clean;
+    let prev = '';
+    while (out !== prev) {
+      prev = out;
+      out = out.replace(bracketRe, '').replace(dashRe, '').trim();
+    }
+    return out || clean;
+  }
+
+  function decodeSafDocRelativePath(uri) {
+    if (typeof uri !== 'string' || !uri) return '';
+    const trimmed = uri.trim();
+    if (!/^content:\/\//i.test(trimmed)) return '';
+    const noQuery = trimmed.split(/[?#]/)[0];
+    const docMarker = '/document/';
+    const docIdx = noQuery.lastIndexOf(docMarker);
+    if (docIdx === -1) return '';
+    let docId = noQuery.slice(docIdx + docMarker.length);
+    if (!docId) return '';
+    try {
+      docId = decodeURIComponent(docId.replace(/%(?![0-9a-fA-F]{2})/g, '%25'));
+    } catch (_) {
+      return '';
+    }
+    docId = docId.replace(/\\/g, '/');
+    const colonIdx = docId.indexOf(':');
+    if (colonIdx >= 0 && docId.slice(0, colonIdx).indexOf('/') === -1) {
+      docId = docId.slice(colonIdx + 1);
+    }
+    return docId.replace(/^\/+/, '').replace(/\/+$/, '');
+  }
+
   function parseFilenameMetadata(filename, trackNumber = '') {
     const pathParts = normalize(filename).replace(/\\/g, '/').split('/').filter(Boolean);
     const originalName = pathParts.pop() || '';
@@ -85,7 +161,7 @@
     if (parts.length >= 2 && !hasOuterTrackPrefix && numberedArtistPrefix && (!taggedTrackNumber || Number(numberedArtistPrefix[1]) === Number(taggedTrackNumber))) {
       parts[0] = parts[0].slice(numberedArtistPrefix[0].length);
     }
-    const metadataFolders = pathParts.filter(part => !/^(?:cd|disc|disk)\s*\d+$/i.test(normalize(part)));
+    const metadataFolders = pathParts.filter(part => !parseDiscSubfolderInfo(part).isDiscFolder);
     const folderArtist = metadataFolders.length >= 2 ? primaryArtistName(metadataFolders[metadataFolders.length - 2], '') : '';
     const folderAlbum = metadataFolders.length >= 2 ? primaryAlbumName(metadataFolders[metadataFolders.length - 1], '') : '';
     if (parts.length >= 2) {
@@ -172,12 +248,16 @@
 
   function extractDiscAndTrackFromPath(track) {
     if (!track || typeof track !== 'object') track = {};
+    const safRel = (typeof track.uri === 'string' && track.uri.indexOf('content://') === 0)
+      ? decodeSafDocRelativePath(track.uri)
+      : '';
     const rawPath = String(
       track.webkitRelativePath ||
       track.relativePath ||
       track.remotePath ||
       track.path ||
       track.filePath ||
+      safRel ||
       track.fileName ||
       track.filename ||
       track.name ||
@@ -192,9 +272,14 @@
 
     let discNumber = null;
     for (let i = segments.length - 2; i >= 0; i--) {
-      const dirMatch = segments[i].match(/\b(?:cd|disc|disk)\s*0*(\d{1,2})\b/i);
-      if (dirMatch) {
-        discNumber = parseInt(dirMatch[1], 10);
+      const discInfo = parseDiscSubfolderInfo(segments[i]);
+      if (discInfo.isDiscFolder && discInfo.discNumber != null) {
+        discNumber = discInfo.discNumber;
+        break;
+      }
+      const fallbackMatch = segments[i].match(/\b(?:cd|disc|disk)\s*0*(\d{1,2})\b/i);
+      if (fallbackMatch) {
+        discNumber = parseInt(fallbackMatch[1], 10);
         break;
       }
     }
@@ -814,11 +899,11 @@
       const metadata = trackMetadata(track);
       const colInfo = collections ? collections.getTrackCollection(track) : null;
       if (field === 'album') {
-        const albumName = metadata.album || fallback;
+        const albumName = (colInfo && colInfo.album) || metadata.album || fallback;
         const albumKey = metadataKey(albumName);
         const artistKey = colInfo ? metadataKey(colInfo.albumArtist || colInfo.artist) : metadataKey(metadata.artist);
         const key = (colInfo && colInfo.albumKey) || `${albumKey}\t${artistKey}`;
-        const label = metadata.album === UNKNOWN_ALBUM ? 'Chưa rõ album' : metadata.album;
+        const label = albumName === UNKNOWN_ALBUM ? 'Chưa rõ album' : albumName;
         if (!options.has(key)) options.set(key, label);
         continue;
       }
@@ -912,9 +997,10 @@
         groups.get(key).tracks.push(track);
       } else {
         const artistKey = colInfo ? metadataKey(colInfo.albumArtist || colInfo.artist) : metadataKey(metadata.artist);
-        const albumKey = metadataKey(metadata.album);
+        const albumDisplay = (colInfo && colInfo.album) || metadata.album;
+        const albumKey = metadataKey(albumDisplay);
         const key = (colInfo && colInfo.albumKey) || `${albumKey}\t${artistKey}`;
-        const label = metadata.album === UNKNOWN_ALBUM ? 'Chưa rõ album' : metadata.album;
+        const label = albumDisplay === UNKNOWN_ALBUM ? 'Chưa rõ album' : albumDisplay;
         if (!groups.has(key)) groups.set(key, {label, tracks:[]});
         groups.get(key).tracks.push(track);
       }
@@ -947,8 +1033,11 @@
     let dir = extractTrackDirectory(track);
     if (!dir) return '';
     dir = String(dir).replace(/\\/g, '/').replace(/\/+$/, '');
-    dir = dir.replace(/\/(?:cd|disc|disk|sacd|side|dvd|bd)\s*[-_#.]?\s*(?:\d+|[a-d]|[ivx]+)(?:\s*[-_(\[].*)?$/i, '');
-    return dir.toLowerCase();
+    const segs = dir.split('/');
+    while (segs.length > 1 && parseDiscSubfolderInfo(segs[segs.length - 1]).isDiscFolder) {
+      segs.pop();
+    }
+    return segs.join('/').toLowerCase();
   }
 
   function isGenericCollectionAlbum(albumName) {
@@ -968,18 +1057,35 @@
       const rawAa = firstMetadataValue(track.albumArtist, track.albumartist, track.album_artist);
       const explicitAa = rawAa ? (isCompilationArtistName(rawAa) ? 'Various Artists' : primaryArtistName(rawAa, '')) : '';
       const albumName = meta.album || UNKNOWN_ALBUM;
-      const albumKeyNorm = metadataKey(albumName);
+      const rawAlbumKeyNorm = metadataKey(albumName);
+      const strippedAlbumName = stripAlbumDiscSuffix(albumName) || albumName;
+      const strippedAlbumKeyNorm = metadataKey(strippedAlbumName);
       const primaryArtist = meta.artist || UNKNOWN_ARTIST;
+      const dirRaw = extractTrackDirectory(track);
+      const dirLeaf = dirRaw ? String(dirRaw).replace(/\\/g, '/').replace(/\/+$/, '').split('/').pop() : '';
+      const fromDiscFolder = Boolean(dirLeaf && parseDiscSubfolderInfo(dirLeaf).isDiscFolder);
       const folderKey = normalizeAlbumFolderKey(track);
       const genericAlbum = isGenericCollectionAlbum(albumName);
 
       let bucketKey = '';
       if (!genericAlbum) {
-        if (folderKey) bucketKey = 'dir:' + albumKeyNorm + '\t' + folderKey;
-        else if (explicitAa) bucketKey = 'aa:' + albumKeyNorm + '\t' + metadataKey(explicitAa);
+        if (folderKey) bucketKey = 'dir:' + strippedAlbumKeyNorm + '\t' + folderKey;
+        else if (explicitAa) bucketKey = 'aa:' + strippedAlbumKeyNorm + '\t' + metadataKey(explicitAa);
       }
 
-      const item = { track, albumName, albumKeyNorm, primaryArtist, explicitAa, bucketKey, genericAlbum };
+      const item = {
+        track,
+        albumName,
+        rawAlbumKeyNorm,
+        strippedAlbumName,
+        strippedAlbumKeyNorm,
+        fromDiscFolder,
+        folderKey,
+        primaryArtist,
+        explicitAa,
+        bucketKey,
+        genericAlbum
+      };
       perTrackRaw.push(item);
 
       if (bucketKey) {
@@ -989,10 +1095,28 @@
     }
 
     const bucketOwner = new Map();
+    const bucketMergedDiscs = new Set();
     for (const entry of buckets.entries()) {
       const bKey = entry[0];
       const items = entry[1];
       let chosen = '';
+
+      const distinctRawAlbums = new Set();
+      let hasExplicitDiscVariant = false;
+      let sampleFolderKey = '';
+      const explicitDiscMediumTagRe = /[(\[]\s*(?:cd|disc|disk|sacd|side|dvd|bd)\s*[-_.#]?\s*(?:0*\d{1,2}|[a-d]|[ivx]{1,4})(?:\s*(?:of|\/)\s*(?:0*\d{1,2}|[ivx]{1,4}))?(?:\s*[-_–—:]\s*[^)\]]+)?\s*[)\]]\s*$/i;
+      for (let i = 0; i < items.length; i++) {
+        distinctRawAlbums.add(items[i].rawAlbumKeyNorm);
+        if (!sampleFolderKey && items[i].folderKey) sampleFolderKey = items[i].folderKey;
+        if (items[i].albumName !== items[i].strippedAlbumName) {
+          if (items[i].fromDiscFolder || explicitDiscMediumTagRe.test(items[i].albumName)) {
+            hasExplicitDiscVariant = true;
+          }
+        }
+      }
+      if (distinctRawAlbums.size > 1 || hasExplicitDiscVariant) {
+        bucketMergedDiscs.add(bKey);
+      }
 
       // 1. Prefer explicit ALBUMARTIST tag within the bucket if present
       const aaCounts = new Map();
@@ -1034,7 +1158,12 @@
               secondCount = pair[1];
             }
           }
-          if (artistCounts.size >= 3 && validTotal > 0 && (topCount / validTotal) < 0.5) {
+          const isFolderCompilation = Boolean(
+            sampleFolderKey &&
+            /(?:^|\/)(?:various artists?|va|compilation|soundtrack|ost|nhieu nghe si|tuyen tap)(?:$|\/)/i.test(sampleFolderKey)
+          );
+          if ((artistCounts.size >= 3 && validTotal > 0 && (topCount / validTotal) <= 0.5) ||
+              (artistCounts.size >= 2 && isFolderCompilation)) {
             chosen = 'Various Artists';
           } else if (topNorm) {
             chosen = displayByNorm.get(topNorm);
@@ -1059,12 +1188,15 @@
         : (item.primaryArtist && item.primaryArtist !== UNKNOWN_ARTIST ? item.primaryArtist : canonicalAlbumArtist);
       const artistKey = metadataKey(artistForCard || UNKNOWN_ARTIST);
       const albumArtistDisplay = (canonicalAlbumArtist && canonicalAlbumArtist !== UNKNOWN_ARTIST) ? canonicalAlbumArtist : artistForCard;
-      const albumKey = item.albumKeyNorm + '\t' + metadataKey(albumArtistDisplay || UNKNOWN_ARTIST);
+      const foldDiscName = Boolean(item.bucketKey && bucketMergedDiscs.has(item.bucketKey));
+      const effectiveAlbumName = foldDiscName ? item.strippedAlbumName : item.albumName;
+      const effectiveAlbumKeyNorm = foldDiscName ? item.strippedAlbumKeyNorm : item.rawAlbumKeyNorm;
+      const albumKey = effectiveAlbumKeyNorm + '\t' + metadataKey(albumArtistDisplay || UNKNOWN_ARTIST);
 
       const resolved = {
         artist: artistForCard || UNKNOWN_ARTIST,
         artistKey: artistKey || metadataKey(UNKNOWN_ARTIST),
-        album: item.albumName,
+        album: effectiveAlbumName,
         albumKey,
         albumArtist: albumArtistDisplay || UNKNOWN_ARTIST,
         isCompilationAlbum: isComp,
@@ -2341,6 +2473,16 @@
     if (typeof gainResult === 'number') {
       const sign = gainResult > 0 ? '+' : '';
       return `${sign}${gainResult.toFixed(1)} dB`;
+    }
+    if (typeof gainResult.appliedGainDb === 'number') {
+      if (gainResult.hasReplayGain === false && !gainResult.isEstimated) {
+        return 'Không có tag';
+      }
+      const db = gainResult.appliedGainDb;
+      const sign = db > 0 ? '+' : '';
+      const modeTag = gainResult.isEstimated ? 'Est R128' : (gainResult.mode === 'album' ? 'Album' : 'Track');
+      const guardTag = gainResult.isGuardActive ? ' (Anti-clip)' : '';
+      return `${sign}${db.toFixed(1)} dB · ${modeTag}${guardTag}`;
     }
     if (!gainResult.hasReplayGain) {
       return 'Không có tag';
@@ -9017,10 +9159,24 @@
     return s.replace(/\\/g, '/');
   }
 
+  function isEphemeralM3uUrl(value) {
+    return /^(?:blob:|data:|https?:\/\/appassets\.androidplatform\.net)/i.test(String(value || '').trim());
+  }
+
   function resolveM3uRelativePath(rawEntryPath, playlistDir) {
+    const rawStr = String(rawEntryPath || '').trim();
+    if (/^content:\/\//i.test(rawStr)) {
+      const safRaw = decodeSafDocRelativePath(rawStr);
+      if (safRaw) return safRaw;
+    }
     const clean = decodeM3uPathSafe(rawEntryPath);
     if (!clean) return '';
-    if (/^https?:\/\//i.test(clean) || /^content:\/\//i.test(clean)) return clean;
+    if (/^content:\/\//i.test(clean)) {
+      const safClean = decodeSafDocRelativePath(clean);
+      if (safClean) return safClean;
+      return clean;
+    }
+    if (/^https?:\/\//i.test(clean)) return clean;
     const isAbs = clean.startsWith('/') || /^[a-zA-Z]:\//.test(clean);
     const baseDir = (!isAbs && playlistDir) ? decodeM3uPathSafe(playlistDir).replace(/\/+$/, '') : '';
     const combined = baseDir ? (baseDir + '/' + clean) : clean;
@@ -9046,6 +9202,7 @@
   function stripM3uStorageMountPrefix(normPath) {
     let p = String(normPath || '').replace(/^\/+/, '');
     if (!p) return '';
+    p = p.replace(/^drive\/root:\//i, '');
     p = p.replace(/^storage\/emulated\/\d+\//, '');
     p = p.replace(/^sdcard\//, '');
     p = p.replace(/^mnt\/media_rw\/[^/]+\//, '');
@@ -9059,6 +9216,12 @@
     transientM3uHints = (hints && typeof hints === 'object') ? hints : null;
   }
 
+  const M3U_GENERIC_FOLDERS = new Set([
+    'music', 'audio', 'songs', 'tracks', 'downloads', 'download', 'library',
+    'flac', 'dsd', 'wav', 'mp3', 'alac', 'aiff', 'hi-res', 'hires', 'lossless',
+    'nhac', 'my drive', 'root', 'sd', 'sdcard', 'storage', 'media', 'external'
+  ]);
+
   function matchPlaylistWithLibrary(importedTracks, libraryTracks, options = {}) {
     const activeHints = transientM3uHints;
     transientM3uHints = null;
@@ -9071,12 +9234,21 @@
     const playlistNameHint = rawPlaylistName ? norm(rawPlaylistName) : '';
     const folderHint = rawFolderHint ? rawFolderHint.normalize('NFKC').toLowerCase().trim() : '';
 
+    const getTrackDisc = t => {
+      if (!t || typeof t !== 'object') return null;
+      const explicit = parseOrderNumber(t.discNumber != null ? t.discNumber : t.disc, null);
+      if (explicit != null) return explicit;
+      return extractDiscAndTrackFromPath(t).discNumber || null;
+    };
+
     const matchedTracks = [];
     const unmatchedTracks = [];
     const libPathEntries = library.map(t => {
       if (!t) return { track: null, paths: [], fileName: '', baseName: '' };
       const rawPaths = [];
-      const pathCandidates = [t.path, t.relativePath, t.webkitRelativePath, t.remotePath];
+      const safRel = (typeof t.uri === 'string' && t.uri.indexOf('content://') === 0) ? decodeSafDocRelativePath(t.uri) : '';
+      const cleanRemote = (typeof t.remotePath === 'string') ? t.remotePath.replace(/^\/drive\/root:\//i, '') : '';
+      const pathCandidates = [t.path, t.relativePath, t.webkitRelativePath, cleanRemote, t.remotePath, safRel];
       for (let ci = 0; ci < pathCandidates.length; ci++) {
         if (!pathCandidates[ci]) continue;
         const np = normalizePathKeyForM3u(pathCandidates[ci]);
@@ -9103,28 +9275,135 @@
 
       let match = (item.id != null && item.id !== '') ? library.find(t => t && t.id === item.id) : null;
 
-      if (!match && item.file) {
-        const resolvedItemPath = resolveM3uRelativePath(item.file, playlistDir).normalize('NFKC').toLowerCase().replace(/^\/+/, '');
-        const strippedItemPath = stripM3uStorageMountPrefix(resolvedItemPath);
-        const itemPathCandidates = [];
+      let resolvedItemPath = '';
+      let strippedItemPath = '';
+      let itemPathCandidates = [];
+      let itemSegments = [];
+      let itemFileName = '';
+      let itemBaseName = '';
+      if (item.file) {
+        resolvedItemPath = resolveM3uRelativePath(item.file, playlistDir).normalize('NFKC').toLowerCase().replace(/^\/+/, '');
+        strippedItemPath = stripM3uStorageMountPrefix(resolvedItemPath);
         if (resolvedItemPath) itemPathCandidates.push(resolvedItemPath);
         if (strippedItemPath && strippedItemPath !== resolvedItemPath) itemPathCandidates.push(strippedItemPath);
         const primaryItemPath = strippedItemPath || resolvedItemPath;
-        const itemSegments = primaryItemPath.split('/').filter(Boolean);
-        const itemFileName = itemSegments.length ? itemSegments[itemSegments.length - 1] : '';
-        const itemBaseName = itemFileName.replace(/\.[^/.]+$/, '');
+        itemSegments = primaryItemPath.split('/').filter(Boolean);
+        itemFileName = itemSegments.length ? itemSegments[itemSegments.length - 1] : '';
+        itemBaseName = itemFileName.replace(/\.[^/.]+$/, '');
+      }
 
+      const itemDiscFromPath = item.file ? (extractDiscAndTrackFromPath({ path: strippedItemPath || resolvedItemPath, name: itemFileName }).discNumber || null) : null;
+      const itemDisc = (item.discNumber != null ? parseOrderNumber(item.discNumber, null) : (item.disc != null ? parseOrderNumber(item.disc, null) : null)) || itemDiscFromPath;
+
+      const itemParentSeg = itemSegments.length >= 2 ? itemSegments[itemSegments.length - 2] : '';
+      const itemParentDiscInfo = itemParentSeg ? parseDiscSubfolderInfo(itemParentSeg) : { isDiscFolder: false, discNumber: null };
+      const itemAlbumSeg = itemParentDiscInfo.isDiscFolder
+        ? (itemSegments.length >= 3 ? itemSegments[itemSegments.length - 3] : '')
+        : itemParentSeg;
+
+      const hasExplicitFolderOrDiscConflict = entry => {
+        if (!entry || !entry.track) return true;
+        if (itemDisc != null) {
+          const td = getTrackDisc(entry.track);
+          if (td != null && td !== itemDisc) return true;
+          if (itemDisc > 1 && td == null) return true;
+        }
+        if (itemSegments.length >= 2 && Array.isArray(entry.paths) && entry.paths.length > 0) {
+          let sawNonGenericLibAlb = false;
+          let matchedItemAlb = false;
+          let matchedItemDiscDir = false;
+          let sawLibDiscDir = false;
+          for (let pi = 0; pi < entry.paths.length; pi++) {
+            const libSegs = entry.paths[pi].split('/').filter(Boolean);
+            if (libSegs.length < 2) continue;
+            const libParentSeg = libSegs[libSegs.length - 2];
+            const libParentDisc = parseDiscSubfolderInfo(libParentSeg);
+            if (libParentDisc.isDiscFolder) {
+              sawLibDiscDir = true;
+              if (itemParentDiscInfo.isDiscFolder && libParentDisc.discNumber === itemParentDiscInfo.discNumber) {
+                matchedItemDiscDir = true;
+              }
+            }
+            const libAlbSeg = libParentDisc.isDiscFolder
+              ? (libSegs.length >= 3 ? libSegs[libSegs.length - 3] : '')
+              : libParentSeg;
+            if (libAlbSeg && !M3U_GENERIC_FOLDERS.has(libAlbSeg) && !parseDiscSubfolderInfo(libAlbSeg).isDiscFolder) {
+              sawNonGenericLibAlb = true;
+              if (itemAlbumSeg && libAlbSeg === itemAlbumSeg) {
+                matchedItemAlb = true;
+              }
+            }
+          }
+          if (itemParentDiscInfo.isDiscFolder && sawLibDiscDir && !matchedItemDiscDir) return true;
+          if (itemAlbumSeg && !M3U_GENERIC_FOLDERS.has(itemAlbumSeg) && !parseDiscSubfolderInfo(itemAlbumSeg).isDiscFolder && sawNonGenericLibAlb && !matchedItemAlb) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      const scoreCandidate = (entry, suffixScore) => {
+        if (!entry || !entry.track || hasExplicitFolderOrDiscConflict(entry)) return -Infinity;
+        const t = entry.track;
+        const meta = (typeof trackMetadata === 'function') ? trackMetadata(t) : t;
+        let score = (suffixScore || 0) * 1000;
+        if (itemDisc != null && getTrackDisc(t) === itemDisc) score += 200;
+        const trackAlbNorm = norm(meta.album || t.album);
+        if (targetAlbum && trackAlbNorm === targetAlbum) score += 100;
+        if (playlistNameHint && (trackAlbNorm === playlistNameHint || entry.paths.some(p => p.indexOf(playlistNameHint) !== -1))) {
+          score += 60;
+        }
+        if (folderHint && entry.paths.some(p => p.indexOf(folderHint) !== -1)) {
+          score += 50;
+        }
+        const trackArtNorm = norm(meta.artist || t.artist);
+        if (targetArtist && targetArtist !== 'unknown artist' && trackArtNorm === targetArtist) {
+          score += 40;
+        }
+        const trackTitleNorm = norm(meta.title || t.name);
+        if (targetTitle && trackTitleNorm === targetTitle) {
+          score += 20;
+        }
+        return score;
+      };
+
+      const pickUniqueBest = scoredItems => {
+        let bestScore = -Infinity;
+        let secondScore = -Infinity;
+        let bestTrack = null;
+        for (let si = 0; si < scoredItems.length; si++) {
+          const cur = scoredItems[si];
+          if (!cur || !cur.track || cur.score === -Infinity) continue;
+          if (cur.track === bestTrack) {
+            if (cur.score > bestScore) bestScore = cur.score;
+            continue;
+          }
+          if (cur.score > bestScore) {
+            secondScore = bestScore;
+            bestScore = cur.score;
+            bestTrack = cur.track;
+          } else if (cur.score > secondScore) {
+            secondScore = cur.score;
+          }
+        }
+        if (bestTrack && bestScore > -Infinity && (secondScore === -Infinity || bestScore > secondScore)) {
+          return bestTrack;
+        }
+        return null;
+      };
+
+      if (!match && item.file) {
         if (itemPathCandidates.length > 0) {
           const exactHit = libPathEntries.find(e => e.track && e.paths.some(p => itemPathCandidates.indexOf(p) !== -1));
-          if (exactHit) match = exactHit.track;
+          if (exactHit && !hasExplicitFolderOrDiscConflict(exactHit)) match = exactHit.track;
         }
         if (!match && itemSegments.length >= 2) {
-          let bestScore = 0;
-          let bestTrack = null;
-          let ambiguous = false;
+          let bestSuffix = 0;
+          const suffixCandidates = [];
           for (let i = 0; i < libPathEntries.length; i++) {
             const entry = libPathEntries[i];
             if (!entry.track) continue;
+            let entryMaxCommon = 0;
             for (let pi = 0; pi < entry.paths.length; pi++) {
               const libSegs = entry.paths[pi].split('/').filter(Boolean);
               let common = 0;
@@ -9135,56 +9414,72 @@
               ) {
                 common++;
               }
-              if (common >= 2) {
-                if (common > bestScore) { bestScore = common; bestTrack = entry.track; ambiguous = false; }
-                else if (common === bestScore && bestTrack !== entry.track) { ambiguous = true; }
-              }
+              if (common > entryMaxCommon) entryMaxCommon = common;
+            }
+            if (entryMaxCommon >= 2) {
+              if (entryMaxCommon > bestSuffix) bestSuffix = entryMaxCommon;
+              suffixCandidates.push({ entry, suffixScore: entryMaxCommon });
             }
           }
-          if (bestTrack && !ambiguous) match = bestTrack;
+          if (suffixCandidates.length > 0) {
+            const scored = suffixCandidates.map(sc => ({
+              track: sc.entry.track,
+              score: scoreCandidate(sc.entry, sc.suffixScore)
+            }));
+            match = pickUniqueBest(scored);
+          }
         }
         if (!match && itemFileName) {
           const fnHits = libPathEntries.filter(e => e.track && (e.fileName === itemFileName || (itemBaseName && e.baseName === itemBaseName)));
           if (fnHits.length === 1) {
-            match = fnHits[0].track;
+            if (!hasExplicitFolderOrDiscConflict(fnHits[0])) {
+              match = fnHits[0].track;
+            }
           } else if (fnHits.length > 1) {
-            if (targetAlbum) {
-              const albHits = fnHits.filter(e => norm(e.track.album) === targetAlbum);
-              if (albHits.length === 1) match = albHits[0].track;
-            }
-            if (!match && playlistNameHint) {
-              const pHits = fnHits.filter(e => norm(e.track.album) === playlistNameHint || e.paths.some(p => p.indexOf(playlistNameHint) !== -1));
-              if (pHits.length === 1) match = pHits[0].track;
-            }
-            if (!match && folderHint) {
-              const fHits = fnHits.filter(e => e.paths.some(p => p.indexOf(folderHint) !== -1));
-              if (fHits.length === 1) match = fHits[0].track;
-            }
+            const scoredFn = fnHits.map(e => ({ track: e.track, score: scoreCandidate(e, 0) }));
+            match = pickUniqueBest(scoredFn);
           }
         }
       }
 
       if (!match && targetTitle) {
-        match = library.find(t => {
-          if (!t) return false;
+        const titleHits = [];
+        for (let li = 0; li < libPathEntries.length; li++) {
+          const entry = libPathEntries[li];
+          const t = entry.track;
+          if (!t || hasExplicitFolderOrDiscConflict(entry)) continue;
           const meta = (typeof trackMetadata === 'function') ? trackMetadata(t) : t;
           const title = norm(meta.title || t.name);
           const artist = norm(meta.artist);
           if (title === targetTitle) {
             if (!targetArtist || targetArtist === 'unknown artist' || artist === targetArtist) {
-              return true;
+              titleHits.push(entry);
             }
           }
-          return false;
-        });
+        }
+        if (titleHits.length === 1) {
+          match = titleHits[0].track;
+        } else if (titleHits.length > 1) {
+          match = pickUniqueBest(titleHits.map(e => ({ track: e.track, score: scoreCandidate(e, 0) })));
+        }
       }
 
       if (!match && targetTitle && targetAlbum) {
-        match = library.find(t => {
-          if (!t) return false;
+        const titleAlbHits = [];
+        for (let li = 0; li < libPathEntries.length; li++) {
+          const entry = libPathEntries[li];
+          const t = entry.track;
+          if (!t || hasExplicitFolderOrDiscConflict(entry)) continue;
           const meta = (typeof trackMetadata === 'function') ? trackMetadata(t) : t;
-          return norm(meta.title || t.name) === targetTitle && norm(meta.album) === targetAlbum;
-        });
+          if (norm(meta.title || t.name) === targetTitle && norm(meta.album) === targetAlbum) {
+            titleAlbHits.push(entry);
+          }
+        }
+        if (titleAlbHits.length === 1) {
+          match = titleAlbHits[0].track;
+        } else if (titleAlbHits.length > 1) {
+          match = pickUniqueBest(titleAlbHits.map(e => ({ track: e.track, score: scoreCandidate(e, 0) })));
+        }
       }
 
       if (match) {
@@ -9225,18 +9520,54 @@
       const duration = Math.round(Number(meta.duration || t.duration) || -1);
       const title = String(t.title || meta.title || t.name || 'Untitled').trim();
       const artist = String(t.artist || meta.artist || 'Unknown Artist').trim();
-      const album = String(t.album || (meta.album && meta.album !== 'Unknown Album' ? meta.album : '')).trim();
+      const album = String(t.album || (meta.album && meta.album !== 'Unknown Album' && meta.album !== UNKNOWN_ALBUM ? meta.album : '')).trim();
       const format = String(t.format || '').toUpperCase();
+      const rawDisc = t.discNumber != null ? parseOrderNumber(t.discNumber, null) : (t.disc != null ? parseOrderNumber(t.disc, null) : null);
+      const pathOrder = (typeof extractDiscAndTrackFromPath === 'function') ? extractDiscAndTrackFromPath(t) : { discNumber: null };
+      const discNo = (rawDisc != null && rawDisc > 0) ? rawDisc : (meta.discNumber || pathOrder.discNumber || null);
 
       lines.push(`#EXTINF:${duration},${artist} - ${title}`);
-      if (album && album !== 'Unknown Album') lines.push(`#EXTALBUM:${album}`);
+      if (album && album !== 'Unknown Album' && album !== UNKNOWN_ALBUM) lines.push(`#EXTALBUM:${album}`);
+      if (discNo != null && discNo > 0) lines.push(`#EXTDISC:${discNo}`);
       if (format) lines.push(`#EXTFORMAT:${format}`);
       if (t.id) lines.push(`#EXTID:${t.id}`);
-      const pathOrUrl = t.relativePath || t.path || t.remotePath || (t.file && t.file.name) || t.name || t.url || `${artist} - ${title}.flac`;
+
+      const cleanRemote = (typeof t.remotePath === 'string' && t.remotePath.trim())
+        ? t.remotePath.trim().replace(/^\/drive\/root:\//i, '')
+        : '';
+      const fileRel = (t.file && typeof t.file === 'object')
+        ? (t.file.relativePath || t.file.webkitRelativePath || '')
+        : '';
+      const safRel = (typeof t.uri === 'string' && t.uri.indexOf('content://') === 0)
+        ? decodeSafDocRelativePath(t.uri)
+        : '';
+      const candidates = [
+        t.relativePath,
+        t.webkitRelativePath,
+        fileRel,
+        cleanRemote,
+        (!isEphemeralM3uUrl(t.path) ? t.path : ''),
+        safRel,
+        (!isEphemeralM3uUrl(t.url) ? t.url : ''),
+        (t.file && typeof t.file === 'object' ? t.file.name : (typeof t.file === 'string' && !isEphemeralM3uUrl(t.file) ? t.file : '')),
+        t.name
+      ];
+      let pathOrUrl = '';
+      for (let ci = 0; ci < candidates.length; ci++) {
+        const cand = String(candidates[ci] || '').trim();
+        if (cand && !isEphemeralM3uUrl(cand)) {
+          pathOrUrl = cand.replace(/\\/g, '/');
+          break;
+        }
+      }
+      if (!pathOrUrl) {
+        const ext = format ? format.toLowerCase() : 'flac';
+        pathOrUrl = `${artist} - ${title}.${ext}`;
+      }
       lines.push(pathOrUrl);
     }
 
-    return lines.join('\n');
+    return lines.join('\n') + '\n';
   }
 
   function parseM3u8Playlist(m3u8Text) {
@@ -9289,11 +9620,14 @@
           artist,
           title,
           album: '',
+          discNumber: null,
           format: 'FLAC',
           file: ''
         };
       } else if (line.startsWith('#EXTALBUM:') && currentItem) {
         currentItem.album = line.substring(10).trim();
+      } else if (line.startsWith('#EXTDISC:') && currentItem) {
+        currentItem.discNumber = parseOrderNumber(line.substring(9).trim(), null);
       } else if (line.startsWith('#EXTFORMAT:') && currentItem) {
         currentItem.format = line.substring(11).trim().toUpperCase();
       } else if (line.startsWith('#EXTID:') && currentItem) {
@@ -9302,20 +9636,24 @@
         const normFile = decodeM3uPathSafe(line);
         const extMatch = normFile.match(/\.([a-zA-Z0-9]+)$/);
         const inferredFmt = extMatch ? extMatch[1].toUpperCase() : 'FLAC';
+        const baseName = normFile.slice(normFile.lastIndexOf('/') + 1);
         if (!currentItem) {
-          const baseName = normFile.slice(normFile.lastIndexOf('/') + 1);
           const parsed = (typeof parseFilenameMetadata === 'function') ? parseFilenameMetadata(baseName) : null;
           currentItem = {
             duration: 0,
             artist: (parsed && parsed.artist) || 'Unknown Artist',
             title: (parsed && parsed.title) || baseName.replace(/\.[^/.]+$/, ''),
             album: (parsed && parsed.album && parsed.album !== UNKNOWN_ALBUM) ? parsed.album : '',
+            discNumber: null,
             format: inferredFmt,
             file: normFile
           };
         } else {
           currentItem.file = normFile;
           if (!currentItem.format && inferredFmt) currentItem.format = inferredFmt;
+        }
+        if (currentItem.discNumber == null && typeof extractDiscAndTrackFromPath === 'function') {
+          currentItem.discNumber = extractDiscAndTrackFromPath({ path: normFile, name: baseName }).discNumber || null;
         }
         tracks.push(currentItem);
         currentItem = null;
@@ -10101,9 +10439,10 @@
 
     const combinedGainDb = rawGainDb + preampDb;
 
+    const selectedPeak = parsedRg ? (mode === 'album' ? parsedRg.albumPeak : parsedRg.trackPeak) : null;
     const measuredTp = Number.isFinite(options.measuredTruePeakDb)
       ? options.measuredTruePeakDb
-      : (parsedRg && parsedRg.trackPeak ? 20 * Math.log10(Math.max(0.0001, parsedRg.trackPeak)) : 0);
+      : (selectedPeak ? 20 * Math.log10(Math.max(0.0001, selectedPeak)) : 0);
 
     let guardResult = { guardedGainDb: combinedGainDb, guardReductionDb: 0, isGuardActive: false };
     if (autoGuard) {
@@ -13367,12 +13706,69 @@
     return candidates;
   }
 
+  let _cachedGoogleTreeStr = null;
+  let _cachedGoogleNamesStr = null;
+  let _cachedGoogleTreeObj = null;
+  let _cachedGoogleNamesObj = null;
+
+  function resolveGoogleTrackDirectoryFromStorage(parentId) {
+    if (!parentId || typeof localStorage === 'undefined' || !localStorage || typeof localStorage.getItem !== 'function') return '';
+    try {
+      const rawNames = localStorage.getItem('nocturne-google-folder-names') || '';
+      const rawTree = localStorage.getItem('nocturne-google-folder-tree') || '';
+      if (!rawNames && !rawTree) return '';
+      if (rawNames !== _cachedGoogleNamesStr) {
+        _cachedGoogleNamesStr = rawNames;
+        _cachedGoogleNamesObj = rawNames ? JSON.parse(rawNames) : {};
+      }
+      if (rawTree !== _cachedGoogleTreeStr) {
+        _cachedGoogleTreeStr = rawTree;
+        _cachedGoogleTreeObj = rawTree ? JSON.parse(rawTree) : {};
+      }
+      const namesMap = _cachedGoogleNamesObj && typeof _cachedGoogleNamesObj === 'object' ? _cachedGoogleNamesObj : {};
+      const treeMap = _cachedGoogleTreeObj && typeof _cachedGoogleTreeObj === 'object' ? _cachedGoogleTreeObj : {};
+      const chain = [];
+      const seen = new Set();
+      let cur = String(parentId).trim();
+      let hop = 0;
+      let unresolvedAnchor = '';
+      while (cur && cur !== 'root' && !seen.has(cur) && hop < 6) {
+        seen.add(cur);
+        const fname = typeof namesMap[cur] === 'string' ? namesMap[cur].trim() : '';
+        if (fname) {
+          chain.unshift(fname);
+        } else if (hop > 0) {
+          unresolvedAnchor = 'google::parent::' + cur;
+          break;
+        }
+        const pArr = Array.isArray(treeMap[cur]) ? treeMap[cur] : [];
+        cur = pArr.length ? String(pArr[0] || '').trim() : '';
+        if (!cur && chain.length === 1 && !unresolvedAnchor) {
+          unresolvedAnchor = 'google::parent::' + String(parentId).trim();
+          break;
+        }
+        hop++;
+      }
+      if (chain.length > 0) {
+        return unresolvedAnchor ? (unresolvedAnchor + '/' + chain.join('/')) : chain.join('/');
+      }
+    } catch (_) {}
+    return '';
+  }
+
   function extractTrackDirectory(track) {
     if (!track || typeof track !== 'object') return '';
     const filePath = track.path || track.relativePath || track.webkitRelativePath || track.filePath || track.remotePath || '';
     if (typeof filePath === 'string' && filePath) {
       if (filePath.includes('/')) return filePath.slice(0, filePath.lastIndexOf('/'));
       if (filePath.includes('\\')) return filePath.slice(0, filePath.lastIndexOf('\\'));
+    }
+    if (typeof track.uri === 'string' && track.uri.indexOf('content://') === 0) {
+      const safRel = decodeSafDocRelativePath(track.uri);
+      if (safRel) {
+        const safSlash = safRel.lastIndexOf('/');
+        if (safSlash > 0) return safRel.slice(0, safSlash);
+      }
     }
     const dirPath = track.parentPath || track.folderPath || '';
     if (typeof dirPath === 'string' && dirPath.trim()) {
@@ -13382,9 +13778,13 @@
       (Array.isArray(track.parents) && track.parents[0] ? String(track.parents[0]).trim() : '');
     if (parentId) {
       const src = track.source ? String(track.source).trim().toLowerCase() : 'cloud';
+      if (src === 'google') {
+        const resolvedDir = resolveGoogleTrackDirectoryFromStorage(parentId);
+        if (resolvedDir) return resolvedDir;
+      }
       return src + '::parent::' + String(parentId).trim();
     }
-    const urlPath = (typeof track.url === 'string' && !/^(?:blob|data):/i.test(track.url)) ? track.url : '';
+    const urlPath = (typeof track.url === 'string' && !/^(?:blob:|data:|https?:\/\/appassets\.androidplatform\.net)/i.test(track.url.trim())) ? track.url : '';
     if (urlPath) {
       if (urlPath.includes('/')) return urlPath.slice(0, urlPath.lastIndexOf('/'));
       if (urlPath.includes('\\')) return urlPath.slice(0, urlPath.lastIndexOf('\\'));
@@ -13448,6 +13848,19 @@
           break;
         }
       }
+      if (!resolved) {
+        const trackNormDir = normalizeAlbumFolderKey(track);
+        if (trackNormDir) {
+          for (let i = 0; i < tracksList.length; i++) {
+            const sibling = tracksList[i];
+            if (!sibling || sibling === track || !sibling.cover || sibling.cover === '♫') continue;
+            if (normalizeAlbumFolderKey(sibling) === trackNormDir) {
+              resolved = sibling.cover;
+              break;
+            }
+          }
+        }
+      }
     }
 
     // Tier 5: Artist unique cover (fallback)
@@ -13502,6 +13915,7 @@
     const albumKeyMap = new Map();
     const albumTitleMap = new Map();
     const dirMap = new Map();
+    const normDirMap = new Map();
 
     if (isMap) {
       for (const [k, v] of coverMap.entries()) {
@@ -13544,6 +13958,12 @@
           dirMap.set(dir, c);
         }
       }
+      const normDir = normalizeAlbumFolderKey(t);
+      if (normDir) {
+        if (!normDirMap.has(normDir) || isBetterCover(c, normDirMap.get(normDir))) {
+          normDirMap.set(normDir, c);
+        }
+      }
     }
 
     const updatedTracks = [];
@@ -13569,6 +13989,10 @@
       if (!found) {
         const dir = extractTrackDirectory(t);
         if (dir) found = dirMap.get(dir);
+        if (!found) {
+          const normDir = normalizeAlbumFolderKey(t);
+          if (normDir) found = normDirMap.get(normDir);
+        }
       }
 
       if (found) {
@@ -13746,8 +14170,12 @@
     const rawBase = String(track.name || (track.path ? track.path.split(/[/\\]/).pop() : '') || '').replace(/\.[^/.]+$/, '').trim();
     const isRawTitle = !track.title || track.title === rawBase;
 
+    const safRel = (!track.relativePath && typeof track.uri === 'string' && track.uri.indexOf('content://') === 0)
+      ? decodeSafDocRelativePath(track.uri)
+      : '';
+    if (safRel && !track.relativePath) track.relativePath = safRel;
     if (isMissingArtist || isMissingAlbum || isRawTitle) {
-      const inferred = inferFiioFolderMetadata(track.path || '', track.name || '');
+      const inferred = inferFiioFolderMetadata(track.path || track.relativePath || safRel || '', track.name || '');
       if (isMissingArtist && inferred.artist) track.artist = inferred.artist;
       if (isMissingAlbum && inferred.album) track.album = inferred.album;
       if (isRawTitle && inferred.title) track.title = inferred.title;
@@ -13763,7 +14191,9 @@
     if (!file || typeof file !== 'object') return null;
     const path = typeof file.path === 'string' ? file.path : '';
     const uri = (typeof file.uri === 'string' && file.uri.startsWith('content://')) ? file.uri : '';
-    const rawName = file.name || (path ? path.split(/[/\\]/).pop() : '') || 'Unknown Track';
+    const safRel = uri ? decodeSafDocRelativePath(uri) : '';
+    const relativePath = (typeof file.relativePath === 'string' && file.relativePath.trim()) ? file.relativePath.trim() : safRel;
+    const rawName = file.name || (path ? path.split(/[/\\]/).pop() : '') || (relativePath ? relativePath.split(/[/\\]/).pop() : '') || 'Unknown Track';
     const baseTitle = rawName.replace(/\.[^/.]+$/, '');
     const identitySource = uri || path || rawName;
     const encodedIdentity = encodeURIComponent(identitySource);
@@ -13782,7 +14212,7 @@
     const cleanAlbum = cleanAndroidMediaMeta(file.album);
     const cleanAlbumArtist = cleanAndroidMediaMeta(file.albumArtist);
     const parsedFallback = uri && typeof parseFilenameMetadata === 'function'
-      ? parseFilenameMetadata(path || rawName)
+      ? parseFilenameMetadata(path || relativePath || rawName)
       : null;
 
     const resolvedTitle = cleanTitle || (parsedFallback && parsedFallback.title) || baseTitle;
@@ -13797,7 +14227,7 @@
       : ('https://appassets.androidplatform.net/local-media?path=' + encodeURIComponent(path));
 
     const extractedOrder = (typeof extractDiscAndTrackFromPath === 'function')
-      ? extractDiscAndTrackFromPath({ path: path, name: rawName })
+      ? extractDiscAndTrackFromPath({ path: path, relativePath: relativePath, uri: uri, name: rawName })
       : { discNumber: null, trackNumber: null };
     const resolvedTrackNo = (typeof parseOrderNumber === 'function' ? parseOrderNumber(file.trackNumber, null) : null) || extractedOrder.trackNumber || null;
     const resolvedDiscNo = (typeof parseOrderNumber === 'function' ? parseOrderNumber(file.discNumber, null) : null) || extractedOrder.discNumber || null;
@@ -13818,6 +14248,7 @@
       album: resolvedAlbum,
       duration: resolvedDuration
     };
+    if (relativePath) track.relativePath = relativePath;
     if (cleanAlbumArtist) track.albumArtist = cleanAlbumArtist;
     if (resolvedTrackNo != null) track.trackNumber = resolvedTrackNo;
     if (resolvedDiscNo != null) track.discNumber = resolvedDiscNo;
@@ -30956,9 +31387,7 @@
   }
 
   function isDiscSubfolderName(name) {
-    const clean = String(name || '').trim();
-    if (!clean) return false;
-    return /^(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*\d{1,2}(?:\b.*)?$/i.test(clean);
+    return parseDiscSubfolderInfo(name).isDiscFolder;
   }
 
   function resolveFolderCoverWithDiscFallback(coverMap, dirPath) {
@@ -30996,5 +31425,5 @@
     );
   }
 
-  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, resolveEffectiveTrackTiming, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, extractTrackDirectory, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, buildFiioCoverUrl, inferFiioFolderMetadata, enrichFiioTrackMetadata, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, parseAudioBinaryHeaderSafe: parseSafeAudioContainerMetadata, probeMp4TailMoovRangeAsync, applyMp4SliceMetadataToTrack, extractDsfTailId3Metadata, buildDsfTailCacheKey, createDsfTailMetadataCache, getSharedDsfTailMetadataCache, fetchDsfTailId3CoalescedAsync, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, reconcileLyricDurationWithAudio, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, normalizeSpecialConfigNumber, canonicalizeConfigPayloadSafe, signConfigurationBundle, verifyConfigurationBundle, createStreamingCrc32Hasher, createStreamingSha256Hasher, createStreamingDualIntegrityHasher, computeChunkedBackupIntegrityAsync, signConfigurationBundleAsync, verifyConfigurationBundleAsync, createAdaptiveCanvasRenderGovernor, createVisualizerFpsMonitor, formatVisualizerRenderTelemetry, parseSafeMp4AlacBoxMetadata, parseAppleSoundCheckItunNorm, parseMp4IlstMetadataSafe, computeAntiClippingLinearGain, extractBinaryReplayGainTags, decodeRva2FramePayload, readHeadSlice64kZeroCopy, computeSourceFingerprint64kAsync, readHeadSliceReplayGainAndFingerprintAsync, FINGERPRINT_PRIORITY_TIERS, calculateFingerprintPriorityScore, createPrioritizedFingerprintQueue, formatFingerprintQueueTelemetry, createResilientIndexedDbManager, normalizeCustomKeymapConfig, exportCustomKeymapBundle, importCustomKeymapBundle, computeMediaSessionSeekOffset, createMultiProviderSessionVault, synthesizeSampleRateInvariantImpulseResponse, reconcileConvolverImpulseForSampleRate, computeBiquadCoefficientsCookbook, evaluateParametricEqResponseCurve, createPreallocatedPowAsciiScratchpad, createLrclibPowWorkerRunner, estimatePowTargetExpectedHashes, formatPowProgressStatus, createPowProgressController, classifyLyricVocalRole, resolveMultiVoiceLyricLanes, getSharedLyricSegmentCoordinator, createPreloadLifecycleController, parseOrderNumber, extractDiscAndTrackFromPath, getTrackOrderInfo, compareAlbumTracks, sortAlbumTracks, parseFlacMetadataSafe, scoreFolderCoverFilename, primaryArtistName, isCompilationArtistName, resolveTrackCollectionArtist, buildLibraryCollections, isDiscSubfolderName, resolveFolderCoverWithDiscFallback, isSkippableLocalDirectoryName, FETCH_AUDIO_SLICE_TIMEOUT_MS, FETCH_AUDIO_FULL_TIMEOUT_MS, FETCH_AUDIO_TAIL_PROBE_TIMEOUT_MS, stableFavoriteKey, isTrackInFavorites, buildStableTrackRef, matchTrackByStableRef, deduplicateCatalogCovers, resolveM3uRelativePath, setM3uMatchHints};
+  return {UNKNOWN_ARTIST, UNKNOWN_ALBUM, normalizeSearchKey: metadataKey, parseFilenameMetadata, resolveTrackMetadata, normalizeAudioBlob, fetchAudioBlob, fetchAudioFirstSlice, FIRST_SLICE_BYTES, flacFirstFrameOffset, FIRST_SLICE_FRAME_ALLOWANCE_BYTES, FIRST_SLICE_MAX_BYTES, fetchAudioRetryDelayMs, isFetchAudioRetryable, trackMetadata, historyTrackKey, metadataOptions, filterTracks, groupTracks, compareTrackQuality, groupTrackVersions, parseLyrics, parseKaraokeWords, lyricWordAt, lyricLineAt, shouldScrollLyricIntoView, parseCloudConfig, PRELOAD_LEAD_SECONDS, shouldPreloadNext, clampSeekTime, CROSSFADE_MAX_SECONDS, crossfadeGains, calculateCrossfadeGains, CROSSFADE_CURVE_PROFILES, formatCrossfadeSummary, clampCrossfadeSeconds, shouldAutoCrossfade, resolveEffectiveTrackTiming, MAX_CLOUD_CATALOG_ENTRIES, pruneCatalogEntries, MAX_CATALOG_COVER_TOTAL_CHARS, capCatalogCovers, prepareRestoredCatalog, FIRST_SLICE_CACHE_MAX_ENTRIES, FIRST_SLICE_CACHE_MAX_BYTES, DSD_FIRST_SLICE_CACHE_MAX_BYTES, sliceCacheMetaMatches, pruneSliceCacheEntries, peakRmsFromTimeDomain, queueDisplayOrder, clampBalance, formatBalance, CROSSFEED_CUTOFF_HZ, CROSSFEED_DELAY_S, CROSSFEED_MAX_GAIN, clampCrossfeed, crossfeedCrossGain, formatCrossfeed, computeSignalPath, selectRoonRadioTrack, extractDominantColors, parseReplayGain, computeReplayGainMultiplier, formatReplayGain, summarizeAlbum, formatAlbumDuration, DEFAULT_SLEEP_FADEOUT_MS, calculateSleepFadeGain, formatSleepRemaining, formatSleepCountdownCompact, calculateAlbumRemainingSeconds, extendSleepTimer, calculateAdaptiveSleepStage, isOnlineState, formatNetworkStatus, canPlayOffline, TONE_BASS_FREQ_HZ, TONE_TREBLE_FREQ_HZ, TONE_GAIN_MIN_DB, TONE_GAIN_MAX_DB, clampToneGain, formatToneGain, formatToneSummary, generateWaveformPeaks, renderWaveformCanvas, calculateHoverSeekFraction, calculateHoverSeekTime, formatHoverTime, formatWaveformStatus, generatePinkNoiseBuffer, generateBrownNoiseBuffer, generateCampfireCrackleBuffer, createAmbientChannel, clampAmbientVolume, formatAmbientVolume, formatAmbientSummary, createZoneModel, formatRoonThreeLine, parseRoonCoreEndpoint, createRoonMooMessage, parseRoonMooMessage, formatRoonZoneStatus, filterTracksByFocus, countFocusCategories, formatFocusBadge, computeRoonSignalLed, buildRoonSignalPathStages, AUTOEQ_PROFILES, getAutoEqProfile, listAutoEqProfiles, calculateAutoEqPreamp, formatAutoEqProfile, clampPhaseInvert, formatPhaseInvert, cleanSearchQuery, generateDeterministicWaveform, parseCueSheet, evaluateSmartPlaylist, clampRating, formatRating, calculateDynamicRange, formatDynamicRange, calculateBufferLookahead, formatBufferLookahead, calculateGaplessReadiness, buildSubsonicUrl, parseSubsonicSong, extractDecade, filterTracksByDecade, isScrobbleEligible, buildListenBrainzPayload, buildJellyfinUrl, parseJellyfinItem, groupTracksByAlbumArtist, calculatePlaybackRate, buildBlackCandyAuthHeader, buildBlackCandyUrl, parseBlackCandySong, parseLrcWithOffsetAndTags, smartQueuePlayNext, smartQueueAppend, smartQueueReorder, reorderQueueByIds, savePlaybackSession, restorePlaybackSession, formatResumePrompt, LIMITER_PROFILES, getLimiterProfile, applyLimiterParams, formatLimiterSummary, VISUALIZER_THEMES, getVisualizerTheme, cycleVisualizerTheme, updateVisualizerPeaks, renderVisualizerSpectrum, matchSearchQuery, scoreSearchMatch, highlightSearchMatch, SEARCH_HISTORY_KEY, getSearchHistory, addSearchHistory, clearSearchHistory, formatStorageBytes, getStorageEstimate, auditOfflineStorage, getOfflineTrackList, shouldPreloadTrack, getNextPlayableTrack, calculateAudioEnergyBands, AMBIENT_STAGE_MODES, calculateAmbientPulseTransform, formatAmbientStageSummary, calculateTrackPlaybackPosition, calculateSeekTargetTime, resolveMediaSessionPositionState, GENRE_MOOD_DEFINITIONS, detectTrackMoodAndGenre, groupTracksByGenreMood, STORAGE_TIERS, categorizeStorageItem, calculateStorageTierMetrics, auditMemoryLeaks, pruneUnreferencedObjectUrls, formatMemoryAuditSummary, STANDARD_EQ_FREQUENCIES, sanitizeBiquadFilterParams, calculateBiquadFrequencyResponse, calculateCombinedEqCurve, formatEqCurveSummary, calculateStereoPhaseCorrelation, calculateStereoSoundstageWidth, formatStereoCorrelationBadge, calculateLyricsOffsetTime, clampLyricsOffset, formatLyricsOffset, calculateLyricsLineOpacity, calculateAdaptiveCacheLimits, computeLruCacheEviction, formatCacheTelemetry, evaluateStorageHealth, calculateInterSamplePeak, calculateTruePeakHeadroom, formatTruePeakBadge, calculateSwipeGesture, calculateSpringTransform, formatSwipeHint, renderVisualizerOscilloscope, calculateQueueMetrics, formatQueueSummaryBadge, calculateLyricWordProgress, generateLrcExportContent, exportAppConfiguration, validateAndParseConfiguration, mergeRestoredConfiguration, calculateAudioMemoryFootprint, ROOM_ACOUSTIC_PROFILES, getRoomAcousticProfile, listRoomAcousticProfiles, clampAcousticWet, calculateAcousticWetDry, formatAcousticSummary, generateImpulseResponse, calculateVuBallistics, cycleVisualizerMode, formatVisualizerMode, renderVisualizerVuMeter, scheduleMultiTrackPreload, defragmentCacheDatabase, calculatePreloadReadiness, formatPreloadReadinessBadge, PARAMETRIC_EQ_PRESETS, getParametricEqPreset, listParametricEqPresets, calculatePresetAutoPreamp, formatParametricEqSummary, hexToRgba, calculateVisualizerStrobe, renderVisualizerBackdropGlow, formatVisualizerThemeSummary, resolveAlbumPlaybackQueue, resolveNextSequentialTrack, shouldEnforceSequentialPlayback, formatPlaybackContextSummary, buildShareablePlaylistPayload, encodeShareablePlaylistLink, parseShareablePlaylistPayload, matchPlaylistWithLibrary, exportPlaylistM3u8, parseM3u8Playlist, calculateAudioChunkRanges, shouldCacheAudioStream, formatStreamChunkStatus, buildServiceWorkerCacheManifest, SUB_BASS_PUNCH_PROFILES, getSubBassPunchProfile, calculateSubBassPunchParams, formatSubBassPunchSummary, calculateLowFrequencyTransientDecay, calculateThermalBallistics, formatThermalBallisticsBadge, calculateSoundstageAcousticVectors, formatSoundstageVectorsSummary, renderAcousticSoundstageCanvas, ACOUSTIC_TAG_TAXONOMY, autoTagTrackAcoustics, CONTEXTUAL_PLAYLIST_PRESETS, recommendContextualPlaylist, formatContextualRecommendationBadge, calculateNetworkThroughputAdaptiveProfile, calculateThrottlingBackoff, evaluateLookaheadBufferPipeline, formatLookaheadPipelineTelemetry, LOUDNESS_STANDARDS, getLoudnessStandard, listLoudnessStandards, calculateTruePeakAutoGuard, estimateLoudnessLUFS, calculateDynamicReplayGain, formatDynamicReplayGainSummary, STAGE_AURA_PRESETS, getStageAuraPreset, listStageAuraPresets, calculateMultiBandStrobe, renderMultiBandAmbientAura, formatMultiBandAuraSummary, cleanLyricsSearchKey, calculateStringSimilarity, scoreLyricsCandidateMatch, normalizeAndSanitizeLrc, createLyricsVaultEntry, validateLyricsVaultEntry, formatLyricsVaultTelemetry, scheduleQueueLyricsPreload, FORMAT_CODES, REVERSE_FORMAT_CODES, SOURCE_CODES, REVERSE_SOURCE_CODES, compressLibraryTrackIndex, decompressLibraryTrackIndex, buildLibraryInvertedIndex, queryInvertedIndex, batchProcessLibraryScan, evaluateLibraryIndexHealth, formatLibraryIndexHealthReport, CROSSFEED_PRESETS, getCrossfeedPreset, listCrossfeedPresets, calculateCrossfeedMatrixParams, formatCrossfeedMatrixSummary, calculateAdaptiveRoomWetDry, calculateLogarithmicFrequencyBins, calculateBallisticSpectrumDynamics, calculateBeatStrobeChromaticAura, BPM_TEMPO_TIERS, getTempoTier, estimateTrackBpmFromEnergyHistory, formatTempoEnergyBadge, sequenceHarmonicBpmQueue, filterTracksByBpmTier, computeLibraryDifferentialDelta, mergeDifferentialCatalog, formatDifferentialSyncTelemetry, estimateOfflineStorageAvailability, formatStorageCapacityForecast, TUBE_EMULATION_PROFILES, getTubeEmulationProfile, listTubeEmulationProfiles, generateTubeTransferCurve, formatTubeEmulationSummary, calculateMiniHudScrubFraction, calculateMiniHudScrubTime, renderMiniHudWaveformScrubber, calculateVuGravityBallistics, formatVuBallisticsTelemetry, calculateSonicSimilarityScore, generateSonicFlowQueue, formatSonicFlowBadge, filterTracksBySonicRange, evaluateAudioMemoryBudget, compressChunkMetadataMap, decompressChunkMetadataMap, formatAudioMemoryBudgetTelemetry, DSD_ULTRASONIC_FILTERS, getDsdUltrasonicFilter, listDsdUltrasonicFilters, calculateUltrasonicFilterResponse, formatDsdUltrasonicFilterTelemetry, calculateSpatialVectorSpectrogram, formatSpatialVectorTelemetry, renderSpatialVectorCanvas, calculateTrackEngagementRating, categorizeFavoritesByMoodQuality, formatTrackEngagementTelemetry, calculatePrefetchPriorityScore, evaluateCachePipelineConcurrency, scheduleOfflineQueuePrefetch, formatPrefetchQueueTelemetry, SUB_BASS_PHASE_PROFILES, getSubBassPhaseProfile, listSubBassPhaseProfiles, calculateSubBassPhaseParams, generateBassExciterTransferCurve, formatSubBassPhaseTelemetry, POLAR_RADAR_MODES, getPolarRadarMode, calculatePolarRadarSoundstage, formatPolarRadarTelemetry, renderPolarRadarCanvas, createOptimisticTrackState, formatSelectionLatency, canStartInstantPlayback, scheduleNonBlockingTask, buildAlbumKey, propagateAlbumCovers, resolveTrackCover, extractFolderArtCandidates, extractTrackDirectory, instantResolveTrackCover, instantPropagateCovers, createFiioTrack, buildFiioCoverUrl, inferFiioFolderMetadata, enrichFiioTrackMetadata, parseFiioScanResults, isFiioDapEnvironment, getFiioDapMode, formatFiioScanTelemetry, parseCloudAuthTokenInput, diagnoseCloudAuthError, buildTrackAnnotationKey, normalizeTrackAnnotation, formatAnnotationSummary, mergeTrackAnnotations, filterTracksByAnnotationQuery, safeRevokeObjectUrlRegistry, createAbortableTrackLoader, validateBinaryAudioHeaderBounds, computeLrclibRetryDelayMs, parseLyricsfileYaml, serializeLyricsfileYaml, findActiveLyricStateBinary, createZeroAllocFrameScratchpad, parseSafeAudioContainerMetadata, parseAudioBinaryHeaderSafe: parseSafeAudioContainerMetadata, probeMp4TailMoovRangeAsync, applyMp4SliceMetadataToTrack, extractDsfTailId3Metadata, buildDsfTailCacheKey, createDsfTailMetadataCache, getSharedDsfTailMetadataCache, fetchDsfTailId3CoalescedAsync, computeAudioFingerprint64k, computeAudioFingerprint64kAsync, computeFastFingerprintKey, createFingerprintLyricsCacheStore, createProactiveOAuthTokenRefreshScheduler, isEditableKeyboardTarget, resolvePlayerKeyboardShortcut, validateAndClampAudioGraphParams, reconcileAudioNodeGraphForSampleRate, verifyLrclibPowTarget, solveLrclibChallengeSync, solveLrclibChallengeAsync, reconcileLyricDurationWithAudio, buildLrclibPublishPayload, createTypedLyricBufferPool, createTypedLyricSegmentIndex, createAbortableSequentialRequestQueue, computeCrc32Hex, normalizeSpecialConfigNumber, canonicalizeConfigPayloadSafe, signConfigurationBundle, verifyConfigurationBundle, createStreamingCrc32Hasher, createStreamingSha256Hasher, createStreamingDualIntegrityHasher, computeChunkedBackupIntegrityAsync, signConfigurationBundleAsync, verifyConfigurationBundleAsync, createAdaptiveCanvasRenderGovernor, createVisualizerFpsMonitor, formatVisualizerRenderTelemetry, parseSafeMp4AlacBoxMetadata, parseAppleSoundCheckItunNorm, parseMp4IlstMetadataSafe, computeAntiClippingLinearGain, extractBinaryReplayGainTags, decodeRva2FramePayload, readHeadSlice64kZeroCopy, computeSourceFingerprint64kAsync, readHeadSliceReplayGainAndFingerprintAsync, FINGERPRINT_PRIORITY_TIERS, calculateFingerprintPriorityScore, createPrioritizedFingerprintQueue, formatFingerprintQueueTelemetry, createResilientIndexedDbManager, normalizeCustomKeymapConfig, exportCustomKeymapBundle, importCustomKeymapBundle, computeMediaSessionSeekOffset, createMultiProviderSessionVault, synthesizeSampleRateInvariantImpulseResponse, reconcileConvolverImpulseForSampleRate, computeBiquadCoefficientsCookbook, evaluateParametricEqResponseCurve, createPreallocatedPowAsciiScratchpad, createLrclibPowWorkerRunner, estimatePowTargetExpectedHashes, formatPowProgressStatus, createPowProgressController, classifyLyricVocalRole, resolveMultiVoiceLyricLanes, getSharedLyricSegmentCoordinator, createPreloadLifecycleController, parseOrderNumber, extractDiscAndTrackFromPath, getTrackOrderInfo, compareAlbumTracks, sortAlbumTracks, parseFlacMetadataSafe, scoreFolderCoverFilename, primaryArtistName, isCompilationArtistName, resolveTrackCollectionArtist, buildLibraryCollections, isDiscSubfolderName, parseDiscSubfolderInfo, stripAlbumDiscSuffix, decodeSafDocRelativePath, resolveFolderCoverWithDiscFallback, isSkippableLocalDirectoryName, FETCH_AUDIO_SLICE_TIMEOUT_MS, FETCH_AUDIO_FULL_TIMEOUT_MS, FETCH_AUDIO_TAIL_PROBE_TIMEOUT_MS, stableFavoriteKey, isTrackInFavorites, buildStableTrackRef, matchTrackByStableRef, deduplicateCatalogCovers, resolveM3uRelativePath, setM3uMatchHints};
 });

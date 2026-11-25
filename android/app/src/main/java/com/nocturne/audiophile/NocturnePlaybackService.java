@@ -108,9 +108,26 @@ public class NocturnePlaybackService extends Service {
             return START_STICKY;
         }
 
-        String title = intent != null ? intent.getStringExtra(EXTRA_TITLE) : null;
-        String artist = intent != null ? intent.getStringExtra(EXTRA_ARTIST) : null;
-        String album = intent != null ? intent.getStringExtra(EXTRA_ALBUM) : null;
+        if (intent == null) {
+            MainActivity active = MainActivity.getActiveInstance();
+            if (active == null || !active.isAnyPlaybackActiveForService()) {
+                Notification fgNotif = buildNotification(mLastTitle, mLastArtist, mLastAlbum, false);
+                try {
+                    if (Build.VERSION.SDK_INT >= 29) {
+                        startForeground(NOTIFICATION_ID, fgNotif, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+                    } else {
+                        startForeground(NOTIFICATION_ID, fgNotif);
+                    }
+                } catch (Exception ignored) {}
+                stopForegroundCompat();
+                stopSelf();
+                return START_NOT_STICKY;
+            }
+        }
+
+        String title = intent != null ? intent.getStringExtra(EXTRA_TITLE) : mLastTitle;
+        String artist = intent != null ? intent.getStringExtra(EXTRA_ARTIST) : mLastArtist;
+        String album = intent != null ? intent.getStringExtra(EXTRA_ALBUM) : mLastAlbum;
         boolean isPlaying = intent == null || intent.getBooleanExtra(EXTRA_IS_PLAYING, true);
         mLastTitle = title;
         mLastArtist = artist;

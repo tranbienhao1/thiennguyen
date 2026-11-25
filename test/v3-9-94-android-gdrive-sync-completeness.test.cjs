@@ -208,7 +208,11 @@ describe('v3.9.94: Android Google Drive Sync Completeness, Shortcut Folder BFS, 
     assert.ok(mainActivity.includes('private volatile boolean mIsCloudSyncActive = false;'), 'MainActivity must declare mIsCloudSyncActive');
     assert.ok(mainActivity.includes('public void setCloudSyncActive(boolean active)'), 'MainActivity and WebAppInterface must expose setCloudSyncActive');
     assert.ok(mainActivity.includes('if (!mIsCloudSyncActive && !mIsMediaPlaying'), 'onPause must not drop WakeLock/WifiLock while cloud sync is active');
-    assert.ok(mainActivity.includes('if (!mIsCloudSyncActive) {\n                releaseWakeLock();'), 'updateMediaNotification(false) must preserve WakeLock while cloud sync is active');
+    assert.match(
+      mainActivity,
+      /if \(!mIsCloudSyncActive(?:\s*&&[^\n{]+)?\)\s*\{\s*releaseWakeLock\(\);/,
+      'updateMediaNotification(false) must preserve WakeLock while cloud sync is active'
+    );
 
     // Verify VirtualTrackList.getScrollTarget selects contentCol on Android >= 1024px when overflowY is auto
     const vsSandbox = {

@@ -51,10 +51,10 @@ class FakeElement {
   load() { this.loads++; }
 }
 
-function exerciseFinish({crossfadeSeconds = 5, preloadTrackId = null, preloadUrl = null} = {}) {
+function exerciseFinish({crossfadeSeconds = 5, preloadTrackId = null, preloadUrl = null, oldPaused = false, oldSrc = 'blob:https://example/old'} = {}) {
   const calls = {timeouts: [], history: [], renders: 0, preloads: 0, releasedCloud: [], releasedLocal: []};
   const deckA = makeDeck(), deckB = makeDeck();
-  const previousTrack = {id: 'old', title: 'Bài cũ', url: 'blob:https://example/old'};
+  const previousTrack = {id: 'old', title: 'Bài cũ', url: oldSrc};
   const track = {id: 'now', title: 'Bài mới'};
   const nextTrack = {id: 'next', title: 'Bài kế', url: preloadUrl};
   const state = {
@@ -63,7 +63,8 @@ function exerciseFinish({crossfadeSeconds = 5, preloadTrackId = null, preloadUrl
     context: {currentTime: 100}, deckA, deckB, activeDeck: deckA,
     preloadTrackId, preloadReadyUrl: null,
   };
-  const oldElement = new FakeElement('blob:https://example/old');
+  const oldElement = new FakeElement(oldSrc);
+  oldElement.paused = oldPaused;
   const newElement = new FakeElement('');
   const $ = () => ({textContent: ''});
   const location = {href: 'https://example.test/thiennguyen/'};
@@ -129,12 +130,30 @@ function exerciseFinish({crossfadeSeconds = 5, preloadTrackId = null, preloadUrl
   assert.equal(run.oldElement.pauseCalls, 1, 'A preloaded track without a URL should still let the cleanup pause the old deck');
 }
 
-// Crossfade tắt: không có timeout dọn deck, chuyển bài ngay như trước.
+// Crossfade tắt (wasOldPlaying === true): hẹn timeout 65ms dọn deck cũ để ramp 18ms kịp fade-out, tránh click/pop; preloadNext(true) chạy sau khi dọn deck.
 {
   const run = exerciseFinish({crossfadeSeconds: 0});
-  assert.equal(run.calls.timeouts.length, 0, 'With crossfade off there should be no delayed old-deck cleanup');
-  assert.equal(run.oldElement.pauseCalls, 2, 'With crossfade off the old deck should be paused immediately (standby alias and previous element are the same deck)');
-  assert.equal(run.oldElement.src, '', 'With crossfade off the old deck source should be detached immediately');
+  assert.equal(run.started, true, 'finishPlaybackStart should complete the deck swap when crossfade is off');
+  assert.equal(run.calls.timeouts.length, 1, 'With crossfade off and old deck playing, finishPlaybackStart should schedule a 65ms clickless deferred cleanup');
+  assert.equal(run.calls.timeouts[0].ms, 65, 'Deferred clickless cleanup delay should be 65ms');
+  assert.equal(run.oldElement.pauseCalls, 0, 'Before the 65ms timer fires, old deck must NOT be paused yet so the 18ms Web Audio ramp finishes without click/pop');
+  assert.equal(run.oldElement.src, 'blob:https://example/old', 'Before the 65ms timer fires, old deck src should remain attached for the 18ms gain ramp');
+  assert.equal(run.calls.preloads, 0, 'Before the 65ms timer fires, preloadNext(true) should wait for deferred deck cleanup so it does not race');
+  run.calls.timeouts[0].fn();
+  assert.equal(run.oldElement.pauseCalls, 2, 'After the 65ms timer fires, deferred cleanup should pause previous element (2nd pause call)');
+  assert.equal(run.oldElement.src, '', 'After the 65ms timer fires, old deck source should be detached');
+  assert.deepEqual(run.oldElement.removed, ['src'], 'After the 65ms timer fires, src attribute should be removed from old deck');
+  assert.equal(run.calls.preloads, 1, 'After the 65ms timer fires, preloadNext(true) should run');
+}
+
+// Khởi động nguội (!wasOldPlaying): dọn deck cũ đồng bộ ngay lập tức, không hẹn timeout.
+{
+  const run = exerciseFinish({crossfadeSeconds: 0, oldPaused: true, oldSrc: 'blob:https://example/old'});
+  assert.equal(run.started, true, 'finishPlaybackStart should complete on cold start (!wasOldPlaying)');
+  assert.equal(run.calls.timeouts.length, 0, 'With !wasOldPlaying (cold start), cleanup should remain synchronous with 0 timeouts');
+  assert.equal(run.oldElement.pauseCalls, 2, 'With !wasOldPlaying, both standbyAudio and previous should pause synchronously');
+  assert.equal(run.oldElement.src, '', 'With !wasOldPlaying, old deck source should be detached synchronously');
+  assert.equal(run.calls.preloads, 1, 'With !wasOldPlaying, preloadNext(true) should run synchronously');
 }
 
 console.log('crossfade-preload: all assertions passed');

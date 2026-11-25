@@ -241,6 +241,13 @@ public class MainActivity extends AppCompatActivity {
     private volatile boolean mIsMediaPlaying = false;
     private volatile boolean mIsCloudSyncActive = false;
     private volatile boolean mNextTrackIsRemote = false;
+    private final Object mTransitionHoldLock = new Object();
+    private volatile long mTransitionHoldUntilElapsedMs = 0L;
+    private volatile long mTransitionHoldNotifSeq = -1L;
+    private volatile int mSuppressedHoldEpoch = 0;
+    private volatile boolean mIsPlaybackTransitioning = false;
+    private volatile boolean mHoldExpiredWhileTransitioning = false;
+    private final Runnable mTransitionHoldExpireRunnable = this::onTransitionHoldExpired;
     private ConnectivityManager.NetworkCallback mNetworkCallback = null;
     private boolean mIsNetworkCallbackRegistered = false;
     private boolean mIsScreenOnReceiverRegistered = false;
@@ -1505,7 +1512,8 @@ public class MainActivity extends AppCompatActivity {
         mIsCloudSyncActive = active;
         if (active) {
             acquireWakeLock(true);
-        } else if (!mIsMediaPlaying && (mBitPerfectPlayer == null || !mBitPerfectPlayer.isPlaying())) {
+        } else if (!mIsMediaPlaying && !mIsPlaybackTransitioning && !isTransitionHoldActive()
+                && (mBitPerfectPlayer == null || !mBitPerfectPlayer.isPlaying())) {
             releaseWakeLock();
         }
     }
@@ -1526,6 +1534,128 @@ public class MainActivity extends AppCompatActivity {
             }
         } catch (Exception e) {
             Log.w(TAG, "Failed to release WifiLock: " + e.getMessage());
+        }
+    }
+
+    public boolean isTransitionHoldActive() {
+        long u = mTransitionHoldUntilElapsedMs;
+        return u > 0L && SystemClock.elapsedRealtime() < u;
+    }
+
+    public long getTransitionHoldRemainingMs() {
+        long u = mTransitionHoldUntilElapsedMs;
+        return u > 0L ? Math.max(0L, u - SystemClock.elapsedRealtime()) : 0L;
+    }
+
+    public void beginTrackTransitionHold(long durationMs, boolean needWifi) {
+        long safeMs = Math.max(250L, Math.min(5000L, durationMs));
+        mHoldExpiredWhileTransitioning = false;
+        acquireWakeLock(needWifi);
+        requestAudioFocus();
+        synchronized (mTransitionHoldLock) {
+            mTransitionHoldUntilElapsedMs = SystemClock.elapsedRealtime() + safeMs;
+            mTransitionHoldNotifSeq = mMediaNotificationSeq.get();
+        }
+        mMainHandler.removeCallbacks(mTransitionHoldExpireRunnable);
+        mMainHandler.postDelayed(mTransitionHoldExpireRunnable, safeMs);
+    }
+
+    public void beginTrackTransitionHoldIfRunActive(
+            long durationMs,
+            boolean needWifi,
+            BitPerfectAudioPlayer player,
+            int expectedEpoch) {
+        long safeMs = Math.max(250L, Math.min(5000L, durationMs));
+        final boolean armed;
+        synchronized (mTransitionHoldLock) {
+            if (player == null
+                    || player.mIsStopped
+                    || player.mIsPaused
+                    || player.mPlaybackEpoch.get() != expectedEpoch
+                    || mSuppressedHoldEpoch >= expectedEpoch) {
+                armed = false;
+            } else {
+                mHoldExpiredWhileTransitioning = false;
+                mTransitionHoldUntilElapsedMs = SystemClock.elapsedRealtime() + safeMs;
+                mTransitionHoldNotifSeq = mMediaNotificationSeq.get();
+                armed = true;
+            }
+        }
+        if (!armed) return;
+        acquireWakeLock(needWifi);
+        requestAudioFocus();
+        synchronized (mTransitionHoldLock) {
+            if (mTransitionHoldUntilElapsedMs <= 0L
+                    || player.mIsStopped
+                    || player.mIsPaused
+                    || player.mPlaybackEpoch.get() != expectedEpoch
+                    || mSuppressedHoldEpoch >= expectedEpoch) {
+                mTransitionHoldUntilElapsedMs = 0L;
+                mTransitionHoldNotifSeq = -1L;
+                return;
+            }
+        }
+        mMainHandler.removeCallbacks(mTransitionHoldExpireRunnable);
+        mMainHandler.postDelayed(mTransitionHoldExpireRunnable, safeMs);
+    }
+
+    public void clearTrackTransitionHold() {
+        mHoldExpiredWhileTransitioning = false;
+        synchronized (mTransitionHoldLock) {
+            mTransitionHoldUntilElapsedMs = 0L;
+            mTransitionHoldNotifSeq = -1L;
+        }
+        mMainHandler.removeCallbacks(mTransitionHoldExpireRunnable);
+    }
+
+    public void setPlaybackLoadingWakeLock(boolean active) {
+        mIsPlaybackTransitioning = active;
+        if (active) {
+            acquireWakeLock(true);
+        } else if (mHoldExpiredWhileTransitioning && !mIsCloudSyncActive && !isTransitionHoldActive()
+                && (mBitPerfectPlayer == null || !mBitPerfectPlayer.isActive())) {
+            mHoldExpiredWhileTransitioning = false;
+            mIsMediaPlaying = false;
+            updateMediaSessionPosition(Math.max(0L, mLastMediaPositionMs), Math.max(0L, mLastMediaDurationMs), false);
+            NocturnePlaybackService.syncBackgroundPauseIfRunning(mLastMediaTitle, mLastMediaArtist, mLastMediaAlbum);
+            releaseWakeLock();
+            abandonAudioFocus();
+        } else if (!mIsCloudSyncActive && !mIsMediaPlaying && !isTransitionHoldActive()
+                && (mBitPerfectPlayer == null || !mBitPerfectPlayer.isPlaying())) {
+            releaseWakeLock();
+        }
+    }
+
+    public boolean isAnyPlaybackActiveForService() {
+        return mIsMediaPlaying || mIsPlaybackTransitioning || isTransitionHoldActive()
+                || (mBitPerfectPlayer != null && mBitPerfectPlayer.isActive());
+    }
+
+    private void onTransitionHoldExpired() {
+        final long snapSeq;
+        synchronized (mTransitionHoldLock) {
+            if (mTransitionHoldUntilElapsedMs <= 0L || SystemClock.elapsedRealtime() < mTransitionHoldUntilElapsedMs) {
+                return;
+            }
+            mTransitionHoldUntilElapsedMs = 0L;
+            snapSeq = mTransitionHoldNotifSeq;
+            mTransitionHoldNotifSeq = -1L;
+        }
+        final boolean bpActive = (mBitPerfectPlayer != null && mBitPerfectPlayer.isActive());
+        if (!bpActive && !mIsPlaybackTransitioning && !mIsCloudSyncActive
+                && mMediaNotificationSeq.get() == snapSeq) {
+            mHoldExpiredWhileTransitioning = false;
+            mIsMediaPlaying = false;
+            updateMediaSessionPosition(Math.max(0L, mLastMediaPositionMs), Math.max(0L, mLastMediaDurationMs), false);
+            NocturnePlaybackService.syncBackgroundPauseIfRunning(mLastMediaTitle, mLastMediaArtist, mLastMediaAlbum);
+            releaseWakeLock();
+            abandonAudioFocus();
+        } else if (!bpActive && !mIsPlaybackTransitioning && !mIsCloudSyncActive && !mIsMediaPlaying) {
+            mHoldExpiredWhileTransitioning = false;
+            releaseWakeLock();
+            abandonAudioFocus();
+        } else if (!bpActive && mIsPlaybackTransitioning) {
+            mHoldExpiredWhileTransitioning = true;
         }
     }
 
@@ -1805,8 +1935,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         mIsInBackground = true;
-        // Release WakeLock/WifiLock immediately if playback is paused/idle when entering background (unless cloud sync is active)
-        if (!mIsCloudSyncActive && !mIsMediaPlaying && (mBitPerfectPlayer == null || !mBitPerfectPlayer.isPlaying())) {
+        // Release WakeLock/WifiLock immediately if playback is paused/idle when entering background (unless cloud sync or transition hold is active)
+        if (!mIsCloudSyncActive && !mIsMediaPlaying && !mIsPlaybackTransitioning && !isTransitionHoldActive()
+                && (mBitPerfectPlayer == null || !mBitPerfectPlayer.isPlaying())) {
             releaseWakeLock();
         }
         // Keep audio playback running smoothly, but let Web pause heavy visualizers to save battery/RAM
@@ -2052,6 +2183,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         mNextTrackIsRemote = false;
+        mIsPlaybackTransitioning = false;
+        clearTrackTransitionHold();
         mMainHandler.removeCallbacksAndMessages(null);
         stopBitPerfectPlayback();
         cancelMediaNotification();
@@ -4918,10 +5051,16 @@ public class MainActivity extends AppCompatActivity {
     private void updateMediaNotificationInternal(String title, String artist, String album, boolean isPlaying, boolean preservePrepopulated) {
         mMediaNotificationSeq.incrementAndGet();
         mIsMediaPlaying = isPlaying;
+        mHoldExpiredWhileTransitioning = false;
         NocturnePlaybackService.sCurrentAlbumArt = loadCachedCoverBitmap(album, artist);
         if (isPlaying) {
+            clearTrackTransitionHold();
+            mIsPlaybackTransitioning = false;
             boolean needWifi = !(mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying() && !mBitPerfectPlayer.isRemoteStream() && !mNextTrackIsRemote);
             acquireWakeLock(needWifi);
+            if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                requestAudioFocus();
+            }
             try {
                 Intent svcIntent = new Intent(this, NocturnePlaybackService.class);
                 svcIntent.setAction(NocturnePlaybackService.ACTION_START_OR_UPDATE);
@@ -4958,7 +5097,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
             updateMediaSessionMetadata(title, artist, album, false, preservePrepopulated);
-            if (!mIsCloudSyncActive) {
+            if (!mIsCloudSyncActive && !mIsPlaybackTransitioning && !isTransitionHoldActive()) {
                 releaseWakeLock();
             }
         }
@@ -5571,6 +5710,7 @@ public class MainActivity extends AppCompatActivity {
         private volatile boolean mIsPaused = false;
         private volatile boolean mIsStopped = false;
         private volatile boolean mExitedDecodeLoop = false;
+        private volatile boolean mIsDucked = false;
         private volatile boolean mIsRemoteStream = false;
         private volatile boolean mNextTrackIsRemote = false;
         // v3.9.25: epoch guard so a stale (slow-to-die) playback thread can never clobber the next session's state.
@@ -5897,6 +6037,7 @@ public class MainActivity extends AppCompatActivity {
             mIsStopped = false;
             mExitedDecodeLoop = false;
             mIsPaused = false;
+            mIsDucked = false;
             mIsPlaying = true;
             mRouteRefreshFlags.set(0);
             mPendingRenderProcessRehydration = false;
@@ -5928,10 +6069,10 @@ public class MainActivity extends AppCompatActivity {
             mCurrentPositionMs.set(winCueStartMs);
             mDurationMs.set(0);
 
+            final int playbackEpoch = mPlaybackEpoch.incrementAndGet();
+            clearTrackTransitionHold();
             acquireWakeLock(mIsRemoteStream || mNextTrackIsRemote);
             requestAudioFocus();
-
-            final int playbackEpoch = mPlaybackEpoch.incrementAndGet();
             // Use JS-supplied track metadata when available to suppress placeholder notification flashes
             try {
                 if (!winTitle.isEmpty()) {
@@ -5997,6 +6138,12 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void pause() {
+            synchronized (mTransitionHoldLock) {
+                mSuppressedHoldEpoch = Math.max(mSuppressedHoldEpoch, mPlaybackEpoch.get());
+                mTransitionHoldUntilElapsedMs = 0L;
+                mTransitionHoldNotifSeq = -1L;
+            }
+            mMainHandler.removeCallbacks(mTransitionHoldExpireRunnable);
             if (!isActive()) return;
             synchronized (mPauseLock) {
                 mIsPaused = true;
@@ -6006,7 +6153,17 @@ public class MainActivity extends AppCompatActivity {
             if (track != null) {
                 try {
                     if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
-                        track.pause();
+                        rampDownAudioTrackBeforeStop(track, true);
+                        synchronized (mPauseLock) {
+                            if (mIsPaused && !mIsStopped && mAudioTrack == track
+                                    && track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                                track.pause();
+                            } else if (!mIsPaused && !mIsStopped && mAudioTrack == track
+                                    && !mPreferredMixerAttributesSet
+                                    && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                try { track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                            }
+                        }
                     }
                 } catch (Exception ignored) {}
             }
@@ -6014,7 +6171,7 @@ public class MainActivity extends AppCompatActivity {
             final long posMs = Math.max(0L, getDisplayPositionMs());
             final long durMs = Math.max(0L, getDisplayDurationMs());
             runOnUiThread(() -> {
-                if (mIsStopped || mPlaybackEpoch.get() != pauseEpoch) return;
+                if (!mIsPaused || mIsStopped || mPlaybackEpoch.get() != pauseEpoch) return;
                 final String nTitle = (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) ? mLastMediaTitle : mCurrentTrackTitle;
                 final String nArtist = (mLastMediaArtist != null && !mLastMediaArtist.isEmpty()) ? mLastMediaArtist : mCurrentTrackArtist;
                 final String nAlbum = (mLastMediaAlbum != null && !mLastMediaAlbum.isEmpty()) ? mLastMediaAlbum : mCurrentTrackAlbum;
@@ -6024,6 +6181,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void resume() {
+            synchronized (mTransitionHoldLock) {
+                if (mSuppressedHoldEpoch == mPlaybackEpoch.get()) {
+                    mSuppressedHoldEpoch = 0;
+                }
+            }
             acquireWakeLock(mIsRemoteStream || mNextTrackIsRemote);
             requestAudioFocus();
             if (!isActive()) {
@@ -6035,20 +6197,25 @@ public class MainActivity extends AppCompatActivity {
             synchronized (mPauseLock) {
                 mIsPaused = false;
                 mPauseLock.notifyAll();
-            }
-            AudioTrack track = mAudioTrack;
-            if (track != null) {
-                try {
-                    if (track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
-                        track.play();
-                    }
-                } catch (Exception ignored) {}
+                AudioTrack track = mAudioTrack;
+                if (track != null) {
+                    try {
+                        if (track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                try { track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                            }
+                            track.play();
+                        } else if (!mPreferredMixerAttributesSet && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            try { track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                        }
+                    } catch (Exception ignored) {}
+                }
             }
             final int resumeEpoch = mPlaybackEpoch.get();
             final long posMs = Math.max(0L, getDisplayPositionMs());
             final long durMs = Math.max(0L, getDisplayDurationMs());
             runOnUiThread(() -> {
-                if (mIsStopped || mPlaybackEpoch.get() != resumeEpoch) return;
+                if (mIsPaused || mIsStopped || mPlaybackEpoch.get() != resumeEpoch) return;
                 final String nTitle = (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) ? mLastMediaTitle : mCurrentTrackTitle;
                 final String nArtist = (mLastMediaArtist != null && !mLastMediaArtist.isEmpty()) ? mLastMediaArtist : mCurrentTrackArtist;
                 final String nAlbum = (mLastMediaAlbum != null && !mLastMediaAlbum.isEmpty()) ? mLastMediaAlbum : mCurrentTrackAlbum;
@@ -6108,10 +6275,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void setDucking(boolean ducked) {
+            mIsDucked = ducked;
             AudioTrack track = mAudioTrack;
             if (track != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 try {
-                    track.setVolume(ducked ? 0.25f : 1.0f);
+                    track.setVolume(ducked ? 0.25f : AudioTrack.getMaxVolume());
                 } catch (Exception ignored) {}
             }
         }
@@ -6132,6 +6300,25 @@ public class MainActivity extends AppCompatActivity {
             stopInternal(false);
         }
 
+        public synchronized void stopForHandoff() {
+            stopInternal(true);
+            mPendingRenderProcessRehydration = false;
+            synchronized (mBitPerfectEosLock) {
+                mPendingBitPerfectEosEpoch = 0;
+                mPendingBitPerfectEosWindowSeq = 0L;
+            }
+            mCurrentTrackId = "";
+            synchronized (mTrackWindowLock) {
+                mTrackWindow = new TrackWindowSnapshot(0L, 0L, mTrackWindow.seq + 1L, "", "", "");
+            }
+            synchronized (mStreamAuthLock) {
+                mPendingStreamKnownDurationMs = 0L;
+                mPendingTrackId = "";
+            }
+            mNextTrackIsRemote = false;
+            MainActivity.this.mNextTrackIsRemote = false;
+        }
+
         private synchronized void stopInternal(boolean preserveSession) {
             mPlaybackEpoch.incrementAndGet();
             mEpochLaunchParams.clear();
@@ -6146,6 +6333,7 @@ public class MainActivity extends AppCompatActivity {
             }
             AudioTrack unblockTrack = mAudioTrack;
             if (unblockTrack != null) {
+                rampDownAudioTrackBeforeStop(unblockTrack, true);
                 try { unblockTrack.pause(); } catch (Exception ignored) {}
                 try { unblockTrack.flush(); } catch (Exception ignored) {}
                 try { unblockTrack.stop(); } catch (Exception ignored) {}
@@ -6181,6 +6369,7 @@ public class MainActivity extends AppCompatActivity {
             mLockedMixerBitPerfect = false;
             mLockedDeviceName = "";
             if (!preserveSession) {
+                mHoldExpiredWhileTransitioning = false;
                 mPendingRenderProcessRehydration = false;
                 synchronized (mBitPerfectEosLock) {
                     mPendingBitPerfectEosEpoch = 0;
@@ -6420,6 +6609,25 @@ public class MainActivity extends AppCompatActivity {
                     } catch (Throwable ignored) {}
                 }
             }
+        }
+
+        private void rampDownAudioTrackBeforeStop(@Nullable AudioTrack track, boolean waitSettle) {
+            if (track == null) return;
+            try {
+                if (track.getState() != AudioTrack.STATE_INITIALIZED || track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                    return;
+                }
+                if (!mPreferredMixerAttributesSet) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        try { track.setVolume(0.0f); } catch (Throwable ignored) {}
+                    }
+                    if (waitSettle) {
+                        try { Thread.sleep(8); } catch (InterruptedException ignored) {}
+                    }
+                } else if (waitSettle) {
+                    try { Thread.sleep(4); } catch (InterruptedException ignored) {}
+                }
+            } catch (Throwable ignored) {}
         }
 
         private static float readSampleNormalized(ByteBuffer src, int byteOffset, int srcEncoding) {
@@ -6782,7 +6990,7 @@ public class MainActivity extends AppCompatActivity {
                 try { built.setPreferredDevice(targetDevice); } catch (Throwable ignored) {}
             }
             final AudioTrack track = built;
-            try { track.setVolume(AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+            try { track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
             applyApi34BitPerfectMode(built);
             AudioDeviceInfo reportedDevice = targetDevice;
             if (reportedDevice == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -7452,6 +7660,21 @@ public class MainActivity extends AppCompatActivity {
                         track = createAndConfigureBitPerfectAudioTrack(
                                 audioAttributes, trackAudioFormat, trackBufferSize, sampleRate, trackPcmEncoding, preferredDevice, epoch);
                     }
+                    if (track == null && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                        clearPreferredMixerIfMatches(epoch);
+                        try { Thread.sleep(95); } catch (InterruptedException ignored) {}
+                        if (!mIsStopped && mPlaybackEpoch.get() == epoch) {
+                            AudioDeviceInfo recheck = findPreferredBitPerfectDevice();
+                            if (recheck != null) preferredDevice = recheck;
+                            if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
+                                    (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                                     preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                                applyPreferredMixerLocked(epoch, audioAttributes, preferredDevice, trackAudioFormat);
+                            }
+                            track = createAndConfigureBitPerfectAudioTrack(
+                                    audioAttributes, trackAudioFormat, trackBufferSize, sampleRate, trackPcmEncoding, preferredDevice, epoch);
+                        }
+                    }
                 }
                 if (track == null) {
                     clearPreferredMixerIfMatches(epoch);
@@ -7494,6 +7717,7 @@ public class MainActivity extends AppCompatActivity {
                 long lastCueBoundaryTriggeredSeq = -1L;
                 long basePositionMs = 0L;
                 long writtenFramesSinceBase = 0L;
+                long currentTrackWrittenFrames = 0L;
                 long lastPtsPosMs = -1L;
                 int stuckPtsCount = 0;
                 int idleDrainIterations = 0;
@@ -7537,6 +7761,9 @@ public class MainActivity extends AppCompatActivity {
                                  newPreferred.getType() == AudioDeviceInfo.TYPE_USB_HEADSET);
                         if (wasDisconnect || oldDevId != newDevId || (wasConnect && isUsbTarget)) {
                             Log.i(TAG, "BitPerfect: Audio output route changed (wasDisconnect=" + wasDisconnect + ", wasConnect=" + wasConnect + ", oldId=" + oldDevId + ", newId=" + newDevId + "), rebuilding AudioTrack");
+                            if (track != null) {
+                                rampDownAudioTrackBeforeStop(track, true);
+                            }
                             clearPreferredMixerIfMatches(epoch);
                             if (track != null) {
                                 try { track.pause(); } catch (Exception ignored) {}
@@ -7553,6 +7780,7 @@ public class MainActivity extends AppCompatActivity {
                             int[] rebuiltEnc = new int[]{ trackPcmEncoding };
                             int[] rebuiltRate = new int[]{ trackSampleRate };
                             track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, rebuiltEnc, rebuiltRate, epoch);
+                            currentTrackWrittenFrames = 0L;
                             trackPcmEncoding = rebuiltEnc[0];
                             trackSampleRate = rebuiltRate[0];
                             trackBytesPerFrame = pcmBytesPerFrame(channels, trackPcmEncoding);
@@ -7576,6 +7804,9 @@ public class MainActivity extends AppCompatActivity {
                     }
                     if (!mIsPaused && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
                         try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                try { track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                            }
                             track.play();
                         } catch (IllegalStateException ise) {
                             pendingErrorReason = "[ROUTE] Bit-Perfect AudioTrack play failed: " + ise.getMessage();
@@ -7617,11 +7848,16 @@ public class MainActivity extends AppCompatActivity {
                             pendingInputIndex = -1;
                             downmixOutBuf = null;
                             if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                                rampDownAudioTrackBeforeStop(track, true);
                                 try { track.pause(); } catch (IllegalStateException ignored) {}
                             }
                             try { track.flush(); } catch (IllegalStateException ignored) {}
+                            currentTrackWrittenFrames = 0L;
                             if (!mIsPaused && !mIsStopped) {
                                 try {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                        try { track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                                    }
                                     track.play();
                                 } catch (IllegalStateException ise) {
                                     pendingErrorReason = "[ROUTE] Bit-Perfect AudioTrack seek play failed: " + ise.getMessage();
@@ -7759,7 +7995,18 @@ public class MainActivity extends AppCompatActivity {
                             newEncoding = AudioFormat.ENCODING_PCM_16BIT;
                         }
 
-                        if (newRate != sampleRate || newCh != channels || newEncoding != pcmEncoding) {
+                        final boolean sameTrackRateAndCh = (newRate == trackSampleRate && newCh == channels
+                                && track != null && track.getState() == AudioTrack.STATE_INITIALIZED);
+                        final boolean canKeepOpenTrack = sameTrackRateAndCh
+                                && (newEncoding == trackPcmEncoding
+                                    || (writtenFramesSinceBase == 0L && (!mPreferredMixerAttributesSet || trackPcmEncoding == AudioFormat.ENCODING_PCM_16BIT)));
+                        if (canKeepOpenTrack) {
+                            if (newEncoding != pcmEncoding) {
+                                pcmEncoding = newEncoding;
+                                bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
+                                downmixOutBuf = null;
+                            }
+                        } else if (newRate != sampleRate || newCh != channels || newEncoding != pcmEncoding) {
                             int nextChannelMask = resolveBitPerfectChannelMask(newCh);
                             if (nextChannelMask == 0) {
                                 pendingErrorReason = "Unsupported Bit-Perfect output channel count (" + newCh + "ch)";
@@ -7779,6 +8026,7 @@ public class MainActivity extends AppCompatActivity {
                             bytesPerFrame = pcmBytesPerFrame(channels, pcmEncoding);
                             trackBytesPerFrame = pcmBytesPerFrame(channels, trackPcmEncoding);
 
+                            rampDownAudioTrackBeforeStop(track, true);
                             clearPreferredMixerIfMatches(epoch);
                             try {
                                 track.stop();
@@ -7836,6 +8084,7 @@ public class MainActivity extends AppCompatActivity {
                             int[] fmtRebuiltRate = new int[]{ trackSampleRate };
                             track = rebuildAudioTrackWith16BitFallback(
                                     audioAttributes, trackAudioFormat, trackBufferSize, sampleRate, channelMask, trackPcmEncoding, preferredDevice, fmtRebuiltEnc, fmtRebuiltRate, epoch);
+                            currentTrackWrittenFrames = 0L;
                             trackPcmEncoding = fmtRebuiltEnc[0];
                             trackSampleRate = fmtRebuiltRate[0];
                             trackBytesPerFrame = pcmBytesPerFrame(channels, trackPcmEncoding);
@@ -7850,6 +8099,9 @@ public class MainActivity extends AppCompatActivity {
                             }
                             applyApi34BitPerfectMode(track);
                             if (!mIsPaused && !mIsStopped) {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                    try { track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                                }
                                 track.play();
                             }
                         }
@@ -7887,6 +8139,7 @@ public class MainActivity extends AppCompatActivity {
                                     synchronized (mPauseLock) {
                                         while (mIsPaused && !mIsStopped && mPlaybackEpoch.get() == epoch && mSeekTargetUs.get() < 0L && mRouteRefreshFlags.get() == 0) {
                                             if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
+                                                rampDownAudioTrackBeforeStop(track, true);
                                                 try { track.pause(); } catch (Exception ignored) {}
                                             }
                                             try {
@@ -7903,6 +8156,9 @@ public class MainActivity extends AppCompatActivity {
                                         break;
                                     }
                                     if (!mIsPaused && mRouteRefreshFlags.get() == 0 && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                            try { track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                                        }
                                         try { track.play(); } catch (Exception ignored) {}
                                     }
                                 }
@@ -7918,6 +8174,7 @@ public class MainActivity extends AppCompatActivity {
                                              newPreferred.getType() == AudioDeviceInfo.TYPE_USB_HEADSET);
                                     if (wasDisconnect || oldDevId != newDevId || (wasConnect && isUsbTarget)) {
                                         Log.i(TAG, "BitPerfect: Audio output route changed mid-buffer (wasDisconnect=" + wasDisconnect + ", wasConnect=" + wasConnect + ", oldId=" + oldDevId + ", newId=" + newDevId + "), rebuilding AudioTrack");
+                                        rampDownAudioTrackBeforeStop(track, true);
                                         clearPreferredMixerIfMatches(epoch);
                                         try { track.pause(); } catch (Exception ignored) {}
                                         try { track.flush(); } catch (Exception ignored) {}
@@ -7932,6 +8189,7 @@ public class MainActivity extends AppCompatActivity {
                                         int[] midRebuiltEnc = new int[]{ trackPcmEncoding };
                                         int[] midRebuiltRate = new int[]{ trackSampleRate };
                                         track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, midRebuiltEnc, midRebuiltRate, epoch);
+                                        currentTrackWrittenFrames = 0L;
                                         if (track == null) {
                                             pendingErrorReason = "[ROUTE] Bit-Perfect route switch AudioTrack uninitialized";
                                             written = -1;
@@ -7956,6 +8214,7 @@ public class MainActivity extends AppCompatActivity {
                                             downmixBufSampleRate = trackSampleRate;
                                         }
                                         if (!mIsPaused && !mIsStopped) {
+                                            try { track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
                                             try { track.play(); } catch (Throwable ignored) {}
                                         }
                                     }
@@ -7964,6 +8223,9 @@ public class MainActivity extends AppCompatActivity {
                                     }
                                 }
                                 if (!mIsPaused && !mIsStopped && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                        try { track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
+                                    }
                                     try { track.play(); } catch (Throwable ignored) {}
                                     if (track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
                                         zeroWriteStallCount++;
@@ -8015,6 +8277,7 @@ public class MainActivity extends AppCompatActivity {
                                     int[] deadRebuiltEnc = new int[]{ trackPcmEncoding };
                                     int[] deadRebuiltRate = new int[]{ trackSampleRate };
                                     track = rebuildAudioTrackWith16BitFallback(audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, deadRebuiltEnc, deadRebuiltRate, epoch);
+                                    currentTrackWrittenFrames = 0L;
                                     if (track == null) {
                                         pendingErrorReason = "[ROUTE] Bit-Perfect AudioTrack rebuild uninitialized (" + sampleRate + "Hz/" + channels + "ch)";
                                         break;
@@ -8038,6 +8301,7 @@ public class MainActivity extends AppCompatActivity {
                                         downmixBufSampleRate = trackSampleRate;
                                     }
                                     if (!mIsPaused && !mIsStopped) {
+                                        try { track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume()); } catch (Throwable ignored) {}
                                         try { track.play(); } catch (Throwable ignored) {}
                                     }
                                     written = 0;
@@ -8065,8 +8329,10 @@ public class MainActivity extends AppCompatActivity {
                                 break;
                             }
                             if (totalWritten > 0 || totalWrittenTrackBytes > 0) {
-                                writtenFramesSinceBase += (totalWritten / Math.max(1, bytesPerFrame))
+                                long framesDelta = (totalWritten / Math.max(1, bytesPerFrame))
                                         + (totalWrittenTrackBytes / Math.max(1, trackBytesPerFrame));
+                                writtenFramesSinceBase += framesDelta;
+                                currentTrackWrittenFrames += framesDelta;
                             }
                             if (!abortedForSeek && (mSeekTargetUs.get() >= 0L || mSeekGeneration.get() != loopSeekGen)) {
                                 abortedForSeek = true;
@@ -8144,6 +8410,70 @@ public class MainActivity extends AppCompatActivity {
                         sawOutputEOS = false;
                         continue;
                     }
+                    if (sawOutputEOS && !mIsStopped && !mIsPaused && pendingErrorReason == null
+                            && mPlaybackEpoch.get() == epoch && mSeekTargetUs.get() < 0L
+                            && mSeekGeneration.get() == loopSeekGen
+                            && mRouteRefreshFlags.get() == 0
+                            && track != null && track.getState() == AudioTrack.STATE_INITIALIZED
+                            && track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING
+                            && currentTrackWrittenFrames > 0L) {
+                        final long drainStartMs = SystemClock.uptimeMillis();
+                        long lastHeadPos = -1L;
+                        long lastAdvanceMs = drainStartMs;
+                        while (!mIsStopped && !mIsPaused && mPlaybackEpoch.get() == epoch
+                                && mSeekTargetUs.get() < 0L && mSeekGeneration.get() == loopSeekGen
+                                && mRouteRefreshFlags.get() == 0) {
+                            long headPos = 0L;
+                            try {
+                                headPos = track.getPlaybackHeadPosition() & 0xFFFFFFFFL;
+                            } catch (Throwable ignored) {
+                                break;
+                            }
+                            if (headPos >= currentTrackWrittenFrames) {
+                                break;
+                            }
+                            long nowMs = SystemClock.uptimeMillis();
+                            if (lastHeadPos < 0L || headPos > lastHeadPos) {
+                                lastHeadPos = headPos;
+                                lastAdvanceMs = nowMs;
+                            } else if ((nowMs - lastAdvanceMs) >= 250L) {
+                                break;
+                            }
+                            if ((nowMs - drainStartMs) >= 1500L) {
+                                break;
+                            }
+                            long remainingTrackFrames = Math.max(0L, currentTrackWrittenFrames - headPos);
+                            long playedSinceBase = Math.max(0L, writtenFramesSinceBase - remainingTrackFrames);
+                            long drainPosMs = basePositionMs + ((playedSinceBase * 1000L) / Math.max(1, trackSampleRate));
+                            long knownDurMs = mDurationMs.get();
+                            if (knownDurMs > 0L && drainPosMs > knownDurMs) {
+                                drainPosMs = knownDurMs;
+                            }
+                            mCurrentPositionMs.set(drainPosMs);
+                            final long uiIntervalMs = mIsInBackground ? 2000L : 250L;
+                            if ((nowMs - lastUiUpdateElapsedMs >= uiIntervalMs) && mWebView != null) {
+                                lastUiUpdateElapsedMs = nowMs;
+                                final long reportPosMs = drainPosMs;
+                                final long reportDurMs = knownDurMs;
+                                final long reportSeekGen = loopSeekGen;
+                                mWebView.post(() -> {
+                                    if (!mIsStopped && !mIsPaused && mWebView != null
+                                            && mPlaybackEpoch.get() == epoch
+                                            && mSeekGeneration.get() == reportSeekGen
+                                            && mSeekTargetUs.get() < 0L) {
+                                        mWebView.evaluateJavascript(
+                                                "if (typeof window.onNativeBitPerfectPosition === 'function') window.onNativeBitPerfectPosition(" + reportPosMs + ", " + reportDurMs + ");",
+                                                null);
+                                    }
+                                });
+                            }
+                            try { Thread.sleep(10); } catch (InterruptedException ie) { break; }
+                        }
+                        if (!mIsStopped && mPlaybackEpoch.get() == epoch && mSeekTargetUs.get() >= 0L) {
+                            sawOutputEOS = false;
+                            continue;
+                        }
+                    }
                     break;
                 }
 
@@ -8211,11 +8541,24 @@ public class MainActivity extends AppCompatActivity {
                     extractor.release();
                 } catch (Exception ignored) {}
 
-                if (sessionCurrent) {
+                final boolean holdTransition = naturalEosForUiSync && pendingErrorReason == null
+                        && sessionCurrent && !mIsStopped && !mIsPaused;
+                if (holdTransition) {
+                    mIsPlaying = false;
+                    if (!mIsStopped && mPlaybackEpoch.get() == epoch) {
+                        beginTrackTransitionHoldIfRunActive(
+                                2500L,
+                                isHttpStream || mNextTrackIsRemote,
+                                this,
+                                epoch);
+                    }
+                } else if (sessionCurrent) {
                     mIsPlaying = false;
                     mIsPaused = false;
-                    releaseWakeLock();
-                    abandonAudioFocus();
+                    if (!isTransitionHoldActive() && !mIsPlaybackTransitioning) {
+                        releaseWakeLock();
+                        abandonAudioFocus();
+                    }
                 }
                 if (sessionCurrent) mCurrentSourceKey = "";
                 if (pendingErrorReason != null && sessionCurrent && !mIsStopped) {
@@ -9089,6 +9432,25 @@ public class MainActivity extends AppCompatActivity {
                     && !mPendingRenderProcessRehydration
                     && mMediaNotificationSeq.get() == preEosNotifSeq
                     && mIsMediaPlaying) {
+                final long holdRemMs = getTransitionHoldRemainingMs();
+                if (holdRemMs > 0L || mIsPlaybackTransitioning) {
+                    final long deferMs = Math.max(250L, Math.min(2600L, holdRemMs + 100L));
+                    mMainHandler.postDelayed(() -> {
+                        if (mBitPerfectPlayer != null
+                                && !mBitPerfectPlayer.isStopped()
+                                && mBitPerfectPlayer.getCurrentPlaybackEpoch() == epoch
+                                && !mBitPerfectPlayer.isActive()
+                                && !mPendingRenderProcessRehydration
+                                && !mIsPlaybackTransitioning
+                                && !isTransitionHoldActive()
+                                && mMediaNotificationSeq.get() == preEosNotifSeq
+                                && mIsMediaPlaying) {
+                            updateMediaSessionPosition(eosPosMs, eosDurMs, false);
+                            updateMediaNotificationInternal(eosTitle, eosArtist, eosAlbum, false, true);
+                        }
+                    }, deferMs);
+                    return;
+                }
                 updateMediaSessionPosition(eosPosMs, eosDurMs, false);
                 updateMediaNotificationInternal(eosTitle, eosArtist, eosAlbum, false, true);
             }
@@ -9110,7 +9472,10 @@ public class MainActivity extends AppCompatActivity {
 
     public void pauseBitPerfectPlayback() {
         mPausedByTransientFocusLoss = false;
+        mIsPlaybackTransitioning = false;
+        clearTrackTransitionHold();
         mBitPerfectPlayer.pause();
+        clearTrackTransitionHold();
     }
 
     public void resumeBitPerfectPlayback() {
@@ -9124,7 +9489,18 @@ public class MainActivity extends AppCompatActivity {
 
     public void stopBitPerfectPlayback() {
         mPausedByTransientFocusLoss = false;
+        mIsPlaybackTransitioning = false;
+        clearTrackTransitionHold();
         mBitPerfectPlayer.stop();
+        mIsPlaybackTransitioning = false;
+        clearTrackTransitionHold();
+    }
+
+    public void stopBitPerfectPlaybackForHandoff() {
+        mPausedByTransientFocusLoss = false;
+        final boolean needWifi = mNextTrackIsRemote || (mBitPerfectPlayer != null && mBitPerfectPlayer.isRemoteStream());
+        beginTrackTransitionHold(2500L, needWifi);
+        mBitPerfectPlayer.stopForHandoff();
     }
 
     public boolean isBitPerfectPlaying() {
@@ -9390,11 +9766,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.103";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.104";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.103\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.104\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -11065,6 +11441,25 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void stopBitPerfectPlayback() {
             mActivity.stopBitPerfectPlayback();
+        }
+
+        @JavascriptInterface
+        public void stopBitPerfectPlaybackForHandoff() {
+            mActivity.stopBitPerfectPlaybackForHandoff();
+        }
+
+        @JavascriptInterface
+        public void setPlaybackLoadingWakeLock(boolean active) {
+            final long seq = mActivity.mMediaNotificationSeq.get();
+            if (!active || mActivity.mMediaNotificationSeq.get() == seq) {
+                mActivity.mIsPlaybackTransitioning = active;
+            }
+            mActivity.runOnUiThread(() -> {
+                if (active && mActivity.mMediaNotificationSeq.get() != seq) {
+                    return;
+                }
+                mActivity.setPlaybackLoadingWakeLock(active);
+            });
         }
 
         @JavascriptInterface

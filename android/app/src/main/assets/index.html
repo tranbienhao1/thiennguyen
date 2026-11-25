@@ -2372,7 +2372,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.103</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.104</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3909,6 +3909,10 @@
     let playbackLoadingTimeout = null;
     function setPlaybackLoading(loading) {
       state.isPlaybackLoading = Boolean(loading);
+      const holdWake = Boolean(loading) || Boolean(state && state.dsdWorker && !state.dsdUrl);
+      if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setPlaybackLoadingWakeLock === 'function') {
+        try { window.NocturneNative.setPlaybackLoadingWakeLock(holdWake); } catch (_) {}
+      }
       if (playbackLoadingTimeout) {
         clearTimeout(playbackLoadingTimeout);
         playbackLoadingTimeout = null;
@@ -3917,6 +3921,10 @@
         playbackLoadingTimeout = setTimeout(() => {
           if (state.isPlaybackLoading) {
             state.isPlaybackLoading = false;
+            const stillDecodingDsd = Boolean(state && state.dsdWorker && !state.dsdUrl);
+            if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setPlaybackLoadingWakeLock === 'function') {
+              try { window.NocturneNative.setPlaybackLoadingWakeLock(stillDecodingDsd); } catch (_) {}
+            }
             runCloudMetadataQueue();
           }
         }, 8000);
@@ -4605,8 +4613,12 @@
           if (curBpTrack && handoffPosSec > 0) {
             curBpTrack._resumeAfterBpFallbackSec = handoffPosSec;
           }
-          /* window.NocturneNative?.stopBitPerfectPlayback */ if (typeof window !== 'undefined' && window.NocturneNative && window.NocturneNative.stopBitPerfectPlayback) {
-            window.NocturneNative.stopBitPerfectPlayback();
+          /* window.NocturneNative?.stopBitPerfectPlayback */ if (typeof window !== 'undefined' && window.NocturneNative) {
+            if (!wasBpPaused && curBpTrack && typeof window.NocturneNative.stopBitPerfectPlaybackForHandoff === 'function') {
+              window.NocturneNative.stopBitPerfectPlaybackForHandoff();
+            } else if (typeof window.NocturneNative.stopBitPerfectPlayback === 'function') {
+              window.NocturneNative.stopBitPerfectPlayback();
+            }
           }
           state.isNativeBitPerfectPlaying = false;
           state.isNativeBitPerfectPaused = false;
@@ -4630,7 +4642,10 @@
         rebuildAudioRoutes();
       }
 
-      const cur = state.tracks.find(t => t.id === state.currentId);
+      const cur = Array.isArray(state.tracks) ? state.tracks.find(t => t && t.id === state.currentId) : null;
+      if (typeof applyReplayGain === 'function') {
+        applyReplayGain(cur || null);
+      }
       if (cur && typeof displayTrack === 'function') {
         displayTrack(cur);
       } else if (state.bitPerfectEnabled) {
@@ -9996,6 +10011,10 @@
         const isDsdCached = formatCached === 'DSF' || formatCached === 'DFF';
         const urlCached = isDsdCached ? '' : URL.createObjectURL(file);
         if (urlCached) state.objectUrls.add(urlCached);
+        const relPathCached = file.relativePath || file.webkitRelativePath || file.name;
+        const pathDiscCached = (cachedMeta.dn == null && typeof library !== 'undefined' && library && typeof library.extractDiscAndTrackFromPath === 'function')
+          ? library.extractDiscAndTrackFromPath({ relativePath: relPathCached, name: file.name }).discNumber
+          : null;
         const fastTrack = {
           id: id(),
           file,
@@ -10006,7 +10025,7 @@
           artist: cachedMeta.a || 'Unknown Artist',
           album: cachedMeta.al || 'Unknown Album',
           trackNumber: cachedMeta.tn != null ? cachedMeta.tn : null,
-          discNumber: cachedMeta.dn != null ? cachedMeta.dn : null,
+          discNumber: cachedMeta.dn != null ? cachedMeta.dn : pathDiscCached,
           cover: null,
           lyricsText: '',
           format: formatCached,
@@ -10017,7 +10036,7 @@
           duration: cachedMeta.d || undefined,
           size: file.size,
           lastModified: Number(file.lastModified) || 0,
-          relativePath: file.relativePath || file.webkitRelativePath || file.name
+          relativePath: relPathCached
         };
         if (file._fileHandle) fastTrack.fileHandle = file._fileHandle;
         fastTrack.hasEmbeddedCover = Boolean(cachedMeta.hc);
@@ -10048,6 +10067,10 @@
       };
       const fallback = filenameMetadata(file.relativePath || file.webkitRelativePath || file.name, mergedTags.track || tags.tracknumber || tags.trackNumber);
       const metadata = library.resolveTrackMetadata(mergedTags, fallback);
+      if (metadata && metadata.discNumber == null && typeof library.extractDiscAndTrackFromPath === 'function') {
+        const pathInfo = library.extractDiscAndTrackFromPath({ relativePath: file.relativePath || file.webkitRelativePath || '', name: file.name });
+        if (pathInfo && pathInfo.discNumber != null) metadata.discNumber = pathInfo.discNumber;
+      }
       const rawExt = file.name.split('.').pop().toUpperCase();
       const format = (rawExt === 'M4A' && technical.detectedFormat === 'ALAC') ? 'ALAC' : rawExt;
       const isDsd = format === 'DSF' || format === 'DFF';
@@ -11887,14 +11910,17 @@
         m3u8Btn.onclick = () => {
           const listTracks = entry.tracks || [];
           if (!listTracks.length) return toast('Album chưa có bài hát để xuất M3U8.');
-          const lines = ['#EXTM3U', `#PLAYLIST:${entry.name || 'Album'}`];
-          for (const t of listTracks) {
-            const m = (typeof library !== 'undefined' && library.trackMetadata) ? library.trackMetadata(t) : t;
-            const dur = Math.round(Number(t.duration) || -1);
-            lines.push(`#EXTINF:${dur},${m.artist || 'Unknown'} - ${m.title || t.name || 'Track'}`);
-            lines.push(t.remotePath || t.path || t.name || t.id);
+          const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
+          const tools = window.LibraryTools || (typeof LibraryTools !== 'undefined' ? LibraryTools : null);
+          let m3uText = '';
+          if (lib && typeof lib.exportPlaylistM3u8 === 'function') {
+            m3uText = lib.exportPlaylistM3u8(entry.name || 'Album', listTracks);
+          } else if (tools && typeof tools.exportPlaylistM3U === 'function') {
+            m3uText = tools.exportPlaylistM3U(entry.name || 'Album', listTracks);
+          } else {
+            return toast('M3U8 Exporter chưa sẵn sàng.');
           }
-          const blob = new Blob([lines.join('\n') + '\n'], { type: 'audio/x-mpegurl;charset=utf-8' });
+          const blob = new Blob([m3uText], { type: 'audio/x-mpegurl;charset=utf-8' });
           const dlUrl = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = dlUrl;
@@ -11938,6 +11964,9 @@
     function openAlbum(albumName, artistName) {
       if (!albumName) return;
       const targetAlbum = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey(albumName) : String(albumName).toLowerCase();
+      const targetAlbumStripped = (typeof library !== 'undefined' && library && typeof library.stripAlbumDiscSuffix === 'function')
+        ? library.normalizeSearchKey(library.stripAlbumDiscSuffix(albumName))
+        : targetAlbum;
       const targetArtist = (artistName && typeof library !== 'undefined' && library) ? library.normalizeSearchKey(artistName) : (artistName ? String(artistName).toLowerCase() : null);
       const collections = (typeof library !== 'undefined' && typeof library.buildLibraryCollections === 'function')
         ? library.buildLibraryCollections(state.tracks || [])
@@ -11946,7 +11975,7 @@
         const col = collections ? collections.getTrackCollection(t) : null;
         const meta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(t) : t;
         const mAlbum = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey((col && col.album) || meta.album) : String(meta.album || '').toLowerCase();
-        if (mAlbum !== targetAlbum) return false;
+        if (mAlbum !== targetAlbum && !(targetAlbumStripped && targetAlbumStripped !== targetAlbum && mAlbum === targetAlbumStripped)) return false;
         if (targetArtist) {
           const mAlbumArtist = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey((col && col.albumArtist) || meta.artist) : String(meta.artist || '').toLowerCase();
           const mPrimary = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey((col && col.artist) || meta.artist) : String(meta.artist || '').toLowerCase();
@@ -11961,11 +11990,12 @@
       const sortedAlbumTracks = (typeof library !== 'undefined' && typeof library.sortAlbumTracks === 'function')
         ? library.sortAlbumTracks(albumTracks, { groupByAlbum: false })
         : albumTracks;
+      const resolvedAlbumName = (col0 && col0.album) || meta.album || albumName;
       const resolvedAlbumArtist = (col0 && col0.albumArtist) || meta.artist || artistName || 'Unknown Artist';
       const resolvedArtistKey = (typeof library !== 'undefined' && library) ? library.normalizeSearchKey(resolvedAlbumArtist) : resolvedAlbumArtist.toLowerCase();
       const entry = {
         key: `${targetAlbum}\t${targetArtist || resolvedArtistKey}`,
-        name: meta.album || albumName,
+        name: resolvedAlbumName,
         artist: resolvedAlbumArtist,
         tracks: sortedAlbumTracks,
         cover: ((function () { const c = sortedAlbumTracks.find(t => t.cover); return c ? c.cover : ''; })()),
@@ -12000,17 +12030,22 @@
       const metadata = track => (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function')
         ? library.trackMetadata(track)
         : track;
-      for (const track of ((artistEntry && artistEntry.tracks) || [])) {
+      const artistTracks = (artistEntry && artistEntry.tracks) || [];
+      const collections = (typeof library !== 'undefined' && library && typeof library.buildLibraryCollections === 'function')
+        ? library.buildLibraryCollections(artistTracks)
+        : null;
+      for (const track of artistTracks) {
         const info = metadata(track);
-        const albumName = info.album || 'Single / Chưa rõ album';
-        const key = (typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
+        const colInfo = collections ? collections.getTrackCollection(track) : null;
+        const albumName = (colInfo && colInfo.album) || info.album || 'Single / Chưa rõ album';
+        const key = (colInfo && colInfo.albumKey) || ((typeof library !== 'undefined' && library && typeof library.normalizeSearchKey === 'function')
           ? library.normalizeSearchKey(albumName)
-          : String(albumName).toLowerCase();
+          : String(albumName).toLowerCase());
         if (!albumMap.has(key)) {
           albumMap.set(key, {
             key,
             name: albumName,
-            artist: (artistEntry && artistEntry.name) || (info && info.artist) || 'Unknown Artist',
+            artist: (colInfo && colInfo.albumArtist) || (artistEntry && artistEntry.name) || (info && info.artist) || 'Unknown Artist',
             cover: track.cover || '',
             tracks: [],
             action: 'album'
@@ -12223,7 +12258,8 @@
         if (!artists.has(artistKey)) artists.set(artistKey,{key:artistKey,name:artistName,tracks:[],cover:savedPortrait || usableTrackCover || ''});
         artists.get(artistKey).tracks.push(track);
         const albumKey = (colInfo && colInfo.albumKey) || `${library.normalizeSearchKey(info.album)}\t${artistKey}`;
-        if (!albums.has(albumKey)) albums.set(albumKey,{key:albumKey,name:info.album,artist:albumArtistName,tracks:[],cover:usableTrackCover || ''});
+        const albumDisplayName = (colInfo && colInfo.album) || info.album;
+        if (!albums.has(albumKey)) albums.set(albumKey,{key:albumKey,name:albumDisplayName,artist:albumArtistName,tracks:[],cover:usableTrackCover || ''});
         albums.get(albumKey).tracks.push(track);
         const artKey = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function') ? library.buildAlbumKey(track) : null;
         const cachedCover = artKey && state.albumCovers ? state.albumCovers.get(artKey) : null;
@@ -13066,11 +13102,14 @@
           source = state.context.createGain();
         }
       }
+      const replayGain = state.context.createGain();
+      replayGain.gain.value = 1;
       const router = state.context.createGain();
       const preamp = state.context.createGain(), direct = state.context.createGain();
       router.gain.value = element === audio ? 1 : 0;
-      source.connect(router);
-      return {element, source, router, preamp, direct, filters: []};
+      source.connect(replayGain);
+      replayGain.connect(router);
+      return {element, source, replayGain, router, preamp, direct, filters: []};
     }
     // Pha A — soft limiter sau EQ: các band EQ cộng dồn có thể vượt quá
     // headroom mà preamp bù (-maxBoost) chỉ tính cho band đơn lẻ, nên chèn
@@ -13267,6 +13306,13 @@
         [state.deckA, state.deckB].filter(Boolean).forEach(deck => {
           deck.preamp.gain.setTargetAtTime(0, state.context.currentTime, .015);
           deck.direct.gain.setTargetAtTime(1.0, state.context.currentTime, .015);
+          if (deck.replayGain && deck.replayGain.gain) {
+            if (typeof deck.replayGain.gain.setTargetAtTime === 'function') {
+              deck.replayGain.gain.setTargetAtTime(1.0, state.context.currentTime, .015);
+            } else {
+              deck.replayGain.gain.value = 1.0;
+            }
+          }
         });
         state.activeAnalyser = state.directAnalyser;
         // In Bit-Perfect mode, maintain volume at unity gain (1.0 / 0 dB) to prevent software digital bit reduction, deferring volume to the external DAC / hardware.
@@ -13993,12 +14039,18 @@
         audio.volume = 1.0;
         standbyAudio.volume = 1.0;
         if (state.corsBypassAudio) state.corsBypassAudio.volume = 1.0;
+        [state.deckA, state.deckB].forEach(deck => {
+          if (deck && deck.replayGain && deck.replayGain.gain) {
+            deck.replayGain.gain.value = 1.0;
+          }
+        });
         if (volEl) volEl.value = 100;
         if (volMobEl) volMobEl.value = 100;
         return;
       }
       const linear = num / 100, volume = linear === 0 ? 0 : Math.pow(10, (-60 + linear * 60) / 20);
-      const rgMult = (state.replayGainEnabled && Number.isFinite(state.replayGainMultiplier)) ? state.replayGainMultiplier : 1;
+      const hasPerDeckRgNode = Boolean(!state.usingCorsBypassAudio && state.context && state.activeDeck && state.activeDeck.replayGain && state.activeDeck.replayGain.gain);
+      const rgMult = (!hasPerDeckRgNode && state.replayGainEnabled && Number.isFinite(state.replayGainMultiplier)) ? state.replayGainMultiplier : 1;
       const effectiveVolume = Math.max(0, Math.min(1, volume * rgMult));
       audio.volume = effectiveVolume; standbyAudio.volume = effectiveVolume;
       if (state.corsBypassAudio) state.corsBypassAudio.volume = effectiveVolume;
@@ -14717,7 +14769,10 @@
         preampVal.textContent = `${val > 0 ? '+' : ''}${val.toFixed(1)} dB`;
       }
       if (guardStatus) {
-        if (!state.replayGainEnabled) {
+        if (state.bitPerfectEnabled) {
+          guardStatus.textContent = 'Bypass (Bit-Perfect)';
+          guardStatus.className = 'font-mono text-[9px] text-amber-400';
+        } else if (!state.replayGainEnabled) {
           guardStatus.textContent = 'Tắt';
           guardStatus.className = 'font-mono text-[9px] text-zinc-500';
         } else if (result && result.isGuardActive) {
@@ -14729,7 +14784,10 @@
         }
       }
       if (badge) {
-        if (!state.replayGainEnabled) {
+        if (state.bitPerfectEnabled) {
+          badge.textContent = 'Bypass (Direct)';
+          badge.className = 'font-mono text-[10px] text-amber-300';
+        } else if (!state.replayGainEnabled) {
           badge.textContent = 'Tắt';
           badge.className = 'font-mono text-[10px] text-zinc-500';
         } else if (!result) {
@@ -14750,22 +14808,52 @@
       }
     }
     function applyReplayGain(track) {
+      const setDeckGainValue = (deck, mult) => {
+        if (!deck || !deck.replayGain || !deck.replayGain.gain) return;
+        const g = deck.replayGain.gain;
+        const now = (state.context && Number.isFinite(state.context.currentTime)) ? state.context.currentTime : 0;
+        if (typeof g.cancelScheduledValues === 'function') {
+          try { g.cancelScheduledValues(now); } catch (_) {}
+        }
+        const isRunning = Boolean(state.context && state.context.state === 'running');
+        if (isRunning && typeof g.setTargetAtTime === 'function') {
+          try { g.setTargetAtTime(mult, now, 0.015); } catch (_) { g.value = mult; }
+        } else {
+          g.value = mult;
+          if (typeof g.setValueAtTime === 'function') {
+            try { g.setValueAtTime(mult, now); } catch (_) {}
+          }
+        }
+      };
+      if (state.bitPerfectEnabled) {
+        state.currentReplayGainResult = null;
+        state.replayGainMultiplier = 1;
+        setDeckGainValue(state.deckA, 1);
+        setDeckGainValue(state.deckB, 1);
+        updateReplayGainUi(null);
+        setGain(100);
+        return;
+      }
       if (!track) {
         state.currentReplayGainResult = null;
         state.replayGainMultiplier = 1;
+        setDeckGainValue(state.activeDeck || state.deckA, 1);
         updateReplayGainUi(null);
         return;
       }
       let result = null;
       if (typeof library.calculateDynamicReplayGain === 'function') {
-        result = library.calculateDynamicReplayGain(track, {
+        const rgOpts = {
           enabled: state.replayGainEnabled,
           standard: state.loudnessStandard || 'audiophile-album',
           mode: state.replayGainMode || 'track',
           preampDb: state.replayGainPreamp || 0,
-          truePeakAutoGuard: state.loudnessAutoGuard !== false,
-          measuredTruePeakDb: state.activeTruePeak || 0
-        });
+          truePeakAutoGuard: state.loudnessAutoGuard !== false
+        };
+        if (Number.isFinite(state.activeTruePeak)) {
+          rgOpts.measuredTruePeakDb = state.activeTruePeak;
+        }
+        result = library.calculateDynamicReplayGain(track, rgOpts);
       } else if (typeof library.computeReplayGainMultiplier === 'function') {
         const rg = typeof library.parseReplayGain === 'function' ? library.parseReplayGain(track) : { hasReplayGain: false, trackGain: 0, albumGain: 0 };
         result = library.computeReplayGainMultiplier(rg, {
@@ -14777,8 +14865,20 @@
       }
       state.currentReplayGainResult = result;
       state.replayGainMultiplier = (result && Number.isFinite(result.multiplier)) ? result.multiplier : 1;
+      let targetDeck = state.activeDeck || state.deckA || state.deckB || null;
+      if (state.deckA && state.deckB && state.activeDeck) {
+        const activeEl = state.activeDeck.element;
+        const activeTrackId = activeEl && activeEl.dataset ? String(activeEl.dataset.trackId || '') : '';
+        const nextTrackId = track.id != null ? String(track.id) : '';
+        if (activeEl && activeEl.src && !activeEl.paused && activeTrackId && nextTrackId && activeTrackId !== nextTrackId) {
+          targetDeck = state.activeDeck === state.deckA ? state.deckB : state.deckA;
+        }
+      }
+      const appliedMult = state.replayGainEnabled ? state.replayGainMultiplier : 1;
+      setDeckGainValue(targetDeck, appliedMult);
       updateReplayGainUi(result);
-      setGain(Number($('volume').value) || 72);
+      const volEl = $('volume');
+      setGain(volEl ? (Number(volEl.value) || 72) : 72);
     }
     function setReplayGainEnabled(enabled) {
       state.replayGainEnabled = !!enabled;
@@ -18474,6 +18574,7 @@
     // có khung nhạc) dùng chung, tránh nhân đôi logic crossfade/dọn deck.
     function finishPlaybackStart(track, generation, target, previousTrack) {
       if (generation !== state.playGeneration) return false;
+      if (state._abortedPlayGen && state._abortedPlayGen <= generation) state._abortedPlayGen = 0;
       if (state._crossfadeCleanupTimer && typeof clearTimeout === 'function') {
         clearTimeout(state._crossfadeCleanupTimer);
         state._crossfadeCleanupTimer = null;
@@ -18494,6 +18595,25 @@
       if (typeof target.removeAttribute === 'function') target.removeAttribute('muted');
       target.muted = false;
       audio = target; standbyAudio = previous; state.activeDeck = newDeck;
+      if (newDeck && newDeck.replayGain && newDeck.replayGain.gain) {
+        const rgTarget = state.bitPerfectEnabled ? 1 : ((state.replayGainEnabled && Number.isFinite(state.replayGainMultiplier)) ? state.replayGainMultiplier : 1);
+        const rgNow = (state.context && Number.isFinite(state.context.currentTime)) ? state.context.currentTime : 0;
+        if (typeof newDeck.replayGain.gain.cancelScheduledValues === 'function') {
+          try { newDeck.replayGain.gain.cancelScheduledValues(rgNow); } catch (_) {}
+        }
+        if (state.context && state.context.state === 'running' && typeof newDeck.replayGain.gain.setTargetAtTime === 'function') {
+          try { newDeck.replayGain.gain.setTargetAtTime(rgTarget, rgNow, 0.015); } catch (_) { newDeck.replayGain.gain.value = rgTarget; }
+        } else {
+          newDeck.replayGain.gain.value = rgTarget;
+          if (typeof newDeck.replayGain.gain.setValueAtTime === 'function') {
+            try { newDeck.replayGain.gain.setValueAtTime(rgTarget, rgNow); } catch (_) {}
+          }
+        }
+      }
+      if (typeof setGain === 'function') {
+        const volElFp = $('volume');
+        setGain(state.bitPerfectEnabled ? 100 : (volElFp ? (Number(volElFp.value) || 72) : 72));
+      }
       if (state.playbackRate) { audio.playbackRate = state.playbackRate; if (standbyAudio) standbyAudio.playbackRate = state.playbackRate; }
       const hasValidOldTime = (previous && typeof previous.currentTime === 'number') ? previous.currentTime > 0 : true;
       const isCtxRunning = (state.context && typeof state.context.state === 'string') ? state.context.state === 'running' : true;
@@ -18520,6 +18640,7 @@
         }
       }
       state.crossfadeUntil = fadeSeconds > 0 ? state.context.currentTime + fadeSeconds : 0;
+      if (!(fadeSeconds > 0) && wasOldPlaying && previous && previous !== target && state.context) state.crossfadeUntil = state.context.currentTime + 0.065;
       if (state.preloadTrackId === track.id) { state.preloadTrackId = null; state.preloadReadyUrl = null; }
       $('play-button').textContent = 'Ⅱ'; $('room-play').textContent = 'Ⅱ'; if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
       if ($('fullscreen-play-btn')) $('fullscreen-play-btn').textContent = '⏸';
@@ -18564,12 +18685,23 @@
       else if (typeof updatePositionState === 'function') updatePositionState(true);
       if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
       if (fadeSeconds > 0) {
-        state._crossfadeCleanupTimer = setTimeout(() => {
-          if (generation === state.playGeneration) {
+        const fadeCleanupTimer = setTimeout(() => {
+          if (state._crossfadeCleanupTimer === fadeCleanupTimer) {
             state._crossfadeCleanupTimer = null;
-            const preloadTrack = state.preloadTrackId ? state.tracks.find(item => item.id === state.preloadTrackId) : null;
-            const preloadHref = preloadTrack && preloadTrack.url ? new URL(preloadTrack.url, location.href).href : '';
-            const claimedByPreload = preloadHref !== '' && previous.src === preloadHref;
+            state.crossfadeUntil = 0;
+          }
+          const preloadTrack = state.preloadTrackId ? state.tracks.find(item => item.id === state.preloadTrackId) : null;
+          const preloadHref = preloadTrack && preloadTrack.url ? new URL(preloadTrack.url, location.href).href : '';
+          const claimedByPreload = preloadHref !== '' && previous.src === preloadHref;
+          const shouldCleanOldDeck = Boolean(
+            previous &&
+            previous !== audio &&
+            !claimedByPreload &&
+            (generation === state.playGeneration ||
+              (track && state.currentId !== track.id) ||
+              (state._abortedPlayGen && state._abortedPlayGen === state.playGeneration && state._abortedPlayGen > generation))
+          );
+          if (shouldCleanOldDeck) {
             if (!claimedByPreload) { previous.pause(); previous.muted = true; previous.removeAttribute('src'); previous.load(); }
             if (oldDeck && oldDeck.router && oldDeck.router.gain) {
               try {
@@ -18578,9 +18710,58 @@
                 if (typeof oldDeck.router.gain.setValueAtTime === 'function') oldDeck.router.gain.setValueAtTime(1, state.context ? state.context.currentTime : 0);
               } catch (_) {}
             }
+          } else if (generation === state.playGeneration && oldDeck && oldDeck.router && oldDeck.router.gain) {
+            try {
+              if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') oldDeck.router.gain.cancelScheduledValues(state.context ? state.context.currentTime : 0);
+              oldDeck.router.gain.value = 1;
+              if (typeof oldDeck.router.gain.setValueAtTime === 'function') oldDeck.router.gain.setValueAtTime(1, state.context ? state.context.currentTime : 0);
+            } catch (_) {}
           }
           releaseUnusedCloudUrl(previousTrack); releaseUnusedLocalUrl(previousTrack);
         }, fadeSeconds * 1000 + 50);
+        state._crossfadeCleanupTimer = fadeCleanupTimer;
+      } else if (wasOldPlaying && previous && previous !== target) {
+        const microRampPrev = previousTrack;
+        const microCleanupTimer = setTimeout(() => {
+          if (state._crossfadeCleanupTimer === microCleanupTimer) {
+            state._crossfadeCleanupTimer = null;
+            state.crossfadeUntil = 0;
+          }
+          const preloadTrack = state.preloadTrackId ? state.tracks.find(item => item.id === state.preloadTrackId) : null;
+          const preloadHref = preloadTrack && preloadTrack.url ? new URL(preloadTrack.url, location.href).href : '';
+          const claimedByPreload = preloadHref !== '' && previous.src === preloadHref;
+          const shouldCleanOldDeck = Boolean(
+            previous &&
+            previous !== audio &&
+            !claimedByPreload &&
+            (generation === state.playGeneration ||
+              (track && state.currentId !== track.id) ||
+              (state._abortedPlayGen && state._abortedPlayGen === state.playGeneration && state._abortedPlayGen > generation))
+          );
+          if (shouldCleanOldDeck) {
+            if (standbyAudio && standbyAudio !== audio && standbyAudio !== target) { standbyAudio.muted = true; standbyAudio.pause(); }
+            previous.pause(); previous.muted = true; previous.removeAttribute('src'); previous.load();
+            if (oldDeck && oldDeck.router && oldDeck.router.gain) {
+              try {
+                if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') oldDeck.router.gain.cancelScheduledValues(state.context ? state.context.currentTime : 0);
+                oldDeck.router.gain.value = 1;
+              } catch (_) {}
+            }
+          } else if (generation === state.playGeneration && oldDeck && oldDeck.router && oldDeck.router.gain) {
+            try {
+              if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') oldDeck.router.gain.cancelScheduledValues(state.context ? state.context.currentTime : 0);
+              oldDeck.router.gain.value = 1;
+            } catch (_) {}
+          }
+          if (generation === state.playGeneration) {
+            preloadNext(true);
+          }
+          if (!microRampPrev || microRampPrev.id !== state.currentId) {
+            if (typeof releaseUnusedCloudUrl === 'function') releaseUnusedCloudUrl(microRampPrev);
+            if (typeof releaseUnusedLocalUrl === 'function') releaseUnusedLocalUrl(microRampPrev);
+          }
+        }, 65);
+        state._crossfadeCleanupTimer = microCleanupTimer;
       } else {
         if (standbyAudio && standbyAudio !== target) { standbyAudio.muted = true; standbyAudio.pause(); }
         if (previous && previous !== target) {
@@ -18595,7 +18776,7 @@
         }
       }
       scheduleTrackRender();
-      preloadNext(true);
+      if (!(fadeSeconds === 0 && wasOldPlaying && previous && previous !== target)) preloadNext(true);
       releaseUnusedCloudUrl(previousTrack);
       releaseUnusedLocalUrl(previousTrack);
       return true;
@@ -18683,6 +18864,11 @@
         }
         state.usingCorsBypassAudio = true;
         audio = bypassEl;
+        if (typeof setGain === 'function') {
+          const volEl = $('volume');
+          const rawVol = volEl ? Number(volEl.value) : NaN;
+          setGain(state.bitPerfectEnabled ? 100 : (volEl && volEl.value !== '' && Number.isFinite(rawVol) ? rawVol : 72));
+        }
         $('play-button').textContent = 'Ⅱ';
         if ($('room-play')) $('room-play').textContent = 'Ⅱ';
         if ($('mini-play')) $('mini-play').textContent = 'Ⅱ';
@@ -18934,6 +19120,9 @@
       }
     }
     function abortPlayCleanup(track) {
+      if (typeof state === 'object' && state && state.playGeneration) {
+        state._abortedPlayGen = Math.max(state._abortedPlayGen || 0, state.playGeneration);
+      }
       if (!track || (typeof state !== 'undefined' && state && track.id === state.currentId)) return;
       if (typeof releaseUnusedCloudUrl === 'function') releaseUnusedCloudUrl(track);
       if (typeof releaseUnusedLocalUrl === 'function') releaseUnusedLocalUrl(track);
@@ -18997,11 +19186,19 @@
       const track = entry.track, previousTrack = entry.previousTrack;
       const bpGuardToken = (state._bpPositionGuardToken = (state._bpPositionGuardToken || 0) + 1);
       state._bpAwaitingStart = true;
+      let playCompleted = false;
+      let playGen = 0;
       try {
       state.currentId = track.id;
       const willUseNativeBp = isTrackRoutedToNativeBitPerfect(track);
       if (willUseNativeBp) abortStaleFullAudioUpgrades([state.preloadTrackId]);
       else abortStaleFullAudioUpgrades([track.id, state.preloadTrackId]);
+      if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; }
+      stopPrefetchDsdSlice();
+      if (state.dsdTrackId || state.dsdBlob || state.dsdUrl) stopDsdWorker(false);
+      if (previousTrack && previousTrack.id !== track.id && previousTrack.isDsd && String(previousTrack.id || '').indexOf('fiio_') === 0 && previousTrack.file) {
+        previousTrack.file = null;
+      }
       if (typeof displayTrack === 'function') displayTrack(track);
       if (typeof applyOptimisticPlaybackUi === 'function') applyOptimisticPlaybackUi(track);
       if (willUseNativeBp) suspendWebAudioForBitPerfect();
@@ -19023,10 +19220,36 @@
       if (audio) audio._userPausedDuringUpgrade = false;
       if (standbyAudio) standbyAudio._userPausedDuringUpgrade = false;
       const cleanupAborted = () => {
+        if (typeof state === 'object' && state) {
+          const genToMark = playGen || state.playGeneration || 0;
+          if (genToMark > 0) state._abortedPlayGen = Math.max(state._abortedPlayGen || 0, genToMark);
+        }
         if (typeof abortPlayCleanup === 'function') abortPlayCleanup(track);
         else if (track && track.id !== state.currentId) {
           if (typeof releaseUnusedCloudUrl === 'function') releaseUnusedCloudUrl(track);
           if (typeof releaseUnusedLocalUrl === 'function') releaseUnusedLocalUrl(track);
+        }
+      };
+      const notifyAbortMediaPaused = expectedGen => {
+        const genToCheck = expectedGen !== undefined ? expectedGen : playGen;
+        if (typeof state === 'object' && state && genToCheck > 0 && genToCheck !== state.playGeneration) return;
+        const isActiveAudioPlaying = Boolean(
+          (typeof audio !== 'undefined' && audio && !audio.paused && !audio.ended && audio.src && (typeof isSilentUnlockSrc !== 'function' || !isSilentUnlockSrc(audio))) ||
+          (typeof standbyAudio !== 'undefined' && standbyAudio && !standbyAudio.paused && !standbyAudio.ended && standbyAudio.src && (typeof isSilentUnlockSrc !== 'function' || !isSilentUnlockSrc(standbyAudio))) ||
+          (typeof state === 'object' && state && state.usingCorsBypassAudio && state.corsBypassAudio && !state.corsBypassAudio.paused && !state.corsBypassAudio.ended) ||
+          (typeof state === 'object' && state && state.isNativeBitPerfectPlaying)
+        );
+        if (isActiveAudioPlaying) return;
+        if (typeof window !== 'undefined' && typeof window.NocturneNative !== 'undefined' && typeof window.NocturneNative.updateMediaNotification === 'function') {
+          const abortMeta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(track) : track;
+          try {
+            window.NocturneNative.updateMediaNotification(
+              (abortMeta && abortMeta.title) || track.title || track.name || '',
+              (abortMeta && abortMeta.artist) || track.artist || '',
+              (abortMeta && abortMeta.album) || track.album || '',
+              false
+            );
+          } catch (_) {}
         }
       };
       setPlaybackLoading(true);
@@ -19063,6 +19286,7 @@
       // Pha C — phát lại bài local đã bị thu hồi blob URL: tạo lại URL từ
       // track.file (file gốc vẫn giữ trong RAM) để phát được ngay.
       const generation = ++state.playGeneration;
+      playGen = generation;
       if (typeof ensureLocalTrackPlayableUrl === 'function') await ensureLocalTrackPlayableUrl(track, { requestPermission: true });
       if (generation !== state.playGeneration || state._bpPositionGuardToken !== bpGuardToken) return cleanupAborted();
       if (track.source === 'local' && !track.isDsd && !track.url && track.file && !track._localAccessError) { track.url = URL.createObjectURL(track.file); state.objectUrls.add(track.url); }
@@ -19081,12 +19305,12 @@
       // 2. NON-BLOCKING DOM: Defer renderQueue() using requestAnimationFrame or requestIdleCallback instead of executing heavy DOM layout thrashing synchronously in the click handler and inside playTrack.
       if (typeof deferRenderQueue === 'function') deferRenderQueue(); else renderQueue();
       if (!wasPreloaded) ++state.preloadGeneration;
-      if (state.dsdWorker) { state.dsdWorker.postMessage({type:'cancel'}); state.dsdWorker.terminate(); state.dsdWorker = null; }
-      stopPrefetchDsdSlice();
-      if (state.dsdTrackId || state.dsdBlob || state.dsdUrl) stopDsdWorker(false);
       if (track.isDsd) {
         if (wasNativeBpActive) {
-          try { if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
+          try {
+            if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlaybackForHandoff === 'function') window.NocturneNative.stopBitPerfectPlaybackForHandoff();
+            else if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback();
+          } catch (_) {}
           if (typeof window !== 'undefined' && window.NocturneNative) {
             if (typeof window.NocturneNative.acquireWakeLock === 'function') { try { window.NocturneNative.acquireWakeLock(); } catch (_) {} }
             if (typeof window.NocturneNative.requestAudioFocus === 'function') { try { window.NocturneNative.requestAudioFocus(); } catch (_) {} }
@@ -19109,7 +19333,10 @@
           if (track._localAccessError === 'permission_denied') {
             setPlaybackLoading(false);
             if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
-            if (generation === state.playGeneration) $('play-button').textContent = '▶';
+            if (generation === state.playGeneration) {
+              $('play-button').textContent = '▶';
+              notifyAbortMediaPaused(generation);
+            }
             const isNativeSafEnv = typeof window !== 'undefined' && (window.isNativeAndroid || window.NocturneNative);
             if (!isNativeSafEnv && typeof setReopenFolderWarning === 'function') setReopenFolderWarning(true);
             toast('Trình duyệt cần cấp lại quyền đọc thư mục cục bộ để phát bài này.');
@@ -19122,6 +19349,7 @@
                 toast('Đang ngoại tuyến. Bài DSD cloud này cần Internet để tải.');
                 setPlaybackLoading(false);
                 if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+                if (generation === state.playGeneration) notifyAbortMediaPaused(generation);
                 return;
               }
             }
@@ -19157,6 +19385,7 @@
           if (!track.file) throw new Error('Không tải được file DSD từ nguồn phát.');
           await playDsdTrack(track, generation, playRequestedAt);
           if (generation !== state.playGeneration || state._bpPositionGuardToken !== bpGuardToken) return cleanupAborted();
+          playCompleted = true;
           setPlaybackLoading(false);
           releaseUnusedCloudUrl(previousTrack);
           releaseUnusedLocalUrl(previousTrack);
@@ -19171,7 +19400,7 @@
           console.error('DSD playback setup failed:', error);
           if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
           if (generation === state.playGeneration) $('play-button').textContent = '▶';
-          skipFailedTrack(generation, `Không thể chuẩn bị phát DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`);
+          if (!skipFailedTrack(generation, `Không thể chuẩn bị phát DSD: ${error.message || error}. Chuyển sang bài tiếp theo.`) && generation === state.playGeneration) notifyAbortMediaPaused(generation);
         }
         return;
       }
@@ -19242,20 +19471,21 @@
         }
       }
       if (track.load && !cachedCloudUrl && !(cloudBpStream && cloudBpStream.url) && wasNativeBpActive && typeof resetBitPerfectModeBadge === 'function') resetBitPerfectModeBadge();
+      const cloudLoadOfflineBlocked = typeof navigator !== 'undefined' && navigator.onLine === false && !((library && library.canPlayOffline) ? library.canPlayOffline(track) : (track.source === 'local' || !!track.file || !!track.blob));
       if (track.load && !cachedCloudUrl) {
         if (!(cloudBpStream && cloudBpStream.url)) {
           if (wasNativeBpActive) {
-            try { window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
-            state.isNativeBitPerfectPlaying = false; state.isNativeBitPerfectPaused = false; state.bitPerfectLockedFormat = null; state._bpRehydratedMatchedId = null;
-            state._bpRehydrationUnmatched = false;
+            const nn = window.NocturneNative;
+            try { if (nn && nn.stopBitPerfectPlaybackForHandoff) nn.stopBitPerfectPlaybackForHandoff(); else if (nn) nn.stopBitPerfectPlayback(); } catch (_) {}
+            state.isNativeBitPerfectPlaying = false; state.isNativeBitPerfectPaused = false; state.bitPerfectLockedFormat = null; state._bpRehydratedMatchedId = null; state._bpRehydrationUnmatched = false;
           }
-          if (typeof navigator !== 'undefined' && navigator.onLine === false && !((library && library.canPlayOffline) ? library.canPlayOffline(track) : (track.source === 'local' || !!track.file || !!track.blob))) {
-            toast('Đang ngoại tuyến. Bài hát cloud này cần Internet để tải.'); setPlaybackLoading(false); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); return;
+          if (cloudLoadOfflineBlocked) {
+            toast('Đang ngoại tuyến. Bài hát cloud này cần Internet để tải.'); setPlaybackLoading(false); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); if (generation === state.playGeneration) notifyAbortMediaPaused(generation); return;
           }
           try { await track.load(); }
           catch (error) {
             if (generation !== state.playGeneration || state._bpPositionGuardToken !== bpGuardToken) return cleanupAborted();
-            setPlaybackLoading(false); console.error('Track streaming failed:', error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); releaseUnusedCloudUrl(track); skipFailedTrack(generation, `Không thể phát bài hát: ${mediaErrorMessage(error)}. Chuyển sang bài tiếp theo.`); return;
+            setPlaybackLoading(false); console.error('Track streaming failed:', error); if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi(); releaseUnusedCloudUrl(track); if (!skipFailedTrack(generation, `Không thể phát bài hát: ${mediaErrorMessage(error)}. Chuyển sang bài tiếp theo.`) && generation === state.playGeneration) notifyAbortMediaPaused(generation); return;
           }
         }
       }
@@ -19335,6 +19565,7 @@
             if (typeof pruneExcessObjectUrls === 'function') pruneExcessObjectUrls();
             scheduleTrackRender();
             if (typeof preloadNext === 'function') preloadNext(true);
+            playCompleted = true;
             return;
           }
           if (typeof window.NocturneNative.setBitPerfectStreamAuth === 'function') {
@@ -19421,12 +19652,16 @@
             if (typeof pruneExcessObjectUrls === 'function') pruneExcessObjectUrls();
             scheduleTrackRender();
             if (typeof preloadNext === 'function') preloadNext(true);
+            playCompleted = true;
             return;
           }
         }
       }
       if (wasNativeBpActive) {
-        try { if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
+        try {
+          if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlaybackForHandoff === 'function') window.NocturneNative.stopBitPerfectPlaybackForHandoff();
+          else if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback();
+        } catch (_) {}
         if (typeof window !== 'undefined' && window.NocturneNative) {
           if (typeof window.NocturneNative.acquireWakeLock === 'function') { try { window.NocturneNative.acquireWakeLock(); } catch (_) {} }
           if (typeof window.NocturneNative.requestAudioFocus === 'function') { try { window.NocturneNative.requestAudioFocus(); } catch (_) {} }
@@ -19455,7 +19690,7 @@
             setPlaybackLoading(false);
             if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
             releaseUnusedCloudUrl(track);
-            skipFailedTrack(generation, 'Không thể phát bài hát: ' + mediaErrorMessage(fallbackLoadErr) + '. Chuyển sang bài tiếp theo.');
+            if (!skipFailedTrack(generation, 'Không thể phát bài hát: ' + mediaErrorMessage(fallbackLoadErr) + '. Chuyển sang bài tiếp theo.') && generation === state.playGeneration) notifyAbortMediaPaused(generation);
             return;
           }
           if (generation !== state.playGeneration || state._bpPositionGuardToken !== bpGuardToken) return cleanupAborted();
@@ -19473,7 +19708,7 @@
       }
 
       setupAudio();
-      if (!state.context) { setPlaybackLoading(false); return; }
+      if (!state.context) { setPlaybackLoading(false); if (generation === state.playGeneration) notifyAbortMediaPaused(generation); return; }
       if (state.context.state === 'suspended') await safeResumeAudioContext(350);
       if (generation !== state.playGeneration || state._bpPositionGuardToken !== bpGuardToken) return cleanupAborted();
       const target = standbyAudio;
@@ -19482,6 +19717,7 @@
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         const playBtn = $('play-button');
         if (playBtn && playBtn.textContent === '…') playBtn.textContent = '▶';
+        if (generation === state.playGeneration) notifyAbortMediaPaused(generation);
         if (track._localAccessError === 'not_found') {
           toast('Tệp cục bộ đã bị xóa hoặc di chuyển — hãy mở lại thư mục nhạc để đồng bộ.');
         } else if (track._localAccessError === 'permission_denied') {
@@ -19514,6 +19750,7 @@
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         const playBtn = $('play-button');
         if (playBtn && playBtn.textContent === '…') playBtn.textContent = '▶';
+        if (generation === state.playGeneration) notifyAbortMediaPaused(generation);
         if (track._localAccessError === 'not_found') {
           toast('Tệp cục bộ đã bị xóa hoặc di chuyển — hãy mở lại thư mục nhạc để đồng bộ.');
         } else if (track._localAccessError === 'permission_denied') {
@@ -19592,6 +19829,7 @@
         if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
         if (typeof pruneExcessObjectUrls === 'function') pruneExcessObjectUrls();
         scheduleTrackRender();
+        playCompleted = true;
         return;
       }
       target._unlockToken = (target._unlockToken || 0) + 1;
@@ -19744,8 +19982,9 @@
         if (initialTargetSeekSec > 0 && typeof ensureInitialSeekAfterPlay === 'function') {
           ensureInitialSeekAfterPlay(target, initialTargetSeekSec, clampedInitPos, generation, bpGuardToken);
         }
+        const finishOk = finishPlaybackStart(track, generation, target, previousTrack);
+        if (finishOk) playCompleted = true;
         setPlaybackLoading(false);
-        finishPlaybackStart(track, generation, target, previousTrack);
         if (typeof pruneExcessObjectUrls === 'function') pruneExcessObjectUrls();
       } catch (error) {
         if (generation !== state.playGeneration || state._bpPositionGuardToken !== bpGuardToken) return cleanupAborted();
@@ -19762,7 +20001,7 @@
           if (typeof deleteCachedFirstSlice === 'function') deleteCachedFirstSlice(track);
         }
         if ((error.name === 'NotSupportedError' || target.error) && track.firstSlicePlayback && (track.fullAudioPromise || track.fullAudioUrl)) {
-          if (await retrySlicePlaybackFromFullAudio(track, generation, target, previousTrack)) return;
+          if (await retrySlicePlaybackFromFullAudio(track, generation, target, previousTrack)) { playCompleted = true; return; }
         }
         if (isCorruptCachedSliceErr && track._cacheBypassRetriedGen !== generation && generation === state.playGeneration) {
           track._cacheBypassRetriedGen = generation;
@@ -19770,6 +20009,7 @@
           track.url = '';
           track.firstSlicePlayback = false;
           track.fullAudioError = null;
+          playCompleted = true;
           playTrack(track.id);
           return;
         }
@@ -19777,7 +20017,7 @@
           target.pause();
           target.removeAttribute('src');
           target.load();
-          if (await playViaDirectCorsBypassAudio(track, playUrl, generation, playRequestedAt, previousTrack)) return;
+          if (await playViaDirectCorsBypassAudio(track, playUrl, generation, playRequestedAt, previousTrack)) { playCompleted = true; return; }
           if (generation !== state.playGeneration || state._bpPositionGuardToken !== bpGuardToken) return cleanupAborted();
         }
         if ((error.name === 'NotSupportedError' || target.error) && track && track.source === 'local' && playUrl && playUrl.indexOf('/local-media?') !== -1 && typeof probeLocalMediaAccessError === 'function') {
@@ -19812,6 +20052,7 @@
                 track.url = pathFallbackUrl;
                 track._localAccessError = '';
                 syncSafSiblings(pathFallbackUrl, '');
+                playCompleted = true;
                 playTrack(track.id);
                 return;
               }
@@ -19819,19 +20060,34 @@
             if (localAccessErr === 'permission_denied') {
               track._localAccessError = 'permission_denied';
               syncSafSiblings('', 'permission_denied');
+              if (generation === state.playGeneration) notifyAbortMediaPaused(generation);
               toast('Quyền truy cập thư mục Android/SAF cho bài hát này đã bị thu hồi — hãy chọn lại tệp hoặc nhấn Quét thẻ nhớ FiiO.');
               return;
             }
             track._localAccessError = 'not_found';
             syncSafSiblings('', 'not_found');
-            skipFailedTrack(generation, 'Tệp cục bộ đã bị xóa hoặc di chuyển — hãy quét lại thư mục để đồng bộ.');
+            if (!skipFailedTrack(generation, 'Tệp cục bộ đã bị xóa hoặc di chuyển — hãy quét lại thư mục để đồng bộ.') && generation === state.playGeneration) notifyAbortMediaPaused(generation);
             return;
           }
         }
-        if (error.name === 'NotSupportedError' || target.error) skipFailedTrack(generation, `Không thể phát bài hát${track && (track.title || track.name) ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`);
+        let playErrSkipped = false;
+        if (error.name === 'NotSupportedError' || target.error) skipFailedTrack(generation, `Không thể phát bài hát${track && (track.title || track.name) ? ` “${track.title || track.name}”` : ''}, chuyển sang bài tiếp theo.`) && (playErrSkipped = true);
         else toast(mediaErrorMessage(error));
+        if (!playErrSkipped && generation === state.playGeneration) notifyAbortMediaPaused(generation);
       }
       } finally {
+        if (!playCompleted && playGen > 0 && typeof state === 'object' && state) {
+          state._abortedPlayGen = Math.max(state._abortedPlayGen || 0, playGen);
+          if (!state._crossfadeCleanupTimer && typeof standbyAudio !== 'undefined' && standbyAudio && standbyAudio !== audio && !standbyAudio.paused && standbyAudio.dataset && standbyAudio.dataset.trackId && String(standbyAudio.dataset.trackId) !== String(state.currentId != null ? state.currentId : '')) {
+            try {
+              standbyAudio.pause();
+              standbyAudio.muted = true;
+              if (typeof standbyAudio.removeAttribute === 'function') standbyAudio.removeAttribute('src');
+              if (typeof standbyAudio.load === 'function') standbyAudio.load();
+            } catch (_) {}
+            state.crossfadeUntil = 0;
+          }
+        }
         if (state._bpPositionGuardToken === bpGuardToken) state._bpAwaitingStart = false;
       }
     }
@@ -19864,6 +20120,9 @@
         }
       }
       state.dsdTrackId = null; state.dsdBlob = null;
+      if (!state.isPlaybackLoading && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setPlaybackLoadingWakeLock === 'function') {
+        try { window.NocturneNative.setPlaybackLoadingWakeLock(false); } catch (_) {}
+      }
     }
     // Pha C — phát lát PCM đầu DSD (từ worker hoặc từ cache IndexedDB):
     // tạo URL, đặt cờ lát đầu để guard 'ended'/'error' không chuyển bài
@@ -19874,9 +20133,17 @@
     // không bị kẹt vì state.dsdUrl đã có.
     async function playDsdFirstSlice(track, sliceBlob, generation, playRequestedAt) {
       if (!sliceBlob || !sliceBlob.size) return null;
+      if (state._crossfadeCleanupTimer && typeof clearTimeout === 'function') {
+        clearTimeout(state._crossfadeCleanupTimer);
+        state._crossfadeCleanupTimer = null;
+      }
+      state.crossfadeUntil = 0;
       setupAudio();
       if (!state.context) return null;
-      if (state.context.state === 'suspended') await state.context.resume();
+      if (state.context.state === 'suspended') {
+        if (typeof safeResumeAudioContext === 'function') await safeResumeAudioContext(350);
+        else await Promise.race([Promise.resolve(state.context.resume()).catch(() => {}), new Promise(r => setTimeout(r, 350))]);
+      }
       if (generation !== state.playGeneration) return null;
       const sliceUrl = URL.createObjectURL(sliceBlob); state.objectUrls.add(sliceUrl);
       state.dsdUrl = sliceUrl; state.dsdTrackId = track.id;
@@ -19941,11 +20208,17 @@
         else if (typeof updatePositionState === 'function') updatePositionState(true);
         recordHistory(track); scheduleTrackRender();
         if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
+        if (!state.isPlaybackLoading && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setPlaybackLoadingWakeLock === 'function') {
+          try { window.NocturneNative.setPlaybackLoadingWakeLock(false); } catch (_) {}
+        }
         preloadNext(true);
       } catch (error) {
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         if (state.dsdUrl === sliceUrl) { URL.revokeObjectURL(sliceUrl); state.objectUrls.delete(sliceUrl); state.dsdUrl = null; state.dsdTrackId = null; }
         track.url = ''; track.firstSlicePlayback = false;
+        if (!state.isPlaybackLoading && !(state.dsdWorker && !state.dsdUrl) && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setPlaybackLoadingWakeLock === 'function') {
+          try { window.NocturneNative.setPlaybackLoadingWakeLock(false); } catch (_) {}
+        }
         throw error;
       }
       return sliceUrl;
@@ -19953,6 +20226,11 @@
     async function playDsdTrack(track, generation, playRequestedAt) {
       stopDsdWorker(false);
       if (generation !== state.playGeneration) return;
+      if (state._crossfadeCleanupTimer && typeof clearTimeout === 'function') {
+        clearTimeout(state._crossfadeCleanupTimer);
+        state._crossfadeCleanupTimer = null;
+      }
+      state.crossfadeUntil = 0;
       if (!dsdSourceInfo(track.sampleRate) && track.file && typeof readAudioMetadata === 'function') {
         try {
           const probed = await readAudioMetadata(track.file);
@@ -19991,13 +20269,16 @@
         setupAudio();
         if (!state.context) throw new Error('Trình duyệt không hỗ trợ Web Audio API.');
       }
-      if (state.context.state === 'suspended') await state.context.resume();
+      if (state.context.state === 'suspended') {
+        if (typeof safeResumeAudioContext === 'function') await safeResumeAudioContext(350);
+        else await Promise.race([Promise.resolve(state.context.resume()).catch(() => {}), new Promise(r => setTimeout(r, 350))]);
+      }
       $('play-button').textContent = '…';
       displayTrack(track); scheduleTrackRender();
       toast(`Đang giải mã DSD → PCM ${(state.dsdOutputRate/1000).toFixed(1)} kHz / ${state.dsdOutputDepth}-bit…`);
+      let dsdSliceUrl = null, dsdFullResolve = null;
       try {
         if (!location.protocol.startsWith('http')) throw new Error('Hãy mở NOCTURNE qua localhost hoặc HTTPS để dùng Web Worker.');
-        let dsdSliceUrl = null, dsdFullResolve = null;
         const cueStartSec = (track.isCue && Number.isFinite(Number(track.cueStart)) && Number(track.cueStart) > 0) ? Number(track.cueStart) : 0;
         const skipDsdFirstSliceForCue = Boolean(track.isCue && cueStartSec > 0.5);
         track.firstSlicePlayback = false; track.sliceEndedEarly = false; track.dsdFirstSliceMs = null;
@@ -20044,6 +20325,9 @@
         const worker = new Worker(new URL('dsd-worker.js', dsdWorkerBaseUrl));
         state.dsdWorker = worker;
         state.dsdTrackId = track.id;
+        if (!dsdSliceUrl && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setPlaybackLoadingWakeLock === 'function') {
+          try { window.NocturneNative.setPlaybackLoadingWakeLock(true); } catch (_) {}
+        }
         worker.onmessage = async event => {
           const message = event.data || {};
           if (generation !== state.playGeneration || state.dsdWorker !== worker) {
@@ -20117,7 +20401,10 @@
           track.fullAudioPromise = null;
           setupAudio();
           if (!state.context) return;
-          if (state.context.state === 'suspended') await state.context.resume();
+          if (state.context.state === 'suspended') {
+            if (typeof safeResumeAudioContext === 'function') await safeResumeAudioContext(350);
+            else await Promise.race([Promise.resolve(state.context.resume()).catch(() => {}), new Promise(r => setTimeout(r, 350))]);
+          }
           if (generation !== state.playGeneration) {
             try { URL.revokeObjectURL(url); } catch (_) {}
             state.objectUrls.delete(url);
@@ -20193,6 +20480,9 @@
           }
           displayTrack(track);
           if (dsdSliceUrl && ![audio, standbyAudio].some(element => element.src === sliceAbsoluteUrl)) releaseTrackUrl(dsdSliceUrl);
+          if (wasSlicePlaying && !state.isPlaybackLoading && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setPlaybackLoadingWakeLock === 'function') {
+            try { window.NocturneNative.setPlaybackLoadingWakeLock(false); } catch (_) {}
+          }
           if (!wasSlicePlaying) {
             if (audio._userPausedDuringUpgrade) {
               audio._userPausedDuringUpgrade = false;
@@ -20200,6 +20490,9 @@
               if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
               if (typeof updatePositionState === 'function') updatePositionState(true);
               scheduleTrackRender();
+              if (!state.isPlaybackLoading && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setPlaybackLoadingWakeLock === 'function') {
+                try { window.NocturneNative.setPlaybackLoadingWakeLock(false); } catch (_) {}
+              }
               return;
             }
             if (targetDsdPos > 0) {
@@ -20234,9 +20527,17 @@
               else if (typeof updatePositionState === 'function') updatePositionState(true);
               recordHistory(track); scheduleTrackRender();
         if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
+              if (!state.isPlaybackLoading && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setPlaybackLoadingWakeLock === 'function') {
+                try { window.NocturneNative.setPlaybackLoadingWakeLock(false); } catch (_) {}
+              }
         preloadNext(true);
             }
-            catch (error) { console.error('DSD PCM playback failed:', error); skipFailedTrack(generation, `Không thể phát PCM đã giải mã trong trình duyệt. Chuyển sang bài tiếp theo.`); }
+            catch (error) {
+              if (!state.isPlaybackLoading && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setPlaybackLoadingWakeLock === 'function') {
+                try { window.NocturneNative.setPlaybackLoadingWakeLock(false); } catch (_) {}
+              }
+              console.error('DSD PCM playback failed:', error); skipFailedTrack(generation, `Không thể phát PCM đã giải mã trong trình duyệt. Chuyển sang bài tiếp theo.`);
+            }
           }
         };
         worker.onerror = event => {
@@ -21763,14 +22064,22 @@
       if (!parentId || parentId === 'root') return false;
       const parentName = String(namesMap[parentId] || '').trim();
       if (!parentName) return false;
-      const isDiscFn = (typeof library !== 'undefined' && library && typeof library.isDiscSubfolderName === 'function')
-        ? library.isDiscSubfolderName
-        : (n => /^(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*\d{1,2}(?:\b.*)?$/i.test(String(n || '').trim()));
+      const parseDiscFn = (typeof library !== 'undefined' && library && typeof library.parseDiscSubfolderInfo === 'function')
+        ? library.parseDiscSubfolderInfo
+        : null;
+      const isDiscFn = parseDiscFn
+        ? (n => parseDiscFn(n).isDiscFolder)
+        : ((typeof library !== 'undefined' && library && typeof library.isDiscSubfolderName === 'function')
+          ? library.isDiscSubfolderName
+          : (n => /^(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*\d{1,2}(?:\b.*)?$/i.test(String(n || '').trim())));
       const isDiscSub = Boolean(isDiscFn(parentName));
       let mutated = false;
       if (isDiscSub && track.discNumber == null) {
-        const dm = parentName.match(/\b(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*(\d{1,2})\b/i);
-        const dn = dm ? parseInt(dm[1], 10) : 0;
+        let dn = parseDiscFn ? parseDiscFn(parentName).discNumber : 0;
+        if (!dn) {
+          const dm = parentName.match(/\b(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*(\d{1,2})\b/i);
+          dn = dm ? parseInt(dm[1], 10) : 0;
+        }
         if (dn > 0) {
           track.discNumber = dn;
           mutated = true;
@@ -22583,8 +22892,13 @@
                   renamedOrReparentedFolderIds.add(fidStr);
                 }
                 if (folderName && isDiscDirFn(folderName)) {
-                  const dm = folderName.match(/\b(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*(\d{1,2})\b/i);
-                  const parsedDisc = dm ? parseInt(dm[1], 10) : 0;
+                  let parsedDisc = (typeof library !== 'undefined' && library && typeof library.parseDiscSubfolderInfo === 'function')
+                    ? library.parseDiscSubfolderInfo(folderName).discNumber
+                    : 0;
+                  if (!parsedDisc) {
+                    const dm = folderName.match(/\b(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*(\d{1,2})\b/i);
+                    parsedDisc = dm ? parseInt(dm[1], 10) : 0;
+                  }
                   if (parsedDisc > 0) {
                     for (let ti = 0; ti < state.tracks.length; ti++) {
                       const tr = state.tracks[ti];
@@ -26067,12 +26381,19 @@
     }
 
     /* $('playlist-export-m3u-btn')?.addEventListener('click' */ safeOn($('playlist-export-m3u-btn'), 'click', () => {
+      const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
       const tools = window.LibraryTools || (typeof LibraryTools !== 'undefined' ? LibraryTools : null);
-      if (!tools || typeof tools.exportPlaylistM3U !== 'function') return toast('M3U Exporter chưa sẵn sàng.');
       const list = getM3uExportTracks();
       if (!list.length) return toast('Không có bài hát nào để xuất M3U.');
       const name = state.activeSmartPlaylistKey ? `Playlist-${state.activeSmartPlaylistKey}` : 'Nocturne-Playlist';
-      const m3u = tools.exportPlaylistM3U(name, list);
+      let m3u = '';
+      if (lib && typeof lib.exportPlaylistM3u8 === 'function') {
+        m3u = lib.exportPlaylistM3u8(name, list);
+      } else if (tools && typeof tools.exportPlaylistM3U === 'function') {
+        m3u = tools.exportPlaylistM3U(name, list);
+      } else {
+        return toast('M3U Exporter chưa sẵn sàng.');
+      }
       const blob = new Blob([m3u], { type: 'audio/x-mpegurl;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -26086,11 +26407,18 @@
     });
 
     /* $('queue-export-m3u-btn')?.addEventListener('click' */ safeOn($('queue-export-m3u-btn'), 'click', () => {
+      const lib = typeof NocturneLibrary !== 'undefined' ? NocturneLibrary : (typeof library !== 'undefined' ? library : null);
       const tools = window.LibraryTools || (typeof LibraryTools !== 'undefined' ? LibraryTools : null);
-      if (!tools || typeof tools.exportPlaylistM3U !== 'function') return toast('M3U Exporter chưa sẵn sàng.');
       const list = (state.queueTrackIds || []).map(id => state.tracks.find(t => t.id === id)).filter(Boolean);
       if (!list.length) return toast('Hàng đợi rỗng.');
-      const m3u = tools.exportPlaylistM3U('Nocturne-Queue', list);
+      let m3u = '';
+      if (lib && typeof lib.exportPlaylistM3u8 === 'function') {
+        m3u = lib.exportPlaylistM3u8('Nocturne-Queue', list);
+      } else if (tools && typeof tools.exportPlaylistM3U === 'function') {
+        m3u = tools.exportPlaylistM3U('Nocturne-Queue', list);
+      } else {
+        return toast('M3U Exporter chưa sẵn sàng.');
+      }
       const blob = new Blob([m3u], { type: 'audio/x-mpegurl;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -27465,6 +27793,10 @@
         existingPaths.add(normPath);
         existingByPath.set(normPath, prevTrack);
       }
+      const nextRelPath = (file && typeof file.relativePath === 'string' && file.relativePath.trim())
+        ? file.relativePath.trim()
+        : (normUri && typeof library !== 'undefined' && library && typeof library.decodeSafDocRelativePath === 'function' ? library.decodeSafDocRelativePath(normUri) : '');
+      if (nextRelPath) prevTrack.relativePath = nextRelPath;
       const rawFileName = file.name ? String(file.name).trim() : (normPath ? normPath.slice(Math.max(normPath.lastIndexOf('/'), normPath.lastIndexOf('\\')) + 1) : '');
       const newBaseName = rawFileName ? rawFileName.replace(/\.[^/.]+$/, '') : '';
       const nameChanged = Boolean(newBaseName && oldName !== newBaseName);
@@ -31815,7 +32147,8 @@
         if (element._upgradingFullAudio) return;
         const corsActivelyPlaying = Boolean(state.corsBypassAudio && state.corsBypassAudio !== element && !state.corsBypassAudio.paused && state.corsBypassAudio.src);
         if (corsActivelyPlaying) return;
-        const standbyActivelyPlaying = Boolean(standbyAudio && !standbyAudio.paused && !standbyAudio._unlockingGesture && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(standbyAudio)) && standbyAudio.src);
+        const standbyDyingFadeOut = Boolean(typeof state === 'object' && state && state._crossfadeCleanupTimer && standbyAudio && (!standbyAudio.dataset || String(standbyAudio.dataset.trackId || '') !== String(state.currentId != null ? state.currentId : '')));
+        const standbyActivelyPlaying = Boolean(standbyAudio && !standbyDyingFadeOut && !standbyAudio.paused && !standbyAudio._unlockingGesture && !(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc(standbyAudio)) && standbyAudio.src);
         if (element === audio && standbyActivelyPlaying) return;
         if (element !== audio) return;
         if (state.isPlaybackLoading && element.dataset && element.dataset.trackId && state.currentId != null && String(element.dataset.trackId) !== String(state.currentId)) return;
@@ -31823,6 +32156,12 @@
         if (pauseTrack && pauseTrack.firstSlicePlayback && (pauseTrack.fullAudioPromise || pauseTrack.sliceEndedEarly) && element.ended) {
           if ($('play-button')) { $('play-button').textContent = '…'; if ($('play-button').classList) $('play-button').classList.add('loading-pulse'); }
           return;
+        }
+        if (element.ended === true && !state.sleepAtTrackEnd && ((state.autoplay !== false && (typeof queueIndex === 'function' && queueIndex() >= 0)) || state.repeat === 2)) {
+          return;
+        }
+        if (!element.ended && element === audio && standbyDyingFadeOut && standbyAudio && standbyAudio !== element && !standbyAudio.paused) {
+          try { standbyAudio.pause(); } catch (_) {}
         }
         $('play-button').textContent = '▶'; $('room-play').textContent = '▶';
         if ($('play-button').classList) $('play-button').classList.remove('loading-pulse');
@@ -32040,6 +32379,9 @@
           if (state.corsBypassAudio && state.corsBypassAudio !== curAudio && !state.corsBypassAudio.paused) {
             try { state.corsBypassAudio.pause(); } catch (_) {}
           }
+          if (typeof standbyAudio !== 'undefined' && standbyAudio && standbyAudio !== curAudio && !standbyAudio.paused) {
+            try { standbyAudio.pause(); } catch (_) {}
+          }
           if (curAudio) curAudio.pause();
           if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
         });
@@ -32110,9 +32452,12 @@
         });
         action('stop', () => {
           const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
-          curAudio.pause();
+          if (typeof standbyAudio !== 'undefined' && standbyAudio && standbyAudio !== curAudio && !standbyAudio.paused) {
+            try { standbyAudio.pause(); } catch (_) {}
+          }
+          if (curAudio) curAudio.pause();
           const curTrack = state.tracks.find(t => t.id === state.currentId);
-          curAudio.currentTime = (curTrack && curTrack.cueStart !== undefined) ? curTrack.cueStart : 0;
+          if (curAudio) curAudio.currentTime = (curTrack && curTrack.cueStart !== undefined) ? curTrack.cueStart : 0;
           updatePositionState(true);
         });
       } catch (error) { console.warn('Could not register media session actions:', error); }

@@ -228,7 +228,10 @@ test('2. #play-button, handleNativeBitPerfectPlayPauseClick, finishPlaybackStart
   // 2c. attachDeckEvents pause guard does NOT ignore real pause when standby holds SILENT_UNLOCK_WAV
   const deckStart = html.indexOf('function attachDeckEvents(element)');
   const deckEnd = html.indexOf('attachDeckEvents(audio); attachDeckEvents(standbyAudio);', deckStart);
-  assert.ok(html.slice(deckStart, deckEnd).includes('const standbyActivelyPlaying = Boolean(standbyAudio && !standbyAudio.paused && !standbyAudio._unlockingGesture && !(typeof isSilentUnlockSrc === \'function\' && isSilentUnlockSrc(standbyAudio)) && standbyAudio.src);'));
+  assert.match(
+    html.slice(deckStart, deckEnd),
+    /const standbyActivelyPlaying = Boolean\(standbyAudio &&(?: !standbyDyingFadeOut &&)? !standbyAudio\.paused && !standbyAudio\._unlockingGesture && !\(typeof isSilentUnlockSrc === 'function' && isSilentUnlockSrc\(standbyAudio\)\) && standbyAudio\.src\);/
+  );
 });
 
 test('3. Fast-Tap exempts transport buttons & waveforms, releaseSeekLock clears stuck isSeeking, attachWaveformTouchScrub & seekByStep Bit-Perfect parity', () => {
@@ -304,8 +307,8 @@ test('4. MainActivity.java: BitPerfectAudioPlayer isActive/guards, mCurrentSourc
   assert.ok(java.includes('public boolean isActive() {'));
   assert.ok(java.includes('public String getCurrentSourceKey() {'));
   assert.ok(java.includes('public boolean isBitPerfectActive() {'));
-  assert.match(java, /public void pause\(\) \{\s*if \(!isActive\(\)\) return;/);
-  assert.match(java, /public void resume\(\) \{[\s\S]{0,120}if \(!isActive\(\)\) \{[\s\S]*?return;/);
+  assert.match(java, /public void pause\(\) \{[\s\S]{0,350}if \(!isActive\(\)\) return;/);
+  assert.match(java, /public void resume\(\) \{[\s\S]{0,350}if \(!isActive\(\)\) \{[\s\S]*?return;/);
   assert.ok(java.includes('if (!mIsPaused && !mIsStopped) {\n                    track.play();'));
   assert.ok(java.includes('private static long[] findMp4BoxRange('));
   assert.ok(java.includes('private static byte[] extractMp4CovrFromChannel('));

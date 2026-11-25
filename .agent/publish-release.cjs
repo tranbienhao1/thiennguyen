@@ -80,24 +80,25 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.103';
-  const name = process.argv[3] || `Nocturne ${tag} (AVRCP 1.6 & USB DAC Bit-Perfect Recovery, Cloud & FiiO SAF Delta/CUE Hot-Swap, Queue Persistence & Chrome E2E)`;
+  const tag = process.argv[2] || 'v3.9.104';
+  const name = process.argv[3] || `Nocturne ${tag} (Gapless Bit-Perfect & DSD Transitions, Doze FGS Continuity, Multi-Disc Album Merge, ReplayGain Parity & M3U8 Sync)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 157) — AVRCP 1.6 Position Sync, USB DAC Bit-Perfect Mixer Recovery, Queue Persistence & Cloud/Local/SAF Delta + CUE Hot-Swap
+    : `### Nocturne ${tag} (versionCode 158) — Gapless Bit-Perfect & DSD Transitions, Doze FGS Survivability, Multi-Disc Album Merge, ReplayGain Parity & M3U8 Playlist Sync
 
-#### 1. R1: Android Old (API 26–30 / FiiO M11S / Chromium 74) & New (API 31–35+) AVRCP 1.6, USB DAC Recovery & Queue Persistence (\`MainActivity.java\`, \`index.html\`)
-- Guarded \`runPlaybackLoop\` 1000ms \`updateMediaSessionPosition\` with \`mSeekGeneration\`, \`mSeekTargetUs\`, and \`mTrackWindow.seq\`; pushed immediate post-seek PTS to \`MediaSession\` (both playing and paused); clamped backward CUE \`setTrackWindowMeta\` switches; isolated Android WebView \`navigator.mediaSession\` during Native Bit-Perfect playback; fixed \`seekCurrentPlaybackToSeconds(0)\` and duration UI sync.
-- Upgraded \`Api34AudioHelper\` on API 34+ to query \`getSupportedMixerAttributes\` for integer PCM (\`24BIT_PACKED\`/\`32BIT\`/\`16BIT\`) with float-to-int PCM conversion fallback, cleared stale \`mPreferredMixerAttributesSet\` on \`fallbackAttrs\`, added bounded settle/retry on rapid consecutive-track switches (\`44.1/16 -> 96/24 -> 192/24 -> 44.1/16\`) across API 26–30 and API 31–35+, and cleared \`bitPerfectLockedFormat\` before \`startBitPerfectPlayback\`.
-- Flushed \`savePlaybackSession(true)\` on all queue mutations and \`onAndroidAppLifecycle('background')\`/\`visibilitychange\`, merged pending \`queueTrackIds\` cleanly across async Cloud/Local rehydration, and fixed \`onNativeBitPerfectAuthRefresh\` to rebuild Google Drive URLs and invalidate stale \`_bpPreloadedStream\`.
+#### 1. R1: Android Old (API 26–30 / FiiO M11S / Chromium 74) & New (API 31–35+) Gapless Bit-Perfect, DSD-to-PCM & Doze Playback Service (\`MainActivity.java\`, \`NocturnePlaybackService.java\`, \`index.html\`)
+- Added \`BitPerfectAudioPlayer\` natural-EOS tail-frame drain (\`getPlaybackHeadPosition\`), clickless micro-ramp on seek/pause/format switches, 2-step USB DAC settle (\`55ms + 95ms\`), and API 26–30 \`INFO_OUTPUT_FORMAT_CHANGED\` synchronization.
+- Added bounded \`mTransitionHoldUntilElapsedMs\` EOS/handoff hold, \`stopBitPerfectPlaybackForHandoff()\`, and \`setPlaybackLoadingWakeLock()\` across \`MainActivity.java\` and \`NocturnePlaybackService.java\` so API 26–30 and API 31–35+ keep foreground service, \`WakeLock\`/\`WifiLock\`, and \`AudioFocus\` across consecutive tracks while fixing \`START_STICKY\` null-intent zombie notifications.
+- Hardened Web Audio \`Deck A <-> Deck B\` \`65ms\` deferred cleanup & \`0.07s\` lookahead, \`attachDeckEvents\` \`pause\`-on-\`ended\` guard, \`safeResumeAudioContext(350)\`, \`stopDsdWorker(false)\` ordering before \`setupAudio()\`, and \`fiio_\` DSD \`previousTrack.file\` release.
 
-#### 2. R2: Cloud (Google Drive / OneDrive) & Local/FiiO/SAF Incremental Sidecars & CUE Hot-Swap (\`index.html\`, \`library-utils.js\`, \`MainActivity.java\`)
-- Hardened Google Drive & OneDrive delta reconciliation for added, updated, and permanently removed \`.lrc\` and \`folder.jpg\` files (including disc subfolders, \`/drive/root:/\` prefix stripping, NFC filename matching, and \`metadataRetryAt\` clearing) while preserving ReplayGain, \`rating\`, \`playCount\`, \`isFavorite\`, and \`trackAnnotations\`.
-- Upgraded Web Local & FiiO/Android SAF (\`DocumentsContract\`) incremental sync for in-place CUE hot-swap (refreshing metadata/timing/duration/LRC without losing user fields), deleted \`.cue\`/\`.lrc\`/\`folder.jpg\` cleanup, \`&v=\` cover cache-busting, and ReplayGain compaction.
+#### 2. R2: Cloud & Local/FiiO/SAF Multi-Disc Album Merge, ReplayGain Parity & Incremental M3U8 Sync (\`library-utils.js\`, \`library-tools.js\`, \`index.html\`)
+- Unified \`parseDiscSubfolderInfo\` and \`stripAlbumDiscSuffix\` to merge multi-disc subfolders (\`CD 1\`, \`CD 2\`, \`Disc A\`, \`Side 1\`, \`Vol. 1\`) and \`Various Artists\` compilations across Google Drive (\`googleFolderTree\`), OneDrive, and Local/FiiO SAF (\`decodeSafDocRelativePath\`).
+- Routed all M3U/M3U8 exports through \`exportPlaylistM3u8\` (never emitting \`blob:\`/\`data:\`/\`appassets\` URLs) and hardened \`matchPlaylistWithLibrary\` with SAF \`docId\` decoding, \`#EXTDISC:\` disambiguation, and folder/disc-conflict guards.
+- Fixed \`albumPeak\` selection in \`calculateDynamicReplayGain\`, \`formatReplayGain\` compatibility, per-deck \`deck.replayGain\` \`GainNode\` isolation across \`Deck A <-> Deck B\`, and strict unity gain (\`1.0\`) bypass via \`applyBitPerfectMode\`.
 
-#### 3. R3 & R4: Unit Tests, Live Chrome CDP E2E Group L & Release Parity (\`test/v3-9-103-*.test.cjs\`, \`live-chrome-play-pause-test.cjs\`)
-- Added \`test/v3-9-103-r1-avrcp-dac-queue.test.cjs\`, \`test/v3-9-103-r2-delta-cue-saf.test.cjs\`, \`test/v3-9-103-r3-oauth-seek-parity.test.cjs\`, and Chrome CDP E2E Group L verifying cross-deck seek parity (\`#seek\` <-> \`#seek-mobile\` <-> \`#room-seek\`) and mid-session queue persistence with \`0\` uncaught JS exceptions.
+#### 3. R3 & R4: Unit Tests, Live Chrome CDP E2E Group M & Release Parity (\`test/v3-9-104-*.test.cjs\`, \`live-chrome-play-pause-test.cjs\`)
+- Added \`test/v3-9-104-r1-gapless-dsd-doze-dac.test.cjs\`, \`test/v3-9-104-r2-multidisc-m3u-replaygain.test.cjs\`, \`test/v3-9-104-r3-e2e-compat-release.test.cjs\`, and Chrome CDP E2E Group M verifying multi-disc merge, ReplayGain Track/Album & Bit-Perfect Deck A/B switching, and M3U8 round-trip with \`0\` uncaught JS exceptions.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

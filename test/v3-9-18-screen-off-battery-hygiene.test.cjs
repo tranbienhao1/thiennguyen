@@ -19,7 +19,11 @@ test('1. MainActivity.java smart WifiLock (local vs remote), idle onPause releas
   assert.ok(java.includes('private volatile boolean mIsMediaPlaying = false;'), 'MainActivity must track media playing state');
   assert.ok(java.includes('public void acquireWakeLock(boolean needWifiLock)'), 'acquireWakeLock must support needWifiLock flag');
   assert.ok(java.includes('Released WifiLock for offline local playback'), 'Local playback must release WifiLock to save FiiO M11S battery');
-  assert.ok(java.includes('if (!mIsMediaPlaying && (mBitPerfectPlayer == null || !mBitPerfectPlayer.isPlaying())) {\n            releaseWakeLock();\n        }'), 'onPause must guarantee WakeLock/WifiLock release when idle');
+  assert.match(
+    java,
+    /protected void onPause\(\)\s*\{[\s\S]{0,500}if \([\s\S]{0,200}!mIsMediaPlaying[\s\S]{0,200}\(mBitPerfectPlayer == null \|\| !mBitPerfectPlayer\.isPlaying\(\)\)\)\s*\{\s*releaseWakeLock\(\);\s*\}/,
+    'onPause must guarantee WakeLock/WifiLock release when idle'
+  );
   assert.ok(java.includes('final long uiUpdateIntervalMs = mIsInBackground ? 2000L : 250L;'), 'BitPerfect position IPC must throttle 8x (2000ms) while screen is off');
   assert.ok(java.includes('MediaMetadata.METADATA_KEY_DURATION'), 'MediaSession metadata must publish duration when BitPerfect duration is known');
   assert.ok(java.includes('onNativeBitPerfectPosition(")\n                      .append(bpPosMs)'), 'onResume must snap BitPerfect seek position immediately on screen wake');

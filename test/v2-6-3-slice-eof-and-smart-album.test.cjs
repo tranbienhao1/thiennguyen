@@ -494,7 +494,7 @@ test('v3.9.1: fetchAudioFirstSlice recovers from transient 503 with 1 fast retry
 
   const mainJava = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
   assert.ok(mainJava.includes('private volatile AudioTrack mAudioTrack = null;'), 'BitPerfectAudioPlayer.mAudioTrack must be volatile');
-  assert.match(mainJava, /public void resume\(\)\s*\{\s*acquireWakeLock\([^)]*\);\s*requestAudioFocus\(\);/, 'BitPerfectAudioPlayer.resume must re-acquire WakeLock and AudioFocus');
+  assert.match(mainJava, /public void resume\(\)\s*\{[\s\S]{0,300}acquireWakeLock\([^)]*\);\s*requestAudioFocus\(\);/, 'BitPerfectAudioPlayer.resume must re-acquire WakeLock and AudioFocus');
 });
 
 test('v3.9.2: preloadNext recreates revoked local blob URLs for gapless repeat & backs off 30s on failed preload', () => {

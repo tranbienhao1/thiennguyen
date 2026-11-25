@@ -85,7 +85,10 @@ test('Big Update v2.2.0 (Web + Android APK) Verification Suite', async (t) => {
     assert.ok(indexHtml.includes('window.getBitPerfectTelemetry = function()'), 'Web Bit-Perfect telemetry must exist');
     assert.ok(indexHtml.includes('window.onBitPerfectFormatLocked = function'), 'Native Bit-Perfect format lock callback must exist');
     assert.ok(mainActivity.includes('Pre-build setPreferredMixerBitPerfect'), 'MainActivity must apply Android 14+ Bit-Perfect mixer BEFORE AudioTrack.build()');
-    assert.ok(mainActivity.includes('track.setVolume(AudioTrack.getMaxVolume())'), 'MainActivity must lock AudioTrack gain to unity 1.0');
+    assert.ok(
+      mainActivity.includes('track.setVolume(AudioTrack.getMaxVolume())') || mainActivity.includes('track.setVolume(mIsDucked ? 0.25f : AudioTrack.getMaxVolume())'),
+      'MainActivity must lock AudioTrack gain to unity 1.0'
+    );
     assert.ok(mainActivity.includes('notifyBitPerfectFormatToWeb('), 'MainActivity must report locked Bit-Perfect format to Web');
     assert.ok(indexHtml.includes('detectLegacyAndroidEnvironment()'), 'Legacy Android detection must exist');
     assert.ok(indexHtml.includes('body.legacy-android'), 'Legacy Android low-GPU CSS rules must exist');

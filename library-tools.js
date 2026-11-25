@@ -544,6 +544,30 @@
    * @param {Object} [options] - Options
    * @returns {string} M3U/M3U8 formatted string
    */
+  function isEphemeralM3uUrl(value) {
+    return /^(?:blob:|data:|https?:\/\/appassets\.androidplatform\.net)/i.test(String(value || '').trim());
+  }
+
+  function decodeSafDocRel(uri) {
+    if (typeof uri !== 'string' || !/^content:\/\//i.test(uri.trim())) return '';
+    const noQuery = uri.trim().split(/[?#]/)[0];
+    const idx = noQuery.lastIndexOf('/document/');
+    if (idx === -1) return '';
+    let docId = noQuery.slice(idx + 10);
+    if (!docId) return '';
+    try {
+      docId = decodeURIComponent(docId.replace(/%(?![0-9a-fA-F]{2})/g, '%25'));
+    } catch (_) {
+      return '';
+    }
+    docId = docId.replace(/\\/g, '/');
+    const colonIdx = docId.indexOf(':');
+    if (colonIdx >= 0 && docId.slice(0, colonIdx).indexOf('/') === -1) {
+      docId = docId.slice(colonIdx + 1);
+    }
+    return docId.replace(/^\/+/, '').replace(/\/+$/, '');
+  }
+
   function exportPlaylistM3U(name, tracks, options = {}) {
     const list = Array.isArray(tracks) ? tracks : [];
     const playlistName = String(name || options.name || 'Nocturne Playlist').trim();
@@ -573,6 +597,10 @@
         if (track.album && track.album !== 'Unknown Album') {
           lines.push(`#EXTALBUM:${String(track.album).trim()}`);
         }
+        const discVal = track.discNumber != null ? Number(track.discNumber) : (track.disc != null ? Number(track.disc) : 0);
+        if (Number.isFinite(discVal) && discVal > 0) {
+          lines.push(`#EXTDISC:${Math.trunc(discVal)}`);
+        }
         if (track.format) {
           lines.push(`#EXTFORMAT:${String(track.format).trim().toUpperCase()}`);
         }
@@ -581,8 +609,39 @@
         }
       }
 
-      const pathOrUrl = track.url || track.path || track.file || track.src || (track.id ? `${track.id}.mp3` : `track_${i + 1}.mp3`);
-      lines.push(String(pathOrUrl).trim());
+      const fileObjRel = (track.file && typeof track.file === 'object')
+        ? (track.file.relativePath || track.file.webkitRelativePath || '')
+        : '';
+      const fileObjName = (track.file && typeof track.file === 'object') ? (track.file.name || '') : '';
+      const cleanRemote = (typeof track.remotePath === 'string' && track.remotePath.trim())
+        ? track.remotePath.trim().replace(/^\/drive\/root:\//i, '')
+        : '';
+      const safRel = decodeSafDocRel(track.uri);
+      const candidates = [
+        track.relativePath,
+        track.webkitRelativePath,
+        fileObjRel,
+        cleanRemote,
+        (!isEphemeralM3uUrl(track.path) ? track.path : ''),
+        safRel,
+        (!isEphemeralM3uUrl(track.url) ? track.url : ''),
+        (typeof track.file === 'string' && !isEphemeralM3uUrl(track.file) ? track.file : ''),
+        (!isEphemeralM3uUrl(track.src) ? track.src : ''),
+        fileObjName,
+        track.name
+      ];
+      let pathOrUrl = '';
+      for (let ci = 0; ci < candidates.length; ci++) {
+        const c = String(candidates[ci] || '').trim();
+        if (c && !isEphemeralM3uUrl(c)) {
+          pathOrUrl = c.replace(/\\/g, '/');
+          break;
+        }
+      }
+      if (!pathOrUrl) {
+        pathOrUrl = track.id ? `${track.id}.mp3` : `track_${i + 1}.mp3`;
+      }
+      lines.push(pathOrUrl);
     }
 
     return lines.join(lineEnding) + lineEnding;

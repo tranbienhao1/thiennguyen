@@ -124,7 +124,7 @@ test('Instant Track Selection & Zero-Latency Audio Pipeline Suite', async (t) =>
     // 3.2 playTrack synchronous execution at entry
     const playTrackIdx = indexHtml.indexOf('async function playTrack(trackId)');
     assert.ok(playTrackIdx > 0, 'playTrack exists');
-    const playTrackSnippet = indexHtml.slice(playTrackIdx, playTrackIdx + 1200);
+    const playTrackSnippet = indexHtml.slice(playTrackIdx, playTrackIdx + 2000);
 
     assert.ok(playTrackSnippet.includes('state.currentId = track.id'), 'playTrack immediately sets state.currentId');
     assert.ok(playTrackSnippet.includes('displayTrack(track)'), 'playTrack synchronously invokes displayTrack');
