@@ -187,6 +187,11 @@ public class MainActivity extends AppCompatActivity {
     private int mRendererRecoveryCount = 0;
     private long mRendererRecoveryWindowStartMs = 0L;
     private volatile boolean mPendingRenderProcessRehydration = false;
+    private volatile boolean mRenderCrashPageFinished = true;
+    private volatile int mPendingBitPerfectEosEpoch = 0;
+    private final Object mBitPerfectEosLock = new Object();
+    private final Handler mMainHandler = new Handler(Looper.getMainLooper());
+    private final AtomicLong mMediaNotificationSeq = new AtomicLong(0L);
     private MediaSession mMediaSession;
     private volatile int mSafeInsetTopDp = 0;
     private volatile int mSafeInsetBottomDp = 0;
@@ -217,6 +222,12 @@ public class MainActivity extends AppCompatActivity {
     };
     private final java.util.concurrent.atomic.AtomicBoolean mOtaChecking = new java.util.concurrent.atomic.AtomicBoolean(false);
     private final java.util.concurrent.atomic.AtomicBoolean mStorageScanRunning = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private final Object mStorageScanLock = new Object();
+    private final AtomicLong mStorageScanSeq = new AtomicLong(0L);
+    private volatile long mStorageScanStartedAtMs = 0L;
+    private volatile Thread mStorageScanThread = null;
+    private volatile String mLastStorageScanStatsJson =
+            "{\"scanId\":0,\"totalCount\":0,\"limit\":0,\"truncated\":false,\"mediaStoreFailed\":false,\"unreadableRoots\":[],\"skippedDirs\":0}";
     private volatile boolean mIsInBackground = false;
     private volatile boolean mIsMediaPlaying = false;
     private volatile boolean mIsCloudSyncActive = false;
@@ -880,6 +891,9 @@ public class MainActivity extends AppCompatActivity {
                 if (root != null) {
                     ViewCompat.requestApplyInsets(root);
                 }
+                synchronized (mBitPerfectEosLock) {
+                    mRenderCrashPageFinished = true;
+                }
                 if (mPendingRenderProcessRehydration) {
                     if (mBitPerfectPlayer != null && mBitPerfectPlayer.isActive()) {
                         mWebView.evaluateJavascript(
@@ -888,7 +902,10 @@ public class MainActivity extends AppCompatActivity {
                         );
                     } else {
                         mPendingRenderProcessRehydration = false;
+                        dispatchPendingBitPerfectEosIfReady();
                     }
+                } else {
+                    dispatchPendingBitPerfectEosIfReady();
                 }
                 mWebView.postDelayed(() -> checkAndDownloadOtaUpdateAsync(false), 4000);
             }
@@ -1405,6 +1422,21 @@ public class MainActivity extends AppCompatActivity {
 
         mWebView = freshWebView;
         mPendingRenderProcessRehydration = (mBitPerfectPlayer != null && mBitPerfectPlayer.isActive());
+        synchronized (mBitPerfectEosLock) {
+            mRenderCrashPageFinished = false;
+            mPendingBitPerfectEosEpoch = 0;
+        }
+        synchronized (mStorageScanLock) {
+            mStorageScanSeq.incrementAndGet();
+            Thread prevScan = mStorageScanThread;
+            if (prevScan != null) {
+                try {
+                    prevScan.interrupt();
+                } catch (Throwable ignored) {}
+            }
+            mStorageScanThread = null;
+            mStorageScanRunning.set(false);
+        }
         configureHighPerformanceWebView();
         loadAppEntrypoint();
         Log.i(TAG, "Recovered crashed main WebView (" + mRendererRecoveryCount + "/3 in window) without stopping mBitPerfectPlayer");
@@ -1488,24 +1520,22 @@ public class MainActivity extends AppCompatActivity {
 
     private void syncAudioFocusNativeUiAndMediaSession(final boolean isPlaying) {
         try {
-            if (mBitPerfectPlayer != null) {
-                long bpPos = mBitPerfectPlayer.getDisplayPositionMs();
-                if (bpPos >= 0L) mLastMediaPositionMs = bpPos;
-                long bpDur = mBitPerfectPlayer.getDisplayDurationMs();
-                if (bpDur > 0L) mLastMediaDurationMs = bpDur;
-            }
-            if (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) {
-                runOnUiThread(() -> {
-                    try {
+            final long bpPos = (mBitPerfectPlayer != null) ? mBitPerfectPlayer.getDisplayPositionMs() : -1L;
+            final long bpDur = (mBitPerfectPlayer != null) ? mBitPerfectPlayer.getDisplayDurationMs() : 0L;
+            runOnUiThread(() -> {
+                try {
+                    if (bpPos >= 0L) mLastMediaPositionMs = bpPos;
+                    if (bpDur > 0L) mLastMediaDurationMs = bpDur;
+                    if (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) {
                         showMediaNotification(mLastMediaTitle, mLastMediaArtist, mLastMediaAlbum, isPlaying);
                         if (!isPlaying) {
                             NocturnePlaybackService.syncBackgroundPauseIfRunning(mLastMediaTitle, mLastMediaArtist, mLastMediaAlbum);
                         }
-                    } catch (Throwable ignored) {}
-                });
-            } else if (!isPlaying) {
-                NocturnePlaybackService.syncBackgroundPauseIfRunning(null, null, null);
-            }
+                    } else if (!isPlaying) {
+                        NocturnePlaybackService.syncBackgroundPauseIfRunning(null, null, null);
+                    }
+                } catch (Throwable ignored) {}
+            });
         } catch (Throwable ignored) {}
         if (mWebView != null) {
             final long syncPos = (mBitPerfectPlayer != null) ? mBitPerfectPlayer.getPositionMs() : -1L;
@@ -1928,6 +1958,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         mNextTrackIsRemote = false;
+        mMainHandler.removeCallbacksAndMessages(null);
         stopBitPerfectPlayback();
         cancelMediaNotification();
         releaseWakeLock();
@@ -4154,6 +4185,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void updateMediaNotification(String title, String artist, String album, boolean isPlaying) {
+        updateMediaNotificationInternal(title, artist, album, isPlaying, false);
+    }
+
+    private void updateMediaNotificationInternal(String title, String artist, String album, boolean isPlaying, boolean preservePrepopulated) {
+        mMediaNotificationSeq.incrementAndGet();
         mIsMediaPlaying = isPlaying;
         NocturnePlaybackService.sCurrentAlbumArt = loadCachedCoverBitmap(album, artist);
         if (isPlaying) {
@@ -4169,9 +4205,13 @@ public class MainActivity extends AppCompatActivity {
                 ContextCompat.startForegroundService(this, svcIntent);
             } catch (Exception e) {
                 Log.w(TAG, "Foreground service start deferred, using standard notification: " + e.getMessage());
-                showMediaNotification(title, artist, album, true);
+                if (preservePrepopulated) {
+                    showMediaNotification(title, artist, album, true, true);
+                } else {
+                    showMediaNotification(title, artist, album, true);
+                }
             }
-            updateMediaSessionMetadata(title, artist, album, true);
+            updateMediaSessionMetadata(title, artist, album, true, preservePrepopulated);
         } else {
             try {
                 Intent pauseIntent = new Intent(this, NocturnePlaybackService.class);
@@ -4184,9 +4224,13 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception bgPauseErr) {
                 // On Android 10 (FiiO M11S) with screen off, startService may throw IllegalStateException; sync active service & fall back to direct notification update
                 NocturnePlaybackService.syncBackgroundPauseIfRunning(title, artist, album);
-                showMediaNotification(title, artist, album, false);
+                if (preservePrepopulated) {
+                    showMediaNotification(title, artist, album, false, true);
+                } else {
+                    showMediaNotification(title, artist, album, false);
+                }
             }
-            updateMediaSessionMetadata(title, artist, album, false);
+            updateMediaSessionMetadata(title, artist, album, false, preservePrepopulated);
             if (!mIsCloudSyncActive) {
                 releaseWakeLock();
             }
@@ -4276,19 +4320,25 @@ public class MainActivity extends AppCompatActivity {
                     isPlaying ? 1.0f : 0.0f);
             mMediaSession.setPlaybackState(psb.build());
             if (durationMs > 0L && Math.abs(durationMs - prevDurMs) >= 500L) {
-                updateMediaSessionMetadata(mLastMediaTitle, mLastMediaArtist, mLastMediaAlbum, isPlaying);
+                updateMediaSessionMetadata(mLastMediaTitle, mLastMediaArtist, mLastMediaAlbum, isPlaying, true);
             }
         } catch (Exception ignored) {}
     }
 
     private void updateMediaSessionMetadata(String title, String artist, String album, boolean isPlaying) {
+        updateMediaSessionMetadata(title, artist, album, isPlaying, false);
+    }
+
+    private void updateMediaSessionMetadata(String title, String artist, String album, boolean isPlaying, boolean preservePrepopulated) {
         if (mMediaSession == null) return;
         try {
             String displayTitle = (title != null && !title.trim().isEmpty()) ? title.trim() : "Nocturne Audiophile";
             String displayArtist = (artist != null && !artist.trim().isEmpty()) ? artist.trim() : "Nocturne Hi-Res Audio";
             String displayAlbum = (album != null && !album.trim().isEmpty()) ? album.trim() : "";
-            boolean trackChanged = !displayTitle.equals(mLastMediaTitle) || !displayArtist.equals(mLastMediaArtist);
-            if (trackChanged) {
+            boolean trackChanged = !displayTitle.equals(mLastMediaTitle)
+                    || !displayArtist.equals(mLastMediaArtist)
+                    || !displayAlbum.equals(mLastMediaAlbum);
+            if (trackChanged && !preservePrepopulated) {
                 mLastMediaPositionMs = PlaybackState.PLAYBACK_POSITION_UNKNOWN;
                 mLastMediaDurationMs = 0L;
             }
@@ -4327,6 +4377,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showMediaNotification(String title, String artist, String album, boolean isPlaying) {
+        showMediaNotification(title, artist, album, isPlaying, false);
+    }
+
+    private void showMediaNotification(String title, String artist, String album, boolean isPlaying, boolean preservePrepopulated) {
         try {
             createNotificationChannelIfNeeded();
 
@@ -4377,7 +4431,11 @@ public class MainActivity extends AppCompatActivity {
                 nm.notify(NOTIFICATION_ID, builder.build());
             }
 
-            updateMediaSessionMetadata(displayTitle, displayArtist, displayAlbum, isPlaying);
+            if (preservePrepopulated) {
+                updateMediaSessionMetadata(displayTitle, displayArtist, displayAlbum, isPlaying, true);
+            } else {
+                updateMediaSessionMetadata(displayTitle, displayArtist, displayAlbum, isPlaying);
+            }
         } catch (Exception e) {
             Log.e(TAG, "Error displaying media notification: " + e.getMessage(), e);
         }
@@ -4708,12 +4766,28 @@ public class MainActivity extends AppCompatActivity {
         private volatile int mLockedBitDepth = 0;
         private volatile boolean mLockedMixerBitPerfect = false;
         private volatile String mLockedDeviceName = "";
-        private String mCurrentTrackTitle = "";
-        private String mCurrentTrackArtist = "";
-        private String mCurrentTrackAlbum = "";
-        private volatile long mCueWindowStartMs = 0L;
-        private volatile long mCueWindowDurationMs = 0L;
-        private volatile long mTrackWindowSeq = 0L;
+        private volatile String mCurrentTrackTitle = "";
+        private volatile String mCurrentTrackArtist = "";
+        private volatile String mCurrentTrackAlbum = "";
+        private static final class TrackWindowSnapshot {
+            final long cueStartMs;
+            final long cueDurationMs;
+            final long seq;
+            final String title;
+            final String artist;
+            final String album;
+
+            TrackWindowSnapshot(long cueStartMs, long cueDurationMs, long seq, String title, String artist, String album) {
+                this.cueStartMs = Math.max(0L, cueStartMs);
+                this.cueDurationMs = Math.max(0L, cueDurationMs);
+                this.seq = seq;
+                this.title = title != null ? title : "";
+                this.artist = artist != null ? artist : "";
+                this.album = album != null ? album : "";
+            }
+        }
+        private final Object mTrackWindowLock = new Object();
+        private volatile TrackWindowSnapshot mTrackWindow = new TrackWindowSnapshot(0L, 0L, 0L, "", "", "");
         private long mPendingWindowCueStartMs = 0L;
         private long mPendingWindowCueDurationMs = 0L;
         private String mPendingWindowTitle = "";
@@ -4785,20 +4859,40 @@ public class MainActivity extends AppCompatActivity {
                 mPendingWindowAtElapsedMs = SystemClock.elapsedRealtime();
             }
             if (isActive()) {
-                mCueWindowStartMs = safeStartMs;
-                mCueWindowDurationMs = safeDurMs;
-                mTrackWindowSeq++;
+                final TrackWindowSnapshot newSnap;
+                synchronized (mTrackWindowLock) {
+                    final TrackWindowSnapshot prev = mTrackWindow;
+                    final String effTitle = !safeTitle.isEmpty() ? safeTitle : prev.title;
+                    final String effArtist = !safeTitle.isEmpty()
+                            ? (!safeArtist.isEmpty() ? safeArtist : mCurrentTrackArtist)
+                            : prev.artist;
+                    final String effAlbum = !safeTitle.isEmpty() ? safeAlbum : prev.album;
+                    newSnap = new TrackWindowSnapshot(safeStartMs, safeDurMs, prev.seq + 1L, effTitle, effArtist, effAlbum);
+                    mTrackWindow = newSnap;
+                    if (!safeTitle.isEmpty()) {
+                        mCurrentTrackTitle = effTitle;
+                        mCurrentTrackArtist = effArtist;
+                        mCurrentTrackAlbum = effAlbum;
+                    }
+                }
                 if (!safeTitle.isEmpty()) {
-                    mCurrentTrackTitle = safeTitle;
-                    mCurrentTrackArtist = !safeArtist.isEmpty() ? safeArtist : mCurrentTrackArtist;
-                    mCurrentTrackAlbum = safeAlbum;
-                    final boolean activePlaying = isPlaying();
-                    final long dispPos = Math.max(0L, getDisplayPositionMs());
-                    final long dispDur = Math.max(0L, getDisplayDurationMs());
+                    final long rawPos = Math.max(0L, mCurrentPositionMs.get());
+                    final long dispPos = (safeDurMs > 0L && rawPos >= safeStartMs + safeDurMs)
+                            ? 0L
+                            : Math.max(0L, toWindowRelativePositionMs(rawPos, newSnap));
+                    final long dispDur = Math.max(0L, getDisplayDurationMs(mDurationMs.get(), newSnap));
+                    final String snapTitle = newSnap.title;
+                    final String snapArtist = newSnap.artist;
+                    final String snapAlbum = newSnap.album;
+                    final long snapSeq = newSnap.seq;
                     runOnUiThread(() -> {
-                        if (!mIsStopped && isActive()) {
-                            updateMediaSessionPosition(dispPos, dispDur, activePlaying);
-                            updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, activePlaying);
+                        if (!mIsStopped && isActive() && mTrackWindow.seq == snapSeq) {
+                            final boolean curPlaying = isPlaying();
+                            if (dispDur <= 0L) {
+                                mLastMediaDurationMs = 0L;
+                            }
+                            updateMediaSessionPosition(dispPos, dispDur, curPlaying);
+                            updateMediaNotificationInternal(snapTitle, snapArtist, snapAlbum, curPlaying, true);
                         }
                     });
                 }
@@ -4936,6 +5030,10 @@ public class MainActivity extends AppCompatActivity {
             mIsStopped = false;
             mIsPaused = false;
             mIsPlaying = true;
+            mPendingRenderProcessRehydration = false;
+            synchronized (mBitPerfectEosLock) {
+                mPendingBitPerfectEosEpoch = 0;
+            }
             mCurrentTrackId = winTrackId;
             mLockedSampleRate = 0;
             mLockedBitDepth = 0;
@@ -4948,9 +5046,15 @@ public class MainActivity extends AppCompatActivity {
                 mSeekGeneration.incrementAndGet();
                 mLastSeekRequestedElapsedMs = 0L;
             }
-            mCueWindowStartMs = winCueStartMs;
-            mCueWindowDurationMs = winCueDurMs;
-            mTrackWindowSeq++;
+            synchronized (mTrackWindowLock) {
+                mTrackWindow = new TrackWindowSnapshot(
+                        winCueStartMs,
+                        winCueDurMs,
+                        mTrackWindow.seq + 1L,
+                        winTitle,
+                        winArtist,
+                        winAlbum);
+            }
             mCurrentPositionMs.set(winCueStartMs);
             mDurationMs.set(0);
             mRouteRefreshRequested.set(false);
@@ -4960,6 +5064,7 @@ public class MainActivity extends AppCompatActivity {
             acquireWakeLock(mIsRemoteStream || mNextTrackIsRemote);
             requestAudioFocus();
 
+            final int playbackEpoch = mPlaybackEpoch.incrementAndGet();
             // Use JS-supplied track metadata when available to suppress placeholder notification flashes
             try {
                 if (!winTitle.isEmpty()) {
@@ -4987,12 +5092,32 @@ public class MainActivity extends AppCompatActivity {
                     mCurrentTrackArtist = isFiioDevice() ? "FiiO Bit-Perfect Engine" : "Bit-Perfect Direct Audio";
                     mCurrentTrackAlbum = "Direct Bit-Perfect Playback";
                 }
-                mLastMediaPositionMs = 0L;
-                mLastMediaDurationMs = winCueDurMs > 0L ? winCueDurMs : Math.max(0L, consumedKnownDurationMs);
-                updateMediaNotification(mCurrentTrackTitle, mCurrentTrackArtist, mCurrentTrackAlbum, true);
+                synchronized (mTrackWindowLock) {
+                    mTrackWindow = new TrackWindowSnapshot(
+                            winCueStartMs,
+                            winCueDurMs,
+                            mTrackWindow.seq + 1L,
+                            mCurrentTrackTitle,
+                            mCurrentTrackArtist,
+                            mCurrentTrackAlbum);
+                }
+                final String initNotifTitle = mCurrentTrackTitle;
+                final String initNotifArtist = mCurrentTrackArtist;
+                final String initNotifAlbum = mCurrentTrackAlbum;
+                final long initMediaPosMs = 0L;
+                final long knownBaseDurMs = Math.max(0L, consumedKnownDurationMs);
+                final long initMediaDurMs = winCueDurMs > 0L
+                        ? winCueDurMs
+                        : (winCueStartMs > 0L ? (knownBaseDurMs > winCueStartMs ? knownBaseDurMs - winCueStartMs : 0L) : knownBaseDurMs);
+                runOnUiThread(() -> {
+                    if (mPlaybackEpoch.get() == playbackEpoch && !mIsStopped) {
+                        mLastMediaPositionMs = initMediaPosMs;
+                        mLastMediaDurationMs = initMediaDurMs;
+                        updateMediaNotificationInternal(initNotifTitle, initNotifArtist, initNotifAlbum, true, true);
+                    }
+                });
             } catch (Exception ignored) {}
 
-            final int playbackEpoch = mPlaybackEpoch.incrementAndGet();
             mEpochLaunchParams.put(playbackEpoch, new StreamLaunchParams(
                     consumedHeaders, consumedSource, consumedRemoteId, consumedKnownBytes, consumedKnownDurationMs));
             mPlaybackThread = new Thread(() -> {
@@ -5018,12 +5143,14 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } catch (Exception ignored) {}
             }
+            final int pauseEpoch = mPlaybackEpoch.get();
             final long posMs = Math.max(0L, getDisplayPositionMs());
             final long durMs = Math.max(0L, getDisplayDurationMs());
-            final String nTitle = (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) ? mLastMediaTitle : mCurrentTrackTitle;
-            final String nArtist = (mLastMediaArtist != null && !mLastMediaArtist.isEmpty()) ? mLastMediaArtist : mCurrentTrackArtist;
-            final String nAlbum = (mLastMediaAlbum != null && !mLastMediaAlbum.isEmpty()) ? mLastMediaAlbum : mCurrentTrackAlbum;
             runOnUiThread(() -> {
+                if (mIsStopped || mPlaybackEpoch.get() != pauseEpoch) return;
+                final String nTitle = (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) ? mLastMediaTitle : mCurrentTrackTitle;
+                final String nArtist = (mLastMediaArtist != null && !mLastMediaArtist.isEmpty()) ? mLastMediaArtist : mCurrentTrackArtist;
+                final String nAlbum = (mLastMediaAlbum != null && !mLastMediaAlbum.isEmpty()) ? mLastMediaAlbum : mCurrentTrackAlbum;
                 updateMediaSessionPosition(posMs, durMs, false);
                 updateMediaNotification(nTitle, nArtist, nAlbum, false);
             });
@@ -5050,12 +5177,14 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } catch (Exception ignored) {}
             }
+            final int resumeEpoch = mPlaybackEpoch.get();
             final long posMs = Math.max(0L, getDisplayPositionMs());
             final long durMs = Math.max(0L, getDisplayDurationMs());
-            final String nTitle = (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) ? mLastMediaTitle : mCurrentTrackTitle;
-            final String nArtist = (mLastMediaArtist != null && !mLastMediaArtist.isEmpty()) ? mLastMediaArtist : mCurrentTrackArtist;
-            final String nAlbum = (mLastMediaAlbum != null && !mLastMediaAlbum.isEmpty()) ? mLastMediaAlbum : mCurrentTrackAlbum;
             runOnUiThread(() -> {
+                if (mIsStopped || mPlaybackEpoch.get() != resumeEpoch) return;
+                final String nTitle = (mLastMediaTitle != null && !mLastMediaTitle.isEmpty()) ? mLastMediaTitle : mCurrentTrackTitle;
+                final String nArtist = (mLastMediaArtist != null && !mLastMediaArtist.isEmpty()) ? mLastMediaArtist : mCurrentTrackArtist;
+                final String nAlbum = (mLastMediaAlbum != null && !mLastMediaAlbum.isEmpty()) ? mLastMediaAlbum : mCurrentTrackAlbum;
                 updateMediaSessionPosition(posMs, durMs, true);
                 updateMediaNotification(nTitle, nArtist, nAlbum, true);
             });
@@ -5078,13 +5207,14 @@ public class MainActivity extends AppCompatActivity {
                 mPauseLock.notifyAll();
             }
             if (!mIsStopped) {
+                final TrackWindowSnapshot win = mTrackWindow;
                 final long posForJs = clampedMs;
                 final long durForJs = Math.max(0L, durMs);
-                final long mediaPosMs = (mCueWindowDurationMs > 0L || mCueWindowStartMs > 0L) ? toWindowRelativePositionMs(clampedMs) : clampedMs;
-                final long mediaDurMs = getDisplayDurationMs(durForJs);
-                final String titleSnap = mCurrentTrackTitle;
-                final String artistSnap = mCurrentTrackArtist;
-                final String albumSnap = mCurrentTrackAlbum;
+                final long mediaPosMs = (win.cueDurationMs > 0L || win.cueStartMs > 0L) ? toWindowRelativePositionMs(clampedMs, win) : clampedMs;
+                final long mediaDurMs = getDisplayDurationMs(durForJs, win);
+                final String titleSnap = (win.title != null && !win.title.isEmpty()) ? win.title : mCurrentTrackTitle;
+                final String artistSnap = (win.artist != null && !win.artist.isEmpty()) ? win.artist : mCurrentTrackArtist;
+                final String albumSnap = win.album != null ? win.album : mCurrentTrackAlbum;
                 runOnUiThread(() -> {
                     if (!mIsStopped && mSeekGeneration.get() == seekGen) {
                         if (mLastMediaTitle == null || mLastMediaTitle.isEmpty()) {
@@ -5092,7 +5222,8 @@ public class MainActivity extends AppCompatActivity {
                                     titleSnap,
                                     artistSnap,
                                     albumSnap,
-                                    isPlaying());
+                                    isPlaying(),
+                                    true);
                         }
                         if (mediaPosMs != posForJs || mediaDurMs != durForJs) {
                             updateMediaSessionPosition(mediaPosMs, mediaDurMs, isPlaying());
@@ -5181,10 +5312,14 @@ public class MainActivity extends AppCompatActivity {
             mLockedMixerBitPerfect = false;
             mLockedDeviceName = "";
             if (!preserveSession) {
+                mPendingRenderProcessRehydration = false;
+                synchronized (mBitPerfectEosLock) {
+                    mPendingBitPerfectEosEpoch = 0;
+                }
                 mCurrentTrackId = "";
-                mCueWindowStartMs = 0L;
-                mCueWindowDurationMs = 0L;
-                mTrackWindowSeq++;
+                synchronized (mTrackWindowLock) {
+                    mTrackWindow = new TrackWindowSnapshot(0L, 0L, mTrackWindow.seq + 1L, "", "", "");
+                }
                 synchronized (mStreamAuthLock) {
                     mPendingStreamKnownDurationMs = 0L;
                     mPendingTrackId = "";
@@ -5195,6 +5330,14 @@ public class MainActivity extends AppCompatActivity {
                 releaseWakeLock();
                 abandonAudioFocus();
             }
+        }
+
+        public int getCurrentPlaybackEpoch() {
+            return mPlaybackEpoch.get();
+        }
+
+        public boolean isStopped() {
+            return mIsStopped;
         }
 
         public boolean isActive() {
@@ -5226,16 +5369,17 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public long getCueWindowStartMs() {
-            return Math.max(0L, mCueWindowStartMs);
+            return Math.max(0L, mTrackWindow.cueStartMs);
         }
 
         public long getCueWindowDurationMs() {
-            return Math.max(0L, mCueWindowDurationMs);
+            return Math.max(0L, mTrackWindow.cueDurationMs);
         }
 
         public long clampCueWindowPositionMs(long absTargetMs) {
-            long start = Math.max(0L, mCueWindowStartMs);
-            long winDur = mCueWindowDurationMs;
+            final TrackWindowSnapshot win = mTrackWindow;
+            long start = win.cueStartMs;
+            long winDur = win.cueDurationMs;
             long totalDur = mDurationMs.get();
             long clamped = Math.max(start, absTargetMs);
             if (winDur > 0L) {
@@ -5249,10 +5393,19 @@ public class MainActivity extends AppCompatActivity {
 
         public long windowRelativeSeekToAbsoluteMs(long relPosMs) {
             long safeRel = Math.max(0L, relPosMs);
-            long start = Math.max(0L, mCueWindowStartMs);
-            long winDur = mCueWindowDurationMs;
+            final TrackWindowSnapshot win = mTrackWindow;
+            long start = win.cueStartMs;
+            long winDur = win.cueDurationMs;
             if (winDur > 0L || start > 0L) {
-                return clampCueWindowPositionMs(start + safeRel);
+                long totalDur = mDurationMs.get();
+                long clamped = Math.max(start, start + safeRel);
+                if (winDur > 0L) {
+                    clamped = Math.min(clamped, start + winDur);
+                }
+                if (totalDur > 0L) {
+                    clamped = Math.min(clamped, totalDur);
+                }
+                return clamped;
             }
             long totalDur = mDurationMs.get();
             return totalDur > 0L ? Math.min(safeRel, totalDur) : safeRel;
@@ -5273,25 +5426,29 @@ public class MainActivity extends AppCompatActivity {
                 }
                 final boolean playing = isPlaying();
                 final boolean paused = isPaused();
+                final TrackWindowSnapshot win = mTrackWindow;
                 final long posMs = Math.max(0L, mCurrentPositionMs.get());
                 final long durMs = Math.max(0L, mDurationMs.get());
-                final long dispPosMs = Math.max(0L, getDisplayPositionMs());
-                final long dispDurMs = Math.max(0L, getDisplayDurationMs());
+                final long dispPosMs = Math.max(0L, toWindowRelativePositionMs(posMs, win));
+                final long dispDurMs = Math.max(0L, getDisplayDurationMs(durMs, win));
+                final String snapTitle = (win.title != null && !win.title.isEmpty()) ? win.title : mCurrentTrackTitle;
+                final String snapArtist = (win.artist != null && !win.artist.isEmpty()) ? win.artist : mCurrentTrackArtist;
+                final String snapAlbum = win.album != null ? win.album : mCurrentTrackAlbum;
                 obj.put("active", true);
                 obj.put("isNativeBitPerfectPlaying", true);
                 obj.put("isPlaying", playing);
                 obj.put("isPaused", paused);
                 obj.put("currentId", mCurrentTrackId != null ? mCurrentTrackId : "");
                 obj.put("sourceKey", mCurrentSourceKey != null ? mCurrentSourceKey : "");
-                obj.put("cueStartMs", Math.max(0L, mCueWindowStartMs));
-                obj.put("cueDurationMs", Math.max(0L, mCueWindowDurationMs));
+                obj.put("cueStartMs", win.cueStartMs);
+                obj.put("cueDurationMs", win.cueDurationMs);
                 obj.put("positionMs", posMs);
                 obj.put("durationMs", durMs);
                 obj.put("displayPositionMs", dispPosMs);
                 obj.put("displayDurationMs", dispDurMs);
-                obj.put("title", mCurrentTrackTitle != null ? mCurrentTrackTitle : "");
-                obj.put("artist", mCurrentTrackArtist != null ? mCurrentTrackArtist : "");
-                obj.put("album", mCurrentTrackAlbum != null ? mCurrentTrackAlbum : "");
+                obj.put("title", snapTitle != null ? snapTitle : "");
+                obj.put("artist", snapArtist != null ? snapArtist : "");
+                obj.put("album", snapAlbum != null ? snapAlbum : "");
                 obj.put("recoveredFromRenderCrash", recoveredFromCrash);
                 if (mLockedSampleRate > 0) {
                     JSONObject fmt = new JSONObject();
@@ -5310,9 +5467,13 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private long toWindowRelativePositionMs(long rawPosMs) {
+            return toWindowRelativePositionMs(rawPosMs, mTrackWindow);
+        }
+
+        private long toWindowRelativePositionMs(long rawPosMs, TrackWindowSnapshot win) {
             if (rawPosMs < 0L) return -1L;
-            long winStart = Math.max(0L, mCueWindowStartMs);
-            long winDur = mCueWindowDurationMs;
+            long winStart = win.cueStartMs;
+            long winDur = win.cueDurationMs;
             if (winDur > 0L || winStart > 0L) {
                 long rel = Math.max(0L, rawPosMs - winStart);
                 return winDur > 0L ? Math.min(rel, winDur) : rel;
@@ -5321,18 +5482,24 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public long getDisplayPositionMs() {
-            return toWindowRelativePositionMs(mCurrentPositionMs.get());
+            return toWindowRelativePositionMs(mCurrentPositionMs.get(), mTrackWindow);
         }
 
         public long getDisplayDurationMs() {
-            long winDur = mCueWindowDurationMs;
-            if (winDur > 0L) return winDur;
-            return Math.max(0L, mDurationMs.get());
+            return getDisplayDurationMs(mDurationMs.get(), mTrackWindow);
         }
 
         private long getDisplayDurationMs(long rawDurMs) {
-            long winDur = mCueWindowDurationMs;
+            return getDisplayDurationMs(rawDurMs, mTrackWindow);
+        }
+
+        private long getDisplayDurationMs(long rawDurMs, TrackWindowSnapshot win) {
+            long winDur = win.cueDurationMs;
+            long winStart = win.cueStartMs;
             if (winDur > 0L) return winDur;
+            if (winStart > 0L) {
+                return rawDurMs > winStart ? (rawDurMs - winStart) : 0L;
+            }
             return Math.max(0L, rawDurMs);
         }
 
@@ -5810,6 +5977,8 @@ public class MainActivity extends AppCompatActivity {
             String pendingErrorReason = null;
             HttpRangeMediaDataSource httpDataSource = null;
             boolean isHttpStream = false;
+            boolean naturalEosForUiSync = false;
+            long preEosNotifSeq = 0L;
 
             try {
                 // 1. Resolve source (supports /local-media?uri=content://..., /local-media?path=..., content://, file://, and http(s)://)
@@ -6747,9 +6916,10 @@ public class MainActivity extends AppCompatActivity {
                                 if (mSeekTargetUs.get() < 0L && mSeekGeneration.get() == loopSeekGen) {
                                     mCurrentPositionMs.set(posMs);
                                     long nowElapsed = SystemClock.uptimeMillis();
-                                    final long winStartMs = mCueWindowStartMs;
-                                    final long winDurMs = mCueWindowDurationMs;
-                                    final long winSeq = mTrackWindowSeq;
+                                    final TrackWindowSnapshot winSnap = mTrackWindow;
+                                    final long winStartMs = winSnap.cueStartMs;
+                                    final long winDurMs = winSnap.cueDurationMs;
+                                    final long winSeq = winSnap.seq;
                                     boolean cueBoundaryCrossed = (winDurMs > 0L && lastCueBoundaryTriggeredSeq != winSeq
                                             && posMs >= Math.max(winStartMs, winStartMs + winDurMs - 140L));
                                     final long uiUpdateIntervalMs = mIsInBackground ? 2000L : 250L;
@@ -6774,8 +6944,8 @@ public class MainActivity extends AppCompatActivity {
                                     }
                                     if (lastMediaSessionSyncElapsedMs == 0L || (nowElapsed - lastMediaSessionSyncElapsedMs >= 1000L)) {
                                         lastMediaSessionSyncElapsedMs = nowElapsed;
-                                        final long mediaPosMs = toWindowRelativePositionMs(posMs);
-                                        final long mediaDurMs = getDisplayDurationMs(knownDurMs);
+                                        final long mediaPosMs = toWindowRelativePositionMs(posMs, winSnap);
+                                        final long mediaDurMs = getDisplayDurationMs(knownDurMs, winSnap);
                                         runOnUiThread(() -> {
                                             if (!mIsStopped && !mIsPaused && mPlaybackEpoch.get() == epoch) {
                                                 updateMediaSessionPosition(mediaPosMs, mediaDurMs, true);
@@ -6799,18 +6969,18 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 // If completed naturally (sawOutputEOS)
+                preEosNotifSeq = mMediaNotificationSeq.get();
                 if (sawOutputEOS && !mIsStopped && mPlaybackEpoch.get() == epoch) {
                     if (mWebView != null) {
-                        mWebView.post(() -> {
-                            if (mWebView != null) {
-                                mWebView.evaluateJavascript(
-                                        "if (typeof window.onBitPerfectPlaybackComplete === 'function') window.onBitPerfectPlaybackComplete(); " +
-                                        "else if (typeof window.nextTrack === 'function') window.nextTrack(); " +
-                                        "else { var nb = document.getElementById('next-button'); if (nb) nb.click(); }",
-                                        null
-                                );
+                        naturalEosForUiSync = true;
+                        handleBitPerfectSawOutputEos(epoch);
+                    } else {
+                        naturalEosForUiSync = true;
+                        synchronized (mBitPerfectEosLock) {
+                            if (mPendingRenderProcessRehydration || !mRenderCrashPageFinished) {
+                                mPendingBitPerfectEosEpoch = epoch;
                             }
-                        });
+                        }
                     }
                 }
 
@@ -6870,6 +7040,15 @@ public class MainActivity extends AppCompatActivity {
                     final long errDurMs = Math.max(0L, getDisplayDurationMs());
                     runOnUiThread(() -> updateMediaSessionPosition(errPosMs, errDurMs, false));
                     notifyBitPerfectErrorToWeb(pendingErrorReason);
+                }
+                if (naturalEosForUiSync && pendingErrorReason == null && sessionCurrent && !mIsStopped) {
+                    final boolean eosStillDeferred;
+                    synchronized (mBitPerfectEosLock) {
+                        eosStillDeferred = (mPendingBitPerfectEosEpoch == epoch);
+                    }
+                    if (!eosStillDeferred) {
+                        scheduleNaturalEosUiSync(epoch, preEosNotifSeq);
+                    }
                 }
             }
         }
@@ -7641,10 +7820,89 @@ public class MainActivity extends AppCompatActivity {
             return "{\"active\":false}";
         }
         final boolean recovered = mPendingRenderProcessRehydration;
-        if (recovered && mBitPerfectPlayer.isActive()) {
-            mPendingRenderProcessRehydration = false;
-        }
         return mBitPerfectPlayer.getPlaybackSnapshotJson(recovered);
+    }
+
+    public void ackBitPerfectRehydration() {
+        mPendingRenderProcessRehydration = false;
+        dispatchPendingBitPerfectEosIfReady();
+    }
+
+    private void handleBitPerfectSawOutputEos(final int epoch) {
+        boolean deferForRecovery = false;
+        synchronized (mBitPerfectEosLock) {
+            if (mPendingRenderProcessRehydration || !mRenderCrashPageFinished) {
+                mPendingBitPerfectEosEpoch = epoch;
+                deferForRecovery = true;
+            }
+        }
+        if (deferForRecovery) {
+            // Bounded fallback if page already finished and JS never calls ackBitPerfectRehydration()
+            mMainHandler.postDelayed(() -> {
+                synchronized (mBitPerfectEosLock) {
+                    if (mPendingBitPerfectEosEpoch == epoch && mRenderCrashPageFinished) {
+                        mPendingRenderProcessRehydration = false;
+                    }
+                }
+                dispatchPendingBitPerfectEosIfReady();
+            }, 3000L);
+        } else {
+            postBitPerfectPlaybackCompleteToWeb(epoch);
+        }
+    }
+
+    private void postBitPerfectPlaybackCompleteToWeb(final int expectedEpoch) {
+        runOnUiThread(() -> {
+            if (mWebView != null && mBitPerfectPlayer != null
+                    && !mBitPerfectPlayer.isStopped()
+                    && mBitPerfectPlayer.getCurrentPlaybackEpoch() == expectedEpoch) {
+                mWebView.evaluateJavascript(
+                        "if (typeof window.onBitPerfectPlaybackComplete === 'function') window.onBitPerfectPlaybackComplete(); " +
+                        "else if (typeof window.nextTrack === 'function') window.nextTrack(); " +
+                        "else { var nb = document.getElementById('next-button'); if (nb) nb.click(); }",
+                        null
+                );
+            }
+        });
+    }
+
+    private void dispatchPendingBitPerfectEosIfReady() {
+        final int pendingEpoch;
+        synchronized (mBitPerfectEosLock) {
+            pendingEpoch = mPendingBitPerfectEosEpoch;
+            if (pendingEpoch <= 0 || !mRenderCrashPageFinished || mPendingRenderProcessRehydration) {
+                return;
+            }
+            mPendingBitPerfectEosEpoch = 0;
+        }
+        if (mBitPerfectPlayer != null && !mBitPerfectPlayer.isStopped()
+                && mBitPerfectPlayer.getCurrentPlaybackEpoch() == pendingEpoch) {
+            final long preDispatchNotifSeq = mMediaNotificationSeq.get();
+            postBitPerfectPlaybackCompleteToWeb(pendingEpoch);
+            scheduleNaturalEosUiSync(pendingEpoch, preDispatchNotifSeq);
+        }
+    }
+
+    private void scheduleNaturalEosUiSync(final int epoch, final long preEosNotifSeq) {
+        if (mBitPerfectPlayer == null) return;
+        final BitPerfectAudioPlayer.TrackWindowSnapshot eosWin = mBitPerfectPlayer.mTrackWindow;
+        final long eosPosMs = Math.max(0L, mBitPerfectPlayer.toWindowRelativePositionMs(mBitPerfectPlayer.mCurrentPositionMs.get(), eosWin));
+        final long eosDurMs = Math.max(0L, mBitPerfectPlayer.getDisplayDurationMs(mBitPerfectPlayer.mDurationMs.get(), eosWin));
+        final String eosTitle = (eosWin.title != null && !eosWin.title.isEmpty()) ? eosWin.title : mBitPerfectPlayer.mCurrentTrackTitle;
+        final String eosArtist = (eosWin.artist != null && !eosWin.artist.isEmpty()) ? eosWin.artist : mBitPerfectPlayer.mCurrentTrackArtist;
+        final String eosAlbum = eosWin.album != null ? eosWin.album : mBitPerfectPlayer.mCurrentTrackAlbum;
+        mMainHandler.postDelayed(() -> {
+            if (mBitPerfectPlayer != null
+                    && !mBitPerfectPlayer.isStopped()
+                    && mBitPerfectPlayer.getCurrentPlaybackEpoch() == epoch
+                    && !mBitPerfectPlayer.isActive()
+                    && !mPendingRenderProcessRehydration
+                    && mMediaNotificationSeq.get() == preEosNotifSeq
+                    && mIsMediaPlaying) {
+                updateMediaSessionPosition(eosPosMs, eosDurMs, false);
+                updateMediaNotificationInternal(eosTitle, eosArtist, eosAlbum, false, true);
+            }
+        }, 250L);
     }
 
     public void updateBitPerfectStreamAuth(String url, String headersJson) {
@@ -8613,6 +8871,15 @@ public class MainActivity extends AppCompatActivity {
                     if (sub != null) {
                         for (File s : sub) {
                             if (s.isDirectory() && !s.getName().equals("self") && !s.getName().equals("knox-emulated")) {
+                                if ("emulated".equals(s.getName())) {
+                                    File u0 = new File(s, "0");
+                                    if (u0.exists() && u0.canRead()) {
+                                        paths.add(u0.getAbsolutePath());
+                                        File m0 = new File(u0, "Music");
+                                        if (m0.exists()) paths.add(m0.getAbsolutePath());
+                                    }
+                                    continue;
+                                }
                                 paths.add(s.getAbsolutePath());
                                 File m = new File(s, "Music");
                                 if (m.exists()) paths.add(m.getAbsolutePath());
@@ -8696,6 +8963,10 @@ public class MainActivity extends AppCompatActivity {
          */
         @JavascriptInterface
         public String scanMediaStoreAudio(int maxFiles) {
+            return scanMediaStoreAudioInternal(maxFiles, null, null);
+        }
+
+        private String scanMediaStoreAudioInternal(int maxFiles, @Nullable boolean[] outFailed, @Nullable boolean[] outTruncated) {
             JSONArray results = new JSONArray();
             int limit = maxFiles > 0 ? maxFiles : 10000;
             String[] baseProjection = new String[]{
@@ -8776,7 +9047,9 @@ public class MainActivity extends AppCompatActivity {
                         );
                     }
                 }
-                if (cursor != null) {
+                if (cursor == null) {
+                    if (outFailed != null && outFailed.length > 0) outFailed[0] = true;
+                } else {
                     int idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
                     int nameCol = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME);
                     int titleCol = cursor.getColumnIndex(MediaStore.Audio.Media.TITLE);
@@ -8793,13 +9066,19 @@ public class MainActivity extends AppCompatActivity {
                     int modCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATE_MODIFIED);
 
                     int count = 0;
-                    while (cursor.moveToNext() && count < limit) {
+                    while (cursor.moveToNext()) {
                         long id = cursor.getLong(idCol);
                         String displayName = nameCol >= 0 ? cursor.getString(nameCol) : null;
                         String dataPath = dataCol >= 0 ? cursor.getString(dataCol) : null;
                         String mimeType = mimeCol >= 0 ? cursor.getString(mimeCol) : null;
                         long size = sizeCol >= 0 ? cursor.getLong(sizeCol) : 0L;
                         if (size <= 0) continue;
+                        if (count >= limit) {
+                            if (outTruncated != null && outTruncated.length > 0) {
+                                outTruncated[0] = true;
+                            }
+                            break;
+                        }
 
                         if ((displayName == null || displayName.isEmpty()) && dataPath != null && !dataPath.isEmpty()) {
                             displayName = new File(dataPath).getName();
@@ -8849,6 +9128,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
             } catch (Exception e) {
+                if (outFailed != null && outFailed.length > 0) outFailed[0] = true;
                 Log.w(TAG, "scanMediaStoreAudio error: " + e.getMessage(), e);
             } finally {
                 if (cursor != null) {
@@ -8884,139 +9164,273 @@ public class MainActivity extends AppCompatActivity {
             return p;
         }
 
+        private static String buildStorageScanStatsJson(
+                long scanId,
+                int totalCount,
+                int limit,
+                boolean truncated,
+                boolean mediaStoreFailed,
+                List<String> unreadableRoots,
+                int skippedDirs) {
+            try {
+                JSONObject stats = new JSONObject();
+                stats.put("scanId", scanId);
+                stats.put("totalCount", totalCount);
+                stats.put("limit", limit);
+                stats.put("truncated", truncated);
+                stats.put("mediaStoreFailed", mediaStoreFailed);
+                JSONArray unreadableArr = new JSONArray();
+                if (unreadableRoots != null) {
+                    for (String r : unreadableRoots) {
+                        unreadableArr.put(r);
+                    }
+                }
+                stats.put("unreadableRoots", unreadableArr);
+                stats.put("skippedDirs", skippedDirs);
+                return stats.toString();
+            } catch (Exception e) {
+                return "{\"scanId\":" + scanId + ",\"totalCount\":" + totalCount + ",\"limit\":" + limit
+                        + ",\"truncated\":" + truncated + ",\"mediaStoreFailed\":" + mediaStoreFailed
+                        + ",\"unreadableRoots\":[],\"skippedDirs\":" + skippedDirs + "}";
+            }
+        }
+
+        @JavascriptInterface
+        public String getLastStorageScanStatsJson() {
+            return mActivity.mLastStorageScanStatsJson;
+        }
+
+        @JavascriptInterface
+        public boolean isAsyncStorageScanRunning() {
+            return mActivity.mStorageScanRunning.get();
+        }
+
         @JavascriptInterface
         public boolean startAsyncStorageScan(final int maxFiles) {
-            if (!mActivity.mStorageScanRunning.compareAndSet(false, true)) {
-                return false;
-            }
+            final long scanId;
             final int limit = maxFiles > 0 ? maxFiles : 10000;
-            new Thread(() -> {
-                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
-                final int CHUNK_SIZE = 250;
-                int totalEmitted = 0;
-                String errorMsg = null;
-                try {
-                    Set<String> seenPaths = new HashSet<>();
-                    Set<String> seenUris = new HashSet<>();
-                    JSONArray batch = new JSONArray();
-
-                    // Phase 1: MediaStore ContentResolver
-                    try {
-                        String rawMs = scanMediaStoreAudio(limit);
-                        JSONArray msArr = new JSONArray(rawMs);
-                        for (int i = 0; i < msArr.length() && totalEmitted < limit; i++) {
-                            JSONObject item = msArr.optJSONObject(i);
-                            if (item == null) continue;
-                            String p = item.optString("path", "").trim();
-                            String u = item.optString("uri", "").trim();
-                            String normP = normalizeStorageScanPathKey(p);
-                            if (!normP.isEmpty() && !seenPaths.add(normP)) continue;
-                            if (!u.isEmpty() && !seenUris.add(u)) continue;
-                            batch.put(item);
-                            totalEmitted++;
-                            if (batch.length() >= CHUNK_SIZE) {
-                                emitStorageScanChunk(batch, totalEmitted, "MediaStore");
-                                batch = new JSONArray();
-                            }
-                        }
-                    } catch (Throwable msErr) {
-                        Log.w(TAG, "Async MediaStore scan warning: " + msErr.getMessage());
+            final Thread scanThread;
+            synchronized (mActivity.mStorageScanLock) {
+                if (!mActivity.mStorageScanRunning.compareAndSet(false, true)) {
+                    Thread prevThread = mActivity.mStorageScanThread;
+                    long elapsedMs = SystemClock.elapsedRealtime() - mActivity.mStorageScanStartedAtMs;
+                    if (prevThread != null && prevThread.isAlive() && elapsedMs < 55_000L) {
+                        return false;
                     }
-
-                    // Phase 2: Deduplicated top-level storage roots (SD cards / DSD files not indexed by MediaStore)
-                    List<String> rawRoots = new ArrayList<>();
-                    try {
-                        SharedPreferences linkPrefs = mActivity.getSharedPreferences("nocturne_prefs", Context.MODE_PRIVATE);
-                        JSONArray savedRootsArr = new JSONArray(linkPrefs.getString(PREF_FIIO_LINKED_ROOTS, "[]"));
-                        for (int i = 0; i < savedRootsArr.length(); i++) {
-                            String sr = savedRootsArr.optString(i, "").trim();
-                            if (!sr.isEmpty() && !rawRoots.contains(sr)) rawRoots.add(sr);
-                        }
-                    } catch (Throwable ignored) {}
-                    try {
-                        JSONArray rootsArr = new JSONArray(getStoragePaths());
-                        for (int i = 0; i < rootsArr.length(); i++) {
-                            String r = rootsArr.optString(i, "").trim();
-                            if (!r.isEmpty() && !rawRoots.contains(r)) rawRoots.add(r);
-                        }
-                    } catch (Throwable ignored) {}
-                    Collections.sort(rawRoots, (a, b) -> Integer.compare(a.length(), b.length()));
-                    List<String> minimalRoots = new ArrayList<>();
-                    for (String candidate : rawRoots) {
-                        boolean covered = false;
-                        for (String parent : minimalRoots) {
-                            if (candidate.equals(parent) || candidate.startsWith(parent + "/")) {
-                                covered = true;
-                                break;
-                            }
-                        }
-                        if (!covered) minimalRoots.add(candidate);
+                    if (prevThread != null) {
+                        try {
+                            prevThread.interrupt();
+                        } catch (Throwable ignored) {}
                     }
+                    mActivity.mStorageScanRunning.set(true);
+                }
+                scanId = mActivity.mStorageScanSeq.incrementAndGet();
+                mActivity.mStorageScanStartedAtMs = SystemClock.elapsedRealtime();
+                mActivity.mLastStorageScanStatsJson = buildStorageScanStatsJson(
+                        scanId, 0, limit, false, false, Collections.emptyList(), 0);
+                scanThread = new Thread(() -> {
+                    Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
+                    final int CHUNK_SIZE = 250;
+                    int totalEmitted = 0;
+                    String errorMsg = null;
+                    boolean mediaStoreFailed = false;
+                    boolean hitLimit = false;
+                    List<String> unreadableRoots = new ArrayList<>();
+                    int[] skippedDirs = new int[]{0};
+                    try {
+                        Set<String> seenPaths = new HashSet<>();
+                        Set<String> seenUris = new HashSet<>();
+                        JSONArray batch = new JSONArray();
 
-                    Set<String> visitedDirs = new HashSet<>();
-                    List<String> activeRoots = new ArrayList<>();
-                    for (String rootPath : minimalRoots) {
-                        if (totalEmitted >= limit) break;
-                        File rootDir = new File(rootPath);
-                        if (!rootDir.exists() || !rootDir.canRead()) continue;
-                        activeRoots.add(rootPath);
-                        List<File> collected = new ArrayList<>();
-                        scanDirInternal(rootDir, collected, Math.max(1, limit - totalEmitted), 0, visitedDirs);
-                        for (File f : collected) {
-                            if (totalEmitted >= limit) break;
-                            String abs = f.getAbsolutePath();
-                            String normAbs = normalizeStorageScanPathKey(abs);
-                            String normCanon = "";
-                            try {
-                                normCanon = normalizeStorageScanPathKey(f.getCanonicalPath());
-                            } catch (Throwable ignored) {}
-                            if ((!normAbs.isEmpty() && seenPaths.contains(normAbs))
-                                    || (!normCanon.isEmpty() && seenPaths.contains(normCanon))) {
-                                continue;
-                            }
-                            if (!normAbs.isEmpty()) seenPaths.add(normAbs);
-                            if (!normCanon.isEmpty()) seenPaths.add(normCanon);
-                            try {
-                                JSONObject obj = new JSONObject();
-                                obj.put("name", f.getName());
-                                obj.put("path", abs);
-                                obj.put("size", f.length());
-                                obj.put("lastModified", f.lastModified());
-                                batch.put(obj);
+                        // Phase 1: MediaStore ContentResolver
+                        try {
+                            boolean[] msFailedOut = new boolean[]{false};
+                            boolean[] msTruncatedOut = new boolean[]{false};
+                            String rawMs = scanMediaStoreAudioInternal(limit, msFailedOut, msTruncatedOut);
+                            if (msFailedOut[0]) mediaStoreFailed = true;
+                            if (msTruncatedOut[0]) hitLimit = true;
+                            JSONArray msArr = new JSONArray(rawMs);
+                            for (int i = 0; i < msArr.length(); i++) {
+                                if (mActivity.mStorageScanSeq.get() != scanId || Thread.currentThread().isInterrupted()) {
+                                    return;
+                                }
+                                JSONObject item = msArr.optJSONObject(i);
+                                if (item == null) continue;
+                                String p = item.optString("path", "").trim();
+                                String u = item.optString("uri", "").trim();
+                                String normP = normalizeStorageScanPathKey(p);
+                                if (!normP.isEmpty() && !seenPaths.add(normP)) continue;
+                                if (!u.isEmpty() && !seenUris.add(u)) continue;
+                                if (totalEmitted >= limit) {
+                                    hitLimit = true;
+                                    break;
+                                }
+                                batch.put(item);
                                 totalEmitted++;
                                 if (batch.length() >= CHUNK_SIZE) {
-                                    emitStorageScanChunk(batch, totalEmitted, "MicroSD");
+                                    emitStorageScanChunk(scanId, batch, totalEmitted, "MediaStore");
                                     batch = new JSONArray();
                                 }
-                            } catch (Exception ignored) {}
+                            }
+                        } catch (Throwable msErr) {
+                            mediaStoreFailed = true;
+                            Log.w(TAG, "Async MediaStore scan warning: " + msErr.getMessage());
                         }
-                    }
 
-                    if (batch.length() > 0) {
-                        emitStorageScanChunk(batch, totalEmitted, "Storage");
-                    }
-                    if (totalEmitted > 0) {
-                        JSONArray linkedRootsJson = new JSONArray();
-                        for (String ar : (activeRoots.isEmpty() ? minimalRoots : activeRoots)) {
-                            linkedRootsJson.put(ar);
+                        // Phase 2: Deduplicated top-level storage roots (SD cards / DSD files not indexed by MediaStore)
+                        List<String> rawRoots = new ArrayList<>();
+                        try {
+                            SharedPreferences linkPrefs = mActivity.getSharedPreferences("nocturne_prefs", Context.MODE_PRIVATE);
+                            JSONArray savedRootsArr = new JSONArray(linkPrefs.getString(PREF_FIIO_LINKED_ROOTS, "[]"));
+                            for (int i = 0; i < savedRootsArr.length(); i++) {
+                                String sr = savedRootsArr.optString(i, "").trim();
+                                if (!sr.isEmpty() && !rawRoots.contains(sr)) rawRoots.add(sr);
+                            }
+                        } catch (Throwable ignored) {}
+                        try {
+                            JSONArray rootsArr = new JSONArray(getStoragePaths());
+                            for (int i = 0; i < rootsArr.length(); i++) {
+                                String r = rootsArr.optString(i, "").trim();
+                                if (!r.isEmpty() && !rawRoots.contains(r)) rawRoots.add(r);
+                            }
+                        } catch (Throwable ignored) {}
+                        if (rawRoots.contains("/storage/emulated/0") || rawRoots.contains("/storage/emulated/0/Music")) {
+                            rawRoots.remove("/storage/emulated");
                         }
-                        setFiioStorageLinkState(true, linkedRootsJson.toString(), totalEmitted);
+                        Collections.sort(rawRoots, (a, b) -> Integer.compare(a.length(), b.length()));
+                        List<String> minimalRoots = new ArrayList<>();
+                        for (String candidate : rawRoots) {
+                            boolean covered = false;
+                            for (String parent : minimalRoots) {
+                                if (candidate.equals(parent)) {
+                                    covered = true;
+                                    break;
+                                }
+                                if (candidate.startsWith(parent + "/")) {
+                                    File parentFile = new File(parent);
+                                    if (parentFile.exists() && parentFile.canRead()) {
+                                        covered = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!covered) minimalRoots.add(candidate);
+                        }
+
+                        Set<String> visitedDirs = new HashSet<>();
+                        List<String> activeRoots = new ArrayList<>();
+                        for (String rootPath : minimalRoots) {
+                            if (mActivity.mStorageScanSeq.get() != scanId || Thread.currentThread().isInterrupted()) {
+                                return;
+                            }
+                            if (totalEmitted >= limit) {
+                                hitLimit = true;
+                                break;
+                            }
+                            File rootDir = new File(rootPath);
+                            if (!rootDir.exists() || !rootDir.canRead()) {
+                                if (!unreadableRoots.contains(rootPath)) {
+                                    unreadableRoots.add(rootPath);
+                                }
+                                continue;
+                            }
+                            List<File> collected = new ArrayList<>();
+                            boolean[] dirTruncated = new boolean[]{false};
+                            boolean[] rootUnreadable = new boolean[]{false};
+                            scanDirInternal(rootDir, collected, limit, 0, visitedDirs, skippedDirs, dirTruncated, rootUnreadable);
+                            if (mActivity.mStorageScanSeq.get() != scanId || Thread.currentThread().isInterrupted()) {
+                                return;
+                            }
+                            if (rootUnreadable[0]) {
+                                if (!unreadableRoots.contains(rootPath)) {
+                                    unreadableRoots.add(rootPath);
+                                }
+                                continue;
+                            }
+                            activeRoots.add(rootPath);
+                            if (dirTruncated[0]) {
+                                hitLimit = true;
+                            }
+                            for (File f : collected) {
+                                if (mActivity.mStorageScanSeq.get() != scanId || Thread.currentThread().isInterrupted()) {
+                                    return;
+                                }
+                                String abs = f.getAbsolutePath();
+                                String normAbs = normalizeStorageScanPathKey(abs);
+                                String normCanon = "";
+                                try {
+                                    normCanon = normalizeStorageScanPathKey(f.getCanonicalPath());
+                                } catch (Throwable ignored) {}
+                                if ((!normAbs.isEmpty() && seenPaths.contains(normAbs))
+                                        || (!normCanon.isEmpty() && seenPaths.contains(normCanon))) {
+                                    continue;
+                                }
+                                if (totalEmitted >= limit) {
+                                    hitLimit = true;
+                                    break;
+                                }
+                                if (!normAbs.isEmpty()) seenPaths.add(normAbs);
+                                if (!normCanon.isEmpty()) seenPaths.add(normCanon);
+                                try {
+                                    JSONObject obj = new JSONObject();
+                                    obj.put("name", f.getName());
+                                    obj.put("path", abs);
+                                    obj.put("size", f.length());
+                                    obj.put("lastModified", f.lastModified());
+                                    batch.put(obj);
+                                    totalEmitted++;
+                                    if (batch.length() >= CHUNK_SIZE) {
+                                        emitStorageScanChunk(scanId, batch, totalEmitted, "MicroSD");
+                                        batch = new JSONArray();
+                                    }
+                                } catch (Exception ignored) {}
+                            }
+                        }
+
+                        if (mActivity.mStorageScanSeq.get() != scanId || Thread.currentThread().isInterrupted()) {
+                            return;
+                        }
+                        if (batch.length() > 0) {
+                            emitStorageScanChunk(scanId, batch, totalEmitted, "Storage");
+                        }
+                        if (totalEmitted > 0) {
+                            JSONArray linkedRootsJson = new JSONArray();
+                            for (String ar : (activeRoots.isEmpty() ? minimalRoots : activeRoots)) {
+                                linkedRootsJson.put(ar);
+                            }
+                            setFiioStorageLinkState(true, linkedRootsJson.toString(), totalEmitted);
+                        }
+                    } catch (Throwable t) {
+                        errorMsg = t.getMessage() != null ? t.getMessage() : "Storage scan failed";
+                        Log.w(TAG, "Async storage scan failed: " + errorMsg, t);
+                    } finally {
+                        final boolean isCurrentScan;
+                        synchronized (mActivity.mStorageScanLock) {
+                            isCurrentScan = (mActivity.mStorageScanSeq.get() == scanId);
+                            if (isCurrentScan) {
+                                mActivity.mLastStorageScanStatsJson = buildStorageScanStatsJson(
+                                        scanId, totalEmitted, limit, hitLimit, mediaStoreFailed, unreadableRoots, skippedDirs[0]);
+                                mActivity.mStorageScanThread = null;
+                                mActivity.mStorageScanRunning.set(false);
+                            }
+                        }
+                        if (isCurrentScan) {
+                            emitStorageScanDone(scanId, totalEmitted, errorMsg);
+                        }
                     }
-                } catch (Throwable t) {
-                    errorMsg = t.getMessage() != null ? t.getMessage() : "Storage scan failed";
-                    Log.w(TAG, "Async storage scan failed: " + errorMsg, t);
-                } finally {
-                    mActivity.mStorageScanRunning.set(false);
-                    emitStorageScanDone(totalEmitted, errorMsg);
-                }
-            }, "NocturneStorageScanner").start();
+                }, "NocturneStorageScanner");
+                mActivity.mStorageScanThread = scanThread;
+                scanThread.start();
+            }
             return true;
         }
 
-        private void emitStorageScanChunk(final JSONArray chunk, final int totalSoFar, final String sourceLabel) {
+        private void emitStorageScanChunk(final long scanId, final JSONArray chunk, final int totalSoFar, final String sourceLabel) {
+            if (mActivity.mStorageScanSeq.get() != scanId) return;
             final String quotedJson = JSONObject.quote(chunk.toString());
             final String quotedLabel = JSONObject.quote(sourceLabel != null ? sourceLabel : "Storage");
             mActivity.runOnUiThread(() -> {
+                if (mActivity.mStorageScanSeq.get() != scanId) return;
                 if (mActivity.mWebView != null) {
                     try {
                         mActivity.mWebView.evaluateJavascript(
@@ -9029,9 +9443,11 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-        private void emitStorageScanDone(final int totalCount, @Nullable final String errorMsg) {
+        private void emitStorageScanDone(final long scanId, final int totalCount, @Nullable final String errorMsg) {
+            if (mActivity.mStorageScanSeq.get() != scanId) return;
             final String errArg = errorMsg != null ? JSONObject.quote(errorMsg) : "null";
             mActivity.runOnUiThread(() -> {
+                if (mActivity.mStorageScanSeq.get() != scanId) return;
                 if (mActivity.mWebView != null) {
                     try {
                         mActivity.mWebView.evaluateJavascript(
@@ -9079,7 +9495,28 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private void scanDirInternal(File current, List<File> collected, int limit, int depth, Set<String> visitedDirs) {
-            if (depth > 16 || collected.size() >= limit || current == null || !current.exists()) return;
+            scanDirInternal(current, collected, limit, depth, visitedDirs, null, null, null);
+        }
+
+        private void scanDirInternal(
+                File current,
+                List<File> collected,
+                int limit,
+                int depth,
+                Set<String> visitedDirs,
+                @Nullable int[] skippedDirsOut,
+                @Nullable boolean[] truncatedOut,
+                @Nullable boolean[] rootUnreadableOut) {
+            if (Thread.currentThread().isInterrupted()) return;
+            if (depth > 16 || collected.size() >= limit || current == null || !current.exists()) {
+                if (depth > 16 && skippedDirsOut != null && skippedDirsOut.length > 0) {
+                    skippedDirsOut[0]++;
+                }
+                if (collected.size() >= limit && truncatedOut != null && truncatedOut.length > 0) {
+                    truncatedOut[0] = true;
+                }
+                return;
+            }
             try {
                 String canonical = current.getCanonicalPath();
                 if (!visitedDirs.add(canonical)) return;
@@ -9089,12 +9526,24 @@ public class MainActivity extends AppCompatActivity {
             try {
                 files = current.listFiles();
             } catch (Throwable t) {
+                if (depth == 0 && rootUnreadableOut != null && rootUnreadableOut.length > 0) {
+                    rootUnreadableOut[0] = true;
+                } else if (skippedDirsOut != null && skippedDirsOut.length > 0) {
+                    skippedDirsOut[0]++;
+                }
                 return;
             }
-            if (files == null) return;
+            if (files == null) {
+                if (depth == 0 && rootUnreadableOut != null && rootUnreadableOut.length > 0) {
+                    rootUnreadableOut[0] = true;
+                } else if (skippedDirsOut != null && skippedDirsOut.length > 0) {
+                    skippedDirsOut[0]++;
+                }
+                return;
+            }
 
             for (File file : files) {
-                if (collected.size() >= limit) break;
+                if (Thread.currentThread().isInterrupted()) break;
                 if (file == null) continue;
                 try {
                     if (file.isDirectory()) {
@@ -9103,7 +9552,13 @@ public class MainActivity extends AppCompatActivity {
                                 "Android".equals(dName) || "proc".equals(dName) || "sys".equals(dName)) {
                             continue;
                         }
-                        scanDirInternal(file, collected, limit, depth + 1, visitedDirs);
+                        if (collected.size() >= limit) {
+                            if (truncatedOut != null && truncatedOut.length > 0) {
+                                truncatedOut[0] = true;
+                            }
+                            break;
+                        }
+                        scanDirInternal(file, collected, limit, depth + 1, visitedDirs, skippedDirsOut, truncatedOut, rootUnreadableOut);
                     } else {
                         String name = file.getName().toLowerCase(Locale.US);
                         if (name.endsWith(".flac") || name.endsWith(".dsf") || name.endsWith(".dff") ||
@@ -9111,7 +9566,14 @@ public class MainActivity extends AppCompatActivity {
                                 name.endsWith(".alac") || name.endsWith(".aiff") || name.endsWith(".aif") ||
                                 name.endsWith(".ogg") || name.endsWith(".opus") || name.endsWith(".ape") ||
                                 name.endsWith(".wv") || name.endsWith(".aac") || name.endsWith(".mka") ||
-                                name.endsWith(".cue") || name.endsWith(".iso") || name.endsWith(".wma")) {
+                                name.endsWith(".cue") || name.endsWith(".iso") || name.endsWith(".wma") ||
+                                name.endsWith(".m3u") || name.endsWith(".m3u8")) {
+                            if (collected.size() >= limit) {
+                                if (truncatedOut != null && truncatedOut.length > 0) {
+                                    truncatedOut[0] = true;
+                                }
+                                break;
+                            }
                             collected.add(file);
                         }
                     }
@@ -9247,6 +9709,11 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public String getBitPerfectPlaybackSnapshot() {
             return mActivity.getBitPerfectPlaybackSnapshot();
+        }
+
+        @JavascriptInterface
+        public void ackBitPerfectRehydration() {
+            mActivity.ackBitPerfectRehydration();
         }
 
         @JavascriptInterface
