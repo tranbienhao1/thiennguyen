@@ -186,6 +186,7 @@ public class MainActivity extends AppCompatActivity {
     private volatile long mLastBitPerfectStartOrResumeElapsedMs = 0L;
     private int mRendererRecoveryCount = 0;
     private long mRendererRecoveryWindowStartMs = 0L;
+    private volatile boolean mPendingRenderProcessRehydration = false;
     private MediaSession mMediaSession;
     private volatile int mSafeInsetTopDp = 0;
     private volatile int mSafeInsetBottomDp = 0;
@@ -879,6 +880,16 @@ public class MainActivity extends AppCompatActivity {
                 if (root != null) {
                     ViewCompat.requestApplyInsets(root);
                 }
+                if (mPendingRenderProcessRehydration) {
+                    if (mBitPerfectPlayer != null && mBitPerfectPlayer.isActive()) {
+                        mWebView.evaluateJavascript(
+                                "if (typeof window.rehydrateNativeBitPerfectPlayback === 'function') { window.rehydrateNativeBitPerfectPlayback(); }",
+                                null
+                        );
+                    } else {
+                        mPendingRenderProcessRehydration = false;
+                    }
+                }
                 mWebView.postDelayed(() -> checkAndDownloadOtaUpdateAsync(false), 4000);
             }
 
@@ -1393,6 +1404,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         mWebView = freshWebView;
+        mPendingRenderProcessRehydration = (mBitPerfectPlayer != null && mBitPerfectPlayer.isActive());
         configureHighPerformanceWebView();
         loadAppEntrypoint();
         Log.i(TAG, "Recovered crashed main WebView (" + mRendererRecoveryCount + "/3 in window) without stopping mBitPerfectPlayer");
@@ -3824,9 +3836,8 @@ public class MainActivity extends AppCompatActivity {
                         "(function(){ if (typeof window.onHardwareSeekOffset === 'function') { window.onHardwareSeekOffset(" + deltaSeconds + "); return 'ok'; } return ''; })()",
                         value -> {
                             if (!"\"ok\"".equals(value) && mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
-                                long targetMs = Math.max(0L, mBitPerfectPlayer.getPositionMs() + (deltaSeconds * 1000L));
-                                long durMs = mBitPerfectPlayer.getDurationMs();
-                                if (durMs > 0L) targetMs = Math.min(targetMs, durMs);
+                                long rawTargetMs = Math.max(0L, mBitPerfectPlayer.getPositionMs() + (deltaSeconds * 1000L));
+                                long targetMs = mBitPerfectPlayer.clampCueWindowPositionMs(rawTargetMs);
                                 mBitPerfectPlayer.seek(targetMs);
                             }
                         }
@@ -3834,9 +3845,8 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
-                long targetMs = Math.max(0L, mBitPerfectPlayer.getPositionMs() + (deltaSeconds * 1000L));
-                long durMs = mBitPerfectPlayer.getDurationMs();
-                if (durMs > 0L) targetMs = Math.min(targetMs, durMs);
+                long rawTargetMs = Math.max(0L, mBitPerfectPlayer.getPositionMs() + (deltaSeconds * 1000L));
+                long targetMs = mBitPerfectPlayer.clampCueWindowPositionMs(rawTargetMs);
                 mBitPerfectPlayer.seek(targetMs);
             }
         });
@@ -3850,14 +3860,16 @@ public class MainActivity extends AppCompatActivity {
                         "(function(){ if (typeof window.onHardwareSeekTo === 'function') { window.onHardwareSeekTo(" + safePosMs + "); return 'ok'; } return ''; })()",
                         value -> {
                             if (!"\"ok\"".equals(value) && mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
-                                mBitPerfectPlayer.seek(safePosMs);
+                                long targetMs = mBitPerfectPlayer.windowRelativeSeekToAbsoluteMs(safePosMs);
+                                mBitPerfectPlayer.seek(targetMs);
                             }
                         }
                 );
                 return;
             }
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
-                mBitPerfectPlayer.seek(safePosMs);
+                long targetMs = mBitPerfectPlayer.windowRelativeSeekToAbsoluteMs(safePosMs);
+                mBitPerfectPlayer.seek(targetMs);
             }
         });
     }
@@ -4690,6 +4702,12 @@ public class MainActivity extends AppCompatActivity {
         private AudioAttributes mMixerAudioAttrs = null;
         private int mMixerEpoch = 0;
         private volatile String mCurrentSourceKey = "";
+        private volatile String mCurrentTrackId = "";
+        private volatile String mPendingTrackId = "";
+        private volatile int mLockedSampleRate = 0;
+        private volatile int mLockedBitDepth = 0;
+        private volatile boolean mLockedMixerBitPerfect = false;
+        private volatile String mLockedDeviceName = "";
         private String mCurrentTrackTitle = "";
         private String mCurrentTrackArtist = "";
         private String mCurrentTrackAlbum = "";
@@ -4739,6 +4757,16 @@ public class MainActivity extends AppCompatActivity {
         public void setPendingKnownDuration(long durationMs) {
             synchronized (mStreamAuthLock) {
                 mPendingStreamKnownDurationMs = durationMs > 0L ? durationMs : 0L;
+            }
+        }
+
+        public void setTrackId(@Nullable String trackId) {
+            final String safeId = trackId != null ? trackId.trim() : "";
+            synchronized (mStreamAuthLock) {
+                mPendingTrackId = safeId;
+            }
+            if (isActive() && !safeId.isEmpty()) {
+                mCurrentTrackId = safeId;
             }
         }
 
@@ -4873,6 +4901,7 @@ public class MainActivity extends AppCompatActivity {
             String winTitle = "";
             String winArtist = "";
             String winAlbum = "";
+            String winTrackId = "";
             synchronized (mStreamAuthLock) {
                 if (trimmedUrl.equals(mPendingStreamUrl)) {
                     consumedHeaders.putAll(mPendingStreamHeaders);
@@ -4894,6 +4923,8 @@ public class MainActivity extends AppCompatActivity {
                     winArtist = mPendingWindowArtist;
                     winAlbum = mPendingWindowAlbum;
                 }
+                winTrackId = mPendingTrackId != null ? mPendingTrackId : "";
+                mPendingTrackId = "";
                 mPendingWindowCueStartMs = 0L;
                 mPendingWindowCueDurationMs = 0L;
                 mPendingWindowTitle = "";
@@ -4905,6 +4936,11 @@ public class MainActivity extends AppCompatActivity {
             mIsStopped = false;
             mIsPaused = false;
             mIsPlaying = true;
+            mCurrentTrackId = winTrackId;
+            mLockedSampleRate = 0;
+            mLockedBitDepth = 0;
+            mLockedMixerBitPerfect = false;
+            mLockedDeviceName = "";
             mLastBitPerfectStartOrResumeElapsedMs = android.os.SystemClock.elapsedRealtime();
             mIsRemoteStream = !(trimmedUrl.startsWith("/") || trimmedUrl.startsWith("file://") || trimmedUrl.startsWith("content://") || trimmedUrl.contains("/local-media?"));
             synchronized (mSeekLock) {
@@ -5140,12 +5176,18 @@ public class MainActivity extends AppCompatActivity {
             mIsPlaying = false;
             mIsPaused = false;
             mCurrentSourceKey = "";
+            mLockedSampleRate = 0;
+            mLockedBitDepth = 0;
+            mLockedMixerBitPerfect = false;
+            mLockedDeviceName = "";
             if (!preserveSession) {
+                mCurrentTrackId = "";
                 mCueWindowStartMs = 0L;
                 mCueWindowDurationMs = 0L;
                 mTrackWindowSeq++;
                 synchronized (mStreamAuthLock) {
                     mPendingStreamKnownDurationMs = 0L;
+                    mPendingTrackId = "";
                 }
                 mNextTrackIsRemote = false;
                 MainActivity.this.mNextTrackIsRemote = false;
@@ -5181,6 +5223,90 @@ public class MainActivity extends AppCompatActivity {
 
         public long getDurationMs() {
             return mDurationMs.get();
+        }
+
+        public long getCueWindowStartMs() {
+            return Math.max(0L, mCueWindowStartMs);
+        }
+
+        public long getCueWindowDurationMs() {
+            return Math.max(0L, mCueWindowDurationMs);
+        }
+
+        public long clampCueWindowPositionMs(long absTargetMs) {
+            long start = Math.max(0L, mCueWindowStartMs);
+            long winDur = mCueWindowDurationMs;
+            long totalDur = mDurationMs.get();
+            long clamped = Math.max(start, absTargetMs);
+            if (winDur > 0L) {
+                clamped = Math.min(clamped, start + winDur);
+            }
+            if (totalDur > 0L) {
+                clamped = Math.min(clamped, totalDur);
+            }
+            return clamped;
+        }
+
+        public long windowRelativeSeekToAbsoluteMs(long relPosMs) {
+            long safeRel = Math.max(0L, relPosMs);
+            long start = Math.max(0L, mCueWindowStartMs);
+            long winDur = mCueWindowDurationMs;
+            if (winDur > 0L || start > 0L) {
+                return clampCueWindowPositionMs(start + safeRel);
+            }
+            long totalDur = mDurationMs.get();
+            return totalDur > 0L ? Math.min(safeRel, totalDur) : safeRel;
+        }
+
+        public String getPlaybackSnapshotJson(boolean recoveredFromCrash) {
+            try {
+                JSONObject obj = new JSONObject();
+                final boolean active = isActive();
+                if (!active) {
+                    obj.put("active", false);
+                    obj.put("isNativeBitPerfectPlaying", false);
+                    obj.put("isPlaying", false);
+                    obj.put("isPaused", false);
+                    obj.put("recoveredFromRenderCrash", recoveredFromCrash);
+                    obj.put("bitPerfectLockedFormat", JSONObject.NULL);
+                    return obj.toString();
+                }
+                final boolean playing = isPlaying();
+                final boolean paused = isPaused();
+                final long posMs = Math.max(0L, mCurrentPositionMs.get());
+                final long durMs = Math.max(0L, mDurationMs.get());
+                final long dispPosMs = Math.max(0L, getDisplayPositionMs());
+                final long dispDurMs = Math.max(0L, getDisplayDurationMs());
+                obj.put("active", true);
+                obj.put("isNativeBitPerfectPlaying", true);
+                obj.put("isPlaying", playing);
+                obj.put("isPaused", paused);
+                obj.put("currentId", mCurrentTrackId != null ? mCurrentTrackId : "");
+                obj.put("sourceKey", mCurrentSourceKey != null ? mCurrentSourceKey : "");
+                obj.put("cueStartMs", Math.max(0L, mCueWindowStartMs));
+                obj.put("cueDurationMs", Math.max(0L, mCueWindowDurationMs));
+                obj.put("positionMs", posMs);
+                obj.put("durationMs", durMs);
+                obj.put("displayPositionMs", dispPosMs);
+                obj.put("displayDurationMs", dispDurMs);
+                obj.put("title", mCurrentTrackTitle != null ? mCurrentTrackTitle : "");
+                obj.put("artist", mCurrentTrackArtist != null ? mCurrentTrackArtist : "");
+                obj.put("album", mCurrentTrackAlbum != null ? mCurrentTrackAlbum : "");
+                obj.put("recoveredFromRenderCrash", recoveredFromCrash);
+                if (mLockedSampleRate > 0) {
+                    JSONObject fmt = new JSONObject();
+                    fmt.put("sampleRate", mLockedSampleRate);
+                    fmt.put("bitDepth", mLockedBitDepth > 0 ? mLockedBitDepth : 16);
+                    fmt.put("mixerBitPerfect", mLockedMixerBitPerfect);
+                    fmt.put("deviceName", mLockedDeviceName != null ? mLockedDeviceName : "");
+                    obj.put("bitPerfectLockedFormat", fmt);
+                } else {
+                    obj.put("bitPerfectLockedFormat", JSONObject.NULL);
+                }
+                return obj.toString();
+            } catch (Exception e) {
+                return "{\"active\":false}";
+            }
         }
 
         private long toWindowRelativePositionMs(long rawPosMs) {
@@ -5597,6 +5723,10 @@ public class MainActivity extends AppCompatActivity {
             final int bits = (actualEncoding == AudioFormat.ENCODING_PCM_FLOAT || actualEncoding == 22) ? 32
                     : (actualEncoding == 21 ? 24 : 16);
             final String devName = (dev != null && dev.getProductName() != null) ? dev.getProductName().toString() : "";
+            mLockedSampleRate = actualRate;
+            mLockedBitDepth = bits;
+            mLockedMixerBitPerfect = mixerBitPerfect;
+            mLockedDeviceName = devName;
             final String safeDev = devName.replace("\\", "\\\\").replace("'", "\\'");
             final String js = "if(typeof window.onBitPerfectFormatLocked==='function'){window.onBitPerfectFormatLocked("
                     + actualRate + "," + bits + "," + (mixerBitPerfect ? "true" : "false") + ",'" + safeDev + "');}";
@@ -7500,6 +7630,23 @@ public class MainActivity extends AppCompatActivity {
         mBitPerfectPlayer.setTrackWindowMeta(cueStartMs, cueDurationMs, title, artist, album);
     }
 
+    public void setBitPerfectTrackId(String trackId) {
+        if (mBitPerfectPlayer != null) {
+            mBitPerfectPlayer.setTrackId(trackId);
+        }
+    }
+
+    public String getBitPerfectPlaybackSnapshot() {
+        if (mBitPerfectPlayer == null) {
+            return "{\"active\":false}";
+        }
+        final boolean recovered = mPendingRenderProcessRehydration;
+        if (recovered && mBitPerfectPlayer.isActive()) {
+            mPendingRenderProcessRehydration = false;
+        }
+        return mBitPerfectPlayer.getPlaybackSnapshotJson(recovered);
+    }
+
     public void updateBitPerfectStreamAuth(String url, String headersJson) {
         mBitPerfectPlayer.updateActiveStreamAuth(url, headersJson);
     }
@@ -9090,6 +9237,16 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public void setBitPerfectTrackWindow(long cueStartMs, long cueDurationMs, String title, String artist, String album) {
             mActivity.setBitPerfectTrackWindow(cueStartMs, cueDurationMs, title, artist, album);
+        }
+
+        @JavascriptInterface
+        public void setBitPerfectTrackId(String trackId) {
+            mActivity.setBitPerfectTrackId(trackId);
+        }
+
+        @JavascriptInterface
+        public String getBitPerfectPlaybackSnapshot() {
+            return mActivity.getBitPerfectPlaybackSnapshot();
         }
 
         @JavascriptInterface
