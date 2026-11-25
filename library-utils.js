@@ -13632,8 +13632,9 @@
     const lm = Number(src.lastModified || src.dateModified || 0) || 0;
     const slashIdx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
     const dirPart = slashIdx > 0 ? path.slice(0, slashIdx) : '';
-    const verSource = (src._coverVersion ? String(src._coverVersion) : '')
-      || (lm > 0 || dirPart ? (String(lm) + ':' + dirPart) : '');
+    const baseVer = (lm > 0 || dirPart) ? (String(lm) + ':' + dirPart) : '';
+    const artVer = src._coverVersion ? String(src._coverVersion) : '';
+    const verSource = (artVer && baseVer) ? (baseVer + '|' + artVer) : (artVer || baseVer);
     if (verSource) {
       let vh = 2166136261;
       for (let vi = 0; vi < verSource.length; vi++) {
@@ -13828,7 +13829,8 @@
       : ((Number.isFinite(rawDm) && rawDm > 0) ? Math.trunc(rawDm * 1000) : 0);
     if (resolvedLm > 0) track.lastModified = resolvedLm;
     if (uri) track.uri = uri;
-    const fiioCoverUrl = buildFiioCoverUrl({ uri: uri, path: path, album: resolvedAlbum, artist: resolvedArtist, albumArtist: cleanAlbumArtist });
+    if (file._coverVersion) track._coverVersion = String(file._coverVersion);
+    const fiioCoverUrl = buildFiioCoverUrl({ uri: uri, path: path, album: resolvedAlbum, artist: resolvedArtist, albumArtist: cleanAlbumArtist, lastModified: resolvedLm, _coverVersion: track._coverVersion || '' });
     if (fiioCoverUrl) track.cover = fiioCoverUrl;
     return track;
   }

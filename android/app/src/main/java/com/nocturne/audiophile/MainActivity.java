@@ -3583,6 +3583,217 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
+    @Nullable
+    private String computeLocalDirArtSignature(@Nullable File dir, boolean checkArtworkSubdirs) {
+        if (dir == null || !dir.isDirectory() || !dir.canRead()) return null;
+        try {
+            File[] kids = dir.listFiles();
+            if (kids == null) return "none";
+            String[] preferred = new String[] {"cover", "folder", "front", "album", "albumart", "artwork", "thumb", "albumartsmall"};
+            for (String base : preferred) {
+                for (File kid : kids) {
+                    if (kid == null || !kid.isFile()) continue;
+                    String name = kid.getName().toLowerCase(Locale.US);
+                    if (name.equals(base + ".jpg") || name.equals(base + ".jpeg") || name.equals(base + ".png") || name.equals(base + ".webp")) {
+                        return kid.getName() + ":" + kid.length() + ":" + kid.lastModified();
+                    }
+                }
+            }
+            String dirName = dir.getName() != null ? dir.getName().toLowerCase(Locale.US) : "";
+            if (!dirName.equals("music") && !dirName.equals("dsd") && !dirName.equals("flac") && !dirName.equals("audio") && !dirName.equals("0") && !dirName.equals("sdcard")) {
+                File bestImg = null;
+                long bestLen = 0L;
+                for (File kid : kids) {
+                    if (kid == null || !kid.isFile()) continue;
+                    String name = kid.getName().toLowerCase(Locale.US);
+                    if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") || name.endsWith(".webp")) {
+                        long len = kid.length();
+                        if (len > bestLen && len <= 24L * 1024L * 1024L) {
+                            bestLen = len;
+                            bestImg = kid;
+                        }
+                    }
+                }
+                if (bestImg != null) {
+                    return bestImg.getName() + ":" + bestImg.length() + ":" + bestImg.lastModified();
+                }
+            }
+            if (checkArtworkSubdirs) {
+                for (File kid : kids) {
+                    if (kid == null || !kid.isDirectory()) continue;
+                    String name = kid.getName() != null ? kid.getName().trim().toLowerCase(Locale.US) : "";
+                    if ("artwork".equals(name) || "cover".equals(name) || "covers".equals(name) || "scans".equals(name) || "images".equals(name)) {
+                        String subSig = computeLocalDirArtSignature(kid, false);
+                        if (subSig != null && !"none".equals(subSig)) {
+                            return "sub:" + subSig;
+                        }
+                    }
+                }
+            }
+            return "none";
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private String computeSafDirArtSignature(Uri treeUri, String dirDocId, boolean checkArtworkSubdirs) {
+        if (treeUri == null || dirDocId == null || dirDocId.isEmpty()) return null;
+        try {
+            Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, dirDocId);
+            String bestSig = null;
+            int bestRank = Integer.MAX_VALUE;
+            long bestSize = -1L;
+            String fallbackSig = null;
+            List<String> subDirDocIds = new ArrayList<>();
+            String[] preferred = new String[] {"cover", "folder", "front", "album", "albumart", "artwork", "thumb", "albumartsmall"};
+            try (Cursor cursor = getContentResolver().query(
+                    childrenUri,
+                    new String[]{
+                            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                            DocumentsContract.Document.COLUMN_MIME_TYPE,
+                            DocumentsContract.Document.COLUMN_SIZE,
+                            DocumentsContract.Document.COLUMN_LAST_MODIFIED
+                    },
+                    null,
+                    null,
+                    null
+            )) {
+                if (cursor == null) return null;
+                int idCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID);
+                int nameCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME);
+                int mimeCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE);
+                int sizeCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE);
+                int modCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED);
+                while (cursor.moveToNext()) {
+                    String cid = idCol >= 0 ? cursor.getString(idCol) : null;
+                    String cname = nameCol >= 0 ? cursor.getString(nameCol) : null;
+                    String cmime = mimeCol >= 0 ? cursor.getString(mimeCol) : null;
+                    long csize = (sizeCol >= 0 && !cursor.isNull(sizeCol)) ? cursor.getLong(sizeCol) : 0L;
+                    long cmod = (modCol >= 0 && !cursor.isNull(modCol)) ? cursor.getLong(modCol) : 0L;
+                    if (cid == null || cname == null) continue;
+                    if (DocumentsContract.Document.MIME_TYPE_DIR.equals(cmime)) {
+                        if (checkArtworkSubdirs) {
+                            String dn = cname.trim().toLowerCase(Locale.US);
+                            if ("artwork".equals(dn) || "cover".equals(dn) || "covers".equals(dn) || "scans".equals(dn) || "images".equals(dn)) {
+                                subDirDocIds.add(cid);
+                            }
+                        }
+                        continue;
+                    }
+                    String lower = cname.toLowerCase(Locale.US);
+                    if (!(lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".webp"))) continue;
+                    String sig = cname + ":" + csize + ":" + cmod;
+                    int rank = Integer.MAX_VALUE;
+                    for (int pi = 0; pi < preferred.length; pi++) {
+                        String base = preferred[pi];
+                        if (lower.equals(base + ".jpg") || lower.equals(base + ".jpeg") || lower.equals(base + ".png") || lower.equals(base + ".webp")) {
+                            rank = pi;
+                            break;
+                        }
+                    }
+                    if (rank < bestRank) {
+                        bestRank = rank;
+                        bestSig = sig;
+                    } else if (rank == Integer.MAX_VALUE && csize <= 24L * 1024L * 1024L && csize > bestSize) {
+                        bestSize = csize;
+                        fallbackSig = sig;
+                    }
+                }
+            }
+            if (bestSig != null) return bestSig;
+            String dirLeaf = safDocLeafName(dirDocId).toLowerCase(Locale.US);
+            if (fallbackSig != null && !dirLeaf.equals("music") && !dirLeaf.equals("dsd") && !dirLeaf.equals("flac") && !dirLeaf.equals("audio") && !dirLeaf.equals("0") && !dirLeaf.equals("sdcard")) {
+                return fallbackSig;
+            }
+            for (String subId : subDirDocIds) {
+                String subSig = computeSafDirArtSignature(treeUri, subId, false);
+                if (subSig != null && !"none".equals(subSig)) return "sub:" + subSig;
+            }
+            return "none";
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private String computeFolderArtVersionSignature(@Nullable String pathOrUri) {
+        if (pathOrUri == null || pathOrUri.trim().isEmpty()) return "";
+        String trimmed = pathOrUri.trim();
+        String pathParam = null;
+        Uri contentUri = null;
+        if (trimmed.startsWith("content://")) {
+            contentUri = Uri.parse(trimmed);
+        } else {
+            pathParam = trimmed;
+        }
+        File file = null;
+        if (pathParam != null && !pathParam.isEmpty()) {
+            file = resolveReadableLocalFile(pathParam);
+            if (contentUri == null && (!file.exists() || !file.canRead())) {
+                contentUri = resolveMediaStoreContentUriForPath(file.getAbsolutePath());
+            }
+        }
+        if ((file == null || !file.exists()) && contentUri != null) {
+            file = resolveFileFromContentUri(contentUri);
+        }
+        File parent = file != null ? file.getParentFile() : null;
+        if (parent != null && parent.isDirectory() && parent.canRead()) {
+            String directSig = computeLocalDirArtSignature(parent, true);
+            if (directSig != null && !"none".equals(directSig)) {
+                return "art:" + directSig;
+            }
+            String pName = parent.getName() != null ? parent.getName().trim().toLowerCase(Locale.US) : "";
+            if (pName.matches("^(?:cd|disc|disk|sacd|side|vol(?:ume)?|part)\\s*[-_.#]?\\s*(?:\\d+|[a-d]|[ivx]+).*")) {
+                File grandParent = parent.getParentFile();
+                String gpSig = computeLocalDirArtSignature(grandParent, true);
+                if (gpSig != null && !"none".equals(gpSig)) {
+                    return "art:gp:" + gpSig;
+                }
+            }
+            if ("none".equals(directSig)) return "none";
+        }
+        SafParentContext ctx = resolveSafParentContext(pathParam, contentUri);
+        if (ctx != null) {
+            String safDirect = computeSafDirArtSignature(ctx.treeUri, ctx.parentDocId, true);
+            if (safDirect != null && !"none".equals(safDirect)) {
+                return "art:" + safDirect;
+            }
+            String pName = safDocLeafName(ctx.parentDocId).trim().toLowerCase(Locale.US);
+            if (pName.matches("^(?:cd|disc|disk|sacd|side|vol(?:ume)?|part)\\s*[-_.#]?\\s*(?:\\d+|[a-d]|[ivx]+).*")) {
+                String grandParentDocId = safDocParentId(ctx.parentDocId);
+                if (grandParentDocId != null && !grandParentDocId.isEmpty()) {
+                    try {
+                        String treeDocId = DocumentsContract.getTreeDocumentId(ctx.treeUri);
+                        if (safTreeCoversDocId(treeDocId, grandParentDocId)) {
+                            String safGp = computeSafDirArtSignature(ctx.treeUri, grandParentDocId, true);
+                            if (safGp != null && !"none".equals(safGp)) {
+                                return "art:gp:" + safGp;
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
+            if ("none".equals(safDirect)) return "none";
+        }
+        if (contentUri != null) {
+            Uri directSibling = resolveSafSiblingUri(pathParam, contentUri, "folder.jpg");
+            if (directSibling != null) {
+                try (Cursor sc = getContentResolver().query(
+                        directSibling,
+                        new String[]{DocumentsContract.Document.COLUMN_SIZE, DocumentsContract.Document.COLUMN_LAST_MODIFIED},
+                        null, null, null)) {
+                    if (sc != null && sc.moveToFirst()) {
+                        long sz = sc.getLong(0);
+                        long lm = sc.getLong(1);
+                        return "art:folder.jpg:" + sz + ":" + lm;
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        return "";
+    }
+
     private void pruneCoverCache(File dir) {
         try {
             File[] files = dir.listFiles();
@@ -4833,9 +5044,10 @@ public class MainActivity extends AppCompatActivity {
                 .setActions(MEDIA_SESSION_ACTIONS)
                 .setState(isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
                     clampedPos,
-                    isPlaying ? 1.0f : 0.0f);
+                    isPlaying ? 1.0f : 0.0f,
+                    SystemClock.elapsedRealtime());
             mMediaSession.setPlaybackState(psb.build());
-            if (durationMs > 0L && Math.abs(durationMs - prevDurMs) >= 500L) {
+            if (durationMs > 0L && (prevDurMs <= 0L || Math.abs(durationMs - prevDurMs) >= 500L)) {
                 updateMediaSessionMetadata(mLastMediaTitle, mLastMediaArtist, mLastMediaAlbum, isPlaying, true);
             }
         } catch (Exception ignored) {}
@@ -4872,7 +5084,8 @@ public class MainActivity extends AppCompatActivity {
                 .setActions(MEDIA_SESSION_ACTIONS)
                 .setState(isPlaying ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
                     effectivePosMs,
-                    isPlaying ? 1.0f : 0.0f);
+                    isPlaying ? 1.0f : 0.0f,
+                    SystemClock.elapsedRealtime());
             mMediaSession.setPlaybackState(psb.build());
             MediaMetadata.Builder mb = new MediaMetadata.Builder();
             mb.putString(MediaMetadata.METADATA_KEY_TITLE, displayTitle);
@@ -5272,6 +5485,67 @@ public class MainActivity extends AppCompatActivity {
 
     @androidx.annotation.RequiresApi(34)
     private static class Api34AudioHelper {
+        public static java.util.List<Integer> getSupportedBitPerfectEncodings(
+                AudioManager am, AudioDeviceInfo device, int sampleRate, int channelMask, int preferredEncoding) {
+            java.util.List<Integer> ordered = new java.util.ArrayList<>();
+            if (am == null || device == null || sampleRate <= 0) return ordered;
+            try {
+                java.util.List<AudioMixerAttributes> attrsList = am.getSupportedMixerAttributes(device);
+                if (attrsList == null || attrsList.isEmpty()) return ordered;
+                int desiredCh = Integer.bitCount(channelMask);
+                java.util.HashSet<Integer> supportedEncs = new java.util.HashSet<>();
+                for (AudioMixerAttributes ma : attrsList) {
+                    if (ma == null || ma.getMixerBehavior() != AudioMixerAttributes.MIXER_BEHAVIOR_BIT_PERFECT) continue;
+                    AudioFormat fmt = ma.getFormat();
+                    if (fmt == null) continue;
+                    int fRate = fmt.getSampleRate();
+                    if (fRate > 0 && fRate != sampleRate) continue;
+                    int fMask = fmt.getChannelMask();
+                    int fCh = fmt.getChannelCount();
+                    if (channelMask != 0 && fMask != 0 && fMask != channelMask && desiredCh > 0 && fCh > 0 && fCh != desiredCh) {
+                        continue;
+                    }
+                    int enc = fmt.getEncoding();
+                    if (enc != AudioFormat.ENCODING_INVALID) {
+                        supportedEncs.add(enc);
+                    }
+                }
+                if (supportedEncs.isEmpty()) return ordered;
+                int[] priority = (preferredEncoding == AudioFormat.ENCODING_PCM_16BIT)
+                        ? new int[]{ AudioFormat.ENCODING_PCM_16BIT, AudioFormat.ENCODING_PCM_24BIT_PACKED, AudioFormat.ENCODING_PCM_32BIT, AudioFormat.ENCODING_PCM_FLOAT }
+                        : new int[]{ AudioFormat.ENCODING_PCM_24BIT_PACKED, AudioFormat.ENCODING_PCM_32BIT, AudioFormat.ENCODING_PCM_FLOAT, AudioFormat.ENCODING_PCM_16BIT };
+                if (preferredEncoding != AudioFormat.ENCODING_INVALID && supportedEncs.contains(preferredEncoding)
+                        && preferredEncoding != AudioFormat.ENCODING_PCM_FLOAT) {
+                    ordered.add(preferredEncoding);
+                }
+                for (int cand : priority) {
+                    if (supportedEncs.contains(cand) && !ordered.contains(cand)) {
+                        ordered.add(cand);
+                    }
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "getSupportedMixerAttributes failed: " + t.getMessage());
+            }
+            return ordered;
+        }
+
+        @Nullable
+        public static AudioFormat selectSupportedBitPerfectFormat(
+                AudioManager am, AudioDeviceInfo device, int sampleRate, int channelMask, int preferredEncoding) {
+            java.util.List<Integer> encs = getSupportedBitPerfectEncodings(am, device, sampleRate, channelMask, preferredEncoding);
+            if (encs.isEmpty()) return null;
+            try {
+                return new AudioFormat.Builder()
+                        .setEncoding(encs.get(0))
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(channelMask)
+                        .build();
+            } catch (Throwable t) {
+                Log.w(TAG, "selectSupportedBitPerfectFormat build failed: " + t.getMessage());
+                return null;
+            }
+        }
+
         public static boolean setPreferredMixerBitPerfect(AudioManager am, AudioAttributes attrs, AudioDeviceInfo device, AudioFormat format) {
             try {
                 AudioMixerAttributes mixerAttr = new AudioMixerAttributes.Builder(format)
@@ -5445,8 +5719,10 @@ public class MainActivity extends AppCompatActivity {
             }
             if (isActive()) {
                 final TrackWindowSnapshot newSnap;
+                final long prevStartMs;
                 synchronized (mTrackWindowLock) {
                     final TrackWindowSnapshot prev = mTrackWindow;
+                    prevStartMs = prev.cueStartMs;
                     final String effTitle = !safeTitle.isEmpty() ? safeTitle : prev.title;
                     final String effArtist = !safeTitle.isEmpty()
                             ? (!safeArtist.isEmpty() ? safeArtist : mCurrentTrackArtist)
@@ -5466,7 +5742,9 @@ public class MainActivity extends AppCompatActivity {
                 }
                 if (!safeTitle.isEmpty()) {
                     final long rawPos = Math.max(0L, mCurrentPositionMs.get());
-                    final long dispPos = (safeDurMs > 0L && rawPos >= safeStartMs + safeDurMs)
+                    final boolean isBackwardWindowSwitch = (safeStartMs < prevStartMs);
+                    final boolean isOutOfWindow = (rawPos < safeStartMs) || (safeDurMs > 0L && rawPos >= safeStartMs + safeDurMs);
+                    final long dispPos = (isBackwardWindowSwitch || isOutOfWindow)
                             ? 0L
                             : Math.max(0L, toWindowRelativePositionMs(rawPos, newSnap));
                     final long dispDur = Math.max(0L, getDisplayDurationMs(mDurationMs.get(), newSnap));
@@ -5880,6 +6158,9 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     mPlaybackThread.interrupt();
                     mPlaybackThread.join(800);
+                    if (mPlaybackThread.isAlive()) {
+                        mPlaybackThread.join(400);
+                    }
                 } catch (InterruptedException ignored) {}
                 mPlaybackThread = null;
             }
@@ -6098,6 +6379,13 @@ public class MainActivity extends AppCompatActivity {
             return Math.max(1, channels) * bytesPerSample;
         }
 
+        private static int alignBufferToFrameSize(int bytes, int frameBytes) {
+            int safeFrame = Math.max(1, frameBytes);
+            int safeBytes = Math.max(safeFrame, bytes);
+            int rem = safeBytes % safeFrame;
+            return (rem == 0) ? safeBytes : (safeBytes + (safeFrame - rem));
+        }
+
         private static int resolveBitPerfectChannelMask(int channels) {
             switch (channels) {
                 case 1: return AudioFormat.CHANNEL_OUT_MONO;
@@ -6190,9 +6478,19 @@ public class MainActivity extends AppCompatActivity {
                 float frac = (float) (srcPos - i0);
                 for (int c = 0; c < safeCh; c++) {
                     float s0 = readSampleNormalized(src, basePos + (i0 * safeCh + c) * srcBps, srcEncoding);
-                    float s1 = (i1 == i0) ? s0 : readSampleNormalized(src, basePos + (i1 * safeCh + c) * srcBps, srcEncoding);
-                    float interp = s0 + (s1 - s0) * frac;
-                    if (Float.isNaN(interp)) interp = 0.0f;
+                    if (Float.isNaN(s0)) s0 = 0.0f;
+                    s0 = Math.max(-1.0f, Math.min(1.0f, s0));
+                    float interp;
+                    if (i1 == i0 || frac == 0.0f) {
+                        interp = s0;
+                    } else {
+                        float s1 = readSampleNormalized(src, basePos + (i1 * safeCh + c) * srcBps, srcEncoding);
+                        if (Float.isNaN(s1)) s1 = 0.0f;
+                        s1 = Math.max(-1.0f, Math.min(1.0f, s1));
+                        interp = s0 + (s1 - s0) * frac;
+                        if (Float.isNaN(interp)) interp = 0.0f;
+                        interp = Math.max(-1.0f, Math.min(1.0f, interp));
+                    }
                     int s16 = Math.max(-32768, Math.min(32767, Math.round(interp * 32767.0f)));
                     dst16[dstIdx++] = (byte) (s16 & 0xFF);
                     dst16[dstIdx++] = (byte) ((s16 >> 8) & 0xFF);
@@ -6222,8 +6520,19 @@ public class MainActivity extends AppCompatActivity {
                 float frac = (float) (srcPos - i0);
                 for (int c = 0; c < safeCh; c++) {
                     float s0 = readSampleNormalized(oldBuf, basePos + (i0 * safeCh + c) * oldBps, oldEnc);
-                    float s1 = (i1 == i0) ? s0 : readSampleNormalized(oldBuf, basePos + (i1 * safeCh + c) * oldBps, oldEnc);
-                    float interp = Math.max(-1.0f, Math.min(1.0f, s0 + (s1 - s0) * frac));
+                    if (Float.isNaN(s0)) s0 = 0.0f;
+                    s0 = Math.max(-1.0f, Math.min(1.0f, s0));
+                    float interp;
+                    if (oldRate == newRate || i1 == i0 || frac == 0.0f) {
+                        interp = s0;
+                    } else {
+                        float s1 = readSampleNormalized(oldBuf, basePos + (i1 * safeCh + c) * oldBps, oldEnc);
+                        if (Float.isNaN(s1)) s1 = 0.0f;
+                        s1 = Math.max(-1.0f, Math.min(1.0f, s1));
+                        interp = s0 + (s1 - s0) * frac;
+                        if (Float.isNaN(interp)) interp = 0.0f;
+                        interp = Math.max(-1.0f, Math.min(1.0f, interp));
+                    }
                     if (newEnc == AudioFormat.ENCODING_PCM_16BIT) {
                         int s16 = Math.max(-32768, Math.min(32767, Math.round(interp * 32767.0f)));
                         out[dstIdx++] = (byte) (s16 & 0xFF);
@@ -6300,6 +6609,107 @@ public class MainActivity extends AppCompatActivity {
             return dstIdx;
         }
 
+        private static int convertPcmChunk(
+                ByteBuffer src, int srcEncoding, int channels, int srcRate, int dstEncoding, int dstRate, byte[] dst) {
+            if (src == null || dst == null || dst.length < 2) return 0;
+            if (srcRate != dstRate && dstEncoding == AudioFormat.ENCODING_PCM_16BIT) {
+                return convertPcmChunkTo16BitResampled(src, srcEncoding, channels, srcRate, dstRate, dst);
+            }
+            if (dstEncoding == AudioFormat.ENCODING_PCM_16BIT && srcRate == dstRate) {
+                return convertPcmChunkTo16Bit(src, srcEncoding, channels, dst);
+            }
+            final int srcBps = (srcEncoding == AudioFormat.ENCODING_PCM_16BIT) ? 2
+                    : (srcEncoding == 21 ? 3 : ((srcEncoding == 22 || srcEncoding == AudioFormat.ENCODING_PCM_FLOAT) ? 4 : 0));
+            final int dstBps = (dstEncoding == AudioFormat.ENCODING_PCM_16BIT) ? 2
+                    : (dstEncoding == 21 ? 3 : ((dstEncoding == 22 || dstEncoding == AudioFormat.ENCODING_PCM_FLOAT) ? 4 : 0));
+            if (srcBps == 0 || dstBps == 0) return 0;
+            int safeCh = Math.max(1, channels);
+            int srcFrames = src.remaining() / (srcBps * safeCh);
+            int maxDstFrames = dst.length / (dstBps * safeCh);
+            if (srcFrames <= 0 || maxDstFrames <= 0) return 0;
+            double ratio = (srcRate == dstRate) ? 1.0 : ((double) Math.max(1, srcRate) / (double) Math.max(1, dstRate));
+            int dstFrames = (srcRate == dstRate)
+                    ? Math.min(srcFrames, maxDstFrames)
+                    : Math.max(1, (int) Math.floor((double) srcFrames / ratio));
+            if (dstFrames > maxDstFrames) {
+                int maxSrc = Math.max(1, (int) Math.floor(maxDstFrames * ratio));
+                srcFrames = Math.min(srcFrames, maxSrc);
+                dstFrames = Math.min(maxDstFrames, Math.max(1, (int) Math.floor((double) srcFrames / ratio)));
+            }
+            int usedSrcFrames = (srcRate == dstRate) ? dstFrames : srcFrames;
+            int basePos = src.position();
+            int dstIdx = 0;
+            for (int f = 0; f < dstFrames; f++) {
+                double srcPos = (srcRate == dstRate) ? (double) f : (f * ratio);
+                int i0 = Math.min(usedSrcFrames - 1, (int) srcPos);
+                int i1 = Math.min(usedSrcFrames - 1, i0 + 1);
+                float frac = (float) (srcPos - i0);
+                for (int c = 0; c < safeCh; c++) {
+                    int off0 = basePos + (i0 * safeCh + c) * srcBps;
+                    if (srcRate == dstRate && srcEncoding == 21 && dstEncoding == 22) {
+                        int b0 = src.get(off0) & 0xFF;
+                        int b1 = src.get(off0 + 1) & 0xFF;
+                        byte b2 = src.get(off0 + 2);
+                        int val32 = ((b2 << 16) | (b1 << 8) | b0) << 8;
+                        dst[dstIdx++] = (byte) (val32 & 0xFF);
+                        dst[dstIdx++] = (byte) ((val32 >> 8) & 0xFF);
+                        dst[dstIdx++] = (byte) ((val32 >> 16) & 0xFF);
+                        dst[dstIdx++] = (byte) ((val32 >> 24) & 0xFF);
+                        continue;
+                    }
+                    if (srcRate == dstRate && srcEncoding == 22 && dstEncoding == 21) {
+                        int b1 = src.get(off0 + 1) & 0xFF;
+                        int b2 = src.get(off0 + 2) & 0xFF;
+                        byte b3 = src.get(off0 + 3);
+                        int val24 = ((b3 << 24) | (b2 << 16) | (b1 << 8) | (src.get(off0) & 0xFF)) >> 8;
+                        dst[dstIdx++] = (byte) (val24 & 0xFF);
+                        dst[dstIdx++] = (byte) ((val24 >> 8) & 0xFF);
+                        dst[dstIdx++] = (byte) ((val24 >> 16) & 0xFF);
+                        continue;
+                    }
+                    float s0 = readSampleNormalized(src, off0, srcEncoding);
+                    if (Float.isNaN(s0)) s0 = 0.0f;
+                    s0 = Math.max(-1.0f, Math.min(1.0f, s0));
+                    float interp;
+                    if (srcRate == dstRate || i1 == i0 || frac == 0.0f) {
+                        interp = s0;
+                    } else {
+                        float s1 = readSampleNormalized(src, basePos + (i1 * safeCh + c) * srcBps, srcEncoding);
+                        if (Float.isNaN(s1)) s1 = 0.0f;
+                        s1 = Math.max(-1.0f, Math.min(1.0f, s1));
+                        interp = s0 + (s1 - s0) * frac;
+                        if (Float.isNaN(interp)) interp = 0.0f;
+                        interp = Math.max(-1.0f, Math.min(1.0f, interp));
+                    }
+                    if (dstEncoding == AudioFormat.ENCODING_PCM_16BIT) {
+                        int s16 = Math.max(-32768, Math.min(32767, Math.round(interp * 32767.0f)));
+                        dst[dstIdx++] = (byte) (s16 & 0xFF);
+                        dst[dstIdx++] = (byte) ((s16 >> 8) & 0xFF);
+                    } else if (dstEncoding == 21) {
+                        int v24 = Math.max(-8388608, Math.min(8388607, Math.round(interp * 8388607.0f)));
+                        dst[dstIdx++] = (byte) (v24 & 0xFF);
+                        dst[dstIdx++] = (byte) ((v24 >> 8) & 0xFF);
+                        dst[dstIdx++] = (byte) ((v24 >> 16) & 0xFF);
+                    } else if (dstEncoding == 22) {
+                        long v32L = Math.round((double) interp * 2147483647.0);
+                        int v32 = (int) Math.max(-2147483648L, Math.min(2147483647L, v32L));
+                        dst[dstIdx++] = (byte) (v32 & 0xFF);
+                        dst[dstIdx++] = (byte) ((v32 >> 8) & 0xFF);
+                        dst[dstIdx++] = (byte) ((v32 >> 16) & 0xFF);
+                        dst[dstIdx++] = (byte) ((v32 >> 24) & 0xFF);
+                    } else {
+                        int bits = Float.floatToRawIntBits(interp);
+                        dst[dstIdx++] = (byte) (bits & 0xFF);
+                        dst[dstIdx++] = (byte) ((bits >> 8) & 0xFF);
+                        dst[dstIdx++] = (byte) ((bits >> 16) & 0xFF);
+                        dst[dstIdx++] = (byte) ((bits >> 24) & 0xFF);
+                    }
+                }
+            }
+            src.position(basePos + usedSrcFrames * safeCh * srcBps);
+            return dstIdx;
+        }
+
         @Nullable
         private AudioTrack createAndConfigureBitPerfectAudioTrack(
                 AudioAttributes audioAttributes,
@@ -6308,6 +6718,18 @@ public class MainActivity extends AppCompatActivity {
                 int sampleRate,
                 int pcmEncoding,
                 @Nullable AudioDeviceInfo targetDevice) {
+            return createAndConfigureBitPerfectAudioTrack(audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, targetDevice, 0);
+        }
+
+        @Nullable
+        private AudioTrack createAndConfigureBitPerfectAudioTrack(
+                AudioAttributes audioAttributes,
+                AudioFormat audioFormat,
+                int bufferSize,
+                int sampleRate,
+                int pcmEncoding,
+                @Nullable AudioDeviceInfo targetDevice,
+                int epoch) {
             AudioTrack built = null;
             try {
                 built = new AudioTrack.Builder()
@@ -6324,18 +6746,28 @@ public class MainActivity extends AppCompatActivity {
                     try { built.release(); } catch (Exception ignored) {}
                     built = null;
                 }
+                clearPreferredMixerIfMatches(epoch);
                 try {
                     AudioAttributes fallbackAttrs = new AudioAttributes.Builder()
                             .setUsage(AudioAttributes.USAGE_MEDIA)
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
                             .build();
+                    if (Build.VERSION.SDK_INT >= 34 && targetDevice != null &&
+                            (targetDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                             targetDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                        applyPreferredMixerLocked(epoch, fallbackAttrs, targetDevice, audioFormat);
+                    }
                     built = new AudioTrack.Builder()
                             .setAudioAttributes(fallbackAttrs)
                             .setAudioFormat(audioFormat)
                             .setBufferSizeInBytes(bufferSize)
                             .setTransferMode(AudioTrack.MODE_STREAM)
                             .build();
+                    if (built == null || built.getState() != AudioTrack.STATE_INITIALIZED) {
+                        clearPreferredMixerIfMatches(epoch);
+                    }
                 } catch (Throwable ignored) {
+                    clearPreferredMixerIfMatches(epoch);
                     built = null;
                 }
             }
@@ -6375,19 +6807,79 @@ public class MainActivity extends AppCompatActivity {
             if (outTrackSampleRate != null && outTrackSampleRate.length > 0) {
                 outTrackSampleRate[0] = sampleRate;
             }
+            int chCount = Math.max(1, Integer.bitCount(channelMask));
+            AudioFormat initialFormat = audioFormat;
+            int initialEncoding = pcmEncoding;
+            int initialBufferSize = alignBufferToFrameSize(bufferSize, pcmBytesPerFrame(chCount, initialEncoding));
             if (Build.VERSION.SDK_INT >= 34 && targetDevice != null &&
                     (targetDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
                      targetDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
-                applyPreferredMixerLocked(epoch, audioAttributes, targetDevice, audioFormat);
+                AudioFormat mixerMatchedFmt = Api34AudioHelper.selectSupportedBitPerfectFormat(
+                        mAudioManager, targetDevice, sampleRate, channelMask, pcmEncoding);
+                if (mixerMatchedFmt != null && mixerMatchedFmt.getEncoding() != AudioFormat.ENCODING_INVALID) {
+                    initialFormat = mixerMatchedFmt;
+                    initialEncoding = mixerMatchedFmt.getEncoding();
+                    int initFrameBytes = pcmBytesPerFrame(chCount, initialEncoding);
+                    if (initialEncoding != pcmEncoding) {
+                        int minTrackBuf = AudioTrack.getMinBufferSize(sampleRate, channelMask, initialEncoding);
+                        if (minTrackBuf <= 0) minTrackBuf = sampleRate * initFrameBytes;
+                        initialBufferSize = alignBufferToFrameSize(Math.max(bufferSize, Math.max(minTrackBuf * 4, 65536)), initFrameBytes);
+                    } else {
+                        initialBufferSize = alignBufferToFrameSize(bufferSize, initFrameBytes);
+                    }
+                }
+                applyPreferredMixerLocked(epoch, audioAttributes, targetDevice, initialFormat);
             }
             AudioTrack built = createAndConfigureBitPerfectAudioTrack(
-                    audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, targetDevice);
+                    audioAttributes, initialFormat, initialBufferSize, sampleRate, initialEncoding, targetDevice, epoch);
             if (built != null) {
-                if (outTrackEncoding != null && outTrackEncoding.length > 0) outTrackEncoding[0] = pcmEncoding;
+                if (outTrackEncoding != null && outTrackEncoding.length > 0) outTrackEncoding[0] = initialEncoding;
                 return built;
             }
             clearPreferredMixerIfMatches(epoch);
-            if (pcmEncoding != AudioFormat.ENCODING_PCM_16BIT) {
+            if (pcmEncoding != AudioFormat.ENCODING_PCM_16BIT || initialEncoding != AudioFormat.ENCODING_PCM_16BIT) {
+                java.util.LinkedHashSet<Integer> hiResEncs = new java.util.LinkedHashSet<>();
+                if (Build.VERSION.SDK_INT >= 34 && targetDevice != null &&
+                        (targetDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                         targetDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                    for (int enc : Api34AudioHelper.getSupportedBitPerfectEncodings(
+                            mAudioManager, targetDevice, sampleRate, channelMask, pcmEncoding)) {
+                        if (enc != AudioFormat.ENCODING_PCM_16BIT) hiResEncs.add(enc);
+                    }
+                }
+                if (Build.VERSION.SDK_INT >= 31) {
+                    hiResEncs.add(AudioFormat.ENCODING_PCM_24BIT_PACKED);
+                    hiResEncs.add(AudioFormat.ENCODING_PCM_32BIT);
+                }
+                for (int candEnc : hiResEncs) {
+                    if (candEnc == initialEncoding) continue;
+                    try {
+                        AudioFormat formatCand = new AudioFormat.Builder()
+                                .setEncoding(candEnc)
+                                .setSampleRate(sampleRate)
+                                .setChannelMask(channelMask)
+                                .build();
+                        int minBufCand = AudioTrack.getMinBufferSize(sampleRate, channelMask, candEnc);
+                        if (minBufCand <= 0) continue;
+                        int candFrameBytes = pcmBytesPerFrame(chCount, candEnc);
+                        int bufCand = alignBufferToFrameSize(Math.max(bufferSize, Math.max(minBufCand * 4, 65536)), candFrameBytes);
+                        if (Build.VERSION.SDK_INT >= 34 && targetDevice != null &&
+                                (targetDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                                 targetDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                            applyPreferredMixerLocked(epoch, audioAttributes, targetDevice, formatCand);
+                        }
+                        built = createAndConfigureBitPerfectAudioTrack(
+                                audioAttributes, formatCand, bufCand, sampleRate, candEnc, targetDevice, epoch);
+                        if (built != null) {
+                            if (outTrackEncoding != null && outTrackEncoding.length > 0) {
+                                outTrackEncoding[0] = candEnc;
+                            }
+                            Log.i(TAG, "BitPerfect: Route switch adapted enc=" + pcmEncoding + " -> enc=" + candEnc + " smoothly.");
+                            return built;
+                        }
+                        clearPreferredMixerIfMatches(epoch);
+                    } catch (Throwable ignored) {}
+                }
                 try {
                     AudioFormat format16 = new AudioFormat.Builder()
                             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
@@ -6395,14 +6887,15 @@ public class MainActivity extends AppCompatActivity {
                             .setChannelMask(channelMask)
                             .build();
                     int minBuf16 = AudioTrack.getMinBufferSize(sampleRate, channelMask, AudioFormat.ENCODING_PCM_16BIT);
-                    int buf16 = Math.max(bufferSize, Math.max(minBuf16 > 0 ? minBuf16 * 4 : 65536, 65536));
+                    int frameBytes16 = pcmBytesPerFrame(chCount, AudioFormat.ENCODING_PCM_16BIT);
+                    int buf16 = alignBufferToFrameSize(Math.max(bufferSize, Math.max(minBuf16 > 0 ? minBuf16 * 4 : 65536, 65536)), frameBytes16);
                     if (Build.VERSION.SDK_INT >= 34 && targetDevice != null &&
                             (targetDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
                              targetDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
                         applyPreferredMixerLocked(epoch, audioAttributes, targetDevice, format16);
                     }
                     built = createAndConfigureBitPerfectAudioTrack(
-                            audioAttributes, format16, buf16, sampleRate, AudioFormat.ENCODING_PCM_16BIT, targetDevice);
+                            audioAttributes, format16, buf16, sampleRate, AudioFormat.ENCODING_PCM_16BIT, targetDevice, epoch);
                     if (built != null) {
                         if (outTrackEncoding != null && outTrackEncoding.length > 0) {
                             outTrackEncoding[0] = AudioFormat.ENCODING_PCM_16BIT;
@@ -6451,14 +6944,15 @@ public class MainActivity extends AppCompatActivity {
                             .setChannelMask(channelMask)
                             .build();
                     int minBufRate = AudioTrack.getMinBufferSize(candRate, channelMask, AudioFormat.ENCODING_PCM_16BIT);
-                    int bufRate = Math.max(minBufRate > 0 ? minBufRate * 4 : 65536, 65536);
+                    int rateFrameBytes = pcmBytesPerFrame(chCount, AudioFormat.ENCODING_PCM_16BIT);
+                    int bufRate = alignBufferToFrameSize(Math.max(minBufRate > 0 ? minBufRate * 4 : 65536, 65536), rateFrameBytes);
                     if (Build.VERSION.SDK_INT >= 34 && targetDevice != null &&
                             (targetDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
                              targetDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
                         applyPreferredMixerLocked(epoch, audioAttributes, targetDevice, format16Rate);
                     }
                     built = createAndConfigureBitPerfectAudioTrack(
-                            audioAttributes, format16Rate, bufRate, candRate, AudioFormat.ENCODING_PCM_16BIT, targetDevice);
+                            audioAttributes, format16Rate, bufRate, candRate, AudioFormat.ENCODING_PCM_16BIT, targetDevice, epoch);
                     if (built != null) {
                         if (outTrackEncoding != null && outTrackEncoding.length > 0) {
                             outTrackEncoding[0] = AudioFormat.ENCODING_PCM_16BIT;
@@ -6814,6 +7308,18 @@ public class MainActivity extends AppCompatActivity {
                         } catch (Throwable ignored) {}
                     }
                 }
+                final long resolvedDisplayDurMs = getDisplayDurationMs(mDurationMs.get(), mTrackWindow);
+                if (resolvedDisplayDurMs > 0L && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                    final long resolvedDisplayPosMs = Math.max(0L, getDisplayPositionMs());
+                    final long resolvedWinSeq = mTrackWindow.seq;
+                    runOnUiThread(() -> {
+                        if (!mIsStopped && mPlaybackEpoch.get() == epoch && mTrackWindow.seq == resolvedWinSeq) {
+                            if (mLastMediaDurationMs <= 0L || Math.abs(resolvedDisplayDurMs - mLastMediaDurationMs) >= 500L) {
+                                updateMediaSessionPosition(resolvedDisplayPosMs, resolvedDisplayDurMs, !mIsPaused);
+                            }
+                        }
+                    });
+                }
 
                 // 3. Create and configure decoder (preserve >=24-bit Hi-Res precision via PCM_FLOAT when supported)
                 String mime = format.getString(MediaFormat.KEY_MIME);
@@ -6898,31 +7404,61 @@ public class MainActivity extends AppCompatActivity {
                             .build();
                     minBufSize = AudioTrack.getMinBufferSize(sampleRate, channelMask, pcmEncoding);
                 }
+                int initFrameBytes = pcmBytesPerFrame(channels, pcmEncoding);
                 if (minBufSize <= 0) {
-                    minBufSize = sampleRate * channels * 4;
+                    minBufSize = sampleRate * initFrameBytes;
                 }
                 boolean fiioHiRes = isFiioDevice() && sampleRate >= 88200;
-                int bufferSize = fiioHiRes ? Math.max(minBufSize * 6, 196608) : Math.max(minBufSize * 4, 131072);
+                int bufferSize = alignBufferToFrameSize(
+                        fiioHiRes ? Math.max(minBufSize * 6, 196608) : Math.max(minBufSize * 4, 131072),
+                        initFrameBytes);
 
                 // 6. Resolve preferred DAC device & apply Android 14+ Bit-Perfect Mixer Attributes BEFORE AudioTrack.build()
                 preferredDevice = findPreferredBitPerfectDevice();
                 int trackPcmEncoding = pcmEncoding;
                 int trackSampleRate = sampleRate;
+                AudioFormat trackAudioFormat = audioFormat;
+                int trackBufferSize = bufferSize;
                 if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
                         (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
                          preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
-                    boolean preMixerOk = applyPreferredMixerLocked(epoch, audioAttributes, preferredDevice, audioFormat);
-                    Log.i(TAG, "BitPerfect: Pre-build setPreferredMixerBitPerfect(" + sampleRate + "Hz, enc=" + pcmEncoding + "): " + preMixerOk);
+                    AudioFormat mixerMatchedFmt = Api34AudioHelper.selectSupportedBitPerfectFormat(
+                            mAudioManager, preferredDevice, sampleRate, channelMask, pcmEncoding);
+                    if (mixerMatchedFmt != null && mixerMatchedFmt.getEncoding() != pcmEncoding) {
+                        trackPcmEncoding = mixerMatchedFmt.getEncoding();
+                        trackAudioFormat = mixerMatchedFmt;
+                        int minTrackBuf = AudioTrack.getMinBufferSize(sampleRate, channelMask, trackPcmEncoding);
+                        int trackFrameBytes = pcmBytesPerFrame(channels, trackPcmEncoding);
+                        if (minTrackBuf <= 0) minTrackBuf = sampleRate * trackFrameBytes;
+                        trackBufferSize = alignBufferToFrameSize(
+                                fiioHiRes ? Math.max(minTrackBuf * 6, 196608) : Math.max(minTrackBuf * 4, 131072),
+                                trackFrameBytes);
+                    }
+                    boolean preMixerOk = applyPreferredMixerLocked(epoch, audioAttributes, preferredDevice, trackAudioFormat);
+                    Log.i(TAG, "BitPerfect: Pre-build setPreferredMixerBitPerfect(" + sampleRate + "Hz, enc=" + trackPcmEncoding + "): " + preMixerOk);
                 }
 
                 track = createAndConfigureBitPerfectAudioTrack(
-                        audioAttributes, audioFormat, bufferSize, sampleRate, pcmEncoding, preferredDevice);
+                        audioAttributes, trackAudioFormat, trackBufferSize, sampleRate, trackPcmEncoding, preferredDevice, epoch);
+                if (track == null && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                    clearPreferredMixerIfMatches(epoch);
+                    try { Thread.sleep(55); } catch (InterruptedException ignored) {}
+                    if (!mIsStopped && mPlaybackEpoch.get() == epoch) {
+                        if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
+                                (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                                 preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                            applyPreferredMixerLocked(epoch, audioAttributes, preferredDevice, trackAudioFormat);
+                        }
+                        track = createAndConfigureBitPerfectAudioTrack(
+                                audioAttributes, trackAudioFormat, trackBufferSize, sampleRate, trackPcmEncoding, preferredDevice, epoch);
+                    }
+                }
                 if (track == null) {
                     clearPreferredMixerIfMatches(epoch);
                     int[] initEnc = new int[]{ trackPcmEncoding };
                     int[] initRate = new int[]{ trackSampleRate };
                     track = rebuildAudioTrackWith16BitFallback(
-                            audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, initEnc, initRate, epoch);
+                            audioAttributes, trackAudioFormat, trackBufferSize, sampleRate, channelMask, trackPcmEncoding, preferredDevice, initEnc, initRate, epoch);
                     trackPcmEncoding = initEnc[0];
                     trackSampleRate = initRate[0];
                 }
@@ -7116,10 +7652,23 @@ public class MainActivity extends AppCompatActivity {
                             if (seekStillCurrent) {
                                 mCurrentPositionMs.set(basePositionMs);
                                 lastUiUpdateElapsedMs = SystemClock.uptimeMillis();
+                                lastMediaSessionSyncElapsedMs = 0L;
+                                final TrackWindowSnapshot seekWin = mTrackWindow;
+                                final long seekMediaPosMs = toWindowRelativePositionMs(basePositionMs, seekWin);
+                                final long seekMediaDurMs = getDisplayDurationMs(mDurationMs.get(), seekWin);
+                                final long seekWinSeq = seekWin.seq;
+                                final long seekReportGen = loopSeekGen;
+                                runOnUiThread(() -> {
+                                    if (!mIsStopped && mPlaybackEpoch.get() == epoch
+                                            && mSeekGeneration.get() == seekReportGen
+                                            && mSeekTargetUs.get() < 0L
+                                            && mTrackWindow.seq == seekWinSeq) {
+                                        updateMediaSessionPosition(seekMediaPosMs, seekMediaDurMs, !mIsPaused);
+                                    }
+                                });
                                 if (mWebView != null && !mIsStopped) {
                                     final long seekReportPosMs = basePositionMs;
                                     final long seekReportDurMs = mDurationMs.get();
-                                    final long seekReportGen = loopSeekGen;
                                     mWebView.post(() -> {
                                         if (!mIsStopped && mPlaybackEpoch.get() == epoch && mSeekGeneration.get() == seekReportGen && mSeekTargetUs.get() < 0L && mWebView != null) {
                                             mWebView.evaluateJavascript(
@@ -7258,14 +7807,35 @@ public class MainActivity extends AppCompatActivity {
                                         .build();
                                 minBufSize = AudioTrack.getMinBufferSize(sampleRate, channelMask, pcmEncoding);
                             }
-                            if (minBufSize <= 0) minBufSize = sampleRate * channels * 4;
+                            int rebuildFrameBytes = pcmBytesPerFrame(channels, pcmEncoding);
+                            if (minBufSize <= 0) minBufSize = sampleRate * rebuildFrameBytes;
                             boolean fiioHiResRebuild = isFiioDevice() && sampleRate >= 88200;
-                            bufferSize = fiioHiResRebuild ? Math.max(minBufSize * 6, 196608) : Math.max(minBufSize * 4, 131072);
+                            bufferSize = alignBufferToFrameSize(
+                                    fiioHiResRebuild ? Math.max(minBufSize * 6, 196608) : Math.max(minBufSize * 4, 131072),
+                                    rebuildFrameBytes);
+                            trackAudioFormat = audioFormat;
+                            trackBufferSize = bufferSize;
+                            if (Build.VERSION.SDK_INT >= 34 && preferredDevice != null &&
+                                    (preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_DEVICE ||
+                                     preferredDevice.getType() == AudioDeviceInfo.TYPE_USB_HEADSET)) {
+                                AudioFormat fmtMatch = Api34AudioHelper.selectSupportedBitPerfectFormat(
+                                        mAudioManager, preferredDevice, sampleRate, channelMask, pcmEncoding);
+                                if (fmtMatch != null && fmtMatch.getEncoding() != pcmEncoding) {
+                                    trackPcmEncoding = fmtMatch.getEncoding();
+                                    trackAudioFormat = fmtMatch;
+                                    int minTrackRebuild = AudioTrack.getMinBufferSize(sampleRate, channelMask, trackPcmEncoding);
+                                    int trackRebuildFrameBytes = pcmBytesPerFrame(channels, trackPcmEncoding);
+                                    if (minTrackRebuild <= 0) minTrackRebuild = sampleRate * trackRebuildFrameBytes;
+                                    trackBufferSize = alignBufferToFrameSize(
+                                            fiioHiResRebuild ? Math.max(minTrackRebuild * 6, 196608) : Math.max(minTrackRebuild * 4, 131072),
+                                            trackRebuildFrameBytes);
+                                }
+                            }
 
                             int[] fmtRebuiltEnc = new int[]{ trackPcmEncoding };
                             int[] fmtRebuiltRate = new int[]{ trackSampleRate };
                             track = rebuildAudioTrackWith16BitFallback(
-                                    audioAttributes, audioFormat, bufferSize, sampleRate, channelMask, pcmEncoding, preferredDevice, fmtRebuiltEnc, fmtRebuiltRate, epoch);
+                                    audioAttributes, trackAudioFormat, trackBufferSize, sampleRate, channelMask, trackPcmEncoding, preferredDevice, fmtRebuiltEnc, fmtRebuiltRate, epoch);
                             trackPcmEncoding = fmtRebuiltEnc[0];
                             trackSampleRate = fmtRebuiltRate[0];
                             trackBytesPerFrame = pcmBytesPerFrame(channels, trackPcmEncoding);
@@ -7406,17 +7976,16 @@ public class MainActivity extends AppCompatActivity {
                                     }
                                 }
                                 boolean wroteFromCarry = false;
-                                boolean using16BitFallback = (trackSampleRate != sampleRate) || (trackPcmEncoding == AudioFormat.ENCODING_PCM_16BIT && pcmEncoding != AudioFormat.ENCODING_PCM_16BIT);
+                                boolean needsPcmConversion = (trackSampleRate != sampleRate) || (trackPcmEncoding != pcmEncoding);
                                 if (written != AudioTrack.ERROR_DEAD_OBJECT) {
                                     if (downmixOutBuf != null && downmixOutBuf.hasRemaining()) {
                                         wroteFromCarry = true;
                                         written = track.write(downmixOutBuf, downmixOutBuf.remaining(), AudioTrack.WRITE_NON_BLOCKING);
-                                    } else if (using16BitFallback) {
-                                        if (downmix16Scratch == null) downmix16Scratch = new byte[16384];
-                                        int convertedBytes = (trackSampleRate != sampleRate)
-                                                ? convertPcmChunkTo16BitResampled(outBuf, pcmEncoding, channels, sampleRate, trackSampleRate, downmix16Scratch)
-                                                : convertPcmChunkTo16Bit(outBuf, pcmEncoding, channels, downmix16Scratch);
-                                        downmixBufEncoding = AudioFormat.ENCODING_PCM_16BIT;
+                                    } else if (needsPcmConversion) {
+                                        if (downmix16Scratch == null) downmix16Scratch = new byte[32768];
+                                        int convertedBytes = convertPcmChunk(
+                                                outBuf, pcmEncoding, channels, sampleRate, trackPcmEncoding, trackSampleRate, downmix16Scratch);
+                                        downmixBufEncoding = trackPcmEncoding;
                                         downmixBufSampleRate = trackSampleRate;
                                         downmixOutBuf = convertedBytes > 0 ? ByteBuffer.wrap(downmix16Scratch, 0, convertedBytes) : null;
                                         if (downmixOutBuf == null || !downmixOutBuf.hasRemaining()) {
@@ -7551,8 +8120,13 @@ public class MainActivity extends AppCompatActivity {
                                         lastMediaSessionSyncElapsedMs = nowElapsed;
                                         final long mediaPosMs = toWindowRelativePositionMs(posMs, winSnap);
                                         final long mediaDurMs = getDisplayDurationMs(knownDurMs, winSnap);
+                                        final long mediaSeekGen = loopSeekGen;
+                                        final long mediaWinSeq = winSeq;
                                         runOnUiThread(() -> {
-                                            if (!mIsStopped && !mIsPaused && mPlaybackEpoch.get() == epoch) {
+                                            if (!mIsStopped && !mIsPaused && mPlaybackEpoch.get() == epoch
+                                                    && mSeekGeneration.get() == mediaSeekGen
+                                                    && mSeekTargetUs.get() < 0L
+                                                    && mTrackWindow.seq == mediaWinSeq) {
                                                 updateMediaSessionPosition(mediaPosMs, mediaDurMs, true);
                                             }
                                         });
@@ -8816,11 +9390,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.102";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.103";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.102\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.103\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 
@@ -9385,6 +9959,15 @@ public class MainActivity extends AppCompatActivity {
                 if (memCache != null) memCache.evictAll();
             } catch (Throwable ignored) {}
             return deleted;
+        }
+
+        @JavascriptInterface
+        public String getFolderArtVersionSignature(@Nullable String pathOrUri) {
+            try {
+                return mActivity.computeFolderArtVersionSignature(pathOrUri);
+            } catch (Throwable ignored) {
+                return "";
+            }
         }
 
         @JavascriptInterface

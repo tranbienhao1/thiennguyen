@@ -237,13 +237,35 @@ describe('v3.9.102 P0-A — FiiO M11S & Android (Old API 26–30 + New API 31–
     assert.ok(tsIdx !== -1 && playIdx !== -1 && tsIdx < playIdx, 'runPlaybackLoop must refresh mLastBitPerfectStartOrResumeElapsedMs immediately before track.play()');
   });
 
-  it('R3: Version bump v3.9.102 / versionCode 156 parity across all files', () => {
-    assert.ok(html.includes('FiiO M11S · v3.9.102'));
-    assert.ok(sw.includes("const CACHE_VERSION = 'v3.9.102';"));
-    assert.ok(sw.includes("const CACHE_NAME = 'nocturne-v3.9.102';"));
-    assert.ok(gradle.includes('versionCode = 156'));
-    assert.ok(gradle.includes('versionName = "3.9.102"'));
-    assert.ok(mainJava.includes('"3.9.102"'));
-    assert.ok(releaseScript.includes("'v3.9.102'") && releaseScript.includes('(versionCode 156)'));
+  it('R3: Version bump >= v3.9.102 / versionCode >= 156 monotonic parity across all files', () => {
+    const semverGeq = (a, b) => {
+      const ta = String(a).split('.').map(n => parseInt(n, 10) || 0);
+      const tb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+      for (let i = 0; i < Math.max(ta.length, tb.length); i++) {
+        const da = ta[i] || 0;
+        const db = tb[i] || 0;
+        if (da !== db) return da > db;
+      }
+      return true;
+    };
+    const mHtml = html.match(/id="fiio-dap-badge"[^>]*>FiiO M11S · v(\d+\.\d+\.\d+)</);
+    const mSwVer = sw.match(/^const CACHE_VERSION = 'v(\d+\.\d+\.\d+)';/m);
+    const mSwName = sw.match(/^const CACHE_NAME = 'nocturne-v(\d+\.\d+\.\d+)';/m);
+    const mGCode = gradle.match(/^\s*versionCode = (\d+)\b/m);
+    const mGName = gradle.match(/^\s*versionName = "(\d+\.\d+\.\d+)"/m);
+    const mRelTag = releaseScript.match(/process\.argv\[2\] \|\| 'v(\d+\.\d+\.\d+)'/);
+    const mRelCode = releaseScript.match(/\(versionCode (\d+)\)/);
+
+    assert.ok(mHtml && mSwVer && mSwName && mGCode && mGName && mRelTag && mRelCode, 'All version markers must be present');
+    const ver = mHtml[1];
+    const code = Number(mGCode[1]);
+    assert.equal(semverGeq(ver, '3.9.102'), true, `index.html version must be >= 3.9.102 (got ${ver})`);
+    assert.equal(code >= 156, true, `build.gradle.kts versionCode must be >= 156 (got ${code})`);
+    assert.equal(mSwVer[1], ver);
+    assert.equal(mSwName[1], ver);
+    assert.equal(mGName[1], ver);
+    assert.ok(mainJava.includes(`"${ver}"`), `MainActivity.java fallback must include "${ver}"`);
+    assert.equal(mRelTag[1], ver);
+    assert.equal(Number(mRelCode[1]), code);
   });
 });
