@@ -364,14 +364,14 @@ test('6. Version sync v3.9.41+ / versionCode >= 95, 0 CR bytes in assets & 0 ES2
   const mainActivity = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
   const publishRelease = fs.readFileSync(path.join(ROOT, '.agent/publish-release.cjs'), 'utf8');
 
-  assert.match(indexHtml, /FiiO M11S · v3\.9\.(4[1-9]|[5-9]\d)/);
-  assert.match(swJs, /const CACHE_VERSION = 'v3\.9\.(4[1-9]|[5-9]\d)';/);
-  assert.match(swJs, /const CACHE_NAME = 'nocturne-v3\.9\.(4[1-9]|[5-9]\d)';/);
+  assert.match(indexHtml, /FiiO M11S · v3\.9\.(4[1-9]|[5-9]\d|\d{3,})/);
+  assert.match(swJs, /const CACHE_VERSION = 'v3\.9\.(4[1-9]|[5-9]\d|\d{3,})';/);
+  assert.match(swJs, /const CACHE_NAME = 'nocturne-v3\.9\.(4[1-9]|[5-9]\d|\d{3,})';/);
   const vcMatch = gradle.match(/versionCode\s*=\s*(\d+)\b/);
   assert.ok(vcMatch && Number(vcMatch[1]) >= 95, 'versionCode must be >= 95');
-  assert.match(gradle, /versionName\s*=\s*"3\.9\.(4[1-9]|[5-9]\d)"/);
-  assert.match(mainActivity, /"3\.9\.(4[1-9]|[5-9]\d)"/);
-  assert.match(publishRelease, /'v3\.9\.(4[1-9]|[5-9]\d)'/);
+  assert.match(gradle, /versionName\s*=\s*"3\.9\.(4[1-9]|[5-9]\d|\d{3,})"/);
+  assert.match(mainActivity, /"3\.9\.(4[1-9]|[5-9]\d|\d{3,})"/);
+  assert.match(publishRelease, /'v3\.9\.(4[1-9]|[5-9]\d|\d{3,})'/);
 
   const syncedFiles = [
     'index.html', 'tailwind.min.css',

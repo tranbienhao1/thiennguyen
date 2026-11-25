@@ -323,14 +323,14 @@ test('5. Version sync v3.9.40+ / versionCode >= 94, 404.html & android assets LF
   const mainActivity = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/com/nocturne/audiophile/MainActivity.java'), 'utf8');
   const publishRelease = fs.readFileSync(path.join(ROOT, '.agent/publish-release.cjs'), 'utf8');
 
-  assert.match(indexHtml, /FiiO M11S · v3\.9\.(4\d|[5-9]\d)/);
-  assert.match(swJs, /const CACHE_VERSION = 'v3\.9\.(4\d|[5-9]\d)';/);
-  assert.match(swJs, /const CACHE_NAME = 'nocturne-v3\.9\.(4\d|[5-9]\d)';/);
+  assert.match(indexHtml, /FiiO M11S · v3\.9\.(4\d|[5-9]\d|\d{3,})/);
+  assert.match(swJs, /const CACHE_VERSION = 'v3\.9\.(4\d|[5-9]\d|\d{3,})';/);
+  assert.match(swJs, /const CACHE_NAME = 'nocturne-v3\.9\.(4\d|[5-9]\d|\d{3,})';/);
   const vcMatch = gradle.match(/versionCode\s*=\s*(\d+)\b/);
   assert.ok(vcMatch && Number(vcMatch[1]) >= 94, 'versionCode must be >= 94');
-  assert.match(gradle, /versionName\s*=\s*"3\.9\.(4\d|[5-9]\d)"/);
-  assert.match(mainActivity, /"3\.9\.(4\d|[5-9]\d)"/);
-  assert.match(publishRelease, /'v3\.9\.(4\d|[5-9]\d)'/);
+  assert.match(gradle, /versionName\s*=\s*"3\.9\.(4\d|[5-9]\d|\d{3,})"/);
+  assert.match(mainActivity, /"3\.9\.(4\d|[5-9]\d|\d{3,})"/);
+  assert.match(publishRelease, /'v3\.9\.(4\d|[5-9]\d|\d{3,})'/);
 
   const html404Buf = fs.readFileSync(path.join(ROOT, '404.html'));
   assert.ok(!html404Buf.includes(13), '404.html must have 0 CR bytes');

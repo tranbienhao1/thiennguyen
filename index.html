@@ -282,7 +282,7 @@
     #sidebar { transition: transform .32s ease, opacity .25s ease, width .32s ease, margin .32s ease; }
     #content-col { transition: flex-basis .32s ease, max-width .32s ease, transform .32s ease; }
     @media (max-width: 1023.98px) {
-      #sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 60; width: min(86vw, 320px); max-height: 100dvh; overflow-y: auto; border-right: 1px solid rgba(255,255,255,.08); box-shadow: 24px 0 60px rgba(0,0,0,.5); touch-action: manipulation; }
+      #sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 60; width: min(86vw, 320px); max-height: 100vh; max-height: 100dvh; overflow-y: auto; border-right: 1px solid rgba(255,255,255,.08); box-shadow: 24px 0 60px rgba(0,0,0,.5); touch-action: manipulation; }
       body.sidebar-collapsed #sidebar { transform: translateX(-105%) !important; opacity: 0 !important; pointer-events: none !important; visibility: hidden !important; }
       body:not(.sidebar-collapsed) #sidebar { transform: translateX(0); opacity: 1; visibility: visible !important; pointer-events: auto !important; }
       body:not(.sidebar-collapsed) #content-col { transform: scale(.985); }
@@ -354,7 +354,7 @@
     #sidebar #open-settings { border-radius:8px;background:#222629; }
     #sidebar .source-btn span:first-child { width:20px;text-align:center;color:#91cde5; }
     #content-col { min-width:0;padding:0 48px 150px; }
-    #content-col>header { position:sticky;top:0;z-index:20;min-height:calc(86px + env(safe-area-inset-top, 0px));margin:0 -48px;padding:calc(14px + env(safe-area-inset-top, 0px)) 48px 14px;border-bottom:1px solid var(--line);background:rgba(17,19,21,.89);backdrop-filter:blur(22px); }
+    #content-col>header { position:sticky;top:0;z-index:20;min-height:calc(86px + var(--safe-area-top, env(safe-area-inset-top, 0px)));margin:0 -48px;padding:calc(14px + var(--safe-area-top, env(safe-area-inset-top, 0px))) 48px 14px;border-bottom:1px solid var(--line);background:rgba(17,19,21,.89);backdrop-filter:blur(22px); }
     #sidebar-toggle { width:38px;height:38px;border-radius:10px; }
     #greeting { color:#8f999e;font-size:10px;letter-spacing:.16em; }
     #page-title { margin-top:3px;font-size:25px;font-weight:560;letter-spacing:-.045em; }
@@ -418,7 +418,8 @@
     #shuffle-button:hover,#repeat-button:hover,#previous-button:hover,#next-button:hover { color:#d7edf5; }
     #quality-badge { border-radius:5px; } footer button.rounded-lg { border-color:#ffffff12;background:#ffffff05; }
     footer button.rounded-lg:hover { background:#ffffff10; }
-    #listening-room { background:radial-gradient(ellipse at 26% 48%,#263136 0,transparent 40%),rgba(16,18,20,.98); }
+    #listening-room { background:radial-gradient(ellipse at 26% 48%,#263136 0,transparent 40%),rgba(16,18,20,.98); padding-top:calc(24px + var(--safe-area-top, env(safe-area-inset-top, 0px))); padding-bottom:calc(24px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))); padding-left:calc(24px + var(--safe-area-left, env(safe-area-inset-left, 0px))); padding-right:calc(24px + var(--safe-area-right, env(safe-area-inset-right, 0px))); box-sizing:border-box; }
+    #roon-fullscreen-view { padding-top:var(--safe-area-top, env(safe-area-inset-top, 0px)); padding-bottom:var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)); padding-left:var(--safe-area-left, env(safe-area-inset-left, 0px)); padding-right:var(--safe-area-right, env(safe-area-inset-right, 0px)); box-sizing:border-box; }
     #ambient-glow { pointer-events:none!important;position:absolute;inset:0;border-radius:inherit;opacity:0;transition:opacity 0.8s ease,background 1.5s ease,transform 0.1s ease-out;z-index:0; }
     #ambient-glow.active { opacity:1; }
     #app-ambient-backdrop { pointer-events:none!important;position:fixed;inset:0;opacity:0;transition:opacity 1.2s ease,background 1.5s ease,transform 0.12s ease-out;z-index:0; }
@@ -459,7 +460,7 @@
     .lyric-line-overlap-active { color:#f4f4f5;background:rgba(255,255,255,.07); }
     #room-lyrics { scroll-behavior:smooth; }
     body.settings-open { overflow:hidden!important; }
-    #settings-modal { z-index:100!important;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;margin:0;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;overscroll-behavior:contain;touch-action:pan-y!important;border:0;padding:12px 10px;color:inherit;box-sizing:border-box; }
+    #settings-modal { z-index:100!important;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;margin:0;overflow-y:auto!important;-webkit-overflow-scrolling:touch!important;overscroll-behavior:contain;touch-action:pan-y!important;border:0;padding:calc(12px + var(--safe-area-top, env(safe-area-inset-top, 0px))) calc(10px + var(--safe-area-right, env(safe-area-inset-right, 0px))) calc(12px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))) calc(10px + var(--safe-area-left, env(safe-area-inset-left, 0px)));color:inherit;box-sizing:border-box; }
     #settings-modal::backdrop { background:rgba(0,0,0,.75);backdrop-filter:blur(4px); }
     #settings-modal>div,#settings-panel { display:block!important;width:100%;max-width:44rem;margin:8px auto 32px auto!important;box-sizing:border-box;border-color:#ffffff12;border-radius:16px;background:#191c1e;overscroll-behavior:contain;touch-action:pan-y!important; }
     #settings-modal[open] { display:block!important; }
@@ -484,7 +485,7 @@
       #content-col>header { margin-right:-48px;margin-left:-48px;padding-right:48px;padding-left:48px; }
     }
     @media (max-width:1023.98px) {
-      #sidebar { position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(86vw,320px);max-height:100dvh;overflow-y:auto;padding:24px 18px;background:#17191b!important; }
+      #sidebar { position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(86vw,320px);max-height:100vh;max-height:100dvh;overflow-y:auto;padding:24px 18px;background:#17191b!important; }
       #content-col { padding:0 24px 150px; }
       #content-col>header { margin:0 -24px;padding:12px 24px; }
       #hero>.relative { padding:28px; }
@@ -512,7 +513,7 @@
   </style>
   <style id="roon-reference-layout">
     :root{--roon-accent:#6d6add;--roon-active:#7675ed} body{margin:0;background:#151515;color:#f1f1f1;font-family:Arial,"Segoe UI",sans-serif}
-    #app-shell{display:flex!important;flex-direction:row!important;gap:0!important;width:100%;max-width:none;height:calc(100dvh - 128px);min-height:420px;margin:0;padding:0!important;overflow:hidden}
+    #app-shell{display:flex!important;flex-direction:row!important;gap:0!important;width:100%;max-width:none;height:calc(100vh - 128px);height:calc(100dvh - 128px);min-height:420px;margin:0;padding:0!important;overflow:hidden}
     #sidebar{position:relative;top:auto;z-index:25;display:flex;flex:0 0 300px;flex-direction:column;width:300px;height:100%;max-height:none;overflow-y:auto;padding:22px 18px 16px;background:#222!important;border:0!important;border-right:1px solid #2d2d2d!important;box-shadow:none!important}
     #sidebar .roon-brand{display:flex;align-items:center;justify-content:space-between;margin:0 3px 34px} #sidebar .roon-wordmark{color:#f5f5f5;font-size:38px;font-weight:300;letter-spacing:-.09em;line-height:1}
     #sidebar .roon-brand-actions{display:flex;gap:5px} #sidebar .roon-brand-actions button{width:34px;height:34px;border:0;background:transparent;color:#c9c9c9;font-size:20px} #sidebar-close{display:none}
@@ -525,7 +526,7 @@
     #sidebar .source-btn span:first-child{width:22px;color:#aaa} #sidebar #all-count{margin-left:auto} #sidebar #favorites-filter{padding:0;border:0;background:transparent;color:inherit;text-align:left}
     #sidebar #cloud-status{color:#aaa} #sidebar #open-settings,#sidebar .roon-sidebar-tool{border:0;background:transparent;color:#aaa} #sidebar .roon-source-block{margin-top:15px;padding-top:12px;border-top:1px solid #ffffff13}
     #content-col{display:flex;flex:1;flex-direction:column;min-width:0;height:100%;padding:0 0 12px!important;overflow-y:auto;overscroll-behavior:contain}
-    #content-col>header{position:sticky;top:0;z-index:22;display:grid;grid-template-columns:1fr minmax(120px,1fr) 1fr;align-items:center;min-height:calc(62px + env(safe-area-inset-top, 0px));margin:0!important;padding:calc(12px + env(safe-area-inset-top, 0px)) 25px 12px!important;border:0;border-bottom:1px solid #3a3a3a;background:#151515ed;backdrop-filter:blur(14px)}
+    #content-col>header{position:sticky;top:0;z-index:22;display:grid;grid-template-columns:1fr minmax(120px,1fr) 1fr;align-items:center;min-height:calc(62px + var(--safe-area-top, env(safe-area-inset-top, 0px)));margin:0!important;padding:calc(12px + var(--safe-area-top, env(safe-area-inset-top, 0px))) 25px 12px!important;border:0;border-bottom:1px solid #3a3a3a;background:#151515ed;backdrop-filter:blur(14px)}
     #content-col>header>div:first-child{justify-self:start} #content-col>header>div:last-child{justify-self:end} #page-title{margin:0;color:#f3f3f3;font-size:15px;font-weight:600;letter-spacing:0;text-align:center} #greeting{display:none}
     #sidebar-toggle{display:none;width:34px;height:34px;border:0;background:transparent;color:#ddd;font-size:0} #sidebar-toggle-icon{font-size:0}
     #back-button{width:34px;height:34px;border:0;background:transparent;color:#c9c9c9;font-size:25px;line-height:1}
@@ -572,7 +573,7 @@
     #recent-list button>span:first-child{width:100%;height:auto;aspect-ratio:1;border-radius:0}
     #recent-list button>span:nth-child(2){color:white;font-size:12px} #recent-list button>span:nth-child(2) span:last-child{color:#e1e4f2;font-size:11px}
     #recent-list button>span:last-child{display:none}
-    footer.glass{z-index:35;height:auto!important;min-height:calc(88px + env(safe-area-inset-bottom, 0px));padding-bottom:env(safe-area-inset-bottom, 0px)!important;border:0;border-top:1px solid #454545;background:#222;box-shadow:none;backdrop-filter:none}
+    footer.glass{z-index:35;height:auto!important;min-height:calc(88px + var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)));padding-bottom:var(--safe-area-bottom, env(safe-area-inset-bottom, 0px))!important;border:0;border-top:1px solid #454545;background:#222;box-shadow:none;backdrop-filter:none}
     footer.glass .footer-main-container{height:88px;max-width:none;padding:0 24px;display:flex;align-items:center;width:100%;box-sizing:border-box}
     footer.glass .footer-main-container>div:first-child{height:88px;width:100%}
     .footer-left-col{width:28%!important;max-width:380px!important;flex-shrink:0!important;position:relative!important;z-index:20!important;pointer-events:auto!important}
@@ -605,8 +606,8 @@
     #player-footer .footer-center-controls{z-index:25;position:relative}
     #footer-telemetry-strip{z-index:15;position:relative;height:28px!important;min-height:28px!important;max-height:28px!important;padding:2px 20px!important;box-sizing:border-box!important}
     @media(min-width:1500px){#sidebar{flex-basis:300px}#collection-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
-    @media(max-width:1023.98px){#app-shell{height:calc(100dvh - 104px);min-height:360px}#sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(300px,86vw);height:100dvh;max-height:100dvh;transform:translateX(0)}body.sidebar-collapsed #sidebar{transform:translateX(-105%);opacity:0;pointer-events:none}body:not(.sidebar-collapsed) #sidebar{transform:translateX(0);opacity:1}#sidebar-toggle{display:grid}#content-col>header{min-height:58px;padding:0 16px!important}#home-view,#library-view{padding:30px 26px 46px}#home-heading{margin-bottom:46px;font-size:54px}#library-intro{margin:24px 0 36px}#collection-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 18px}.roon-stat-grid{gap:12px}.roon-stat{min-height:112px;padding:16px}.roon-stat-value{font-size:29px}}
-    @media(max-width:640px){#app-shell{height:calc(100dvh - 88px);min-height:320px}#content-col>header{grid-template-columns:1fr 1fr 1fr;min-height:54px;padding:0 10px!important}#content-col>header>label{display:block!important;margin:0!important} #content-col>label{display:none!important}#search{position:absolute;top:56px;right:12px;z-index:3;width:calc(100vw - 24px)}#header-favorites,#header-search{width:32px;height:34px}#home-view,#library-view{padding:24px 17px 34px}#home-heading{margin:20px 0 35px;font-size:43px}#library-intro{align-items:flex-start;flex-direction:column;margin:24px 0 30px}#list-title{font-size:47px}#visible-count{margin-top:8px!important;font-size:13px!important}#play-library-button{min-height:48px;font-size:15px}#context-row{align-items:flex-start;flex-direction:column;margin-bottom:18px}#collection-tools{width:100%;justify-content:space-between;gap:9px}#filter-controls{width:100%}#filter-controls select{flex:1;min-width:calc(50% - 8px);max-width:none}#collection-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 15px}.collection-title{font-size:13px}.collection-subtitle{font-size:12px}.roon-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:34px}.roon-stat{min-height:90px;gap:10px;padding:12px}.roon-stat-icon{font-size:28px}.roon-stat-value{font-size:25px}.roon-stat-label{font-size:10px}#recent-section{margin:0 -17px;padding:22px 17px}#recent-section .activity-heading{gap:14px;flex-wrap:wrap}#recent-section #recent-title{font-size:18px}#recent-section .activity-tab{font-size:11px}#recent-list{grid-auto-columns:132px;gap:12px}footer.glass{height:88px}footer.glass>div{padding:0 10px}footer.glass>div>div:first-child{height:62px}footer.glass.player-idle .audio-zone-empty button{min-width:220px;height:46px;font-size:14px}}
+    @media(max-width:1023.98px){#app-shell{height:calc(100vh - 104px);height:calc(100dvh - 104px);min-height:360px}#sidebar{position:fixed;top:0;bottom:0;left:0;z-index:60;width:min(300px,86vw);height:100vh;max-height:100vh;height:100dvh;max-height:100dvh;transform:translateX(0)}body.sidebar-collapsed #sidebar{transform:translateX(-105%);opacity:0;pointer-events:none}body:not(.sidebar-collapsed) #sidebar{transform:translateX(0);opacity:1}#sidebar-toggle{display:grid}#content-col>header{min-height:58px;padding:0 16px!important}#home-view,#library-view{padding:30px 26px 46px}#home-heading{margin-bottom:46px;font-size:54px}#library-intro{margin:24px 0 36px}#collection-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 18px}.roon-stat-grid{gap:12px}.roon-stat{min-height:112px;padding:16px}.roon-stat-value{font-size:29px}}
+    @media(max-width:640px){#app-shell{height:calc(100vh - 88px);height:calc(100dvh - 88px);min-height:320px}#content-col>header{grid-template-columns:1fr 1fr 1fr;min-height:54px;padding:0 10px!important}#content-col>header>label{display:block!important;margin:0!important} #content-col>label{display:none!important}#search{position:absolute;top:56px;right:12px;z-index:3;width:calc(100vw - 24px)}#header-favorites,#header-search{width:32px;height:34px}#home-view,#library-view{padding:24px 17px 34px}#home-heading{margin:20px 0 35px;font-size:43px}#library-intro{align-items:flex-start;flex-direction:column;margin:24px 0 30px}#list-title{font-size:47px}#visible-count{margin-top:8px!important;font-size:13px!important}#play-library-button{min-height:48px;font-size:15px}#context-row{align-items:flex-start;flex-direction:column;margin-bottom:18px}#collection-tools{width:100%;justify-content:space-between;gap:9px}#filter-controls{width:100%}#filter-controls select{flex:1;min-width:calc(50% - 8px);max-width:none}#collection-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 15px}.collection-title{font-size:13px}.collection-subtitle{font-size:12px}.roon-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:34px}.roon-stat{min-height:90px;gap:10px;padding:12px}.roon-stat-icon{font-size:28px}.roon-stat-value{font-size:25px}.roon-stat-label{font-size:10px}#recent-section{margin:0 -17px;padding:22px 17px}#recent-section .activity-heading{gap:14px;flex-wrap:wrap}#recent-section #recent-title{font-size:18px}#recent-section .activity-tab{font-size:11px}#recent-list{grid-auto-columns:132px;gap:12px}footer.glass{height:88px}footer.glass>div{padding:0 10px}footer.glass>div>div:first-child{height:62px}footer.glass.player-idle .audio-zone-empty button{min-width:220px;height:46px;font-size:14px}}
     @media(min-width:1024px) and (max-width:1499px){#sidebar{flex-basis:250px}#collection-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
   </style>
   <style id="roon-collection-mobile">
@@ -1280,7 +1281,7 @@
       }
     }
     @media(max-width:640px){
-      #app-shell{height:auto;min-height:100dvh}
+      #app-shell{height:auto;min-height:100vh;min-height:100dvh}
       #search{position:absolute;top:56px;right:12px;z-index:3;width:calc(100vw - 24px)}
       #home-view,#library-view{padding:24px 17px 34px}
       #home-heading{margin:20px 0 35px;font-size:clamp(30px, 7vw, 43px)}
@@ -2371,7 +2372,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.99</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.100</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -4856,6 +4857,16 @@
         if (typeof playTrack === 'function') playTrack(curTrack.id);
       };
       window.onBitPerfectPlaybackComplete = () => {
+        if (
+          typeof window !== 'undefined' &&
+          window.NocturneNative &&
+          typeof window.NocturneNative.isBitPerfectActive === 'function' &&
+          window.NocturneNative.isBitPerfectActive() &&
+          state._bpSeekHoldUntilMs &&
+          Date.now() < state._bpSeekHoldUntilMs
+        ) {
+          return;
+        }
         state.isNativeBitPerfectPlaying = false;
         state.isNativeBitPerfectPaused = false;
         state.bitPerfectLockedFormat = null;
@@ -7451,6 +7462,7 @@
         // play(), lúc đó audio.src chưa phải lát đầu nên điều kiện swap
         // trượt): guard 'ended'/'error' dùng lại URL này để phát tiếp.
         track.fullAudioUrl = fullUrl;
+        if (typeof state !== 'undefined' && state && state.isNativeBitPerfectPlaying) return fullUrl;
         if (track.id === state.currentId && audio.src === sliceAbsoluteUrl) {
           const endedEarly = !!track.sliceEndedEarly;
           // Pha C — lát đầu đã hết sớm thì currentTime đã nhảy về duration,
@@ -12273,31 +12285,43 @@
       const rawOut = (oldDeck.router && oldDeck.router.gain && Number.isFinite(oldDeck.router.gain.value))
         ? oldDeck.router.gain.value
         : 1;
+      const rawIn = (newDeck.router && newDeck.router.gain && Number.isFinite(newDeck.router.gain.value))
+        ? newDeck.router.gain.value
+        : 0;
       const isOngoingFade = Boolean(
         typeof state !== 'undefined' && state && state.crossfadeUntil && context.currentTime < state.crossfadeUntil
       );
       const startOut = (isOngoingFade && rawOut > 0.05)
         ? Math.min(1, Math.max(0, rawOut))
         : (rawOut > 0.05 ? Math.min(1, rawOut) : 1);
+      const startIn = (isOngoingFade && rawIn > 0.02 && rawIn < 0.98)
+        ? Math.min(1, Math.max(0, rawIn))
+        : 0;
       const curveType = (typeof state !== 'undefined' && state && state.crossfadeCurve) ? state.crossfadeCurve : 'equal-power';
       for (let i = 0; i <= steps; i++) {
         const gains = typeof library.calculateCrossfadeGains === 'function'
           ? library.calculateCrossfadeGains(i / steps, curveType)
           : library.crossfadeGains(i / steps);
         outCurve[i] = gains.out * startOut;
-        inCurve[i] = gains.in;
+        inCurve[i] = startIn + (1 - startIn) * gains.in;
       }
       if (typeof oldDeck.router.gain.cancelAndHoldAtTime === 'function') {
         try { oldDeck.router.gain.cancelAndHoldAtTime(now); }
-        catch (_) { oldDeck.router.gain.cancelScheduledValues(now); }
+        catch (_) { if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') { try { oldDeck.router.gain.cancelScheduledValues(now); } catch (_2) {} } }
       } else if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') {
-        oldDeck.router.gain.cancelScheduledValues(now);
+        try { oldDeck.router.gain.cancelScheduledValues(now); } catch (_) {}
       }
       try {
         oldDeck.router.gain.setValueCurveAtTime(outCurve, now, duration);
       } catch (errCurve) {
-        try { oldDeck.router.gain.linearRampToValueAtTime(0, now + duration); }
-        catch (_) { oldDeck.router.gain.setTargetAtTime(0, now, duration / 3); }
+        try {
+          if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') oldDeck.router.gain.cancelScheduledValues(now);
+          if (typeof oldDeck.router.gain.setValueAtTime === 'function') oldDeck.router.gain.setValueAtTime(startOut, now);
+          oldDeck.router.gain.linearRampToValueAtTime(0, now + duration);
+        } catch (_) {
+          try { oldDeck.router.gain.setTargetAtTime(0, now, duration / 3); }
+          catch (_2) { oldDeck.router.gain.value = 0; }
+        }
       }
       try {
         if (typeof oldDeck.router.gain.setValueAtTime === 'function') {
@@ -12309,15 +12333,21 @@
 
       if (typeof newDeck.router.gain.cancelAndHoldAtTime === 'function') {
         try { newDeck.router.gain.cancelAndHoldAtTime(now); }
-        catch (_) { newDeck.router.gain.cancelScheduledValues(now); }
+        catch (_) { if (typeof newDeck.router.gain.cancelScheduledValues === 'function') { try { newDeck.router.gain.cancelScheduledValues(now); } catch (_2) {} } }
       } else if (typeof newDeck.router.gain.cancelScheduledValues === 'function') {
-        newDeck.router.gain.cancelScheduledValues(now);
+        try { newDeck.router.gain.cancelScheduledValues(now); } catch (_) {}
       }
       try {
         newDeck.router.gain.setValueCurveAtTime(inCurve, now, duration);
       } catch (errCurve) {
-        try { newDeck.router.gain.linearRampToValueAtTime(1, now + duration); }
-        catch (_) { newDeck.router.gain.setTargetAtTime(1, now, duration / 3); }
+        try {
+          if (typeof newDeck.router.gain.cancelScheduledValues === 'function') newDeck.router.gain.cancelScheduledValues(now);
+          if (typeof newDeck.router.gain.setValueAtTime === 'function') newDeck.router.gain.setValueAtTime(startIn, now);
+          newDeck.router.gain.linearRampToValueAtTime(1, now + duration);
+        } catch (_) {
+          try { newDeck.router.gain.setTargetAtTime(1, now, duration / 3); }
+          catch (_2) { newDeck.router.gain.value = 1; }
+        }
       }
       try {
         if (typeof newDeck.router.gain.setValueAtTime === 'function') {
@@ -17210,11 +17240,16 @@
         !(next._nativeBpFallbackUntil && Date.now() < next._nativeBpFallbackUntil)
       );
       const bpCached = state._bpPreloadedStream;
+      const bpTokenForSource = bpCached
+        ? (bpCached.source === 'google' ? String((state && state.googleToken) || '') : (bpCached.source === 'onedrive' ? String((state && state.microsoftAccessToken) || '') : ''))
+        : '';
       const bpCachedStale = Boolean(
         bpCached &&
         String(bpCached.trackId) === String(next.id) &&
-        bpCached.resolvedAt &&
-        (Date.now() - bpCached.resolvedAt) >= 15 * 60 * 1000
+        (
+          (bpCached.resolvedAt && (Date.now() - bpCached.resolvedAt) >= 15 * 60 * 1000) ||
+          (bpCached.tokenSnapshot && bpTokenForSource && bpCached.tokenSnapshot !== bpTokenForSource)
+        )
       );
       const standbyStale = Boolean(
         (typeof isPreloadedStandbyStaleOrErrored === 'function' && isPreloadedStandbyStaleOrErrored(next, state.preloadReadyUrl || next.url)) ||
@@ -17247,6 +17282,9 @@
             if (state._preloadFailedTrackId === next.id) { state._preloadFailedTrackId = null; state._preloadFailedAt = 0; }
             state.preloadTrackId = next.id;
             if (preResolved && preResolved.url) {
+              const tokSnap = (preResolved.source || next.source) === 'google'
+                ? String((state && state.googleToken) || '')
+                : ((preResolved.source || next.source) === 'onedrive' ? String((state && state.microsoftAccessToken) || '') : '');
               state._bpPreloadedStream = {
                 trackId: next.id,
                 url: preResolved.url,
@@ -17254,6 +17292,7 @@
                 source: preResolved.source || next.source,
                 remoteId: preResolved.remoteId || next.targetRemoteId || next.remoteId || '',
                 size: Number(preResolved.size || next.size) || 0,
+                tokenSnapshot: tokSnap,
                 resolvedAt: Date.now()
               };
             } else {
@@ -17411,6 +17450,23 @@
         });
       }
     }
+    function resetStandbyDeckGainForPreload(standbyDeck) {
+      const standbyGain = standbyDeck && standbyDeck.router && standbyDeck.router.gain;
+      if (!standbyGain || !state.context) return;
+      const nowT = state.context.currentTime;
+      try {
+        if (typeof standbyGain.cancelAndHoldAtTime === 'function') {
+          try { standbyGain.cancelAndHoldAtTime(nowT); }
+          catch (_2) { if (typeof standbyGain.cancelScheduledValues === 'function') standbyGain.cancelScheduledValues(nowT); }
+        } else if (typeof standbyGain.cancelScheduledValues === 'function') {
+          standbyGain.cancelScheduledValues(nowT);
+        }
+        if (typeof standbyGain.setTargetAtTime === 'function') standbyGain.setTargetAtTime(0, nowT, .01);
+        else standbyGain.value = 0;
+      } catch (_) {
+        try { standbyGain.value = 0; } catch (_3) {}
+      }
+    }
     async function preloadNext(force = false) {
       if (!state.isNativeBitPerfectPlaying && (!state.context || !state.deckA || !state.deckB)) return;
       if (state.context) { if (state.crossfadeUntil && state.context.currentTime < state.crossfadeUntil) return; }
@@ -17419,17 +17475,7 @@
         clearStalePreload();
         return;
       }
-      if (
-        state.isNativeBitPerfectPlaying &&
-        state.bitPerfectEnabled &&
-        !next.isDsd &&
-        !next._skipNativeBpOnce &&
-        !(next._nativeBpFallbackUntil && Date.now() < next._nativeBpFallbackUntil) &&
-        (next.source === 'google' || next.source === 'onedrive') &&
-        typeof window !== 'undefined' &&
-        window.NocturneNative &&
-        typeof window.NocturneNative.setBitPerfectStreamAuth === 'function'
-      ) {
+      if (state.isNativeBitPerfectPlaying && state.bitPerfectEnabled && !next.isDsd && !next._skipNativeBpOnce && !(next._nativeBpFallbackUntil && Date.now() < next._nativeBpFallbackUntil) && (next.source === 'google' || next.source === 'onedrive') && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.setBitPerfectStreamAuth === 'function') {
         if (typeof preloadCloudNextDuringBitPerfect === 'function') preloadCloudNextDuringBitPerfect();
         return;
       }
@@ -17457,34 +17503,19 @@
       state.preloadTrackId = next.id; state.preloadBusyId = next.id; state.preloadReadyUrl = null;
       standbyAudio.pause(); standbyAudio.removeAttribute('src'); standbyAudio.load();
       if (oldPreload && oldPreload.id !== next.id) releaseUnusedCloudUrl(oldPreload);
-      if (state.context && state.deckA && state.deckB) {
-        const standbyDeck = state.activeDeck === state.deckA ? state.deckB : state.deckA;
-        standbyDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .01);
-      }
+      if (state.context && state.deckA && state.deckB) { const standbyDeck = state.activeDeck === state.deckA ? state.deckB : state.deckA; typeof resetStandbyDeckGainForPreload === 'function' ? resetStandbyDeckGainForPreload(standbyDeck) : standbyDeck.router.gain.setTargetAtTime(0, state.context.currentTime, .01); }
       try {
         const cloudUrlCached = next.url && state.objectUrls.has(next.url);
-        if (next.load && !cloudUrlCached) {
-          if (typeof prepareCloudTrackForPreload === 'function') await prepareCloudTrackForPreload(next);
-          await next.load();
-        } else if (cloudUrlCached && next.firstSlicePlayback && (next.source === 'google' || next.source === 'onedrive')) {
-          if (typeof prepareCloudTrackForPreload === 'function') await prepareCloudTrackForPreload(next);
-        }
-        if (generation !== state.preloadGeneration || !next.url) {
-          if (generation !== state.preloadGeneration && next.id !== state.currentId && next.id !== state.preloadTrackId) releaseUnusedCloudUrl(next);
-          return;
-        }
+        if (next.load && !cloudUrlCached) { if (typeof prepareCloudTrackForPreload === 'function') await prepareCloudTrackForPreload(next); await next.load(); }
+        else if (cloudUrlCached && next.firstSlicePlayback && (next.source === 'google' || next.source === 'onedrive') && typeof prepareCloudTrackForPreload === 'function') await prepareCloudTrackForPreload(next);
+        if (generation !== state.preloadGeneration || !next.url) { if (generation !== state.preloadGeneration && next.id !== state.currentId && next.id !== state.preloadTrackId) releaseUnusedCloudUrl(next); return; }
         if (state._preloadFailedTrackId === next.id) { state._preloadFailedTrackId = null; state._preloadFailedAt = 0; }
         const readyUrl = new URL(next.url, location.href).href;
         if (standbyAudio.src !== readyUrl) { standbyAudio.src = readyUrl; standbyAudio.volume = audio.volume; standbyAudio.muted = true; standbyAudio.load(); }
         if (typeof seekPreloadedCueStandby === 'function') seekPreloadedCueStandby(next, readyUrl, generation);
         if (standbyAudio.readyState >= 2) state.preloadReadyUrl = next.url;
       } catch (error) {
-        if (generation === state.preloadGeneration) {
-          state.preloadTrackId = null;
-          state.preloadReadyUrl = null;
-          state._preloadFailedTrackId = next.id;
-          state._preloadFailedAt = Date.now();
-        }
+        if (generation === state.preloadGeneration) { state.preloadTrackId = null; state.preloadReadyUrl = null; state._preloadFailedTrackId = next.id; state._preloadFailedAt = Date.now(); }
         console.warn('Could not preload next track:', error);
       }
       finally { if (generation === state.preloadGeneration) state.preloadBusyId = null; }
@@ -17502,6 +17533,10 @@
     // có khung nhạc) dùng chung, tránh nhân đôi logic crossfade/dọn deck.
     function finishPlaybackStart(track, generation, target, previousTrack) {
       if (generation !== state.playGeneration) return false;
+      if (state._crossfadeCleanupTimer && typeof clearTimeout === 'function') {
+        clearTimeout(state._crossfadeCleanupTimer);
+        state._crossfadeCleanupTimer = null;
+      }
       const priorActiveDeck = state.activeDeck;
       const newDeck = (state.deckA && state.deckA.element === target)
         ? state.deckA
@@ -17588,19 +17623,20 @@
       else if (typeof updatePositionState === 'function') updatePositionState(true);
       if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
       if (fadeSeconds > 0) {
-        setTimeout(() => {
+        state._crossfadeCleanupTimer = setTimeout(() => {
           if (generation === state.playGeneration) {
+            state._crossfadeCleanupTimer = null;
             const preloadTrack = state.preloadTrackId ? state.tracks.find(item => item.id === state.preloadTrackId) : null;
             const preloadHref = preloadTrack && preloadTrack.url ? new URL(preloadTrack.url, location.href).href : '';
             const claimedByPreload = preloadHref !== '' && previous.src === preloadHref;
             if (!claimedByPreload) { previous.pause(); previous.muted = true; previous.removeAttribute('src'); previous.load(); }
-          }
-          if (oldDeck && oldDeck.router && oldDeck.router.gain) {
-            try {
-              if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') oldDeck.router.gain.cancelScheduledValues(state.context ? state.context.currentTime : 0);
-              oldDeck.router.gain.value = 1;
-              if (typeof oldDeck.router.gain.setValueAtTime === 'function') oldDeck.router.gain.setValueAtTime(1, state.context ? state.context.currentTime : 0);
-            } catch (_) {}
+            if (oldDeck && oldDeck.router && oldDeck.router.gain) {
+              try {
+                if (typeof oldDeck.router.gain.cancelScheduledValues === 'function') oldDeck.router.gain.cancelScheduledValues(state.context ? state.context.currentTime : 0);
+                oldDeck.router.gain.value = 1;
+                if (typeof oldDeck.router.gain.setValueAtTime === 'function') oldDeck.router.gain.setValueAtTime(1, state.context ? state.context.currentTime : 0);
+              } catch (_) {}
+            }
           }
           releaseUnusedCloudUrl(previousTrack); releaseUnusedLocalUrl(previousTrack);
         }, fadeSeconds * 1000 + 50);
@@ -17802,6 +17838,11 @@
     }
     function pushActiveBitPerfectStreamAuth(source, token) {
       try {
+        if (state && state._bpPreloadedStream && state._bpPreloadedStream.source === source) {
+          if (!token || !state._bpPreloadedStream.tokenSnapshot || state._bpPreloadedStream.tokenSnapshot !== token) {
+            state._bpPreloadedStream = null;
+          }
+        }
         if (!token || !state || (!state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused)) return false;
         if (typeof window === 'undefined' || !window.NocturneNative || typeof window.NocturneNative.updateBitPerfectStreamAuth !== 'function') return false;
         const curTrack = Array.isArray(state.tracks) ? state.tracks.find(t => t && String(t.id) === String(state.currentId)) : null;
@@ -17926,9 +17967,27 @@
       );
     }
     function suspendWebAudioForBitPerfect() {
-      try { if (audio && !audio.paused) audio.pause(); } catch (_) {}
-      try { if (standbyAudio && !standbyAudio.paused) standbyAudio.pause(); } catch (_) {}
-      try { if (state.corsBypassAudio && !state.corsBypassAudio.paused) state.corsBypassAudio.pause(); } catch (_) {}
+      try {
+        if (audio) {
+          if (!audio.paused && typeof audio.pause === 'function') audio.pause();
+          if (typeof audio.removeAttribute === 'function') audio.removeAttribute('src');
+          if (typeof audio.load === 'function') audio.load();
+        }
+      } catch (_) {}
+      try {
+        if (standbyAudio) {
+          if (!standbyAudio.paused && typeof standbyAudio.pause === 'function') standbyAudio.pause();
+          if (typeof standbyAudio.removeAttribute === 'function') standbyAudio.removeAttribute('src');
+          if (typeof standbyAudio.load === 'function') standbyAudio.load();
+        }
+      } catch (_) {}
+      try {
+        if (state.corsBypassAudio) {
+          if (!state.corsBypassAudio.paused && typeof state.corsBypassAudio.pause === 'function') state.corsBypassAudio.pause();
+          if (typeof state.corsBypassAudio.removeAttribute === 'function') state.corsBypassAudio.removeAttribute('src');
+          if (typeof state.corsBypassAudio.load === 'function') state.corsBypassAudio.load();
+        }
+      } catch (_) {}
       if (state.context && state.context.state !== 'closed' && typeof state.context.suspend === 'function') {
         try { state.context.suspend().catch(() => {}); } catch (_) {}
       }
@@ -17998,17 +18057,12 @@
       const bpGuardToken = (state._bpPositionGuardToken = (state._bpPositionGuardToken || 0) + 1);
       state._bpAwaitingStart = true;
       try {
-
       state.currentId = track.id;
-      abortStaleFullAudioUpgrades([track.id, state.preloadTrackId]);
-      if (previousTrack && previousTrack.id !== track.id && previousTrack._dsdFetchAbort && track.id !== state.preloadTrackId) {
-        try { previousTrack._dsdFetchAbort.abort(); } catch (_) {}
-        previousTrack._dsdFetchAbort = null;
-      }
+      const willUseNativeBp = isTrackRoutedToNativeBitPerfect(track);
+      if (willUseNativeBp) abortStaleFullAudioUpgrades([state.preloadTrackId]);
+      else abortStaleFullAudioUpgrades([track.id, state.preloadTrackId]);
       if (typeof displayTrack === 'function') displayTrack(track);
       if (typeof applyOptimisticPlaybackUi === 'function') applyOptimisticPlaybackUi(track);
-
-      const willUseNativeBp = isTrackRoutedToNativeBitPerfect(track);
       if (willUseNativeBp) suspendWebAudioForBitPerfect();
       else {
       if (typeof setupAudio === 'function') setupAudio();
@@ -18020,6 +18074,10 @@
       if ((needsAsyncLoad || track.isDsd) && !(Number(state.crossfadeSeconds) > 0) && previousTrack && previousTrack.id !== track.id && audio && !audio.paused) {
         try { audio.pause(); } catch (_) {}
       }
+      }
+      if (previousTrack && previousTrack.id !== track.id && previousTrack._dsdFetchAbort && track.id !== state.preloadTrackId) {
+        try { previousTrack._dsdFetchAbort.abort(); } catch (_) {}
+        previousTrack._dsdFetchAbort = null;
       }
       if (audio) audio._userPausedDuringUpgrade = false;
       if (standbyAudio) standbyAudio._userPausedDuringUpgrade = false;
@@ -18088,6 +18146,10 @@
       if (track.isDsd) {
         if (wasNativeBpActive) {
           try { if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
+          if (typeof window !== 'undefined' && window.NocturneNative) {
+            if (typeof window.NocturneNative.acquireWakeLock === 'function') { try { window.NocturneNative.acquireWakeLock(); } catch (_) {} }
+            if (typeof window.NocturneNative.requestAudioFocus === 'function') { try { window.NocturneNative.requestAudioFocus(); } catch (_) {} }
+          }
           state.isNativeBitPerfectPlaying = false;
           state.isNativeBitPerfectPaused = false;
           state.bitPerfectLockedFormat = null;
@@ -18197,12 +18259,17 @@
       );
       if (canAttemptCloudNativeBp) {
         const preBp = state._bpPreloadedStream;
+        const activeTokenSnap = preBp
+          ? (preBp.source === 'google' ? String((state && state.googleToken) || '') : (preBp.source === 'onedrive' ? String((state && state.microsoftAccessToken) || '') : ''))
+          : '';
+        const preBpTokenMatch = !preBp || !preBp.tokenSnapshot || !activeTokenSnap || preBp.tokenSnapshot === activeTokenSnap;
         const preBpFresh = Boolean(
           preBp &&
           String(preBp.trackId) === String(track.id) &&
           preBp.url &&
           preBp.resolvedAt &&
           (Date.now() - preBp.resolvedAt) < 15 * 60 * 1000 &&
+          preBpTokenMatch &&
           !(typeof isPreloadedStandbyStaleOrErrored === 'function' && isPreloadedStandbyStaleOrErrored(track, preBp.url))
         );
         if (preBpFresh) {
@@ -18284,6 +18351,8 @@
             const sameCueStartSec = (Number.isFinite(track.cueStart) && track.cueStart > 0) ? track.cueStart : 0;
             const prevPosSec = Number(state.lastBitPerfectPositionSec) || 0;
             const needsCueSeek = ((wasSameTrackRepeat || Boolean(entry.isManualCueSelect)) && Math.abs(prevPosSec - sameCueStartSec) > 0.2) || Math.abs(prevPosSec - sameCueStartSec) >= 0.5;
+            state._bpCueEpoch = (state._bpCueEpoch || 0) + 1;
+            state._bpSameCueTransitionAtMs = Date.now();
             if (typeof window.NocturneNative.setBitPerfectTrackId === 'function') {
               window.NocturneNative.setBitPerfectTrackId(String(track.id || ''));
             }
@@ -18294,7 +18363,7 @@
             }
             if (needsCueSeek && typeof window.NocturneNative.seekBitPerfectPlayback === 'function') {
               window.NocturneNative.seekBitPerfectPlayback(Math.round(sameCueStartSec * 1000));
-              state._bpSeekHoldUntilMs = Date.now() + 900;
+              state._bpSeekHoldUntilMs = Date.now() + 1200;
               state._bpSeekTargetSec = sameCueStartSec;
             }
             if (state.isNativeBitPerfectPaused && typeof window.NocturneNative.resumeBitPerfectPlayback === 'function') {
@@ -18417,6 +18486,10 @@
       }
       if (wasNativeBpActive) {
         try { if (window.NocturneNative && typeof window.NocturneNative.stopBitPerfectPlayback === 'function') window.NocturneNative.stopBitPerfectPlayback(); } catch (_) {}
+        if (typeof window !== 'undefined' && window.NocturneNative) {
+          if (typeof window.NocturneNative.acquireWakeLock === 'function') { try { window.NocturneNative.acquireWakeLock(); } catch (_) {} }
+          if (typeof window.NocturneNative.requestAudioFocus === 'function') { try { window.NocturneNative.requestAudioFocus(); } catch (_) {} }
+        }
         state.isNativeBitPerfectPlaying = false;
         state.isNativeBitPerfectPaused = false;
         state.bitPerfectLockedFormat = null;
@@ -18925,7 +18998,9 @@
         }
         if (typeof updateMediaSession === 'function') updateMediaSession(Object.assign({}, track, dsdSliceMeta));
         else if (typeof updatePositionState === 'function') updatePositionState(true);
-        recordHistory(track); scheduleTrackRender(); preloadNext(true);
+        recordHistory(track); scheduleTrackRender();
+        if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
+        preloadNext(true);
       } catch (error) {
         if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
         if (state.dsdUrl === sliceUrl) { URL.revokeObjectURL(sliceUrl); state.objectUrls.delete(sliceUrl); state.dsdUrl = null; state.dsdTrackId = null; }
@@ -19149,6 +19224,7 @@
           }
           if (audio.dataset && track && track.id != null) audio.dataset.trackId = String(track.id);
           audio.src = url;
+          if (typeof audio.load === 'function') audio.load();
           audio.muted = false;
           const volEl = $('volume');
           const volPct = (volEl && volEl.value !== '' && volEl.value !== undefined) ? Number(volEl.value) : 72;
@@ -19207,7 +19283,9 @@
               }
               if (typeof updateMediaSession === 'function') updateMediaSession(Object.assign({}, track, dsdFullMeta));
               else if (typeof updatePositionState === 'function') updatePositionState(true);
-              recordHistory(track); scheduleTrackRender(); preloadNext(true);
+              recordHistory(track); scheduleTrackRender();
+        if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
+        preloadNext(true);
             }
             catch (error) { console.error('DSD PCM playback failed:', error); skipFailedTrack(generation, `Không thể phát PCM đã giải mã trong trình duyệt. Chuyển sang bài tiếp theo.`); }
           }
@@ -20110,6 +20188,24 @@
       }
     }
 
+    let googleRateLimitUntilMs = 0;
+    let msRateLimitUntilMs = 0;
+    function waitCloudProviderCooldown(provider) {
+      const until = provider === 'google' ? googleRateLimitUntilMs : msRateLimitUntilMs;
+      const waitMs = until > Date.now() ? Math.min(30000, until - Date.now()) : 0;
+      return waitMs > 0 ? new Promise(resolve => setTimeout(resolve, waitMs)) : Promise.resolve();
+    }
+    function noteCloudProviderCooldown(provider, waitMs) {
+      const ms = Number(waitMs) || 0;
+      if (ms <= 0) return;
+      const nextUntil = Date.now() + Math.min(30000, ms);
+      if (provider === 'google') {
+        if (nextUntil > googleRateLimitUntilMs) googleRateLimitUntilMs = nextUntil;
+      } else if (nextUntil > msRateLimitUntilMs) {
+        msRateLimitUntilMs = nextUntil;
+      }
+    }
+
     function parseCloudRetryAfterMs(headerValue, maxCapMs) {
       const cap = (Number.isFinite(Number(maxCapMs)) && Number(maxCapMs) > 0) ? Number(maxCapMs) : 30000;
       if (headerValue == null) return 0;
@@ -20142,6 +20238,7 @@
         return (Number.isFinite(dt) && dt > Date.now()) ? Math.min(30000, Math.round(dt - Date.now())) : 0;
       };
       while (true) {
+        if (typeof waitCloudProviderCooldown === 'function') await waitCloudProviderCooldown('google');
         const curToken = typeof getToken === 'function' ? getToken() : getToken;
         let response;
         try {
@@ -20174,6 +20271,7 @@
           const retryAfterMs = resolveRetryAfterMs(retryAfterHeader);
           const baseMs = retryAfterMs > 0 ? retryAfterMs : Math.min(1000 * Math.pow(2, retryCount), 30000);
           const backoffMs = Math.min(30000, baseMs) + Math.floor(Math.random() * 350);
+          if (response.status === 429 && typeof noteCloudProviderCooldown === 'function') noteCloudProviderCooldown('google', backoffMs);
           await new Promise(resolve => setTimeout(resolve, backoffMs));
           continue;
         }
@@ -20192,6 +20290,7 @@
             const retryAfter403Ms = resolveRetryAfterMs(retryAfter403);
             const base403Ms = retryAfter403Ms > 0 ? retryAfter403Ms : Math.min(1000 * Math.pow(2, retryCount), 30000);
             const backoff403Ms = Math.min(30000, base403Ms) + Math.floor(Math.random() * 350);
+            if (typeof noteCloudProviderCooldown === 'function') noteCloudProviderCooldown('google', backoff403Ms);
             await new Promise(resolve => setTimeout(resolve, backoff403Ms));
             continue;
           }
@@ -20576,6 +20675,8 @@
     const MICROSOFT_ACCOUNT_KEY = 'nocturne-microsoft-account';
     const GOOGLE_SYNC_CHECKPOINT_KEY = 'nocturne-google-sync-checkpoint';
     const MICROSOFT_SYNC_CHECKPOINT_KEY = 'nocturne-microsoft-sync-checkpoint';
+    const GOOGLE_DELTA_RESUME_KEY = 'nocturne-google-delta-resume';
+    const MICROSOFT_DELTA_RESUME_KEY = 'nocturne-microsoft-delta-resume';
     const GOOGLE_FOLDER_TREE_KEY = 'nocturne-google-folder-tree';
     const MICROSOFT_FOLDER_TREE_KEY = 'nocturne-onedrive-folder-tree';
     const CLOUD_FOLDER_TREE_MAX_ENTRIES = 20000;
@@ -20780,7 +20881,8 @@
       return (data && data.startPageToken) ? String(data.startPageToken) : '';
     }
     async function tryLoadGoogleChangesDelta(token, existingByRemoteId, knownIds) {
-      let cursor = readCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY);
+      const baseCursor = readCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY);
+      let cursor = baseCursor;
       if (!cursor || !knownIds || knownIds.size === 0) return { handled: false };
       let curToken = token;
       let nextStartToken = '';
@@ -20793,6 +20895,15 @@
       const changedLrcParents = new Set();
       const removedFolderIds = new Set();
       const deletedRemoteIds = new Set();
+      const deltaResumeCp = (typeof readCloudSyncCheckpoint === 'function') ? readCloudSyncCheckpoint(GOOGLE_DELTA_RESUME_KEY) : null;
+      if (deltaResumeCp && deltaResumeCp.baseCursor === baseCursor && deltaResumeCp.cursor) {
+        cursor = String(deltaResumeCp.cursor);
+        if (deltaResumeCp.nextStartToken) nextStartToken = String(deltaResumeCp.nextStartToken);
+        if (Array.isArray(deltaResumeCp.deletedRemoteIds)) deltaResumeCp.deletedRemoteIds.forEach(id => { if (id) deletedRemoteIds.add(String(id)); });
+        if (Array.isArray(deltaResumeCp.removedFolderIds)) deltaResumeCp.removedFolderIds.forEach(id => { if (id) removedFolderIds.add(String(id)); });
+        if (Array.isArray(deltaResumeCp.changedArtParents)) deltaResumeCp.changedArtParents.forEach(id => { if (id) changedArtParents.add(String(id)); });
+        if (Array.isArray(deltaResumeCp.changedLrcParents)) deltaResumeCp.changedLrcParents.forEach(id => { if (id) changedLrcParents.add(String(id)); });
+      }
       const existingByTargetId = new Map();
       const existingByParentId = new Map();
       const googleFolderTree = (typeof readCloudFolderTree === 'function') ? readCloudFolderTree(GOOGLE_FOLDER_TREE_KEY) : {};
@@ -20915,6 +21026,7 @@
           deltaPageCount++;
           if (deltaPageCount > GOOGLE_DELTA_MAX_PAGES) {
             writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, '');
+            if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(GOOGLE_DELTA_RESUME_KEY);
             await flushDeltaPersistence();
             return { handled: false, resetCursor: true };
           }
@@ -20936,6 +21048,7 @@
           );
           if (response.status === 400 || response.status === 404 || response.status === 410) {
             writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, '');
+            if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(GOOGLE_DELTA_RESUME_KEY);
             await flushDeltaPersistence();
             return { handled: false, resetCursor: true };
           }
@@ -21038,6 +21151,20 @@
         }
       } catch (deltaErr) {
         await flushDeltaPersistence();
+        if (googleFolderTreeDirty && typeof writeCloudFolderTree === 'function') {
+          writeCloudFolderTree(GOOGLE_FOLDER_TREE_KEY, googleFolderTree);
+        }
+        if (cursor && typeof writeCloudSyncCheckpoint === 'function') {
+          writeCloudSyncCheckpoint(GOOGLE_DELTA_RESUME_KEY, {
+            baseCursor,
+            cursor,
+            nextStartToken,
+            deletedRemoteIds: Array.from(deletedRemoteIds),
+            removedFolderIds: Array.from(removedFolderIds),
+            changedArtParents: Array.from(changedArtParents),
+            changedLrcParents: Array.from(changedLrcParents)
+          });
+        }
         throw deltaErr;
       }
       if (removedFolderIds.size > 0) {
@@ -21097,6 +21224,7 @@
         writeCloudFolderTree(GOOGLE_FOLDER_TREE_KEY, googleFolderTree);
       }
       if (nextStartToken) writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, nextStartToken);
+      if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(GOOGLE_DELTA_RESUME_KEY);
       if (addedTracks.length || updatedTracks.length || removed) {
         if (typeof renderTracks === 'function') renderTracks();
       }
@@ -21732,6 +21860,7 @@
         return (Number.isFinite(dt) && dt > Date.now()) ? Math.min(30000, Math.round(dt - Date.now())) : 0;
       };
       while (true) {
+        if (typeof waitCloudProviderCooldown === 'function') await waitCloudProviderCooldown('onedrive');
         if (!activeToken && typeof state !== 'undefined' && state && state.microsoftAccessToken) {
           activeToken = state.microsoftAccessToken;
         }
@@ -21759,6 +21888,10 @@
             }
             continue;
           } catch (authErr) {
+            if (typeof state !== 'undefined' && state && !state.msAccount && typeof cloudStatus === 'function') {
+              cloudStatus('microsoft', 'OneDrive · token hết hạn, hãy kết nối lại', 'text-amber-300');
+              if (authErr) authErr._msFastTokenExpired = true;
+            }
             if (authErr && authErr.status == null) authErr.status = 401;
             throw authErr;
           }
@@ -21769,6 +21902,7 @@
           const retryAfterMs = resolveMsRetryAfterMs(retryAfterHeader);
           const baseMs = retryAfterMs > 0 ? retryAfterMs : Math.min(1000 * Math.pow(2, retryCount), 30000);
           const waitMs = Math.min(30000, baseMs) + Math.floor(Math.random() * 350);
+          if (response.status === 429 && typeof noteCloudProviderCooldown === 'function') noteCloudProviderCooldown('onedrive', waitMs);
           await new Promise(resolve => setTimeout(resolve, waitMs));
           continue;
         }
@@ -22130,7 +22264,8 @@
     }
     async function tryLoadMicrosoftDeltaSync(token, existingByRemoteId, knownIds, siblingCoversByDir) {
       const siblingLrcByBase = arguments[4] || (siblingCoversByDir && siblingCoversByDir._lrcMap) || null;
-      let nextUrl = (typeof readCloudDeltaCursor === 'function') ? readCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY) : '';
+      const baseDeltaLink = (typeof readCloudDeltaCursor === 'function') ? readCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY) : '';
+      let nextUrl = baseDeltaLink;
       if (!nextUrl || !knownIds || knownIds.size === 0) return { handled: false };
       const scoreFolderCover = (typeof library !== 'undefined' && typeof library.scoreFolderCoverFilename === 'function')
         ? library.scoreFolderCoverFilename
@@ -22189,6 +22324,16 @@
         });
       }
       let latestDeltaLink = '';
+      const msDeltaResumeCp = (typeof readCloudSyncCheckpoint === 'function' && typeof MICROSOFT_DELTA_RESUME_KEY === 'string')
+        ? readCloudSyncCheckpoint(MICROSOFT_DELTA_RESUME_KEY)
+        : null;
+      if (msDeltaResumeCp && msDeltaResumeCp.baseDeltaLink === baseDeltaLink && msDeltaResumeCp.nextUrl) {
+        nextUrl = String(msDeltaResumeCp.nextUrl);
+        if (msDeltaResumeCp.latestDeltaLink) latestDeltaLink = String(msDeltaResumeCp.latestDeltaLink);
+        if (Array.isArray(msDeltaResumeCp.deletedRemoteIds)) msDeltaResumeCp.deletedRemoteIds.forEach(id => { if (id) deletedRemoteIds.add(String(id)); });
+        if (Array.isArray(msDeltaResumeCp.deletedFolderIds)) msDeltaResumeCp.deletedFolderIds.forEach(id => { if (id) deletedFolderIds.add(String(id)); });
+        if (Array.isArray(msDeltaResumeCp.deletedLrcIds)) msDeltaResumeCp.deletedLrcIds.forEach(id => { if (id) deletedLrcIds.add(String(id)); });
+      }
       const markMsUpdated = tr => {
         if (!tr || !tr.id || updatedTrackIds.has(tr.id)) return;
         updatedTrackIds.add(tr.id);
@@ -22207,6 +22352,7 @@
           if (msDeltaPageCount > MICROSOFT_DELTA_MAX_PAGES) {
             await persistPartialMsDelta();
             if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, '');
+            if (typeof clearCloudSyncCheckpoint === 'function' && typeof MICROSOFT_DELTA_RESUME_KEY === 'string') clearCloudSyncCheckpoint(MICROSOFT_DELTA_RESUME_KEY);
             return { handled: false, resetCursor: true };
           }
           const curMsTok = (typeof state !== 'undefined' && state && state.microsoftAccessToken && state.microsoftAccessToken !== initialStateTok) ? state.microsoftAccessToken : (token || initialStateTok);
@@ -22406,7 +22552,21 @@
         const msg = String(deltaErr && deltaErr.message ? deltaErr.message : deltaErr || '');
         if (deltaErr && (deltaErr.status === 410 || deltaErr.status === 400 || deltaErr.status === 404 || /resyncRequired|invalidDeltaToken|syncStateNotFound|deltaToken/i.test(msg))) {
           if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, '');
+          if (typeof clearCloudSyncCheckpoint === 'function' && typeof MICROSOFT_DELTA_RESUME_KEY === 'string') clearCloudSyncCheckpoint(MICROSOFT_DELTA_RESUME_KEY);
           return { handled: false, resetCursor: true };
+        }
+        if (msFolderTreeDirty && typeof writeCloudFolderTree === 'function') {
+          writeCloudFolderTree(MICROSOFT_FOLDER_TREE_KEY, msFolderTree);
+        }
+        if (nextUrl && typeof writeCloudSyncCheckpoint === 'function' && typeof MICROSOFT_DELTA_RESUME_KEY === 'string') {
+          writeCloudSyncCheckpoint(MICROSOFT_DELTA_RESUME_KEY, {
+            baseDeltaLink,
+            nextUrl,
+            latestDeltaLink,
+            deletedRemoteIds: Array.from(deletedRemoteIds),
+            deletedFolderIds: Array.from(deletedFolderIds),
+            deletedLrcIds: Array.from(deletedLrcIds)
+          });
         }
         throw deltaErr;
       }
@@ -22537,6 +22697,9 @@
       }
       if (latestDeltaLink && typeof writeCloudDeltaCursor === 'function') {
         writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, latestDeltaLink);
+      }
+      if (typeof clearCloudSyncCheckpoint === 'function' && typeof MICROSOFT_DELTA_RESUME_KEY === 'string') {
+        clearCloudSyncCheckpoint(MICROSOFT_DELTA_RESUME_KEY);
       }
       if (addedTracks.length || updatedTracks.length || removed) {
         if (typeof renderTracks === 'function') renderTracks();
@@ -22838,12 +23001,27 @@
         const MS_CHECKPOINT_MAX_QUEUE = 4000;
         const saveMsCheckpoint = (nodes) => {
           if (typeof writeCloudSyncCheckpoint !== 'function') return;
-          if (!Array.isArray(nodes) || !nodes.length || nodes.length > MS_CHECKPOINT_MAX_QUEUE || msPersistFailed) {
+          if (!Array.isArray(nodes) || !nodes.length || msPersistFailed) {
             if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY);
             return;
           }
-          const serialized = nodes.map(n => (n.driveId ? { url: n.url, path: n.path || '', driveId: n.driveId } : { url: n.url, path: n.path || '' }));
-          const ok = writeCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY, { queue: serialized });
+          const seenCpUrls = new Set();
+          const compacted = [];
+          const cap = Math.min(nodes.length, MS_CHECKPOINT_MAX_QUEUE);
+          for (let i = 0; i < nodes.length && compacted.length < cap; i++) {
+            const n = nodes[i];
+            if (!n || !n.url || seenCpUrls.has(n.url)) continue;
+            seenCpUrls.add(n.url);
+            compacted.push(n.driveId ? { url: n.url, path: n.path || '', driveId: n.driveId } : { url: n.url, path: n.path || '' });
+          }
+          if (!compacted.length) {
+            if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY);
+            return;
+          }
+          let ok = writeCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY, { queue: compacted });
+          if (ok === false && compacted.length > 500) {
+            ok = writeCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY, { queue: compacted.slice(0, 500) });
+          }
           if (ok === false && typeof clearCloudSyncCheckpoint === 'function') {
             clearCloudSyncCheckpoint(MICROSOFT_SYNC_CHECKPOINT_KEY);
           }
@@ -22970,8 +23148,14 @@
           byShortcutId.clear();
         }
         await pruneCloudCatalog();
-        if (!msResumedFromCheckpoint && Object.keys(msFullFolderTree).length > 0 && typeof writeCloudFolderTree === 'function') {
-          writeCloudFolderTree(MICROSOFT_FOLDER_TREE_KEY, msFullFolderTree);
+        if (Object.keys(msFullFolderTree).length > 0 && typeof writeCloudFolderTree === 'function') {
+          if (!msResumedFromCheckpoint) {
+            writeCloudFolderTree(MICROSOFT_FOLDER_TREE_KEY, msFullFolderTree);
+          } else {
+            const prevMsTree = (typeof readCloudFolderTree === 'function') ? readCloudFolderTree(MICROSOFT_FOLDER_TREE_KEY) : null;
+            const mergedMsTree = (prevMsTree && typeof prevMsTree === 'object') ? Object.assign({}, prevMsTree, msFullFolderTree) : msFullFolderTree;
+            writeCloudFolderTree(MICROSOFT_FOLDER_TREE_KEY, mergedMsTree);
+          }
         }
         if (typeof state !== 'undefined' && state && state.microsoftAccessToken) token = state.microsoftAccessToken;
         if (typeof saveMicrosoftLatestDeltaLink === 'function') {
@@ -24181,6 +24365,12 @@
         localStorage.setItem('nocturne-google-token', token);
         localStorage.setItem('nocturne-google-token-expires', String(state.googleExpiresAt));
       } catch (_) {}
+      if (state._bpPreloadedStream && state._bpPreloadedStream.source === 'google') {
+        state._bpPreloadedStream = null;
+      }
+      if (typeof googleOAuthRefreshScheduler !== 'undefined' && googleOAuthRefreshScheduler && typeof googleOAuthRefreshScheduler.scheduleRefresh === 'function') {
+        googleOAuthRefreshScheduler.scheduleRefresh(state.googleExpiresAt);
+      }
       if (typeof resetCloudMetadataRetryForSource === 'function') resetCloudMetadataRetryForSource('google');
       if (typeof repopulateCloudMetadataQueue === 'function') repopulateCloudMetadataQueue('google');
       if (typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('google', token);
@@ -24243,6 +24433,12 @@
         localStorage.setItem('nocturne-microsoft-token', token);
         localStorage.setItem('nocturne-microsoft-token-expires', String(state.microsoftExpiresAt));
       } catch (_) {}
+      if (state._bpPreloadedStream && state._bpPreloadedStream.source === 'onedrive') {
+        state._bpPreloadedStream = null;
+      }
+      if (typeof microsoftOAuthRefreshScheduler !== 'undefined' && microsoftOAuthRefreshScheduler && typeof microsoftOAuthRefreshScheduler.scheduleRefresh === 'function') {
+        microsoftOAuthRefreshScheduler.scheduleRefresh(state.microsoftExpiresAt);
+      }
       if (typeof resetCloudMetadataRetryForSource === 'function') resetCloudMetadataRetryForSource('onedrive');
       if (typeof repopulateCloudMetadataQueue === 'function') repopulateCloudMetadataQueue('onedrive');
       if (typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('onedrive', token);
@@ -29983,8 +30179,24 @@
         state.microsoftExpiresAt = savedMsExp;
         if (microsoftOAuthRefreshScheduler) microsoftOAuthRefreshScheduler.scheduleRefresh(state.microsoftExpiresAt);
       }
-      if (googleConfig.clientId || savedGoogleToken || DEFAULT_GOOGLE_CLIENT_ID) { $('google-state').textContent = googleConfig.clientId ? 'Client ID riêng · sẵn sàng' : 'Sẵn sàng kết nối'; $('cloud-status').textContent = 'Google Drive · sẵn sàng'; }
-      if (microsoftConfig.clientId || savedMsToken) { $('microsoft-state').textContent = 'Sẵn sàng kết nối'; $('cloud-status').textContent = (googleConfig.clientId || savedGoogleToken || DEFAULT_GOOGLE_CLIENT_ID) ? 'Google Drive / OneDrive · sẵn sàng' : 'OneDrive · sẵn sàng'; }
+      const googleFastTokenExpired = Boolean(savedGoogleToken && savedGoogleExp > 0 && savedGoogleExp <= Date.now() + 30000);
+      const msFastTokenExpired = Boolean(savedMsToken && savedMsExp > 0 && savedMsExp <= Date.now() + 30000);
+      if (googleFastTokenExpired) {
+        $('google-state').textContent = 'Access Token đã hết hạn · cần kết nối lại';
+        $('cloud-status').textContent = 'Google Drive · token hết hạn';
+      } else if (googleConfig.clientId || savedGoogleToken || DEFAULT_GOOGLE_CLIENT_ID) {
+        $('google-state').textContent = googleConfig.clientId ? 'Client ID riêng · sẵn sàng' : 'Sẵn sàng kết nối';
+        $('cloud-status').textContent = 'Google Drive · sẵn sàng';
+      }
+      if (msFastTokenExpired && !state.msAccount) {
+        $('microsoft-state').textContent = 'Access Token đã hết hạn · cần kết nối lại';
+        if (!googleFastTokenExpired) $('cloud-status').textContent = 'OneDrive · token hết hạn';
+      } else if (microsoftConfig.clientId || savedMsToken) {
+        $('microsoft-state').textContent = 'Sẵn sàng kết nối';
+        if (!googleFastTokenExpired) {
+          $('cloud-status').textContent = (googleConfig.clientId || savedGoogleToken || DEFAULT_GOOGLE_CLIENT_ID) ? 'Google Drive / OneDrive · sẵn sàng' : 'OneDrive · sẵn sàng';
+        }
+      }
     } catch (error) { console.warn('Could not load saved cloud configuration:', error); }
     try {
       const savedSubsonic = localStorage.getItem('nocturne-subsonic-config');
@@ -31102,6 +31314,7 @@
         try {
           if (state) { state._preloadFailedTrackId = null; state._preloadFailedAt = 0; }
           if (typeof runCloudWakeTokenRefresh === 'function') runCloudWakeTokenRefresh();
+          if (typeof scheduleOnlineCloudDeltaSync === 'function') scheduleOnlineCloudDeltaSync(1500);
           if (typeof retryPendingCurrentSliceUpgrade === 'function') retryPendingCurrentSliceUpgrade().catch(() => {});
           if (typeof resyncNextPreload === 'function') resyncNextPreload(false);
           if (typeof runCloudMetadataQueue === 'function') runCloudMetadataQueue();
@@ -31782,26 +31995,42 @@
         };
         if (state.googleToken) {
           const gRem = state.googleExpiresAt ? (state.googleExpiresAt - nowMs) : -1;
-          if (gRem < 5 * 60 * 1000 && (nowMs - lastTokenKeepAliveAt) >= 60000) {
-            lastTokenKeepAliveAt = nowMs;
+          const gInFlight = state._gWakeInFlightAt && (nowMs - state._gWakeInFlightAt) < 15000;
+          if (gRem < 5 * 60 * 1000 && !gInFlight && (!lastTokenKeepAliveAt || (nowMs - lastTokenKeepAliveAt) >= 60000)) {
+            state._gWakeInFlightAt = nowMs;
             triggeredRefresh = true;
             if (typeof ensureGoogleToken === 'function') {
-              ensureGoogleToken(gRem <= 0).then(tok => onRefreshedToken('google', tok)).catch(() => {
+              ensureGoogleToken(gRem <= 0).then(tok => {
+                state._gWakeInFlightAt = 0;
+                if (tok) lastTokenKeepAliveAt = Date.now();
+                onRefreshedToken('google', tok);
+              }).catch(() => {
+                state._gWakeInFlightAt = 0;
                 if (gRem <= 0) invalidateExpiredCloudStreamOnAuthReject('google');
               });
+            } else {
+              state._gWakeInFlightAt = 0;
             }
           }
         }
-        if ((state.msAccount || state.microsoftAccessToken) && (nowMs - lastMicrosoftWakeRefreshAt) >= 60000) {
+        if ((state.msAccount || state.microsoftAccessToken) && (!lastMicrosoftWakeRefreshAt || (nowMs - lastMicrosoftWakeRefreshAt) >= 60000)) {
           const msRem = state.microsoftExpiresAt ? (state.microsoftExpiresAt - nowMs) : -1;
-          if (msRem < 5 * 60 * 1000) {
-            lastMicrosoftWakeRefreshAt = nowMs;
+          const msInFlight = state._msWakeInFlightAt && (nowMs - state._msWakeInFlightAt) < 15000;
+          if (msRem < 5 * 60 * 1000 && !msInFlight) {
             clearedMsUrls = clearStaleMicrosoftDownloadUrls();
             triggeredRefresh = true;
             if (state.msAccount && typeof getMicrosoftToken === 'function') {
-              getMicrosoftToken(false, msRem <= 0).then(tok => onRefreshedToken('onedrive', tok)).catch(() => {
+              state._msWakeInFlightAt = nowMs;
+              getMicrosoftToken(false, msRem <= 0).then(tok => {
+                state._msWakeInFlightAt = 0;
+                if (tok) lastMicrosoftWakeRefreshAt = Date.now();
+                onRefreshedToken('onedrive', tok);
+              }).catch(() => {
+                state._msWakeInFlightAt = 0;
                 if (msRem <= 0) invalidateExpiredCloudStreamOnAuthReject('onedrive');
               });
+            } else {
+              lastMicrosoftWakeRefreshAt = nowMs;
             }
           }
         }
@@ -31825,24 +32054,38 @@
         const nowMs = Date.now();
         if (state.googleToken && state.googleExpiresAt) {
           const remainingMs = state.googleExpiresAt - nowMs;
-          if (remainingMs < 5 * 60 * 1000 && (nowMs - lastPeriodicGoogleKeepAliveAt) >= 120000) {
-            lastPeriodicGoogleKeepAliveAt = nowMs;
+          const gPeriodicInFlight = state._gPeriodicInFlightAt && (nowMs - state._gPeriodicInFlightAt) < 15000;
+          if (remainingMs < 5 * 60 * 1000 && !gPeriodicInFlight && (!lastPeriodicGoogleKeepAliveAt || (nowMs - lastPeriodicGoogleKeepAliveAt) >= 120000)) {
             if (typeof ensureGoogleToken === 'function') {
+              state._gPeriodicInFlightAt = nowMs;
               ensureGoogleToken(remainingMs <= 0).then(tok => {
-                if (tok && typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('google', tok);
-              }).catch(() => {});
+                state._gPeriodicInFlightAt = 0;
+                if (tok) {
+                  lastPeriodicGoogleKeepAliveAt = Date.now();
+                  if (typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('google', tok);
+                }
+              }).catch(() => {
+                state._gPeriodicInFlightAt = 0;
+              });
             }
           }
         }
         if ((state.msAccount || state.microsoftAccessToken) && state.microsoftExpiresAt) {
           const msRemainingMs = state.microsoftExpiresAt - nowMs;
-          if (msRemainingMs < 5 * 60 * 1000 && (nowMs - lastPeriodicMsKeepAliveAt) >= 120000) {
-            lastPeriodicMsKeepAliveAt = nowMs;
+          const msPeriodicInFlight = state._msPeriodicInFlightAt && (nowMs - state._msPeriodicInFlightAt) < 15000;
+          if (msRemainingMs < 5 * 60 * 1000 && !msPeriodicInFlight && (!lastPeriodicMsKeepAliveAt || (nowMs - lastPeriodicMsKeepAliveAt) >= 120000)) {
             clearStaleMicrosoftDownloadUrls();
             if ((state.msAccount || typeof msal !== 'undefined') && typeof getMicrosoftToken === 'function') {
+              state._msPeriodicInFlightAt = nowMs;
               getMicrosoftToken(false, msRemainingMs <= 0).then(tok => {
-                if (tok && typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('onedrive', tok);
-              }).catch(() => {});
+                state._msPeriodicInFlightAt = 0;
+                if (tok) {
+                  lastPeriodicMsKeepAliveAt = Date.now();
+                  if (typeof pushActiveBitPerfectStreamAuth === 'function') pushActiveBitPerfectStreamAuth('onedrive', tok);
+                }
+              }).catch(() => {
+                state._msPeriodicInFlightAt = 0;
+              });
             }
           }
         }
@@ -32053,7 +32296,10 @@
         if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
         if (cloudSyncPromise) return;
         const hasGoogleSession = Boolean(state.googleToken && (!state.googleExpiresAt || state.googleExpiresAt > Date.now() + 15000));
-        const hasMicrosoftSession = Boolean(state.microsoftAccessToken || state.msAccount);
+        const hasMicrosoftSession = Boolean(
+          state.msAccount ||
+          (state.microsoftAccessToken && (!state.microsoftExpiresAt || state.microsoftExpiresAt > Date.now() + 15000))
+        );
         const needGoogleSync = hasGoogleSession && !(state && state._googleSyncPromise);
         const needMicrosoftSync = hasMicrosoftSession && !(state && state._microsoftSyncPromise);
         if (!needGoogleSync && !needMicrosoftSync) return;

@@ -309,12 +309,12 @@ test('4. Version consistency (v3.9.52+ / versionCode >= 106) and Chromium 74 syn
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const release = fs.readFileSync(path.join(ROOT, '.agent/publish-release.cjs'), 'utf8');
 
-  assert.match(sw, /const CACHE_VERSION = 'v3\.9\.(5[2-9]|[6-9]\d)';/);
-  assert.match(sw, /const CACHE_NAME = 'nocturne-v3\.9\.(5[2-9]|[6-9]\d)';/);
+  assert.match(sw, /const CACHE_VERSION = 'v3\.9\.(5[2-9]|[6-9]\d|\d{3,})';/);
+  assert.match(sw, /const CACHE_NAME = 'nocturne-v3\.9\.(5[2-9]|[6-9]\d|\d{3,})';/);
   const vcMatch = gradle.match(/versionCode\s*=\s*(\d+)\b/);
   assert.ok(vcMatch && Number(vcMatch[1]) >= 106, 'versionCode must be >= 106');
-  assert.match(gradle, /versionName\s*=\s*"3\.9\.(5[2-9]|[6-9]\d)"/);
-  assert.match(java, /"3\.9\.(5[2-9]|[6-9]\d)"/);
-  assert.match(html, /FiiO M11S · v3\.9\.(5[2-9]|[6-9]\d)/);
-  assert.match(release, /'v3\.9\.(5[2-9]|[6-9]\d)'/);
+  assert.match(gradle, /versionName\s*=\s*"3\.9\.(5[2-9]|[6-9]\d|\d{3,})"/);
+  assert.match(java, /"3\.9\.(5[2-9]|[6-9]\d|\d{3,})"/);
+  assert.match(html, /FiiO M11S · v3\.9\.(5[2-9]|[6-9]\d|\d{3,})/);
+  assert.match(release, /'v3\.9\.(5[2-9]|[6-9]\d|\d{3,})'/);
 });

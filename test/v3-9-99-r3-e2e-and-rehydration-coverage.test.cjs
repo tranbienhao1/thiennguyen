@@ -82,7 +82,7 @@ describe('v3.9.99 R3: Chrome CDP E2E Verification & Render-Crash Rehydration / G
     const groupASlice = extractBetween(e2eSrc, '// Group A —', '// Shared Pre-Boot Mock Bootstrap');
     const groupBSlice = extractBetween(e2eSrc, '// Group B —', '// Group C —');
     const groupCSlice = extractBetween(e2eSrc, '// Group C —', '// Group D —');
-    const groupDSlice = extractBetween(e2eSrc, '// Group D —', "assertCheck(errors.length === 0, 'ALL STEPS COMPLETED");
+    const groupDSlice = extractBetween(e2eSrc, '// Group D —', '// Group E —');
 
     assert.equal((groupASlice.match(/\bassertCheck\s*\(/g) || []).length, 6, 'Group A must contain 6 assertions');
     assert.equal((groupBSlice.match(/\bassertCheck\s*\(/g) || []).length, 7, 'Group B must contain 7 assertions');

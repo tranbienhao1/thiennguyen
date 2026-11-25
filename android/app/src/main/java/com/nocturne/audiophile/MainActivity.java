@@ -189,6 +189,7 @@ public class MainActivity extends AppCompatActivity {
     private volatile boolean mPendingRenderProcessRehydration = false;
     private volatile boolean mRenderCrashPageFinished = true;
     private volatile int mPendingBitPerfectEosEpoch = 0;
+    private volatile long mPendingBitPerfectEosWindowSeq = 0L;
     private final Object mBitPerfectEosLock = new Object();
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private final AtomicLong mMediaNotificationSeq = new AtomicLong(0L);
@@ -227,7 +228,7 @@ public class MainActivity extends AppCompatActivity {
     private volatile long mStorageScanStartedAtMs = 0L;
     private volatile Thread mStorageScanThread = null;
     private volatile String mLastStorageScanStatsJson =
-            "{\"scanId\":0,\"totalCount\":0,\"limit\":0,\"truncated\":false,\"mediaStoreFailed\":false,\"unreadableRoots\":[],\"skippedDirs\":0}";
+            "{\"scanId\":0,\"totalCount\":0,\"limit\":0,\"truncated\":false,\"mediaStoreFailed\":false,\"unreadableRoots\":[],\"scopedRestrictedRoots\":[],\"skippedDirs\":0}";
     private volatile boolean mIsInBackground = false;
     private volatile boolean mIsMediaPlaying = false;
     private volatile boolean mIsCloudSyncActive = false;
@@ -235,8 +236,11 @@ public class MainActivity extends AppCompatActivity {
     private ConnectivityManager.NetworkCallback mNetworkCallback = null;
     private boolean mIsNetworkCallbackRegistered = false;
     private boolean mIsScreenOnReceiverRegistered = false;
-    private volatile long mLastNetworkWakeNotifyAtMs = 0L;
+    private boolean mIsDozeReceiverRegistered = false;
+    private volatile long mLastNetworkAvailableNotifyAtMs = 0L;
+    private volatile long mLastNetworkValidatedNotifyAtMs = 0L;
     private volatile long mLastScreenOnWakeNotifyAtMs = 0L;
+    private volatile long mLastDozeExitWakeNotifyAtMs = 0L;
     private volatile String mOtaPendingVersion = "";
     private boolean mIsMediaReceiverRegistered = false;
     private boolean mIsStorageReceiverRegistered = false;
@@ -340,9 +344,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             if (wm != null) {
-                int wifiMode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                        ? WifiManager.WIFI_MODE_FULL_HIGH_PERF
-                        : WifiManager.WIFI_MODE_FULL_HIGH_PERF;
+                int wifiMode = WifiManager.WIFI_MODE_FULL_HIGH_PERF;
                 mWifiLock = wm.createWifiLock(wifiMode, "Nocturne:HiResWifiLock");
                 mWifiLock.setReferenceCounted(false);
             }
@@ -1757,8 +1759,16 @@ public class MainActivity extends AppCompatActivity {
         try {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
             if (cm != null) {
-                NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-                return activeNetwork != null && activeNetwork.isConnected();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    Network active = cm.getActiveNetwork();
+                    if (active == null) return false;
+                    NetworkCapabilities caps = cm.getNetworkCapabilities(active);
+                    return caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+                } else {
+                    @SuppressWarnings("deprecation")
+                    NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
+                    return activeNetwork != null && activeNetwork.isConnected();
+                }
             }
         } catch (Exception ignored) {}
         return true;
@@ -1882,7 +1892,31 @@ public class MainActivity extends AppCompatActivity {
             long nowElapsed = SystemClock.elapsedRealtime();
             if ((nowElapsed - mLastScreenOnWakeNotifyAtMs) < 2000L) return;
             mLastScreenOnWakeNotifyAtMs = nowElapsed;
-            postJsToWebView("if(typeof window.runCloudWakeTokenRefresh==='function'){window.runCloudWakeTokenRefresh();}");
+            postJsToWebView(
+                    "if(typeof window.runCloudWakeTokenRefresh==='function'){window.runCloudWakeTokenRefresh();}"
+                            + "if(typeof window.scheduleOnlineCloudDeltaSync==='function'){window.scheduleOnlineCloudDeltaSync(1500);}"
+                            + "if(typeof window.retryPendingCurrentSliceUpgrade==='function'){try{window.retryPendingCurrentSliceUpgrade().catch(function(){});}catch(e){}}"
+            );
+        }
+    };
+
+    private final BroadcastReceiver mDozeReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+            if (!PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED.equals(intent.getAction())) return;
+            try {
+                PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+                if (pm != null && pm.isDeviceIdleMode()) return;
+            } catch (Throwable ignored) {}
+            long nowElapsed = SystemClock.elapsedRealtime();
+            if ((nowElapsed - mLastDozeExitWakeNotifyAtMs) < 2000L) return;
+            mLastDozeExitWakeNotifyAtMs = nowElapsed;
+            postJsToWebView(
+                    "if(typeof window.runCloudWakeTokenRefresh==='function'){window.runCloudWakeTokenRefresh();}"
+                            + "if(typeof window.scheduleOnlineCloudDeltaSync==='function'){window.scheduleOnlineCloudDeltaSync(1500);}"
+                            + "if(typeof window.retryPendingCurrentSliceUpgrade==='function'){try{window.retryPendingCurrentSliceUpgrade().catch(function(){});}catch(e){}}"
+            );
         }
     };
 
@@ -1900,30 +1934,57 @@ public class MainActivity extends AppCompatActivity {
                 Log.w(TAG, "registerScreenOnReceiver warning: " + t.getMessage());
             }
         }
+        if (!mIsDozeReceiverRegistered && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                IntentFilter dozeFilter = new IntentFilter(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    registerReceiver(mDozeReceiver, dozeFilter, Context.RECEIVER_EXPORTED);
+                } else {
+                    registerReceiver(mDozeReceiver, dozeFilter);
+                }
+                mIsDozeReceiverRegistered = true;
+            } catch (Throwable t) {
+                Log.w(TAG, "registerDozeReceiver warning: " + t.getMessage());
+            }
+        }
         if (!mIsNetworkCallbackRegistered && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
                 ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
                 if (cm != null) {
                     mNetworkCallback = new ConnectivityManager.NetworkCallback() {
-                        private void notifyNetworkReady() {
+                        private void notifyNetworkAvailable() {
                             long nowElapsed = SystemClock.elapsedRealtime();
-                            if ((nowElapsed - mLastNetworkWakeNotifyAtMs) < 2000L) return;
-                            mLastNetworkWakeNotifyAtMs = nowElapsed;
+                            if ((nowElapsed - mLastNetworkAvailableNotifyAtMs) < 2000L) return;
+                            mLastNetworkAvailableNotifyAtMs = nowElapsed;
                             postJsToWebView(
                                     "if(typeof window.onAndroidNetworkAvailable==='function'){window.onAndroidNetworkAvailable();}"
-                                            + "else if(typeof window.runCloudWakeTokenRefresh==='function'){window.runCloudWakeTokenRefresh();}"
+                                            + "else{if(typeof window.runCloudWakeTokenRefresh==='function'){window.runCloudWakeTokenRefresh();}"
+                                            + "if(typeof window.scheduleOnlineCloudDeltaSync==='function'){window.scheduleOnlineCloudDeltaSync(1500);}"
+                                            + "if(typeof window.retryPendingCurrentSliceUpgrade==='function'){try{window.retryPendingCurrentSliceUpgrade().catch(function(){});}catch(e){}}}"
+                            );
+                        }
+
+                        private void notifyNetworkValidated() {
+                            long nowElapsed = SystemClock.elapsedRealtime();
+                            if ((nowElapsed - mLastNetworkValidatedNotifyAtMs) < 2000L) return;
+                            mLastNetworkValidatedNotifyAtMs = nowElapsed;
+                            postJsToWebView(
+                                    "if(typeof window.onAndroidNetworkAvailable==='function'){window.onAndroidNetworkAvailable();}"
+                                            + "else{if(typeof window.runCloudWakeTokenRefresh==='function'){window.runCloudWakeTokenRefresh();}"
+                                            + "if(typeof window.scheduleOnlineCloudDeltaSync==='function'){window.scheduleOnlineCloudDeltaSync(1500);}"
+                                            + "if(typeof window.retryPendingCurrentSliceUpgrade==='function'){try{window.retryPendingCurrentSliceUpgrade().catch(function(){});}catch(e){}}}"
                             );
                         }
 
                         @Override
                         public void onAvailable(Network network) {
-                            notifyNetworkReady();
+                            notifyNetworkAvailable();
                         }
 
                         @Override
                         public void onCapabilitiesChanged(Network network, NetworkCapabilities caps) {
                             if (caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
-                                notifyNetworkReady();
+                                notifyNetworkValidated();
                             }
                         }
                     };
@@ -1942,6 +2003,12 @@ public class MainActivity extends AppCompatActivity {
                 unregisterReceiver(mScreenOnReceiver);
             } catch (Throwable ignored) {}
             mIsScreenOnReceiverRegistered = false;
+        }
+        if (mIsDozeReceiverRegistered) {
+            try {
+                unregisterReceiver(mDozeReceiver);
+            } catch (Throwable ignored) {}
+            mIsDozeReceiverRegistered = false;
         }
         if (mIsNetworkCallbackRegistered && mNetworkCallback != null) {
             try {
@@ -1967,11 +2034,6 @@ public class MainActivity extends AppCompatActivity {
         unregisterStorageMountReceiver();
         unregisterWakeAndNetworkObservers();
         NocturnePlaybackService.sMediaSessionToken = null;
-        try {
-            Intent stopIntent = new Intent(this, NocturnePlaybackService.class);
-            stopIntent.setAction(NocturnePlaybackService.ACTION_STOP);
-            startService(stopIntent);
-        } catch (Exception ignored) {}
         if (mMediaSession != null) {
             try {
                 mMediaSession.setActive(false);
@@ -4516,19 +4578,30 @@ public class MainActivity extends AppCompatActivity {
         if (hasConnectedUsbDac()) return true;
 
         try {
-            AudioFormat format = new AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(44100)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-                    .build();
-            AudioAttributes.Builder builder = new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC);
-            try {
-                builder.setFlags(FLAG_AUDIOTRACK_DIRECT);
-            } catch (Throwable ignored) {}
-            if (AudioTrack.isDirectPlaybackSupported(format, builder.build())) {
-                return true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                AudioFormat format = new AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(44100)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                        .build();
+                AudioAttributes.Builder builder = new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC);
+                try {
+                    builder.setFlags(FLAG_AUDIOTRACK_DIRECT);
+                } catch (Throwable ignored) {}
+                if (AudioTrack.isDirectPlaybackSupported(format, builder.build())) {
+                    return true;
+                }
+            } else {
+                int minBuf = AudioTrack.getMinBufferSize(
+                        44100,
+                        AudioFormat.CHANNEL_OUT_STEREO,
+                        AudioFormat.ENCODING_PCM_16BIT
+                );
+                if (minBuf > 0) {
+                    return true;
+                }
             }
         } catch (Throwable ignored) {}
 
@@ -4712,6 +4785,7 @@ public class MainActivity extends AppCompatActivity {
         private volatile boolean mIsPlaying = false;
         private volatile boolean mIsPaused = false;
         private volatile boolean mIsStopped = false;
+        private volatile boolean mExitedDecodeLoop = false;
         private volatile boolean mIsRemoteStream = false;
         private volatile boolean mNextTrackIsRemote = false;
         // v3.9.25: epoch guard so a stale (slow-to-die) playback thread can never clobber the next session's state.
@@ -4875,6 +4949,10 @@ public class MainActivity extends AppCompatActivity {
                         mCurrentTrackAlbum = effAlbum;
                     }
                 }
+                synchronized (mBitPerfectEosLock) {
+                    mPendingBitPerfectEosEpoch = 0;
+                    mPendingBitPerfectEosWindowSeq = 0L;
+                }
                 if (!safeTitle.isEmpty()) {
                     final long rawPos = Math.max(0L, mCurrentPositionMs.get());
                     final long dispPos = (safeDurMs > 0L && rawPos >= safeStartMs + safeDurMs)
@@ -5028,11 +5106,13 @@ public class MainActivity extends AppCompatActivity {
             }
 
             mIsStopped = false;
+            mExitedDecodeLoop = false;
             mIsPaused = false;
             mIsPlaying = true;
             mPendingRenderProcessRehydration = false;
             synchronized (mBitPerfectEosLock) {
                 mPendingBitPerfectEosEpoch = 0;
+                mPendingBitPerfectEosWindowSeq = 0L;
             }
             mCurrentTrackId = winTrackId;
             mLockedSampleRate = 0;
@@ -5315,6 +5395,7 @@ public class MainActivity extends AppCompatActivity {
                 mPendingRenderProcessRehydration = false;
                 synchronized (mBitPerfectEosLock) {
                     mPendingBitPerfectEosEpoch = 0;
+                    mPendingBitPerfectEosWindowSeq = 0L;
                 }
                 mCurrentTrackId = "";
                 synchronized (mTrackWindowLock) {
@@ -5341,7 +5422,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public boolean isActive() {
-            return mIsPlaying && !mIsStopped && mPlaybackThread != null && mPlaybackThread.isAlive();
+            return mIsPlaying && !mIsStopped && !mExitedDecodeLoop && mPlaybackThread != null && mPlaybackThread.isAlive();
         }
 
         public String getCurrentSourceKey() {
@@ -6969,16 +7050,20 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 // If completed naturally (sawOutputEOS)
+                mExitedDecodeLoop = true;
                 preEosNotifSeq = mMediaNotificationSeq.get();
                 if (sawOutputEOS && !mIsStopped && mPlaybackEpoch.get() == epoch) {
                     if (mWebView != null) {
+                        final long eosWindowSeq = mTrackWindow.seq;
                         naturalEosForUiSync = true;
-                        handleBitPerfectSawOutputEos(epoch);
+                        handleBitPerfectSawOutputEos(epoch, eosWindowSeq);
                     } else {
+                        final long eosWindowSeq = mTrackWindow.seq;
                         naturalEosForUiSync = true;
                         synchronized (mBitPerfectEosLock) {
                             if (mPendingRenderProcessRehydration || !mRenderCrashPageFinished) {
                                 mPendingBitPerfectEosEpoch = epoch;
+                                mPendingBitPerfectEosWindowSeq = eosWindowSeq;
                             }
                         }
                     }
@@ -7281,6 +7366,7 @@ public class MainActivity extends AppCompatActivity {
                 synchronized (mStreamIoLock) {
                     int reconnectAttempt = 0;
                     int authRefreshAttempt = 0;
+                    int redirectResetCount = 0;
                     boolean emittedReconnecting = false;
                     byte[] partialBuf = new byte[CHUNK_SIZE];
                     int partialFilled = 0;
@@ -7367,7 +7453,8 @@ public class MainActivity extends AppCompatActivity {
                             synchronized (mLock) {
                                 closeStreamLocked();
                             }
-                            if (mResolvedRedirectUrl != null && !mResolvedRedirectUrl.equals(mCurrentUrl)) {
+                            if (mResolvedRedirectUrl != null && !mResolvedRedirectUrl.equals(mCurrentUrl) && redirectResetCount < 2) {
+                                redirectResetCount++;
                                 mResolvedRedirectUrl = null;
                                 continue;
                             }
@@ -7828,11 +7915,12 @@ public class MainActivity extends AppCompatActivity {
         dispatchPendingBitPerfectEosIfReady();
     }
 
-    private void handleBitPerfectSawOutputEos(final int epoch) {
+    private void handleBitPerfectSawOutputEos(final int epoch, final long expectedWindowSeq) {
         boolean deferForRecovery = false;
         synchronized (mBitPerfectEosLock) {
             if (mPendingRenderProcessRehydration || !mRenderCrashPageFinished) {
                 mPendingBitPerfectEosEpoch = epoch;
+                mPendingBitPerfectEosWindowSeq = expectedWindowSeq;
                 deferForRecovery = true;
             }
         }
@@ -7847,15 +7935,16 @@ public class MainActivity extends AppCompatActivity {
                 dispatchPendingBitPerfectEosIfReady();
             }, 3000L);
         } else {
-            postBitPerfectPlaybackCompleteToWeb(epoch);
+            postBitPerfectPlaybackCompleteToWeb(epoch, expectedWindowSeq);
         }
     }
 
-    private void postBitPerfectPlaybackCompleteToWeb(final int expectedEpoch) {
+    private void postBitPerfectPlaybackCompleteToWeb(final int expectedEpoch, final long expectedWindowSeq) {
         runOnUiThread(() -> {
             if (mWebView != null && mBitPerfectPlayer != null
                     && !mBitPerfectPlayer.isStopped()
-                    && mBitPerfectPlayer.getCurrentPlaybackEpoch() == expectedEpoch) {
+                    && mBitPerfectPlayer.getCurrentPlaybackEpoch() == expectedEpoch
+                    && (expectedWindowSeq <= 0L || mBitPerfectPlayer.mTrackWindow.seq == expectedWindowSeq)) {
                 mWebView.evaluateJavascript(
                         "if (typeof window.onBitPerfectPlaybackComplete === 'function') window.onBitPerfectPlaybackComplete(); " +
                         "else if (typeof window.nextTrack === 'function') window.nextTrack(); " +
@@ -7868,17 +7957,20 @@ public class MainActivity extends AppCompatActivity {
 
     private void dispatchPendingBitPerfectEosIfReady() {
         final int pendingEpoch;
+        final long pendingWinSeq;
         synchronized (mBitPerfectEosLock) {
             pendingEpoch = mPendingBitPerfectEosEpoch;
+            pendingWinSeq = mPendingBitPerfectEosWindowSeq;
             if (pendingEpoch <= 0 || !mRenderCrashPageFinished || mPendingRenderProcessRehydration) {
                 return;
             }
             mPendingBitPerfectEosEpoch = 0;
+            mPendingBitPerfectEosWindowSeq = 0L;
         }
         if (mBitPerfectPlayer != null && !mBitPerfectPlayer.isStopped()
                 && mBitPerfectPlayer.getCurrentPlaybackEpoch() == pendingEpoch) {
             final long preDispatchNotifSeq = mMediaNotificationSeq.get();
-            postBitPerfectPlaybackCompleteToWeb(pendingEpoch);
+            postBitPerfectPlaybackCompleteToWeb(pendingEpoch, pendingWinSeq);
             scheduleNaturalEosUiSync(pendingEpoch, preDispatchNotifSeq);
         }
     }
@@ -9171,6 +9263,7 @@ public class MainActivity extends AppCompatActivity {
                 boolean truncated,
                 boolean mediaStoreFailed,
                 List<String> unreadableRoots,
+                List<String> scopedRestrictedRoots,
                 int skippedDirs) {
             try {
                 JSONObject stats = new JSONObject();
@@ -9186,12 +9279,19 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
                 stats.put("unreadableRoots", unreadableArr);
+                JSONArray scopedArr = new JSONArray();
+                if (scopedRestrictedRoots != null) {
+                    for (String r : scopedRestrictedRoots) {
+                        scopedArr.put(r);
+                    }
+                }
+                stats.put("scopedRestrictedRoots", scopedArr);
                 stats.put("skippedDirs", skippedDirs);
                 return stats.toString();
             } catch (Exception e) {
                 return "{\"scanId\":" + scanId + ",\"totalCount\":" + totalCount + ",\"limit\":" + limit
                         + ",\"truncated\":" + truncated + ",\"mediaStoreFailed\":" + mediaStoreFailed
-                        + ",\"unreadableRoots\":[],\"skippedDirs\":" + skippedDirs + "}";
+                        + ",\"unreadableRoots\":[],\"scopedRestrictedRoots\":[],\"skippedDirs\":" + skippedDirs + "}";
             }
         }
 
@@ -9227,7 +9327,7 @@ public class MainActivity extends AppCompatActivity {
                 scanId = mActivity.mStorageScanSeq.incrementAndGet();
                 mActivity.mStorageScanStartedAtMs = SystemClock.elapsedRealtime();
                 mActivity.mLastStorageScanStatsJson = buildStorageScanStatsJson(
-                        scanId, 0, limit, false, false, Collections.emptyList(), 0);
+                        scanId, 0, limit, false, false, Collections.emptyList(), Collections.emptyList(), 0);
                 scanThread = new Thread(() -> {
                     Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
                     final int CHUNK_SIZE = 250;
@@ -9235,7 +9335,10 @@ public class MainActivity extends AppCompatActivity {
                     String errorMsg = null;
                     boolean mediaStoreFailed = false;
                     boolean hitLimit = false;
+                    final boolean isScopedStorage = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                            && !Environment.isExternalStorageManager();
                     List<String> unreadableRoots = new ArrayList<>();
+                    List<String> scopedRestrictedRoots = new ArrayList<>();
                     int[] skippedDirs = new int[]{0};
                     try {
                         Set<String> seenPaths = new HashSet<>();
@@ -9328,8 +9431,18 @@ public class MainActivity extends AppCompatActivity {
                                 break;
                             }
                             File rootDir = new File(rootPath);
-                            if (!rootDir.exists() || !rootDir.canRead()) {
+                            if (!rootDir.exists()) {
                                 if (!unreadableRoots.contains(rootPath)) {
+                                    unreadableRoots.add(rootPath);
+                                }
+                                continue;
+                            }
+                            if (!rootDir.canRead()) {
+                                if (isScopedStorage && !mediaStoreFailed) {
+                                    if (!scopedRestrictedRoots.contains(rootPath)) {
+                                        scopedRestrictedRoots.add(rootPath);
+                                    }
+                                } else if (!unreadableRoots.contains(rootPath)) {
                                     unreadableRoots.add(rootPath);
                                 }
                                 continue;
@@ -9342,7 +9455,11 @@ public class MainActivity extends AppCompatActivity {
                                 return;
                             }
                             if (rootUnreadable[0]) {
-                                if (!unreadableRoots.contains(rootPath)) {
+                                if (isScopedStorage && !mediaStoreFailed) {
+                                    if (!scopedRestrictedRoots.contains(rootPath)) {
+                                        scopedRestrictedRoots.add(rootPath);
+                                    }
+                                } else if (!unreadableRoots.contains(rootPath)) {
                                     unreadableRoots.add(rootPath);
                                 }
                                 continue;
@@ -9409,7 +9526,7 @@ public class MainActivity extends AppCompatActivity {
                             isCurrentScan = (mActivity.mStorageScanSeq.get() == scanId);
                             if (isCurrentScan) {
                                 mActivity.mLastStorageScanStatsJson = buildStorageScanStatsJson(
-                                        scanId, totalEmitted, limit, hitLimit, mediaStoreFailed, unreadableRoots, skippedDirs[0]);
+                                        scanId, totalEmitted, limit, hitLimit, mediaStoreFailed, unreadableRoots, scopedRestrictedRoots, skippedDirs[0]);
                                 mActivity.mStorageScanThread = null;
                                 mActivity.mStorageScanRunning.set(false);
                             }
