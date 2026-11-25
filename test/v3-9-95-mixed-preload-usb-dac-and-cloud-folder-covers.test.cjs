@@ -171,14 +171,14 @@ describe('v3.9.95: Mixed Cloud/Local preload expiry guard, USB DAC reconnect & C
     assert.ok(standbyLoads >= 2, 'standbyAudio must be cleared and reloaded with the fresh URL');
   });
 
-  it('2. BitPerfectAudioPlayer rebuilds AudioTrack on USB DAC mid-playback connect (mRouteRefreshWasConnect) and playTrack resets state.bitPerfectLockedFormat on transitions', () => {
+  it('2. BitPerfectAudioPlayer rebuilds AudioTrack on USB DAC mid-playback connect (AtomicInteger mRouteRefreshFlags) and playTrack resets state.bitPerfectLockedFormat on transitions', () => {
     assert.ok(
-      mainJava.includes('private volatile boolean mRouteRefreshWasConnect = false;'),
-      'BitPerfectAudioPlayer must track mRouteRefreshWasConnect'
+      mainJava.includes('private final AtomicInteger mRouteRefreshFlags = new AtomicInteger(0);'),
+      'BitPerfectAudioPlayer must track mRouteRefreshFlags atomically'
     );
     assert.ok(
-      mainJava.includes('mRouteRefreshWasConnect = false;'),
-      'BitPerfectAudioPlayer.start() must reset mRouteRefreshWasConnect'
+      mainJava.includes('mRouteRefreshFlags.set(0);'),
+      'BitPerfectAudioPlayer.start() must reset mRouteRefreshFlags'
     );
     const onRouteSrc = sliceBetween(
       mainJava,
@@ -186,8 +186,8 @@ describe('v3.9.95: Mixed Cloud/Local preload expiry guard, USB DAC reconnect & C
       'public synchronized void stop()'
     );
     assert.ok(
-      onRouteSrc.includes('mRouteRefreshWasConnect = true;'),
-      'onAudioOutputRouteChanged(true) must set mRouteRefreshWasConnect = true'
+      onRouteSrc.includes('mRouteRefreshFlags.compareAndSet(prev, prev | flagBit)'),
+      'onAudioOutputRouteChanged must set FLAG_ROUTE_CONNECT atomically via CAS'
     );
 
     const usbRebuildChecks = mainJava.match(/if \(wasDisconnect \|\| oldDevId != newDevId \|\| \(wasConnect && isUsbTarget\)\)/g) || [];

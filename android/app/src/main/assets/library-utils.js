@@ -13382,6 +13382,7 @@
 
     // Tier 1: Direct cover
     if (track.cover && track.cover !== '♫') return track.cover;
+    if (track._needsFolderCoverRefresh === true) return null;
 
     const isMap = coverMap instanceof Map;
     const getCover = key => isMap ? coverMap.get(key) : (coverMap ? coverMap[key] : undefined);
@@ -13501,6 +13502,7 @@
     for (let i = 0; i < tracks.length; i++) {
       const t = tracks[i];
       if (!t || typeof t !== 'object') continue;
+      if (t._needsFolderCoverRefresh === true) continue;
       const c = t.cover;
       if (!c || c === '♫') continue;
 
@@ -13535,6 +13537,7 @@
     for (let i = 0; i < tracks.length; i++) {
       const t = tracks[i];
       if (!t || typeof t !== 'object') continue;
+      if (t._needsFolderCoverRefresh === true) continue;
       if (t.cover && t.cover !== '♫') continue;
 
       let found = null;
@@ -13611,6 +13614,19 @@
     let url = FIIO_COVER_BASE_URL + (uri ? 'uri=' + encodeURIComponent(uri) : 'path=' + encodeURIComponent(path));
     if (uri && path) url += '&path=' + encodeURIComponent(path);
     if (realAlbum && realArtist) url += '&key=' + encodeURIComponent((album + '|' + artist).toLowerCase());
+    const lm = Number(src.lastModified || src.dateModified || 0) || 0;
+    const slashIdx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+    const dirPart = slashIdx > 0 ? path.slice(0, slashIdx) : '';
+    const verSource = (src._coverVersion ? String(src._coverVersion) : '')
+      || (lm > 0 || dirPart ? (String(lm) + ':' + dirPart) : '');
+    if (verSource) {
+      let vh = 2166136261;
+      for (let vi = 0; vi < verSource.length; vi++) {
+        vh ^= verSource.charCodeAt(vi);
+        vh = (vh + (vh << 1) + (vh << 4) + (vh << 7) + (vh << 8) + (vh << 24)) >>> 0;
+      }
+      url += '&v=' + vh.toString(36);
+    }
     const px = Number(size) > 0 ? Math.max(96, Math.min(512, Math.round(Number(size)))) : FIIO_COVER_DEFAULT_SIZE;
     return url + '&size=' + px;
   }

@@ -13,6 +13,7 @@ import android.media.session.MediaSession;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
+import android.view.KeyEvent;
 
 import androidx.annotation.Nullable;
 
@@ -59,6 +60,11 @@ public class NocturnePlaybackService extends Service {
         ensureNotificationChannel();
     }
 
+    private volatile String mLastTitle = null;
+    private volatile String mLastArtist = null;
+    private volatile String mLastAlbum = null;
+    private volatile boolean mLastIsPlaying = false;
+
     @Override
     public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
         mIdleHandler.removeCallbacks(mIdleStopRunnable);
@@ -67,11 +73,49 @@ public class NocturnePlaybackService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
+        if (intent != null && Intent.ACTION_MEDIA_BUTTON.equals(intent.getAction())) {
+            KeyEvent ke = null;
+            if (Build.VERSION.SDK_INT >= 33) {
+                ke = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent.class);
+            } else {
+                @SuppressWarnings("deprecation")
+                KeyEvent legacyKe = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                ke = legacyKe;
+            }
+            Notification fgNotif = buildNotification(mLastTitle, mLastArtist, mLastAlbum, mLastIsPlaying);
+            try {
+                if (Build.VERSION.SDK_INT >= 29) {
+                    startForeground(NOTIFICATION_ID, fgNotif, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+                } else {
+                    startForeground(NOTIFICATION_ID, fgNotif);
+                }
+            } catch (Exception ignored) {}
+            if (ke != null && ke.getAction() == KeyEvent.ACTION_DOWN && ke.getRepeatCount() == 0) {
+                MainActivity active = MainActivity.getActiveInstance();
+                if (active != null) {
+                    active.handleMediaKey(ke.getKeyCode());
+                } else {
+                    Intent launchIntent = new Intent(this, MainActivity.class);
+                    launchIntent.setAction(Intent.ACTION_MEDIA_BUTTON);
+                    launchIntent.putExtra(Intent.EXTRA_KEY_EVENT, ke);
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    try { startActivity(launchIntent); } catch (Exception ignored) {}
+                }
+            }
+            if (!mLastIsPlaying) {
+                mIdleHandler.postDelayed(mIdleStopRunnable, PAUSE_IDLE_TIMEOUT_MS);
+            }
+            return START_STICKY;
+        }
 
         String title = intent != null ? intent.getStringExtra(EXTRA_TITLE) : null;
         String artist = intent != null ? intent.getStringExtra(EXTRA_ARTIST) : null;
         String album = intent != null ? intent.getStringExtra(EXTRA_ALBUM) : null;
         boolean isPlaying = intent == null || intent.getBooleanExtra(EXTRA_IS_PLAYING, true);
+        mLastTitle = title;
+        mLastArtist = artist;
+        mLastAlbum = album;
+        mLastIsPlaying = isPlaying;
 
         Notification notification = buildNotification(title, artist, album, isPlaying);
         if (isPlaying) {
@@ -215,6 +259,10 @@ public class NocturnePlaybackService extends Service {
 
     private void applyPausedNotificationState(@Nullable String title, @Nullable String artist, @Nullable String album) {
         mIdleHandler.removeCallbacks(mIdleStopRunnable);
+        mLastTitle = title;
+        mLastArtist = artist;
+        mLastAlbum = album;
+        mLastIsPlaying = false;
         Notification notification = buildNotification(title, artist, album, false);
         mIdleHandler.postDelayed(mIdleStopRunnable, PAUSE_IDLE_TIMEOUT_MS);
         try {

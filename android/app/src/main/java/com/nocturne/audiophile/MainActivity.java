@@ -26,6 +26,7 @@ import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.Icon;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
@@ -56,6 +57,7 @@ import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
 import android.os.SystemClock;
+import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.util.Log;
@@ -173,6 +175,12 @@ public class MainActivity extends AppCompatActivity {
     public static final String ACTION_PLAY_PAUSE = "com.nocturne.audiophile.ACTION_PLAY_PAUSE";
     public static final String ACTION_NEXT = "com.nocturne.audiophile.ACTION_NEXT";
     public static final String ACTION_PREV = "com.nocturne.audiophile.ACTION_PREVIOUS";
+    private static volatile MainActivity sActiveInstance = null;
+
+    @Nullable
+    public static MainActivity getActiveInstance() {
+        return sActiveInstance;
+    }
 
     private WebView mWebView;
     private ProgressBar mProgressBar;
@@ -261,6 +269,7 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        sActiveInstance = this;
 
         // 1. Edge-to-edge fullscreen setup with notch & navigation bar insets
         setupEdgeToEdgeFullscreen();
@@ -2045,6 +2054,9 @@ public class MainActivity extends AppCompatActivity {
             mActivePopupDialog.dismiss();
             mActivePopupDialog = null;
         }
+        if (sActiveInstance == this) {
+            sActiveInstance = null;
+        }
         if (mWebView != null) {
             mWebView.destroy();
         }
@@ -2063,6 +2075,18 @@ public class MainActivity extends AppCompatActivity {
                 dispatchNextToWeb();
             } else if (ACTION_PREV.equals(action)) {
                 dispatchPreviousToWeb();
+            } else if (Intent.ACTION_MEDIA_BUTTON.equals(action) && intent.hasExtra(Intent.EXTRA_KEY_EVENT)) {
+                final KeyEvent ke;
+                if (Build.VERSION.SDK_INT >= 33) {
+                    ke = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent.class);
+                } else {
+                    @SuppressWarnings("deprecation")
+                    KeyEvent legacyKe = intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                    ke = legacyKe;
+                }
+                if (ke != null && isMediaKey(ke.getKeyCode()) && ke.getAction() == KeyEvent.ACTION_DOWN && ke.getRepeatCount() == 0) {
+                    handleMediaKey(ke.getKeyCode());
+                }
             }
         }
     }
@@ -3258,6 +3282,281 @@ public class MainActivity extends AppCompatActivity {
             byte[] directSubArt = extractArtworkSubfolderCover(parent, size);
             if (directSubArt != null) return directSubArt;
         }
+        // 4. Scoped Storage / SAF DocumentsContract tree sibling fallback (API 30-35+ content://)
+        byte[] safFolderArt = extractSafFolderCover(pathParam, contentUri, size);
+        if (safFolderArt != null) return safFolderArt;
+        return null;
+    }
+
+    private static final class SafParentContext {
+        final Uri treeUri;
+        final String parentDocId;
+        final String fileName;
+        SafParentContext(Uri treeUri, String parentDocId, String fileName) {
+            this.treeUri = treeUri;
+            this.parentDocId = parentDocId;
+            this.fileName = fileName;
+        }
+    }
+
+    @Nullable
+    private static String pathToSafDocId(@Nullable String rawPath) {
+        if (rawPath == null || rawPath.isEmpty()) return null;
+        String p = rawPath.replace('\\', '/').trim();
+        if (p.startsWith("/storage/emulated/0")) {
+            String rest = p.substring("/storage/emulated/0".length());
+            if (rest.startsWith("/")) rest = rest.substring(1);
+            return "primary:" + rest;
+        }
+        if (p.startsWith("/sdcard")) {
+            String rest = p.substring("/sdcard".length());
+            if (rest.startsWith("/")) rest = rest.substring(1);
+            return "primary:" + rest;
+        }
+        if (p.startsWith("/storage/")) {
+            String after = p.substring("/storage/".length());
+            int slash = after.indexOf('/');
+            if (slash > 0) {
+                return after.substring(0, slash) + ":" + after.substring(slash + 1);
+            }
+            if (!after.isEmpty()) return after + ":";
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String safDocParentId(@Nullable String docId) {
+        if (docId == null || docId.isEmpty()) return null;
+        int colon = docId.indexOf(':');
+        int slash = docId.lastIndexOf('/');
+        if (slash > colon && slash > 0) {
+            return docId.substring(0, slash);
+        }
+        if (colon >= 0 && docId.length() > colon + 1) {
+            return docId.substring(0, colon + 1);
+        }
+        return null;
+    }
+
+    @Nullable
+    private static String safDocLeafName(@Nullable String docId) {
+        if (docId == null || docId.isEmpty()) return "";
+        int slash = docId.lastIndexOf('/');
+        if (slash >= 0) return docId.substring(slash + 1);
+        int colon = docId.indexOf(':');
+        return colon >= 0 ? docId.substring(colon + 1) : docId;
+    }
+
+    private static boolean safTreeCoversDocId(@Nullable String treeDocId, @Nullable String targetDocId) {
+        if (treeDocId == null || targetDocId == null) return false;
+        if (targetDocId.equals(treeDocId)) return true;
+        if (treeDocId.endsWith(":")) {
+            return targetDocId.startsWith(treeDocId);
+        }
+        return targetDocId.startsWith(treeDocId + "/");
+    }
+
+    @Nullable
+    private SafParentContext resolveSafParentContext(@Nullable String filePath, @Nullable Uri contentUri) {
+        try {
+            List<String> candidateDocIds = new ArrayList<>();
+            String resolvedFileName = "";
+            if (contentUri != null && DocumentsContract.isDocumentUri(this, contentUri)) {
+                String docId = DocumentsContract.getDocumentId(contentUri);
+                if (docId != null && !docId.isEmpty()) {
+                    candidateDocIds.add(docId);
+                    resolvedFileName = safDocLeafName(docId);
+                }
+            }
+            if (filePath != null && !filePath.trim().isEmpty()) {
+                File f = resolveReadableLocalFile(filePath.trim());
+                String abs = f.getAbsolutePath();
+                if (resolvedFileName.isEmpty()) resolvedFileName = f.getName();
+                String pathDocId = pathToSafDocId(abs);
+                if (pathDocId != null && !candidateDocIds.contains(pathDocId)) {
+                    candidateDocIds.add(pathDocId);
+                }
+            }
+            if (candidateDocIds.isEmpty()) return null;
+
+            List<UriPermission> perms = getContentResolver().getPersistedUriPermissions();
+            for (String docId : candidateDocIds) {
+                String parentDocId = safDocParentId(docId);
+                if (parentDocId == null || parentDocId.isEmpty()) continue;
+                String leaf = safDocLeafName(docId);
+                if (leaf.isEmpty()) leaf = resolvedFileName;
+                if (contentUri != null && DocumentsContract.isTreeUri(contentUri)) {
+                    try {
+                        String ownTreeId = DocumentsContract.getTreeDocumentId(contentUri);
+                        if (safTreeCoversDocId(ownTreeId, parentDocId)) {
+                            return new SafParentContext(contentUri, parentDocId, leaf);
+                        }
+                    } catch (Throwable ignored) {}
+                }
+                if (perms != null) {
+                    Uri bestTree = null;
+                    int bestTreeLen = -1;
+                    for (UriPermission perm : perms) {
+                        if (perm == null || !perm.isReadPermission() || perm.getUri() == null) continue;
+                        Uri treeUri = perm.getUri();
+                        if (!DocumentsContract.isTreeUri(treeUri)) continue;
+                        try {
+                            String treeDocId = DocumentsContract.getTreeDocumentId(treeUri);
+                            if (safTreeCoversDocId(treeDocId, parentDocId) && treeDocId.length() > bestTreeLen) {
+                                bestTree = treeUri;
+                                bestTreeLen = treeDocId.length();
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                    if (bestTree != null) {
+                        return new SafParentContext(bestTree, parentDocId, leaf);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    @Nullable
+    public Uri resolveSafSiblingUri(@Nullable String filePath, @Nullable Uri contentUri, @Nullable String targetSiblingName) {
+        if (targetSiblingName == null || targetSiblingName.trim().isEmpty()) return null;
+        SafParentContext ctx = resolveSafParentContext(filePath, contentUri);
+        if (ctx == null) return null;
+        String wanted = java.text.Normalizer.normalize(targetSiblingName.trim(), java.text.Normalizer.Form.NFC);
+        try {
+            Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(ctx.treeUri, ctx.parentDocId);
+            try (Cursor cursor = getContentResolver().query(
+                    childrenUri,
+                    new String[]{DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME},
+                    null,
+                    null,
+                    null
+            )) {
+                if (cursor != null) {
+                    int idCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID);
+                    int nameCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME);
+                    while (cursor.moveToNext()) {
+                        String cid = idCol >= 0 ? cursor.getString(idCol) : null;
+                        String cname = nameCol >= 0 ? cursor.getString(nameCol) : null;
+                        if (cid == null || cname == null) continue;
+                        String normName = java.text.Normalizer.normalize(cname.trim(), java.text.Normalizer.Form.NFC);
+                        if (normName.equalsIgnoreCase(wanted)) {
+                            return DocumentsContract.buildDocumentUriUsingTree(ctx.treeUri, cid);
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    @Nullable
+    private byte[] extractSafFolderCoverFromDocId(Uri treeUri, String dirDocId, int size, boolean checkArtworkSubdirs) {
+        if (treeUri == null || dirDocId == null || dirDocId.isEmpty()) return null;
+        try {
+            Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, dirDocId);
+            List<String> imgDocIds = new ArrayList<>();
+            List<String> imgNames = new ArrayList<>();
+            List<Long> imgSizes = new ArrayList<>();
+            List<String> subDirDocIds = new ArrayList<>();
+            try (Cursor cursor = getContentResolver().query(
+                    childrenUri,
+                    new String[]{
+                            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                            DocumentsContract.Document.COLUMN_MIME_TYPE,
+                            DocumentsContract.Document.COLUMN_SIZE
+                    },
+                    null,
+                    null,
+                    null
+            )) {
+                if (cursor == null) return null;
+                int idCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID);
+                int nameCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME);
+                int mimeCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE);
+                int sizeCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE);
+                while (cursor.moveToNext()) {
+                    String cid = idCol >= 0 ? cursor.getString(idCol) : null;
+                    String cname = nameCol >= 0 ? cursor.getString(nameCol) : null;
+                    String cmime = mimeCol >= 0 ? cursor.getString(mimeCol) : null;
+                    long csize = (sizeCol >= 0 && !cursor.isNull(sizeCol)) ? cursor.getLong(sizeCol) : 0L;
+                    if (cid == null || cname == null) continue;
+                    if (DocumentsContract.Document.MIME_TYPE_DIR.equals(cmime)) {
+                        if (checkArtworkSubdirs) {
+                            String dn = cname.trim().toLowerCase(Locale.US);
+                            if ("artwork".equals(dn) || "cover".equals(dn) || "covers".equals(dn) || "scans".equals(dn) || "images".equals(dn)) {
+                                subDirDocIds.add(cid);
+                            }
+                        }
+                        continue;
+                    }
+                    String lower = cname.toLowerCase(Locale.US);
+                    if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".webp")) {
+                        imgDocIds.add(cid);
+                        imgNames.add(lower);
+                        imgSizes.add(csize);
+                    }
+                }
+            }
+            String[] preferred = new String[] {"cover", "folder", "front", "album", "albumart", "artwork", "thumb", "albumartsmall"};
+            for (String base : preferred) {
+                for (int i = 0; i < imgDocIds.size(); i++) {
+                    String n = imgNames.get(i);
+                    if (n.equals(base + ".jpg") || n.equals(base + ".jpeg") || n.equals(base + ".png") || n.equals(base + ".webp")) {
+                        Uri docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, imgDocIds.get(i));
+                        try (InputStream is = getContentResolver().openInputStream(docUri)) {
+                            byte[] jpeg = coverBytesToJpeg(readStreamBounded(is, 24L * 1024L * 1024L), size);
+                            if (jpeg != null) return jpeg;
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            }
+            String dirLeaf = safDocLeafName(dirDocId).toLowerCase(Locale.US);
+            if (!imgDocIds.isEmpty() && !dirLeaf.equals("music") && !dirLeaf.equals("dsd") && !dirLeaf.equals("flac") && !dirLeaf.equals("audio") && !dirLeaf.equals("0") && !dirLeaf.equals("sdcard")) {
+                int bestIdx = -1;
+                long bestLen = -1L;
+                for (int i = 0; i < imgDocIds.size(); i++) {
+                    long len = imgSizes.get(i);
+                    if (len <= 24L * 1024L * 1024L && len > bestLen) {
+                        bestLen = len;
+                        bestIdx = i;
+                    }
+                }
+                if (bestIdx >= 0) {
+                    Uri docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, imgDocIds.get(bestIdx));
+                    try (InputStream is = getContentResolver().openInputStream(docUri)) {
+                        byte[] jpeg = coverBytesToJpeg(readStreamBounded(is, 24L * 1024L * 1024L), size);
+                        if (jpeg != null) return jpeg;
+                    } catch (Throwable ignored) {}
+                }
+            }
+            for (String subDocId : subDirDocIds) {
+                byte[] subArt = extractSafFolderCoverFromDocId(treeUri, subDocId, size, false);
+                if (subArt != null) return subArt;
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    @Nullable
+    private byte[] extractSafFolderCover(@Nullable String pathParam, @Nullable Uri contentUri, int size) {
+        SafParentContext ctx = resolveSafParentContext(pathParam, contentUri);
+        if (ctx == null) return null;
+        byte[] direct = extractSafFolderCoverFromDocId(ctx.treeUri, ctx.parentDocId, size, true);
+        if (direct != null) return direct;
+        String pName = safDocLeafName(ctx.parentDocId).trim().toLowerCase(Locale.US);
+        if (pName.matches("^(?:cd|disc|disk|sacd|side|vol(?:ume)?|part)\\s*[-_.#]?\\s*(?:\\d+|[a-d]|[ivx]+).*")) {
+            String grandParentDocId = safDocParentId(ctx.parentDocId);
+            if (grandParentDocId != null && !grandParentDocId.isEmpty()) {
+                try {
+                    String treeDocId = DocumentsContract.getTreeDocumentId(ctx.treeUri);
+                    if (safTreeCoversDocId(treeDocId, grandParentDocId)) {
+                        return extractSafFolderCoverFromDocId(ctx.treeUri, grandParentDocId, size, true);
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
         return null;
     }
 
@@ -3313,8 +3612,15 @@ public class MainActivity extends AppCompatActivity {
             if (source.isEmpty()) return buildCoverResponse(400, "Bad Request", null);
 
             String identity = (keyParam != null && !keyParam.isEmpty()) ? "v3k:" + keyParam : "v3s:" + source;
+            String vParam = extractLocalMediaQueryParam(uri, "v");
+            if (vParam == null) vParam = uri.getQueryParameter("v");
+            String versionSuffix = (vParam != null && !vParam.isEmpty()) ? ("|" + vParam) : "";
             String hash = coverSha1Hex(identity + "|" + size);
             String sourceHash = coverSha1Hex("v3src:" + source + "|" + size);
+            if (!versionSuffix.isEmpty()) {
+                hash = coverSha1Hex(hash + versionSuffix);
+                sourceHash = coverSha1Hex(sourceHash + versionSuffix);
+            }
 
             android.util.LruCache<String, byte[]> memCache = getCoverMemCache();
             byte[] memHit = memCache.get(hash);
@@ -4092,15 +4398,42 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private boolean hasActiveUsbOrWiredHeadphoneSink() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || mAudioManager == null) return false;
+        try {
+            AudioDeviceInfo[] outputs = mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
+            if (outputs == null) return false;
+            for (AudioDeviceInfo dev : outputs) {
+                if (dev == null || !dev.isSink()) continue;
+                int t = dev.getType();
+                if (t == AudioDeviceInfo.TYPE_USB_DEVICE
+                        || t == AudioDeviceInfo.TYPE_USB_HEADSET
+                        || t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+                        || t == AudioDeviceInfo.TYPE_WIRED_HEADSET) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
     private void notifyUsbDacChange(AudioDeviceInfo[] devices, boolean connected) {
         if (devices == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
         AudioDeviceInfo targetDev = null;
         boolean hasUsbDacChange = false;
+        boolean hasBtOrWiredHeadphoneDisconnect = false;
         for (AudioDeviceInfo dev : devices) {
             if (dev == null || !dev.isSink()) continue;
             int t = dev.getType();
             if (!isExternalAudioSinkType(t)) continue;
             boolean isUsb = (t == AudioDeviceInfo.TYPE_USB_DEVICE || t == AudioDeviceInfo.TYPE_USB_HEADSET);
+            if (!connected && (t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                    || t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+                    || t == AudioDeviceInfo.TYPE_WIRED_HEADSET
+                    || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                        && (t == AudioDeviceInfo.TYPE_BLE_HEADSET || t == AudioDeviceInfo.TYPE_BLE_SPEAKER)))) {
+                hasBtOrWiredHeadphoneDisconnect = true;
+            }
             if (targetDev == null || (isUsb && !hasUsbDacChange)) {
                 targetDev = dev;
             }
@@ -4113,6 +4446,8 @@ public class MainActivity extends AppCompatActivity {
                 triggerAudioBecomingNoisy("DEVICE_REMOVED");
             } else if (!connected && hasUsbDacChange) {
                 triggerAudioBecomingNoisy("USB_DAC_REMOVED");
+            } else if (!connected && hasBtOrWiredHeadphoneDisconnect && !hasActiveUsbOrWiredHeadphoneSink()) {
+                triggerAudioBecomingNoisy("BT_OR_WIRED_REMOVED");
             }
             if (mBitPerfectPlayer != null && mBitPerfectPlayer.isActive()) {
                 mBitPerfectPlayer.onAudioOutputRouteChanged(connected);
@@ -4157,7 +4492,14 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
                     if (mediaButtonIntent != null && mediaButtonIntent.hasExtra(Intent.EXTRA_KEY_EVENT)) {
-                        KeyEvent ke = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                        final KeyEvent ke;
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            ke = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent.class);
+                        } else {
+                            @SuppressWarnings("deprecation")
+                            KeyEvent legacyKe = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                            ke = legacyKe;
+                        }
                         if (ke != null && isMediaKey(ke.getKeyCode())) {
                             if (ke.getAction() == KeyEvent.ACTION_DOWN && ke.getRepeatCount() == 0) {
                                 handleMediaKey(ke.getKeyCode());
@@ -4217,6 +4559,16 @@ public class MainActivity extends AppCompatActivity {
                     .setState(PlaybackState.STATE_PAUSED, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 0.0f);
             mMediaSession.setPlaybackState(psb.build());
             mMediaSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
+            try {
+                Intent mbIntent = new Intent(Intent.ACTION_MEDIA_BUTTON);
+                mbIntent.setClass(this, NocturnePlaybackService.class);
+                int mbFlags = PendingIntent.FLAG_UPDATE_CURRENT
+                        | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_MUTABLE : 0);
+                PendingIntent mbPendingIntent = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                        ? PendingIntent.getForegroundService(this, 104, mbIntent, mbFlags)
+                        : PendingIntent.getService(this, 104, mbIntent, mbFlags);
+                mMediaSession.setMediaButtonReceiver(mbPendingIntent);
+            } catch (Exception ignored) {}
             mMediaSession.setActive(true);
             NocturnePlaybackService.sMediaSessionToken = mMediaSession.getSessionToken();
         } catch (Exception e) {
@@ -4466,19 +4818,49 @@ public class MainActivity extends AppCompatActivity {
             String displayAlbum = (album != null && !album.trim().isEmpty()) ? album.trim() : null;
             android.graphics.Bitmap coverBmp = loadCachedCoverBitmap(displayAlbum, displayArtist);
 
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            Notification.Builder builder = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    ? new Notification.Builder(this, NOTIFICATION_CHANNEL_ID)
+                    : new Notification.Builder(this);
+
+            Notification.Action prevAction = new Notification.Action.Builder(
+                    Icon.createWithResource(this, android.R.drawable.ic_media_previous),
+                    "Previous",
+                    pPrev
+            ).build();
+
+            Notification.Action playPauseAction = new Notification.Action.Builder(
+                    Icon.createWithResource(this, isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play),
+                    isPlaying ? "Pause" : "Play",
+                    pPlayPause
+            ).build();
+
+            Notification.Action nextAction = new Notification.Action.Builder(
+                    Icon.createWithResource(this, android.R.drawable.ic_media_next),
+                    "Next",
+                    pNext
+            ).build();
+
+            Notification.MediaStyle mediaStyle = new Notification.MediaStyle()
+                    .setShowActionsInCompactView(0, 1, 2);
+            MediaSession.Token token = mMediaSession != null
+                    ? mMediaSession.getSessionToken()
+                    : NocturnePlaybackService.sMediaSessionToken;
+            if (token != null) {
+                mediaStyle.setMediaSession(token);
+            }
+
+            builder
                     .setSmallIcon(R.mipmap.ic_launcher)
                     .setContentTitle(displayTitle)
                     .setContentText(displayArtist)
                     .setSubText(displayAlbum)
                     .setAutoCancel(false)
-                    .setPriority(NotificationCompat.PRIORITY_LOW)
-                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setVisibility(Notification.VISIBILITY_PUBLIC)
                     .setContentIntent(contentPendingIntent)
-                    .addAction(android.R.drawable.ic_media_previous, "Previous", pPrev)
-                    .addAction(isPlaying ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play,
-                            isPlaying ? "Pause" : "Play", pPlayPause)
-                    .addAction(android.R.drawable.ic_media_next, "Next", pNext);
+                    .addAction(prevAction)
+                    .addAction(playPauseAction)
+                    .addAction(nextAction)
+                    .setStyle(mediaStyle);
             if (coverBmp != null) {
                 builder.setLargeIcon(coverBmp);
             }
@@ -4565,7 +4947,34 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 3rd Priority: Any sink
+        // 3rd Priority: Bluetooth A2DP / BLE Audio
+        for (AudioDeviceInfo dev : devices) {
+            if (dev.isSink()) {
+                int t = dev.getType();
+                if (t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                        || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                            && (t == AudioDeviceInfo.TYPE_BLE_HEADSET || t == AudioDeviceInfo.TYPE_BLE_SPEAKER))) {
+                    return dev;
+                }
+            }
+        }
+
+        // 4th Priority: Built-in Speaker
+        for (AudioDeviceInfo dev : devices) {
+            if (dev.isSink() && dev.getType() == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+                return dev;
+            }
+        }
+
+        // 5th Priority: Any non-earpiece/non-telephony sink, then any sink
+        for (AudioDeviceInfo dev : devices) {
+            if (dev.isSink()) {
+                int t = dev.getType();
+                if (t != AudioDeviceInfo.TYPE_BUILTIN_EARPIECE && t != AudioDeviceInfo.TYPE_TELEPHONY) {
+                    return dev;
+                }
+            }
+        }
         for (AudioDeviceInfo dev : devices) {
             if (dev.isSink()) return dev;
         }
@@ -4797,9 +5206,9 @@ public class MainActivity extends AppCompatActivity {
         private static final long REMOTE_SEEK_COALESCE_WINDOW_MS = 90L;
         private final AtomicLong mCurrentPositionMs = new AtomicLong(0);
         private final AtomicLong mDurationMs = new AtomicLong(0);
-        private final java.util.concurrent.atomic.AtomicBoolean mRouteRefreshRequested = new java.util.concurrent.atomic.AtomicBoolean(false);
-        private volatile boolean mRouteRefreshWasDisconnect = false;
-        private volatile boolean mRouteRefreshWasConnect = false;
+        private static final int FLAG_ROUTE_DISCONNECT = 1;
+        private static final int FLAG_ROUTE_CONNECT = 2;
+        private final AtomicInteger mRouteRefreshFlags = new AtomicInteger(0);
 
         private final Object mStreamAuthLock = new Object();
         private String mPendingStreamUrl = "";
@@ -5109,6 +5518,7 @@ public class MainActivity extends AppCompatActivity {
             mExitedDecodeLoop = false;
             mIsPaused = false;
             mIsPlaying = true;
+            mRouteRefreshFlags.set(0);
             mPendingRenderProcessRehydration = false;
             synchronized (mBitPerfectEosLock) {
                 mPendingBitPerfectEosEpoch = 0;
@@ -5137,9 +5547,6 @@ public class MainActivity extends AppCompatActivity {
             }
             mCurrentPositionMs.set(winCueStartMs);
             mDurationMs.set(0);
-            mRouteRefreshRequested.set(false);
-            mRouteRefreshWasDisconnect = false;
-            mRouteRefreshWasConnect = false;
 
             acquireWakeLock(mIsRemoteStream || mNextTrackIsRemote);
             requestAudioFocus();
@@ -5331,12 +5738,11 @@ public class MainActivity extends AppCompatActivity {
 
         public void onAudioOutputRouteChanged(boolean connected) {
             if (!isActive()) return;
-            if (!connected) {
-                mRouteRefreshWasDisconnect = true;
-            } else {
-                mRouteRefreshWasConnect = true;
-            }
-            mRouteRefreshRequested.set(true);
+            final int flagBit = connected ? FLAG_ROUTE_CONNECT : FLAG_ROUTE_DISCONNECT;
+            int prev;
+            do {
+                prev = mRouteRefreshFlags.get();
+            } while (!mRouteRefreshFlags.compareAndSet(prev, prev | flagBit));
             synchronized (mPauseLock) {
                 mPauseLock.notifyAll();
             }
@@ -6430,8 +6836,13 @@ public class MainActivity extends AppCompatActivity {
                 applyApi34BitPerfectMode(track);
 
                 // 8. Playback loop
-                if (!mIsPaused && !mIsStopped) {
+                try {
+                    if (!mIsPaused && !mIsStopped) {
                     track.play();
+                    }
+                } catch (IllegalStateException ise) {
+                    pendingErrorReason = "[ROUTE] Bit-Perfect AudioTrack play failed: " + ise.getMessage();
+                    return;
                 }
                 MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
                 boolean sawInputEOS = false;
@@ -6461,9 +6872,9 @@ public class MainActivity extends AppCompatActivity {
                     while (!mIsStopped && !sawOutputEOS && mPlaybackEpoch.get() == epoch) {
                     // Check pause
                     synchronized (mPauseLock) {
-                        while (mIsPaused && !mIsStopped && mSeekTargetUs.get() < 0L && !mRouteRefreshRequested.get()) {
+                        while (mIsPaused && !mIsStopped && mSeekTargetUs.get() < 0L && mRouteRefreshFlags.get() == 0) {
                             if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
-                                track.pause();
+                                try { track.pause(); } catch (IllegalStateException ignored) {}
                             }
                             try {
                                 mPauseLock.wait();
@@ -6473,11 +6884,10 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                     if (mIsStopped || mPlaybackEpoch.get() != epoch) break;
-                    if (mRouteRefreshRequested.compareAndSet(true, false) && !mIsStopped && mPlaybackEpoch.get() == epoch) {
-                        boolean wasDisconnect = mRouteRefreshWasDisconnect;
-                        boolean wasConnect = mRouteRefreshWasConnect;
-                        mRouteRefreshWasDisconnect = false;
-                        mRouteRefreshWasConnect = false;
+                    int routeFlags = mRouteRefreshFlags.getAndSet(0);
+                    if (routeFlags != 0 && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                        boolean wasDisconnect = (routeFlags & FLAG_ROUTE_DISCONNECT) != 0;
+                        boolean wasConnect = (routeFlags & FLAG_ROUTE_CONNECT) != 0;
                         AudioDeviceInfo newPreferred = findPreferredBitPerfectDevice();
                         int oldDevId = preferredDevice != null ? preferredDevice.getId() : -1;
                         int newDevId = newPreferred != null ? newPreferred.getId() : -1;
@@ -6524,7 +6934,12 @@ public class MainActivity extends AppCompatActivity {
                         }
                     }
                     if (!mIsPaused && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
-                        track.play();
+                        try {
+                            track.play();
+                        } catch (IllegalStateException ise) {
+                            pendingErrorReason = "[ROUTE] Bit-Perfect AudioTrack play failed: " + ise.getMessage();
+                            break;
+                        }
                     }
 
                     // Check seek
@@ -6561,11 +6976,16 @@ public class MainActivity extends AppCompatActivity {
                             pendingInputIndex = -1;
                             downmixOutBuf = null;
                             if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
-                                track.pause();
+                                try { track.pause(); } catch (IllegalStateException ignored) {}
                             }
-                            track.flush();
+                            try { track.flush(); } catch (IllegalStateException ignored) {}
                             if (!mIsPaused && !mIsStopped) {
-                                track.play();
+                                try {
+                                    track.play();
+                                } catch (IllegalStateException ise) {
+                                    pendingErrorReason = "[ROUTE] Bit-Perfect AudioTrack seek play failed: " + ise.getMessage();
+                                    break;
+                                }
                             }
                             sawInputEOS = false;
                             sawOutputEOS = false;
@@ -6790,7 +7210,7 @@ public class MainActivity extends AppCompatActivity {
                                 }
                                 if (mIsPaused) {
                                     synchronized (mPauseLock) {
-                                        while (mIsPaused && !mIsStopped && mPlaybackEpoch.get() == epoch && mSeekTargetUs.get() < 0L && !mRouteRefreshRequested.get()) {
+                                        while (mIsPaused && !mIsStopped && mPlaybackEpoch.get() == epoch && mSeekTargetUs.get() < 0L && mRouteRefreshFlags.get() == 0) {
                                             if (track.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) {
                                                 try { track.pause(); } catch (Exception ignored) {}
                                             }
@@ -6807,15 +7227,14 @@ public class MainActivity extends AppCompatActivity {
                                         downmixOutBuf = null;
                                         break;
                                     }
-                                    if (!mIsPaused && !mRouteRefreshRequested.get() && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
+                                    if (!mIsPaused && mRouteRefreshFlags.get() == 0 && track.getPlayState() != AudioTrack.PLAYSTATE_PLAYING) {
                                         try { track.play(); } catch (Exception ignored) {}
                                     }
                                 }
-                                if (mRouteRefreshRequested.compareAndSet(true, false) && !mIsStopped && mPlaybackEpoch.get() == epoch) {
-                                    boolean wasDisconnect = mRouteRefreshWasDisconnect;
-                                    boolean wasConnect = mRouteRefreshWasConnect;
-                                    mRouteRefreshWasDisconnect = false;
-                                    mRouteRefreshWasConnect = false;
+                                int midRouteFlags = mRouteRefreshFlags.getAndSet(0);
+                                if (midRouteFlags != 0 && !mIsStopped && mPlaybackEpoch.get() == epoch) {
+                                    boolean wasDisconnect = (midRouteFlags & FLAG_ROUTE_DISCONNECT) != 0;
+                                    boolean wasConnect = (midRouteFlags & FLAG_ROUTE_CONNECT) != 0;
                                     AudioDeviceInfo newPreferred = findPreferredBitPerfectDevice();
                                     int oldDevId = preferredDevice != null ? preferredDevice.getId() : -1;
                                     int newDevId = newPreferred != null ? newPreferred.getId() : -1;
@@ -8215,19 +8634,28 @@ public class MainActivity extends AppCompatActivity {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && mActivity.mAudioManager != null) {
                     AudioDeviceInfo[] outs = mActivity.mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
                     for (AudioDeviceInfo d : outs) {
-                        if (d == null) continue;
+                        if (d == null || !d.isSink()) continue;
                         int t = d.getType();
                         if (t == AudioDeviceInfo.TYPE_USB_DEVICE || t == AudioDeviceInfo.TYPE_USB_HEADSET) return "USB DAC";
                     }
                     for (AudioDeviceInfo d : outs) {
-                        if (d == null) continue;
+                        if (d == null || !d.isSink()) continue;
                         int t = d.getType();
-                        if (t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || t == AudioDeviceInfo.TYPE_WIRED_HEADSET || t == AudioDeviceInfo.TYPE_LINE_ANALOG) return "Wired Headphones";
+                        if (t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || t == AudioDeviceInfo.TYPE_WIRED_HEADSET
+                                || t == AudioDeviceInfo.TYPE_LINE_ANALOG || t == AudioDeviceInfo.TYPE_LINE_DIGITAL
+                                || t == AudioDeviceInfo.TYPE_AUX_LINE) return "Wired Headphones";
                     }
                     for (AudioDeviceInfo d : outs) {
-                        if (d == null) continue;
+                        if (d == null || !d.isSink()) continue;
                         int t = d.getType();
                         if (t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) return "Bluetooth Hi-Res";
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        for (AudioDeviceInfo d : outs) {
+                            if (d == null || !d.isSink()) continue;
+                            int t = d.getType();
+                            if (t == AudioDeviceInfo.TYPE_BLE_HEADSET || t == AudioDeviceInfo.TYPE_BLE_SPEAKER) return "Bluetooth LE Audio";
+                        }
                     }
                 }
             } catch (Exception ignored) {}
@@ -8623,51 +9051,126 @@ public class MainActivity extends AppCompatActivity {
             return "";
         }
 
+        @Nullable
+        private Uri findSafSiblingLyricsUri(@Nullable String filePath, @Nullable Uri contentUri, @Nullable String targetKey, boolean isCue, int trackNumber) {
+            SafParentContext ctx = mActivity.resolveSafParentContext(filePath, contentUri);
+            if (ctx == null) return null;
+            String rawAudioName = !ctx.fileName.isEmpty() ? ctx.fileName : (filePath != null ? new File(filePath.trim()).getName() : "");
+            String normTarget = targetKey != null ? targetKey : "";
+            if (!isCue && normTarget.isEmpty() && !rawAudioName.isEmpty()) {
+                int dot = rawAudioName.lastIndexOf('.');
+                String base = dot > 0 ? rawAudioName.substring(0, dot) : rawAudioName;
+                normTarget = java.text.Normalizer.normalize(base, java.text.Normalizer.Form.NFC);
+            }
+            if (normTarget.isEmpty()) return null;
+            try {
+                Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(ctx.treeUri, ctx.parentDocId);
+                try (Cursor cursor = mActivity.getContentResolver().query(
+                        childrenUri,
+                        new String[]{DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME},
+                        null,
+                        null,
+                        null
+                )) {
+                    if (cursor == null) return null;
+                    int idCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID);
+                    int nameCol = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME);
+                    String bestDocId = null;
+                    int bestScore = Integer.MAX_VALUE;
+                    while (cursor.moveToNext()) {
+                        String cid = idCol >= 0 ? cursor.getString(idCol) : null;
+                        String kn = nameCol >= 0 ? cursor.getString(nameCol) : null;
+                        if (cid == null || kn == null) continue;
+                        int kd = kn.lastIndexOf('.');
+                        if (kd <= 0) continue;
+                        String ext = kn.substring(kd).toLowerCase(Locale.US);
+                        int extRank = ".lrc".equals(ext) ? 1 : (".lyricsfile".equals(ext) ? 2 : (".txt".equals(ext) ? 3 : 99));
+                        if (extRank >= 99) continue;
+                        String kidBase = kn.substring(0, kd);
+                        if (!isCue) {
+                            String normKidBase = java.text.Normalizer.normalize(kidBase, java.text.Normalizer.Form.NFC);
+                            if (!normKidBase.equalsIgnoreCase(normTarget)) continue;
+                            if (extRank < bestScore) {
+                                bestScore = extRank;
+                                bestDocId = cid;
+                            }
+                        } else {
+                            int matchScore = scoreCueLyricsCandidate(kidBase, normTarget, trackNumber);
+                            if (matchScore < 0) continue;
+                            int totalScore = matchScore * 10 + extRank;
+                            if (totalScore < bestScore) {
+                                bestScore = totalScore;
+                                bestDocId = cid;
+                            }
+                        }
+                    }
+                    if (bestDocId != null) {
+                        return DocumentsContract.buildDocumentUriUsingTree(ctx.treeUri, bestDocId);
+                    }
+                }
+            } catch (Throwable ignored) {}
+            return null;
+        }
+
         @JavascriptInterface
         public String readLocalLyrics(@Nullable String filePath, @Nullable String contentUri) {
             try {
                 File audioFile = null;
+                Uri parsedContentUri = null;
                 if (filePath != null && !filePath.trim().isEmpty()) {
                     audioFile = resolveReadableLocalFile(filePath.trim());
                 }
-                if (audioFile == null && contentUri != null && !contentUri.trim().isEmpty()) {
+                if (contentUri != null && !contentUri.trim().isEmpty()) {
                     try {
-                        audioFile = mActivity.resolveFileFromContentUri(Uri.parse(contentUri.trim()));
+                        parsedContentUri = Uri.parse(contentUri.trim());
+                        if (audioFile == null || !audioFile.exists()) {
+                            File resolved = mActivity.resolveFileFromContentUri(parsedContentUri);
+                            if (resolved != null) audioFile = resolved;
+                        }
                     } catch (Throwable ignored) {}
                 }
-                if (audioFile == null || !audioFile.exists() || !audioFile.isFile()) return "";
 
-                String rawName = audioFile.getName();
-                int dot = rawName.lastIndexOf('.');
-                String baseName = dot > 0 ? rawName.substring(0, dot) : rawName;
-                String normBaseName = java.text.Normalizer.normalize(baseName, java.text.Normalizer.Form.NFC);
-                File parent = audioFile.getParentFile();
-                if (parent != null && parent.isDirectory() && !normBaseName.isEmpty()) {
-                    File[] siblings = parent.listFiles();
-                    if (siblings != null) {
-                        File bestFile = null;
-                        int bestRank = 99;
-                        for (File kid : siblings) {
-                            if (kid == null || !kid.isFile()) continue;
-                            String kn = kid.getName();
-                            int kd = kn.lastIndexOf('.');
-                            if (kd <= 0) continue;
-                            String normKidBase = java.text.Normalizer.normalize(kn.substring(0, kd), java.text.Normalizer.Form.NFC);
-                            if (!normKidBase.equalsIgnoreCase(normBaseName)) continue;
-                            String ext = kn.substring(kd).toLowerCase(Locale.US);
-                            int rank = ".lrc".equals(ext) ? 1 : (".lyricsfile".equals(ext) ? 2 : (".txt".equals(ext) ? 3 : 99));
-                            if (rank < bestRank) {
-                                bestRank = rank;
-                                bestFile = kid;
+                String rawName = (audioFile != null && audioFile.exists()) ? audioFile.getName() : "";
+                String normBaseName = "";
+                if (!rawName.isEmpty()) {
+                    int dot = rawName.lastIndexOf('.');
+                    String baseName = dot > 0 ? rawName.substring(0, dot) : rawName;
+                    normBaseName = java.text.Normalizer.normalize(baseName, java.text.Normalizer.Form.NFC);
+                }
+                if (audioFile != null && audioFile.exists() && audioFile.isFile()) {
+                    File parent = audioFile.getParentFile();
+                    if (parent != null && parent.isDirectory() && !normBaseName.isEmpty()) {
+                        File[] siblings = parent.listFiles();
+                        if (siblings != null) {
+                            File bestFile = null;
+                            int bestRank = 99;
+                            for (File kid : siblings) {
+                                if (kid == null || !kid.isFile()) continue;
+                                String kn = kid.getName();
+                                int kd = kn.lastIndexOf('.');
+                                if (kd <= 0) continue;
+                                String normKidBase = java.text.Normalizer.normalize(kn.substring(0, kd), java.text.Normalizer.Form.NFC);
+                                if (!normKidBase.equalsIgnoreCase(normBaseName)) continue;
+                                String ext = kn.substring(kd).toLowerCase(Locale.US);
+                                int rank = ".lrc".equals(ext) ? 1 : (".lyricsfile".equals(ext) ? 2 : (".txt".equals(ext) ? 3 : 99));
+                                if (rank < bestRank) {
+                                    bestRank = rank;
+                                    bestFile = kid;
+                                }
                             }
-                        }
-                        if (bestFile != null) {
-                            String sidecar = readLocalLyricsTextFile(bestFile);
-                            if (!sidecar.isEmpty()) return sidecar;
+                            if (bestFile != null) {
+                                String sidecar = readLocalLyricsTextFile(bestFile);
+                                if (!sidecar.isEmpty()) return sidecar;
+                            }
                         }
                     }
                 }
-                if (rawName.toLowerCase(Locale.US).endsWith(".flac")) {
+                Uri safSibling = findSafSiblingLyricsUri(filePath, parsedContentUri, normBaseName, false, 0);
+                if (safSibling != null) {
+                    String safSidecar = readLocalTextFile(safSibling.toString());
+                    if (!safSidecar.isEmpty()) return safSidecar;
+                }
+                if (audioFile != null && audioFile.exists() && audioFile.isFile() && rawName.toLowerCase(Locale.US).endsWith(".flac")) {
                     String embedded = extractFlacVorbisLyricsFromFile(audioFile);
                     if (!embedded.isEmpty()) return embedded;
                 }
@@ -8705,40 +9208,51 @@ public class MainActivity extends AppCompatActivity {
                 String normTitle = normalizeCueLyricsTitle(trackTitle);
                 if (normTitle.isEmpty()) return "";
                 File audioFile = null;
+                Uri parsedContentUri = null;
                 if (filePath != null && !filePath.trim().isEmpty()) {
                     audioFile = resolveReadableLocalFile(filePath.trim());
                 }
-                if (audioFile == null && contentUri != null && !contentUri.trim().isEmpty()) {
+                if (contentUri != null && !contentUri.trim().isEmpty()) {
                     try {
-                        audioFile = mActivity.resolveFileFromContentUri(Uri.parse(contentUri.trim()));
+                        parsedContentUri = Uri.parse(contentUri.trim());
+                        if (audioFile == null || !audioFile.exists()) {
+                            File resolved = mActivity.resolveFileFromContentUri(parsedContentUri);
+                            if (resolved != null) audioFile = resolved;
+                        }
                     } catch (Throwable ignored) {}
                 }
-                if (audioFile == null || !audioFile.exists() || !audioFile.isFile()) return "";
-                File parent = audioFile.getParentFile();
-                if (parent == null || !parent.isDirectory()) return "";
-                File[] siblings = parent.listFiles();
-                if (siblings == null) return "";
-                File bestFile = null;
-                int bestScore = Integer.MAX_VALUE;
-                for (File kid : siblings) {
-                    if (kid == null || !kid.isFile()) continue;
-                    String kn = kid.getName();
-                    int kd = kn.lastIndexOf('.');
-                    if (kd <= 0) continue;
-                    String ext = kn.substring(kd).toLowerCase(Locale.US);
-                    int extRank = ".lrc".equals(ext) ? 1 : (".lyricsfile".equals(ext) ? 2 : (".txt".equals(ext) ? 3 : 99));
-                    if (extRank >= 99) continue;
-                    int matchScore = scoreCueLyricsCandidate(kn.substring(0, kd), normTitle, trackNumber);
-                    if (matchScore < 0) continue;
-                    int totalScore = matchScore * 10 + extRank;
-                    if (totalScore < bestScore) {
-                        bestScore = totalScore;
-                        bestFile = kid;
+                if (audioFile != null && audioFile.exists() && audioFile.isFile()) {
+                    File parent = audioFile.getParentFile();
+                    File[] siblings = (parent != null && parent.isDirectory()) ? parent.listFiles() : null;
+                    if (siblings != null) {
+                        File bestFile = null;
+                        int bestScore = Integer.MAX_VALUE;
+                        for (File kid : siblings) {
+                            if (kid == null || !kid.isFile()) continue;
+                            String kn = kid.getName();
+                            int kd = kn.lastIndexOf('.');
+                            if (kd <= 0) continue;
+                            String ext = kn.substring(kd).toLowerCase(Locale.US);
+                            int extRank = ".lrc".equals(ext) ? 1 : (".lyricsfile".equals(ext) ? 2 : (".txt".equals(ext) ? 3 : 99));
+                            if (extRank >= 99) continue;
+                            int matchScore = scoreCueLyricsCandidate(kn.substring(0, kd), normTitle, trackNumber);
+                            if (matchScore < 0) continue;
+                            int totalScore = matchScore * 10 + extRank;
+                            if (totalScore < bestScore) {
+                                bestScore = totalScore;
+                                bestFile = kid;
+                            }
+                        }
+                        if (bestFile != null) {
+                            String sidecar = readLocalLyricsTextFile(bestFile);
+                            if (!sidecar.isEmpty()) return sidecar;
+                        }
                     }
                 }
-                if (bestFile != null) {
-                    String sidecar = readLocalLyricsTextFile(bestFile);
-                    if (!sidecar.isEmpty()) return sidecar;
+                Uri safSibling = findSafSiblingLyricsUri(filePath, parsedContentUri, normTitle, true, trackNumber);
+                if (safSibling != null) {
+                    String safSidecar = readLocalTextFile(safSibling.toString());
+                    if (!safSidecar.isEmpty()) return safSidecar;
                 }
             } catch (Throwable ignored) {}
             return "";
@@ -8822,11 +9336,8 @@ public class MainActivity extends AppCompatActivity {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && mActivity.mAudioManager != null) {
                     AudioDeviceInfo[] outs = mActivity.mAudioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS);
                     for (AudioDeviceInfo d : outs) {
-                        if (d == null) continue;
-                        int t = d.getType();
-                        if (t == AudioDeviceInfo.TYPE_USB_DEVICE || t == AudioDeviceInfo.TYPE_USB_HEADSET ||
-                            t == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || t == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-                            t == AudioDeviceInfo.TYPE_LINE_ANALOG || t == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) {
+                        if (d == null || !d.isSink()) continue;
+                        if (isExternalAudioSinkType(d.getType())) {
                             return true;
                         }
                     }

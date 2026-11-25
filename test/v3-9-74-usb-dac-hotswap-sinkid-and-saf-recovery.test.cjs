@@ -30,16 +30,16 @@ function sliceBetween(src, startMarker, endMarker) {
 test('1. Android BitPerfectAudioPlayer handles USB DAC hot-swap during pause & playback and applies API 34 Bit-Perfect mode on rebuilds', () => {
   const java = readFile(MAIN_JAVA);
 
-  assert.ok(java.includes('private final java.util.concurrent.atomic.AtomicBoolean mRouteRefreshRequested = new java.util.concurrent.atomic.AtomicBoolean(false);'));
-  assert.ok(java.includes('private volatile boolean mRouteRefreshWasDisconnect = false;'));
+  assert.ok(java.includes('private final AtomicInteger mRouteRefreshFlags = new AtomicInteger(0);'));
+  assert.ok(java.includes('FLAG_ROUTE_DISCONNECT') && java.includes('FLAG_ROUTE_CONNECT'));
   assert.ok(java.includes('public void onAudioOutputRouteChanged(boolean connected)'), 'BitPerfectAudioPlayer must expose onAudioOutputRouteChanged');
   assert.ok(java.includes('mBitPerfectPlayer.onAudioOutputRouteChanged(connected);'), 'notifyUsbDacChange must wake BitPerfectAudioPlayer on route changes');
   assert.ok(java.includes('private void applyApi34BitPerfectMode(@Nullable AudioTrack track)'), 'BitPerfectAudioPlayer must extract applyApi34BitPerfectMode helper');
   assert.ok(java.includes('private AudioTrack createAndConfigureBitPerfectAudioTrack('), 'BitPerfectAudioPlayer must share createAndConfigureBitPerfectAudioTrack rebuild helper');
 
-  const routeRefreshCalls = java.match(/mRouteRefreshRequested\.compareAndSet\(true,\s*false\)/g) || [];
-  assert.equal(routeRefreshCalls.length, 2, 'Both outer pause loop and PCM write loop must handle mRouteRefreshRequested');
-  assert.ok(java.includes('!mRouteRefreshRequested.get()'), 'Pause wait loops must wake on mRouteRefreshRequested');
+  const routeRefreshCalls = java.match(/mRouteRefreshFlags\.getAndSet\(0\)/g) || [];
+  assert.equal(routeRefreshCalls.length, 2, 'Both outer pause loop and PCM write loop must handle mRouteRefreshFlags');
+  assert.ok(java.includes('mRouteRefreshFlags.get() == 0'), 'Pause wait loops must wake on mRouteRefreshFlags');
   assert.ok(java.includes('Api34AudioHelper.clearPreferredMixer(mAudioManager, audioAttributes, preferredDevice);'), 'Route rebuild must clear stale API 34 mixer attributes first');
 
   const api34Calls = java.match(/applyApi34BitPerfectMode\(/g) || [];

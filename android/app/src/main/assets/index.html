@@ -2372,7 +2372,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.100</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.101</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3681,7 +3681,7 @@
       return cover.length > MAX_CATALOG_COVER_CHARS ? null : cover;
     }
     const MAX_CATALOG_LYRICS_CHARS = 64 * 1024;
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, ...(track.targetRemoteId ? {targetRemoteId:String(track.targetRemoteId)} : {}), ...(track.remoteShortcutId ? {remoteShortcutId:String(track.remoteShortcutId)} : {}), ...(track.remoteDriveId ? {remoteDriveId:String(track.remoteDriveId)} : {}), ...(track.remoteParentId ? {remoteParentId:String(track.remoteParentId)} : {}), ...(track.remoteLrc && track.remoteLrc.id ? {remoteLrc:{id:String(track.remoteLrc.id), driveId:String(track.remoteLrc.driveId || ''), name:String(track.remoteLrc.name || '')}} : {}), remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), metadataLoaded:!!track.metadataLoaded, ...(track.replayGainTrackGain !== undefined ? {replayGainTrackGain:track.replayGainTrackGain} : {}), ...(track.replayGainTrackPeak !== undefined ? {replayGainTrackPeak:track.replayGainTrackPeak} : {}), ...(track.replayGainAlbumGain !== undefined ? {replayGainAlbumGain:track.replayGainAlbumGain} : {}), ...(track.replayGainAlbumPeak !== undefined ? {replayGainAlbumPeak:track.replayGainAlbumPeak} : {}), ...(track.iTunNORM ? {iTunNORM:String(track.iTunNORM)} : {}), ...(track._replayGainChecked ? {_replayGainChecked:true} : {}), ...(track._checkedDriveLrc ? {_checkedDriveLrc:true} : {}), ...(track._cloudLrcChecked ? {_cloudLrcChecked:true} : {}), ...(typeof track.lyricsText === 'string' && track.lyricsText && track.lyricsText.length <= MAX_CATALOG_LYRICS_CHARS ? {lyricsText:track.lyricsText} : {}), ...(Number(track.rating) > 0 ? {rating:Number(track.rating)} : {}), ...(Number(track.playCount) > 0 ? {playCount:Number(track.playCount)} : {}), ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, ...(track.targetRemoteId ? {targetRemoteId:String(track.targetRemoteId)} : {}), ...(track.remoteShortcutId ? {remoteShortcutId:String(track.remoteShortcutId)} : {}), ...(track.remoteDriveId ? {remoteDriveId:String(track.remoteDriveId)} : {}), ...(track.remoteParentId ? {remoteParentId:String(track.remoteParentId)} : {}), ...(track.remoteLrc && track.remoteLrc.id ? {remoteLrc:{id:String(track.remoteLrc.id), driveId:String(track.remoteLrc.driveId || ''), name:String(track.remoteLrc.name || ''), ...(track.remoteLrc.cTag ? {cTag:String(track.remoteLrc.cTag)} : {})}} : {}), remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), ...(typeof track.hasEmbeddedCover === 'boolean' ? {hasEmbeddedCover:track.hasEmbeddedCover} : {}), metadataLoaded:!!track.metadataLoaded, ...(track.replayGainTrackGain !== undefined ? {replayGainTrackGain:track.replayGainTrackGain} : {}), ...(track.replayGainTrackPeak !== undefined ? {replayGainTrackPeak:track.replayGainTrackPeak} : {}), ...(track.replayGainAlbumGain !== undefined ? {replayGainAlbumGain:track.replayGainAlbumGain} : {}), ...(track.replayGainAlbumPeak !== undefined ? {replayGainAlbumPeak:track.replayGainAlbumPeak} : {}), ...(track.iTunNORM ? {iTunNORM:String(track.iTunNORM)} : {}), ...(track._replayGainChecked ? {_replayGainChecked:true} : {}), ...(track._checkedDriveLrc ? {_checkedDriveLrc:true} : {}), ...(track._cloudLrcChecked ? {_cloudLrcChecked:true} : {}), ...(typeof track.lyricsText === 'string' && track.lyricsText && track.lyricsText.length <= MAX_CATALOG_LYRICS_CHARS ? {lyricsText:track.lyricsText} : {}), ...(track.lyricsSource ? {lyricsSource:String(track.lyricsSource)} : {}), ...(Number(track.rating) > 0 ? {rating:Number(track.rating)} : {}), ...(Number(track.playCount) > 0 ? {playCount:Number(track.playCount)} : {}), ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
       const pathOrder = (typeof library !== 'undefined' && typeof library.extractDiscAndTrackFromPath === 'function')
@@ -3837,19 +3837,17 @@
             if (state.dsdBlob && (!state.dsdUrl || activeSrc !== state.dsdUrl || Number(level) >= 15)) {
               state.dsdBlob = null;
             }
-            if (state.objectUrls && state.objectUrls.size > 4) {
+            if (typeof pruneExcessObjectUrls === 'function') {
+              pruneExcessObjectUrls(Number(level) >= 15 ? 4 : 8);
+            } else if (state.objectUrls && state.objectUrls.size > 4) {
+              const p = new Set(), q = new Set(Array.isArray(state.queueTrackIds) ? state.queueTrackIds.map(String) : []);
+              (state.tracks || []).forEach(t => { if (t) { if (t.cover && t.cover.indexOf('blob:') === 0) p.add(t.cover); if (t.id == state.currentId || t.id == state.preloadTrackId || q.has(String(t.id))) { if (t.url) p.add(t.url); if (t.fullAudioUrl) p.add(t.fullAudioUrl); } } });
+              if (state.albumCovers && state.albumCovers.forEach) state.albumCovers.forEach(v => { if (v && typeof v === 'string' && v.indexOf('blob:') === 0) p.add(v); });
               for (const url of [...state.objectUrls]) {
-                if (url !== activeSrc && url !== state.dsdUrl && url !== state.preloadReadyUrl) {
+                if (url !== activeSrc && url !== state.dsdUrl && url !== state.preloadReadyUrl && !p.has(url)) {
                   try { URL.revokeObjectURL(url); } catch (_) {}
                   state.objectUrls.delete(url);
-                  if (Array.isArray(state.tracks)) {
-                    for (let i = 0; i < state.tracks.length; i++) {
-                      const tr = state.tracks[i];
-                      if (!tr) continue;
-                      if (tr.url === url) tr.url = '';
-                      if (tr.fullAudioUrl === url) tr.fullAudioUrl = null;
-                    }
-                  }
+                  if (Array.isArray(state.tracks)) for (let i = 0; i < state.tracks.length; i++) { const tr = state.tracks[i]; if (tr) { if (tr.url === url) tr.url = ''; if (tr.fullAudioUrl === url) tr.fullAudioUrl = null; } }
                 }
               }
             }
@@ -3860,6 +3858,13 @@
               const keepKey = (curTrack && typeof library !== 'undefined' && library && typeof library.buildAlbumKey === 'function')
                 ? library.buildAlbumKey(curTrack)
                 : null;
+              const liveTrackCovers = new Set();
+              if (Array.isArray(state.tracks)) {
+                for (let ti = 0; ti < state.tracks.length; ti++) {
+                  const tr = state.tracks[ti];
+                  if (tr && typeof tr.cover === 'string' && tr.cover.indexOf('blob:') === 0) liveTrackCovers.add(tr.cover);
+                }
+              }
               const toDrop = state.albumCovers.size - 40;
               let dropped = 0;
               for (const entry of state.albumCovers.entries()) {
@@ -3868,8 +3873,15 @@
                 const v = entry[1];
                 if (keepKey && k === keepKey) continue;
                 state.albumCovers.delete(k);
-                if (typeof v === 'string' && v.startsWith('blob:') && v !== activeSrc) {
-                  try { URL.revokeObjectURL(v); } catch (_) {}
+                if (typeof v === 'string' && v.startsWith('blob:') && v !== activeSrc && v !== state.dsdUrl && v !== state.preloadReadyUrl && !liveTrackCovers.has(v)) {
+                  let stillInAlbumCovers = false;
+                  for (const rem of state.albumCovers.values()) {
+                    if (rem === v) { stillInAlbumCovers = true; break; }
+                  }
+                  if (!stillInAlbumCovers) {
+                    try { URL.revokeObjectURL(v); } catch (_) {}
+                    if (state.objectUrls && typeof state.objectUrls.delete === 'function') state.objectUrls.delete(v);
+                  }
                 }
                 dropped++;
               }
@@ -3940,7 +3952,7 @@
       if (!hasReplayGain && !track._replayGainChecked) return true;
       const hasLyrics = Boolean(track.lyricsText);
       const lrcChecked = track.source === 'google' ? Boolean(track._checkedDriveLrc) : Boolean(track._cloudLrcChecked);
-      if (!hasLyrics && !lrcChecked) return true;
+      if (!lrcChecked && (!hasLyrics || track.lyricsSource === 'cloud-sidecar' || track._lrcDirty === true)) return true;
       return false;
     }
     function repopulateCloudMetadataQueue(source) {
@@ -4229,7 +4241,7 @@
       const shouldFetchTags = !track.metadataLoaded || !hasRgAlready;
       const shouldFetchImage = !track.cover;
       const needSidecarLrc = Boolean(
-        !track.lyricsText &&
+        (!track.lyricsText || track.lyricsSource === 'cloud-sidecar' || track._lrcDirty === true) &&
         typeof fetchCloudSidecarLrc === 'function' &&
         ((track.source === 'google' && !track._checkedDriveLrc) || (track.source === 'onedrive' && !track._cloudLrcChecked))
       );
@@ -4271,8 +4283,13 @@
         if (tags.format === 'ALAC' && (!track.format || track.format === 'M4A')) track.format = 'ALAC';
         if (tags.format === 'DSF' && (!track.format || track.format === 'DSF')) { track.format = 'DSF'; track.isDsd = true; }
         if (!cover && typeof tags.cover === 'string' && tags.cover.startsWith('data:image')) cover = tags.cover;
-        if (cover) track.cover = await normalizeCoverImage(cover);
-        else if (track.cover === undefined) track.cover = null;
+        if (cover) {
+          track.cover = await normalizeCoverImage(cover);
+          track.hasEmbeddedCover = Boolean(track.cover);
+        } else {
+          if (track.cover === undefined) track.cover = null;
+          if (!track.hasEmbeddedCover) track.hasEmbeddedCover = false;
+        }
         if (track._cloudSourceCleared) return;
         if (track.cover) {
           if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(track.cover, track);
@@ -4298,6 +4315,7 @@
         track.cover = await normalizeCoverImage(imageResult.value);
         if (track._cloudSourceCleared) return;
         if (track.cover) {
+          if (!track.hasEmbeddedCover) track.hasEmbeddedCover = false;
           if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(track.cover, track);
           const aKey = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function') ? library.buildAlbumKey(track) : (track.album || '');
           if (typeof broadcastCoverUpdate === 'function') broadcastCoverUpdate(aKey, track.cover, [track.id]);
@@ -4309,6 +4327,8 @@
         const lrcVal = (lrcResult && lrcResult.status === 'fulfilled') ? lrcResult.value : null;
         if (lrcVal && lrcVal.text) {
           track.lyricsText = lrcVal.text;
+          track.lyricsSource = 'cloud-sidecar';
+          delete track._lrcDirty;
           changed = true;
         }
         let lrcStatus = 'not_found';
@@ -4331,6 +4351,7 @@
           lrcStatus = 'not_found';
         }
         if (lrcStatus === 'found' || lrcStatus === 'not_found') {
+          delete track._lrcDirty;
           if (track.source === 'google' && (!track._checkedDriveLrc || !hadDriveLrcBefore)) {
             track._checkedDriveLrc = true;
             changed = true;
@@ -6763,6 +6784,13 @@
       track._loadedFromSliceCache = false;
       track.sliceEndedEarly = false;
       track.metadataLoaded = false;
+      track._replayGainChecked = false;
+      track.hasEmbeddedCover = false;
+      delete track.replayGainTrackGain;
+      delete track.replayGainTrackPeak;
+      delete track.replayGainAlbumGain;
+      delete track.replayGainAlbumPeak;
+      delete track.iTunNORM;
       delete track.metadataRetryAt;
       delete track.thumbnailRetryAt;
       track._metaRateLimitRetries = 0;
@@ -7300,8 +7328,10 @@
           track.cover = await normalizeCoverImage(mergedTags.cover);
         }
         if (track.cover) {
+          track.hasEmbeddedCover = true;
           if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(track.cover, track);
         } else {
+          if (!track.hasEmbeddedCover) track.hasEmbeddedCover = false;
           const resolved = (typeof library !== 'undefined' && typeof library.resolveTrackCover === 'function')
             ? library.resolveTrackCover(track, state.albumCovers, state.tracks)
             : null;
@@ -7462,7 +7492,14 @@
         // play(), lúc đó audio.src chưa phải lát đầu nên điều kiện swap
         // trượt): guard 'ended'/'error' dùng lại URL này để phát tiếp.
         track.fullAudioUrl = fullUrl;
-        if (typeof state !== 'undefined' && state && state.isNativeBitPerfectPlaying) return fullUrl;
+        if (typeof state !== 'undefined' && state && state.isNativeBitPerfectPlaying) {
+          if (track.url === sliceUrl) track.url = fullUrl;
+          const activeDecks = [typeof audio !== 'undefined' ? audio : null, typeof standbyAudio !== 'undefined' ? standbyAudio : null];
+          if (!activeDecks.some(element => element && element.src === sliceAbsoluteUrl) && typeof releaseTrackUrl === 'function') {
+            releaseTrackUrl(sliceUrl);
+          }
+          return fullUrl;
+        }
         if (track.id === state.currentId && audio.src === sliceAbsoluteUrl) {
           const endedEarly = !!track.sliceEndedEarly;
           // Pha C — lát đầu đã hết sớm thì currentTime đã nhảy về duration,
@@ -8490,11 +8527,12 @@
         store.transaction.onerror = () => resolve(deleted);
       });
     }
-    function pruneOrphanedSliceCacheEntries(sourceFilter) {
-      if (!state || !Array.isArray(state.tracks) || !state.tracks.length) return Promise.resolve(0);
+    function pruneOrphanedSliceCacheEntries(sourceFilter, options) {
+      const allowEmptySource = Boolean(options && options.allowEmptySource);
+      if (!state || !Array.isArray(state.tracks) || (!state.tracks.length && !allowEmptySource)) return Promise.resolve(0);
       const allowedSources = sourceFilter ? [sourceFilter] : ['google', 'onedrive'];
       const hasSourceTracks = state.tracks.some(t => t && allowedSources.includes(t.source));
-      if (!hasSourceTracks) return Promise.resolve(0);
+      if (!hasSourceTracks && !allowEmptySource) return Promise.resolve(0);
       const validKeys = new Set();
       for (let i = 0; i < state.tracks.length; i++) {
         const t = state.tracks[i];
@@ -9647,6 +9685,10 @@
       if (trackObj.trackNumber != null) rec.tn = trackObj.trackNumber;
       if (trackObj.discNumber != null) rec.dn = trackObj.discNumber;
       if (trackObj.replayGainTrackGain !== undefined) rec.rg = trackObj.replayGainTrackGain;
+      if (trackObj.replayGainTrackPeak !== undefined) rec.rgp = trackObj.replayGainTrackPeak;
+      if (trackObj.replayGainAlbumGain !== undefined) rec.rga = trackObj.replayGainAlbumGain;
+      if (trackObj.replayGainAlbumPeak !== undefined) rec.rgap = trackObj.replayGainAlbumPeak;
+      if (trackObj.iTunNORM) rec.itn = String(trackObj.iTunNORM);
       if (map.has(key)) map.delete(key);
       map.set(key, rec);
       while (map.size > LOCAL_META_CACHE_MAX) {
@@ -9689,8 +9731,13 @@
           relativePath: file.relativePath || file.webkitRelativePath || file.name
         };
         if (file._fileHandle) fastTrack.fileHandle = file._fileHandle;
+        fastTrack.hasEmbeddedCover = Boolean(cachedMeta.hc);
         if (cachedMeta.aa) fastTrack.albumArtist = cachedMeta.aa;
         if (cachedMeta.rg !== undefined) fastTrack.replayGainTrackGain = cachedMeta.rg;
+        if (cachedMeta.rgp !== undefined) fastTrack.replayGainTrackPeak = cachedMeta.rgp;
+        if (cachedMeta.rga !== undefined) fastTrack.replayGainAlbumGain = cachedMeta.rga;
+        if (cachedMeta.rgap !== undefined) fastTrack.replayGainAlbumPeak = cachedMeta.rgap;
+        if (cachedMeta.itn) fastTrack.iTunNORM = cachedMeta.itn;
         fastTrack.rating = getTrackRating(fastTrack);
         const resolvedFast = (typeof library !== 'undefined' && typeof library.resolveTrackCover === 'function')
           ? library.resolveTrackCover(fastTrack, state.albumCovers, state.tracks)
@@ -9727,6 +9774,7 @@
         name: file.name,
         ...metadata,
         cover,
+        hasEmbeddedCover,
         lyricsText: tags.lyrics || technical.lyrics || '',
         format,
         isDsd,
@@ -10349,14 +10397,50 @@
             current.file = file;
             if (file._fileHandle) current.fileHandle = file._fileHandle;
             restoreLocalTrackUrlSync(current);
-            if (current.lastModified > 0 && file.lastModified > 0 && current.lastModified !== file.lastModified) {
+            const exPath = String(file.relativePath || file.webkitRelativePath || file.name || '').replace(/\\/g, '/');
+            const exDir = exPath.includes('/') ? exPath.slice(0, exPath.lastIndexOf('/')) : '';
+            const exFolderCover = (typeof lookupLocalFolderCover === 'function') ? lookupLocalFolderCover(folderCoverByDir, exDir, fk) : null;
+            if (exFolderCover && current.hasEmbeddedCover !== true && (current.hasEmbeddedCover === false || !current.cover || current.cover === '♫')) {
+              const prevCov = current.cover;
+              current.cover = exFolderCover;
+              current.hasEmbeddedCover = false;
+              if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(exFolderCover, current);
+              if (prevCov && prevCov !== exFolderCover && typeof releaseOrphanedCoverBlobUrl === 'function') {
+                releaseOrphanedCoverBlobUrl(prevCov, exFolderCover);
+              }
+            }
+            const exLrcFile = resolveLocalSidecarLrcFile(file, fk, exDir, current);
+            const wasModified = Boolean(current.lastModified > 0 && file.lastModified > 0 && current.lastModified !== file.lastModified);
+            if (wasModified) {
               current.lastModified = file.lastModified;
-              if (typeof refreshModifiedLocalTrack === 'function') refreshModifiedLocalTrack(current, file).catch(() => {});
+              if (typeof refreshModifiedLocalTrack === 'function') refreshModifiedLocalTrack(current, file, exLrcFile).catch(() => {});
+            } else if (exLrcFile && (!current.lyricsText || current.lyricsSource === 'local-sidecar' || current.lyricsSource === 'sidecar')) {
+              try {
+                const lrcTxt = (typeof readLocalTextFileAuto === 'function') ? await readLocalTextFileAuto(exLrcFile) : await exLrcFile.text();
+                if (lrcTxt) {
+                  current.lyricsText = lrcTxt;
+                  current.lyricsSource = 'local-sidecar';
+                }
+              } catch (_) {}
             }
           }
           continue;
         }
         existing.set(key, null); pending.push({file,key});
+      }
+      function resolveLocalSidecarLrcFile(file, fk, tDir, trackLike) {
+        const rawLrcKey = lrcKeyFn(file.relativePath || file.webkitRelativePath || file.name);
+        let lrcFile = (isMultiFolderBatch && fk ? lrcByBase.get(fk + '::' + rawLrcKey) : null) || (!isMultiFolderBatch ? lrcByBase.get(rawLrcKey) : null);
+        if (!lrcFile && typeof findLocalCueLrcFile === 'function') {
+          const normDir = (typeof normalizeCueNfc === 'function' ? normalizeCueNfc(tDir) : tDir).toLowerCase();
+          const lrcDir = (isMultiFolderBatch && fk) ? (fk + '::' + normDir) : normDir;
+          const baseHint = (trackLike && trackLike.title) || file.name.replace(/\.[^.]+$/, '');
+          const numHint = (trackLike && trackLike.trackNumber) || 0;
+          lrcFile = isMultiFolderBatch
+            ? findLocalCueLrcFile(lrcByBase, lrcDir, { title: baseHint, number: numHint })
+            : findLocalCueLrcFile(lrcByBase, normDir, { title: baseHint, number: numHint });
+        }
+        return lrcFile || null;
       }
       let nextFile = 0;
       const localConcurrency = Math.min(4, pending.length);
@@ -10381,7 +10465,12 @@
               ? findLocalCueLrcFile(lrcByBase, lrcDir, { title: track.title || file.name.replace(/\.[^.]+$/, ''), number: track.trackNumber || 0 })
               : findLocalCueLrcFile(lrcByBase, normDir, { title: track.title || file.name.replace(/\.[^.]+$/, ''), number: track.trackNumber || 0 });
           }
-          if (lrcFile) { try { track.lyricsText = (typeof readLocalTextFileAuto === 'function') ? await readLocalTextFileAuto(lrcFile) : await lrcFile.text(); } catch (error) { track.lyricsText = ''; } }
+          if (lrcFile) {
+            try {
+              track.lyricsText = (typeof readLocalTextFileAuto === 'function') ? await readLocalTextFileAuto(lrcFile) : await lrcFile.text();
+              if (track.lyricsText) track.lyricsSource = 'local-sidecar';
+            } catch (error) { track.lyricsText = ''; }
+          }
           track.name = file.name; track.relativePath = file.relativePath || file.webkitRelativePath || file.name;
           if (fk) track.localFolderKey = fk;
           additions.push(track); existing.set(key, track);
@@ -10488,42 +10577,183 @@
       }
       return (folderCoverByDir.size === 1) ? folderCoverByDir.values().next().value : null;
     }
+    function reconcileMovedLocalTracks(removedTracks, keptTracks) {
+      if (!Array.isArray(removedTracks) || !removedTracks.length || !Array.isArray(keptTracks) || !keptTracks.length) return 0;
+      const getBaseName = tr => {
+        const raw = String((tr && (tr.name || tr.relativePath)) || '').trim();
+        if (!raw) return '';
+        const seg = raw.slice(Math.max(raw.lastIndexOf('/'), raw.lastIndexOf('\\')) + 1);
+        return seg.replace(/\.[^/.]+$/, '').trim().toLowerCase();
+      };
+      let migrated = 0;
+      for (let i = 0; i < removedTracks.length; i++) {
+        const oldTr = removedTracks[i];
+        const oldSize = Number(oldTr && oldTr.size) || 0;
+        if (!(oldSize > 0)) continue;
+        const oldBase = getBaseName(oldTr);
+        const oldTitle = (oldTr.title && oldTr.title !== oldTr.name) ? String(oldTr.title).trim().toLowerCase() : '';
+        const oldArtist = (oldTr.artist && oldTr.artist !== 'Unknown Artist') ? String(oldTr.artist).trim().toLowerCase() : '';
+        const matches = [];
+        for (let j = 0; j < keptTracks.length; j++) {
+          const cand = keptTracks[j];
+          if (!cand || cand._reconciledLocalMove || cand.source !== 'local') continue;
+          if (cand.id && oldTr.id && String(cand.id) === String(oldTr.id)) continue;
+          if (Boolean(cand.isCue) !== Boolean(oldTr.isCue)) continue;
+          if (Number(cand.size) !== oldSize) continue;
+          const sameBase = Boolean(oldBase && getBaseName(cand) === oldBase);
+          const sameTags = Boolean(oldTitle && oldArtist &&
+            String(cand.title || '').trim().toLowerCase() === oldTitle &&
+            String(cand.artist || '').trim().toLowerCase() === oldArtist);
+          if (sameBase || sameTags) matches.push(cand);
+        }
+        if (matches.length !== 1) continue;
+        const target = matches[0];
+        target._reconciledLocalMove = true;
+        if (Number(oldTr.rating) > 0 && !(Number(target.rating) > 0)) target.rating = Number(oldTr.rating);
+        if (Number(oldTr.playCount) > 0 && !(Number(target.playCount) > 0)) target.playCount = Number(oldTr.playCount);
+        if (oldTr.albumArtist && !target.albumArtist) target.albumArtist = oldTr.albumArtist;
+        if (oldTr.replayGainTrackGain !== undefined && target.replayGainTrackGain === undefined) target.replayGainTrackGain = oldTr.replayGainTrackGain;
+        if (oldTr.replayGainTrackPeak !== undefined && target.replayGainTrackPeak === undefined) target.replayGainTrackPeak = oldTr.replayGainTrackPeak;
+        if (oldTr.replayGainAlbumGain !== undefined && target.replayGainAlbumGain === undefined) target.replayGainAlbumGain = oldTr.replayGainAlbumGain;
+        if (oldTr.replayGainAlbumPeak !== undefined && target.replayGainAlbumPeak === undefined) target.replayGainAlbumPeak = oldTr.replayGainAlbumPeak;
+        if (oldTr.iTunNORM && !target.iTunNORM) target.iTunNORM = oldTr.iTunNORM;
+        if (oldTr.lyricsText && !target.lyricsText && oldTr.lyricsSource !== 'local-sidecar' && oldTr.lyricsSource !== 'sidecar') {
+          target.lyricsText = oldTr.lyricsText;
+          if (oldTr.lyricsSource) target.lyricsSource = oldTr.lyricsSource;
+        }
+        if (typeof library !== 'undefined' && library && typeof library.historyTrackKey === 'function' && state && Array.isArray(state.recentHistory)) {
+          const oldKey = library.historyTrackKey(oldTr);
+          const newKey = library.historyTrackKey(target);
+          if (oldKey && newKey && oldKey !== newKey) {
+            for (let hi = 0; hi < state.recentHistory.length; hi++) {
+              const entry = state.recentHistory[hi];
+              if (entry && entry.trackKey === oldKey) {
+                entry.trackKey = newKey;
+                if (target.title) entry.title = target.title;
+                if (target.artist) entry.artist = target.artist;
+              }
+            }
+          }
+        }
+        if (state && Array.isArray(state.queueTrackIds) && oldTr.id && target.id && String(oldTr.id) !== String(target.id)) {
+          const oldIdStr = String(oldTr.id);
+          const newIdStr = String(target.id);
+          let queueChanged = false;
+          for (let qi = 0; qi < state.queueTrackIds.length; qi++) {
+            if (String(state.queueTrackIds[qi]) === oldIdStr) {
+              state.queueTrackIds[qi] = target.id;
+              queueChanged = true;
+            }
+          }
+          if (queueChanged) {
+            const dedupQ = [];
+            const seenQ = new Set();
+            for (let qi = 0; qi < state.queueTrackIds.length; qi++) {
+              const qStr = String(state.queueTrackIds[qi]);
+              if (!seenQ.has(qStr)) { seenQ.add(qStr); dedupQ.push(state.queueTrackIds[qi]); }
+            }
+            state.queueTrackIds = dedupQ;
+          }
+          if (state.favorites instanceof Set) {
+            const wasFav = (typeof isFavorite === 'function')
+              ? isFavorite(oldTr)
+              : (state.favorites.has(oldTr.id) || state.favorites.has(oldIdStr));
+            if (wasFav) {
+              const newFavKey = (typeof getFavoriteKey === 'function' ? getFavoriteKey(target) : target.id) || target.id;
+              state.favorites.delete(oldTr.id);
+              state.favorites.delete(oldIdStr);
+              state.favorites.add(newFavKey);
+              if (typeof saveFavorites === 'function') saveFavorites();
+            }
+          }
+          if (typeof migrateTrackUserStatKeys === 'function') migrateTrackUserStatKeys(oldTr, target);
+          try {
+            if (typeof localStorage !== 'undefined' && localStorage) {
+              const rawSess = localStorage.getItem('nocturne-playback-session');
+              if (rawSess) {
+                const parsedSess = JSON.parse(rawSess);
+                let sessChanged = false;
+                if (parsedSess && String(parsedSess.trackId) === oldIdStr) {
+                  parsedSess.trackId = newIdStr;
+                  if (library && typeof library.buildStableTrackRef === 'function') parsedSess.trackRef = library.buildStableTrackRef(target);
+                  sessChanged = true;
+                }
+                if (parsedSess && Array.isArray(parsedSess.queueTrackIds)) {
+                  for (let sq = 0; sq < parsedSess.queueTrackIds.length; sq++) {
+                    if (String(parsedSess.queueTrackIds[sq]) === oldIdStr) {
+                      parsedSess.queueTrackIds[sq] = newIdStr;
+                      sessChanged = true;
+                    }
+                  }
+                }
+                if (sessChanged) localStorage.setItem('nocturne-playback-session', JSON.stringify(parsedSess));
+              }
+            }
+          } catch (_) {}
+        }
+        migrated++;
+      }
+      for (let j = 0; j < keptTracks.length; j++) {
+        if (keptTracks[j] && keptTracks[j]._reconciledLocalMove) delete keptTracks[j]._reconciledLocalMove;
+      }
+      return migrated;
+    }
     function pruneRemovedLocalFolderTracks(folderRootKey, seenFolderTrackKeys) {
       const opts = (arguments.length > 2 && arguments[2] && typeof arguments[2] === 'object') ? arguments[2] : {};
       const allowEmptyFolderPrune = Boolean(opts.allowEmptyFolderPrune);
       if (!folderRootKey || !seenFolderTrackKeys || (!seenFolderTrackKeys.size && !allowEmptyFolderPrune)) return 0;
-      let removedCount = 0;
-      for (let i = state.tracks.length - 1; i >= 0; i--) {
+      const removedTracks = [];
+      const keptTracks = [];
+      for (let i = 0; i < state.tracks.length; i++) {
         const tr = state.tracks[i];
-        if (!tr || tr.source !== 'local' || tr.localFolderKey !== folderRootKey) continue;
-        if (state.currentId != null && String(tr.id) === String(state.currentId)) continue;
+        if (!tr) continue;
+        if (tr.source !== 'local' || tr.localFolderKey !== folderRootKey || (state.currentId != null && String(tr.id) === String(state.currentId))) {
+          keptTracks.push(tr);
+          continue;
+        }
         const trKey = tr.cueDedupKey || `${tr.relativePath || tr.name || tr.title}-${tr.size}`;
-        if (seenFolderTrackKeys.has(trKey)) continue;
-        if (tr.url && typeof tr.url === 'string' && tr.url.indexOf('blob:') === 0 && state.objectUrls && state.objectUrls.has(tr.url)) {
-          const stillReferenced = state.tracks.some((other, oIdx) => oIdx !== i && other && other.url === tr.url);
-          if (!stillReferenced) {
-            try { URL.revokeObjectURL(tr.url); } catch (_) {}
-            state.objectUrls.delete(tr.url);
-          }
+        if (seenFolderTrackKeys.has(trKey)) {
+          keptTracks.push(tr);
+          continue;
         }
-        if (tr.cover && typeof tr.cover === 'string' && tr.cover.indexOf('blob:') === 0 && state.objectUrls && state.objectUrls.has(tr.cover)) {
-          const coverReferenced = state.tracks.some((other, oIdx) => oIdx !== i && other && other.cover === tr.cover);
-          if (!coverReferenced) {
-            try { URL.revokeObjectURL(tr.cover); } catch (_) {}
-            state.objectUrls.delete(tr.cover);
-          }
+        removedTracks.push(tr);
+      }
+      if (!removedTracks.length) return 0;
+      if (typeof reconcileMovedLocalTracks === 'function') {
+        reconcileMovedLocalTracks(removedTracks, keptTracks);
+      }
+      const keptUrlSet = new Set();
+      const keptCoverSet = new Set();
+      for (let k = 0; k < keptTracks.length; k++) {
+        const kt = keptTracks[k];
+        if (!kt) continue;
+        if (kt.url) keptUrlSet.add(kt.url);
+        if (kt.cover) keptCoverSet.add(kt.cover);
+      }
+      for (let r = 0; r < removedTracks.length; r++) {
+        const tr = removedTracks[r];
+        if (tr.url && typeof tr.url === 'string' && tr.url.indexOf('blob:') === 0 && state.objectUrls && state.objectUrls.has(tr.url) && !keptUrlSet.has(tr.url)) {
+          try { URL.revokeObjectURL(tr.url); } catch (_) {}
+          state.objectUrls.delete(tr.url);
         }
-        state.tracks.splice(i, 1);
-        removedCount++;
+        if (tr.cover && typeof tr.cover === 'string' && tr.cover.indexOf('blob:') === 0 && state.objectUrls && state.objectUrls.has(tr.cover) && !keptCoverSet.has(tr.cover)) {
+          try { URL.revokeObjectURL(tr.cover); } catch (_) {}
+          state.objectUrls.delete(tr.cover);
+        }
       }
-      if (removedCount > 0) {
-        if (typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
-        if (typeof pruneExcessObjectUrls === 'function') pruneExcessObjectUrls();
+      if (Array.isArray(state.tracks)) {
+        state.tracks.length = 0;
+        for (let k = 0; k < keptTracks.length; k++) state.tracks.push(keptTracks[k]);
+      } else {
+        state.tracks = keptTracks;
       }
-      return removedCount;
+      if (typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
+      if (typeof pruneExcessObjectUrls === 'function') pruneExcessObjectUrls();
+      return removedTracks.length;
     }
     async function refreshModifiedLocalTrack(current, file) {
       if (!current || !file) return false;
+      const lrcFile = arguments.length > 2 ? arguments[2] : null;
       const [tags, technical] = await Promise.all([getTags(file), readAudioMetadata(file)]);
       const mergedTags = Object.assign({}, tags, {
         title: (tags && tags.title) || (technical && technical.title),
@@ -10544,7 +10774,32 @@
       if (technical && technical.sampleRate) current.sampleRate = technical.sampleRate;
       if (technical && technical.bitDepth) current.bitDepth = technical.bitDepth;
       if (technical && technical.channels) current.channels = technical.channels;
+      if (technical) {
+        if (technical.iTunNORM) current.iTunNORM = technical.iTunNORM;
+        else delete current.iTunNORM;
+        if (technical.replayGainTrackGain !== undefined) current.replayGainTrackGain = technical.replayGainTrackGain;
+        else delete current.replayGainTrackGain;
+        if (technical.replayGainTrackPeak !== undefined) current.replayGainTrackPeak = technical.replayGainTrackPeak;
+        else delete current.replayGainTrackPeak;
+        if (technical.replayGainAlbumGain !== undefined) current.replayGainAlbumGain = technical.replayGainAlbumGain;
+        else delete current.replayGainAlbumGain;
+        if (technical.replayGainAlbumPeak !== undefined) current.replayGainAlbumPeak = technical.replayGainAlbumPeak;
+        else delete current.replayGainAlbumPeak;
+      }
+      if (lrcFile) {
+        try {
+          const lrcTxt = (typeof readLocalTextFileAuto === 'function') ? await readLocalTextFileAuto(lrcFile) : await lrcFile.text();
+          if (lrcTxt) {
+            current.lyricsText = lrcTxt;
+            current.lyricsSource = 'local-sidecar';
+          }
+        } catch (_) {}
+      } else if ((tags && tags.lyrics) || (technical && technical.lyrics)) {
+        current.lyricsText = (tags && tags.lyrics) || (technical && technical.lyrics) || '';
+        current.lyricsSource = 'local-tags';
+      }
       const rawCover = (tags && tags.cover) || (technical && technical.cover);
+      current.hasEmbeddedCover = Boolean(rawCover);
       if (rawCover) {
         const normCover = await normalizeCoverImage(rawCover);
         if (normCover) {
@@ -13955,7 +14210,10 @@
       input.style.setProperty('--seek-progress', `${percent}%`);
     }
     function updateMediaSession(track) {
-      if (!('mediaSession' in navigator)) return;
+      if (!('mediaSession' in navigator)) {
+        if (typeof updatePositionState === 'function') updatePositionState(true);
+        return;
+      }
       try {
         const curAudio = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : audio;
         let artwork = [];
@@ -14015,7 +14273,18 @@
       const sessionState = (typeof library !== 'undefined' && library && typeof library.resolveMediaSessionPositionState === 'function')
         ? library.resolveMediaSessionPositionState(effectiveAudio, posTrack)
         : (effectiveAudio && Number.isFinite(effectiveAudio.duration) && effectiveAudio.duration > 0 ? { duration: effectiveAudio.duration, playbackRate: effectiveAudio.playbackRate || 1, position: Math.min(effectiveAudio.currentTime || 0, effectiveAudio.duration) } : null);
-      if (!sessionState) return;
+      if (!sessionState) {
+        if (force && hasNativeMediaSessionPos) {
+          try {
+            const isNowPlaying = state.isNativeBitPerfectPlaying
+              ? !state.isNativeBitPerfectPaused
+              : Boolean(curAudio && !curAudio.paused && !curAudio.ended);
+            const fallbackDurMs = (posTrack && Number(posTrack.duration) > 0) ? Math.round(Number(posTrack.duration) * 1000) : 0;
+            window.NocturneNative.updateMediaSessionPosition(-1, fallbackDurMs, isNowPlaying);
+          } catch (error) {}
+        }
+        return;
+      }
       const positionSecond = Math.floor(sessionState.position);
       if (!force && positionSecond === lastPositionStateSecond) return;
       lastPositionStateSecond = positionSecond;
@@ -19253,6 +19522,14 @@
           displayTrack(track);
           if (dsdSliceUrl && ![audio, standbyAudio].some(element => element.src === sliceAbsoluteUrl)) releaseTrackUrl(dsdSliceUrl);
           if (!wasSlicePlaying) {
+            if (audio._userPausedDuringUpgrade) {
+              audio._userPausedDuringUpgrade = false;
+              $('play-button').textContent = '▶';
+              if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+              if (typeof updatePositionState === 'function') updatePositionState(true);
+              scheduleTrackRender();
+              return;
+            }
             if (targetDsdPos > 0) {
               const applyDoneCueSeek = () => {
                 if (generation !== state.playGeneration) return;
@@ -20333,9 +20610,15 @@
       for (let i = 0; i < matchingTracks.length; i++) {
         const tr = matchingTracks[i];
         if (!tr) continue;
-        if (tr.cover && tr.cover !== '♫' && (!forceNonEmbedded || tr.metadataLoaded)) continue;
-        if (tr.cover === cover) continue;
+        const canOverwriteFolderCover = Boolean(forceNonEmbedded && tr.hasEmbeddedCover !== true && (tr.hasEmbeddedCover === false || !tr.metadataLoaded || tr._needsFolderCoverRefresh));
+        if (tr.cover && tr.cover !== '♫' && !canOverwriteFolderCover) continue;
+        if (tr.cover === cover) {
+          if (tr._needsFolderCoverRefresh) tr._needsFolderCoverRefresh = false;
+          continue;
+        }
         tr.cover = cover;
+        if (tr.hasEmbeddedCover === undefined) tr.hasEmbeddedCover = false;
+        tr._needsFolderCoverRefresh = false;
         if (typeof syncAlbumCoversImmediate === 'function') syncAlbumCoversImmediate(cover, tr);
         const aKey = (typeof library !== 'undefined' && typeof library.buildAlbumKey === 'function') ? library.buildAlbumKey(tr) : (tr.album || '');
         if (typeof broadcastCoverUpdate === 'function') broadcastCoverUpdate(aKey, cover, [tr.id]);
@@ -20356,7 +20639,8 @@
         const tr = tracks[i];
         if (!tr || tr.source !== 'google' || !Array.isArray(tr.parents)) continue;
         const hasForcedParent = Boolean(forceParentsSet && tr.parents.some(p => forceParentsSet.has(String(p || '').trim())));
-        if (tr.cover && tr.cover !== '♫' && (!hasForcedParent || tr.metadataLoaded)) continue;
+        const canOverwriteFolderCover = Boolean(hasForcedParent && tr.hasEmbeddedCover !== true && (tr.hasEmbeddedCover === false || !tr.metadataLoaded || tr._needsFolderCoverRefresh));
+        if (tr.cover && tr.cover !== '♫' && !canOverwriteFolderCover) continue;
         for (let j = 0; j < tr.parents.length; j++) {
           const pid = String(tr.parents[j] || '').trim();
           if (!pid || checkedGoogleArtParents.has(pid)) continue;
@@ -20365,7 +20649,20 @@
         }
       }
       const parentIds = Array.from(tracksByParent.keys());
-      if (!parentIds.length) return 0;
+      const clearProcessedGoogleCoverRefresh = () => {
+        for (let i = 0; i < tracks.length; i++) {
+          const tr = tracks[i];
+          if (!tr || tr.source !== 'google' || !tr._needsFolderCoverRefresh) continue;
+          const parents = Array.isArray(tr.parents) ? tr.parents : [];
+          if (parents.length === 0 || parents.some(pid => checkedGoogleArtParents.has(String(pid || '').trim()))) {
+            tr._needsFolderCoverRefresh = false;
+          }
+        }
+      };
+      if (!parentIds.length) {
+        clearProcessedGoogleCoverRefresh();
+        return 0;
+      }
       let token = await ensureGoogleToken();
       let appliedCount = 0;
       const CHUNK_SIZE = 15;
@@ -20504,7 +20801,7 @@
           if (!chosen) continue;
           const matched = tracksByParent.get(pid) || [];
           const isForcedPid = Boolean(forceParentsSet && forceParentsSet.has(pid));
-          if (!matched.some(tr => !tr.cover || tr.cover === '♫' || (isForcedPid && !tr.metadataLoaded))) continue;
+          if (!matched.some(tr => !tr.cover || tr.cover === '♫' || (isForcedPid && tr.hasEmbeddedCover !== true && (tr.hasEmbeddedCover === false || !tr.metadataLoaded || tr._needsFolderCoverRefresh)))) continue;
           const highResThumb = chosen.thumbnailLink ? String(chosen.thumbnailLink).replace(/=s\d+([^&]*)$/, '=s512$1') : '';
           const altMediaUrl = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(chosen.id)}?alt=media&supportsAllDrives=true`;
           const cover = await fetchCloudImageCandidateDataUrl(highResThumb, altMediaUrl, () => ensureGoogleToken());
@@ -20523,6 +20820,7 @@
         scheduleTrackRender();
         await persistCloudCatalog(dedupedUpdated, { skipPrune: true }).catch(() => {});
       }
+      clearProcessedGoogleCoverRefresh();
       return appliedCount;
     }
 
@@ -20956,15 +21254,52 @@
         updatedTrackIds.add(tr.id);
         updatedTracks.push(tr);
       };
+      const dropStaleAlbumCoverFor = (tr) => {
+        if (!tr || typeof state === 'undefined' || !state || !state.albumCovers || typeof state.albumCovers.has !== 'function' || typeof library === 'undefined' || !library || typeof library.buildAlbumKey !== 'function') return;
+        const ak = library.buildAlbumKey(tr);
+        if (!ak || !state.albumCovers.has(ak)) return;
+        const hasOtherCover = Array.isArray(state.tracks) && state.tracks.some(o => o && o !== tr && o.cover && o.cover !== '♫' && library.buildAlbumKey(o) === ak);
+        if (!hasOtherCover) {
+          state.albumCovers.delete(ak);
+          if (typeof saveAlbumCoversCache === 'function') saveAlbumCoversCache();
+        }
+      };
       const syncExistingGoogleChange = (existing, file, matchFid) => {
         if (!existing || !file) return;
         let touched = false;
         if (Array.isArray(file.parents) && file.parents.length) {
           const nextParents = file.parents.slice(0, 3);
           if (!Array.isArray(existing.parents) || existing.parents.join(',') !== nextParents.join(',')) {
+            const prevParents = Array.isArray(existing.parents) ? existing.parents : [];
+            for (let pi = 0; pi < prevParents.length; pi++) {
+              const oldPid = String(prevParents[pi] || '').trim();
+              const oldList = oldPid ? existingByParentId.get(oldPid) : null;
+              if (oldList) {
+                const idx = oldList.indexOf(existing);
+                if (idx !== -1) oldList.splice(idx, 1);
+              }
+            }
             existing.parents = nextParents;
             indexGoogleTrackParents(existing);
-            if (nextParents[0]) changedArtParents.add(String(nextParents[0]));
+            if (existing.hasEmbeddedCover !== true) {
+              existing._needsFolderCoverRefresh = true;
+              if (existing.hasEmbeddedCover === false || !existing.metadataLoaded) {
+                existing.cover = null;
+                dropStaleAlbumCoverFor(existing);
+              }
+            }
+            existing._checkedDriveLrc = false;
+            if (existing.lyricsSource === 'cloud-sidecar') {
+              existing.lyricsText = '';
+              existing._lrcDirty = true;
+            }
+            for (let npi = 0; npi < nextParents.length; npi++) {
+              const npid = String(nextParents[npi] || '').trim();
+              if (npid) {
+                changedArtParents.add(npid);
+                changedLrcParents.add(npid);
+              }
+            }
             touched = true;
           }
         }
@@ -20995,6 +21330,11 @@
         if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
         if (file.name && existing.name !== file.name) {
           existing.name = file.name;
+          existing._checkedDriveLrc = false;
+          if (existing.lyricsSource === 'cloud-sidecar') {
+            existing.lyricsText = '';
+            existing._lrcDirty = true;
+          }
           if (!existing.metadataLoaded && typeof filenameMetadata === 'function') {
             const rnMeta = filenameMetadata(file.name);
             if (rnMeta) {
@@ -21082,6 +21422,46 @@
               );
               if (isKnownFolder) {
                 removedFolderIds.add(fidStr);
+              } else if (change.file && Array.isArray(change.file.parents) && change.file.parents.length) {
+                const deadName = String(change.file.name || '');
+                if (scoreFolderCover(deadName) > 0) {
+                  for (let pi = 0; pi < change.file.parents.length; pi++) {
+                    const pid = String(change.file.parents[pi] || '').trim();
+                    if (!pid) continue;
+                    changedArtParents.add(pid);
+                    const pTracks = existingByParentId.get(pid) || [];
+                    for (let pti = 0; pti < pTracks.length; pti++) {
+                      const ptr = pTracks[pti];
+                      if (ptr && ptr.hasEmbeddedCover !== true && (ptr.hasEmbeddedCover === false || !ptr.metadataLoaded)) {
+                        ptr.cover = null;
+                        ptr._needsFolderCoverRefresh = true;
+                        dropStaleAlbumCoverFor(ptr);
+                        markUpdatedTrack(ptr);
+                      }
+                    }
+                  }
+                } else if (/\.lrc$/i.test(deadName)) {
+                  const deadLrcBase = deadName.replace(/\.[^.]+$/, '').toLowerCase();
+                  for (let pi = 0; pi < change.file.parents.length; pi++) {
+                    const pid = String(change.file.parents[pi] || '').trim();
+                    if (!pid) continue;
+                    changedLrcParents.add(pid);
+                    const pTracks = existingByParentId.get(pid) || [];
+                    for (let pti = 0; pti < pTracks.length; pti++) {
+                      const ptr = pTracks[pti];
+                      if (!ptr) continue;
+                      const trBase = String(ptr.name || '').replace(/\.[^.]+$/, '').toLowerCase();
+                      if (trBase && trBase === deadLrcBase) {
+                        if (ptr.lyricsSource === 'cloud-sidecar') {
+                          ptr.lyricsText = '';
+                          ptr._lrcDirty = true;
+                        }
+                        ptr._checkedDriveLrc = false;
+                        markUpdatedTrack(ptr);
+                      }
+                    }
+                  }
+                }
               }
               continue;
             }
@@ -21202,6 +21582,7 @@
       if (changedArtParents.size > 0 && typeof checkedGoogleArtParents !== 'undefined' && checkedGoogleArtParents) {
         changedArtParents.forEach(pid => checkedGoogleArtParents.delete(pid));
       }
+      if (typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
       if (changedLrcParents.size > 0 && Array.isArray(state.tracks)) {
         for (let ti = 0; ti < state.tracks.length; ti++) {
           const tr = state.tracks[ti];
@@ -21219,6 +21600,9 @@
       }
       await flushDeltaPersistence();
       const removed = await removeCloudTracksByRemoteIds('google', deletedRemoteIds);
+      if (removed > 0 && typeof pruneOrphanedSliceCacheEntries === 'function') {
+        pruneOrphanedSliceCacheEntries('google', { allowEmptySource: true }).catch(() => {});
+      }
       if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
       if (googleFolderTreeDirty && typeof writeCloudFolderTree === 'function') {
         writeCloudFolderTree(GOOGLE_FOLDER_TREE_KEY, googleFolderTree);
@@ -21373,11 +21757,32 @@
           const nextParents = file.parents.slice(0, 3);
           if (!Array.isArray(existing.parents) || existing.parents.join(',') !== nextParents.join(',')) {
             existing.parents = file.parents.slice(0, 3);
-            if (nextParents[0]) {
-              if (typeof checkedGoogleArtParents !== 'undefined' && checkedGoogleArtParents && typeof checkedGoogleArtParents.delete === 'function') {
-                checkedGoogleArtParents.delete(String(nextParents[0]));
+            if (existing.hasEmbeddedCover !== true) {
+              existing._needsFolderCoverRefresh = true;
+              if (existing.hasEmbeddedCover === false || !existing.metadataLoaded) {
+                existing.cover = null;
+                if (typeof state !== 'undefined' && state && state.albumCovers && typeof state.albumCovers.has === 'function' && typeof library !== 'undefined' && library && typeof library.buildAlbumKey === 'function') {
+                  const gAk = library.buildAlbumKey(existing);
+                  if (gAk && state.albumCovers.has(gAk)) {
+                    const hasOtherG = Array.isArray(state.tracks) && state.tracks.some(o => o && o !== existing && o.cover && o.cover !== '♫' && library.buildAlbumKey(o) === gAk);
+                    if (!hasOtherG) {
+                      state.albumCovers.delete(gAk);
+                      if (typeof saveAlbumCoversCache === 'function') saveAlbumCoversCache();
+                    }
+                  }
+                }
               }
-              existing._checkedDriveLrc = false;
+            }
+            existing._checkedDriveLrc = false;
+            if (existing.lyricsSource === 'cloud-sidecar') {
+              existing.lyricsText = '';
+              existing._lrcDirty = true;
+            }
+            for (let npi = 0; npi < nextParents.length; npi++) {
+              const npid = String(nextParents[npi] || '').trim();
+              if (npid && typeof checkedGoogleArtParents !== 'undefined' && checkedGoogleArtParents && typeof checkedGoogleArtParents.delete === 'function') {
+                checkedGoogleArtParents.delete(npid);
+              }
             }
             touched = true;
           }
@@ -21411,6 +21816,11 @@
         if (contentChanged && typeof invalidateCloudTrackContent === 'function') invalidateCloudTrackContent(existing);
         if (file.name && existing.name !== file.name) {
           existing.name = file.name;
+          existing._checkedDriveLrc = false;
+          if (existing.lyricsSource === 'cloud-sidecar') {
+            existing.lyricsText = '';
+            existing._lrcDirty = true;
+          }
           if (!existing.metadataLoaded && typeof filenameMetadata === 'function') {
             const rnMeta = filenameMetadata(file.name);
             if (rnMeta) {
@@ -21650,7 +22060,8 @@
         if (pendingMeta.length > 0) queueCloudMetadata(pendingMeta);
         if (typeof checkAndPromptResumeSession === 'function') checkAndPromptResumeSession();
         if (!skippedFullArtworkPass && typeof discoverGoogleDriveFolderArtwork === 'function') {
-          const artCandidates = (deltaChangedArtParents.length || !newlyAddedTracks.length) ? state.tracks : newlyAddedTracks;
+          const hasPendingCoverRefresh = Array.isArray(state.tracks) && state.tracks.some(t => t && t.source === 'google' && t._needsFolderCoverRefresh);
+          const artCandidates = (deltaChangedArtParents.length || !newlyAddedTracks.length || hasPendingCoverRefresh) ? state.tracks : newlyAddedTracks;
           const artOpts = deltaChangedArtParents.length ? { forceParentIds: deltaChangedArtParents } : undefined;
           discoverGoogleDriveFolderArtwork(artCandidates, artOpts).catch(() => {});
         }
@@ -22034,7 +22445,7 @@
           ? library.resolveFolderCoverWithDiscFallback(siblingCoversByDir, dir)
           : (siblingCoversByDir.has(dir) ? siblingCoversByDir.get(dir) : null);
         if (!cand || !cand.id) continue;
-        const forceRefreshCover = Boolean((cand.forceUpdate || tr._needsFolderCoverRefresh) && !tr.metadataLoaded);
+        const forceRefreshCover = Boolean((cand.forceUpdate || tr._needsFolderCoverRefresh) && tr.hasEmbeddedCover !== true && (tr.hasEmbeddedCover === false || !tr.metadataLoaded || tr._needsFolderCoverRefresh));
         if (tr.cover && tr.cover !== '♫' && !forceRefreshCover) continue;
         const candKey = (cand.driveId ? (cand.driveId + ':') : '') + String(cand.id);
         if (!candTracksMap.has(candKey)) candTracksMap.set(candKey, { cand, tracks: [], forceNonEmbedded: false });
@@ -22053,7 +22464,7 @@
           const cand = group && group.cand;
           const matched = (group && group.tracks) || [];
           const forceNonEmbedded = Boolean(group && group.forceNonEmbedded);
-          if (!cand || !matched.some(tr => !tr.cover || tr.cover === '♫' || (forceNonEmbedded && !tr.metadataLoaded))) continue;
+          if (!cand || !matched.some(tr => !tr.cover || tr.cover === '♫' || (forceNonEmbedded && tr.hasEmbeddedCover !== true && (tr.hasEmbeddedCover === false || !tr.metadataLoaded || tr._needsFolderCoverRefresh)))) continue;
           let thumbUrl = cand.downloadUrl || '';
           if (!thumbUrl) {
             try {
@@ -22124,6 +22535,7 @@
             ...(nextRev ? { cTag: nextRev } : {})
           };
           tr._cloudLrcChecked = false;
+          if (tr.lyricsSource === 'cloud-sidecar') tr._lrcDirty = true;
           updatedTracks.push(tr);
         }
       }
@@ -22279,6 +22691,7 @@
       const deletedFolderIds = new Set();
       const deletedRemoteIds = new Set();
       const deletedLrcIds = new Set();
+      const movedDestFolders = new Map();
       const byShortcutId = new Map();
       const existingByParentId = new Map();
       const msFolderTree = (typeof readCloudFolderTree === 'function') ? readCloudFolderTree(MICROSOFT_FOLDER_TREE_KEY) : {};
@@ -22350,7 +22763,8 @@
         while (nextUrl) {
           msDeltaPageCount++;
           if (msDeltaPageCount > MICROSOFT_DELTA_MAX_PAGES) {
-            await persistPartialMsDelta();
+            if (typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
+      await persistPartialMsDelta();
             if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, '');
             if (typeof clearCloudSyncCheckpoint === 'function' && typeof MICROSOFT_DELTA_RESUME_KEY === 'string') clearCloudSyncCheckpoint(MICROSOFT_DELTA_RESUME_KEY);
             return { handled: false, resetCursor: true };
@@ -22435,7 +22849,34 @@
                 const pathChanged = Boolean(itemPath && existing.remotePath !== itemPath);
                 if (pathChanged) {
                   existing.remotePath = itemPath;
-                  if (!existing.metadataLoaded) existing._needsFolderCoverRefresh = true;
+                  existing.remoteLrc = null;
+                  existing._cloudLrcChecked = false;
+                  if (existing.lyricsSource === 'cloud-sidecar') {
+                    existing.lyricsText = '';
+                    existing._lrcDirty = true;
+                  }
+                  if (existing.hasEmbeddedCover !== true) {
+                    existing._needsFolderCoverRefresh = true;
+                    if (existing.hasEmbeddedCover === false || !existing.metadataLoaded) {
+                      existing.cover = null;
+                      if (typeof state !== 'undefined' && state && state.albumCovers && typeof state.albumCovers.has === 'function' && typeof library !== 'undefined' && library && typeof library.buildAlbumKey === 'function') {
+                        const msAk = library.buildAlbumKey(existing);
+                        if (msAk && state.albumCovers.has(msAk)) {
+                          const hasMsOther = Array.isArray(state.tracks) && state.tracks.some(o => o && o !== existing && o.cover && o.cover !== '♫' && library.buildAlbumKey(o) === msAk);
+                          if (!hasMsOther) {
+                            state.albumCovers.delete(msAk);
+                            if (typeof saveAlbumCoversCache === 'function') saveAlbumCoversCache();
+                          }
+                        }
+                      }
+                    }
+                    if (itemParentId && resolvedParent && movedDestFolders.size < 12 && (!siblingCoversByDir || !siblingCoversByDir.has(resolvedParent))) {
+                      const folderKey = (itemDriveId || 'me') + ':' + itemParentId;
+                      if (!movedDestFolders.has(folderKey)) {
+                        movedDestFolders.set(folderKey, { parentId: itemParentId, driveId: itemDriveId, path: resolvedParent });
+                      }
+                    }
+                  }
                   touched = true;
                 }
                 let msContentChanged = false;
@@ -22455,6 +22896,12 @@
                 const nameChanged = Boolean(item.name && existing.name !== item.name);
                 if (nameChanged) {
                   existing.name = item.name;
+                  existing.remoteLrc = null;
+                  existing._cloudLrcChecked = false;
+                  if (existing.lyricsSource === 'cloud-sidecar') {
+                    existing.lyricsText = '';
+                    existing._lrcDirty = true;
+                  }
                   if (!existing.metadataLoaded && !item.audio && typeof filenameMetadata === 'function') {
                     const rnMsMeta = filenameMetadata(item.name);
                     if (rnMsMeta) {
@@ -22548,7 +22995,8 @@
           nextUrl = (data && data['@odata.nextLink']) ? String(data['@odata.nextLink']) : '';
         }
       } catch (deltaErr) {
-        await persistPartialMsDelta();
+        if (typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
+      await persistPartialMsDelta();
         const msg = String(deltaErr && deltaErr.message ? deltaErr.message : deltaErr || '');
         if (deltaErr && (deltaErr.status === 410 || deltaErr.status === 400 || deltaErr.status === 404 || /resyncRequired|invalidDeltaToken|syncStateNotFound|deltaToken/i.test(msg))) {
           if (typeof writeCloudDeltaCursor === 'function') writeCloudDeltaCursor(MICROSOFT_DELTA_LINK_KEY, '');
@@ -22683,14 +23131,74 @@
           if (deletedLrcIds.has(String(tr.remoteLrc.id))) {
             tr.remoteLrc = null;
             tr._cloudLrcChecked = false;
+            if (tr.lyricsSource === 'cloud-sidecar') {
+              tr.lyricsText = '';
+              tr._lrcDirty = true;
+            }
             markMsUpdated(tr);
           }
         }
       }
+      if (movedDestFolders.size > 0 && (siblingCoversByDir || siblingLrcByBase) && typeof graphGet === 'function') {
+        const destEntries = Array.from(movedDestFolders.values());
+        for (let di = 0; di < destEntries.length; di++) {
+          const dest = destEntries[di];
+          if (!dest || !dest.parentId) continue;
+          try {
+            const curMsTok = (typeof state !== 'undefined' && state && state.microsoftAccessToken && state.microsoftAccessToken !== initialStateTok) ? state.microsoftAccessToken : (token || initialStateTok);
+            const childrenUrl = dest.driveId
+              ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(dest.driveId)}/items/${encodeURIComponent(dest.parentId)}/children?$select=id,name,file,cTag,size,@microsoft.graph.downloadUrl&$top=200`
+              : `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(dest.parentId)}/children?$select=id,name,file,cTag,size,@microsoft.graph.downloadUrl&$top=200`;
+            const cResp = await graphGet(childrenUrl, curMsTok);
+            const cItems = (cResp && Array.isArray(cResp.value)) ? cResp.value : [];
+            for (let ci = 0; ci < cItems.length; ci++) {
+              const sib = cItems[ci];
+              if (!sib || !sib.id || sib.folder) continue;
+              const sibName = String(sib.name || '');
+              if (siblingLrcByBase && /\.lrc$/i.test(sibName)) {
+                let lrcBase = String((dest.path ? dest.path + '/' + sibName : sibName)).replace(/\\/g, '/').replace(/\.[^.]+$/, '');
+                if (typeof lrcBase.normalize === 'function') {
+                  try { lrcBase = lrcBase.normalize('NFC'); } catch (_) {}
+                }
+                lrcBase = lrcBase.toLowerCase();
+                if (lrcBase) {
+                  siblingLrcByBase.set(lrcBase, {
+                    id: sib.id,
+                    name: sibName,
+                    downloadUrl: sib['@microsoft.graph.downloadUrl'] || '',
+                    driveId: dest.driveId || '',
+                    cTag: String(sib.cTag || sib.eTag || '')
+                  });
+                }
+              }
+              if (siblingCoversByDir) {
+                const cScore = scoreFolderCover(sibName);
+                if (cScore > 0) {
+                  const prevC = siblingCoversByDir.get(dest.path);
+                  if (!prevC || cScore > prevC.score) {
+                    siblingCoversByDir.set(dest.path, {
+                      id: sib.id,
+                      name: sibName,
+                      score: cScore,
+                      downloadUrl: sib['@microsoft.graph.downloadUrl'] || '',
+                      driveId: dest.driveId || '',
+                      forceUpdate: true
+                    });
+                  }
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+      if (typeof pruneOrphanedAlbumCovers === 'function') pruneOrphanedAlbumCovers();
       await persistPartialMsDelta();
       const removed = (typeof removeCloudTracksByRemoteIds === 'function')
         ? await removeCloudTracksByRemoteIds('onedrive', deletedRemoteIds)
         : 0;
+      if (removed > 0 && typeof pruneOrphanedSliceCacheEntries === 'function') {
+        pruneOrphanedSliceCacheEntries('onedrive', { allowEmptySource: true }).catch(() => {});
+      }
       if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
       if (msFolderTreeDirty && typeof writeCloudFolderTree === 'function') {
         writeCloudFolderTree(MICROSOFT_FOLDER_TREE_KEY, msFolderTree);
@@ -23182,11 +23690,24 @@
         );
         if (pendingMsMeta.length > 0) queueCloudMetadata(pendingMsMeta);
         if (typeof checkAndPromptResumeSession === 'function') checkAndPromptResumeSession();
+        const clearOneDriveCoverRefreshFlags = () => {
+          if (!Array.isArray(state.tracks)) return;
+          for (let i = 0; i < state.tracks.length; i++) {
+            const tr = state.tracks[i];
+            if (tr && tr.source === 'onedrive' && tr._needsFolderCoverRefresh) tr._needsFolderCoverRefresh = false;
+          }
+        };
         if (siblingCoversByDir.size > 0 && typeof applyMicrosoftSiblingFolderCovers === 'function') {
-          applyMicrosoftSiblingFolderCovers(siblingCoversByDir).catch(() => {});
+          applyMicrosoftSiblingFolderCovers(siblingCoversByDir).then(clearOneDriveCoverRefreshFlags, clearOneDriveCoverRefreshFlags);
+        } else {
+          clearOneDriveCoverRefreshFlags();
         }
         if (siblingLrcByBase.size > 0 && typeof applyMicrosoftSiblingLrcLinks === 'function') {
-          applyMicrosoftSiblingLrcLinks(siblingLrcByBase).catch(() => {});
+          applyMicrosoftSiblingLrcLinks(siblingLrcByBase).then(appliedLrc => {
+            if (appliedLrc > 0 && typeof repopulateCloudMetadataQueue === 'function') {
+              repopulateCloudMetadataQueue('onedrive');
+            }
+          }).catch(() => {});
         }
       }
       } finally {
@@ -25406,12 +25927,17 @@
         existingUris.add(normUri);
         existingByUri.set(normUri, prevTrack);
       }
+      const pathChanged = Boolean(oldPath && normPath && oldPath !== normPath);
       if (normPath) {
-        if (oldPath && oldPath !== normPath) {
+        if (pathChanged) {
           existingPaths.delete(oldPath);
           existingByPath.delete(oldPath);
           if (prevTrack.url && prevTrack.url.indexOf('/local-media?path=') !== -1) prevTrack.url = '';
-          if (prevTrack.cover && prevTrack.cover.indexOf('/local-cover?path=') !== -1) prevTrack.cover = '';
+          if (prevTrack.cover && prevTrack.cover.indexOf('/local-cover?') !== -1) prevTrack.cover = '';
+          if (prevTrack.lyricsSource === 'local-sidecar' || prevTrack.lyricsSource === 'sidecar') {
+            prevTrack.lyricsText = '';
+            prevTrack.lyricsSource = '';
+          }
           prevTrack._localAccessError = null;
           prevTrack._pathFallbackRetriedGen = 0;
         }
@@ -25421,9 +25947,14 @@
       }
       const rawFileName = file.name ? String(file.name).trim() : (normPath ? normPath.slice(Math.max(normPath.lastIndexOf('/'), normPath.lastIndexOf('\\')) + 1) : '');
       const newBaseName = rawFileName ? rawFileName.replace(/\.[^/.]+$/, '') : '';
-      if (newBaseName && oldName !== newBaseName) {
+      const nameChanged = Boolean(newBaseName && oldName !== newBaseName);
+      if (nameChanged) {
         prevTrack.name = newBaseName;
         if (!prevTrack.title || prevTrack.title === oldName) prevTrack.title = newBaseName;
+        if (prevTrack.lyricsSource === 'local-sidecar' || prevTrack.lyricsSource === 'sidecar') {
+          prevTrack.lyricsText = '';
+          prevTrack.lyricsSource = '';
+        }
       }
       const incomingSize = Number(file.size) || 0;
       const incomingLmRaw = Number(file.lastModified);
@@ -25437,6 +25968,13 @@
         (incomingLm > 0 && prevLm > 0 && incomingLm > prevLm) ||
         (incomingSize > 0 && prevSize > 0 && incomingSize !== prevSize)
       );
+      if (fileModifiedOnDisk) {
+        if (prevTrack.cover && prevTrack.cover.indexOf('/local-cover?') !== -1) prevTrack.cover = '';
+        if (prevTrack.lyricsSource === 'local-sidecar' || prevTrack.lyricsSource === 'sidecar') {
+          prevTrack.lyricsText = '';
+          prevTrack.lyricsSource = '';
+        }
+      }
       if (incomingLm > 0 && incomingLm !== prevLm) prevTrack.lastModified = incomingLm;
       if (Number(file.duration) > 0 && (fileModifiedOnDisk || !(Number(prevTrack.duration) > 0))) prevTrack.duration = Number(file.duration);
       if (incomingSize > 0 && (fileModifiedOnDisk || !(prevSize > 0))) prevTrack.size = incomingSize;
@@ -25867,8 +26405,17 @@
         const targetHasCustomCover = Boolean(targetCov && targetCov !== '♫' && targetCov.indexOf('/local-cover?') === -1);
         if (oldHasCustomCover && !targetHasCustomCover) target.cover = oldCov;
         if (Number(oldTr.rating) > 0 && !(Number(target.rating) > 0)) target.rating = oldTr.rating;
-        if (oldTr.lyricsText && !target.lyricsText) target.lyricsText = oldTr.lyricsText;
+        if (oldTr.lyricsText && !target.lyricsText && oldTr.lyricsSource !== 'local-sidecar' && oldTr.lyricsSource !== 'sidecar') {
+          target.lyricsText = oldTr.lyricsText;
+          if (oldTr.lyricsSource) target.lyricsSource = oldTr.lyricsSource;
+        }
         if (oldTr.albumArtist && !target.albumArtist) target.albumArtist = oldTr.albumArtist;
+        if (oldTr.replayGainTrackGain !== undefined && target.replayGainTrackGain === undefined) target.replayGainTrackGain = oldTr.replayGainTrackGain;
+        if (oldTr.replayGainTrackPeak !== undefined && target.replayGainTrackPeak === undefined) target.replayGainTrackPeak = oldTr.replayGainTrackPeak;
+        if (oldTr.replayGainAlbumGain !== undefined && target.replayGainAlbumGain === undefined) target.replayGainAlbumGain = oldTr.replayGainAlbumGain;
+        if (oldTr.replayGainAlbumPeak !== undefined && target.replayGainAlbumPeak === undefined) target.replayGainAlbumPeak = oldTr.replayGainAlbumPeak;
+        if (oldTr.iTunNORM && !target.iTunNORM) target.iTunNORM = oldTr.iTunNORM;
+        if (oldTr.hasReplayGain && !target.hasReplayGain) target.hasReplayGain = oldTr.hasReplayGain;
         if (Number(oldTr.discNumber) > 0 && !(Number(target.discNumber) > 0)) target.discNumber = Number(oldTr.discNumber);
         if (Number(oldTr.trackNumber) > 0 && !(Number(target.trackNumber) > 0)) target.trackNumber = Number(oldTr.trackNumber);
         if (Number(oldTr.year) > 0 && !(Number(target.year) > 0)) target.year = Number(oldTr.year);
@@ -26884,6 +27431,8 @@
               return;
             }
             if (curSliceTrack.fullAudioPromise) {
+              audio._userPausedDuringUpgrade = false;
+              if (standbyAudio) standbyAudio._userPausedDuringUpgrade = false;
               toast('Đang tải nốt bản FLAC đầy đủ, nhạc sẽ tự phát tiếp ngay...');
               return;
             }
@@ -27016,16 +27565,118 @@
     window.onHardwarePlayPause = () => { const btn = $('play-button'); if (btn) btn.click(); };
     window.onHardwarePlay = () => {
       if (state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) return;
-      if (!state.isNativeBitPerfectPlaying && audio && (!audio.paused || audio._upgradingFullAudio)) return;
+      const activeEl = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : (typeof audio !== 'undefined' ? audio : null);
+      const sbEl = (typeof standbyAudio !== 'undefined' && standbyAudio) ? standbyAudio : null;
+      const isDsdDecodingWait = Boolean(state.dsdWorker && (!activeEl || !activeEl.src || state.isPlaybackLoading));
+      if (!state.isNativeBitPerfectPlaying && ((activeEl && (!activeEl.paused || activeEl._upgradingFullAudio)) || (sbEl && (!sbEl.paused || sbEl._upgradingFullAudio)) || isDsdDecodingWait)) return;
       if (!state.isNativeBitPerfectPlaying && state.corsBypassAudio && !state.corsBypassAudio.paused) return;
       if (typeof runCloudWakeTokenRefresh === 'function') runCloudWakeTokenRefresh();
       const btn = $('play-button'); if (btn) btn.click();
     };
     window.onHardwarePause = () => {
       if (state.isNativeBitPerfectPlaying && state.isNativeBitPerfectPaused) return;
-      const webPlayingNow = Boolean((audio && (!audio.paused || audio._upgradingFullAudio)) || (state.corsBypassAudio && !state.corsBypassAudio.paused));
+      const mainEl = (typeof audio !== 'undefined' && audio) ? audio : null;
+      const activeEl = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : mainEl;
+      const sbEl = (typeof standbyAudio !== 'undefined' && standbyAudio) ? standbyAudio : null;
+      const curTrack = (Array.isArray(state.tracks) && state.currentId != null)
+        ? state.tracks.find(t => t && t.id === state.currentId)
+        : null;
+      const isWaitingSliceOrDsd = Boolean(
+        (curTrack && curTrack.firstSlicePlayback && (curTrack.fullAudioPromise || curTrack.sliceEndedEarly)) ||
+        state.dsdWorker
+      );
+      const isUpgradingDeck = Boolean(
+        (mainEl && mainEl._upgradingFullAudio) ||
+        (activeEl && activeEl._upgradingFullAudio) ||
+        (sbEl && sbEl._upgradingFullAudio)
+      );
+      const isDsdDecodingWait = Boolean(state.dsdWorker && (!activeEl || !activeEl.src || state.isPlaybackLoading));
+      const mainOrActivePlaying = Boolean((mainEl && !mainEl.paused) || (activeEl && !activeEl.paused));
+      const sbPlaying = Boolean(sbEl && !sbEl.paused);
+      const corsPlaying = Boolean(state.corsBypassAudio && !state.corsBypassAudio.paused);
+      const webPlayingNow = Boolean(mainOrActivePlaying || isUpgradingDeck || sbPlaying || corsPlaying || isDsdDecodingWait || isWaitingSliceOrDsd);
       if (!state.isNativeBitPerfectPlaying && !webPlayingNow) return;
-      const btn = $('play-button'); if (btn) btn.click();
+      const sbMatchesCurrent = Boolean(
+        sbEl && sbEl.dataset && state.currentId != null && String(sbEl.dataset.trackId) === String(state.currentId)
+      );
+      const mustPauseDirectly = Boolean(
+        !state.isNativeBitPerfectPlaying && (
+          isWaitingSliceOrDsd ||
+          isUpgradingDeck ||
+          (sbPlaying && !mainOrActivePlaying && !corsPlaying && !sbMatchesCurrent)
+        )
+      );
+      if (!mustPauseDirectly) {
+        const btn = $('play-button');
+        if (btn) {
+          btn.click();
+          return;
+        }
+      }
+      if (state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) {
+        if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.pauseBitPerfectPlayback === 'function') {
+          try { window.NocturneNative.pauseBitPerfectPlayback(); } catch (_) {}
+        }
+        state.isNativeBitPerfectPaused = true;
+        if (typeof window !== 'undefined' && typeof window.onNativeBitPerfectStateChange === 'function') {
+          window.onNativeBitPerfectStateChange(false);
+        }
+      }
+      if (mainEl && (mainEl._upgradingFullAudio || isWaitingSliceOrDsd)) {
+        mainEl._userPausedDuringUpgrade = true;
+        mainEl._upgradingFullAudio = false;
+      }
+      if (activeEl && activeEl !== mainEl && (activeEl._upgradingFullAudio || isWaitingSliceOrDsd)) {
+        activeEl._userPausedDuringUpgrade = true;
+        activeEl._upgradingFullAudio = false;
+      }
+      if (sbEl && (sbEl._upgradingFullAudio || isWaitingSliceOrDsd)) {
+        sbEl._userPausedDuringUpgrade = true;
+        sbEl._upgradingFullAudio = false;
+      }
+      if (state.isPlaybackLoading) {
+        ++state.playGeneration;
+        if (typeof setPlaybackLoading === 'function') setPlaybackLoading(false);
+        if (typeof clearOptimisticLoadingUi === 'function') clearOptimisticLoadingUi();
+      }
+      if (mainEl && !mainEl.paused) {
+        try { mainEl.pause(); } catch (_) {}
+      }
+      if (activeEl && activeEl !== mainEl && !activeEl.paused) {
+        try { activeEl.pause(); } catch (_) {}
+      }
+      if (sbEl && !sbEl.paused) {
+        try { sbEl.pause(); } catch (_) {}
+      }
+      if (state.corsBypassAudio && !state.corsBypassAudio.paused) {
+        try { state.corsBypassAudio.pause(); } catch (_) {}
+      }
+      if (state.dsdWorker && !(state.dsdUrl && mainEl && mainEl.src)) {
+        const activeWorker = state.dsdWorker;
+        state.dsdWorker = null;
+        try { activeWorker.postMessage({ type: 'cancel' }); } catch (_) {}
+        try { activeWorker.terminate(); } catch (_) {}
+        ++state.playGeneration;
+        if (typeof stopDsdWorker === 'function') stopDsdWorker(false);
+      }
+      if (typeof syncPlaybackButtonsUi === 'function') syncPlaybackButtonsUi(false);
+      else if (typeof $ === 'function' && $('play-button')) $('play-button').textContent = '▶';
+      if (typeof updatePositionState === 'function') updatePositionState(true);
+      if (typeof navigator !== 'undefined' && 'mediaSession' in navigator && navigator.mediaSession) {
+        try { navigator.mediaSession.playbackState = 'paused'; } catch (_) {}
+      }
+      if (curTrack && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.updateMediaNotification === 'function') {
+        const notifMeta = (typeof library !== 'undefined' && library && typeof library.trackMetadata === 'function') ? library.trackMetadata(curTrack) : curTrack;
+        try {
+          window.NocturneNative.updateMediaNotification(
+            notifMeta.title || curTrack.title || curTrack.name || '',
+            notifMeta.artist || curTrack.artist || '',
+            notifMeta.album || curTrack.album || '',
+            false
+          );
+        } catch (_) {}
+      }
+      if (typeof savePlaybackSession === 'function') savePlaybackSession(true);
     };
     window.onHardwareNext = () => { const btn = $('next-button'); if (btn) btn.click(); else if (typeof playNext === 'function') playNext(1); };
     window.onHardwarePrevious = () => { const btn = $('previous-button'); if (btn) btn.click(); else if (typeof playNext === 'function') playNext(-1); };
@@ -31034,21 +31685,37 @@
       try {
         const nativeWasPlaying = Boolean(typeof window !== 'undefined' && window.__androidNoisyNativeWasPlaying);
         if (typeof window !== 'undefined') window.__androidNoisyNativeWasPlaying = false;
-        const wasUpgradingFull = Boolean((audio && audio._upgradingFullAudio) || (typeof standbyAudio !== 'undefined' && standbyAudio && standbyAudio._upgradingFullAudio));
+        const curTrack = Array.isArray(state.tracks) ? state.tracks.find(item => item && item.id === state.currentId) : null;
+        const activeEl = (state.activeDeck && state.activeDeck.element) ? state.activeDeck.element : (typeof audio !== 'undefined' ? audio : null);
+        const isWaitingSliceOrDsd = Boolean(
+          (curTrack && curTrack.firstSlicePlayback && (curTrack.fullAudioPromise || curTrack.sliceEndedEarly)) ||
+          state.dsdWorker
+        );
+        const wasUpgradingFull = Boolean(
+          isWaitingSliceOrDsd ||
+          (audio && audio._upgradingFullAudio) ||
+          (activeEl && activeEl._upgradingFullAudio) ||
+          (typeof standbyAudio !== 'undefined' && standbyAudio && standbyAudio._upgradingFullAudio)
+        );
         const wasActivelyPlaying = Boolean(
           nativeWasPlaying ||
           wasUpgradingFull ||
           state.isPlaybackLoading ||
           (state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) ||
           (audio && !audio.paused) ||
+          (activeEl && !activeEl.paused) ||
           (typeof standbyAudio !== 'undefined' && standbyAudio && !standbyAudio.paused) ||
           (state.corsBypassAudio && state.corsBypassAudio !== audio && !state.corsBypassAudio.paused)
         );
-        if (audio && audio._upgradingFullAudio) {
+        if (audio && (audio._upgradingFullAudio || isWaitingSliceOrDsd)) {
           audio._userPausedDuringUpgrade = true;
           audio._upgradingFullAudio = false;
         }
-        if (typeof standbyAudio !== 'undefined' && standbyAudio && standbyAudio._upgradingFullAudio) {
+        if (activeEl && activeEl !== audio && (activeEl._upgradingFullAudio || isWaitingSliceOrDsd)) {
+          activeEl._userPausedDuringUpgrade = true;
+          activeEl._upgradingFullAudio = false;
+        }
+        if (typeof standbyAudio !== 'undefined' && standbyAudio && (standbyAudio._upgradingFullAudio || isWaitingSliceOrDsd)) {
           standbyAudio._userPausedDuringUpgrade = true;
           standbyAudio._upgradingFullAudio = false;
         }
@@ -31057,7 +31724,9 @@
           if (typeof setPlaybackLoading === 'function') setPlaybackLoading(false);
         }
         if (state.isNativeBitPerfectPlaying && !state.isNativeBitPerfectPaused) {
-          if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.pauseBitPerfectPlayback === 'function') window.NocturneNative.pauseBitPerfectPlayback();
+          if (!nativeWasPlaying && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.pauseBitPerfectPlayback === 'function') {
+            window.NocturneNative.pauseBitPerfectPlayback();
+          }
           state.isNativeBitPerfectPaused = true;
           if (typeof window !== 'undefined' && typeof window.onNativeBitPerfectStateChange === 'function') {
             window.onNativeBitPerfectStateChange(false);
@@ -31066,6 +31735,7 @@
           }
         }
         if (audio && !audio.paused) audio.pause();
+        if (activeEl && activeEl !== audio && !activeEl.paused) activeEl.pause();
         if (typeof standbyAudio !== 'undefined' && standbyAudio && !standbyAudio.paused) standbyAudio.pause();
         if (state.corsBypassAudio && state.corsBypassAudio !== audio && !state.corsBypassAudio.paused) state.corsBypassAudio.pause();
         if (state.dsdWorker && !(state.dsdUrl && audio && audio.src) && typeof stopDsdWorker === 'function') stopDsdWorker(false);
@@ -31075,7 +31745,6 @@
           if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
             try { navigator.mediaSession.playbackState = 'paused'; } catch (_) {}
           }
-          const curTrack = Array.isArray(state.tracks) ? state.tracks.find(item => item && item.id === state.currentId) : null;
           if (curTrack && typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.updateMediaNotification === 'function') {
             const notifMeta = (typeof library !== 'undefined' && typeof library.trackMetadata === 'function') ? library.trackMetadata(curTrack) : curTrack;
             window.NocturneNative.updateMediaNotification(notifMeta.title || curTrack.title || curTrack.name || '', notifMeta.artist || curTrack.artist || '', notifMeta.album || curTrack.album || '', false);
@@ -31088,7 +31757,16 @@
     window.onAndroidAudioDeviceChanged = (deviceName, connected) => {
       try {
         const label = deviceName || 'USB DAC';
-        state.androidAudioDeviceName = connected ? String(label) : '';
+        let activeRoute = '';
+        if (connected) {
+          activeRoute = String(label);
+        } else if (typeof window !== 'undefined' && window.NocturneNative && typeof window.NocturneNative.getAudioOutputRouteName === 'function') {
+          try {
+            const nativeRoute = String(window.NocturneNative.getAudioOutputRouteName() || '').trim();
+            if (nativeRoute && nativeRoute !== 'Phone Speaker') activeRoute = nativeRoute;
+          } catch (_) {}
+        }
+        state.androidAudioDeviceName = activeRoute;
         if (connected) {
           toast(`🔌 Đã kết nối thiết bị âm thanh: ${label}`);
         } else {
@@ -31097,6 +31775,7 @@
         const cur = state.tracks.find(t => t.id === state.currentId);
         if (cur && typeof renderRoomSignal === 'function') renderRoomSignal(cur);
         if (cur && typeof syncRoomOutputText === 'function') syncRoomOutputText(cur);
+        if (cur && typeof updateMiniPlayerHud === 'function') updateMiniPlayerHud(cur);
         if (typeof refreshAudioOutputDevices === 'function') {
           const refreshPromise = refreshAudioOutputDevices();
           if (refreshPromise && typeof refreshPromise.catch === 'function') refreshPromise.catch(() => {});
