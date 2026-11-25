@@ -82,19 +82,24 @@ describe('v3.9.101 R3 & R4: Chrome CDP E2E (Groups H-J), Version Alignment, Asse
     assert.ok(vnLine.includes('versionName = "3.9.100"') && vnLine.includes('versionName = "2.0.5"'));
   });
 
-  it('2. .agent/publish-release.cjs passes node --check, compiles via vm.Script, and renders valid v3.9.101 release notes', () => {
+  it('2. .agent/publish-release.cjs passes node --check, compiles via vm.Script, and renders valid >= v3.9.101 release notes', () => {
     const releasePath = path.join(ROOT, '.agent', 'publish-release.cjs');
     assert.doesNotThrow(() => execFileSync(process.execPath, ['--check', releasePath], { stdio: 'pipe' }));
     assert.doesNotThrow(() => new vm.Script(releaseScript, { filename: '.agent/publish-release.cjs' }));
 
+    const mRelTag = releaseScript.match(/process\.argv\[2\] \|\| 'v(\d+\.\d+\.\d+)'/);
+    const mRelCode = releaseScript.match(/\(versionCode (\d+)\)/);
+    assert.ok(mRelTag && mRelCode);
+    assert.equal(geq(mRelTag[1], '3.9.101'), true);
+    assert.equal(Number(mRelCode[1]) >= 155, true);
+
     const mBody = releaseScript.match(/const name = process\.argv\[3\] \|\| (`[\s\S]*?`);[\s\S]*?: (`[\s\S]*?`);\n\n\s*const headers/);
     assert.ok(mBody);
-    const tag = 'v3.9.101';
+    const tag = `v${mRelTag[1]}`;
     const renderedName = vm.runInNewContext(mBody[1], { tag });
     const renderedBody = vm.runInNewContext(mBody[2], { tag });
-    assert.ok(renderedName.includes('v3.9.101'));
-    assert.ok(renderedBody.includes('Nocturne v3.9.101 (versionCode 155)'));
-    assert.ok(renderedBody.includes('MEDIA_BUTTON') && renderedBody.includes('DocumentsContract'));
+    assert.ok(renderedName.includes(tag));
+    assert.ok(renderedBody.includes(`Nocturne ${tag} (versionCode ${mRelCode[1]})`));
     assert.ok(renderedBody.includes('API 26–30') && renderedBody.includes('API 31–35+'));
     assert.ok(renderedBody.includes('- **Nocturne-Android.apk**'));
   });

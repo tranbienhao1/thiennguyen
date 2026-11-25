@@ -763,15 +763,30 @@
 
   function normalizedTrackMetadata(track) {
     const metadata = trackMetadata(track);
+    const rawName = String((track && track.name) || '');
+    const fileStem = rawName.replace(/\.[^.]+$/, '');
+    const albumArtistRaw = String((track && (track.albumArtist || track.albumartist || track.album_artist)) || '');
+    const folderNameRaw = String((track && track.folderName) || '');
+    const remotePathRaw = String((track && track.remotePath) || '');
+    const relativePathRaw = String((track && (track.relativePath || track.webkitRelativePath || track.path)) || '');
     const cached = NORMALIZED_METADATA_CACHE.get(track);
-    if (cached && cached.metadata === metadata) return cached.value;
+    if (
+      cached &&
+      cached.metadata === metadata &&
+      cached.rawName === rawName &&
+      cached.albumArtistRaw === albumArtistRaw &&
+      cached.folderNameRaw === folderNameRaw &&
+      cached.remotePathRaw === remotePathRaw &&
+      cached.relativePathRaw === relativePathRaw
+    ) return cached.value;
+    const pathText = `${remotePathRaw} ${relativePathRaw}`.replace(/[\\/]+/g, ' ');
     const value = {
       title:metadataKey(metadata.title),
       artist:metadataKey(metadata.artist),
       album:metadataKey(metadata.album),
-      search:metadataKey(`${metadata.title} ${metadata.artist} ${metadata.album}`)
+      search:metadataKey(`${metadata.title} ${metadata.artist} ${metadata.album} ${albumArtistRaw} ${fileStem} ${folderNameRaw} ${pathText}`)
     };
-    NORMALIZED_METADATA_CACHE.set(track, {metadata, value});
+    NORMALIZED_METADATA_CACHE.set(track, {metadata, rawName, albumArtistRaw, folderNameRaw, remotePathRaw, relativePathRaw, value});
     return value;
   }
 

@@ -258,15 +258,16 @@ test('4. navigator.mediaSession actions update Bit-Perfect UI state and seekback
 
   vm.runInNewContext(html.slice(start, end), sandbox);
 
-  // Bit-Perfect play & pause notify onNativeBitPerfectStateChange
+  // Bit-Perfect play notifies onNativeBitPerfectStateChange when paused; duplicate play & WebView pause are ignored when NocturneNative is active
   handlers.play();
   assert.deepEqual(nativeCalls, ['resume']);
   assert.deepEqual(stateChanges, [true]);
 
   sandbox.state.isNativeBitPerfectPaused = false;
+  handlers.play();
   handlers.pause();
-  assert.deepEqual(nativeCalls, ['resume', 'pause']);
-  assert.deepEqual(stateChanges, [true, false]);
+  assert.deepEqual(nativeCalls, ['resume']);
+  assert.deepEqual(stateChanges, [true]);
 
   // Bit-Perfect seekbackward & seekforward using normal track (raw sec 45, dur 240s) -> exact ms targets
   nativeCalls.length = 0;

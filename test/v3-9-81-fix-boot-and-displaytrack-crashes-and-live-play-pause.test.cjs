@@ -127,17 +127,37 @@ test('v3.9.81: Fix 6 — attachReliableTransportTap clears ghost flag on mouse p
     addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
     click() { clickCount++; }
   };
-  const sandbox = { Date };
+  let nowMs = 1000;
+  const sandbox = { Date: { now: () => nowMs } };
   vm.runInNewContext(tapFnSrc, sandbox);
   sandbox.attachReliableTransportTap(fakeBtn);
 
-  // Simulate touch tap
+  // Simulate touch tap at t=1000ms
   listeners.touchstart.forEach(fn => fn({ touches: [{ clientX: 50, clientY: 50 }] }));
-  listeners.touchend.forEach(fn => fn({ cancelable: true, preventDefault() {}, changedTouches: [{ clientX: 50, clientY: 50 }] }));
+  listeners.touchend.forEach(fn => fn({ cancelable: true, preventDefault() {}, stopPropagation() {}, changedTouches: [{ clientX: 50, clientY: 50 }] }));
   assert.equal(clickCount, 1);
   assert.equal(fakeBtn._touchTapGhostPending, true);
 
-  // Immediately followed by real mouse pointerdown -> clears ghost flag so mouse click is NOT swallowed
+  // Chromium 74 compatibility pointerdown at < 1200ms (t=1050ms) MUST preserve ghost flag so 650ms ghost click is swallowed
+  nowMs = 1050;
+  listeners.pointerdown.forEach(fn => fn({ pointerType: 'mouse' }));
+  assert.equal(fakeBtn._touchTapGhostPending, true);
+  nowMs = 1650;
+  let ghostStopped = false;
+  listeners.click.forEach(fn => fn({
+    isTrusted: true,
+    preventDefault() { ghostStopped = true; },
+    stopPropagation() { ghostStopped = true; },
+    stopImmediatePropagation() { ghostStopped = true; }
+  }));
+  assert.equal(ghostStopped, true, 'Delayed Chromium 74 ghost click after compatibility pointerdown must be swallowed');
+
+  // Re-tap at t=3000ms, then real mouse pointerdown >= 1200ms later (t=4300ms) -> clears ghost flag so real mouse click is NOT swallowed
+  nowMs = 3000;
+  listeners.touchstart.forEach(fn => fn({ touches: [{ clientX: 50, clientY: 50 }] }));
+  listeners.touchend.forEach(fn => fn({ cancelable: true, preventDefault() {}, stopPropagation() {}, changedTouches: [{ clientX: 50, clientY: 50 }] }));
+  assert.equal(fakeBtn._touchTapGhostPending, true);
+  nowMs = 4300;
   listeners.pointerdown.forEach(fn => fn({ pointerType: 'mouse' }));
   assert.equal(fakeBtn._touchTapGhostPending, false);
   let stopped = false;
@@ -147,7 +167,7 @@ test('v3.9.81: Fix 6 — attachReliableTransportTap clears ghost flag on mouse p
     stopPropagation() { stopped = true; },
     stopImmediatePropagation() { stopped = true; }
   }));
-  assert.equal(stopped, false, 'Real mouse click after touch must not be swallowed');
+  assert.equal(stopped, false, 'Real mouse click >= 1200ms after touch must not be swallowed');
 
   // Verify Cloud token expiry save & startup restore
   assert.ok(html.includes("localStorage.setItem('nocturne-google-token-expires'"));

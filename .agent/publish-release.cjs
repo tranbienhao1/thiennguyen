@@ -80,26 +80,25 @@ async function uploadAsset(uploadUrl, token, filePath, assetName) {
 async function main() {
   const token = getGitToken();
   const repo = 'tranbienhao1/thiennguyen';
-  const tag = process.argv[2] || 'v3.9.101';
-  const name = process.argv[3] || `Nocturne ${tag} (Android AVRCP & Bit-Perfect Route Recovery, Cloud/Local Delta Cover & .LRC Reconciliation, Leak Fixes & CDP E2E)`;
+  const tag = process.argv[2] || 'v3.9.102';
+  const name = process.argv[3] || `Nocturne ${tag} (FiiO M11S & Android Play/Pause Fix, Instant Google Drive Album Sync & Search, Priority Metadata Queue)`;
   const notesFile = process.argv[4];
   const bodyText = (notesFile && fs.existsSync(notesFile))
     ? fs.readFileSync(notesFile, 'utf8')
-    : `### Nocturne ${tag} (versionCode 155) — Android Old/New AVRCP & USB DAC Route Recovery, Cloud & Local/FiiO Delta Cover/ReplayGain/.LRC Reconciliation + Leak Fixes
+    : `### Nocturne ${tag} (versionCode 156) — Urgent P0 Fix: FiiO M11S & Android Play/Pause + Instant Google Drive Album Sync, Search & Priority Metadata
 
-#### 1. Android Old (API 26–30 / FiiO M11S / Chromium 74) & New (API 31–35+) AVRCP, Headset Button & Bit-Perfect USB DAC Route Recovery (\`AndroidManifest.xml\`, \`NocturnePlaybackService.java\`, \`MainActivity.java\`, \`index.html\`)
-- Added \`android.intent.action.MEDIA_BUTTON\` intent-filter and \`onStartCommand\` forwarding on \`NocturnePlaybackService\` plus \`mMediaSession.setMediaButtonReceiver()\` (\`FLAG_MUTABLE\` on API 31+ / \`0\` on API 26–30), API 33+ typed \`getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent.class)\` in \`initMediaSession()\`, and \`Notification.MediaStyle\` with \`MediaSession.Token\` in \`showMediaNotification()\`.
-- Updated \`findPreferredBitPerfectDevice()\` to prioritize Bluetooth A2DP / API 31+ BLE Audio (\`TYPE_BLE_HEADSET\`, \`TYPE_BLE_SPEAKER\`) and \`TYPE_BUILTIN_SPEAKER\` ahead of earpiece/telephony sinks; updated \`getAudioOutputRouteName()\` and \`isExternalAudioGearConnected()\` to check \`d.isSink()\`, \`TYPE_LINE_DIGITAL\`, \`TYPE_AUX_LINE\`, and BLE Audio; hardened \`notifyUsbDacChange()\` for BT/Wired headphone disconnects.
-- Replaced non-atomic \`BitPerfectAudioPlayer\` route refresh booleans with \`AtomicInteger mRouteRefreshFlags\` (\`getAndSet(0)\`), guarded \`track.play()\`/\`pause()\`/\`flush()\` with \`try/catch (IllegalStateException)\`, hardened JS \`onHardwarePlay\`/\`onHardwarePause\`, \`onAndroidAudioBecomingNoisy\` (mid-DSD and \`firstSlice\`/\`sliceEndedEarly\` speaker-blast prevention), \`onAndroidAudioDeviceChanged\`, and Chromium 74 \`updateMediaSession\`/\`updatePositionState\` native \`PLAYBACK_POSITION_UNKNOWN\` sync.
+#### 1. P0-A: Bulletproof FiiO M11S & Android (API 26–30 + API 31–35+) Play/Pause Fix (\`index.html\`, \`MainActivity.java\`, \`NocturnePlaybackService.java\`)
+- Expanded \`attachReliableTransportTap\` ghost-click suppression to \`1200\` ms, prevented Chromium 74 compatibility \`pointerdown\` from clearing \`_touchTapGhostPending\` before \`1200\` ms, and added a \`260\` ms Play/Pause \`touchend\` bounce guard (\`120\` ms for other transport buttons) with \`e.stopPropagation()\`.
+- Isolated WebView \`navigator.mediaSession\` \`'pause'\` / \`'play'\` handlers when \`window.NocturneNative\` Bit-Perfect playback is active so Android \`AUDIOFOCUS_LOSS\` on WebView never stops native \`BitPerfectAudioPlayer\` while keeping Web/PWA behavior unchanged.
+- Added cross-path \`KeyEvent.getDownTime()\` deduplication (\`isDuplicateMediaKeyEvent\` / \`handleMediaKeyEvent\`), \`450L\` ms Play/Pause key-group & \`MediaSession.Callback\` (\`onPlay\`/\`onPause\`/\`onStop\`) echo suppression, \`350L\` ms notification \`ACTION_PLAY_PAUSE\` debounce, screen-off & API < 26 \`mLegacyAudioFocusListener\` \`1200L\` ms self-focus guards, and \`track.play()\` timestamp refresh.
 
-#### 2. Cloud (Google Drive / OneDrive) & Local/FiiO Incremental Metadata, Cover Art, ReplayGain & Sidecar \`.lrc\` Reconciliation + Leak Fixes (\`index.html\`, \`library-utils.js\`, \`MainActivity.java\`)
-- Tracked \`hasEmbeddedCover\` across \`serializableCloudTrack\`, \`enrichCloudTrack\`, \`loadCloudMetadata\`, \`writeLocalFileMetaCache\`, and \`makeLocalTrack\` so non-embedded folder art refreshes cleanly even when \`metadataLoaded === true\` while embedded art remains protected.
-- Hardened Google Drive (\`tryLoadGoogleChangesDelta\`) and OneDrive (\`tryLoadMicrosoftDeltaSync\`, \`applyMicrosoftSiblingLrcLinks\`) delta sync for track moves/renames, trashed/deleted \`folder.jpg\` and \`.lrc\`, \`cTag\` persistence, capped destination \`/children\` lookup, \`needsCloudMetadataEnrichment\` / \`enrichCloudTrack\` sidecar re-fetch, and \`invalidateCloudTrackContent\` ReplayGain reset.
-- Preserved full ReplayGain (\`rg\`, \`rgp\`, \`rga\`, \`rgap\`, \`itn\`) across Web local cache & \`reconcileMovedFiioTracks\`, added \`reconcileMovedLocalTracks\` and existing-track folder art/\`.lrc\` refresh in \`addLocalFiles\`/\`refreshModifiedLocalTrack\`, busted \`/local-cover\` with \`&v=\` on moves/edits, added pure-framework \`DocumentsContract\` SAF tree sibling fallback (\`resolveSafSiblingUri\`) on API 30–35+, and fixed \`onAndroidLowMemory\` / \`upgradeSliceToFullAudio\` / \`pruneOrphanedSliceCacheEntries\` leaks.
+#### 2. P0-B: Instant Google Drive Album Sync, Cross-View Search & Priority Metadata Queue (\`index.html\`, \`library-utils.js\`)
+- Added \`GOOGLE_FOLDER_NAMES_KEY\`, \`syncGoogleFolderTree\` \`id,name,parents\` capture, \`applyGoogleDriveFolderMetadataToTrack\` (supporting \`Artist - Album\`, grandparent artist, \`CD 1\` disc subfolders, and Vietnamese/English fallbacks), and \`hydrateGoogleDriveFolderMetadata\` in both full scan and \`tryLoadGoogleChangesDelta\` before \`renderTracks()\`.
+- Expanded \`normalizedTrackMetadata\` in \`library-utils.js\` to index filename stem, \`albumArtist\`, \`folderName\`, \`remotePath\`, and \`relativePath\` with cache invalidation; fixed \`renderCollectionCards\` to keep albums/artists/genres with matching songs (and show track rows fallback when needed); fixed searching from \`Home\` view to switch to \`songs\` and prioritize matching untagged cloud tracks.
+- Eliminated \`cloudMetadataQueue\` priority inversion via \`getCloudMetadataPriority\` (Tiers 0–3) & \`prioritizeCloudMetadataTracks\`, enabled \`2\`/\`1\` concurrency on \`IS_LEGACY_ANDROID\` and \`3\` on modern Android (API 31–35+) & Desktop, and deferred \`.lrc\` sidecar probes during untagged tag backlogs.
 
-#### 3. Chrome CDP E2E & Unit Test Expansion (\`live-chrome-play-pause-test.cjs\`, \`test/v3-9-101-*.test.cjs\`)
-- Added Chrome CDP E2E Groups H–J (multi-source Local ↔ Google Drive ↔ OneDrive ↔ CUE ↔ DSD queue handoff, \`AudioFocus\` ducking & \`ACTION_AUDIO_BECOMING_NOISY\` recovery across Web Audio & Bit-Perfect, and cloud move/rename \`.lrc\` & folder cover delta reconciliation with \`0\` uncaught JS exceptions).
-- Added \`test/v3-9-101-r1-android-avrcp-noisy-dac.test.cjs\`, \`test/v3-9-101-r2-delta-lrc-cover-replaygain-cache.test.cjs\`, and \`test/v3-9-101-r3-e2e-compat-and-release.test.cjs\` verifying R1, R2, R3, ES2019, asset parity, and API 26–35+ contracts.
+#### 3. Unit Tests, Live Chrome CDP E2E & Release Parity (\`test/v3-9-102-*.test.cjs\`, \`live-chrome-play-pause-test.cjs\`)
+- Added \`test/v3-9-102-p0-fiio-play-pause.test.cjs\`, \`test/v3-9-102-p0-drive-sync-search.test.cjs\`, and Chrome CDP E2E Group K with \`0\` uncaught JS exceptions.
 
 #### Tệp đính kèm:
 - **Nocturne-Android.apk**`;

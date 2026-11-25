@@ -1603,7 +1603,7 @@ public class MainActivity extends AppCompatActivity {
                                     // natively requests AUDIOFOCUS_GAIN for HTML5/WebAudio playback, which
                                     // triggers AUDIOFOCUS_LOSS here and would self-pause WebView playback!
                                     if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
-                                        if (!mIsInBackground && (android.os.SystemClock.elapsedRealtime() - mLastBitPerfectStartOrResumeElapsedMs) < 1500L) {
+                                        if ((!mIsInBackground && (android.os.SystemClock.elapsedRealtime() - mLastBitPerfectStartOrResumeElapsedMs) < 1500L) || (android.os.SystemClock.elapsedRealtime() - mLastBitPerfectStartOrResumeElapsedMs) < 1200L) {
                                             requestAudioFocus();
                                             if (mWebView != null) {
                                                 mWebView.post(() -> mWebView.evaluateJavascript(
@@ -1619,7 +1619,7 @@ public class MainActivity extends AppCompatActivity {
                                 case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
                                     mHasAudioFocus = false;
                                     if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
-                                        if (!mIsInBackground && (android.os.SystemClock.elapsedRealtime() - mLastBitPerfectStartOrResumeElapsedMs) < 1500L) {
+                                        if ((!mIsInBackground && (android.os.SystemClock.elapsedRealtime() - mLastBitPerfectStartOrResumeElapsedMs) < 1500L) || (android.os.SystemClock.elapsedRealtime() - mLastBitPerfectStartOrResumeElapsedMs) < 1200L) {
                                             requestAudioFocus();
                                             if (mWebView != null) {
                                                 mWebView.post(() -> mWebView.evaluateJavascript(
@@ -1668,12 +1668,30 @@ public class MainActivity extends AppCompatActivity {
                         mHasAudioFocus = false;
                         mPausedByTransientFocusLoss = false;
                         if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                            if ((android.os.SystemClock.elapsedRealtime() - mLastBitPerfectStartOrResumeElapsedMs) < 1200L) {
+                                requestAudioFocus();
+                                if (mWebView != null) {
+                                    mWebView.post(() -> mWebView.evaluateJavascript(
+                                            "if (typeof suspendWebAudioForBitPerfect === 'function') suspendWebAudioForBitPerfect();",
+                                            null));
+                                }
+                                return;
+                            }
                             mBitPerfectPlayer.pause();
                             syncAudioFocusNativeUiAndMediaSession(false);
                         }
                     } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
                         mHasAudioFocus = false;
                         if (mBitPerfectPlayer != null && mBitPerfectPlayer.isPlaying()) {
+                            if ((android.os.SystemClock.elapsedRealtime() - mLastBitPerfectStartOrResumeElapsedMs) < 1200L) {
+                                requestAudioFocus();
+                                if (mWebView != null) {
+                                    mWebView.post(() -> mWebView.evaluateJavascript(
+                                            "if (typeof suspendWebAudioForBitPerfect === 'function') suspendWebAudioForBitPerfect();",
+                                            null));
+                                }
+                                return;
+                            }
                             mPausedByTransientFocusLoss = true;
                             mBitPerfectPlayer.pause();
                             syncAudioFocusNativeUiAndMediaSession(false);
@@ -2070,7 +2088,12 @@ public class MainActivity extends AppCompatActivity {
         if (intent != null && intent.getAction() != null) {
             String action = intent.getAction();
             if (ACTION_PLAY_PAUSE.equals(action)) {
-                dispatchPlayPauseToWeb();
+                long nowNotif = SystemClock.elapsedRealtime();
+                if (mLastNotifPlayPauseAtMs == 0L || (nowNotif - mLastNotifPlayPauseAtMs) >= 350L) {
+                    mLastNotifPlayPauseAtMs = nowNotif;
+                    mLastPlayPauseTransportAtMs = nowNotif;
+                    dispatchPlayPauseToWeb();
+                }
             } else if (ACTION_NEXT.equals(action)) {
                 dispatchNextToWeb();
             } else if (ACTION_PREV.equals(action)) {
@@ -2085,7 +2108,7 @@ public class MainActivity extends AppCompatActivity {
                     ke = legacyKe;
                 }
                 if (ke != null && isMediaKey(ke.getKeyCode()) && ke.getAction() == KeyEvent.ACTION_DOWN && ke.getRepeatCount() == 0) {
-                    handleMediaKey(ke.getKeyCode());
+                    handleMediaKeyEvent(ke);
                 }
             }
         }
@@ -4040,11 +4063,59 @@ public class MainActivity extends AppCompatActivity {
                 keyCode == KeyEvent.KEYCODE_MEDIA_REWIND;
     }
 
+    private static boolean isPlayPauseMediaKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
+                keyCode == KeyEvent.KEYCODE_HEADSETHOOK ||
+                keyCode == KeyEvent.KEYCODE_MEDIA_PLAY ||
+                keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE ||
+                keyCode == KeyEvent.KEYCODE_MEDIA_STOP;
+    }
+
     private volatile long mLastHardwareMediaKeyAtMs = 0L;
     private volatile int mLastHardwareMediaKeyCode = -1;
+    private volatile long mLastPlayPauseTransportAtMs = 0L;
+    private volatile long mLastHardwareKeyDownTimeMs = -1L;
+    private volatile int mLastHardwareKeyDownCode = -1;
+    private volatile long mLastNotifPlayPauseAtMs = 0L;
+    private final Object mMediaKeyDedupLock = new Object();
+    private final ThreadLocal<Boolean> mInMediaKeyTransportDispatch = new ThreadLocal<>();
+
+    public boolean isDuplicateMediaKeyEvent(@Nullable KeyEvent ke) {
+        if (ke == null || !isMediaKey(ke.getKeyCode())) return false;
+        if (ke.getAction() != KeyEvent.ACTION_DOWN || ke.getRepeatCount() != 0) return false;
+        long downTime = ke.getDownTime();
+        int keyCode = ke.getKeyCode();
+        if (downTime <= 0L) return false;
+        synchronized (mMediaKeyDedupLock) {
+            if (downTime == mLastHardwareKeyDownTimeMs && keyCode == mLastHardwareKeyDownCode) {
+                return true;
+            }
+            mLastHardwareKeyDownTimeMs = downTime;
+            mLastHardwareKeyDownCode = keyCode;
+            return false;
+        }
+    }
+
+    public void handleMediaKeyEvent(@Nullable KeyEvent ke) {
+        if (ke == null || !isMediaKey(ke.getKeyCode())) return;
+        if (ke.getAction() == KeyEvent.ACTION_DOWN && ke.getRepeatCount() == 0) {
+            if (isDuplicateMediaKeyEvent(ke)) {
+                Log.d(TAG, "Debounced duplicate KeyEvent downTime=" + ke.getDownTime() + " code=" + ke.getKeyCode());
+                return;
+            }
+            handleMediaKey(ke.getKeyCode());
+        }
+    }
 
     public void handleMediaKey(int keyCode) {
         long nowKeyElapsed = SystemClock.elapsedRealtime();
+        if (isPlayPauseMediaKey(keyCode)) {
+            if (mLastPlayPauseTransportAtMs > 0L && (nowKeyElapsed - mLastPlayPauseTransportAtMs) < 450L) {
+                Log.d(TAG, "Debounced duplicate Play/Pause media key group: " + keyCode);
+                return;
+            }
+            mLastPlayPauseTransportAtMs = nowKeyElapsed;
+        }
         if (keyCode == mLastHardwareMediaKeyCode && (nowKeyElapsed - mLastHardwareMediaKeyAtMs) < 180L) {
             Log.d(TAG, "Debounced duplicate hardware media key: " + keyCode);
             return;
@@ -4052,6 +4123,8 @@ public class MainActivity extends AppCompatActivity {
         mLastHardwareMediaKeyCode = keyCode;
         mLastHardwareMediaKeyAtMs = nowKeyElapsed;
         Log.d(TAG, "Hardware Media Key intercepted: " + keyCode);
+        mInMediaKeyTransportDispatch.set(Boolean.TRUE);
+        try {
         switch (keyCode) {
             case KeyEvent.KEYCODE_MEDIA_NEXT:
                 dispatchNextToWeb();
@@ -4078,6 +4151,9 @@ public class MainActivity extends AppCompatActivity {
                 dispatchPlayPauseToWeb();
                 break;
         }
+        } finally {
+            mInMediaKeyTransportDispatch.remove();
+        }
     }
 
     @Override
@@ -4085,7 +4161,7 @@ public class MainActivity extends AppCompatActivity {
         int keyCode = event.getKeyCode();
         if (isMediaKey(keyCode)) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
-                handleMediaKey(keyCode);
+                handleMediaKeyEvent(event);
             }
             return true; // Return true so FiiO system music app doesn't steal the hardware key events!
         }
@@ -4095,7 +4171,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (isMediaKey(keyCode)) {
-            if (event.getRepeatCount() == 0) {
+            if (event != null && event.getRepeatCount() == 0) {
+                handleMediaKeyEvent(event);
+            } else if (event == null) {
                 handleMediaKey(keyCode);
             }
             return true;
@@ -4149,6 +4227,14 @@ public class MainActivity extends AppCompatActivity {
 
     public void dispatchPlayToWeb() {
         mPausedByTransientFocusLoss = false;
+        if (!Boolean.TRUE.equals(mInMediaKeyTransportDispatch.get())) {
+            long nowTransportElapsed = SystemClock.elapsedRealtime();
+            if (mLastPlayPauseTransportAtMs > 0L && (nowTransportElapsed - mLastPlayPauseTransportAtMs) < 450L) {
+                Log.d(TAG, "Debounced MediaSession onPlay echo");
+                return;
+            }
+            mLastPlayPauseTransportAtMs = nowTransportElapsed;
+        }
         runOnUiThread(() -> {
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
                 if (mBitPerfectPlayer.isPaused()) {
@@ -4179,6 +4265,14 @@ public class MainActivity extends AppCompatActivity {
 
     public void dispatchPauseToWeb() {
         mPausedByTransientFocusLoss = false;
+        if (!Boolean.TRUE.equals(mInMediaKeyTransportDispatch.get())) {
+            long nowTransportElapsed = SystemClock.elapsedRealtime();
+            if (mLastPlayPauseTransportAtMs > 0L && (nowTransportElapsed - mLastPlayPauseTransportAtMs) < 450L) {
+                Log.d(TAG, "Debounced MediaSession onPause/onStop echo");
+                return;
+            }
+            mLastPlayPauseTransportAtMs = nowTransportElapsed;
+        }
         runOnUiThread(() -> {
             if (mBitPerfectPlayer != null && (mBitPerfectPlayer.isPlaying() || mBitPerfectPlayer.isPaused())) {
                 if (mBitPerfectPlayer.isPlaying()) {
@@ -4280,7 +4374,12 @@ public class MainActivity extends AppCompatActivity {
             String action = intent.getAction();
             Log.d(TAG, "Media notification action received: " + action);
             if (ACTION_PLAY_PAUSE.equals(action)) {
-                dispatchPlayPauseToWeb();
+                long nowNotif = SystemClock.elapsedRealtime();
+                if (mLastNotifPlayPauseAtMs == 0L || (nowNotif - mLastNotifPlayPauseAtMs) >= 350L) {
+                    mLastNotifPlayPauseAtMs = nowNotif;
+                    mLastPlayPauseTransportAtMs = nowNotif;
+                    dispatchPlayPauseToWeb();
+                }
             } else if (ACTION_NEXT.equals(action)) {
                 dispatchNextToWeb();
             } else if (ACTION_PREV.equals(action)) {
@@ -4499,6 +4598,9 @@ public class MainActivity extends AppCompatActivity {
                             @SuppressWarnings("deprecation")
                             KeyEvent legacyKe = mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
                             ke = legacyKe;
+                        }
+                        if (isDuplicateMediaKeyEvent(ke)) {
+                            return true;
                         }
                         if (ke != null && isMediaKey(ke.getKeyCode())) {
                             if (ke.getAction() == KeyEvent.ACTION_DOWN && ke.getRepeatCount() == 0) {
@@ -6838,6 +6940,9 @@ public class MainActivity extends AppCompatActivity {
                 // 8. Playback loop
                 try {
                     if (!mIsPaused && !mIsStopped) {
+                        mLastBitPerfectStartOrResumeElapsedMs = android.os.SystemClock.elapsedRealtime();
+                    }
+                    if (!mIsPaused && !mIsStopped) {
                     track.play();
                     }
                 } catch (IllegalStateException ise) {
@@ -8711,11 +8816,11 @@ public class MainActivity extends AppCompatActivity {
         public String getAppBuildInfoJson() {
             try {
                 android.content.pm.PackageInfo pi = mActivity.getPackageManager().getPackageInfo(mActivity.getPackageName(), 0);
-                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.77";
+                String vName = pi != null && pi.versionName != null ? pi.versionName.replace("\"", "") : "3.9.102";
                 String model = Build.MODEL != null ? Build.MODEL.replace("\"", "") : "Android";
                 return "{\"versionName\":\"" + vName + "\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"" + model + "\"}";
             } catch (Exception e) {
-                return "{\"versionName\":\"3.9.77\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
+                return "{\"versionName\":\"3.9.102\",\"sdkInt\":" + Build.VERSION.SDK_INT + ",\"model\":\"Android\"}";
             }
         }
 

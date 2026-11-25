@@ -93,7 +93,7 @@ public class NocturnePlaybackService extends Service {
             if (ke != null && ke.getAction() == KeyEvent.ACTION_DOWN && ke.getRepeatCount() == 0) {
                 MainActivity active = MainActivity.getActiveInstance();
                 if (active != null) {
-                    active.handleMediaKey(ke.getKeyCode());
+                    active.handleMediaKeyEvent(ke);
                 } else {
                     Intent launchIntent = new Intent(this, MainActivity.class);
                     launchIntent.setAction(Intent.ACTION_MEDIA_BUTTON);

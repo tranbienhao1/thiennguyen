@@ -2372,7 +2372,7 @@
       <section id="fiio-dap-section" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/[.03] p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium text-amber-200">Máy nghe nhạc FiiO DAP &amp; Android</h3>
-          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.101</span>
+          <span id="fiio-dap-badge" class="rounded border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-mono text-amber-300">FiiO M11S · v3.9.102</span>
         </div>
         <p class="mt-1 text-[10px] leading-4 text-zinc-400">Tối ưu hóa phần cứng FiiO M11S (Snapdragon 660, Dual ES9038Q2M DAC), quét thẻ nhớ MicroSD tốc độ cao và đồng bộ thông báo Android Lockscreen.</p>
         <div class="mt-3 flex flex-wrap gap-2">
@@ -3681,7 +3681,7 @@
       return cover.length > MAX_CATALOG_COVER_CHARS ? null : cover;
     }
     const MAX_CATALOG_LYRICS_CHARS = 64 * 1024;
-    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, ...(track.targetRemoteId ? {targetRemoteId:String(track.targetRemoteId)} : {}), ...(track.remoteShortcutId ? {remoteShortcutId:String(track.remoteShortcutId)} : {}), ...(track.remoteDriveId ? {remoteDriveId:String(track.remoteDriveId)} : {}), ...(track.remoteParentId ? {remoteParentId:String(track.remoteParentId)} : {}), ...(track.remoteLrc && track.remoteLrc.id ? {remoteLrc:{id:String(track.remoteLrc.id), driveId:String(track.remoteLrc.driveId || ''), name:String(track.remoteLrc.name || ''), ...(track.remoteLrc.cTag ? {cTag:String(track.remoteLrc.cTag)} : {})}} : {}), remotePath:track.remotePath || '', ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), ...(typeof track.hasEmbeddedCover === 'boolean' ? {hasEmbeddedCover:track.hasEmbeddedCover} : {}), metadataLoaded:!!track.metadataLoaded, ...(track.replayGainTrackGain !== undefined ? {replayGainTrackGain:track.replayGainTrackGain} : {}), ...(track.replayGainTrackPeak !== undefined ? {replayGainTrackPeak:track.replayGainTrackPeak} : {}), ...(track.replayGainAlbumGain !== undefined ? {replayGainAlbumGain:track.replayGainAlbumGain} : {}), ...(track.replayGainAlbumPeak !== undefined ? {replayGainAlbumPeak:track.replayGainAlbumPeak} : {}), ...(track.iTunNORM ? {iTunNORM:String(track.iTunNORM)} : {}), ...(track._replayGainChecked ? {_replayGainChecked:true} : {}), ...(track._checkedDriveLrc ? {_checkedDriveLrc:true} : {}), ...(track._cloudLrcChecked ? {_cloudLrcChecked:true} : {}), ...(typeof track.lyricsText === 'string' && track.lyricsText && track.lyricsText.length <= MAX_CATALOG_LYRICS_CHARS ? {lyricsText:track.lyricsText} : {}), ...(track.lyricsSource ? {lyricsSource:String(track.lyricsSource)} : {}), ...(Number(track.rating) > 0 ? {rating:Number(track.rating)} : {}), ...(Number(track.playCount) > 0 ? {playCount:Number(track.playCount)} : {}), ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
+    const serializableCloudTrack = track => ({id:track.id, remoteId:track.remoteId, ...(track.targetRemoteId ? {targetRemoteId:String(track.targetRemoteId)} : {}), ...(track.remoteShortcutId ? {remoteShortcutId:String(track.remoteShortcutId)} : {}), ...(track.remoteDriveId ? {remoteDriveId:String(track.remoteDriveId)} : {}), ...(track.remoteParentId ? {remoteParentId:String(track.remoteParentId)} : {}), ...(track.remoteLrc && track.remoteLrc.id ? {remoteLrc:{id:String(track.remoteLrc.id), driveId:String(track.remoteLrc.driveId || ''), name:String(track.remoteLrc.name || ''), ...(track.remoteLrc.cTag ? {cTag:String(track.remoteLrc.cTag)} : {})}} : {}), remotePath:track.remotePath || '', ...(track.folderName ? {folderName:String(track.folderName)} : {}), ...(Array.isArray(track.parents) && track.parents.length ? {parents:track.parents.slice(0, 3)} : {}), ...(track.albumArtist && track.albumArtist !== track.artist ? {albumArtist:track.albumArtist} : {}), name:track.name, title:track.title, artist:track.artist, album:track.album, trackNumber:track.trackNumber != null ? track.trackNumber : null, discNumber:track.discNumber != null ? track.discNumber : null, format:track.format, size:track.size || 0, source:track.source, duration:track.duration, sampleRate:track.sampleRate, bitDepth:track.bitDepth, channels:track.channels, cover:coverForCatalog(track.cover), ...(typeof track.hasEmbeddedCover === 'boolean' ? {hasEmbeddedCover:track.hasEmbeddedCover} : {}), metadataLoaded:!!track.metadataLoaded, ...(track.replayGainTrackGain !== undefined ? {replayGainTrackGain:track.replayGainTrackGain} : {}), ...(track.replayGainTrackPeak !== undefined ? {replayGainTrackPeak:track.replayGainTrackPeak} : {}), ...(track.replayGainAlbumGain !== undefined ? {replayGainAlbumGain:track.replayGainAlbumGain} : {}), ...(track.replayGainAlbumPeak !== undefined ? {replayGainAlbumPeak:track.replayGainAlbumPeak} : {}), ...(track.iTunNORM ? {iTunNORM:String(track.iTunNORM)} : {}), ...(track._replayGainChecked ? {_replayGainChecked:true} : {}), ...(track._checkedDriveLrc ? {_checkedDriveLrc:true} : {}), ...(track._cloudLrcChecked ? {_cloudLrcChecked:true} : {}), ...(typeof track.lyricsText === 'string' && track.lyricsText && track.lyricsText.length <= MAX_CATALOG_LYRICS_CHARS ? {lyricsText:track.lyricsText} : {}), ...(track.lyricsSource ? {lyricsSource:String(track.lyricsSource)} : {}), ...(Number(track.rating) > 0 ? {rating:Number(track.rating)} : {}), ...(Number(track.playCount) > 0 ? {playCount:Number(track.playCount)} : {}), ...(track.contentRev ? {contentRev:String(track.contentRev)} : {}), savedAt:Date.now()});
     const googleTrack = file => {
       const format = audioFormat(file), metadata = filenameMetadata(file.name || '');
       const pathOrder = (typeof library !== 'undefined' && typeof library.extractDiscAndTrackFromPath === 'function')
@@ -3693,6 +3693,10 @@
       if (Array.isArray(file.parents) && file.parents.length) track.parents = file.parents.slice(0, 3);
       const gRev = file.md5Checksum || file.modifiedTime || '';
       if (gRev) track.contentRev = String(gRev);
+      if (typeof applyGoogleDriveFolderMetadataToTrack === 'function' && typeof getCachedGoogleFolderMaps === 'function') {
+        const gMaps = getCachedGoogleFolderMaps();
+        applyGoogleDriveFolderMetadataToTrack(track, gMaps.names, gMaps.tree);
+      }
       return track;
     };
     function normalizeMicrosoftDriveItem(rawItem, inheritedDriveId) {
@@ -3970,6 +3974,44 @@
       window.needsCloudMetadataEnrichment = needsCloudMetadataEnrichment;
       window.repopulateCloudMetadataQueue = repopulateCloudMetadataQueue;
     }
+    function getCloudMetadataPriority(track, urgentSet) {
+      if (!track) return 3;
+      const isUrgent = Boolean(urgentSet && typeof urgentSet.has === 'function' && urgentSet.has(track));
+      if (!track.metadataLoaded) return isUrgent ? 0 : 1;
+      if (!track.cover) return 2;
+      return 3;
+    }
+    function prioritizeCloudMetadataTracks(tracks) {
+      if (!Array.isArray(tracks) || !tracks.length) return 0;
+      const urgent = [];
+      for (let i = 0; i < tracks.length; i++) {
+        const track = tracks[i];
+        const needsMeta = (typeof needsCloudMetadataEnrichment === 'function')
+          ? needsCloudMetadataEnrichment(track)
+          : Boolean(track && !track._cloudSourceCleared && ['google', 'onedrive'].includes(track.source) && !(track.metadataLoaded && track.cover));
+        if (!needsMeta) continue;
+        if (track.source === 'google' && (!state.googleToken || Date.now() >= state.googleExpiresAt - 60000)) continue;
+        if (track.source === 'onedrive' && !state.microsoftAccessToken) continue;
+        urgent.push(track);
+      }
+      if (!urgent.length) return 0;
+      for (let i = urgent.length - 1; i >= 0; i--) {
+        const tr = urgent[i];
+        if (cloudMetadataQueued.has(tr)) {
+          const idx = cloudMetadataQueue.indexOf(tr);
+          if (idx !== -1) cloudMetadataQueue.splice(idx, 1);
+        } else {
+          cloudMetadataQueued.add(tr);
+        }
+        cloudMetadataQueue.unshift(tr);
+      }
+      runCloudMetadataQueue();
+      return urgent.length;
+    }
+    if (typeof window !== 'undefined') {
+      window.getCloudMetadataPriority = getCloudMetadataPriority;
+      window.prioritizeCloudMetadataTracks = prioritizeCloudMetadataTracks;
+    }
     function queueCloudMetadata(tracks) {
       if (!Array.isArray(tracks) || !tracks.length) return;
       for (const track of tracks) {
@@ -3981,6 +4023,9 @@
         if (track.source === 'onedrive' && !state.microsoftAccessToken) continue;
         cloudMetadataQueued.add(track);
         cloudMetadataQueue.push(track);
+      }
+      if (cloudMetadataQueue.length > 1 && typeof getCloudMetadataPriority === 'function') {
+        cloudMetadataQueue.sort((a, b) => getCloudMetadataPriority(a, null) - getCloudMetadataPriority(b, null));
       }
       runCloudMetadataQueue();
     }
@@ -4066,6 +4111,7 @@
       }
     }
     let cloudMetadataBackoffMs = 0;
+    let cloudMetadataDeferredLrc = false;
     function isCloudMetadataRateLimitError(err) {
       if (!err) return false;
       const st = Number(err.status) || 0;
@@ -4077,7 +4123,12 @@
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
       if (cloudMetadataPausedUntil && Date.now() < cloudMetadataPausedUntil) return;
       if (state.isPlaybackLoading) return;
-      const maxMetaConcurrency = (IS_LEGACY_ANDROID || (typeof state !== 'undefined' && state && state.fiioDapMode)) ? 1 : CLOUD_METADATA_CONCURRENCY;
+      const isLowPowerOrFiio = Boolean(IS_LEGACY_ANDROID || (typeof state !== 'undefined' && state && state.fiioDapMode));
+      const nextQueuedMeta = cloudMetadataQueue[0];
+      const hasUntaggedHead = Boolean(nextQueuedMeta && !nextQueuedMeta.metadataLoaded);
+      const maxMetaConcurrency = IS_LEGACY_ANDROID
+        ? (hasUntaggedHead ? 2 : 1)
+        : (isLowPowerOrFiio ? CLOUD_METADATA_CONCURRENCY : CLOUD_METADATA_CONCURRENCY);
       while (cloudMetadataActive < maxMetaConcurrency && cloudMetadataQueue.length) {
         if (state.isPlaybackLoading) break;
         if (typeof navigator !== 'undefined' && navigator.onLine === false) break;
@@ -4112,6 +4163,12 @@
             if (typeof stopCloudMetadataCheckpointTimer === 'function') stopCloudMetadataCheckpointTimer();
             if (typeof pendingCloudCatalogPersistMap !== 'undefined' && pendingCloudCatalogPersistMap.size > 0 && typeof flushQueuedCloudCatalogPersist === 'function') {
               flushQueuedCloudCatalogPersist(true);
+            }
+            if (typeof cloudMetadataDeferredLrc !== 'undefined' && cloudMetadataDeferredLrc) {
+              cloudMetadataDeferredLrc = false;
+              if (typeof repopulateCloudMetadataQueue === 'function' && typeof setTimeout === 'function') {
+                setTimeout(() => { repopulateCloudMetadataQueue(); }, 250);
+              }
             }
           }
           runCloudMetadataQueue();
@@ -4240,7 +4297,14 @@
       );
       const shouldFetchTags = !track.metadataLoaded || !hasRgAlready;
       const shouldFetchImage = !track.cover;
+      const deferLrcForTagBacklog = Boolean(
+        !track.metadataLoaded &&
+        typeof cloudMetadataQueue !== 'undefined' &&
+        Array.isArray(cloudMetadataQueue) &&
+        cloudMetadataQueue.some(t => t && !t.metadataLoaded)
+      );
       const needSidecarLrc = Boolean(
+        !deferLrcForTagBacklog &&
         (!track.lyricsText || track.lyricsSource === 'cloud-sidecar' || track._lrcDirty === true) &&
         typeof fetchCloudSidecarLrc === 'function' &&
         ((track.source === 'google' && !track._checkedDriveLrc) || (track.source === 'onedrive' && !track._cloudLrcChecked))
@@ -4422,6 +4486,16 @@
           delete track.metadataRetryAt;
         } else if (track.source === 'onedrive' && track.metadataLoaded) {
           track.metadataRetryAt = Date.now() + 60 * 60 * 1000;
+        }
+      }
+      if (deferLrcForTagBacklog && track.metadataLoaded && !tagErr && !imgErr) {
+        const stillNeedsDeferredLrc = Boolean(
+          (!track.lyricsText || track.lyricsSource === 'cloud-sidecar' || track._lrcDirty === true) &&
+          ((track.source === 'google' && !track._checkedDriveLrc) || (track.source === 'onedrive' && !track._cloudLrcChecked))
+        );
+        if (stillNeedsDeferredLrc) {
+          delete track.metadataRetryAt;
+          if (typeof cloudMetadataDeferredLrc !== 'undefined') cloudMetadataDeferredLrc = true;
         }
       }
       if (track.source === 'onedrive' && track.downloadUrl) { track.downloadUrl = ''; }
@@ -8787,7 +8861,9 @@
           if (typeof localStorage !== 'undefined' && localStorage) {
             localStorage.removeItem('nocturne-google-account');
             localStorage.removeItem('nocturne-google-folder-tree');
+            localStorage.removeItem('nocturne-google-folder-names');
           }
+          if (typeof resetCachedGoogleFolderMaps === 'function') resetCachedGoogleFolderMaps();
         } catch (_) {}
         try {
           if (typeof checkedGoogleArtParents !== 'undefined' && checkedGoogleArtParents && typeof checkedGoogleArtParents.clear === 'function') {
@@ -11636,6 +11712,18 @@
         if (!artists.get(artistKey).cover && albumCover) artists.get(artistKey).cover = albumCover;
       }
       const isArtistView = ['artists','composers'].includes(view), isSongView = view === 'songs', isGenreView = view === 'genres';
+      const queryRaw = String(state.query || '').trim();
+      const queryKey = queryRaw ? library.normalizeSearchKey(state.query) : '';
+      const queryMatchesCardText = text => {
+        if (!queryKey) return true;
+        const textKey = library.normalizeSearchKey(text || '');
+        if (typeof library.matchSearchQuery === 'function') return library.matchSearchQuery(textKey, queryKey);
+        return textKey.includes(queryKey);
+      };
+      const entryHasMatchingTrack = entry => Boolean(
+        entry && Array.isArray(entry.tracks) && entry.tracks.length > 0 &&
+        entry.tracks.some(tr => library.filterTracks([tr], { query: state.query }).length > 0)
+      );
       let entries = [];
       if (isGenreView && typeof (library && library.groupTracksByGenreMood) === 'function') {
         entries = library.groupTracksByGenreMood(tracks).map(g => ({
@@ -11646,7 +11734,7 @@
           subtitle: `${g.tracks.length} bài hát`,
           action: 'genre'
         })).filter(entry => {
-          if (state.query && !library.normalizeSearchKey(entry.name).includes(library.normalizeSearchKey(state.query))) return false;
+          if (queryKey && !queryMatchesCardText(entry.name) && !entryHasMatchingTrack(entry)) return false;
           return true;
         });
       } else {
@@ -11660,7 +11748,7 @@
             const colInfo = collections ? collections.getTrackCollection(track) : null;
             return ((colInfo && colInfo.albumKey) || `${library.normalizeSearchKey(metadata(track).album)}\t${library.normalizeSearchKey(metadata(track).artist)}`) === state.album;
           })) return false;
-          if (state.query && !library.normalizeSearchKey(`${entry.name} ${entry.artist || ''}`).includes(library.normalizeSearchKey(state.query))) return false;
+          if (queryKey && !queryMatchesCardText(`${entry.name} ${entry.artist || ''}`) && !entryHasMatchingTrack(entry)) return false;
           return true;
         });
       }
@@ -11673,7 +11761,8 @@
       state._latestCollectionEntries = entries;
 
       const empty = $('empty-state');
-      const showRows = isSongView || view === 'history' || (view === 'albums' && state.collectionSort === 'tracks') || Boolean(state.trackScope);
+      let showRows = isSongView || view === 'history' || (view === 'albums' && state.collectionSort === 'tracks') || Boolean(state.trackScope);
+      if (!showRows && !state.trackScope && queryRaw && entries.length === 0 && tracks.length > 0) showRows = true;
       if (!state.trackScope) /* $('album-hero')?.classList.add('hidden') */ safeClass($('album-hero'), 'add', 'hidden');
       grid.classList.toggle('hidden', showRows || !!state.trackScope);
       $('track-list').classList.toggle('hidden', !showRows && !state.trackScope);
@@ -20976,8 +21065,41 @@
     const GOOGLE_DELTA_RESUME_KEY = 'nocturne-google-delta-resume';
     const MICROSOFT_DELTA_RESUME_KEY = 'nocturne-microsoft-delta-resume';
     const GOOGLE_FOLDER_TREE_KEY = 'nocturne-google-folder-tree';
+    const GOOGLE_FOLDER_NAMES_KEY = 'nocturne-google-folder-names';
     const MICROSOFT_FOLDER_TREE_KEY = 'nocturne-onedrive-folder-tree';
     const CLOUD_FOLDER_TREE_MAX_ENTRIES = 20000;
+    let _cachedGoogleTreeRaw = null;
+    let _cachedGoogleTreeObj = {};
+    let _cachedGoogleNamesRaw = null;
+    let _cachedGoogleNamesObj = {};
+    function resetCachedGoogleFolderMaps() {
+      _cachedGoogleTreeRaw = null;
+      _cachedGoogleTreeObj = {};
+      _cachedGoogleNamesRaw = null;
+      _cachedGoogleNamesObj = {};
+    }
+    function getCachedGoogleFolderMaps() {
+      try {
+        if (typeof localStorage === 'undefined' || !localStorage) return { tree: {}, names: {} };
+        const rawTree = localStorage.getItem(GOOGLE_FOLDER_TREE_KEY) || '';
+        if (rawTree !== _cachedGoogleTreeRaw) {
+          _cachedGoogleTreeRaw = rawTree;
+          let parsedTree = null;
+          try { parsedTree = rawTree ? JSON.parse(rawTree) : null; } catch (_) {}
+          _cachedGoogleTreeObj = (parsedTree && typeof parsedTree === 'object' && !Array.isArray(parsedTree)) ? parsedTree : {};
+        }
+        const rawNames = localStorage.getItem(GOOGLE_FOLDER_NAMES_KEY) || '';
+        if (rawNames !== _cachedGoogleNamesRaw) {
+          _cachedGoogleNamesRaw = rawNames;
+          let parsedNames = null;
+          try { parsedNames = rawNames ? JSON.parse(rawNames) : null; } catch (_) {}
+          _cachedGoogleNamesObj = (parsedNames && typeof parsedNames === 'object' && !Array.isArray(parsedNames)) ? parsedNames : {};
+        }
+        return { tree: _cachedGoogleTreeObj, names: _cachedGoogleNamesObj };
+      } catch (_) {
+        return { tree: {}, names: {} };
+      }
+    }
     function readCloudFolderTree(key) {
       try {
         if (typeof localStorage === 'undefined' || !localStorage) return {};
@@ -20992,6 +21114,9 @@
     function writeCloudFolderTree(key, treeObj) {
       try {
         if (typeof localStorage === 'undefined' || !localStorage) return false;
+        if ((key === GOOGLE_FOLDER_TREE_KEY || key === GOOGLE_FOLDER_NAMES_KEY) && typeof resetCachedGoogleFolderMaps === 'function') {
+          resetCachedGoogleFolderMaps();
+        }
         if (!treeObj || typeof treeObj !== 'object') {
           localStorage.removeItem(key);
           return true;
@@ -21012,6 +21137,240 @@
       } catch (_) {
         return false;
       }
+    }
+    function isGenericDriveFolderName(name) {
+      const clean = String(name || '').trim();
+      if (!clean || clean.length <= 1) return true;
+      return /^(?:my drive|drive của tôi|shared drives?|shared with me|được chia sẻ với tôi|music|nhạc|nhac|flac|lossless|hi-?res|dsd|audio|downloads?|tải xuống|shared|albums?|songs?|root)$/i.test(clean);
+    }
+    function isGenericTrackAlbumOrArtistValue(val) {
+      const clean = String(val || '').trim();
+      if (!clean) return true;
+      return /^(?:-|—|unknown album|unknown artist|nghệ sĩ không xác định|chưa rõ album|single \/ chưa rõ album|bài hát không tên|fiio internal & sd card)$/i.test(clean);
+    }
+    function applyGoogleDriveFolderMetadataToTrack(track, folderNames, folderTree) {
+      if (!track || track.source !== 'google' || !Array.isArray(track.parents) || !track.parents.length) return false;
+      const namesMap = (folderNames && typeof folderNames === 'object') ? folderNames : {};
+      const treeMap = (folderTree && typeof folderTree === 'object') ? folderTree : {};
+      const parentId = String(track.parents[0] || '').trim();
+      if (!parentId || parentId === 'root') return false;
+      const parentName = String(namesMap[parentId] || '').trim();
+      if (!parentName) return false;
+      const isDiscFn = (typeof library !== 'undefined' && library && typeof library.isDiscSubfolderName === 'function')
+        ? library.isDiscSubfolderName
+        : (n => /^(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*\d{1,2}(?:\b.*)?$/i.test(String(n || '').trim()));
+      const isDiscSub = Boolean(isDiscFn(parentName));
+      let mutated = false;
+      if (isDiscSub && track.discNumber == null) {
+        const dm = parentName.match(/\b(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*(\d{1,2})\b/i);
+        const dn = dm ? parseInt(dm[1], 10) : 0;
+        if (dn > 0) {
+          track.discNumber = dn;
+          mutated = true;
+        }
+      }
+      let albumFolderId = parentId;
+      let albumFolderName = parentName;
+      let discFolderPart = '';
+      if (isDiscSub) {
+        discFolderPart = parentName;
+        const gpParents = Array.isArray(treeMap[parentId]) ? treeMap[parentId] : [];
+        const gpId = gpParents.length ? String(gpParents[0] || '').trim() : '';
+        const gpName = (gpId && gpId !== 'root') ? String(namesMap[gpId] || '').trim() : '';
+        if (gpName) {
+          albumFolderId = gpId;
+          albumFolderName = gpName;
+        } else {
+          albumFolderId = '';
+          albumFolderName = '';
+        }
+      }
+      let grandparentName = '';
+      if (albumFolderId) {
+        const artParents = Array.isArray(treeMap[albumFolderId]) ? treeMap[albumFolderId] : [];
+        const artId = artParents.length ? String(artParents[0] || '').trim() : '';
+        const rawGpName = (artId && artId !== 'root') ? String(namesMap[artId] || '').trim() : '';
+        if (rawGpName && !isGenericDriveFolderName(rawGpName) && !isDiscFn(rawGpName)) {
+          grandparentName = rawGpName;
+        }
+      }
+      const effectiveFolderName = albumFolderName || parentName;
+      if (effectiveFolderName && track.folderName !== effectiveFolderName) {
+        track.folderName = effectiveFolderName;
+        mutated = true;
+      }
+      const pathParts = [grandparentName, albumFolderName, discFolderPart, String(track.name || '').trim()].filter(Boolean);
+      const nextRemotePath = pathParts.join('/');
+      if (nextRemotePath && track.remotePath !== nextRemotePath) {
+        track.remotePath = nextRemotePath;
+        mutated = true;
+      }
+      if (!track.metadataLoaded && albumFolderName && !isGenericDriveFolderName(albumFolderName) && isGenericTrackAlbumOrArtistValue(track.album)) {
+        const parts = albumFolderName.split(/\s+[–—-]\s+/);
+        const splitAlbum = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : '';
+        if (parts.length >= 2 && !isGenericDriveFolderName(parts[0]) && splitAlbum) {
+          const folderArtist = parts[0].trim();
+          if (track.album !== splitAlbum) { track.album = splitAlbum; mutated = true; }
+          if (isGenericTrackAlbumOrArtistValue(track.artist) && track.artist !== folderArtist) { track.artist = folderArtist; mutated = true; }
+        } else {
+          if (track.album !== albumFolderName) { track.album = albumFolderName; mutated = true; }
+          if (isGenericTrackAlbumOrArtistValue(track.artist) && grandparentName && track.artist !== grandparentName) { track.artist = grandparentName; mutated = true; }
+        }
+      }
+      return mutated;
+    }
+    function resolveOldGoogleFolderArtists(track) {
+      const candidates = [];
+      if (!track) return candidates;
+      const addCandidate = val => {
+        const clean = String(val || '').trim();
+        if (clean && candidates.indexOf(clean) === -1) candidates.push(clean);
+      };
+      const addSplitArtist = folderLabel => {
+        const clean = String(folderLabel || '').trim();
+        if (!clean) return;
+        const parts = clean.split(/\s+[–—-]\s+/);
+        if (parts.length >= 2 && !isGenericDriveFolderName(parts[0])) {
+          addCandidate(parts[0]);
+        }
+      };
+      if (track.folderName) addSplitArtist(track.folderName);
+      const prevParents = Array.isArray(track.parents) ? track.parents : [];
+      const oldPid = prevParents.length ? String(prevParents[0] || '').trim() : '';
+      if (oldPid && oldPid !== 'root' && typeof getCachedGoogleFolderMaps === 'function') {
+        const maps = getCachedGoogleFolderMaps();
+        const namesMap = (maps && maps.names) ? maps.names : {};
+        const treeMap = (maps && maps.tree) ? maps.tree : {};
+        const oldParentName = String(namesMap[oldPid] || '').trim();
+        const isDiscFn = (typeof library !== 'undefined' && library && typeof library.isDiscSubfolderName === 'function')
+          ? library.isDiscSubfolderName
+          : (n => /^(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*\d{1,2}(?:\b.*)?$/i.test(String(n || '').trim()));
+        let albumFolderId = oldPid;
+        let albumFolderName = oldParentName;
+        if (oldParentName && isDiscFn(oldParentName)) {
+          const gpArr = Array.isArray(treeMap[oldPid]) ? treeMap[oldPid] : [];
+          albumFolderId = gpArr.length ? String(gpArr[0] || '').trim() : '';
+          albumFolderName = (albumFolderId && albumFolderId !== 'root') ? String(namesMap[albumFolderId] || '').trim() : '';
+        }
+        if (albumFolderName) addSplitArtist(albumFolderName);
+        if (albumFolderId && albumFolderId !== 'root') {
+          const artArr = Array.isArray(treeMap[albumFolderId]) ? treeMap[albumFolderId] : [];
+          const artId = artArr.length ? String(artArr[0] || '').trim() : '';
+          const gpName = (artId && artId !== 'root') ? String(namesMap[artId] || '').trim() : '';
+          if (gpName && !isGenericDriveFolderName(gpName) && !isDiscFn(gpName)) {
+            addCandidate(gpName);
+          }
+        }
+      }
+      return candidates;
+    }
+    async function hydrateGoogleDriveFolderMetadata(tracks, token, getTokenFn, refreshTokenFn) {
+      if (!Array.isArray(tracks) || !tracks.length) return [];
+      const folderTree = (typeof readCloudFolderTree === 'function') ? readCloudFolderTree(GOOGLE_FOLDER_TREE_KEY) : {};
+      const folderNames = (typeof readCloudFolderTree === 'function') ? readCloudFolderTree(GOOGLE_FOLDER_NAMES_KEY) : {};
+      let curTok = token || (typeof getTokenFn === 'function' ? getTokenFn() : '');
+      let treeDirty = false;
+      let namesDirty = false;
+      const HYDRATE_CAP = 60;
+      const attempted = new Set();
+      let totalFetched = 0;
+      const fetchMissingFolderBatch = async (ids) => {
+        if (!curTok || !ids.length || totalFetched >= HYDRATE_CAP) return;
+        const slice = ids.slice(0, Math.max(0, HYDRATE_CAP - totalFetched));
+        totalFetched += slice.length;
+        for (let i = 0; i < slice.length; i += 4) {
+          const batch = slice.slice(i, i + 4);
+          await Promise.all(batch.map(async pid => {
+            try {
+              const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(pid)}?fields=id,name,parents&supportsAllDrives=true`;
+              const resp = (typeof fetchGoogleDrivePageWithRetry === 'function')
+                ? await fetchGoogleDrivePageWithRetry(
+                    url,
+                    () => (typeof getTokenFn === 'function' ? getTokenFn() : curTok),
+                    async () => {
+                      curTok = (typeof refreshTokenFn === 'function') ? await refreshTokenFn() : (typeof ensureGoogleToken === 'function' ? await ensureGoogleToken(true) : curTok);
+                      return curTok;
+                    }
+                  )
+                : await fetch(url, { headers: { Authorization: `Bearer ${curTok}` } });
+              if (!resp || !resp.ok) return;
+              const data = await resp.json();
+              if (!data || !data.id) return;
+              const fid = String(data.id);
+              const fname = String(data.name || '').trim();
+              if (fname && folderNames[fid] !== fname) {
+                folderNames[fid] = fname;
+                namesDirty = true;
+              }
+              const fparents = Array.isArray(data.parents) ? data.parents.slice(0, 3).map(String).filter(Boolean) : [];
+              if (!Object.prototype.hasOwnProperty.call(folderTree, fid) || JSON.stringify(folderTree[fid]) !== JSON.stringify(fparents)) {
+                folderTree[fid] = fparents;
+                treeDirty = true;
+              }
+            } catch (_) {}
+          }));
+        }
+      };
+      const collectMissing = (idList) => {
+        const out = [];
+        for (let i = 0; i < idList.length; i++) {
+          const pid = String(idList[i] || '').trim();
+          if (!pid || pid === 'root' || attempted.has(pid)) continue;
+          attempted.add(pid);
+          if (!Object.prototype.hasOwnProperty.call(folderNames, pid) || !Object.prototype.hasOwnProperty.call(folderTree, pid)) {
+            out.push(pid);
+          }
+        }
+        return out;
+      };
+      const directParents = [];
+      for (let i = 0; i < tracks.length; i++) {
+        const tr = tracks[i];
+        if (tr && tr.source === 'google' && Array.isArray(tr.parents) && tr.parents.length) {
+          directParents.push(tr.parents[0]);
+        }
+      }
+      await fetchMissingFolderBatch(collectMissing(directParents));
+      const isDiscFn = (typeof library !== 'undefined' && library && typeof library.isDiscSubfolderName === 'function')
+        ? library.isDiscSubfolderName
+        : (n => /^(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*\d{1,2}(?:\b.*)?$/i.test(String(n || '').trim()));
+      const secondHopIds = [];
+      for (let i = 0; i < tracks.length; i++) {
+        const tr = tracks[i];
+        if (!tr || tr.source !== 'google' || !Array.isArray(tr.parents) || !tr.parents.length) continue;
+        const pid = String(tr.parents[0] || '').trim();
+        if (!pid || pid === 'root') continue;
+        const gpParents = Array.isArray(folderTree[pid]) ? folderTree[pid] : [];
+        if (gpParents.length) secondHopIds.push(gpParents[0]);
+      }
+      await fetchMissingFolderBatch(collectMissing(secondHopIds));
+      const thirdHopIds = [];
+      for (let i = 0; i < tracks.length; i++) {
+        const tr = tracks[i];
+        if (!tr || tr.source !== 'google' || !Array.isArray(tr.parents) || !tr.parents.length) continue;
+        const pid = String(tr.parents[0] || '').trim();
+        const pName = String(folderNames[pid] || '').trim();
+        if (!pName || !isDiscFn(pName)) continue;
+        const gpParents = Array.isArray(folderTree[pid]) ? folderTree[pid] : [];
+        const gpId = gpParents.length ? String(gpParents[0] || '').trim() : '';
+        const ggpParents = (gpId && Array.isArray(folderTree[gpId])) ? folderTree[gpId] : [];
+        if (ggpParents.length) thirdHopIds.push(ggpParents[0]);
+      }
+      await fetchMissingFolderBatch(collectMissing(thirdHopIds));
+      if (treeDirty && typeof writeCloudFolderTree === 'function') {
+        writeCloudFolderTree(GOOGLE_FOLDER_TREE_KEY, folderTree);
+      }
+      if (namesDirty && typeof writeCloudFolderTree === 'function') {
+        writeCloudFolderTree(GOOGLE_FOLDER_NAMES_KEY, folderNames);
+      }
+      const mutatedTracks = [];
+      for (let i = 0; i < tracks.length; i++) {
+        const tr = tracks[i];
+        if (tr && applyGoogleDriveFolderMetadataToTrack(tr, folderNames, folderTree)) {
+          mutatedTracks.push(tr);
+        }
+      }
+      return mutatedTracks;
     }
     function buildChildFolderIndex(folderTree, parentExtractor) {
       const childMap = new Map();
@@ -21035,6 +21394,7 @@
       try {
         let curTok = token;
         const folderTree = {};
+        const folderNames = {};
         let pageToken = '';
         let pages = 0;
         let treeComplete = true;
@@ -21046,7 +21406,7 @@
           }
           const params = new URLSearchParams({
             q: "trashed = false and mimeType = 'application/vnd.google-apps.folder'",
-            fields: 'nextPageToken,files(id,parents)',
+            fields: 'nextPageToken,files(id,name,parents)',
             pageSize: '1000',
             supportsAllDrives: 'true',
             includeItemsFromAllDrives: 'true'
@@ -21071,7 +21431,10 @@
           for (let fi = 0; fi < files.length; fi++) {
             const f = files[fi];
             if (!f || !f.id) continue;
-            folderTree[String(f.id)] = Array.isArray(f.parents) ? f.parents.slice(0, 3).map(String) : [];
+            const fid = String(f.id);
+            folderTree[fid] = Array.isArray(f.parents) ? f.parents.slice(0, 3).map(String) : [];
+            const fName = String(f.name || '').trim();
+            if (fName) folderNames[fid] = fName;
           }
           pageToken = (data && data.nextPageToken) ? String(data.nextPageToken) : '';
         } while (pageToken);
@@ -21083,6 +21446,15 @@
             const prevTree = (typeof readCloudFolderTree === 'function') ? readCloudFolderTree(GOOGLE_FOLDER_TREE_KEY) : null;
             const mergedTree = (prevTree && typeof prevTree === 'object') ? Object.assign({}, prevTree, folderTree) : folderTree;
             writeCloudFolderTree(GOOGLE_FOLDER_TREE_KEY, mergedTree);
+          }
+        }
+        if (Object.keys(folderNames).length > 0 && typeof writeCloudFolderTree === 'function' && typeof GOOGLE_FOLDER_NAMES_KEY === 'string') {
+          if (treeComplete) {
+            writeCloudFolderTree(GOOGLE_FOLDER_NAMES_KEY, folderNames);
+          } else {
+            const prevNames = (typeof readCloudFolderTree === 'function') ? readCloudFolderTree(GOOGLE_FOLDER_NAMES_KEY) : null;
+            const mergedNames = (prevNames && typeof prevNames === 'object') ? Object.assign({}, prevNames, folderNames) : folderNames;
+            writeCloudFolderTree(GOOGLE_FOLDER_NAMES_KEY, mergedNames);
           }
         }
         return folderTree;
@@ -21193,6 +21565,9 @@
       const changedLrcParents = new Set();
       const removedFolderIds = new Set();
       const deletedRemoteIds = new Set();
+      const renamedOrReparentedFolderIds = new Set();
+      const prevFolderNameById = new Map();
+      const prevFolderParentsById = new Map();
       const deltaResumeCp = (typeof readCloudSyncCheckpoint === 'function') ? readCloudSyncCheckpoint(GOOGLE_DELTA_RESUME_KEY) : null;
       if (deltaResumeCp && deltaResumeCp.baseCursor === baseCursor && deltaResumeCp.cursor) {
         cursor = String(deltaResumeCp.cursor);
@@ -21205,10 +21580,12 @@
       const existingByTargetId = new Map();
       const existingByParentId = new Map();
       const googleFolderTree = (typeof readCloudFolderTree === 'function') ? readCloudFolderTree(GOOGLE_FOLDER_TREE_KEY) : {};
+      const googleFolderNames = (typeof readCloudFolderTree === 'function' && typeof GOOGLE_FOLDER_NAMES_KEY === 'string') ? readCloudFolderTree(GOOGLE_FOLDER_NAMES_KEY) : {};
       const childFoldersByParentId = (typeof buildChildFolderIndex === 'function')
         ? buildChildFolderIndex(googleFolderTree, entry => (Array.isArray(entry) ? entry : []))
         : new Map();
       let googleFolderTreeDirty = false;
+      let googleFolderNamesDirty = false;
       const linkGoogleFolderParents = (folderId, parentsArr) => {
         const fidStr = String(folderId || '').trim();
         if (!fidStr) return;
@@ -21278,6 +21655,15 @@
                 const idx = oldList.indexOf(existing);
                 if (idx !== -1) oldList.splice(idx, 1);
               }
+            }
+            if (!existing.metadataLoaded) {
+              const oldFolderArtists = (typeof resolveOldGoogleFolderArtists === 'function')
+                ? resolveOldGoogleFolderArtists(existing)
+                : (existing.folderName && existing.folderName.split(/\s+[–—-]\s+/).length >= 2 ? [existing.folderName.split(/\s+[–—-]\s+/)[0].trim()] : []);
+              if (existing.artist && oldFolderArtists.indexOf(String(existing.artist).trim()) !== -1) {
+                existing.artist = (typeof library !== 'undefined' && library && library.UNKNOWN_ARTIST) ? library.UNKNOWN_ARTIST : 'Nghệ sĩ không xác định';
+              }
+              existing.album = (typeof library !== 'undefined' && library && library.UNKNOWN_ALBUM) ? library.UNKNOWN_ALBUM : '—';
             }
             existing.parents = nextParents;
             indexGoogleTrackParents(existing);
@@ -21481,11 +21867,29 @@
             if (newScTid && (knownIds.has(newScTid) || existingByTargetId.has(newScTid))) continue;
             if (!isCloudAudio(file)) {
               if (file.mimeType === 'application/vnd.google-apps.folder') {
-                removedFolderIds.delete(String(fid));
-                linkGoogleFolderParents(String(fid), file.parents);
-                changedArtParents.add(String(fid));
-                changedLrcParents.add(String(fid));
+                const fidStr = String(fid);
+                removedFolderIds.delete(fidStr);
+                const hadPrevTreeEntry = Object.prototype.hasOwnProperty.call(googleFolderTree, fidStr);
+                const prevParents = (hadPrevTreeEntry && Array.isArray(googleFolderTree[fidStr])) ? googleFolderTree[fidStr].map(String) : null;
+                if (!prevFolderParentsById.has(fidStr) && prevParents) {
+                  prevFolderParentsById.set(fidStr, prevParents);
+                }
+                const nextParents = Array.isArray(file.parents) ? file.parents.slice(0, 3).map(String).filter(Boolean) : [];
+                const parentsChanged = Boolean(Array.isArray(file.parents) && (!prevParents || prevParents.join(',') !== nextParents.join(',')));
+                linkGoogleFolderParents(fidStr, file.parents);
+                changedArtParents.add(fidStr);
+                changedLrcParents.add(fidStr);
                 const folderName = String(file.name || '').trim();
+                const prevName = Object.prototype.hasOwnProperty.call(googleFolderNames, fidStr) ? String(googleFolderNames[fidStr] || '').trim() : '';
+                if (!prevFolderNameById.has(fidStr)) prevFolderNameById.set(fidStr, prevName);
+                const nameChanged = Boolean(folderName && prevName !== folderName);
+                if (nameChanged) {
+                  googleFolderNames[fidStr] = folderName;
+                  googleFolderNamesDirty = true;
+                }
+                if (nameChanged || parentsChanged) {
+                  renamedOrReparentedFolderIds.add(fidStr);
+                }
                 if (folderName && isDiscDirFn(folderName)) {
                   const dm = folderName.match(/\b(?:cd|disc|disk|side|vol(?:ume)?|part)\s*[-_.#]?\s*0*(\d{1,2})\b/i);
                   const parsedDisc = dm ? parseInt(dm[1], 10) : 0;
@@ -21534,6 +21938,9 @@
         if (googleFolderTreeDirty && typeof writeCloudFolderTree === 'function') {
           writeCloudFolderTree(GOOGLE_FOLDER_TREE_KEY, googleFolderTree);
         }
+        if (googleFolderNamesDirty && typeof writeCloudFolderTree === 'function' && typeof GOOGLE_FOLDER_NAMES_KEY === 'string') {
+          writeCloudFolderTree(GOOGLE_FOLDER_NAMES_KEY, googleFolderNames);
+        }
         if (cursor && typeof writeCloudSyncCheckpoint === 'function') {
           writeCloudSyncCheckpoint(GOOGLE_DELTA_RESUME_KEY, {
             baseCursor,
@@ -21568,6 +21975,10 @@
             delete googleFolderTree[rfid];
             googleFolderTreeDirty = true;
           }
+          if (Object.prototype.hasOwnProperty.call(googleFolderNames, rfid)) {
+            delete googleFolderNames[rfid];
+            googleFolderNamesDirty = true;
+          }
           const children = existingByParentId.get(rfid) || [];
           for (let ci = 0; ci < children.length; ci++) {
             const child = children[ci];
@@ -21598,6 +22009,144 @@
           }
         }
       }
+      if (googleFolderTreeDirty && typeof writeCloudFolderTree === 'function') {
+        writeCloudFolderTree(GOOGLE_FOLDER_TREE_KEY, googleFolderTree);
+        googleFolderTreeDirty = false;
+      }
+      if (googleFolderNamesDirty && typeof writeCloudFolderTree === 'function' && typeof GOOGLE_FOLDER_NAMES_KEY === 'string') {
+        writeCloudFolderTree(GOOGLE_FOLDER_NAMES_KEY, googleFolderNames);
+        googleFolderNamesDirty = false;
+      }
+      if (typeof hydrateGoogleDriveFolderMetadata === 'function') {
+        const folderHydrateTrackSet = new Set();
+        const hydrateTargets = [];
+        const addHydrateTarget = tr => {
+          if (!tr || deletedRemoteIds.has(tr.remoteId) || folderHydrateTrackSet.has(tr)) return;
+          folderHydrateTrackSet.add(tr);
+          hydrateTargets.push(tr);
+        };
+        for (let ai = 0; ai < addedTracks.length; ai++) addHydrateTarget(addedTracks[ai]);
+        for (let ui = 0; ui < updatedTracks.length; ui++) addHydrateTarget(updatedTracks[ui]);
+        const resetChangedTrackSet = new Set();
+        if (renamedOrReparentedFolderIds.size > 0) {
+          const affectedFolderIds = new Set();
+          const folderWalkQueue = [];
+          renamedOrReparentedFolderIds.forEach(rfid => {
+            if (!rfid || removedFolderIds.has(rfid) || affectedFolderIds.has(rfid)) return;
+            affectedFolderIds.add(rfid);
+            folderWalkQueue.push({ fid: rfid, depth: 0 });
+          });
+          let walkHead = 0;
+          while (walkHead < folderWalkQueue.length) {
+            const node = folderWalkQueue[walkHead++];
+            if (node.depth >= 2) continue;
+            const childDirs = childFoldersByParentId.get(node.fid);
+            if (!childDirs) continue;
+            childDirs.forEach(cfid => {
+              if (!cfid || removedFolderIds.has(cfid) || affectedFolderIds.has(cfid)) return;
+              affectedFolderIds.add(cfid);
+              folderWalkQueue.push({ fid: cfid, depth: node.depth + 1 });
+            });
+          }
+          const unknownAlbumVal = (typeof library !== 'undefined' && library && library.UNKNOWN_ALBUM) ? library.UNKNOWN_ALBUM : '—';
+          const unknownArtistVal = (typeof library !== 'undefined' && library && library.UNKNOWN_ARTIST) ? library.UNKNOWN_ARTIST : 'Nghệ sĩ không xác định';
+          const isGenericValFn = (typeof isGenericTrackAlbumOrArtistValue === 'function')
+            ? isGenericTrackAlbumOrArtistValue
+            : (v => !String(v || '').trim() || /^(?:-|—|unknown album|unknown artist|nghệ sĩ không xác định)$/i.test(String(v || '').trim()));
+          const resetFolderDerivedFieldsIfMatched = (tr, oldNamesList, oldGpNamesList) => {
+            if (!tr || tr.metadataLoaded) return false;
+            const curAlbum = String(tr.album || '').trim();
+            const curArtist = String(tr.artist || '').trim();
+            let resetAlbum = isGenericValFn(curAlbum);
+            let resetArtist = false;
+            for (let ni = 0; ni < oldNamesList.length; ni++) {
+              const oldN = String(oldNamesList[ni] || '').trim();
+              if (!oldN) continue;
+              if (curAlbum === oldN) resetAlbum = true;
+              const splitParts = oldN.split(/\s+[–—-]\s+/);
+              if (splitParts.length >= 2) {
+                const oldSplitArtist = splitParts[0].trim();
+                const oldSplitAlbum = splitParts.slice(1).join(' - ').trim();
+                if (oldSplitAlbum && curAlbum === oldSplitAlbum) resetAlbum = true;
+                if (oldSplitArtist && curArtist === oldSplitArtist) resetArtist = true;
+              }
+            }
+            for (let gi = 0; gi < oldGpNamesList.length; gi++) {
+              const oldGp = String(oldGpNamesList[gi] || '').trim();
+              if (oldGp && curArtist === oldGp) resetArtist = true;
+            }
+            let changed = false;
+            if (resetAlbum && tr.album !== unknownAlbumVal) {
+              tr.album = unknownAlbumVal;
+              changed = true;
+            }
+            if (resetArtist && tr.artist !== unknownArtistVal) {
+              tr.artist = unknownArtistVal;
+              changed = true;
+            }
+            return changed;
+          };
+          affectedFolderIds.forEach(afid => {
+            const directTracks = existingByParentId.get(afid) || [];
+            for (let ti = 0; ti < directTracks.length; ti++) {
+              const tr = directTracks[ti];
+              if (!tr || tr.source !== 'google' || deletedRemoteIds.has(tr.remoteId)) continue;
+              const oldNames = [];
+              const oldGpNames = [];
+              const p0 = (Array.isArray(tr.parents) && tr.parents.length) ? String(tr.parents[0] || '').trim() : '';
+              if (p0) {
+                if (prevFolderNameById.has(p0)) oldNames.push(prevFolderNameById.get(p0));
+                const p0Parents = prevFolderParentsById.has(p0) ? prevFolderParentsById.get(p0) : (Array.isArray(googleFolderTree[p0]) ? googleFolderTree[p0] : []);
+                const p1 = (Array.isArray(p0Parents) && p0Parents.length) ? String(p0Parents[0] || '').trim() : '';
+                if (p1) {
+                  const p1OldName = prevFolderNameById.has(p1) ? prevFolderNameById.get(p1) : String(googleFolderNames[p1] || '').trim();
+                  if (prevFolderNameById.has(p1)) {
+                    oldNames.push(p1OldName);
+                    oldGpNames.push(p1OldName);
+                  } else if (prevFolderParentsById.has(p0) && p1OldName) {
+                    oldGpNames.push(p1OldName);
+                  }
+                  const p1Parents = prevFolderParentsById.has(p1) ? prevFolderParentsById.get(p1) : (Array.isArray(googleFolderTree[p1]) ? googleFolderTree[p1] : []);
+                  const p2 = (Array.isArray(p1Parents) && p1Parents.length) ? String(p1Parents[0] || '').trim() : '';
+                  if (p2) {
+                    const p2OldName = prevFolderNameById.has(p2) ? prevFolderNameById.get(p2) : String(googleFolderNames[p2] || '').trim();
+                    if (prevFolderNameById.has(p2) || prevFolderParentsById.has(p1)) {
+                      oldGpNames.push(p2OldName);
+                    }
+                  }
+                }
+              }
+              if (tr.folderName && oldNames.indexOf(tr.folderName) === -1) oldNames.push(tr.folderName);
+              if (resetFolderDerivedFieldsIfMatched(tr, oldNames, oldGpNames)) {
+                resetChangedTrackSet.add(tr);
+              }
+              addHydrateTarget(tr);
+            }
+          });
+        }
+        if (hydrateTargets.length > 0) {
+          const hydratedDelta = await hydrateGoogleDriveFolderMetadata(
+            hydrateTargets,
+            curToken,
+            () => curToken,
+            async () => {
+              curToken = await ensureGoogleToken(true);
+              if (typeof state !== 'undefined' && state && curToken) state.googleToken = curToken;
+              return curToken;
+            }
+          ).catch(() => []);
+          if (hydratedDelta && hydratedDelta.length > 0) {
+            for (let hi = 0; hi < hydratedDelta.length; hi++) markUpdatedTrack(hydratedDelta[hi]);
+          }
+          if (resetChangedTrackSet.size > 0) {
+            resetChangedTrackSet.forEach(tr => markUpdatedTrack(tr));
+          }
+          if ((hydratedDelta && hydratedDelta.length > 0) || resetChangedTrackSet.size > 0) {
+            if (typeof trackMetadataRevision === 'number') trackMetadataRevision++;
+            if (typeof filterOptionsSignature !== 'undefined') filterOptionsSignature = '';
+          }
+        }
+      }
       await flushDeltaPersistence();
       const removed = await removeCloudTracksByRemoteIds('google', deletedRemoteIds);
       if (removed > 0 && typeof pruneOrphanedSliceCacheEntries === 'function') {
@@ -21606,6 +22155,9 @@
       if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
       if (googleFolderTreeDirty && typeof writeCloudFolderTree === 'function') {
         writeCloudFolderTree(GOOGLE_FOLDER_TREE_KEY, googleFolderTree);
+      }
+      if (googleFolderNamesDirty && typeof writeCloudFolderTree === 'function' && typeof GOOGLE_FOLDER_NAMES_KEY === 'string') {
+        writeCloudFolderTree(GOOGLE_FOLDER_NAMES_KEY, googleFolderNames);
       }
       if (nextStartToken) writeCloudDeltaCursor(GOOGLE_DELTA_TOKEN_KEY, nextStartToken);
       if (typeof clearCloudSyncCheckpoint === 'function') clearCloudSyncCheckpoint(GOOGLE_DELTA_RESUME_KEY);
@@ -21756,6 +22308,15 @@
         if (Array.isArray(file.parents) && file.parents.length) {
           const nextParents = file.parents.slice(0, 3);
           if (!Array.isArray(existing.parents) || existing.parents.join(',') !== nextParents.join(',')) {
+            if (!existing.metadataLoaded) {
+              const oldFolderArtists = (typeof resolveOldGoogleFolderArtists === 'function')
+                ? resolveOldGoogleFolderArtists(existing)
+                : (existing.folderName && existing.folderName.split(/\s+[–—-]\s+/).length >= 2 ? [existing.folderName.split(/\s+[–—-]\s+/)[0].trim()] : []);
+              if (existing.artist && oldFolderArtists.indexOf(String(existing.artist).trim()) !== -1) {
+                existing.artist = (typeof library !== 'undefined' && library && library.UNKNOWN_ARTIST) ? library.UNKNOWN_ARTIST : 'Nghệ sĩ không xác định';
+              }
+              existing.album = (typeof library !== 'undefined' && library && library.UNKNOWN_ALBUM) ? library.UNKNOWN_ALBUM : '—';
+            }
             existing.parents = file.parents.slice(0, 3);
             if (existing.hasEmbeddedCover !== true) {
               existing._needsFolderCoverRefresh = true;
@@ -22020,6 +22581,31 @@
           existingByRemoteId.clear();
           existingByTargetId.clear();
         }
+        if (!sawIncompleteSearch && !shortcutScanIncomplete && !persistFailed && typeof syncGoogleFolderTree === 'function') {
+          await syncGoogleFolderTree(
+            token,
+            () => token,
+            async () => { token = await ensureGoogleToken(true); return token; }
+          ).catch(() => null);
+        }
+        if (typeof hydrateGoogleDriveFolderMetadata === 'function' && Array.isArray(state.tracks)) {
+          const gHydrateCandidates = state.tracks.filter(t => t && t.source === 'google' && (!t.metadataLoaded || !t.folderName || !t.remotePath));
+          if (gHydrateCandidates.length > 0) {
+            const hydratedTracks = await hydrateGoogleDriveFolderMetadata(
+              gHydrateCandidates,
+              token,
+              () => token,
+              async () => { token = await ensureGoogleToken(true); return token; }
+            ).catch(() => []);
+            if (hydratedTracks && hydratedTracks.length > 0) {
+              if (typeof persistCloudCatalog === 'function') {
+                await persistCloudCatalog(hydratedTracks, { skipPrune: true }).catch(() => {});
+              }
+              if (typeof trackMetadataRevision === 'number') trackMetadataRevision++;
+              if (typeof filterOptionsSignature !== 'undefined') filterOptionsSignature = '';
+            }
+          }
+        }
         if (typeof pruneCloudCatalog === 'function') await pruneCloudCatalog();
         renderTracks();
         cloudStatus('google', `Google Drive · ${knownIds.size} bài`, 'text-emerald-300');
@@ -22027,13 +22613,6 @@
         console.info('[DriveSync]', { scanned, added, totalGoogleTracks: knownIds.size, skippedCount, skippedSample });
         if (!sawIncompleteSearch && !shortcutScanIncomplete && !persistFailed && typeof writeCloudDeltaCursor === 'function' && typeof GOOGLE_SYNC_SCHEMA_KEY === 'string' && typeof GOOGLE_SYNC_SCHEMA_VERSION === 'string') {
           writeCloudDeltaCursor(GOOGLE_SYNC_SCHEMA_KEY, GOOGLE_SYNC_SCHEMA_VERSION);
-        }
-        if (!sawIncompleteSearch && !shortcutScanIncomplete && !persistFailed && typeof syncGoogleFolderTree === 'function') {
-          await syncGoogleFolderTree(
-            token,
-            () => token,
-            async () => { token = await ensureGoogleToken(true); return token; }
-          ).catch(() => null);
         }
         if (!sawIncompleteSearch && !shortcutScanIncomplete && !persistFailed && typeof fetchGoogleStartPageToken === 'function' && typeof writeCloudDeltaCursor === 'function') {
           const startTok = await fetchGoogleStartPageToken(token).catch(() => '');
@@ -22054,9 +22633,13 @@
       } finally {
         // Chỉ tải metadata/cover nền SAU KHI đã quét xong danh sách file
         if (typeof propagateAndBroadcastCovers === 'function') propagateAndBroadcastCovers();
+        const newlyAddedSet = (newlyAddedTracks.length > 0 && typeof Set === 'function') ? new Set(newlyAddedTracks) : null;
         const pendingMeta = state.tracks.filter(
           track => track.source === 'google' && (typeof needsCloudMetadataEnrichment === 'function' ? needsCloudMetadataEnrichment(track) : (!track.metadataLoaded || !track.cover))
         );
+        if (pendingMeta.length > 1 && typeof getCloudMetadataPriority === 'function') {
+          pendingMeta.sort((a, b) => getCloudMetadataPriority(a, newlyAddedSet) - getCloudMetadataPriority(b, newlyAddedSet));
+        }
         if (pendingMeta.length > 0) queueCloudMetadata(pendingMeta);
         if (typeof checkAndPromptResumeSession === 'function') checkAndPromptResumeSession();
         if (!skippedFullArtworkPass && typeof discoverGoogleDriveFolderArtwork === 'function') {
@@ -23688,6 +24271,9 @@
         const pendingMsMeta = state.tracks.filter(
           track => track.source === 'onedrive' && (typeof needsCloudMetadataEnrichment === 'function' ? needsCloudMetadataEnrichment(track) : (!track.metadataLoaded || !track.cover))
         );
+        if (pendingMsMeta.length > 1 && typeof getCloudMetadataPriority === 'function') {
+          pendingMsMeta.sort((a, b) => getCloudMetadataPriority(a, null) - getCloudMetadataPriority(b, null));
+        }
         if (pendingMsMeta.length > 0) queueCloudMetadata(pendingMsMeta);
         if (typeof checkAndPromptResumeSession === 'function') checkAndPromptResumeSession();
         const clearOneDriveCoverRefreshFlags = () => {
@@ -27515,7 +28101,9 @@
       let startX = 0, startY = 0, startAt = 0, tracking = false;
       el.addEventListener('pointerdown', e => {
         if (e && e.pointerType && e.pointerType !== 'touch') {
-          el._touchTapGhostPending = false;
+          if (!el._touchTapHandledAt || (Date.now() - el._touchTapHandledAt) >= 1200) {
+            el._touchTapGhostPending = false;
+          }
         }
       }, { passive: true });
       el.addEventListener('touchstart', e => {
@@ -27539,8 +28127,11 @@
         const dt = Date.now() - startAt;
         if (dx < 24 && dy < 24 && dt < 700 && !el.disabled) {
           if (e.cancelable && typeof e.preventDefault === 'function') e.preventDefault();
+          if (typeof e.stopPropagation === 'function') e.stopPropagation();
           const nowTap = Date.now();
-          if (el._lastTransportTapExecAt && (nowTap - el._lastTransportTapExecAt) < 120) return;
+          const isPlayPauseBtn = (el.id === 'play-button' || el.id === 'room-play' || el.id === 'mini-play' || el.id === 'fullscreen-play-btn');
+          const bounceMs = isPlayPauseBtn ? 260 : 120;
+          if (el._lastTransportTapExecAt && (nowTap - el._lastTransportTapExecAt) < bounceMs) return;
           el._lastTransportTapExecAt = nowTap;
           el._touchTapGhostPending = true;
           el._touchTapHandledAt = nowTap;
@@ -27551,7 +28142,7 @@
         }
       }, { passive: false });
       el.addEventListener('click', e => {
-        if (e && e.isTrusted && el._touchTapGhostPending && el._touchTapHandledAt && (Date.now() - el._touchTapHandledAt) < 450) {
+        if (e && e.isTrusted && el._touchTapGhostPending && el._touchTapHandledAt && (Date.now() - el._touchTapHandledAt) < 1200) {
           el._touchTapGhostPending = false;
           e.preventDefault();
           e.stopPropagation();
@@ -29219,13 +29810,22 @@
     });
     $('recent-clear').addEventListener('click', clearHistory);
     $('favorites-filter').addEventListener('click', () => { state.favoritesOnly = !state.favoritesOnly; $('favorites-filter').classList.toggle('text-violet-300', state.favoritesOnly); $('favorites-filter').setAttribute('aria-pressed', String(state.favoritesOnly)); renderTracks(); if (isMobileViewport()) setSidebarOpen(false); });
-    $('search').addEventListener('input', event => {
+    function handleLibrarySearchQueryChange() {
       if (state.selectedArtistEntry) { state.selectedArtistEntry = null; state.currentCollectionEntry = null; state.trackScope = null; safeClass($('album-hero'), 'add', 'hidden'); }
-      state.query = event.target.value.toLowerCase(); $('search-mobile').value = event.target.value; renderTracks();
+      const qTrim = String(state.query || '').trim();
+      if (qTrim) {
+        if (state.activeView === 'home') state.activeView = 'songs';
+        if (typeof prioritizeCloudMetadataTracks === 'function' && typeof library !== 'undefined' && typeof library.filterTracks === 'function' && Array.isArray(state.tracks)) {
+          const matchedUntagged = library.filterTracks(state.tracks, { query: qTrim }).filter(tr => tr && !tr.metadataLoaded && (tr.source === 'google' || tr.source === 'onedrive'));
+          if (matchedUntagged.length > 0) prioritizeCloudMetadataTracks(matchedUntagged.slice(0, 20));
+        }
+      }
+    }
+    $('search').addEventListener('input', event => {
+      state.query = event.target.value.toLowerCase(); $('search-mobile').value = event.target.value; handleLibrarySearchQueryChange(); renderTracks();
     });
     $('search-mobile').addEventListener('input', event => {
-      if (state.selectedArtistEntry) { state.selectedArtistEntry = null; state.currentCollectionEntry = null; state.trackScope = null; safeClass($('album-hero'), 'add', 'hidden'); }
-      state.query = event.target.value.toLowerCase(); $('search').value = event.target.value; renderTracks();
+      state.query = event.target.value.toLowerCase(); $('search').value = event.target.value; handleLibrarySearchQueryChange(); renderTracks();
     });
     function renderSearchHistoryDropdown(isMobile) {
       const container = isMobile ? $('search-history-mobile-dropdown') : $('search-history-dropdown');
@@ -29248,6 +29848,7 @@
           $('search-mobile').value = q;
           state.query = q.toLowerCase();
           container.classList.add('hidden');
+          handleLibrarySearchQueryChange();
           renderTracks();
         });
       });
@@ -30165,6 +30766,9 @@
         action('play', async () => {
           if (typeof runCloudWakeTokenRefresh === 'function') runCloudWakeTokenRefresh();
           if (state.isNativeBitPerfectPlaying) {
+            if (!state.isNativeBitPerfectPaused && typeof window !== 'undefined' && window.NocturneNative) {
+              return;
+            }
             if (state.isNativeBitPerfectPaused && window.NocturneNative && window.NocturneNative.resumeBitPerfectPlayback) {
               window.NocturneNative.resumeBitPerfectPlayback();
               if (typeof window.onNativeBitPerfectStateChange === 'function') {
@@ -30194,6 +30798,9 @@
         });
         action('pause', () => {
           if (state.isNativeBitPerfectPlaying) {
+            if (typeof window !== 'undefined' && window.NocturneNative) {
+              return;
+            }
             if (!state.isNativeBitPerfectPaused && window.NocturneNative && window.NocturneNative.pauseBitPerfectPlayback) {
               window.NocturneNative.pauseBitPerfectPlayback();
               if (typeof window.onNativeBitPerfectStateChange === 'function') {
